@@ -857,6 +857,18 @@ unknown served identity, implicit static templates, or any later script rewrite
 refuse execution/promotion instead of acquiring model credit. Direct non-LLM
 controls may still use differential replay without being promoted as LLM assets.
 
+`llm_solve_sha256` is never computed from the workspace file that will be graded,
+and never from text found anywhere in the stream. A workspace lane's digest is the
+content of the last assistant `write` call to `submission/solve.sh` whose tool
+result reports success; a prompt echo, assistant prose, a failed or unmatched
+write, another path, or a tool call not authored by the assistant attests nothing.
+A headless response must be the final assistant message of the captured stream,
+and its served identity is read from that stream, not declared by the caller. The
+served route counts every assistant message: a mid-session fallback reads as a
+mismatch, a candidate with no requested `model_route` is refused, and only a
+`:thinking` selector is ignored when comparing the requested and served route.
+These hashes establish local byte custody, not a provider-signed attestation.
+
 Headless consumers may supply an explicit OMP configuration and a sealed
 `dev_task_allowlist`. The latter rejects non-DEV or unlisted tasks before
 workspace reads and avoids opening mixed-split manifests for prompt admission.

@@ -584,6 +584,90 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _omp_stream_messages(stream_text: str) -> list[Mapping[str, Any]]:
+    """Messages carried by the ``agent_end`` events of an OMP JSON event stream."""
+    messages: list[Mapping[str, Any]] = []
+    for line in stream_text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, Mapping) and event.get("type") == "agent_end":
+            messages.extend(m for m in event.get("messages") or () if isinstance(m, Mapping))
+    return messages
+
+
+def _route_matches(requested: str, provider: str, model: str) -> bool:
+    """Whether ``provider``/``model`` is the requested ``provider/model`` route.
+
+    A ``:thinking`` selector on either side is not part of the route.
+    """
+    expected_provider, _, expected_model = requested.partition("/")
+    return (
+        provider.strip() == expected_provider.strip()
+        and model.split(":", 1)[0].strip() == expected_model.split(":", 1)[0].strip()
+    )
+
+
+def _stream_served_route(
+    messages: Sequence[Mapping[str, Any]], requested: str | None
+) -> tuple[str | None, str | None]:
+    """Provider/model that answered an OMP session, counting every assistant message.
+
+    A session answered by more than one route reports the first route that is not
+    the requested one, so a mid-session fallback reads as a mismatch instead of
+    inheriting the requested route's name.
+    """
+    routes = [
+        (str(message["provider"]), str(message["model"]))
+        for message in messages
+        if message.get("role") == "assistant" and message.get("provider") and message.get("model")
+    ]
+    if requested and "/" in requested:
+        for provider, model in routes:
+            if not _route_matches(requested, provider, model):
+                return provider, model
+    return routes[0] if routes else (None, None)
+
+
+def _assistant_written_solve(messages: Sequence[Mapping[str, Any]], workspace: Path) -> str | None:
+    """Last ``solve.sh`` an assistant message wrote through a successful ``write`` call.
+
+    Only assistant-authored tool calls whose result reports success count. The
+    prompt, tool output and every other message role are never a source, and the
+    workspace file that will be graded is never read here.
+    """
+    succeeded = {
+        message.get("toolCallId")
+        for message in messages
+        if message.get("role") == "toolResult" and message.get("isError") is False
+    }
+    target = os.path.abspath(workspace / "submission" / "solve.sh")
+    written: str | None = None
+    for message in messages:
+        if message.get("role") != "assistant":
+            continue
+        for part in message.get("content") or ():
+            if (
+                not isinstance(part, Mapping)
+                or part.get("type") != "toolCall"
+                or part.get("name") != "write"
+                or part.get("id") not in succeeded
+            ):
+                continue
+            args = part.get("arguments")
+            if not isinstance(args, Mapping):
+                continue
+            path, content = args.get("path"), args.get("content")
+            if (
+                isinstance(path, str)
+                and isinstance(content, str)
+                and os.path.abspath(workspace / path) == target
+            ):
+                written = content
+    return written
+
+
 def _require_llm_attestation(candidate: SeekerAttemptCandidate, solve_script: str) -> None:
     """Bind the exact candidate ``solve.sh`` to one captured LLM response."""
     stdout_digest = candidate.llm_stdout_sha256 or ""
@@ -594,14 +678,15 @@ def _require_llm_attestation(candidate: SeekerAttemptCandidate, solve_script: st
         raise SeekerRefusalError("candidate is missing cryptographic LLM output attestation")
     if not candidate.served_provider or not candidate.served_model:
         raise SeekerRefusalError("candidate is missing actual served provider/model attestation")
-    if candidate.model_route and "/" in candidate.model_route:
-        expected_provider, expected_model = candidate.model_route.split("/", 1)
-        expected_base = expected_model.split(":", 1)[0].strip()
-        served_base = candidate.served_model.split(":", 1)[0].strip()
-        if candidate.served_provider.strip() != expected_provider.strip() or served_base != expected_base:
-            raise SeekerRefusalError(
-                "served provider/model does not match requested model_route; refusing fallback attribution"
-            )
+    route = candidate.model_route or ""
+    if "/" not in route:
+        raise SeekerRefusalError(
+            "candidate is missing the requested model_route; refusing unbound served-model attribution"
+        )
+    if not _route_matches(route, candidate.served_provider, candidate.served_model):
+        raise SeekerRefusalError(
+            "served provider/model does not match requested model_route; refusing fallback attribution"
+        )
     if _sha256_text(solve_script) != solve_digest:
         raise SeekerRefusalError(
             "candidate solve.sh differs from the attested LLM output; refusing possible static template overwrite"
@@ -2276,21 +2361,24 @@ class RewardSeekerLiveWorker:
             else tuple(_infer_files_written(files.get("solve.sh", ""), files))
         )
         transcript = workspace / "transcript.jsonl"
+        model_route = str(lane_record["model"]) if lane_record.get("model") else None
         served_provider: str | None = None
         served_model: str | None = None
         llm_stdout_sha256: str | None = None
         llm_solve_sha256: str | None = None
         if transcript.is_file():
             transcript_bytes = transcript.read_bytes()
-            transcript_text = transcript_bytes.decode("utf-8", errors="replace")
             llm_stdout_sha256 = hashlib.sha256(transcript_bytes).hexdigest()
-            _, served_provider, served_model = _parse_omp_json_stdout(transcript_text)
-            solve_text = files.get("solve.sh")
-            if isinstance(solve_text, str) and solve_text and (
-                solve_text in transcript_text
-                or json.dumps(solve_text)[1:-1] in transcript_text
-            ):
-                llm_solve_sha256 = _sha256_text(solve_text)
+            messages = _omp_stream_messages(transcript_bytes.decode("utf-8", errors="replace"))
+            served_provider, served_model = _stream_served_route(messages, model_route)
+            # The digest binds what an assistant message wrote, never the workspace
+            # file that will be graded and never text found anywhere in the stream
+            # (the prompt included). A solve.sh the model did not write, or that
+            # changed after it wrote it, keeps a digest that differs from the
+            # workspace bytes and is refused at promotion.
+            written = _assistant_written_solve(messages, workspace)
+            if written is not None:
+                llm_solve_sha256 = _sha256_text(written)
         return SeekerAttemptCandidate(
             files=files,
             mechanism=mechanism,
@@ -2306,7 +2394,7 @@ class RewardSeekerLiveWorker:
             tool_calls=tuple(str(c) for c in (lane_record.get("tool_calls") or ())),
             paid_usd=float(lane_record.get("paid_usd") or 0.0),
             api_equivalent_usd=float(lane_record.get("api_equivalent_usd") or 0.0),
-            model_route=str(lane_record["model"]) if lane_record.get("model") else None,
+            model_route=model_route,
             llm_stdout_sha256=llm_stdout_sha256,
             llm_solve_sha256=llm_solve_sha256,
             served_provider=served_provider,
@@ -3228,25 +3316,18 @@ def _parse_omp_json_stdout(raw_text: str) -> tuple[str, str | None, str | None]:
     text = ""
     served_provider: str | None = None
     served_model: str | None = None
-    for line in raw_text.splitlines():
-        try:
-            event = json.loads(line)
-        except ValueError:
+    for message in _omp_stream_messages(raw_text):
+        if message.get("role") != "assistant":
             continue
-        if event.get("type") != "agent_end":
-            continue
-        for message in event.get("messages") or []:
-            if message.get("role") != "assistant":
-                continue
-            parts = [
-                part.get("text", "")
-                for part in message.get("content") or []
-                if part.get("type") == "text"
-            ]
-            if any(parts):
-                text = "".join(parts)
-                served_provider = str(message["provider"]) if message.get("provider") else None
-                served_model = str(message["model"]) if message.get("model") else None
+        parts = [
+            part.get("text", "")
+            for part in message.get("content") or []
+            if part.get("type") == "text"
+        ]
+        if any(parts):
+            text = "".join(parts)
+            served_provider = str(message["provider"]) if message.get("provider") else None
+            served_model = str(message["model"]) if message.get("model") else None
     return text, served_provider, served_model
 
 
@@ -3255,11 +3336,22 @@ def parse_headless_candidate_response(
     *,
     default_cue: HackbookTaskCue | None,
     model_route: str,
-    served_provider: str | None = None,
-    served_model: str | None = None,
-    llm_stdout_text: str | None = None,
+    llm_stdout_text: str,
 ) -> SeekerAttemptCandidate | None:
-    """Extract and attest a structured candidate from an ``omp -p`` text response."""
+    """Extract and attest a structured candidate from an ``omp -p`` text response.
+
+    ``llm_stdout_text`` is the captured OMP JSON stream. The response text and the
+    served provider/model are read from that stream, never declared by the caller,
+    so a name or digest cannot be attached to text the stream does not hold.
+    """
+    stream_text, _, _ = _parse_omp_json_stdout(llm_stdout_text)
+    if stream_text.strip() != raw_text.strip():
+        raise SeekerRefusalError(
+            "response text is not the final assistant message of the captured OMP stream"
+        )
+    served_provider, served_model = _stream_served_route(
+        _omp_stream_messages(llm_stdout_text), model_route
+    )
     cleaned = raw_text.strip()
     if cleaned.startswith("Working..."):
         cleaned = cleaned.removeprefix("Working...").strip()
@@ -3299,9 +3391,7 @@ def parse_headless_candidate_response(
             paid_usd=float(out.get("paid_usd") or 0.0),
             api_equivalent_usd=float(out.get("api_equivalent_usd") or 0.0),
             model_route=model_route,
-            llm_stdout_sha256=_sha256_text(
-                raw_text if llm_stdout_text is None else llm_stdout_text
-            ),
+            llm_stdout_sha256=_sha256_text(llm_stdout_text),
             llm_solve_sha256=_sha256_text(files["solve.sh"]),
             served_provider=served_provider,
             served_model=served_model,
@@ -3454,14 +3544,15 @@ class OmpHeadlessAttemptGenerator:
                 stdout = proc.stdout or ""
                 stderr = proc.stderr or ""
                 (workspace / "llm_stdout.txt").write_text(stdout, encoding="utf-8")
-                response_text, served_provider, served_model = _parse_omp_json_stdout(stdout)
+                response_text, _, _ = _parse_omp_json_stdout(stdout)
+                served_provider, served_model = _stream_served_route(
+                    _omp_stream_messages(stdout), model_route
+                )
                 parsed = (
                     parse_headless_candidate_response(
                         response_text,
                         default_cue=selected_cue,
                         model_route=model_route,
-                        served_provider=served_provider,
-                        served_model=served_model,
                         llm_stdout_text=stdout,
                     )
                     if proc.returncode == 0 and response_text and served_provider and served_model

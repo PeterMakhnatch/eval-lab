@@ -969,10 +969,84 @@ browse-only (`export_root=None`): deployment does not authorize asset exports.
 
 The dashboard adds a **Trace DB Search** tab (always `split=dev`) and an
 **Opus vs Swarm** tab backed by `/api/cloud-db/benchmarks`, which lists retained
-DEV-only `evallab.swarm_bench/v1` reports and `evallab.arm_comparison/v1`
-documents (arms A single strong model, B cheap swarm, C swarm plus Opus
-adjudicator) from `/data/benchmarks/*.json` with exact-byte SHA-256 digests;
-invalid or non-DEV files are reported under `rejected`, never rendered.
+`evallab.swarm_bench/v1`, historic `evallab.arm_comparison/v1` documents
+(arms A single strong model, B cheap swarm, C swarm plus Opus adjudicator), and
+named `evallab.arm_comparison/v2` studies from `/data/benchmarks/*.json`.
+Each document retains its exact-byte SHA-256; invalid or non-DEV-intended
+files are reported under `rejected`, never rendered. Existing reports are not
+rewritten, upgraded into verified coverage, or pooled with another protocol.
+
+The v2 contract supports any nonempty list of uniquely named arms, including
+five-arm studies. `protocol` identifies one prompt/input stratum. The cohort
+retains its full `task_count`: reported `eligible_n + blocked_n` must equal that
+denominator. `split: "dev"` describes the intended cohort, not independent
+clearance of blocked identities. No task contents or model execution are needed
+to read a report.
+
+Each arm's `coverage` partitions that denominator into `answered_n`, `missing_n`,
+`blocked_n`, `refused_n`, `unavailable_n`, `malformed_n`, and `unattested_n`.
+`judged_n` is a subset of answered cells, not another terminal state. An answered
+cell means **all required outputs for that arm/identity** exist and are attested;
+a valid empty answer is not missing. Every arm must retain the common cohort's
+blocked identities. `status` must be `blocked` if any blocked identity exists,
+otherwise `incomplete` until every arm has every answer and required judgment,
+and only then `complete`. These are validated source-reported counts, not an
+independent execution/adjudication audit by the dashboard.
+
+All five full-comparison metric fields must be **null** for blocked or incomplete
+reports, including otherwise complete individual arms. Complete coverage permits
+recorded metrics but does not turn an undefined metric into zero. Non-null
+precision/recall/F1 are finite fractions in `[0, 1]`; primary hit/total counts are
+either both null or nonnegative integers with hits no greater than the total.
+The UI distinguishes `Not available` from a legitimate `0.00%` and never ranks
+models or silently substitutes an answered-only denominator.
+
+`requested_models` and `served_models` are separate lists of distinct
+`provider/model` identities. An unanswered arm can have no served identity;
+the UI never copies requested IDs into that column. Answered arms require served
+identities and an `artifact_sha256` binding retained source evidence. Digest
+presence is not independently verified provider attestation. Unknown spend,
+model-call counts, and an unanswered arm's evidence digest may be null, not
+fabricated zeros or hashes. Arm IDs are trimmed and case-insensitively unique;
+model lists likewise reject duplicate identities. Other fields remain strict
+and extra fields are rejected.
+
+For example, this **synthetic blocked** report is valid; it contains no scores:
+
+```json
+{
+  "schema": "evallab.arm_comparison/v2",
+  "protocol": "synthetic-clean-input-v1",
+  "status": "blocked",
+  "cohort": {
+    "dataset_id": "synthetic-fixture",
+    "split": "dev",
+    "task_count": 7,
+    "eligible_n": 6,
+    "blocked_n": 1
+  },
+  "arms": [{
+    "arm": "planned-frontier",
+    "label": "Synthetic pending arm",
+    "harness": "synthetic-review-only",
+    "retrieval": false,
+    "requested_models": ["fixture/requested-model"],
+    "served_models": [],
+    "coverage": {
+      "answered_n": 0, "judged_n": 0, "missing_n": 6, "blocked_n": 1,
+      "refused_n": 0, "unavailable_n": 0, "malformed_n": 0, "unattested_n": 0
+    },
+    "metrics": {
+      "primary_hits_n": null, "primary_total_n": null,
+      "precision": null, "recall": null, "f1": null
+    },
+    "spend_usd": null,
+    "model_calls": null,
+    "artifact_sha256": null
+  }],
+  "generated_at": "2026-10-25T15:15:00Z"
+}
+```
 
 One Modal class instance owns both SQLite stores. The web endpoint and worker
 method share that owner; do not deploy a second independent writer against

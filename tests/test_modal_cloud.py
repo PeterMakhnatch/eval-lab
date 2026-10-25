@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib
 import json
 import socket
@@ -47,12 +48,24 @@ def isolated_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("MODAL_CONFIG_PATH", str(home / ".modal.toml"))
     monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
     for name in (
-        "DATABASE_URL", "EVALLAB_CLOUD_DATABASE_URL", "EVALLAB_S3_BUCKET",
-        "EVALLAB_S3_ENDPOINT_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
-        "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE",
-        "AWS_SHARED_CREDENTIALS_FILE", "AWS_REGION", "AWS_DEFAULT_REGION",
-        "MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "EVALLAB_CLOUD_TOKEN",
-        "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY",
+        "DATABASE_URL",
+        "EVALLAB_CLOUD_DATABASE_URL",
+        "EVALLAB_S3_BUCKET",
+        "EVALLAB_S3_ENDPOINT_URL",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "AWS_PROFILE",
+        "AWS_CONFIG_FILE",
+        "AWS_SHARED_CREDENTIALS_FILE",
+        "AWS_REGION",
+        "AWS_DEFAULT_REGION",
+        "MODAL_TOKEN_ID",
+        "MODAL_TOKEN_SECRET",
+        "EVALLAB_CLOUD_TOKEN",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -89,11 +102,13 @@ def repo_root(tmp_path: Path) -> Path:
     inventory = root / "research/experiments/mimo-defect-map-v1/inventory.json"
     inventory.parent.mkdir(parents=True)
     inventory.write_text(
-        json.dumps({
-            "dataset_id": "mimo-defect-map-v1",
-            "heldout_task_ids_excluded_from_training_all_versions": [],
-            "tasks": [],
-        }),
+        json.dumps(
+            {
+                "dataset_id": "mimo-defect-map-v1",
+                "heldout_task_ids_excluded_from_training_all_versions": [],
+                "tasks": [],
+            }
+        ),
         encoding="utf-8",
     )
     return root
@@ -102,7 +117,9 @@ def repo_root(tmp_path: Path) -> Path:
 @pytest.fixture
 def runtime(modal_cloud: ModuleType, tmp_path: Path, repo_root: Path) -> Iterator[CloudRuntime]:
     instance = modal_cloud.CloudRuntime(
-        data_root=tmp_path / "data", repo_root=repo_root, token=TOKEN,
+        data_root=tmp_path / "data",
+        repo_root=repo_root,
+        token=TOKEN,
     )
     try:
         yield instance
@@ -130,8 +147,12 @@ def _task(task_id: str, instruction: str, *, split: str = "dev") -> dict[str, An
 
 
 def _issue(
-    issue_id: str, task_id: str, *, status: str = "confirmed",
-    direction: str = "wrong_pass", defect_class: str = "insufficient_checking",
+    issue_id: str,
+    task_id: str,
+    *,
+    status: str = "confirmed",
+    direction: str = "wrong_pass",
+    defect_class: str = "insufficient_checking",
     reproducer: str = "printf 'synthetic fixture'\n",
 ) -> dict[str, Any]:
     return {
@@ -151,8 +172,11 @@ def _issue(
 
 
 def _trace(
-    trace_id: str, task_id: str, receipt: dict[str, Any] | None,
-    *, outcome: str = "unknown",
+    trace_id: str,
+    task_id: str,
+    receipt: dict[str, Any] | None,
+    *,
+    outcome: str = "unknown",
 ) -> dict[str, Any]:
     return {
         "trace_id": trace_id,
@@ -187,44 +211,79 @@ def records(runtime: CloudRuntime) -> dict[str, Any]:
             "cas_uri": issue_uri,
         },
         "issue-provisional-primary": _issue(
-            "issue-provisional-primary", PRIMARY, status="provisional",
-            defect_class="answer_format", reproducer="printf 'provisionalneedle'\n",
+            "issue-provisional-primary",
+            PRIMARY,
+            status="provisional",
+            defect_class="answer_format",
+            reproducer="printf 'provisionalneedle'\n",
         ),
         "issue-refuted-secondary": _issue(
-            "issue-refuted-secondary", SECONDARY, status="refuted", defect_class="coverage",
+            "issue-refuted-secondary",
+            SECONDARY,
+            status="refuted",
+            defect_class="coverage",
         ),
         "issue-confirmed-secondary": _issue(
-            "issue-confirmed-secondary", SECONDARY,
-            direction="unfair_fail", defect_class="bad_oracle",
+            "issue-confirmed-secondary",
+            SECONDARY,
+            direction="unfair_fail",
+            defect_class="bad_oracle",
         ),
     }
     receipts = {
-        VERIFIED: {"status": "verified", "source": "retained-fixture", "checks": [{"status": "refuted"}]},
+        VERIFIED: {
+            "status": "verified",
+            "source": "retained-fixture",
+            "checks": [{"status": "refuted"}],
+        },
         PROVISIONAL: {"status": "provisional", "note": "source claim, not freshly verified"},
         REFUTED: {"status": "refuted", "note": "source rejection retained"},
     }
     traces = {
-        VERIFIED: {**_trace(VERIFIED, PRIMARY, receipts[VERIFIED], outcome="wrong_pass"), "raw_cas_uri": raw_uri},
+        VERIFIED: {
+            **_trace(VERIFIED, PRIMARY, receipts[VERIFIED], outcome="wrong_pass"),
+            "raw_cas_uri": raw_uri,
+        },
         PROVISIONAL: _trace(PROVISIONAL, PRIMARY, receipts[PROVISIONAL]),
         REFUTED: _trace(REFUTED, SECONDARY, receipts[REFUTED], outcome="unfair_fail"),
     }
     steps = {
         VERIFIED: [
             {
-                "step_index": 9, "role": "tool", "tool_name": "terminal",
-                "content_text": observation, "observation_preview": "retained observation",
+                "step_index": 9,
+                "role": "tool",
+                "tool_name": "terminal",
+                "content_text": observation,
+                "observation_preview": "retained observation",
                 "observation_cas_uri": raw_uri,
                 "flags_json": {"status": "provisional", "source": "retained-fixture"},
             },
             {"step_index": 0, "role": "user", "content_text": "Synthetic bounded fixture request."},
             {
-                "step_index": 2, "role": "assistant", "tool_name": "terminal",
+                "step_index": 2,
+                "role": "assistant",
+                "tool_name": "terminal",
                 "command_or_action": "printf 'synthetic fixture'",
-                "content_text": "actionneedle", "flags_json": ["retained"],
+                "content_text": "actionneedle",
+                "flags_json": ["retained"],
             },
         ],
-        PROVISIONAL: [{"step_index": 0, "role": "tool", "tool_name": "browser", "content_text": "browserneedle"}],
-        REFUTED: [{"step_index": 5, "role": "tool", "tool_name": "python", "content_text": "secondarytrace"}],
+        PROVISIONAL: [
+            {
+                "step_index": 0,
+                "role": "tool",
+                "tool_name": "browser",
+                "content_text": "browserneedle",
+            }
+        ],
+        REFUTED: [
+            {
+                "step_index": 5,
+                "role": "tool",
+                "tool_name": "python",
+                "content_text": "secondarytrace",
+            }
+        ],
     }
     for task in tasks.values():
         runtime.database.upsert_task(task)
@@ -234,8 +293,12 @@ def records(runtime: CloudRuntime) -> dict[str, Any]:
         trace["step_count"] = len(steps[trace_id])
         runtime.database.upsert_trace(trace, steps=steps[trace_id])
     return {
-        "tasks": tasks, "issues": issues, "traces": traces, "steps": steps,
-        "raw_uri": raw_uri, "raw_bundle": raw_bundle,
+        "tasks": tasks,
+        "issues": issues,
+        "traces": traces,
+        "steps": steps,
+        "raw_uri": raw_uri,
+        "raw_bundle": raw_bundle,
     }
 
 
@@ -250,13 +313,16 @@ def test_modal_definitions_are_local_handles(modal_cloud: ModuleType) -> None:
 
 
 def test_repository_root_uses_fixed_cloud_mount_for_flattened_modal_import(
-    modal_cloud: ModuleType, tmp_path: Path,
+    modal_cloud: ModuleType,
+    tmp_path: Path,
 ) -> None:
     assert Path("/opt/eval-lab") == modal_cloud._repository_root(
-        "/root/modal_cloud.py", local=False,
+        "/root/modal_cloud.py",
+        local=False,
     )
     assert tmp_path == modal_cloud._repository_root(
-        str(tmp_path / "src/evallab/production/modal_cloud.py"), local=True,
+        str(tmp_path / "src/evallab/production/modal_cloud.py"),
+        local=True,
     )
 
 
@@ -266,7 +332,8 @@ def test_all_runtime_stores_use_data_root(runtime: CloudRuntime, tmp_path: Path)
     assert isinstance(runtime.database, CloudTraceDatabase)
     assert isinstance(runtime.cas, S3CompatibleCAS)
     for store, filename in (
-        (runtime.queue, "prod.sqlite"), (runtime.database, "cloud-trace-db.sqlite"),
+        (runtime.queue, "prod.sqlite"),
+        (runtime.database, "cloud-trace-db.sqlite"),
     ):
         paths = {
             Path(row[2]).resolve()
@@ -281,20 +348,32 @@ def test_all_runtime_stores_use_data_root(runtime: CloudRuntime, tmp_path: Path)
     assert (data_root / "cas/sha256" / uri.rsplit("/", 1)[-1]).is_file()
 
 
-@pytest.mark.parametrize("path", [
-    "/", "/api/state", "/api/stream", "/api/cloud-db/stats",
-    "/api/cloud-db/tasks", "/api/cloud-db/issues", "/api/cloud-db/traces",
-    "/api/not-a-route",
-])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/",
+        "/api/state",
+        "/api/stream",
+        "/api/cloud-db/stats",
+        "/api/cloud-db/tasks",
+        "/api/cloud-db/issues",
+        "/api/cloud-db/traces",
+        "/api/cloud-db/benchmarks",
+        "/api/not-a-route",
+    ],
+)
 def test_dashboard_and_all_api_paths_require_auth(client: TestClient, path: str) -> None:
     response = client.get(path)
     assert response.status_code == 401
     assert TOKEN not in response.text
 
 
-@pytest.mark.parametrize("headers", [{}, {"Authorization": "Bearer wrong"}, {"Authorization": f"Basic {TOKEN}"}])
+@pytest.mark.parametrize(
+    "headers", [{}, {"Authorization": "Bearer wrong"}, {"Authorization": f"Basic {TOKEN}"}]
+)
 def test_query_token_and_invalid_credentials_do_not_authorize(
-    client: TestClient, headers: dict[str, str],
+    client: TestClient,
+    headers: dict[str, str],
 ) -> None:
     response = client.get("/api/state", params={"token": TOKEN}, headers=headers)
     assert response.status_code == 401
@@ -311,7 +390,8 @@ def test_bearer_serves_protected_dashboard_and_state(client: TestClient) -> None
 
 
 def test_auth_fragment_page_is_public_without_token_or_data(
-    client: TestClient, records: dict[str, Any],
+    client: TestClient,
+    records: dict[str, Any],
 ) -> None:
     response = client.get(f"/auth#token={TOKEN}")
     assert response.status_code == 200
@@ -346,7 +426,9 @@ def test_login_rejects_bad_token_and_sets_secure_session_cookie(client: TestClie
 
 
 def test_stats_count_real_stores_and_cas_objects(
-    client: TestClient, records: dict[str, Any], tmp_path: Path,
+    client: TestClient,
+    records: dict[str, Any],
+    tmp_path: Path,
 ) -> None:
     response = client.get("/api/cloud-db/stats", headers=AUTH)
     assert response.status_code == 200
@@ -361,15 +443,21 @@ def test_stats_count_real_stores_and_cas_objects(
     assert stats["cas_objects"] == 3
 
 
-@pytest.mark.parametrize(("params", "expected"), [
-    ({}, {PRIMARY, SECONDARY}),
-    ({"task_id": PRIMARY}, {PRIMARY}),
-    ({"q": "PRIMARYNEEDLE"}, {PRIMARY}),
-    ({"task_id": PRIMARY, "q": "secondaryinstruction"}, set()),
-    ({"q": "missingneedle"}, set()),
-])
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        ({}, {PRIMARY, SECONDARY}),
+        ({"task_id": PRIMARY}, {PRIMARY}),
+        ({"q": "PRIMARYNEEDLE"}, {PRIMARY}),
+        ({"task_id": PRIMARY, "q": "secondaryinstruction"}, set()),
+        ({"q": "missingneedle"}, set()),
+    ],
+)
 def test_task_queries_return_complete_source_records(
-    client: TestClient, records: dict[str, Any], params: dict[str, str], expected: set[str],
+    client: TestClient,
+    records: dict[str, Any],
+    params: dict[str, str],
+    expected: set[str],
 ) -> None:
     response = client.get("/api/cloud-db/tasks", headers=AUTH, params=params)
     assert response.status_code == 200
@@ -378,21 +466,44 @@ def test_task_queries_return_complete_source_records(
     assert rows == [records["tasks"][task_id] for task_id in sorted(expected)]
 
 
-@pytest.mark.parametrize(("params", "expected"), [
-    ({}, {"issue-confirmed-primary", "issue-provisional-primary", "issue-refuted-secondary", "issue-confirmed-secondary"}),
-    ({"only_verified": "true"}, {"issue-confirmed-primary", "issue-confirmed-secondary"}),
-    ({"task_id": PRIMARY}, {"issue-confirmed-primary", "issue-provisional-primary"}),
-    ({"direction": "unfair_fail"}, {"issue-confirmed-secondary"}),
-    ({"defect_class": "insufficient_checking"}, {"issue-confirmed-primary"}),
-    ({"defect_class": "insuff"}, set()),
-    ({"q": "WITNESSNEEDLE"}, {"issue-confirmed-primary"}),
-    ({"q": "primaryneedle"}, {"issue-confirmed-primary", "issue-provisional-primary"}),
-    ({"q": "provisionalneedle", "only_verified": "true"}, set()),
-    ({"task_id": PRIMARY, "direction": "wrong_pass", "defect_class": "insufficient_checking", "q": "witnessneedle", "only_verified": "true"}, {"issue-confirmed-primary"}),
-    ({"task_id": "missing-task"}, set()),
-])
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        (
+            {},
+            {
+                "issue-confirmed-primary",
+                "issue-provisional-primary",
+                "issue-refuted-secondary",
+                "issue-confirmed-secondary",
+            },
+        ),
+        ({"only_verified": "true"}, {"issue-confirmed-primary", "issue-confirmed-secondary"}),
+        ({"task_id": PRIMARY}, {"issue-confirmed-primary", "issue-provisional-primary"}),
+        ({"direction": "unfair_fail"}, {"issue-confirmed-secondary"}),
+        ({"defect_class": "insufficient_checking"}, {"issue-confirmed-primary"}),
+        ({"defect_class": "insuff"}, set()),
+        ({"q": "WITNESSNEEDLE"}, {"issue-confirmed-primary"}),
+        ({"q": "primaryneedle"}, {"issue-confirmed-primary", "issue-provisional-primary"}),
+        ({"q": "provisionalneedle", "only_verified": "true"}, set()),
+        (
+            {
+                "task_id": PRIMARY,
+                "direction": "wrong_pass",
+                "defect_class": "insufficient_checking",
+                "q": "witnessneedle",
+                "only_verified": "true",
+            },
+            {"issue-confirmed-primary"},
+        ),
+        ({"task_id": "missing-task"}, set()),
+    ],
+)
 def test_issue_queries_preserve_full_evidence_nested_task_and_status(
-    client: TestClient, records: dict[str, Any], params: dict[str, str], expected: set[str],
+    client: TestClient,
+    records: dict[str, Any],
+    params: dict[str, str],
+    expected: set[str],
 ) -> None:
     response = client.get("/api/cloud-db/issues", headers=AUTH, params=params)
     assert response.status_code == 200
@@ -403,26 +514,42 @@ def test_issue_queries_preserve_full_evidence_nested_task_and_status(
         assert row == {**source, "task": records["tasks"][source["task_id"]]}
 
 
-@pytest.mark.parametrize(("params", "expected"), [
-    ({}, {VERIFIED, PROVISIONAL, REFUTED}),
-    ({"only_verified": "true"}, {VERIFIED}),
-    ({"only_verified": "false"}, {VERIFIED, PROVISIONAL, REFUTED}),
-    ({"task_id": PRIMARY}, {VERIFIED, PROVISIONAL}),
-    ({"direction": "unfair_fail"}, {REFUTED}),
-    ({"defect_class": "insufficient_checking"}, {VERIFIED, PROVISIONAL}),
-    ({"tool_name": "terminal"}, {VERIFIED}),
-    ({"tool_name": "term"}, set()),
-    ({"q": "actionneedle"}, {VERIFIED}),
-    ({"q": "observationtail"}, {VERIFIED}),
-    ({"q": "witnessneedle"}, {VERIFIED, PROVISIONAL}),
-    ({"q": "browserneedle"}, {PROVISIONAL}),
-    ({"task_id": SECONDARY, "direction": "wrong_pass", "defect_class": "bad_oracle"}, set()),
-    ({"q": "primaryneedle", "task_id": PRIMARY, "direction": "wrong_pass", "defect_class": "insufficient_checking", "tool_name": "terminal", "only_verified": "true"}, {VERIFIED}),
-    ({"q": "missingneedle"}, set()),
-])
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        ({}, {VERIFIED, PROVISIONAL, REFUTED}),
+        ({"only_verified": "true"}, {VERIFIED}),
+        ({"only_verified": "false"}, {VERIFIED, PROVISIONAL, REFUTED}),
+        ({"task_id": PRIMARY}, {VERIFIED, PROVISIONAL}),
+        ({"direction": "unfair_fail"}, {REFUTED}),
+        ({"defect_class": "insufficient_checking"}, {VERIFIED, PROVISIONAL}),
+        ({"tool_name": "terminal"}, {VERIFIED}),
+        ({"tool_name": "term"}, set()),
+        ({"q": "actionneedle"}, {VERIFIED}),
+        ({"q": "observationtail"}, {VERIFIED}),
+        ({"q": "witnessneedle"}, {VERIFIED, PROVISIONAL}),
+        ({"q": "browserneedle"}, {PROVISIONAL}),
+        ({"task_id": SECONDARY, "direction": "wrong_pass", "defect_class": "bad_oracle"}, set()),
+        (
+            {
+                "q": "primaryneedle",
+                "task_id": PRIMARY,
+                "direction": "wrong_pass",
+                "defect_class": "insufficient_checking",
+                "tool_name": "terminal",
+                "only_verified": "true",
+            },
+            {VERIFIED},
+        ),
+        ({"q": "missingneedle"}, set()),
+    ],
+)
 def test_trace_queries_return_fully_hydrated_untruncated_ordered_source_data(
-    client: TestClient, runtime: CloudRuntime, records: dict[str, Any],
-    params: dict[str, str], expected: set[str],
+    client: TestClient,
+    runtime: CloudRuntime,
+    records: dict[str, Any],
+    params: dict[str, str],
+    expected: set[str],
 ) -> None:
     response = client.get("/api/cloud-db/traces", headers=AUTH, params=params)
     assert response.status_code == 200
@@ -434,11 +561,14 @@ def test_trace_queries_return_fully_hydrated_untruncated_ordered_source_data(
         assert {key: row[key] for key in source} == source
         assert row["task"] == records["tasks"][source["task_id"]]
         assert row["issues"] == [
-            issue for issue_id, issue in sorted(records["issues"].items())
+            issue
+            for issue_id, issue in sorted(records["issues"].items())
             if issue["task_id"] == source["task_id"]
         ]
         ordered = sorted(records["steps"][trace_id], key=lambda step: step["step_index"])
-        assert [step["step_index"] for step in row["steps"]] == [step["step_index"] for step in ordered]
+        assert [step["step_index"] for step in row["steps"]] == [
+            step["step_index"] for step in ordered
+        ]
         for actual, original in zip(row["steps"], ordered, strict=True):
             assert {key: actual[key] for key in original} == original
         if trace_id == VERIFIED:
@@ -446,7 +576,8 @@ def test_trace_queries_return_fully_hydrated_untruncated_ordered_source_data(
 
 
 def test_database_endpoints_do_not_clip_result_collections(
-    client: TestClient, runtime: CloudRuntime,
+    client: TestClient,
+    runtime: CloudRuntime,
 ) -> None:
     count = 137
     for index in range(count):
@@ -458,41 +589,331 @@ def test_database_endpoints_do_not_clip_result_collections(
             steps=[{"step_index": 0, "role": "user", "content_text": identifier}],
         )
     for collection, identifier_key in (
-        ("tasks", "task_id"), ("issues", "issue_id"), ("traces", "trace_id"),
+        ("tasks", "task_id"),
+        ("issues", "issue_id"),
+        ("traces", "trace_id"),
     ):
         response = client.get(f"/api/cloud-db/{collection}", headers=AUTH)
         assert response.status_code == 200
         rows = response.json()[collection]
         assert len(rows) == count
-        assert {row[identifier_key] for row in rows} == {f"bulk-{index:03}" for index in range(count)}
+        assert {row[identifier_key] for row in rows} == {
+            f"bulk-{index:03}" for index in range(count)
+        }
+
+
+def test_dev_split_filter_omits_sealed_tasks_traces_and_issues_without_changing_defaults(
+    client: TestClient,
+    records: dict[str, Any],
+) -> None:
+    for collection, key, all_ids, dev_ids in (
+        ("tasks", "task_id", {PRIMARY, SECONDARY}, {PRIMARY}),
+        ("traces", "trace_id", {VERIFIED, PROVISIONAL, REFUTED}, {VERIFIED, PROVISIONAL}),
+        (
+            "issues",
+            "issue_id",
+            set(records["issues"]),
+            {"issue-confirmed-primary", "issue-provisional-primary"},
+        ),
+    ):
+        default = client.get(f"/api/cloud-db/{collection}", headers=AUTH)
+        assert {row[key] for row in default.json()[collection]} == all_ids
+        dev = client.get(f"/api/cloud-db/{collection}", headers=AUTH, params={"split": "dev"})
+        assert dev.status_code == 200
+        assert {row[key] for row in dev.json()[collection]} == dev_ids
+        assert "secondaryinstruction" not in dev.text
+        assert "secondarytrace" not in dev.text
+        assert (
+            client.get(
+                f"/api/cloud-db/{collection}",
+                headers=AUTH,
+                params={"task_id": SECONDARY, "split": "dev"},
+            ).json()[collection]
+            == []
+        )
+
+
+def _swarm_benchmark_report() -> dict[str, Any]:
+    return {
+        "schema": "evallab.swarm_bench/v1",
+        "split": "dev",
+        "budget_per_task": 3,
+        "paid_api_spend_usd": 0.0,
+        "model_calls": 0,
+        "worker_telemetry": {"fixture": {"served_model": "fixture/cheap-model"}},
+        "strategies": {
+            "synthetic_strategy": {
+                "selected_count": 1,
+                "primary_hits_n": 0,
+                "primary_total_n": 1,
+                "secondary_hits_n": 0,
+                "secondary_total_n": 1,
+                "unique_key_precision": 0.0,
+                "secondary_f1": 0.0,
+                "within_task_budget": True,
+                "selected_prediction_ids": ["synthetic-only"],
+            },
+        },
+        "tracks": [{"track": 1, "status": "available"}],
+    }
+
+
+def _arm_comparison_report() -> dict[str, Any]:
+    return {
+        "schema": "evallab.arm_comparison/v1",
+        "cohort": {"dataset_id": "synthetic-cloud-fixture", "split": "dev", "task_count": 1},
+        "arms": [
+            {
+                "arm": arm,
+                "label": "Synthetic fixture " + arm,
+                "served_models": ["fixture/model-" + arm.lower()],
+                "harness": "synthetic-fixture-harness",
+                "retrieval": arm == "A",
+                "metrics": {
+                    "primary_hits_n": 0,
+                    "primary_total_n": 1,
+                    "precision": 0.0,
+                    "recall": 0.0,
+                    "f1": 0.0,
+                },
+                "spend_usd": 0.0,
+                "model_calls": 0,
+                "artifact_sha256": arm.lower() * 64,
+            }
+            for arm in ("A", "B", "C")
+        ],
+        "generated_at": "2026-10-25T12:00:00Z",
+    }
+
+
+def test_retained_benchmarks_list_both_schemas_and_hash_exact_document_bytes(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    expected = []
+    for name, report in (
+        ("arms.json", _arm_comparison_report()),
+        ("swarm.json", _swarm_benchmark_report()),
+    ):
+        raw = (json.dumps(report, indent=2) + "\n").encode("utf-8")
+        (directory / name).write_bytes(raw)
+        expected.append({"file": name, "sha256": hashlib.sha256(raw).hexdigest(), "report": report})
+    (directory / "unrelated.txt").write_text("not a benchmark", encoding="utf-8")
+    response = client.get("/api/cloud-db/benchmarks", headers=AUTH)
+    assert response.status_code == 200
+    assert response.json() == {"benchmarks": expected, "rejected": []}
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["referrer-policy"] == "no-referrer"
+
+
+@pytest.mark.parametrize("directory_exists", [False, True], ids=["missing", "empty"])
+def test_no_retained_benchmark_data_is_an_empty_listing_without_creating_directory(
+    client: TestClient,
+    runtime: CloudRuntime,
+    directory_exists: bool,
+) -> None:
+    directory = runtime.data_root / "benchmarks"
+    if directory_exists:
+        directory.mkdir()
+    assert client.get("/api/cloud-db/benchmarks", headers=AUTH).json() == {
+        "benchmarks": [],
+        "rejected": [],
+    }
+    assert directory.exists() is directory_exists
+
+
+def test_invalid_benchmark_files_are_each_rejected_with_a_reason(
+    client: TestClient,
+    runtime: CloudRuntime,
+    modal_cloud: ModuleType,
+) -> None:
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    sealed = _arm_comparison_report()
+    sealed["cohort"]["split"] = "test"
+    missing_models = _arm_comparison_report()
+    del missing_models["arms"][0]["served_models"]
+    unknown_arm = _arm_comparison_report()
+    unknown_arm["arms"][0]["arm"] = "D"
+    sealed_swarm = _swarm_benchmark_report()
+    sealed_swarm["split"] = "heldout"
+    for name, report in (
+        ("sealed.json", sealed),
+        ("missing-models.json", missing_models),
+        ("unknown-arm.json", unknown_arm),
+        ("sealed-swarm.json", sealed_swarm),
+    ):
+        (directory / name).write_text(json.dumps(report), encoding="utf-8")
+    (directory / "malformed.json").write_text('{"schema":', encoding="utf-8")
+    (directory / "oversized.json").write_bytes(b" " * (modal_cloud._MAX_BENCHMARK_BYTES + 1))
+    response = client.get("/api/cloud-db/benchmarks", headers=AUTH)
+    assert response.status_code == 200
+    assert response.json()["benchmarks"] == []
+    rejected = {item["file"]: item["reason"] for item in response.json()["rejected"]}
+    assert set(rejected) == {
+        "sealed.json",
+        "missing-models.json",
+        "unknown-arm.json",
+        "sealed-swarm.json",
+        "malformed.json",
+        "oversized.json",
+    }
+    assert "cohort.split" in rejected["sealed.json"]
+    assert "served_models" in rejected["missing-models.json"]
+    assert "arms.0.arm" in rejected["unknown-arm.json"]
+    assert "split" in rejected["sealed-swarm.json"]
+    assert "Expecting" in rejected["malformed.json"]
+    assert "byte limit" in rejected["oversized.json"]
+    assert all(rejected.values())
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "reason"),
+    [
+        (("cohort", "task_count"), True, "task_count"),
+        (("arms", 0, "served_models"), [], "served_models"),
+        (("arms", 0, "served_models"), ["model-without-provider"], "served_models"),
+        (("arms", 0, "metrics", "precision"), 1.1, "precision"),
+        (("arms", 0, "metrics", "primary_hits_n"), 2, "primary_hits_n"),
+        (("arms", 0, "spend_usd"), -1.0, "spend_usd"),
+        (("arms", 0, "artifact_sha256"), "not-a-digest", "artifact_sha256"),
+        (("generated_at",), "2026-10-25T12:00:00", "generated_at"),
+        (("schema",), "unknown/v1", "Unknown benchmark schema"),
+        (("arms", 1, "arm"), "A", "arm identifiers must be unique"),
+        (("extra",), "not-in-the-contract", "extra"),
+    ],
+)
+def test_arm_comparison_schema_is_strict(
+    client: TestClient,
+    runtime: CloudRuntime,
+    path: tuple[str | int, ...],
+    value: Any,
+    reason: str,
+) -> None:
+    report = _arm_comparison_report()
+    target: Any = report
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    (directory / "invalid.json").write_text(json.dumps(report), encoding="utf-8")
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["benchmarks"] == []
+    assert len(result["rejected"]) == 1
+    assert reason in result["rejected"][0]["reason"]
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b'{"schema":"evallab.swarm_bench/v1","schema":"evallab.arm_comparison/v1"}',
+        b'{"schema":"evallab.arm_comparison/v1","spend_usd":NaN}',
+        b'{"schema":"evallab.swarm_bench/v1","extra":1e400}',
+        b"\xff",
+        b"[]",
+    ],
+)
+def test_nonstandard_benchmark_json_is_rejected(
+    client: TestClient,
+    runtime: CloudRuntime,
+    raw: bytes,
+) -> None:
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    (directory / "invalid.json").write_bytes(raw)
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["benchmarks"] == []
+    assert result["rejected"][0]["file"] == "invalid.json"
+    assert result["rejected"][0]["reason"]
+
+
+def test_benchmark_listing_rejects_symlinks_and_nonregular_json_entries(
+    client: TestClient,
+    runtime: CloudRuntime,
+    tmp_path: Path,
+) -> None:
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text(json.dumps(_arm_comparison_report()), encoding="utf-8")
+    (directory / "escape.json").symlink_to(outside)
+    (directory / "subdirectory.json").mkdir()
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["benchmarks"] == []
+    assert {item["file"] for item in result["rejected"]} == {"escape.json", "subdirectory.json"}
+    assert all(item["reason"] for item in result["rejected"])
+
+
+def test_benchmark_listing_does_not_follow_a_symlinked_directory(
+    client: TestClient,
+    runtime: CloudRuntime,
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside-benchmarks"
+    outside.mkdir()
+    (outside / "private.json").write_text(json.dumps(_arm_comparison_report()), encoding="utf-8")
+    (runtime.data_root / "benchmarks").symlink_to(outside, target_is_directory=True)
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["benchmarks"] == []
+    assert result["rejected"][0]["file"] == "benchmarks"
+    assert result["rejected"][0]["reason"]
 
 
 def _append_live_event(
-    queue: ContinuousWorkQueue, event_id: str, *, event_type: str = "trace.partial",
-    status: str = "provisional", payload: dict[str, Any] | None = None,
+    queue: ContinuousWorkQueue,
+    event_id: str,
+    *,
+    event_type: str = "trace.partial",
+    status: str = "provisional",
+    payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return queue.append_event({
-        "event_id": event_id, "run_id": "cloud-live-run", "system": "task_quality",
-        "event_type": event_type, "status": status, "prefix_step": 2,
-        "ts": "2026-10-24T12:00:00+00:00",
-        "payload": payload if payload is not None else {"step": {"step_id": 2, "message": event_id}},
-    })
+    return queue.append_event(
+        {
+            "event_id": event_id,
+            "run_id": "cloud-live-run",
+            "system": "task_quality",
+            "event_type": event_type,
+            "status": status,
+            "prefix_step": 2,
+            "ts": "2026-10-24T12:00:00+00:00",
+            "payload": payload
+            if payload is not None
+            else {"step": {"step_id": 2, "message": event_id}},
+        }
+    )
 
 
 def test_state_keeps_existing_control_plane_shape_and_projects_live_events(
-    client: TestClient, runtime: CloudRuntime,
+    client: TestClient,
+    runtime: CloudRuntime,
 ) -> None:
     _append_live_event(runtime.queue, "live-prefix")
     finding = _append_live_event(
-        runtime.queue, "live-finding", event_type="qa.finding/v1",
-        payload={"finding_id": "retained-finding", "summary": "Synthetic source finding", "severity": "high"},
+        runtime.queue,
+        "live-finding",
+        event_type="qa.finding/v1",
+        payload={
+            "finding_id": "retained-finding",
+            "summary": "Synthetic source finding",
+            "severity": "high",
+        },
     )
     response = client.get("/api/state", headers=AUTH)
     assert response.status_code == 200
     state = response.json()
     assert {
-        "cursor", "last_seq", "queue", "systems", "run_items", "partial_traces",
-        "suspicion_cards", "interventions", "verified_assets",
+        "cursor",
+        "last_seq",
+        "queue",
+        "systems",
+        "run_items",
+        "partial_traces",
+        "suspicion_cards",
+        "interventions",
+        "verified_assets",
     } <= state.keys()
     assert set(state["systems"]) == {"task_quality", "reward_seeker", "misalignment"}
     assert state["cursor"] == finding["event_id"]
@@ -501,7 +922,10 @@ def test_state_keeps_existing_control_plane_shape_and_projects_live_events(
     assert state["suspicion_cards"][0]["status"] == "provisional"
 
     latest = _append_live_event(
-        runtime.queue, "live-refutation", event_type="qa.finding/v1", status="refuted",
+        runtime.queue,
+        "live-refutation",
+        event_type="qa.finding/v1",
+        status="refuted",
         payload={"finding_id": "retained-finding", "summary": "Source refutation retained"},
     )
     updated = client.get("/api/state", headers=AUTH).json()
@@ -510,9 +934,13 @@ def test_state_keeps_existing_control_plane_shape_and_projects_live_events(
 
 
 def _stream(
-    app: FastAPI, *, stop: Callable[[str], bool], cursor: str | None = None,
+    app: FastAPI,
+    *,
+    stop: Callable[[str], bool],
+    cursor: str | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Disconnect the actual ASGI stream after a frame, never buffer it forever."""
+
     async def run() -> tuple[dict[str, Any], str]:
         disconnected = asyncio.Event()
         request_sent = False
@@ -539,10 +967,17 @@ def _stream(
         if cursor is not None:
             headers.append((b"last-event-id", cursor.encode()))
         scope = {
-            "type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"},
-            "http_version": "1.1", "method": "GET", "scheme": "https",
-            "path": "/api/stream", "raw_path": b"/api/stream", "query_string": b"",
-            "root_path": "", "server": ("cloud.test", 443), "client": ("testclient", 1),
+            "type": "http",
+            "asgi": {"version": "3.0", "spec_version": "2.3"},
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "https",
+            "path": "/api/stream",
+            "raw_path": b"/api/stream",
+            "query_string": b"",
+            "root_path": "",
+            "server": ("cloud.test", 443),
+            "client": ("testclient", 1),
             "headers": headers,
         }
         await asyncio.wait_for(app(scope, receive, send), timeout=5)
@@ -577,7 +1012,8 @@ def test_authenticated_sse_serves_snapshot_and_journal_replay_without_hanging(
     assert initial["data"]["last_seq"] == latest["seq"]
 
     response, body = _stream(
-        runtime.app, cursor=first["event_id"],
+        runtime.app,
+        cursor=first["event_id"],
         stop=lambda text: any(frame.get("id") == latest["event_id"] for frame in _frames(text)),
     )
     assert response["status"] == 200
@@ -586,8 +1022,11 @@ def test_authenticated_sse_serves_snapshot_and_journal_replay_without_hanging(
 
 @pytest.mark.parametrize("failure", [False, True], ids=["success", "step-error"])
 def test_explicit_supervisor_step_shares_modal_policy_closes_workers_and_commits(
-    modal_cloud: ModuleType, repo_root: Path, tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch, failure: bool,
+    modal_cloud: ModuleType,
+    repo_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: bool,
 ) -> None:
     created: dict[str, Any] = {}
     calls: list[str] = []
@@ -652,9 +1091,12 @@ def test_explicit_supervisor_step_shares_modal_policy_closes_workers_and_commits
             calls.append("supervisor.close")
 
     for name, replacement in (
-        ("MisalignmentLiveWorker", Monitor), ("TaskQualityLiveWorker", Quality),
-        ("RewardSeekerLiveWorker", Seeker), ("LocalJetStreamAdapter", publisher),
-        ("OutboxRelay", Relay), ("ProductionSupervisor", Supervisor),
+        ("MisalignmentLiveWorker", Monitor),
+        ("TaskQualityLiveWorker", Quality),
+        ("RewardSeekerLiveWorker", Seeker),
+        ("LocalJetStreamAdapter", publisher),
+        ("OutboxRelay", Relay),
+        ("ProductionSupervisor", Supervisor),
     ):
         monkeypatch.setattr(modal_cloud, name, replacement)
 
@@ -663,9 +1105,14 @@ def test_explicit_supervisor_step_shares_modal_policy_closes_workers_and_commits
         calls.append("commit")
 
     data_root = tmp_path / "data"
-    with closing(modal_cloud.CloudRuntime(
-        data_root=data_root, repo_root=repo_root, token=TOKEN, commit=commit,
-    )) as instance:
+    with closing(
+        modal_cloud.CloudRuntime(
+            data_root=data_root,
+            repo_root=repo_root,
+            token=TOKEN,
+            commit=commit,
+        )
+    ) as instance:
         with TestClient(instance.app, base_url="https://cloud.test") as transport:
             for path in ("/", "/api/state", "/api/cloud-db/stats", "/auth"):
                 assert transport.get(path, headers=AUTH).status_code == 200
@@ -677,7 +1124,9 @@ def test_explicit_supervisor_step_shares_modal_policy_closes_workers_and_commits
             with pytest.raises(RuntimeError, match="synthetic supervisor step failure"):
                 instance.run_supervisor_step(approval="unit approved CPU execution", max_usd=2.75)
         else:
-            result = instance.run_supervisor_step(approval="unit approved CPU execution", max_usd=2.75)
+            result = instance.run_supervisor_step(
+                approval="unit approved CPU execution", max_usd=2.75
+            )
             assert result == {"backend": "modal", "allow_local_docker": False, **report}
 
         quality_kwargs = created["quality_kwargs"]
@@ -701,7 +1150,12 @@ def test_explicit_supervisor_step_shares_modal_policy_closes_workers_and_commits
         assert created["publisher_path"] == data_root / "outbox.sqlite"
         for name in ("quality_queue", "seeker_queue", "relay_queue", "supervisor_queue"):
             assert created[name] is instance.queue
-        for name, key in (("monitor", "monitor"), ("task_quality", "quality"), ("seeker", "seeker"), ("relay", "relay")):
+        for name, key in (
+            ("monitor", "monitor"),
+            ("task_quality", "quality"),
+            ("seeker", "seeker"),
+            ("relay", "relay"),
+        ):
             assert created["supervisor_kwargs"][name] is created[key]
         assert calls.count("supervisor.run_step") == 1
         assert len(committed) == 1
@@ -710,20 +1164,35 @@ def test_explicit_supervisor_step_shares_modal_policy_closes_workers_and_commits
         assert calls[-1] == "commit"
 
 
-@pytest.mark.parametrize(("approval", "cap"), [
-    ("", 1.0), ("   ", 1.0), ("unit approval", 0.0), ("unit approval", -1.0),
-    ("unit approval", float("inf")), ("unit approval", float("nan")), ("unit approval", True),
-])
+@pytest.mark.parametrize(
+    ("approval", "cap"),
+    [
+        ("", 1.0),
+        ("   ", 1.0),
+        ("unit approval", 0.0),
+        ("unit approval", -1.0),
+        ("unit approval", float("inf")),
+        ("unit approval", float("nan")),
+        ("unit approval", True),
+    ],
+)
 def test_missing_approval_or_invalid_cap_never_constructs_workers(
-    runtime: CloudRuntime, modal_cloud: ModuleType, monkeypatch: pytest.MonkeyPatch,
-    approval: str, cap: float,
+    runtime: CloudRuntime,
+    modal_cloud: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    approval: str,
+    cap: float,
 ) -> None:
     def forbidden(*_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError("unapproved execution must not construct a worker")
 
     for name in (
-        "MisalignmentLiveWorker", "TaskQualityLiveWorker", "RewardSeekerLiveWorker",
-        "LocalJetStreamAdapter", "OutboxRelay", "ProductionSupervisor",
+        "MisalignmentLiveWorker",
+        "TaskQualityLiveWorker",
+        "RewardSeekerLiveWorker",
+        "LocalJetStreamAdapter",
+        "OutboxRelay",
+        "ProductionSupervisor",
     ):
         monkeypatch.setattr(modal_cloud, name, forbidden)
     with pytest.raises(ValueError):
@@ -731,12 +1200,17 @@ def test_missing_approval_or_invalid_cap_never_constructs_workers(
 
 
 def test_close_persists_data_after_closing_local_stores(
-    modal_cloud: ModuleType, repo_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    modal_cloud: ModuleType,
+    repo_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
     data_root = tmp_path / "data"
     instance = modal_cloud.CloudRuntime(
-        data_root=data_root, repo_root=repo_root, token=TOKEN,
+        data_root=data_root,
+        repo_root=repo_root,
+        token=TOKEN,
         commit=lambda: calls.append("commit"),
     )
     closed = False
@@ -767,11 +1241,16 @@ def test_close_persists_data_after_closing_local_stores(
             instance.queue.queue_snapshot()
         with pytest.raises(sqlite3.ProgrammingError, match="closed"):
             instance.database.get_task("persisted-task")
-        with ContinuousWorkQueue(data_root / "prod.sqlite", registry=instance.queue.registry) as reopened:
+        with ContinuousWorkQueue(
+            data_root / "prod.sqlite", registry=instance.queue.registry
+        ) as reopened:
             assert reopened.get_event(event["event_id"]) == event
         with CloudTraceDatabase(data_root / "cloud-trace-db.sqlite") as reopened_database:
             assert reopened_database.get_task("persisted-task") == task
-        assert S3CompatibleCAS(local_directory=data_root / "cas").get_bytes(uri) == b"persistent CAS fixture"
+        assert (
+            S3CompatibleCAS(local_directory=data_root / "cas").get_bytes(uri)
+            == b"persistent CAS fixture"
+        )
     finally:
         if not closed:
             instance.close()

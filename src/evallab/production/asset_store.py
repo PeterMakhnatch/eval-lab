@@ -4,6 +4,10 @@ The in-memory index is disposable: a new store replays the ordered journal, and
 successful exports are recorded there. File bytes are captured and checked before
 creating any export directory; those same bytes, not a second filesystem read,
 are written to an atomic, content-addressed export.
+
+An ``asset.verified`` event is indexed only if it cites earlier journaled producer
+events that prove it (see ``VerifiedAssetStore._receipted``); receiptless claims are
+never listed, previewed, or exported.
 """
 
 from __future__ import annotations
@@ -41,6 +45,7 @@ _BUNDLE_FILE_BYTES = 64 * 1024
 _PREVIEW_CHARS = 16 * 1024
 _LABEL_EVENTS = frozenset({"monitor.suspicion", "seeker.exploit_confirmed", "monitor.gate_decided"})
 _TOKEN = re.compile(r"[\w-]+")
+_DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 
 class AssetNotFound(KeyError):
@@ -233,6 +238,34 @@ class VerifiedAssetStore:
                 )
         self._anchor_lengths = tuple(frozenset(map(len, index)) for index in self._sealed)
 
+    def _receipted(self, payload: Mapping[str, Any]) -> bool:
+        """Admit an asset only when the earlier producer events it cites prove it.
+
+        A claimed reward pair or digest is not a receipt: a witness must cite its
+        confirmed ``seeker.exploit_confirmed`` event and carry the candidate digest
+        that event recorded, and a repair must cite its confirmed
+        ``task_quality.repair_qualified`` event. Anything else is never listed,
+        previewed, or exported.
+        """
+        cited = [event for ref in _references(payload) if (event := self._events.get(ref))]
+        if payload["kind"] == "repaired_task":
+            return any(
+                event["event_type"] == "task_quality.repair_qualified"
+                and event["status"] in {"confirmed", "applied"}
+                for event in cited
+            )
+        digest = payload.get("candidate_digest")
+        return (
+            isinstance(digest, str)
+            and _DIGEST.fullmatch(digest) is not None
+            and any(
+                event["event_type"] == "seeker.exploit_confirmed"
+                and event["status"] == "confirmed"
+                and event["payload"].get("candidate_digest") == digest
+                for event in cited
+            )
+        )
+
     def _refresh(self) -> None:
         dirty_runs: set[str] = set()
         trace_runs: set[str] = set()
@@ -260,19 +293,23 @@ class VerifiedAssetStore:
                 for asset_id in self._dependents.get(event_id, ()):
                     self._descriptors.pop(asset_id, None)
                 payload, kind = event["payload"], event["event_type"]
-                if kind == "asset.verified" and event["status"] in {"confirmed", "applied"}:
-                    asset_kind = payload.get("kind")
-                    if asset_kind in {"repaired_task", "exploit_witness"}:
-                        asset_id = str(payload.get("asset_id") or f"{asset_kind}:{event_id}")
-                        self._assets[asset_id] = _Asset(
-                            asset_id,
-                            asset_kind,
-                            run_id,
-                            event_id,
-                            str(event["ts"]),
-                            payload,
-                            (event_id,),
-                        )
+                if (
+                    kind == "asset.verified"
+                    and event["status"] in {"confirmed", "applied"}
+                    and payload.get("kind") in {"repaired_task", "exploit_witness"}
+                    and self._receipted(payload)
+                ):
+                    asset_kind = payload["kind"]
+                    asset_id = str(payload.get("asset_id") or f"{asset_kind}:{event_id}")
+                    self._assets[asset_id] = _Asset(
+                        asset_id,
+                        asset_kind,
+                        run_id,
+                        event_id,
+                        str(event["ts"]),
+                        payload,
+                        (event_id,),
+                    )
                 if kind == "asset.exported":
                     asset_id = payload.get("asset_id")
                     if (

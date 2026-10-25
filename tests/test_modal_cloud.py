@@ -245,6 +245,17 @@ def test_modal_definitions_are_local_handles(modal_cloud: ModuleType) -> None:
     assert Path("/data") == modal_cloud.DATA_ROOT
 
 
+def test_repository_root_uses_fixed_cloud_mount_for_flattened_modal_import(
+    modal_cloud: ModuleType, tmp_path: Path,
+) -> None:
+    assert Path("/opt/eval-lab") == modal_cloud._repository_root(
+        "/root/modal_cloud.py", local=False,
+    )
+    assert tmp_path == modal_cloud._repository_root(
+        str(tmp_path / "src/evallab/production/modal_cloud.py"), local=True,
+    )
+
+
 def test_all_runtime_stores_use_data_root(runtime: CloudRuntime, tmp_path: Path) -> None:
     data_root = tmp_path / "data"
     assert isinstance(runtime.queue, ContinuousWorkQueue)

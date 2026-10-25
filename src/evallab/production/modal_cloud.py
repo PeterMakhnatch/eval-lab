@@ -39,10 +39,19 @@ from evallab.production.tq_worker import TaskQualityLiveWorker
 APP_NAME = "evallab-cloud-production"
 VOLUME_NAME = "evallab-cloud-store"
 DATA_ROOT = Path("/data")
-REPO_ROOT = Path(__file__).resolve().parents[3]
 CLOUD_REPO_ROOT = Path("/opt/eval-lab")
 BILLING_TAG = "cloud-offload-20261024"
 COOKIE_NAME = "evallab_cloud_session"
+
+
+def _repository_root(source_file: str, *, local: bool) -> Path:
+    # Modal imports file-based deployments as /root/modal_cloud.py, not from
+    # their original package depth. Assets have a fixed cloud mount instead.
+    return Path(source_file).resolve().parents[3] if local else CLOUD_REPO_ROOT
+
+
+REPO_ROOT = _repository_root(__file__, local=modal.is_local())
+
 
 # The fragment is never sent to Modal's HTTP logs. Exchange it for an HTTP-only
 # cookie, erase it from browser history, and then open the protected dashboard.

@@ -69,8 +69,8 @@ DASHBOARD: str = r"""<!doctype html>
 </section>
 <section id="benchmark-view" class="panel" role="tabpanel" aria-labelledby="benchmark-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">Retained benchmark comparison / provenance</div><h2>Opus vs Swarm</h2></div><button id="cloud-bench-refresh" type="button" class="small">Refresh retained reports</button></div>
- <p class="seal">DEV-only key agreement, not held-out performance</p>
- <p>A: single strong model + harness (optionally CloudTraceRetriever). B: many-cheap-agents swarm. C: hybrid swarm + Opus adjudicator. Model identities below are the provider/model strings actually served; a label alone is not evidence of Opus execution.</p>
+ <p class="seal">Retained DEV-intended studies, not held-out performance</p>
+ <p>Named comparisons preserve their own protocol and coverage. Requested models are not evidence of execution; actual served identities and missing results remain explicit. Historical A/B/C and swarm replay reports retain their original meaning.</p>
  <p id="cloud-bench-status" class="notice" role="status"></p>
  <div id="cloud-benchmarks"></div>
  <details id="cloud-bench-rejections" hidden><summary id="cloud-bench-rejection-title">Rejected retained reports</summary><div id="cloud-bench-rejected" class="cards"></div></details>
@@ -233,6 +233,39 @@ function cloudComparison(report,parent){
  parent.append(cloudTable(['Arm','Actually served models','Harness / retrieval','Primary hits n/N',
   'Precision','Recall','F1','Spend USD','Model calls','Artifact SHA-256'],rows));
 }
+function cloudNamedComparison(report,parent){
+ const cohort=report.cohort,total=cohort.task_count;
+ parent.append(node('p','Protocol / input stratum: '+report.protocol),
+  node('p',cohort.dataset_id+' · reported cohort: '+total+' intended-DEV identities · eligible '+
+   cohort.eligible_n+' · blocked '+cohort.blocked_n+' · generated '+report.generated_at),
+  node('p','Coverage status: '+report.status.toUpperCase(),'seal'),
+  node('p',report.status==='complete'?
+   'Reported answer and judgment coverage is complete; undefined metrics remain unavailable.':
+   'Full-comparison metrics are unavailable until every required answer and judgment is retained.'));
+ parent.append(node('small','Coverage, clearance, model identities, and artifacts are retained source claims, not independent verification by this page. Protocol strata are not pooled; no model winner is inferred.'));
+ const fraction=value=>value===null?'Not available':cloudFraction(value);
+ const rows=list(report.arms).map(arm=>{
+  const label=node('div',arm.arm);label.append(node('small',arm.label));
+  const coverage=arm.coverage;
+  const counts=node('div','Answered '+coverage.answered_n+'/'+total+' · judged '+coverage.judged_n+'/'+total);
+  counts.append(node('small','Blocked '+coverage.blocked_n+' · missing '+coverage.missing_n),
+   node('small','Refused '+coverage.refused_n+' · unavailable '+coverage.unavailable_n),
+   node('small','Malformed '+coverage.malformed_n+' · unattested '+coverage.unattested_n));
+  const harness=node('div',arm.harness);
+  harness.append(node('small',arm.retrieval?'Retrieval enabled':'Retrieval disabled'));
+  const metrics=arm.metrics;
+  const hits=metrics.primary_hits_n===null||metrics.primary_total_n===null?
+   'Not available':metrics.primary_hits_n+'/'+metrics.primary_total_n;
+  return [label,counts,list(arm.requested_models).join(', ')||'Not recorded',
+   list(arm.served_models).join(', ')||'Not recorded',harness,hits,
+   fraction(metrics.precision),fraction(metrics.recall),fraction(metrics.f1),
+   cloudSpend(arm.spend_usd),arm.model_calls===null?'Not recorded':arm.model_calls,
+   cloudDigest(arm.artifact_sha256)];
+ });
+ parent.append(cloudTable(['Named arm','Reported coverage','Requested models','Actually served models',
+  'Harness / retrieval','Primary hits n/N','Precision','Recall','F1','Spend USD','Model calls',
+  'Artifact SHA-256'],rows));
+}
 function cloudSwarm(report,parent){
  parent.append(node('p','Swarm selection replay · not a measured A/B/C comparison. Budget per task: '+
   report.budget_per_task+' · replay API spend: '+cloudSpend(report.paid_api_spend_usd)+
@@ -257,18 +290,25 @@ async function loadCloudBenchmarks(){
  notice('cloud-bench-status','Loading retained DEV benchmark reports…');
  try{
   const data=await cloudApi('/api/cloud-db/benchmarks'),retained=list(data?.benchmarks);
-  const reports=retained.filter(entry=>entry?.report?.schema==='evallab.arm_comparison/v1'?
-   entry.report.cohort?.split==='dev':entry?.report?.schema==='evallab.swarm_bench/v1'&&
-   entry.report.split==='dev'&&(!entry.report.cohort||entry.report.cohort.split==='dev'));
+  const reports=retained.filter(entry=>{
+   const schema=entry?.report?.schema;
+   return schema==='evallab.arm_comparison/v1'||schema==='evallab.arm_comparison/v2'?
+    entry.report.cohort?.split==='dev':schema==='evallab.swarm_bench/v1'&&
+    entry.report.split==='dev'&&(!entry.report.cohort||entry.report.cohort.split==='dev');
+  });
   for(const entry of reports){
    const report=entry.report,section=node('article',undefined,'cloud-report');
    section.append(node('h3',entry.file),node('small',report.schema));
    const provenance=node('details',undefined,'cloud-provenance');
    provenance.append(node('summary','Document SHA-256: '+text(entry.sha256).slice(0,12)),
     node('pre',entry.sha256));
-   section.append(provenance,node('p','DEV-only key agreement, not held-out performance','seal'));
-   if(report.schema==='evallab.arm_comparison/v1')cloudComparison(report,section);
-   else cloudSwarm(report,section);
+   section.append(provenance);
+   if(report.schema==='evallab.arm_comparison/v2')cloudNamedComparison(report,section);
+   else{
+    section.append(node('p','DEV-only key agreement, not held-out performance','seal'));
+    if(report.schema==='evallab.arm_comparison/v1')cloudComparison(report,section);
+    else cloudSwarm(report,section);
+   }
    $('cloud-benchmarks').append(section);
   }
   const rejected=list(data?.rejected);

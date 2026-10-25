@@ -1043,14 +1043,17 @@ only after the complete bundle is on disk.
 `src/evallab/production/modal_cloud.py` deploys the `evallab-cloud-production`
 Modal app. Its `evallab-cloud-store` Volume is mounted at `/data` and retains
 `prod.sqlite`, `cloud-trace-db.sqlite`, `cas/`, the relay outbox, execution
-evidence, and one shared `cloud-spend.json` infrastructure ledger. Import
-consistent SQLite backups, not live database files without their WAL:
+evidence, and one shared `cloud-spend.json` infrastructure ledger. Cloud adoption
+requires an allowlisted actor projection and its reachable CAS objects, plus
+integrated admission/comparison contract proof. Never copy an entire raw
+database/CAS tree to unblock deployment or treat retained metadata counts as
+production eligibility. Preserve existing evidence and reports; data transfer
+remains stopped until its exact allowlisted object scope is proven.
+
+Once those prerequisites and the protected merge are complete, deploy the
+merged code with the single-owner recreation strategy:
 
 ```bash
-modal volume create evallab-cloud-store
-modal volume put evallab-cloud-store /path/to/backup/prod.sqlite /prod.sqlite
-modal volume put evallab-cloud-store /path/to/backup/cloud-trace-db.sqlite /cloud-trace-db.sqlite
-modal volume put evallab-cloud-store /path/to/cas /cas
 modal deploy --strategy recreate src/evallab/production/modal_cloud.py
 ```
 
@@ -1068,11 +1071,17 @@ The existing `/`, `/api/state`, and `/api/stream` control plane runs alongside
 `/api/cloud-db/stats`, `/api/cloud-db/issues`, `/api/cloud-db/traces?q=...`,
 and `/api/cloud-db/tasks`. Searches return complete retained records and
 ordered trace steps, without changing source claims into new verification.
-`tasks`, `issues`, and `traces` serve only DEV tasks: the stored `split` label must
-be DEV, no registry seal may match the task, and a dataset with split-ledger
-assignments must assign the task to DEV (`tb2-to-tb21-v1` rows are labelled DEV in
-the database but are TEST in the ledger, so they are withheld). `split` defaults to
-`dev`; any other value is HTTP 400. `stats` counts every stored row.
+`tasks`, `issues`, and `traces` use the same identity-only
+`admitted_cloud_task_ids` gate as retrieval and actor projection. Keys, item IDs,
+task-name aliases, and digest seals are compared after whitespace/case
+normalization; returned source IDs and metadata are not rewritten. Canonical or
+ledger-known keys require explicit DEV assignments, and TEST identities remain
+excluded across dataset aliases. Missing/invalid assignment authority admits
+nothing; malformed/non-object metadata or non-string item identities exclude
+only their own rows, without poisoning valid siblings. The admitted raw-ID
+allowlist is applied before instruction/issue/trace/step hydration, not after
+fetching denied bodies. `split` defaults to `dev`; any other value is HTTP 400.
+`stats` counts retained rows, not production-eligible rows.
 `lab db --cloud QUERY` searches over authenticated HTTPS without opening a
 local database; `lab db --cloud --stats` reports cloud record counts.
 
@@ -1083,10 +1092,84 @@ browse-only (`export_root=None`): deployment does not authorize asset exports.
 
 The dashboard adds a **Trace DB Search** tab (always `split=dev`) and an
 **Opus vs Swarm** tab backed by `/api/cloud-db/benchmarks`, which lists retained
-DEV-only `evallab.swarm_bench/v1` reports and `evallab.arm_comparison/v1`
-documents (arms A single strong model, B cheap swarm, C swarm plus Opus
-adjudicator) from `/data/benchmarks/*.json` with exact-byte SHA-256 digests;
-invalid or non-DEV files are reported under `rejected`, never rendered.
+`evallab.swarm_bench/v1`, historic `evallab.arm_comparison/v1` documents
+(arms A single strong model, B cheap swarm, C swarm plus Opus adjudicator), and
+named `evallab.arm_comparison/v2` studies from `/data/benchmarks/*.json`.
+Each document retains its exact-byte SHA-256; invalid or non-DEV-intended
+files are reported under `rejected`, never rendered. Existing reports are not
+rewritten, upgraded into verified coverage, or pooled with another protocol.
+
+The v2 contract supports any nonempty list of uniquely named arms, including
+five-arm studies. `protocol` identifies one prompt/input stratum. The cohort
+retains its full `task_count`: reported `eligible_n + blocked_n` must equal that
+denominator. `split: "dev"` describes the intended cohort, not independent
+clearance of blocked identities. No task contents or model execution are needed
+to read a report.
+
+Each arm's `coverage` partitions that denominator into `answered_n`, `missing_n`,
+`blocked_n`, `refused_n`, `unavailable_n`, `malformed_n`, and `unattested_n`.
+`judged_n` is a subset of answered cells, not another terminal state. An answered
+cell means **all required outputs for that arm/identity** exist and are attested;
+a valid empty answer is not missing. Every arm must retain the common cohort's
+blocked identities. `status` must be `blocked` if any blocked identity exists,
+otherwise `incomplete` until every arm has every answer and required judgment,
+and only then `complete`. These are validated source-reported counts, not an
+independent execution/adjudication audit by the dashboard.
+
+All five full-comparison metric fields must be **null** for blocked or incomplete
+reports, including otherwise complete individual arms. Complete coverage permits
+recorded metrics but does not turn an undefined metric into zero. Non-null
+precision/recall/F1 are finite fractions in `[0, 1]`; primary hit/total counts are
+either both null or nonnegative integers with hits no greater than the total.
+The UI distinguishes `Not available` from a legitimate `0.00%` and never ranks
+models or silently substitutes an answered-only denominator.
+
+`requested_models` and `served_models` are separate lists of distinct
+`provider/model` identities. An unanswered arm can have no served identity;
+the UI never copies requested IDs into that column. Answered arms require served
+identities and an `artifact_sha256` binding retained source evidence. Digest
+presence is not independently verified provider attestation. Unknown spend,
+model-call counts, and an unanswered arm's evidence digest may be null, not
+fabricated zeros or hashes. Arm IDs are trimmed and case-insensitively unique;
+model lists likewise reject duplicate identities. Other fields remain strict
+and extra fields are rejected.
+
+For example, this **synthetic blocked** report is valid; it contains no scores:
+
+```json
+{
+  "schema": "evallab.arm_comparison/v2",
+  "protocol": "synthetic-clean-input-v1",
+  "status": "blocked",
+  "cohort": {
+    "dataset_id": "synthetic-fixture",
+    "split": "dev",
+    "task_count": 7,
+    "eligible_n": 6,
+    "blocked_n": 1
+  },
+  "arms": [{
+    "arm": "planned-frontier",
+    "label": "Synthetic pending arm",
+    "harness": "synthetic-review-only",
+    "retrieval": false,
+    "requested_models": ["fixture/requested-model"],
+    "served_models": [],
+    "coverage": {
+      "answered_n": 0, "judged_n": 0, "missing_n": 6, "blocked_n": 1,
+      "refused_n": 0, "unavailable_n": 0, "malformed_n": 0, "unattested_n": 0
+    },
+    "metrics": {
+      "primary_hits_n": null, "primary_total_n": null,
+      "precision": null, "recall": null, "f1": null
+    },
+    "spend_usd": null,
+    "model_calls": null,
+    "artifact_sha256": null
+  }],
+  "generated_at": "2026-10-25T15:15:00Z"
+}
+```
 
 One Modal class instance owns both SQLite stores. The web endpoint and worker
 method share that owner; do not deploy a second independent writer against

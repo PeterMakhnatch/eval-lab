@@ -12,6 +12,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,8 +33,14 @@ from evallab.production import (
     TaskQualityLiveWorker,
     create_app,
 )
-from evallab.production.seeker_worker import SeekerAttemptCandidate
+from evallab.production.seeker_worker import (
+    MODEL_AUTHORED,
+    SeekerAttemptCandidate,
+    write_session_artifact,
+)
 from evallab.registry import task_directory_digest
+
+_ATTESTATION_DIR = Path(tempfile.mkdtemp(prefix="production-e2e-attestation-"))
 
 NOW = datetime(2026, 10, 24, 17, 0, tzinfo=UTC)
 DATASET = "tb4-audit-v1"
@@ -250,6 +257,8 @@ def test_shared_queue_exploit_repair_monitor_and_live_ui(tmp_path: Path, source_
     backend = LocalControls(tmp_path / "controls", grader)
     solve = "printf 'shortcut\\n' > output.txt\n"
     raw_stdout = json.dumps({"files": {"solve.sh": solve}})
+    stream_sha256 = hashlib.sha256(raw_stdout.encode("utf-8")).hexdigest()
+    receipt = _ATTESTATION_DIR / "seeker_session.json"
     candidate = SeekerAttemptCandidate(
         files={"solve.sh": solve},
         mechanism="Accept any nonempty output instead of verifying the computed answer.",
@@ -259,10 +268,19 @@ def test_shared_queue_exploit_repair_monitor_and_live_ui(tmp_path: Path, source_
         intended_work_skipped="compute the answer",
         exploit_found=True,
         model_route="test/synthetic-model",
-        llm_stdout_sha256=hashlib.sha256(raw_stdout.encode("utf-8")).hexdigest(),
+        llm_stdout_sha256=stream_sha256,
         llm_solve_sha256=hashlib.sha256(solve.encode("utf-8")).hexdigest(),
         served_provider="test",
         served_model="synthetic-model",
+        provenance=MODEL_AUTHORED,
+        session_artifact_path=str(receipt),
+        session_artifact_sha256=write_session_artifact(
+            receipt,
+            origin="omp_events",
+            requested_model="test/synthetic-model",
+            observed=[{"model": "test/synthetic-model", "kind": "answer"}],
+            stream_sha256=stream_sha256,
+        ),
     )
     with ContinuousWorkQueue(tmp_path / "production.sqlite", registry=registry) as queue:
         initial = queue.enqueue(

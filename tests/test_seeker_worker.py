@@ -5,12 +5,15 @@ from __future__ import annotations
 import asyncio
 import copy
 import hashlib
+import itertools
 import json
 import shutil
 import subprocess
+import tempfile
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -18,17 +21,25 @@ import pytest
 from evallab.execution_backend import ExecutionBackendConfig
 from evallab.hackbook.models import HackbookEntry
 from evallab.production.seeker_worker import (
+    MODEL_AUTHORED,
+    SCRIPTED_PAYLOAD,
+    SESSION_ARTIFACT_FILENAME,
     FailedShortcutRecord,
     RewardSeekerLiveWorker,
     SeekerAttemptCandidate,
     SeekerEvidenceError,
     SeekerFailureMemory,
     SeekerRefusalError,
+    _require_llm_attestation,
+    attest_served_model,
     compute_candidate_digest,
     compute_shortcut_signature,
     match_task_hackbook_cues,
     render_hackbook_cues_markdown,
+    session_observations_from_text,
+    strip_route_selector,
     verify_differential_replay,
+    write_session_artifact,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -314,9 +325,37 @@ def _make_task(
     return task
 
 
+_ATTESTATION_DIR = Path(tempfile.mkdtemp(prefix="seeker-attestation-"))
+_ATTESTATION_SEQ = itertools.count()
+
+
+def session_receipt(
+    *,
+    requested_model: str = "test/synthetic-model",
+    stream_sha256: str,
+    observed: tuple[str, ...] | None = None,
+    fallback: bool = False,
+) -> dict[str, Any]:
+    """Write the session receipt for one recorded model call; return its candidate fields."""
+    path = _ATTESTATION_DIR / f"session-{next(_ATTESTATION_SEQ):04d}.json"
+    chain = observed if observed is not None else (requested_model,)
+    return {
+        "session_artifact_path": str(path),
+        "session_artifact_sha256": write_session_artifact(
+            path,
+            origin="omp_events",
+            requested_model=requested_model,
+            observed=[{"model": model, "kind": "answer"} for model in chain],
+            stream_sha256=stream_sha256,
+            fallback=fallback,
+        ),
+    }
+
+
 def _candidate(marker: str, entry_id: str, mechanism: str) -> SeekerAttemptCandidate:
     solve = f"#!/bin/bash\nset -euo pipefail\nprintf '%s\\n' '{marker}' > /app/output.json\n"
     raw_stdout = json.dumps({"files": {"solve.sh": solve}})
+    stream_sha256 = hashlib.sha256(raw_stdout.encode()).hexdigest()
     return SeekerAttemptCandidate(
         files={"solve.sh": solve},
         mechanism=mechanism,
@@ -328,10 +367,12 @@ def _candidate(marker: str, entry_id: str, mechanism: str) -> SeekerAttemptCandi
         confidence="high",
         exploit_found=True,
         model_route="test/synthetic-model",
-        llm_stdout_sha256=hashlib.sha256(raw_stdout.encode()).hexdigest(),
+        llm_stdout_sha256=stream_sha256,
         llm_solve_sha256=hashlib.sha256(solve.encode()).hexdigest(),
         served_provider="test",
         served_model="synthetic-model",
+        provenance=MODEL_AUTHORED,
+        **session_receipt(stream_sha256=stream_sha256),
     )
 
 
@@ -937,14 +978,18 @@ def test_invalid_submission_is_recorded_without_grader_call(tmp_path: Path) -> N
     grader = SequenceGrader([])
     invalid_solve = "#!/bin/bash\nif\n"
     invalid_stdout = json.dumps({"files": {"solve.sh": invalid_solve}})
+    invalid_stream = hashlib.sha256(invalid_stdout.encode()).hexdigest()
     invalid = SeekerAttemptCandidate(
         files={"solve.sh": invalid_solve},
         mechanism="invalid shell syntax",
         hackbook_entry_id="HB-TS01-001",
-        llm_stdout_sha256=hashlib.sha256(invalid_stdout.encode()).hexdigest(),
+        model_route="test/synthetic-model",
+        llm_stdout_sha256=invalid_stream,
         llm_solve_sha256=hashlib.sha256(invalid_solve.encode()).hexdigest(),
         served_provider="test",
         served_model="synthetic-model",
+        provenance=MODEL_AUTHORED,
+        **session_receipt(stream_sha256=invalid_stream),
     )
     worker = _worker(
         queue,
@@ -1178,8 +1223,13 @@ def test_parse_headless_candidate_response_and_model_route_attestation(tmp_path:
         model_route="meta/muse-wonder-1.0-contributor",
         served_provider="meta",
         served_model="muse-wonder-1.0-contributor",
+        **session_receipt(
+            requested_model="meta/muse-wonder-1.0-contributor",
+            stream_sha256=hashlib.sha256(raw_stdout.encode()).hexdigest(),
+        ),
     )
     assert parsed is not None
+    assert parsed.provenance == MODEL_AUTHORED
     assert parsed.model_route == "meta/muse-wonder-1.0-contributor"
     assert parsed.hackbook_entry_id == cues[0].entry_id
     assert parsed.llm_stdout_sha256 == hashlib.sha256(raw_stdout.encode()).hexdigest()
@@ -1250,7 +1300,8 @@ def test_static_template_overwrite_refuses_promotion(tmp_path: Path) -> None:
     assert queue.chained_jobs == []
 
 
-def test_unattested_static_candidate_is_refused_before_grading(tmp_path: Path) -> None:
+def test_unattested_static_candidate_is_graded_then_refused_promotion(tmp_path: Path) -> None:
+    """An operator-supplied submission is executed and recorded, but never promoted."""
     original = _make_task(tmp_path, "original")
     repaired = _make_task(tmp_path, "repaired")
     queue = FakeQueue()
@@ -1264,7 +1315,12 @@ def test_unattested_static_candidate_is_refused_before_grading(tmp_path: Path) -
         files={"solve.sh": "#!/bin/bash\n# static template\n"},
         mechanism="static template",
     )
-    grader = MarkerGrader()
+    grader = SequenceGrader(
+        [
+            {"status": "measured", "reward": 1.0, "error": None},
+            {"status": "measured", "reward": 0.0, "error": None},
+        ]
+    )
     worker = _worker(
         queue,
         tmp_path,
@@ -1272,9 +1328,24 @@ def test_unattested_static_candidate_is_refused_before_grading(tmp_path: Path) -
         grader=grader,
         max_attempts=1,
     )
-    with pytest.raises(SeekerRefusalError, match="missing cryptographic LLM output"):
-        asyncio.run(worker.run_once())
-    assert grader.calls == []
+
+    outcome = asyncio.run(worker.run_once())
+
+    assert outcome is not None
+    assert outcome.exploit_confirmed is False
+    assert outcome.attempts_run == 1
+    assert len(grader.calls) == 2
+    assert not any(event["event_type"] == "seeker.exploit_confirmed" for event in queue.events)
+    assert not any(event["event_type"] == "asset.verified" for event in queue.events)
+    rejected = next(
+        event for event in queue.events if event["event_type"] == "seeker.attestation_rejected"
+    )
+    assert rejected["status"] == "refuted"
+    assert rejected["payload"]["verified_differential"] is True
+    assert rejected["payload"]["provenance"] == SCRIPTED_PAYLOAD
+    assert rejected["payload"]["model_route"] == "scripted_payload/unattested"
+    assert rejected["payload"]["failure_kind"] == "unattested_submission"
+    assert "not model-authored" in rejected["payload"]["failure_reason"]
     assert queue.chained_jobs == []
 
 
@@ -1841,3 +1912,306 @@ def test_blind_workspace_and_prompt_exclude_answer_key_directories(
         workspace=workspace,
     )
     assert "PRIVATE_ANSWER_SENTINEL" not in prompt
+
+
+# ------------------------------------------------- session receipt / served-model gates
+
+
+def test_served_route_must_match_the_requested_route() -> None:
+    """A session that answered from another route is refused, not silently attributed."""
+    solve = "#!/bin/bash\nprintf 'x\\n' > /app/output.json\n"
+    raw_stdout = json.dumps({"files": {"solve.sh": solve}})
+    stream_sha256 = hashlib.sha256(raw_stdout.encode()).hexdigest()
+    candidate = SeekerAttemptCandidate(
+        files={"solve.sh": solve},
+        mechanism="route deviation",
+        model_route="kimi-code/k3.1-pro-highspeed",
+        llm_stdout_sha256=stream_sha256,
+        llm_solve_sha256=hashlib.sha256(solve.encode()).hexdigest(),
+        served_provider="google-antigravity",
+        served_model="gemini-4-argon",
+        provenance=MODEL_AUTHORED,
+        **session_receipt(
+            requested_model="kimi-code/k3.1-pro-highspeed",
+            observed=("google-antigravity/gemini-4-argon",),
+            stream_sha256=stream_sha256,
+        ),
+    )
+    with pytest.raises(SeekerRefusalError, match="served model is not the requested model"):
+        _require_llm_attestation(candidate, solve)
+
+
+def test_applied_model_fallback_is_refused() -> None:
+    """``resolvedModelIsFallback`` from the session is a hard refusal."""
+    solve = "#!/bin/bash\nprintf 'x\\n' > /app/output.json\n"
+    raw_stdout = json.dumps({"files": {"solve.sh": solve}})
+    stream_sha256 = hashlib.sha256(raw_stdout.encode()).hexdigest()
+    candidate = SeekerAttemptCandidate(
+        files={"solve.sh": solve},
+        mechanism="fallback applied",
+        model_route="meta/muse-wonder-1.0-contributor",
+        llm_stdout_sha256=stream_sha256,
+        llm_solve_sha256=hashlib.sha256(solve.encode()).hexdigest(),
+        served_provider="meta",
+        served_model="muse-wonder-1.0-contributor",
+        provenance=MODEL_AUTHORED,
+        **session_receipt(
+            requested_model="meta/muse-wonder-1.0-contributor",
+            stream_sha256=stream_sha256,
+            fallback=True,
+        ),
+    )
+    with pytest.raises(SeekerRefusalError, match="fallback"):
+        _require_llm_attestation(candidate, solve)
+
+
+def test_thinking_selector_is_not_a_route_mismatch() -> None:
+    """``:max``/``:high`` select thinking effort, not the route, so they never mismatch."""
+    assert strip_route_selector("anthropic/claude-opus-5-5:max") == "anthropic/claude-opus-5-5"
+    assert strip_route_selector("anthropic/claude-opus-5-5:high") == "anthropic/claude-opus-5-5"
+    assert strip_route_selector("anthropic/claude-opus-5-5") == "anthropic/claude-opus-5-5"
+    matched = attest_served_model(
+        requested_model="anthropic/claude-opus-5-5:max",
+        observed=[{"model": "anthropic/claude-opus-5-5", "kind": "answer"}],
+    )
+    assert matched["status"] == "matched"
+    solve = "#!/bin/bash\nprintf 'x\\n' > /app/output.json\n"
+    raw_stdout = json.dumps({"files": {"solve.sh": solve}})
+    stream_sha256 = hashlib.sha256(raw_stdout.encode()).hexdigest()
+    candidate = SeekerAttemptCandidate(
+        files={"solve.sh": solve},
+        mechanism="selector only",
+        model_route="anthropic/claude-opus-5-5:max",
+        llm_stdout_sha256=stream_sha256,
+        llm_solve_sha256=hashlib.sha256(solve.encode()).hexdigest(),
+        served_provider="anthropic",
+        served_model="claude-opus-5-5",
+        provenance=MODEL_AUTHORED,
+        **session_receipt(
+            requested_model="anthropic/claude-opus-5-5:max",
+            observed=("anthropic/claude-opus-5-5",),
+            stream_sha256=stream_sha256,
+        ),
+    )
+    _require_llm_attestation(candidate, solve)
+
+
+def test_router_prefixed_route_is_the_requested_route_not_a_fallback() -> None:
+    """A lane asks for ``deepseek/...``; the stream names the router that served it."""
+    matched = attest_served_model(
+        requested_model="deepseek/deepseek-v4.1-flash",
+        observed=[{"model": "openrouter/deepseek/deepseek-v4.1-flash", "kind": "answer"}],
+    )
+    assert matched["status"] == "matched"
+    other = attest_served_model(
+        requested_model="deepseek/deepseek-v4.1-flash",
+        observed=[{"model": "openai-codex/gpt-6-astra", "kind": "answer"}],
+    )
+    assert other["status"] == "mismatch"
+    solve = "#!/bin/bash\nprintf 'x\\n' > /app/output.json\n"
+    raw_stdout = json.dumps({"files": {"solve.sh": solve}})
+    stream_sha256 = hashlib.sha256(raw_stdout.encode()).hexdigest()
+    candidate = SeekerAttemptCandidate(
+        files={"solve.sh": solve},
+        mechanism="router prefix only",
+        model_route="deepseek/deepseek-v4.1-flash",
+        llm_stdout_sha256=stream_sha256,
+        llm_solve_sha256=hashlib.sha256(solve.encode()).hexdigest(),
+        served_provider="openrouter",
+        served_model="deepseek/deepseek-v4.1-flash",
+        provenance=MODEL_AUTHORED,
+        **session_receipt(
+            requested_model="deepseek/deepseek-v4.1-flash",
+            observed=("openrouter/deepseek/deepseek-v4.1-flash",),
+            stream_sha256=stream_sha256,
+        ),
+    )
+    _require_llm_attestation(candidate, solve)
+
+
+def test_session_observations_carry_served_routes_and_fallback() -> None:
+    stream = "\n".join(
+        [
+            json.dumps(
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "provider": "anthropic",
+                        "model": "claude-opus-5-5",
+                        "content": [{"type": "text", "text": "{}"}],
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "model_change",
+                    "model": "anthropic/claude-sonnet-5-5",
+                    "resolvedModelIsFallback": True,
+                }
+            ),
+        ]
+    )
+    observations = session_observations_from_text(stream)
+    assert {"model": "anthropic/claude-opus-5-5", "kind": "answer", "fallback": False} in (
+        observations
+    )
+    assert any(
+        entry["model"] == "anthropic/claude-sonnet-5-5" and entry["fallback"] is True
+        for entry in observations
+    )
+    record = attest_served_model(
+        requested_model="anthropic/claude-opus-5-5", observed=observations
+    )
+    assert record["status"] == "mismatch"
+    assert record["fallback"] is True
+
+
+def test_session_receipt_must_match_its_bytes(tmp_path: Path) -> None:
+    solve = "#!/bin/bash\nprintf 'x\\n' > /app/output.json\n"
+    raw_stdout = json.dumps({"files": {"solve.sh": solve}})
+    stream_sha256 = hashlib.sha256(raw_stdout.encode()).hexdigest()
+    receipt = session_receipt(stream_sha256=stream_sha256)
+    candidate = SeekerAttemptCandidate(
+        files={"solve.sh": solve},
+        mechanism="tampered receipt",
+        model_route="test/synthetic-model",
+        llm_stdout_sha256=stream_sha256,
+        llm_solve_sha256=hashlib.sha256(solve.encode()).hexdigest(),
+        served_provider="test",
+        served_model="synthetic-model",
+        provenance=MODEL_AUTHORED,
+        **receipt,
+    )
+    _require_llm_attestation(candidate, solve)
+    artifact = Path(receipt["session_artifact_path"])
+    artifact.write_text(artifact.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    with pytest.raises(SeekerRefusalError, match="digest does not match its bytes"):
+        _require_llm_attestation(candidate, solve)
+
+
+def test_session_receipt_must_bind_the_captured_stream() -> None:
+    solve = "#!/bin/bash\nprintf 'x\\n' > /app/output.json\n"
+    other_stream = hashlib.sha256(b"another session").hexdigest()
+    receipt = session_receipt(stream_sha256=other_stream)
+    candidate = SeekerAttemptCandidate(
+        files={"solve.sh": solve},
+        mechanism="receipt for another run",
+        model_route="test/synthetic-model",
+        llm_stdout_sha256=hashlib.sha256(json.dumps({"files": {}}).encode()).hexdigest(),
+        llm_solve_sha256=hashlib.sha256(solve.encode()).hexdigest(),
+        served_provider="test",
+        served_model="synthetic-model",
+        provenance=MODEL_AUTHORED,
+        **receipt,
+    )
+    with pytest.raises(SeekerRefusalError, match="does not bind the candidate"):
+        _require_llm_attestation(candidate, solve)
+
+
+def test_serialized_candidate_cannot_declare_its_own_provenance(tmp_path: Path) -> None:
+    """A queue payload can never self-declare a route, provenance, or attestation."""
+    solve = "#!/bin/bash\nprintf 'x\\n' > /app/output.json\n"
+    raw_stdout = json.dumps({"files": {"solve.sh": solve}})
+    stream_sha256 = hashlib.sha256(raw_stdout.encode()).hexdigest()
+    receipt = session_receipt(stream_sha256=stream_sha256)
+    serialized = {
+        "files": {"solve.sh": solve},
+        "mechanism": "payload candidate",
+        "model_route": "anthropic/claude-opus-5-5",
+        "llm_stdout_sha256": stream_sha256,
+        "llm_solve_sha256": hashlib.sha256(solve.encode()).hexdigest(),
+        "served_provider": "anthropic",
+        "served_model": "claude-opus-5-5",
+        "provenance": MODEL_AUTHORED,
+        **receipt,
+    }
+    worker = _worker(
+        FakeQueue(), tmp_path, generator=None, grader=SequenceGrader([]), max_attempts=1
+    )
+    coerced = worker._coerce_candidate(serialized, default_cue=None)
+
+    assert coerced.provenance == SCRIPTED_PAYLOAD
+    assert coerced.model_route is None
+    assert coerced.llm_stdout_sha256 is None
+    assert coerced.llm_solve_sha256 is None
+    assert coerced.served_provider is None
+    assert coerced.served_model is None
+    assert coerced.session_artifact_path is None
+    assert coerced.session_artifact_sha256 is None
+    assert coerced.attributed_route() == "scripted_payload/unattested"
+
+
+def test_lane_candidate_is_attested_from_its_transcript(tmp_path: Path) -> None:
+    """A lane submission is bound to the transcript the lane actually wrote."""
+    solve = "#!/bin/bash\nprintf 'x\\n' > /app/output.json\n"
+    workspace = tmp_path / "lane"
+    (workspace / "submission").mkdir(parents=True)
+    (workspace / "submission" / "solve.sh").write_text(solve, encoding="utf-8")
+    stream = "\n".join(
+        [
+            json.dumps(
+                {
+                    "type": "tool_execution_start",
+                    "toolName": "write",
+                    "args": {"path": "submission/solve.sh", "content": solve},
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "agent_end",
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "provider": "anthropic",
+                            "model": "claude-sonnet-5-5",
+                            "content": [{"type": "text", "text": "{}"}],
+                        }
+                    ],
+                }
+            ),
+        ]
+    )
+    (workspace / "transcript.jsonl").write_text(stream, encoding="utf-8")
+    worker = _worker(
+        FakeQueue(), tmp_path, generator=None, grader=SequenceGrader([]), max_attempts=1
+    )
+
+    candidate = worker._candidate_from_workspace(
+        workspace,
+        lane_record={"model": "anthropic/claude-sonnet-5-5", "error": None},
+        default_cue=None,
+    )
+
+    assert candidate.provenance == MODEL_AUTHORED
+    assert candidate.model_route == "anthropic/claude-sonnet-5-5"
+    assert candidate.served_model == "claude-sonnet-5-5"
+    assert candidate.llm_stdout_sha256 == hashlib.sha256(stream.encode()).hexdigest()
+    assert Path(str(candidate.session_artifact_path)).name == SESSION_ARTIFACT_FILENAME
+    _require_llm_attestation(candidate, solve)
+    assert candidate.attributed_route() == "anthropic/claude-sonnet-5-5"
+
+
+def test_seeker_prompt_carries_no_hardcoded_grader_hook_recipe(tmp_path: Path) -> None:
+    """The prompt states the constraint without prescribing the hook to write."""
+    from evallab.production.seeker_worker import build_headless_seeker_prompt
+
+    task = _make_task(tmp_path, "task-a")
+    resolved = SimpleNamespace(
+        task_id="task-a",
+        dataset_id="tb4-dev",
+        split="dev",
+        original_task=task,
+        raw_payload={"attempt_1_mode": "surface_probe"},
+    )
+    prompt = build_headless_seeker_prompt(
+        resolved,
+        attempt_index=1,
+        selected_cue=None,
+        cues=(),
+        memory=SeekerFailureMemory(),
+        workspace=tmp_path,
+    )
+    assert "sitecustomize" not in prompt
+    assert "pytest_sessionfinish" not in prompt
+    assert "conftest.py" not in prompt

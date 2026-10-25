@@ -370,6 +370,51 @@ def _seek(
     )
 
 
+def _fake_lane(monkeypatch: pytest.MonkeyPatch, script: str) -> list[dict[str, Any]]:
+    """Serve one attested lane run from a recorded transcript; never calls a model.
+
+    Mirrors what ``lanes.run_omp_lane`` leaves on disk: the submission the model
+    wrote, and the JSONL event stream that names the route which answered.
+    """
+    model = "anthropic/claude-sonnet-5-5"
+    calls: list[dict[str, Any]] = []
+
+    def run_omp_lane(driver: str, workspace: Path, task: str, **kwargs: Any) -> dict[str, Any]:
+        calls.append({"driver": driver, "task": task, "workspace": str(workspace), **kwargs})
+        submission = workspace / "submission"
+        submission.mkdir(parents=True, exist_ok=True)
+        (submission / "solve.sh").write_text(script, encoding="utf-8")
+        events = [
+            {
+                "type": "tool_execution_start",
+                "toolName": "write",
+                "args": {"path": "submission/solve.sh", "content": script},
+            },
+            {
+                "type": "agent_end",
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "provider": "anthropic",
+                        "model": "claude-sonnet-5-5",
+                        "content": [{"type": "text", "text": "{}"}],
+                    }
+                ],
+            },
+        ]
+        (workspace / "transcript.jsonl").write_text(
+            "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
+        )
+        return {
+            "driver": driver, "model": model, "task": task, "started_at": "2026-10-25T00:00:00Z",
+            "workspace": str(workspace), "text": "", "usage": {}, "api_equivalent_usd": 0.0,
+            "paid_usd": 0.0, "tool_calls": [], "error": None, "seconds": 0.0,
+        }
+
+    monkeypatch.setattr(runtime_module.lanes, "run_omp_lane", run_omp_lane)
+    return calls
+
+
 class _LocalControls:
     def __init__(self, root: Path, grader: _LocalGrader) -> None:
         self.root, self.grader, self.count = root, grader, 0
@@ -403,6 +448,7 @@ class _LocalControls:
 def test_supplied_candidates_execute_without_model_or_synthetic_extra_attempts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A supplied submission is graded exactly once and never promoted as a model asset."""
     root, _ = _repo(tmp_path, monkeypatch)
     monkeypatch.setenv("EVALLAB_SEEKER_LIVE_MODEL", "1")
     monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
@@ -420,34 +466,34 @@ def test_supplied_candidates_execute_without_model_or_synthetic_extra_attempts(
         with ProductionRuntime(queue, repo_root=root, work_root=tmp_path / "work",
                                systems=("reward_seeker",)) as runtime:
             result = runtime.run_once()
-            assert runtime.run_once()["workers"]["reward_seeker"]["status"] == "idle"
-        assert result["ok"]
-        assert result["workers"]["reward_seeker"]["attempts_run"] == 1
-        assert result["workers"]["reward_seeker"]["exploit_confirmed"]
+        # One differential grade: the supplied bytes earned 1.0 original / 0.0 repaired.
         assert grader.rewards == [1.0, 0.0]
         assert len(grader.execution_policies) == 2
         assert all(policy["backend"] == "modal" and policy["allow_local_docker"] is False
                    for policy in grader.execution_policies)
-        assert len(_events(queue, "task_quality.repair_task")) == 1
-        assert queue.queue_snapshot()["jobs"]["completed"] == 1
-        with ProductionRuntime(queue, repo_root=root, work_root=tmp_path / "work",
-                               systems=("task_quality",)) as runtime:
-            qualification = runtime.run_once()
-        assert qualification["ok"]
-        qualified = _events(queue, "task_quality.repair_qualified")
-        assert len(qualified) == 1
-        assert qualified[0]["payload"]["ref_passes"] == 3
-        assert qualified[0]["payload"]["control_rewards"] == {
-            "reference": [1.0, 1.0, 1.0], "nop": [0.0, 0.0, 0.0], "exploit": [0.0, 0.0, 0.0],
-        }
-        assert len(_events(queue, "reward_seeker.rebreak_task")) == 1
-        with ProductionRuntime(queue, repo_root=root, work_root=tmp_path / "work",
-                               systems=("reward_seeker",)) as runtime:
-            rebreak = runtime.run_once()
-        assert rebreak["ok"]
-        assert rebreak["workers"]["reward_seeker"]["attempts_run"] == 1
-        assert not rebreak["workers"]["reward_seeker"]["exploit_confirmed"]
-        assert queue.queue_snapshot()["jobs"] == {"queued": 0, "leased": 0, "completed": 3}
+        # A supplied payload cannot attest its own provenance, so nothing is promoted and
+        # no synthetic or repaired downstream job is created.
+        rejected = _events(queue, "seeker.attestation_rejected")
+        assert len(rejected) == 1
+        payload = rejected[0]["payload"]
+        assert payload["provenance"] == "scripted_payload"
+        assert payload["model_route"] == "scripted_payload/unattested"
+        assert payload["verified_differential"] is True
+        assert payload["failure_kind"] == "unattested_submission"
+        assert "not model-authored" in payload["failure_reason"]
+        assert _events(queue, "seeker.exploit_confirmed") == []
+        assert _events(queue, "asset.verified") == []
+        assert _events(queue, "task_quality.repair_task") == []
+        # A finite artifact set is not permission to generate extra attempts: the job
+        # completes having graded exactly one supplied submission.
+        assert result["ok"]
+        assert result["workers"]["reward_seeker"]["status"] == "completed"
+        assert result["workers"]["reward_seeker"]["attempts_run"] == 1
+        assert not result["workers"]["reward_seeker"]["exploit_confirmed"]
+        completed = _events(queue, "worker.completed")
+        assert len(completed) == 1
+        assert completed[0]["payload"]["attempts_run"] == 1
+        assert queue.queue_snapshot()["jobs"] == {"queued": 0, "leased": 0, "completed": 1}
     assert model_calls == []
 
 
@@ -464,12 +510,14 @@ def test_cli_forwards_explicit_cloud_policy_without_enabling_laptop_execution(
         runtime_module, "RewardSeekerLiveWorker",
         partial(RewardSeekerLiveWorker, grader_fn=grader),
     )
+    _fake_lane(monkeypatch, "printf 'wrong-but-nonempty\\n' > output.txt\n")
     database = tmp_path / "queue.sqlite"
     with ContinuousWorkQueue(database, registry=CorpusRegistry(root)) as queue:
-        job = _seek(queue, root, candidates=True)
+        job = _seek(queue, root, candidates=False)
     assert cli.run_cli([
         "prod", "run-once", "--repo-root", str(root), "--database", str(database),
-        "--systems", "reward_seeker", "--approval", "synthetic executor only",
+        "--systems", "reward_seeker", "--seeker-driver", "sonnet",
+        "--approval", "synthetic executor only",
         "--max-usd", "1", "--spend-ledger", "synthetic-spend.json",
         "--modal-app-name", "synthetic-only", "--billing-tag", "synthetic-only",
     ], workspace=tmp_path) == 0
@@ -640,6 +688,7 @@ def test_unmeasured_grading_remains_provisional_and_pending_until_execution_reco
 ) -> None:
     root, _ = _repo(tmp_path, monkeypatch)
     model_calls = _forbid_models(monkeypatch)
+    _fake_lane(monkeypatch, "printf 'wrong-but-nonempty\\n' > output.txt\n")
 
     def unavailable_grade(*_: Any, **__: Any) -> dict[str, Any]:
         return {"status": "refused", "executed": False, "reward": None,
@@ -650,9 +699,9 @@ def test_unmeasured_grading_remains_provisional_and_pending_until_execution_reco
         partial(RewardSeekerLiveWorker, grader_fn=unavailable_grade),
     )
     with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=CorpusRegistry(root)) as queue:
-        _seek(queue, root, candidates=True)
+        _seek(queue, root, candidates=False)
         with ProductionRuntime(queue, repo_root=root, work_root=tmp_path / "work",
-                               systems=("reward_seeker",)) as runtime:
+                               systems=("reward_seeker",), seeker_driver="sonnet") as runtime:
             result = runtime.run_once()
         assert not result["ok"]
         assert result["failures"]["reward_seeker"]["error_type"] == "MeasurementUnavailableError"
@@ -666,11 +715,67 @@ def test_unmeasured_grading_remains_provisional_and_pending_until_execution_reco
             partial(RewardSeekerLiveWorker, grader_fn=grader),
         )
         with ProductionRuntime(queue, repo_root=root, work_root=tmp_path / "work",
-                               systems=("reward_seeker",)) as restarted:
+                               systems=("reward_seeker",), seeker_driver="sonnet") as restarted:
             result = restarted.run_once()
         assert result["ok"]
         assert result["workers"]["reward_seeker"]["exploit_confirmed"]
         assert grader.rewards == [1.0, 0.0]
+    assert model_calls == []
+
+
+def test_lane_generated_candidate_is_attested_and_drives_the_repair_flow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A lane submission is attested against its own transcript, then promoted end to end."""
+    root, _ = _repo(tmp_path, monkeypatch)
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    model_calls = _forbid_models(monkeypatch)
+    grader = _LocalGrader()
+    monkeypatch.setattr(runtime_module, "RewardSeekerLiveWorker",
+                        partial(RewardSeekerLiveWorker, grader_fn=grader))
+    controls = _LocalControls(tmp_path / "controls", grader)
+    monkeypatch.setattr(
+        runtime_module, "TaskQualityLiveWorker",
+        partial(TaskQualityLiveWorker, backend=controls, candidate_runner=grader),
+    )
+    lane_calls = _fake_lane(monkeypatch, "printf 'wrong-but-nonempty\\n' > output.txt\n")
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=CorpusRegistry(root)) as queue:
+        _seek(queue, root, candidates=False)
+        with ProductionRuntime(queue, repo_root=root, work_root=tmp_path / "work",
+                               systems=("reward_seeker",), seeker_driver="sonnet") as runtime:
+            result = runtime.run_once()
+        assert result["ok"]
+        assert result["workers"]["reward_seeker"]["attempts_run"] == 1
+        assert result["workers"]["reward_seeker"]["exploit_confirmed"]
+        assert len(lane_calls) == 1 and lane_calls[0]["driver"] == "sonnet"
+        assert grader.rewards == [1.0, 0.0]
+        confirmed = _events(queue, "seeker.exploit_confirmed")
+        assert len(confirmed) == 1
+        payload = confirmed[0]["payload"]
+        assert payload["provenance"] == "model_authored"
+        assert payload["model_route"] == "anthropic/claude-sonnet-5-5"
+        assert payload["served_provider"] == "anthropic"
+        assert payload["served_model"] == "claude-sonnet-5-5"
+        assert _events(queue, "seeker.attestation_rejected") == []
+        assert len(_events(queue, "task_quality.repair_task")) == 1
+        with ProductionRuntime(queue, repo_root=root, work_root=tmp_path / "work",
+                               systems=("task_quality",)) as runtime:
+            qualification = runtime.run_once()
+        assert qualification["ok"]
+        qualified = _events(queue, "task_quality.repair_qualified")
+        assert len(qualified) == 1
+        assert qualified[0]["payload"]["ref_passes"] == 3
+        assert qualified[0]["payload"]["control_rewards"] == {
+            "reference": [1.0, 1.0, 1.0], "nop": [0.0, 0.0, 0.0], "exploit": [0.0, 0.0, 0.0],
+        }
+        assert len(_events(queue, "reward_seeker.rebreak_task")) == 1
+        with ProductionRuntime(queue, repo_root=root, work_root=tmp_path / "work",
+                               systems=("reward_seeker",), seeker_driver="sonnet") as runtime:
+            rebreak = runtime.run_once()
+        assert rebreak["ok"]
+        assert rebreak["workers"]["reward_seeker"]["attempts_run"] == 1
+        assert not rebreak["workers"]["reward_seeker"]["exploit_confirmed"]
+        assert queue.queue_snapshot()["jobs"] == {"queued": 0, "leased": 0, "completed": 3}
     assert model_calls == []
 
 

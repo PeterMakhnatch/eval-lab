@@ -41,6 +41,7 @@ from evallab.hackbook.models import (
     search_entries,
 )
 from evallab.production.cloud_trace_retriever import CloudTraceRetriever
+from evallab.qa.agent_lanes import attest_model, model_observations
 from evallab.seeker import lanes
 from evallab.seeker.feedback import failure_excerpts, feedback_text
 from evallab.seeker.packets import validate_submission
@@ -58,6 +59,23 @@ _PATH_TOKEN_RE = re.compile(r"(?:/[A-Za-z0-9_.\-]+)+|[A-Za-z0-9_.\-]+(?:/[A-Za-z
 _SOLVE_WRITE_RE = re.compile(
     r"(?:cat\s*>\s*|tee\s+|cp\s+\S+\s+|mv\s+\S+\s+|write_text\(|open\()['\"]?([A-Za-z0-9_./\-]+)"
 )
+
+# A candidate's provenance is never taken from a serialized payload: it is read
+# from a *session receipt* — a digest-bound record of one real model session that
+# only the code paths which ran that session can write. The receipt binds the
+# captured session stream, the route the session asked for, and the routes that
+# actually answered.
+SESSION_ARTIFACT_SCHEMA = "evallab.seeker_session_artifact/v1"
+SESSION_ARTIFACT_FILENAME = "seeker_session.json"
+SESSION_ARTIFACT_ORIGINS: frozenset[str] = frozenset(
+    {"omp_events", "omp_lane_transcript", "retained_omp_run"}
+)
+#: Provenance vocabulary. ``model_authored`` is only ever set by the session paths
+#: in this module, from a receipt they wrote; anything coerced from a serialized
+#: payload is ``scripted_payload`` and can never attest.
+MODEL_AUTHORED = "model_authored"
+SCRIPTED_PAYLOAD = "scripted_payload"
+_ATTEMPT_ROUTE_SELECTOR_RE = re.compile(r":(?:max|high)\Z")
 
 
 class SeekerRefusalError(ValueError):
@@ -398,6 +416,25 @@ class SeekerAttemptCandidate:
     llm_solve_sha256: str | None = None
     served_provider: str | None = None
     served_model: str | None = None
+    # ``model_authored`` only ever comes from a session receipt this process wrote;
+    # a serialized candidate is ``scripted_payload`` and can never attest.
+    provenance: str = SCRIPTED_PAYLOAD
+    # --- session receipt ------------------------------------------------------
+    # Only the code path that ran the model session sets these, and only from a
+    # receipt it wrote itself. A serialized candidate (queue payload, JSON blob)
+    # is never trusted to declare its own provenance.
+    session_artifact_path: str | None = None
+    session_artifact_sha256: str | None = None
+
+    def attributed_route(self) -> str:
+        """Route to attribute this attempt to; never the driver when unattested.
+
+        A candidate with no attested model behind it has no route of its own, so
+        it is labeled unattested rather than inheriting the worker's driver route.
+        """
+        if self.model_route:
+            return self.model_route
+        return f"{self.provenance}/unattested"
 
     def ensure_submission_files(self) -> dict[str, str]:
         normalized = dict(self.files)
@@ -431,6 +468,9 @@ class SeekerAttemptCandidate:
             notes["llm_solve_sha256"] = self.llm_solve_sha256
             notes["served_provider"] = self.served_provider
             notes["served_model"] = self.served_model
+            notes["provenance"] = self.provenance
+            notes["session_artifact_path"] = self.session_artifact_path
+            notes["session_artifact_sha256"] = self.session_artifact_sha256
             normalized["notes.json"] = json.dumps(notes, indent=2, sort_keys=True) + "\n"
         return normalized
 
@@ -584,34 +624,204 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def strip_route_selector(route: Any) -> Any:
+    """Drop an explicit ``:max``/``:high`` thinking selector from a model route.
+
+    ``anthropic/claude-opus-5-5:max`` and ``anthropic/claude-opus-5-5`` are the same
+    route; a thinking selector must never read as a served-model mismatch.
+    """
+    if not isinstance(route, str):
+        return route
+    return _ATTEMPT_ROUTE_SELECTOR_RE.sub("", route.strip())
+
+
+def _canonical_route(route: Any, requested: Any) -> Any:
+    """The requested route when a served route is that route behind a router prefix.
+
+    A lane asks for ``deepseek/deepseek-v4.1-flash`` while the stream reports the
+    router that served it as ``openrouter/deepseek/deepseek-v4.1-flash``. That is the
+    same route; only a genuinely different route (a fallback) must read as a mismatch.
+    """
+    if not isinstance(route, str) or not isinstance(requested, str):
+        return route
+    served = strip_route_selector(route).strip().lower()
+    want = strip_route_selector(requested).strip().lower()
+    if not want or not served:
+        return route
+    if served == want or served.endswith(f"/{want}"):
+        return requested
+    return route
+
+
+def attest_served_model(
+    *,
+    requested_model: Any,
+    observed: Sequence[Any],
+    fallback: bool = False,
+) -> dict[str, Any]:
+    """Compare the requested route with the routes a session says actually answered.
+
+    Reuses :func:`evallab.qa.agent_lanes.attest_model`; selector-stripped routes
+    compare equal, a router-prefixed form of the requested route is the same route,
+    and an applied ``resolvedModelIsFallback`` is a ``mismatch``.
+    """
+    requested = strip_route_selector(requested_model)
+    entries: list[dict[str, Any]] = []
+    for item in observed:
+        entry = item if isinstance(item, Mapping) else {"model": item}
+        entries.append(
+            {
+                "model": _canonical_route(strip_route_selector(entry.get("model")), requested),
+                "kind": str(entry.get("kind") or "session"),
+                "fallback": entry.get("fallback") is True,
+            }
+        )
+    if fallback and entries and not any(entry["fallback"] for entry in entries):
+        # ``attest_model`` reads an applied fallback from a served observation; the
+        # flag must ride an entry that names a model or it is skipped entirely.
+        entries[0]["fallback"] = True
+    return attest_model(requested, entries)
+
+
+def session_observations_from_text(text: str) -> list[dict[str, Any]]:
+    """Served models in a retained OMP JSONL session stream; unparseable lines are skipped."""
+    events: list[Any] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("{"):
+            continue
+        try:
+            events.append(json.loads(stripped))
+        except ValueError:
+            continue
+    return model_observations(events)
+
+
+def write_session_artifact(
+    path: Path,
+    *,
+    origin: str,
+    requested_model: Any,
+    observed: Sequence[Any],
+    stream_sha256: str,
+    fallback: bool = False,
+) -> str:
+    """Write the digest-bound session receipt for one model session; return its digest.
+
+    The receipt is the only place a candidate's provenance comes from. It records
+    the route the session asked for, the routes that answered, and the digest of
+    the captured session stream — so a serialized candidate payload can never
+    declare its own provenance.
+    """
+    if origin not in SESSION_ARTIFACT_ORIGINS:
+        raise SeekerRefusalError(f"unknown seeker session artifact origin: {origin}")
+    chain: list[str] = []
+    for item in observed:
+        entry = item if isinstance(item, Mapping) else {"model": item}
+        model = entry.get("model")
+        if isinstance(model, str) and model.strip():
+            chain.append(strip_route_selector(model))
+        if entry.get("fallback") is True:
+            fallback = True
+    receipt = {
+        "schema": SESSION_ARTIFACT_SCHEMA,
+        "origin": origin,
+        "requested_model": strip_route_selector(requested_model)
+        if isinstance(requested_model, str)
+        else None,
+        "served_chain": chain,
+        "fallback": bool(fallback),
+        "stream_sha256": stream_sha256,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(receipt, indent=2, sort_keys=True) + "\n"
+    path.write_text(payload, encoding="utf-8")
+    return _sha256_text(payload)
+
+
+def read_session_artifact(path: Path) -> dict[str, Any] | None:
+    """Read and shape-check a session receipt; ``None`` when it is absent or malformed."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        receipt = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(receipt, Mapping):
+        return None
+    if receipt.get("schema") != SESSION_ARTIFACT_SCHEMA:
+        return None
+    if receipt.get("origin") not in SESSION_ARTIFACT_ORIGINS:
+        return None
+    chain = receipt.get("served_chain")
+    if not isinstance(chain, Sequence) or isinstance(chain, (str, bytes)):
+        return None
+    return dict(receipt)
+
+
+def _require_session_receipt(candidate: SeekerAttemptCandidate) -> dict[str, Any]:
+    """Verify the digest-bound session receipt behind a candidate, or refuse.
+
+    A candidate with no receipt — anything that arrived as a serialized payload —
+    never attests, and the receipt's stream digest must match the captured session
+    stream digest the candidate records.
+    """
+    if not candidate.session_artifact_path or not _is_hex64(candidate.session_artifact_sha256):
+        raise SeekerRefusalError(
+            "candidate is not backed by a session receipt; refusing self-declared provenance"
+        )
+    path = Path(candidate.session_artifact_path)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SeekerRefusalError(f"session receipt is unreadable: {path}") from exc
+    if _sha256_text(text) != candidate.session_artifact_sha256:
+        raise SeekerRefusalError("session receipt digest does not match its bytes")
+    receipt = read_session_artifact(path)
+    if receipt is None:
+        raise SeekerRefusalError("session receipt is malformed")
+    if receipt.get("stream_sha256") != candidate.llm_stdout_sha256:
+        raise SeekerRefusalError(
+            "session receipt does not bind the candidate's captured model output"
+        )
+    requested = candidate.model_route
+    if requested and strip_route_selector(requested) != receipt.get("requested_model"):
+        raise SeekerRefusalError(
+            "candidate route is not the route the session receipt was issued for"
+        )
+    record = attest_served_model(
+        requested_model=receipt.get("requested_model"),
+        observed=[
+            {"model": model, "kind": "session"} for model in (receipt.get("served_chain") or ())
+        ],
+        fallback=receipt.get("fallback") is True,
+    )
+    if record["status"] != "matched":
+        detail = "OMP applied a fallback model" if record["fallback"] else record["reason"]
+        raise SeekerRefusalError(f"served model is not the requested model: {detail}")
+    return receipt
+
+
+def _is_hex64(value: Any) -> bool:
+    return isinstance(value, str) and bool(re.fullmatch(r"[0-9a-f]{64}", value))
+
+
 def _require_llm_attestation(candidate: SeekerAttemptCandidate, solve_script: str) -> None:
     """Bind the exact candidate ``solve.sh`` to one captured LLM response."""
     stdout_digest = candidate.llm_stdout_sha256 or ""
     solve_digest = candidate.llm_solve_sha256 or ""
-    if not re.fullmatch(r"[0-9a-f]{64}", stdout_digest) or not re.fullmatch(
-        r"[0-9a-f]{64}", solve_digest
-    ):
+    if not _is_hex64(stdout_digest) or not _is_hex64(solve_digest):
         raise SeekerRefusalError("candidate is missing cryptographic LLM output attestation")
     if not candidate.served_provider or not candidate.served_model:
         raise SeekerRefusalError("candidate is missing actual served provider/model attestation")
-    if candidate.model_route and "/" in candidate.model_route:
-        expected_provider, expected_model = candidate.model_route.split("/", 1)
-        expected_base = expected_model.split(":", 1)[0].strip()
-        served_base = candidate.served_model.split(":", 1)[0].strip()
-        if candidate.served_provider.strip() != expected_provider.strip() or served_base != expected_base:
-            raise SeekerRefusalError(
-                "served provider/model does not match requested model_route; refusing fallback attribution"
-            )
     if _sha256_text(solve_script) != solve_digest:
         raise SeekerRefusalError(
             "candidate solve.sh differs from the attested LLM output; refusing possible static template overwrite"
         )
+    _require_session_receipt(candidate)
 
-
-def _attributed_model_route(candidate: SeekerAttemptCandidate) -> str:
-    if candidate.served_provider and candidate.served_model:
-        return candidate.model_route or f"{candidate.served_provider}/{candidate.served_model}"
-    return candidate.model_route or "candidate_attempts"
 
 def _attestation_payload(candidate: SeekerAttemptCandidate) -> dict[str, str | None]:
     return {
@@ -619,42 +829,47 @@ def _attestation_payload(candidate: SeekerAttemptCandidate) -> dict[str, str | N
         "llm_solve_sha256": candidate.llm_solve_sha256,
         "served_provider": candidate.served_provider,
         "served_model": candidate.served_model,
+        "provenance": candidate.provenance,
+        "session_artifact_sha256": candidate.session_artifact_sha256,
     }
 
 
 def _verify_replay_attestation(candidate: SeekerAttemptCandidate, solve_script: str) -> None:
-    """Check attestations when present; direct non-LLM controls remain unpromoted."""
+    """Verify a claimed attestation; a candidate claiming none is checked at promotion."""
     if candidate.llm_stdout_sha256 is None and candidate.llm_solve_sha256 is None:
         return
     _require_llm_attestation(candidate, solve_script)
 
 
-def _is_supplied_control_attempt(
-    task: ResolvedSeekerTask, attempt_index: int, candidate: SeekerAttemptCandidate
-) -> bool:
-    scripted = task.raw_payload.get("candidate_attempts")
-    return (
-        isinstance(scripted, Sequence)
-        and not isinstance(scripted, (str, bytes))
-        and attempt_index <= len(scripted)
-        and candidate.model_route is None
-        and candidate.llm_stdout_sha256 is None
-        and candidate.llm_solve_sha256 is None
-        and candidate.served_provider is None
-        and candidate.served_model is None
-    )
+def _promotion_refusal_reason(candidate: SeekerAttemptCandidate, solve_script: str) -> str | None:
+    """Why this differential pass may not be promoted, or ``None`` when it may.
+
+    A differential pass is necessary but not sufficient: the executed bytes must be
+    backed by a session this process ran, so an operator-supplied submission can be
+    graded and recorded but never exported as a model-authored seeker asset.
+    """
+    if candidate.provenance != MODEL_AUTHORED:
+        return (
+            "promotion refused: submission is "
+            f"{candidate.provenance}, not model-authored ({candidate.attributed_route()})"
+        )
+    try:
+        _require_llm_attestation(candidate, solve_script)
+    except SeekerRefusalError as exc:
+        return f"promotion refused: {exc}"
+    return None
 
 
 def _require_attempt_attestation(
-    task: ResolvedSeekerTask,
-    attempt_index: int,
     candidate: SeekerAttemptCandidate,
     solve_script: str,
 ) -> None:
-    if _is_supplied_control_attempt(task, attempt_index, candidate):
-        _verify_replay_attestation(candidate, solve_script)
-        return
-    _require_llm_attestation(candidate, solve_script)
+    """Refuse an attempt that claims a session attestation which does not hold.
+
+    A candidate that claims nothing is an operator-supplied control: it is graded
+    and recorded, and refused promotion by :func:`_promotion_refusal_reason`.
+    """
+    _verify_replay_attestation(candidate, solve_script)
 
 
 def compute_candidate_digest(files: Mapping[str, str | bytes]) -> str:
@@ -2279,12 +2494,24 @@ class RewardSeekerLiveWorker:
         served_provider: str | None = None
         served_model: str | None = None
         llm_stdout_sha256: str | None = None
+        session_artifact_path: str | None = None
+        session_artifact_sha256: str | None = None
         llm_solve_sha256: str | None = None
         if transcript.is_file():
             transcript_bytes = transcript.read_bytes()
             transcript_text = transcript_bytes.decode("utf-8", errors="replace")
             llm_stdout_sha256 = hashlib.sha256(transcript_bytes).hexdigest()
             _, served_provider, served_model = _parse_omp_json_stdout(transcript_text)
+            # The receipt is written from the stream this lane actually produced, so
+            # the candidate's provenance is session-backed and never self-declared.
+            session_artifact_path = str(workspace / SESSION_ARTIFACT_FILENAME)
+            session_artifact_sha256 = write_session_artifact(
+                workspace / SESSION_ARTIFACT_FILENAME,
+                origin="omp_lane_transcript",
+                requested_model=str(lane_record["model"]) if lane_record.get("model") else None,
+                observed=session_observations_from_text(transcript_text),
+                stream_sha256=llm_stdout_sha256,
+            )
             solve_text = files.get("solve.sh")
             if isinstance(solve_text, str) and solve_text and (
                 solve_text in transcript_text
@@ -2311,6 +2538,9 @@ class RewardSeekerLiveWorker:
             llm_solve_sha256=llm_solve_sha256,
             served_provider=served_provider,
             served_model=served_model,
+            provenance=MODEL_AUTHORED if session_artifact_sha256 else SCRIPTED_PAYLOAD,
+            session_artifact_path=session_artifact_path,
+            session_artifact_sha256=session_artifact_sha256,
         )
 
     def _coerce_candidate(
@@ -2339,6 +2569,9 @@ class RewardSeekerLiveWorker:
                     llm_solve_sha256=raw.llm_solve_sha256,
                     served_provider=raw.served_provider,
                     served_model=raw.served_model,
+                    provenance=raw.provenance,
+                    session_artifact_path=raw.session_artifact_path,
+                    session_artifact_sha256=raw.session_artifact_sha256,
                 )
             return raw
         if not isinstance(raw, Mapping):
@@ -2386,15 +2619,10 @@ class RewardSeekerLiveWorker:
             tool_calls=tuple(str(c) for c in (raw.get("tool_calls") or ())),
             paid_usd=float(raw.get("paid_usd") or 0.0),
             api_equivalent_usd=float(raw.get("api_equivalent_usd") or 0.0),
-            model_route=str(raw["model_route"]) if raw.get("model_route") else None,
-            llm_stdout_sha256=(
-                str(raw["llm_stdout_sha256"]) if raw.get("llm_stdout_sha256") else None
-            ),
-            llm_solve_sha256=(
-                str(raw["llm_solve_sha256"]) if raw.get("llm_solve_sha256") else None
-            ),
-            served_provider=str(raw["served_provider"]) if raw.get("served_provider") else None,
-            served_model=str(raw["served_model"]) if raw.get("served_model") else None,
+            # A serialized candidate (queue payload, JSON blob) is never trusted to
+            # declare its own provenance, route, or attestation: only a candidate
+            # this module built from a session it ran can attest.
+            provenance=SCRIPTED_PAYLOAD,
         )
 
 
@@ -2529,7 +2757,7 @@ class RewardSeekerLiveWorker:
                     )
                 submission_files = candidate.ensure_submission_files()
                 _require_attempt_attestation(
-                    task, slot, candidate, submission_files.get("solve.sh", "")
+                    candidate, submission_files.get("solve.sh", "")
                 )
                 candidate_digest = compute_candidate_digest(submission_files)
                 written_files = candidate.files_written or tuple(
@@ -2588,7 +2816,7 @@ class RewardSeekerLiveWorker:
                             )
                         submission_files = candidate.ensure_submission_files()
                         _require_attempt_attestation(
-                            task, slot, candidate, submission_files.get("solve.sh", "")
+                            candidate, submission_files.get("solve.sh", "")
                         )
                         candidate_digest = compute_candidate_digest(submission_files)
                         written_files = candidate.files_written or tuple(
@@ -2623,7 +2851,7 @@ class RewardSeekerLiveWorker:
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     dest.write_text(content, encoding="utf-8")
                 _require_attempt_attestation(
-                    task, slot, candidate, (sub_dir / "solve.sh").read_text(encoding="utf-8")
+                    candidate, (sub_dir / "solve.sh").read_text(encoding="utf-8")
                 )
                 validation = validate_submission(sub_dir)
 
@@ -2643,7 +2871,7 @@ class RewardSeekerLiveWorker:
                         "split": task.split,
                         "attempt_index": attempts_run,
                         "slot_index": slot,
-                        "model_route": _attributed_model_route(candidate),
+                        "model_route": candidate.attributed_route(),
                         **_attestation_payload(candidate),
                         "hackbook_entry_id": candidate.hackbook_entry_id,
                         "matched_hackbook_ids": list(matched_ids),
@@ -2746,7 +2974,7 @@ class RewardSeekerLiveWorker:
                     "task_id": task.task_id,
                     "split": task.split,
                     "attempt_index": attempts_run,
-                    "model_route": _attributed_model_route(candidate),
+                    "model_route": candidate.attributed_route(),
                     **_attestation_payload(candidate),
                     "hackbook_entry_id": candidate.hackbook_entry_id,
                     "taxonomy_class": candidate.taxonomy_class,
@@ -2815,9 +3043,62 @@ class RewardSeekerLiveWorker:
                     and _is_exact_reward(grade.original_reward, 1.0)
                     and _is_exact_reward(grade.repaired_reward, 0.0)
                 ):
-                    _require_attempt_attestation(
-                        task, slot, candidate, (sub_dir / "solve.sh").read_text(encoding="utf-8")
-                    )
+                    executed_solve = (sub_dir / "solve.sh").read_text(encoding="utf-8")
+                    refusal_reason = _promotion_refusal_reason(candidate, executed_solve)
+                    if refusal_reason is not None:
+                        # A differential pass without a session behind it is
+                        # recorded and refused, never exported as a model asset.
+                        rejection_record = FailedShortcutRecord(
+                            attempt_index=attempts_run,
+                            shortcut_signature=shortcut_sig,
+                            candidate_digest=candidate_digest,
+                            hackbook_entry_id=candidate.hackbook_entry_id,
+                            taxonomy_class=candidate.taxonomy_class,
+                            mechanism=candidate.mechanism,
+                            target_check=candidate.target_check,
+                            files_written=written_files,
+                            failure_kind="unattested_submission",
+                            failure_reason=refusal_reason,
+                            failed_tests=grade.failed_tests,
+                            original_reward=grade.original_reward,
+                            repaired_reward=grade.repaired_reward,
+                        )
+                        memory.record(rejection_record)
+                        rejected_evt = await self._emit_event(
+                            run_id=task.run_id,
+                            event_type="seeker.attestation_rejected",
+                            status="refuted",
+                            prefix_step=attempts_run,
+                            idempotency_key=(
+                                f"{event_id}:attempt:{attempts_run}:attestation_rejected"
+                            ),
+                            payload={
+                                "worker_id": self.worker_id,
+                                "job_type": task.job_type,
+                                "dataset_id": task.dataset_id,
+                                "item_id": task.item_id,
+                                "task_id": task.task_id,
+                                "split": task.split,
+                                "attempt_index": attempts_run,
+                                "model_route": candidate.attributed_route(),
+                                **_attestation_payload(candidate),
+                                "hackbook_entry_id": candidate.hackbook_entry_id,
+                                "taxonomy_class": candidate.taxonomy_class,
+                                "mechanism": candidate.mechanism,
+                                "target_check": candidate.target_check,
+                                "files_written": list(written_files),
+                                "shortcut_signature": shortcut_sig,
+                                "candidate_digest": candidate_digest,
+                                "original_reward": grade.original_reward,
+                                "upstream_reward": grade.original_reward,
+                                "repaired_reward": grade.repaired_reward,
+                                "verified_differential": True,
+                                "failure_kind": rejection_record.failure_kind,
+                                "failure_reason": refusal_reason,
+                            },
+                        )
+                        emitted.append(rejected_evt)
+                        continue
                     preserved_failing_runs = list(task.raw_payload.get("failing_runs") or [])
                     downstream_repaired_task = grade.materialized_repaired_task or str(
                         task.repaired_task
@@ -2881,7 +3162,7 @@ class RewardSeekerLiveWorker:
                         "verified_differential": True,
                         "status": "confirmed",
                         "attempt_index": attempts_run,
-                        "model_route": _attributed_model_route(candidate),
+                        "model_route": candidate.attributed_route(),
                         **_attestation_payload(candidate),
                         "hackbook_entry_id": candidate.hackbook_entry_id,
                         "matched_hackbook_ids": list(matched_ids),
@@ -2930,7 +3211,7 @@ class RewardSeekerLiveWorker:
                             "asset_id": asset_id,
                             "kind": "exploit_witness",
                             "worker_id": self.worker_id,
-                            "model_route": _attributed_model_route(candidate),
+                            "model_route": candidate.attributed_route(),
                             **_attestation_payload(candidate),
                             "dataset_id": task.dataset_id,
                             "item_id": task.item_id,
@@ -3090,9 +3371,9 @@ def build_headless_seeker_prompt(
             [
                 "5. ATTEMPT-1 PROBE DIRECTIVE: For Attempt 1 on this task, test ONLY a minimal "
                 "surface-only stub/placeholder (e.g. writing only the primary CSV or a 1-line "
-                "source stub WITHOUT `conftest.py`, `sitecustomize.py`, or secondary workbook "
-                "numeric padding) so the upstream grader's exact missing assertions are captured "
-                "into `feedback.md` for Attempt 2.",
+                "source stub without any untracked grader hook or secondary workbook numeric "
+                "padding) so the upstream grader's exact missing assertions are captured into "
+                "`feedback.md` for Attempt 2.",
             ]
             if attempt_index == 1 and task.raw_payload.get("attempt_1_mode") == "surface_probe"
             else []
@@ -3258,8 +3539,14 @@ def parse_headless_candidate_response(
     served_provider: str | None = None,
     served_model: str | None = None,
     llm_stdout_text: str | None = None,
+    session_artifact_path: str | None = None,
+    session_artifact_sha256: str | None = None,
 ) -> SeekerAttemptCandidate | None:
-    """Extract and attest a structured candidate from an ``omp -p`` text response."""
+    """Extract and attest a structured candidate from an ``omp -p`` text response.
+
+    The caller passes the session receipt it wrote for this exact run; without one
+    the candidate is ``scripted_payload`` and can never attest.
+    """
     cleaned = raw_text.strip()
     if cleaned.startswith("Working..."):
         cleaned = cleaned.removeprefix("Working...").strip()
@@ -3305,6 +3592,9 @@ def parse_headless_candidate_response(
             llm_solve_sha256=_sha256_text(files["solve.sh"]),
             served_provider=served_provider,
             served_model=served_model,
+            provenance=MODEL_AUTHORED if session_artifact_sha256 else SCRIPTED_PAYLOAD,
+            session_artifact_path=session_artifact_path,
+            session_artifact_sha256=session_artifact_sha256,
         )
     candidates_to_try: list[str] = []
     for fence_match in re.finditer(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.S):
@@ -3455,6 +3745,14 @@ class OmpHeadlessAttemptGenerator:
                 stderr = proc.stderr or ""
                 (workspace / "llm_stdout.txt").write_text(stdout, encoding="utf-8")
                 response_text, served_provider, served_model = _parse_omp_json_stdout(stdout)
+                stream_sha256 = _sha256_text(stdout)
+                receipt_sha256 = write_session_artifact(
+                    workspace / SESSION_ARTIFACT_FILENAME,
+                    origin="omp_events",
+                    requested_model=model_route,
+                    observed=session_observations_from_text(stdout),
+                    stream_sha256=stream_sha256,
+                )
                 parsed = (
                     parse_headless_candidate_response(
                         response_text,
@@ -3463,6 +3761,8 @@ class OmpHeadlessAttemptGenerator:
                         served_provider=served_provider,
                         served_model=served_model,
                         llm_stdout_text=stdout,
+                        session_artifact_path=str(workspace / SESSION_ARTIFACT_FILENAME),
+                        session_artifact_sha256=receipt_sha256,
                     )
                     if proc.returncode == 0 and response_text and served_provider and served_model
                     else None
@@ -3479,8 +3779,9 @@ class OmpHeadlessAttemptGenerator:
                     "started_at": started_iso,
                     "finished_at": _now_iso(),
                     "parsed_ok": parsed is not None,
-                    "llm_stdout_sha256": _sha256_text(stdout),
+                    "llm_stdout_sha256": stream_sha256,
                     "llm_solve_sha256": parsed.llm_solve_sha256 if parsed else None,
+                    "session_artifact_sha256": receipt_sha256,
                     "stdout_preview": stdout[:600],
                     "stderr_preview": stderr[:300],
                 }

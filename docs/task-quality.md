@@ -59,6 +59,43 @@ on TEST/held-out data; existing verification and split/export gates still apply.
 after the table columns. Supplying `steps=` to `upsert_trace` replaces the full
 step set atomically; `replace_trace_steps` also updates the stored step count.
 
+### Retrieval for agent prompts
+
+`CloudTraceRetriever` reads the same projections back for prompts. It ranks
+retained issues by FTS/keyword and defect-class overlap, attaches the recorded
+trace steps behind them, and refuses anything that must not reach a model:
+
+```python
+from evallab.production.cloud_trace_db import (
+    CloudTraceRetriever,
+    format_retrieval_prompt_block,
+)
+
+with CloudTraceDatabase() as evidence:
+    examples = CloudTraceRetriever(evidence).retrieve_similar_examples(
+        "grader accepts empty output",
+        issue_kind="weak_check",  # exact defect class or wrong_pass/unfair_fail
+        exclude_task_ids={task_under_audit},  # leave-one-out
+        top_k=3,
+    )
+    block = format_retrieval_prompt_block(examples)  # "" when nothing is relevant
+```
+
+Only `dev`/`development` splits are readable, so a `test`/`TEST`/`heldout` row is
+never returned even when an ingester wrote one. The `tb4-audit-v1` TEST cohort and
+the 33 MiMo heldouts are refused by exact id and by bare name, read from
+`research/answer-keys/splits/assignments.csv` and unioned with a frozen snapshot so
+a runtime that ships without `research/` still refuses them. Each example carries
+the recorded defect class, direction, status, `file:line` citation, bounded
+reproducer, the `original -> repaired` differential when both rewards are
+retained, and up to three recorded trace steps. Only assistant/tool steps count as
+command and observation evidence: retained-journal rows such as
+`seeker.attempt_started` are telemetry, so they never outrank what an agent
+actually ran or saw. The block is bounded (`max_chars`, default 2400), drops whole
+lines rather than cutting a claim, flattens quoted text so retrieved bytes cannot
+forge prompt structure, and labels itself untrusted evidence. `lab db --retrieve
+"<query>"` prints the same block from the terminal.
+
 `S3CompatibleCAS` stores exact bytes under `cas://sha256/<digest>` and verifies
 downloaded or mirrored bytes before returning them. Configure
 `EVALLAB_S3_BUCKET`, `EVALLAB_S3_ENDPOINT_URL` for R2/Tigris/custom S3, and

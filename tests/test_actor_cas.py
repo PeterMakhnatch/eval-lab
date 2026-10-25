@@ -559,6 +559,11 @@ def test_read_owned_file_refuses_symlinked_ancestry(root: Path) -> None:
     with pytest.raises(OSError):
         actor_cas.read_owned_file(linked_parent / "approvals.json")
 
+    fifo = root / "approvals.fifo"
+    os.mkfifo(fifo)
+    with pytest.raises(ValueError, match="regular files"):
+        actor_cas.read_owned_file(fifo)
+
 
 def test_staging_renamed_midflight_never_leaves_a_partial_destination(
     root: Path, monkeypatch: pytest.MonkeyPatch,

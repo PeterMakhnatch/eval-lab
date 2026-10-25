@@ -40,8 +40,11 @@ from pathlib import Path
 from typing import Any, LiteralString
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-SYSTEMS = ("task_quality", "reward_seeker", "misalignment", "queue")
-WORKER_SYSTEMS = SYSTEMS[:-1]
+#: Systems that own leased jobs. Only these may enqueue ``*_task`` work.
+WORKER_SYSTEMS = ("task_quality", "reward_seeker", "misalignment")
+#: Every system allowed to journal an event: the job owners, the queue itself, and
+#: the swarm coordinator, whose attested round events belong to no single worker.
+SYSTEMS = (*WORKER_SYSTEMS, "queue", "swarm")
 STATUSES = ("provisional", "confirmed", "refuted", "applied")
 DATASETS = ("tb4-audit-v1", "mimo-defect-map-v1", "cheatbench-actions-v1", "hacktrace-act-v1")
 

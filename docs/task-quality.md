@@ -102,15 +102,32 @@ determines the deterministic order. Provisional/refuted issues never contribute.
 Real assistant/tool actions outrank journal telemetry, and user context is not
 presented as agent action evidence. Receipt status is reported, not inferred.
 
-Admission precedes content reads. The trimmed, case-insensitive DB split must be
-exactly `dev` (not `development`); grader digests and string metadata item ids must
-clear registry seals. Dataset assignment keys are stripped and case-folded.
-Known keys require an explicit DEV assignment, and `assigned_test_anywhere`
-denies task/item identities marked TEST under **any** key, even if the DB row uses
-another dataset. This stricter retrieval guard is separate from secondary keys'
-local queue-admission semantics. The registry's `assigned_split`,
-`has_split_assignments`, and identity-only `sealed_identifiers` accessors are the
-authority; the retriever does not reparse split files.
+Admission precedes content reads. The public, pure `admitted_cloud_task_ids`
+function is the single structured gate for the retriever and identity-only actor
+projections; it returns a `frozenset` of **original raw task ids**. Each input row
+requires `task_id`, `dataset_id`, `split`, `original_grader_digest`,
+`repaired_grader_digest`, `item_id`, and `item_type`, including explicit nulls for
+absent optional identities. Invalid/missing fields or metadata type `invalid`
+deny only that row, not unrelated valid rows. SQLite metadata kinds null/None
+and text, and PostgreSQL null/string, are supported.
+
+The trimmed, case-insensitive DB split must be exactly `dev` (not `development`).
+Recorded and queried item ids, dataset assignment keys, canonical task names
+(including namespace/version aliases), and grader/package digests compare with
+trim+casefold normalization; immutable source values and provenance stay raw.
+Known canonical or assignment keys require an explicit DEV assignment, and
+`assigned_test_anywhere` denies task/item identities marked TEST under **any**
+key, even if the DB row uses another dataset or a task-name DEV alias. This
+stricter retrieval guard is separate from secondary keys' local queue semantics.
+
+`CorpusRegistry.has_assignment_authority()` requires a valid, nonempty loaded
+split ledger. A missing, empty, or malformed ledger never authorizes content
+hydration; source-only registry construction with a missing ledger remains
+possible with `split_assignments_digest=None`. The pure gate performs no DB/file
+I/O, and the retriever sorts its admitted raw ids before hydration. Storage
+`search_traces` and `query_task_issues` accept `allowed_task_ids` for exact,
+bound SQL scoping before hydration: `None` preserves their legacy unrestricted
+behavior, while an empty collection returns no rows without reading bodies.
 Secondary item labels are checked **only as structured identities**, not as
 arbitrary prose substrings: a TEST item label `qa` rejects a row whose item id is
 `qa`, but does not ban an unrelated trace discussing QA. Secondary TEST **task

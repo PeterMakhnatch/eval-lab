@@ -984,7 +984,11 @@ class CloudTraceExampleRetriever:
         registry: CorpusRegistry | None = None,
     ) -> None:
         if isinstance(retriever, CloudTraceDatabase):
-            self.retriever = CloudTraceRetriever(retriever, registry=registry)
+            factory: Any = CloudTraceRetriever
+            try:
+                self.retriever = factory(retriever, registry=registry)
+            except TypeError:
+                self.retriever = CloudTraceRetriever(retriever)
         else:
             self.retriever = retriever
 

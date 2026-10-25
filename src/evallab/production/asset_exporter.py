@@ -30,9 +30,9 @@ Producer-compatible contracts (no parallel invented formats):
   ``item_id`` (and ``task_id`` when declared) bound to the asset identity, and
   a ``trace`` path or ``trace_sha256`` bound to the actual labeled trace —
   whose ``{step, quote}`` citations all resolve verbatim against that trace.
-  When the receipt carries a ``verification`` block it must be the canonical
-  normalized proof, byte-identical to the promotion event's receipt, and its
-  underlying independent evidence — a deterministic verdict-rule match plus a
+  The receipt must carry a ``verification`` block: the canonical normalized
+  proof, byte-identical to the promotion event's receipt. Its underlying
+  independent evidence — a deterministic verdict-rule match plus a
   measured execution receipt bound to the run/task with a declared execution
   status, or a ground-truth adjudication backed by a loaded
   ``evallab.trace_label_adjudication_record/v1`` source file — must still
@@ -108,7 +108,7 @@ ASSET_KINDS = ("repaired_task", "exploit_witness", "labeled_trace")
 TRACE_LABEL_SCHEMA = "evallab.trace_label/v1"
 TRACE_LABELS = ("exploit-pass", "defect-fail")
 VERIFIED_LABEL_STATUSES = ("confirmed", "verified")
-#: Independent proofs a ``labeled_trace`` receipt may carry under
+#: Independent proofs a ``labeled_trace`` receipt must carry under
 #: ``verification``. ``evallab.trace_label_verification/v1`` is a deterministic
 #: verifier receipt (verdict-rule match plus a measured execution receipt);
 #: ``evallab.trace_label_adjudication/v1`` is an explicit ground-truth
@@ -1430,9 +1430,10 @@ class VerifiedAssetExporter:
 
         A ``monitor.suspicion`` semantic-triage card is raw model suspicion —
         useful input to a verifier, never a verified label — so it fails here
-        even with completed triage and surviving cite-or-abstain. No current
-        production worker emits the verified receipt; the explicit contract is
-        checked regardless.
+        even with completed triage and surviving cite-or-abstain. The worker's
+        independent proof is mandatory and re-verified by
+        ``_verify_labeled_trace``; citations and a verified status alone never
+        prove a label.
         """
         receipt = payload.get("label_receipt", payload.get("receipt"))
         problems: list[str] = []
@@ -1538,6 +1539,7 @@ class VerifiedAssetExporter:
     def _verify_labeled_trace(
         self, event: Mapping[str, Any], payload: Mapping[str, Any]
     ) -> tuple[dict[str, Any] | None, list[str]]:
+        """Require a confirmed promotion and re-verify its independent proof."""
         problems: list[str] = []
         steps, trace_path, trace_problems = self._load_trace_steps(payload)
         problems.extend(trace_problems)
@@ -1545,35 +1547,33 @@ class VerifiedAssetExporter:
         problems.extend(receipt_problems)
         if receipt is not None and not self._trace_bound(receipt, trace_path, steps):
             problems.append("label receipt does not bind the labeled trace")
-        source = None
-        if payload.get("source_event_id") is not None:
-            source, link_problems = self._linked_event(
-                payload.get("source_event_id"), run_id=str(event.get("run_id"))
-            )
-            problems.extend(link_problems)
-            if source is not None and source.get("status") != "confirmed":
+        if payload.get("source_event_type") != "trace.label_verified":
+            problems.append("source_event_type is not trace.label_verified")
+        source, link_problems = self._linked_event(
+            payload.get("source_event_id"),
+            expected_type="trace.label_verified",
+            run_id=str(event.get("run_id")),
+        )
+        problems.extend(link_problems)
+        if source is not None:
+            if source.get("status") != "confirmed":
                 problems.append("linked trace-label source event is not confirmed")
-            if source is not None:
-                problems.extend(
-                    self._identity_consistent(
-                        payload, source.get("payload") or {}, context="source"
-                    )
+            problems.extend(
+                self._identity_consistent(
+                    payload, source.get("payload") or {}, context="source"
                 )
+            )
         verified_proof = None
-        if receipt is not None and receipt.get("verification") is not None:
-            # A promoted receipt proves itself: the embedded verification block
-            # must be the canonical normalized proof, byte-identical to what
-            # the confirmed trace.label_verified event journaled, and its
-            # underlying measured/adjudicated evidence must still re-verify.
-            proof = receipt["verification"]
+        if receipt is not None:
+            # Every label needs the canonical normalized proof journaled by its
+            # confirmed promotion, with the independent source reloaded now.
+            proof = receipt.get("verification")
             if source is None:
                 problems.append(
                     "a promoted label receipt requires its confirmed "
                     "trace.label_verified source event"
                 )
             else:
-                if source.get("event_type") != "trace.label_verified":
-                    problems.append("promoted label source is not trace.label_verified")
                 source_payload = source.get("payload") or {}
                 try:
                     receipt_matches = _canon(

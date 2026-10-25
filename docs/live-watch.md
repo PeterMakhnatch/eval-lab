@@ -891,8 +891,15 @@ experiment matrix receipt — and any identity metadata they declare must match
 the qualification record citing them. A bare `{"reward": ...}` JSON object is
 never measured evidence. A `labeled_trace` requires a verified
 `evallab.trace_label/v1` receipt bound to the asset's dataset, item, and the
-labeled trace itself, with citations resolving verbatim; a completed
-`monitor.suspicion` card is raw suspicion, never a verified label.
+labeled trace itself, with citations resolving verbatim. Its `verification`
+block is mandatory: the exporter reloads and checks an independent measured
+execution or source-record-backed human adjudication proof, linked through
+`source_event_id` and `source_event_type` to a confirmed `trace.label_verified`
+promotion carrying the identical receipt. Missing, null, malformed, or forged
+proofs and missing, wrong-type, or unconfirmed promotion sources fail closed
+for both asset export and training backing. Citations and a `verified` status
+alone never prove a label; a completed `monitor.suspicion` card is raw
+suspicion, never a verified label.
 
 `MisalignmentLiveWorker.verify_and_promote_trace_label(run_id, card_id,
 receipt)` is the producer for that asset kind. It promotes one journaled

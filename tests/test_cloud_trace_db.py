@@ -634,3 +634,124 @@ def test_cas_configuration_never_probes_ambient_credential_chains(monkeypatch: p
         S3CompatibleCAS(bucket="fixture")
     local = S3CompatibleCAS(local_directory=tmp_path)
     assert local.get_bytes(local.put_bytes(b"offline")) == b"offline"
+
+
+@pytest.mark.parametrize("fts", (True, False), ids=("sqlite-fts", "sqlite-like"))
+def test_task_scope_filters_before_sqlite_rows_materialize(tmp_path: Path, fts: bool) -> None:
+    with CloudTraceDatabase(tmp_path / "scoped.sqlite", sqlite_fts=fts) as database:
+        seed(database)
+        database.upsert_task_issue(issue("provisional-issue", status="provisional"))
+        database.upsert_task(task("denied-task", split="test"))
+        database.upsert_task_issue(issue("denied-issue", task_id="denied-task"))
+        database.upsert_trace(trace("denied-trace", task_id="denied-task"), steps=steps())
+        allowed = frozenset({"synthetic-task"})
+        materialized = []
+
+        def guarded_row(cursor: sqlite3.Cursor, row: tuple[Any, ...]) -> tuple[Any, ...]:
+            fields = {column[0]: position for position, column in enumerate(cursor.description)}
+            if "task_id" in fields:
+                assert row[fields["task_id"]] in allowed, "denied body materialized in SQLite"
+                materialized.append(row[fields["task_id"]])
+            if "trace_id" in fields:
+                assert row[fields["trace_id"]] == "trace-1", "denied step/trace materialized"
+            return row
+
+        database._connection.execute("PRAGMA query_only = ON")
+        database._connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 999)
+        database._connection.row_factory = guarded_row
+        try:
+            traces = database.search_traces(
+                "checksum", defect_class="insufficient_checking", tool_name="terminal",
+                only_verified=True, allowed_task_ids=allowed,
+            )
+            assert [row["trace_id"] for row in traces] == ["trace-1"]
+            assert traces[0]["task"]["task_id"] == "synthetic-task"
+            assert {row["issue_id"] for row in traces[0]["issues"]} == {
+                "synthetic-issue", "provisional-issue",
+            }
+            assert [row["step_index"] for row in traces[0]["steps"]] == [0, 1, 4]
+            assert [row["issue_id"] for row in database.query_task_issues(
+                allowed_task_ids=allowed,
+            )] == ["synthetic-issue"]
+            assert [row["issue_id"] for row in database.query_task_issues(
+                confirmed_only=False, allowed_task_ids=allowed,
+            )] == ["provisional-issue", "synthetic-issue"]
+            assert database.query_task_issues("denied-task", allowed_task_ids=allowed) == []
+            assert database.search_traces("", allowed_task_ids={" SYNTHETIC-TASK "}) == []
+            assert database.query_task_issues(allowed_task_ids={" SYNTHETIC-TASK "}) == []
+            large_scope = allowed | {f"missing-{index}" for index in range(1500)}
+            assert [row["trace_id"] for row in database.search_traces(
+                "checksum", allowed_task_ids=large_scope,
+            )] == ["trace-1"]
+            assert [row["issue_id"] for row in database.query_task_issues(
+                allowed_task_ids=large_scope,
+            )] == ["synthetic-issue"]
+            assert materialized
+        finally:
+            database._connection.row_factory = None
+        assert {row["trace_id"] for row in database.search_traces("")} == {
+            "trace-1", "denied-trace",
+        }
+        assert {row["issue_id"] for row in database.query_task_issues()} == {
+            "synthetic-issue", "denied-issue",
+        }
+
+
+@pytest.mark.parametrize("fts", (True, False), ids=("sqlite-fts", "sqlite-like"))
+def test_empty_task_scope_never_reads_sqlite_bodies(tmp_path: Path, fts: bool) -> None:
+    with CloudTraceDatabase(tmp_path / "empty-scope.sqlite", sqlite_fts=fts) as database:
+        seed(database)
+        reads = []
+
+        def no_reads(
+            action: int, table: str | None, column: str | None,
+            source: str | None, trigger: str | None,
+        ) -> int:
+            if action == sqlite3.SQLITE_READ:
+                reads.append((table, column))
+                return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+
+        database._connection.set_authorizer(no_reads)
+        try:
+            assert database.search_traces("checksum", allowed_task_ids=frozenset()) == []
+            assert database.search_traces("", allowed_task_ids=[]) == []
+            assert database.query_task_issues(allowed_task_ids=frozenset()) == []
+            assert database.query_task_issues(
+                "synthetic-task", confirmed_only=False, allowed_task_ids=[],
+            ) == []
+            assert reads == []
+        finally:
+            database._connection.set_authorizer(None)
+
+
+def test_task_scope_preserves_query_status_and_filter_semantics(db: CloudTraceDatabase) -> None:
+    seed(db)
+    db.upsert_task_issue(issue("provisional", status="provisional"))
+    db.upsert_task_issue(issue("unfair", direction="unfair_fail"))
+    db.upsert_trace(trace("unverified", verified_receipt_json=None), steps=steps())
+    db.upsert_task(task("other-task"))
+    db.upsert_task_issue(issue("other-issue", task_id="other-task", direction="unfair_fail"))
+    db.upsert_trace(trace("other-trace", task_id="other-task"), steps=steps())
+    scope = frozenset({"synthetic-task"})
+    assert [row["trace_id"] for row in db.search_traces(
+        "checksum", only_verified=True, allowed_task_ids=scope,
+    )] == ["trace-1"]
+    assert [row["trace_id"] for row in db.search_traces(
+        "", defect_class="insufficient_checking", tool_name="terminal", allowed_task_ids=scope,
+    )] == ["trace-1", "unverified"]
+    assert db.search_traces("", defect_class="absent", allowed_task_ids=scope) == []
+    assert db.search_traces("", tool_name="absent", allowed_task_ids=scope) == []
+    assert [row["issue_id"] for row in db.query_task_issues(
+        direction="wrong_pass", allowed_task_ids=scope,
+    )] == ["synthetic-issue"]
+    assert [row["issue_id"] for row in db.query_task_issues(
+        direction="wrong_pass", confirmed_only=False, allowed_task_ids=scope,
+    )] == ["provisional", "synthetic-issue"]
+    assert [row["issue_id"] for row in db.query_task_issues(
+        direction="unfair_fail", allowed_task_ids=scope,
+    )] == ["unfair"]
+    assert db.query_task_issues("other-task", allowed_task_ids=scope) == []
+    assert {row["trace_id"] for row in db.search_traces("", allowed_task_ids=None)} == {
+        "trace-1", "unverified", "other-trace",
+    }

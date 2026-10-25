@@ -1693,3 +1693,57 @@ def test_pin_evidence_interrupted_copy_leaves_no_partial_destination(
     assert pinned == str(destination)
     assert (destination / "marker.txt").read_text(encoding="utf-8") == "full-bytes"
     assert (destination / "verifier" / "reward.json").is_file()
+
+
+def test_blind_workspace_and_prompt_exclude_answer_key_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.production import seeker_worker
+    from evallab.production.seeker_worker import ResolvedSeekerTask, build_headless_seeker_prompt
+
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    protected = ("golden", "golden-cache", "reference", "_verifier-setup")
+    for name in protected:
+        directory = original / "tests" / name
+        directory.mkdir()
+        (directory / "private.csv").write_text("PRIVATE_ANSWER_SENTINEL\n")
+    task = ResolvedSeekerTask(
+        run_id="blind-run",
+        job_type="reward_seeker.seek_task",
+        dataset_id="synthetic-dev",
+        item_id="synthetic-dev",
+        task_id="synthetic-dev",
+        split="dev",
+        measurable=True,
+        original_task=original,
+        repaired_task=repaired,
+        repaired_grader_kind="package",
+    )
+    worker = RewardSeekerLiveWorker(
+        FakeQueue(),  # type: ignore[arg-type]
+        worker_id="blind-worker",
+        repo_root=REPO_ROOT,
+        work_root=tmp_path / "work",
+        hackbook_entries=[],
+    )
+    memory = SeekerFailureMemory()
+    workspace = worker._prepare_attempt_workspace(
+        task,
+        attempt_index=1,
+        cues=[],
+        memory=memory,
+        last_feedback_markdown=None,
+    )
+    for name in protected:
+        assert not (workspace / "task" / "tests" / name).exists()
+    monkeypatch.setattr(seeker_worker, "find_tb4_test_leaks", lambda *_args, **_kwargs: [])
+    prompt = build_headless_seeker_prompt(
+        task,
+        attempt_index=1,
+        selected_cue=None,
+        cues=[],
+        memory=memory,
+        workspace=workspace,
+    )
+    assert "PRIVATE_ANSWER_SENTINEL" not in prompt

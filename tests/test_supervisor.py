@@ -11,6 +11,7 @@ producers emit.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import subprocess
 import sys
@@ -221,14 +222,21 @@ class LocalControls:
 
 
 def _candidate() -> SeekerAttemptCandidate:
+    solve = "printf 'shortcut\\n' > output.txt\n"
+    raw_stdout = json.dumps({"files": {"solve.sh": solve}})
     return SeekerAttemptCandidate(
-        files={"solve.sh": "printf 'shortcut\\n' > output.txt\n"},
+        files={"solve.sh": solve},
         mechanism="Accept any nonempty output instead of verifying the computed answer.",
         taxonomy_class="weak_check",
         target_check="tests/test_output.py",
         files_written=("output.txt",),
         intended_work_skipped="compute the answer",
         exploit_found=True,
+        model_route="test/synthetic-model",
+        llm_stdout_sha256=hashlib.sha256(raw_stdout.encode("utf-8")).hexdigest(),
+        llm_solve_sha256=hashlib.sha256(solve.encode("utf-8")).hexdigest(),
+        served_provider="test",
+        served_model="synthetic-model",
     )
 
 

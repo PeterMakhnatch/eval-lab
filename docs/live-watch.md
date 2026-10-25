@@ -826,6 +826,14 @@ unknown served identity, implicit static templates, or any later script rewrite
 refuse execution/promotion instead of acquiring model credit. Direct non-LLM
 controls may still use differential replay without being promoted as LLM assets.
 
+Headless consumers may supply an explicit OMP configuration and a sealed
+`dev_task_allowlist`. The latter rejects non-DEV or unlisted tasks before
+workspace reads and avoids opening mixed-split manifests for prompt admission.
+An optional `CloudTraceRetriever` adds only its bounded evidence block and
+writes `retrieval.json` beside the raw model response. Reuse one retriever
+instance to keep its DEV snapshot fixed across a comparison; see
+[`task-quality.md`](task-quality.md#cloud-task-issue-and-trace-evidence).
+
 `evallab.production.asset_exporter.VerifiedAssetExporter` is the downstream
 evidence gate: it rescans the durable journal, re-verifies every
 `asset.verified` event end to end, and writes `assets.jsonl` with

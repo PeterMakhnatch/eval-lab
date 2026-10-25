@@ -59,6 +59,48 @@ on TEST/held-out data; existing verification and split/export gates still apply.
 after the table columns. Supplying `steps=` to `upsert_trace` replaces the full
 step set atomically; `replace_trace_steps` also updates the stored step count.
 
+### DEV-only worker examples
+
+`CloudTraceRetriever` and its frozen `RetrievedExample` result are exported from
+`evallab.production`. Construct the retriever with an explicit `CorpusRegistry`;
+it reuses the database's native full-text search without writing the database:
+
+```python
+from evallab.production import CloudTraceRetriever, CorpusRegistry
+
+retriever = CloudTraceRetriever(evidence, registry=CorpusRegistry())
+examples = retriever.retrieve_similar_examples("grader accepts empty output", "task_quality")
+prompt_context = retriever.format_for_prompt(examples)
+```
+
+The kinds are `task_quality` (confirmed wrong-pass or unfair-fail issues, preferring
+task-defect-fail traces), `reward_seeker` (confirmed wrong-pass issues or explicitly
+marked exploit traces), and `misalignment` (flagged steps or exploit traces).
+Provisional and refuted issues never contribute evidence or query matches. Trace
+receipt status is reported as stored, not inferred from flags or rewards.
+
+Admission precedes task/issue/step content reads: the trimmed, case-insensitive DB
+split must be exactly `dev`, neither grader digest nor the metadata item id may hit
+the registry seal, and explicit sealed ids also exclude namespaced/versioned
+aliases. Database split labels cannot override per-key assignments, including
+secondary keys that do not seal names globally. `CorpusRegistry.assigned_split`
+resolves item/task aliases with TEST winning conflicts; `has_split_assignments`
+distinguishes an external dataset without assignments from a known key missing an
+explicit DEV assignment. Known keys require that explicit DEV assignment.
+
+Queries naming sealed identities raise without echoing the query. A DEV step
+referencing a sealed identity is dropped, including its step-index and observation
+provenance, rather than redacting evidence into a new claim. Contaminated issue or
+trace provenance is not returned.
+
+Results contain at most one example per task and one relevant trace per example,
+with deterministic match-strength and task-id ordering. `top_k`, `snippet_chars`,
+and `max_steps_per_trace` must be positive integers. Free-text snippets are bounded;
+source identifiers and CAS references retain their audit identity. Prompt blocks
+quote stored evidence as data, not instructions. Empty results format as `""`.
+These examples do not grant training/export admission or verify a receipt.
+
+
 `S3CompatibleCAS` stores exact bytes under `cas://sha256/<digest>` and verifies
 downloaded or mirrored bytes before returning them. Configure
 `EVALLAB_S3_BUCKET`, `EVALLAB_S3_ENDPOINT_URL` for R2/Tigris/custom S3, and

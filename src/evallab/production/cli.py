@@ -15,15 +15,17 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import math
 import os
 import re
 import signal
 import sys
+import tempfile
 import threading
 from collections.abc import Iterator, Mapping
-from contextlib import AsyncExitStack, contextmanager, suppress
+from contextlib import AsyncExitStack, closing, contextmanager, suppress
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -120,6 +122,28 @@ def register_parser(commands: Any) -> None:
     status = actions.add_parser("status", help="Read persistent queue depth without dispatching")
     _queue_options(status)
     status.set_defaults(func=_command)
+
+    project = actions.add_parser(
+        "project-actor",
+        help="Stage a separate admitted SQLite/CAS bundle; never dispatch or upload",
+    )
+    project.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    project.add_argument("--source-database", type=Path, required=True)
+    project.add_argument("--source-cas", type=Path, required=True)
+    project.add_argument(
+        "--cas-allowlist", type=Path, required=True,
+        help="Operator-approved JSON array of direct CAS URIs; not inferred rights clearance",
+    )
+    project.add_argument("--output-directory", type=Path, required=True)
+    project.add_argument(
+        "--max-bytes", type=int, required=True,
+        help="Hard byte cap for staged CAS objects (SQLite bytes reported separately)",
+    )
+    project.add_argument(
+        "--task-id", dest="task_ids", action="append",
+        help="Further restrict registry-admitted tasks; repeat to select several",
+    )
+    project.set_defaults(func=_command)
 
     once = actions.add_parser("run-once", help="Run selected live consumers, then relay once")
     _queue_options(once)
@@ -355,11 +379,118 @@ async def _serve(args: argparse.Namespace, root: Path, connection: Any) -> None:
             raise RuntimeError("Production HTTP server stopped before startup completed")
 
 
+def _read_allowlist(path: Path) -> bytes:
+    """Read the approval document without following any path alias."""
+    from evallab.production.actor_cas import read_owned_file
+
+    return read_owned_file(path)
+
+
+def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    """Stage an operator-approved subset, never the raw database or its free pages."""
+    import sqlite3
+
+    from evallab.production.actor_cas import (
+        PublicationUncertainError,
+        directory_status,
+        discard_owned_directory,
+        preflight_destination,
+        publish_staged_directory,
+        stage_projection_cas,
+    )
+    from evallab.production.actor_projection import project_actor_database, source_read_uri
+    from evallab.production.cloud_trace_db import admitted_cloud_task_ids
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    def local_path(path: Path) -> Path:
+        path = path.expanduser()
+        path = path if path.is_absolute() else root / path
+        if ".." in path.parts or any(part.is_symlink() for part in (path, *path.parents)):
+            raise ValueError("Actor projection paths must not contain symlinks or '..'")
+        return path
+
+    source = local_path(args.source_database)
+    source_cas = local_path(args.source_cas)
+    output = local_path(args.output_directory)
+    if output.exists():
+        raise FileExistsError("Actor bundle destination already exists")
+    allowlist_bytes = _read_allowlist(local_path(args.cas_allowlist))
+    allowlist = json.loads(allowlist_bytes)
+    if not isinstance(allowlist, list) or any(not isinstance(uri, str) for uri in allowlist):
+        raise ValueError("CAS allowlist must be a JSON array of URI strings")
+    with closing(sqlite3.connect(source_read_uri(source), uri=True)) as connection:
+        connection.row_factory = sqlite3.Row
+        identities = [
+            dict(row) for row in connection.execute(
+                "SELECT task_id, dataset_id, split, original_grader_digest,"
+                " repaired_grader_digest,"
+                " CASE WHEN json_valid(metadata_json)"
+                " THEN json_extract(metadata_json, '$.item_id') END AS item_id,"
+                " CASE WHEN json_valid(metadata_json)"
+                " THEN json_type(metadata_json, '$.item_id') ELSE 'invalid' END AS item_type"
+                " FROM corpus_tasks ORDER BY task_id"
+            )
+        ]
+    admitted = admitted_cloud_task_ids(identities, registry=CorpusRegistry(root))
+    selected = frozenset(args.task_ids) if args.task_ids is not None else admitted
+    if not selected or not selected <= admitted:
+        raise ValueError("No tasks selected, or a requested task lacks canonical actor admission")
+    expected = {row["task_id"]: row for row in identities if row["task_id"] in selected}
+    preflight_destination(source_cas, output)
+    staging = Path(tempfile.mkdtemp(prefix=".actor-bundle-", dir=output.parent))
+    staging_status = directory_status(staging)
+    published = False
+    try:
+        projection = project_actor_database(
+            source, staging / "cloud-trace-db.sqlite",
+            task_ids=selected, expected_identities=expected,
+        )
+        cas = stage_projection_cas(
+            staging / "cloud-trace-db.sqlite", source_cas, staging / "cas",
+            approved_uris=allowlist, max_bytes=args.max_bytes,
+        )
+        receipt = {
+            "schema": "evallab.actor_bundle/v1",
+            "database": "cloud-trace-db.sqlite",
+            "cas_directory": "cas",
+            "projection": projection,
+            "cas": cas,
+            "cas_allowlist_sha256": hashlib.sha256(allowlist_bytes).hexdigest(),
+            "approval_kind": "operator-supplied CAS allowlist; not independent rights adjudication",
+            "labels_independently_verified": False,
+            "reference_scope": "approved direct CAS URI columns only; embedded references not followed",
+        }
+        with (staging / "manifest.json").open("x", encoding="utf-8") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            json.dump(receipt, stream, sort_keys=True, allow_nan=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            publish_staged_directory(staging, output, expected=staging_status)
+        except PublicationUncertainError:
+            # The rename succeeded, so this bundle may be complete at the output
+            # path. Report the uncertainty and never delete what may be published.
+            published = True
+            raise
+        published = True
+        return {"output_directory": str(output), **receipt}
+    finally:
+        # Before publication this pathname is ours, but only while it still
+        # resolves to the directory we created: a competitor's entry is left alone.
+        if not published:
+            for candidate in (staging, output):
+                discard_owned_directory(candidate, staging_status)
+
+
 def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
     """Honor the existing CLI's integer return convention, with redacted JSON errors."""
     try:
         root = _resolve(root, args.repo_root) if args.repo_root is not None else root.resolve()
         exit_code = 0
+        if args.prod_command == "project-actor":
+            _emit({"command": args.prod_command, **_project_actor(args, root)}, args)
+            return 0
         with _open_queue(args, root) as connection:
             if args.prod_command == "ingest":
                 from evallab.production.ingest import ingest_corpus

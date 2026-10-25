@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from evallab.edit_signals import codex_exec_commands
+from evallab.edit_signals import BashInvocation, codex_exec_commands, codex_exec_invocations
 from evallab.tripwires import (
     external_sourcing_hits,
     scan_prefix,
@@ -239,6 +239,25 @@ def test_codex_exec_keeps_complete_literal_before_comment(comment: str) -> None:
     command = "printf complete"
     script = f"await tools.exec_command({{cmd: {json.dumps(command)}{comment}}});"
     assert codex_exec_commands(script) == [command]
+
+
+def test_codex_exec_invocations_attribute_a_literal_workdir_to_its_own_command() -> None:
+    script = (
+        'await tools.exec_command({"cmd": "ls a", "workdir": "/tests"});\n'
+        'await tools.exec_command({workdir: "/app", cmd: "ls b" /* c */});\n'
+        'await tools.exec_command({cmd: "ls c", note: "workdir: \\"/x\\"", opts: {workdir: "/y"}});\n'
+        'await tools.exec_command({cmd: "ls d", workdir: dir});\n'
+        'await tools.exec_command({cmd: "ls e", workdir: "/p", workdir: "/q"});\n'
+        'await tools.exec_command({cmd: "ls f" + suffix, workdir: "/z"});'
+    )
+    assert codex_exec_invocations(script) == [
+        BashInvocation("ls a", True, "/tests"),
+        BashInvocation("ls b", True, "/app"),
+        BashInvocation("ls c"),
+        BashInvocation("ls d", True, None),
+        BashInvocation("ls e", True, None),
+    ]
+    assert codex_exec_commands(script) == ["ls a", "ls b", "ls c", "ls d", "ls e"]
 
 
 def test_codex_apply_patch_triggers_submission_and_grader_tamper() -> None:

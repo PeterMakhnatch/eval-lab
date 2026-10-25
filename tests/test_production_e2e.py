@@ -8,6 +8,7 @@ are their production implementations, sharing one isolated SQLite journal.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import subprocess
 import sys
@@ -247,14 +248,21 @@ def test_shared_queue_exploit_repair_monitor_and_live_ui(tmp_path: Path, source_
     repaired = _package(tmp_path / "repaired", repaired=True)
     grader = LocalGrader()
     backend = LocalControls(tmp_path / "controls", grader)
+    solve = "printf 'shortcut\\n' > output.txt\n"
+    raw_stdout = json.dumps({"files": {"solve.sh": solve}})
     candidate = SeekerAttemptCandidate(
-        files={"solve.sh": "printf 'shortcut\\n' > output.txt\n"},
+        files={"solve.sh": solve},
         mechanism="Accept any nonempty output instead of verifying the computed answer.",
         taxonomy_class="weak_check",
         target_check="tests/test_output.py",
         files_written=("output.txt",),
         intended_work_skipped="compute the answer",
         exploit_found=True,
+        model_route="test/synthetic-model",
+        llm_stdout_sha256=hashlib.sha256(raw_stdout.encode("utf-8")).hexdigest(),
+        llm_solve_sha256=hashlib.sha256(solve.encode("utf-8")).hexdigest(),
+        served_provider="test",
+        served_model="synthetic-model",
     )
     with ContinuousWorkQueue(tmp_path / "production.sqlite", registry=registry) as queue:
         initial = queue.enqueue(

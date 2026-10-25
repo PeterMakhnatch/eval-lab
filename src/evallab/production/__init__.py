@@ -5,6 +5,7 @@ from evallab.production.asset_exporter import (
     VerifiedAssetExporter,
     export_training_bundle,
 )
+from evallab.production.cloud_trace_retriever import CloudTraceRetriever
 from evallab.production.control_plane import app_from_env, create_app
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
 from evallab.production.monitor_worker import MisalignmentLiveWorker
@@ -32,6 +33,7 @@ from evallab.production.tq_worker import TaskQualityLiveWorker
 
 __all__ = [
     "AssetExportError",
+    "CloudTraceRetriever",
     "ContinuousWorkQueue",
     "CorpusRegistry",
     "DrainReport",

@@ -17,7 +17,8 @@ family, and are never silently promoted to findings, control, or assets.
 - ``evallab.findings.<system>``: determinations — ``monitor.suspicion``,
   ``seeker.exploit_confirmed``, ``seeker.job_refused``, ``task_quality.failed``,
   ``task_quality.repair_qualified``, ``task_quality.repair_rejected``,
-  ``task_quality.repair_unavailable``.
+  ``task_quality.repair_unavailable``, and the task-quality ``qa.finding/v1``
+  finding records.
 - ``evallab.control.<system>``: dispatch and lifecycle — ``control.*``,
   ``executor.control_*``, ``operator.control_*``, ``worker.*``, and queue job
   events (worker-system ``*_task`` types such as ``task_quality.repair_task``).
@@ -68,6 +69,10 @@ MAX_MSG_ID = 1024
 _MAX_BROKER_LINE = 1 << 20
 
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{1,64}")
+#: Event-type tokens also admit the ``name/version`` schema convention used by
+#: producers such as ``qa.finding/v1``; the event type never enters the routed
+#: subject, but the envelope contract keeps it segmentable.
+_EVENT_TOKEN = re.compile(r"[A-Za-z0-9_-]{1,64}(?:/[A-Za-z0-9_-]{1,64})?")
 _FINDING_TYPES = frozenset(
     {
         "monitor.suspicion",
@@ -77,6 +82,7 @@ _FINDING_TYPES = frozenset(
         "task_quality.repair_qualified",
         "task_quality.repair_rejected",
         "task_quality.repair_unavailable",
+        "qa.finding/v1",
     }
 )
 _ASSET_PREFIXES = ("asset.", "verified_asset.")
@@ -293,7 +299,7 @@ def _validate_envelope(envelope: Any) -> Mapping[str, Any]:
         not isinstance(event_type, str)
         or not event_type
         or len(event_type) > 256
-        or any(not _TOKEN.fullmatch(token) for token in event_type.split("."))
+        or any(not _EVENT_TOKEN.fullmatch(token) for token in event_type.split("."))
     ):
         raise InvalidEnvelopeError("event_type must be dotted routing-safe tokens")
     ts = _require_text(envelope.get("ts"), "ts")

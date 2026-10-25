@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 
 from evallab.dataset_audit_checks import static_observation
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
+from evallab.execution_backend import ExecutionBackendConfig
 from evallab.production import (
     ContinuousWorkQueue,
     CorpusRegistry,
@@ -276,13 +277,19 @@ def test_shared_queue_exploit_repair_monitor_and_live_ui(tmp_path: Path, source_
             hackbook_entries=[],
             attempt_generator=lambda *_: candidate,
             grader_fn=grader,
+            execution_config=ExecutionBackendConfig(backend="modal"),
             max_attempts=1,
         )
         outcome = asyncio.run(seeker.run_once())
         assert outcome is not None and outcome.exploit_confirmed
         assert (outcome.original_reward, outcome.repaired_reward) == (1.0, 0.0)
         tq = TaskQualityLiveWorker(
-            queue, repo_root=tmp_path, backend=backend, candidate_runner=grader, clock=NOW.isoformat
+            queue,
+            repo_root=tmp_path,
+            backend=backend,
+            execution_config=ExecutionBackendConfig(backend="modal"),
+            candidate_runner=grader,
+            clock=NOW.isoformat,
         )
         app = create_app(queue, operator_tokens={TOKEN: "integration-operator"}, clock=lambda: NOW)
         live_end: dict[str, Any] = {}

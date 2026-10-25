@@ -817,6 +817,67 @@ ancestor and any same-named file whose existing bytes differ, leave no
 mismatched half-bundle on failure, and a durable consumer cursor acknowledges
 only after the complete bundle is on disk.
 
+### Production supervisor
+
+`evallab.production.ProductionSupervisor` is the thin orchestration layer that
+drives all of the above in one deterministic step. Construct it with the shared
+`ContinuousWorkQueue`, the three live workers, an `OutboxRelay`, and optionally
+a `VerifiedAssetExporter` plus `export_root`. `run_step()` processes at most one
+unit of work per stage in fixed priority order — a claimed
+`misalignment.prefix_audit_task` ingested through the monitor worker and one
+monitor consumer batch, then one `TaskQualityLiveWorker.run_once()`, then one
+`RewardSeekerLiveWorker.run_once()` — so higher-priority systems always get
+their turn first, and a lower-priority worker never claims while
+higher-priority work is queued, leased, failed-but-unresolved, or
+unconsumed-backlog measured on consumer-relevant events: the skipped stage
+reports `status="blocked"` with its `blocked_by` systems, which is distinct
+from genuine idle. Job leases stay owned by
+the workers' own claim/ack/release contracts; the supervisor never completes
+work on their behalf. The seeker's asynchronous `run_once()` is driven
+synchronously on a single supervisor-owned event loop living on a private
+daemon thread (`run_coroutine_threadsafe`), so loop-bound worker clients keep
+one live loop across steps; `supervisor.close()` stops the thread.
+`run_until_idle(max_steps=...)` repeats until a step is
+idle — nothing claimed, nothing meaningful consumed, no export, no errors —
+or the bound is reached, so blocked or failing work can never hang the loop.
+
+After every step — productive, idle, or failed — the supervisor refreshes
+liveness from the journal, emits one `worker.heartbeat` per worker system plus
+a `collector.heartbeat`, and drains the relay outbox (transient broker errors
+leave entries pending for the next step). Heartbeats carry real evidence only:
+the newest journal event timestamp for that system, the last work the
+supervisor observed, live leases from `queue_snapshot()` with per-lease
+`held_seconds`, and `expired_leases` — jobs the supervisor saw leased that
+left the leased set past their deadline without completing, resolved per job
+through `ContinuousWorkQueue.job_state` so an unrelated same-type completion
+never hides a lapse. A live lease is held work, not progress: the first
+observed claim and each lease-deadline extension count as activity, but an
+unchanged lease cannot postpone `stale`. A worker is `stale` when it has no
+journal output and no observed work for longer than `stale_after_seconds`
+(default 10), even while holding a lease; `clock` is injectable for
+deterministic tests and must share the journal's epoch domain. The
+supervisor's own heartbeat and `asset.export` events are marked with an
+`emitter` field and never count as worker activity, so they cannot conceal a
+stalled worker or keep the pipeline busy.
+
+When `asset_batch_threshold` confirmed `asset.verified` events are pending on
+the supervisor's dedicated export consumer cursor, the supervisor derives
+training candidates from the verified events — dataset/item identity, the
+producer-declared mechanism signature (never invented; missing means honest
+rejection), the verified evidence row, and the source
+`asset_event_id` — and calls `export_training_bundle`, which re-verifies every
+candidate fail-closed (TEST/heldout and unverifiable assets land in the
+manifest's `rejections`, never in `training_rows.jsonl`). The bundle is written
+to a unique `export_root/<consumer>-bundle-<boundary>` directory whose
+boundary is the newest `asset.verified` sequence in the window — an immutable
+mark that receipts, heartbeats, and unrelated events can never move — an
+`asset.export` journal event records the manifest, and only then is the export
+cursor acknowledged to that boundary, never beyond the processed window —
+a crash before the acknowledgement replays the identical candidate set into a
+byte-identical bundle, and an acknowledged window is never
+re-scanned, so idle cycles cannot repeat an export. `supervisor.status()`
+returns the same liveness projection without dispatching work.
+
 `TaskQualityLiveWorker` also claims `task_quality.annotation_task` jobs — the
 normalized human severity/rationale records that loaders such as
 `load_swebench_annotations` enqueue under `payload.annotation`. Every row
@@ -897,8 +958,8 @@ envelope to `evallab.<family>.<token>` with `Nats-Msg-Id` equal to
 crash between ack and mark is repaired by broker deduplication on the next
 drain. Routing is explicit: `trace.*`/`run.*`/monitor capture and seeker
 attempt telemetry go to `evallab.capture.<system>`; `monitor.suspicion`,
-`seeker.exploit_confirmed`/`job_refused`, and `task_quality.*` determinations
-go to `evallab.findings.<system>`; `control.*`, `executor.*`, `operator.*`,
+`seeker.exploit_confirmed`/`job_refused`, `qa.finding/v1` records, and
+`task_quality.*` determinations go to `evallab.findings.<system>`; `control.*`, `executor.*`, `operator.*`,
 `worker.*`, and `*_task` job events go to `evallab.control.<system>`;
 `asset.*`/`verified_asset.*` go to `evallab.assets.<kind>` (payload `kind`,
 default `unknown`). Unknown future types fall back to `evallab.capture.<system>`

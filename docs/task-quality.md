@@ -26,9 +26,15 @@ an automatic corpus importer or a verifier: callers must supply real evidence.
 
 Pass a PostgreSQL URL or set `EVALLAB_CLOUD_DATABASE_URL` (preferred over
 `DATABASE_URL`). PostgreSQL maintains generated `tsvector` columns and GIN
-indexes for native full-text search. An explicit local path or `sqlite:///` URL
-uses SQLite FTS5; builds without FTS5 use escaped LIKE searches. No database URL
-means a configuration error, not a silent local replacement.
+indexes for native full-text search. A PostgreSQL vector itself cannot exceed
+1 MiB, even when its source text fits: documents above 64 KiB bypass that
+accelerator and search their **complete native English lexemes** instead.
+All query terms must still match the same complete document; stemming,
+stopwords, and tail matches are preserved without clipping stored or searched
+text. Existing unbounded generated-vector columns/indexes migrate under the
+schema lock, preserving all four source tables. An explicit local path or
+`sqlite:///` URL uses SQLite FTS5; builds without FTS5 use escaped LIKE searches.
+No database URL means a configuration error, not a silent local replacement.
 
 ```python
 from evallab.production.cloud_trace_db import CloudTraceDatabase

@@ -523,7 +523,7 @@ inputs:
   - path: src/evallab/production/asset_store.py
     digest: sha256:170dd5c6b3490b5f61f8545dac4c7840c9e758f1ad5c5c57195c5fe721ffa28e
   - path: src/evallab/production/cloud_trace_db.py
-    digest: sha256:0054c8939277ffff6206c823dfa757ef4f1167c3104c770672e6da11fe77c888
+    digest: sha256:c4d559ff8f2882d5963ab652ad42ed51c18492670a468d18f77753066831792f
   - path: src/evallab/production/control_plane.py
     digest: sha256:2786e7fe37c793f871282b647fea677e7da212edfafc68ab1714cecf6f6165e8
   - path: src/evallab/production/corpus_queue.py

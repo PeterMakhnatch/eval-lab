@@ -47,10 +47,20 @@ _SEARCH_COLUMNS = {
     "agent_traces": ("trace_id", "run_id", "model_id", "outcome"),
     "trace_steps": ("role", "tool_name", "command_or_action", "content_text", "observation_preview"),
 }
+# A tsvector is limited to 1 MiB regardless of the underlying TEXT/CAS capacity.
+# Bound only the accelerated representation; overflow searches parse all text.
+_POSTGRES_VECTOR_SOURCE_BYTES = 65_536
 _JSON_COLUMNS = {"metadata_json", "verified_receipt_json", "flags_json"}
 _DIRECTIONS = {"wrong_pass", "unfair_fail"}
 _STATUSES = {"provisional", "confirmed", "refuted"}
 _CAS_URI = re.compile(r"cas://sha256/([0-9a-f]{64})\Z")
+
+
+def _search_text(table: str, alias: str = "") -> str:
+    prefix = alias + "." if alias else ""
+    return " || ' ' || ".join(
+        f"coalesce({prefix}{column}, '')" for column in _SEARCH_COLUMNS[table]
+    )
 
 
 def _json_text(value: Any) -> str:
@@ -305,11 +315,18 @@ class CloudTraceDatabase:
             if self._postgres:
                 self._execute("SELECT pg_advisory_xact_lock(731643697002024)")
             for table, definition in schemas.items():
+                vector = ""
                 if self._postgres:
-                    fields = " || ' ' || ".join(f"coalesce({column}, '')" for column in _SEARCH_COLUMNS[table])
-                    definition += f", search_vector TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', {fields})) STORED"
+                    fields = _search_text(table)
+                    vector = (
+                        f"CASE WHEN octet_length({fields}) <= {_POSTGRES_VECTOR_SOURCE_BYTES} "
+                        f"THEN to_tsvector('english', {fields}) END"
+                    )
+                    definition += f", search_vector TSVECTOR GENERATED ALWAYS AS ({vector}) STORED"
                 if not self._postgres or not self._exists(table):
                     self._execute(f"CREATE TABLE IF NOT EXISTS {table} ({definition})")
+                if self._postgres:
+                    self._migrate_search_vector(table, vector)
                 if self._postgres and not self._exists(f"{table}_search"):
                     self._execute(f"CREATE INDEX {table}_search ON {table} USING GIN(search_vector)")
             for table, fields in (
@@ -326,6 +343,25 @@ class CloudTraceDatabase:
         # PostgreSQL's CREATE INDEX IF NOT EXISTS still locks the target table.
         # Reconnecting while writers ingest must not acquire those DDL locks.
         return self._execute("SELECT to_regclass(?)", (name,)).fetchone()[0] is not None
+
+    def _migrate_search_vector(self, table: str, expression: str) -> None:
+        row = self._execute(
+            """SELECT pg_get_expr(d.adbin, d.adrelid)
+               FROM pg_attribute a JOIN pg_attrdef d
+                 ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+               WHERE a.attrelid = to_regclass(?) AND a.attname = 'search_vector'""",
+            (table,),
+        ).fetchone()
+        if row and "octet_length(" in row[0] and f"<={_POSTGRES_VECTOR_SOURCE_BYTES}" in row[0].replace(" ", ""):
+            return
+        # PostgreSQL 15/16 cannot SET EXPRESSION on generated columns. Rebuild
+        # only this derived column/index, under the existing schema lock; never
+        # drop source text, trace rows, or dependencies with CASCADE.
+        self._execute(f"ALTER TABLE {table} DROP COLUMN IF EXISTS search_vector")
+        self._execute(
+            f"ALTER TABLE {table} ADD COLUMN search_vector TSVECTOR "
+            f"GENERATED ALWAYS AS ({expression}) STORED"
+        )
 
     def _initialize_fts(self) -> None:
         for table, columns in _SEARCH_COLUMNS.items():
@@ -535,13 +571,28 @@ class CloudTraceDatabase:
                 ("trace_steps", "s", "s.trace_id = a.trace_id"),
             ):
                 if self._postgres:
-                    match = f"{alias}.search_vector @@ plainto_tsquery('english', ?)"
-                    parameters.append(query)
+                    # plainto_tsquery is an AND of English lexemes. Parse large
+                    # documents into the same native lexemes without ever forming
+                    # an oversized tsvector; all terms may span the full document.
+                    match = f"""(
+                        {alias}.search_vector @@ plainto_tsquery('english', ?)
+                        OR ({alias}.search_vector IS NULL AND (
+                            SELECT cardinality(q.lexemes) > 0 AND (
+                                SELECT array_agg(DISTINCT term.lexeme)
+                                FROM ts_debug('english', {_search_text(table, alias)}) parsed
+                                CROSS JOIN LATERAL unnest(parsed.lexemes) term(lexeme)
+                            ) @> q.lexemes
+                            FROM (
+                                SELECT tsvector_to_array(to_tsvector('english', ?)) AS lexemes
+                            ) q
+                        ))
+                    )"""
+                    parameters.extend((query, query))
                 elif self._fts:
                     match = f"{alias}.rowid IN (SELECT rowid FROM {table}_fts WHERE {table}_fts MATCH ?)"
                     parameters.append(" AND ".join('"' + term + '"' for term in terms))
                 else:
-                    text = " || ' ' || ".join(f"coalesce({alias}.{field}, '')" for field in _SEARCH_COLUMNS[table])
+                    text = _search_text(table, alias)
                     match = " AND ".join(f"lower({text}) LIKE lower(?) ESCAPE '\\'" for _ in terms)
                     parameters.extend("%" + term.replace("\\", "\\\\").replace("_", "\\_").replace("%", "\\%") + "%" for term in terms)
                 matches.append(f"EXISTS (SELECT 1 FROM {table} {alias} WHERE {relation} AND ({match}))" if relation else f"({match})")

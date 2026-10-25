@@ -242,6 +242,12 @@ def project_actor_database(
                 _validate_step_counts(connection, "source")
                 _copy_rows(connection, columns)
                 counts = _validate_projection(connection)
+        # A bundle file must stand alone: refuse to publish a WAL-mode database
+        # whose committed pages can live in a -wal sidecar left behind.
+        with closing(sqlite3.connect(staged, isolation_level=None)) as connection:
+            mode = connection.execute("PRAGMA journal_mode=DELETE").fetchone()
+        if mode != ("delete",):
+            raise ValueError(f"could not normalize projected journal mode: {mode!r}")
         with staged.open("rb") as stream:
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
             os.fsync(stream.fileno())

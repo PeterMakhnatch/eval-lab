@@ -15,7 +15,7 @@ import sqlite3
 import stat
 import sys
 from collections.abc import Collection, Iterable, Iterator
-from contextlib import ExitStack, closing, contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -136,18 +136,24 @@ def _direct_references(database: Path) -> list[str]:
             original = os.fstat(descriptor)
             _regular(original)
             _require_checkpointed(parent, database.name)
-            with closing(sqlite3.connect(
-                database.as_uri() + "?mode=ro&immutable=1", uri=True,
-            )) as connection:
+            # Buffered file reads keep this off os.read, and the bytes come from
+            # the descriptor whose identity is checked, so SQLite never resolves
+            # the pathname to a different file.
+            with open(descriptor, "rb", closefd=False) as stream:
+                payload = stream.read()
+            if len(payload) != original.st_size:
+                raise ValueError("projected database ended before its declared size")
+            if payload[18:20] != b"\x01\x01":
+                raise ValueError(
+                    "projected database must use a rollback journal, not WAL"
+                )
+            if _identity(os.fstat(descriptor)) != _identity(original):
+                raise ValueError("projected database changed while reading")
+            connection = sqlite3.connect(":memory:")
+            try:
+                connection.deserialize(payload)
                 connection.execute("PRAGMA query_only=ON")
                 connection.execute("PRAGMA trusted_schema=OFF")
-                connection.execute("BEGIN")
-                # Recheck the path after SQLite opens it; it cannot accept our fd.
-                with _directory(database.parent) as current_parent:
-                    current = os.stat(database.name, dir_fd=current_parent, follow_symlinks=False)
-                    _regular(current)
-                    if _identity(current) != _identity(original):
-                        raise ValueError("projected database changed while opening")
                 references: set[str] = set()
                 for table, column in _DIRECT_COLUMNS:
                     table_type = connection.execute(
@@ -155,16 +161,15 @@ def _direct_references(database: Path) -> list[str]:
                     ).fetchone()
                     if table_type != ("table",):
                         raise ValueError(f"projected database requires core table {table}")
-                    # Identifiers are fixed constants, never caller-supplied SQL.
                     for (uri,) in connection.execute(
                         f'SELECT "{column}" FROM "{table}" WHERE "{column}" IS NOT NULL'
                     ):
                         _digest(uri)
                         references.add(uri)
-                if _identity(os.fstat(descriptor)) != _identity(original):
-                    raise ValueError("projected database changed while reading")
                 _require_checkpointed(parent, database.name)
                 return sorted(references)
+            finally:
+                connection.close()
         finally:
             os.close(descriptor)
 
@@ -187,6 +192,14 @@ def _publish_no_replace(parent: int, staging_name: str, destination_name: str) -
     if rename(parent, os.fsencode(staging_name), parent, os.fsencode(destination_name), flags):
         error = ctypes.get_errno()
         raise OSError(error, os.strerror(error), destination_name)
+
+
+class PublicationUncertainError(RuntimeError):
+    """The rename happened, but the published tree could not be confirmed.
+
+    The destination may exist and be complete. Callers must not retry blindly into
+    the same path, and must not treat this as "nothing was published".
+    """
 
 
 def _verify_published(parent: int, destination_name: str, staging: int) -> None:
@@ -213,8 +226,17 @@ def publish_staged_directory(staging: Path, destination: Path) -> None:
         try:
             os.fsync(descriptor)
             _publish_no_replace(parent, staging_path.name, destination_path.name)
-            _verify_published(parent, destination_path.name, descriptor)
-            os.fsync(parent)
+            try:
+                _verify_published(parent, destination_path.name, descriptor)
+                os.fsync(parent)
+            except OSError as error:
+                raise PublicationUncertainError(
+                    f"published {destination_path} but could not confirm it: {error}"
+                ) from error
+            except ValueError as error:
+                raise PublicationUncertainError(
+                    f"published {destination_path} but it is not the staged tree: {error}"
+                ) from error
         finally:
             os.close(descriptor)
 
@@ -263,6 +285,19 @@ def _copy_object(
         return actual
     finally:
         os.close(descriptor)
+
+
+def _remove_own_staging(
+    parent: int, staging_name: str, staged_status: os.stat_result,
+) -> None:
+    """Remove the staging entry only while it is still the directory we created."""
+    try:
+        current = os.stat(staging_name, dir_fd=parent, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    if (current.st_dev, current.st_ino) != (staged_status.st_dev, staged_status.st_ino):
+        return
+    shutil.rmtree(staging_name, dir_fd=parent)
 
 
 def stage_projection_cas(
@@ -340,6 +375,7 @@ def stage_projection_cas(
 
         staging_name = ".actor-cas-" + uuid4().hex
         os.mkdir(staging_name, 0o700, dir_fd=parent)
+        staged_status = os.stat(staging_name, dir_fd=parent, follow_symlinks=False)
         published = False
         try:
             with ExitStack() as staging_handles:
@@ -365,13 +401,18 @@ def stage_projection_cas(
                 os.fsync(hashes)
                 os.fsync(staging)
                 _publish_no_replace(parent, staging_name, destination_path.name)
-                _verify_published(parent, destination_path.name, staging)
                 published = True
-                os.fsync(parent)
+                try:
+                    _verify_published(parent, destination_path.name, staging)
+                    os.fsync(parent)
+                except (OSError, ValueError) as error:
+                    raise PublicationUncertainError(
+                        f"published {destination_path} but could not confirm it: {error}"
+                    ) from error
             return {
                 "schema": _SCHEMA, "object_count": len(objects),
                 "total_bytes": total_bytes, "objects": objects,
             }
         finally:
             if not published:
-                shutil.rmtree(staging_name, dir_fd=parent)
+                _remove_own_staging(parent, staging_name, staged_status)

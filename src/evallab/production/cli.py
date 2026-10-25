@@ -451,6 +451,7 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     expected = {row["task_id"]: row for row in identities if row["task_id"] in selected}
     preflight_destination(source_cas, output)
     staging = Path(tempfile.mkdtemp(prefix=".actor-bundle-", dir=output.parent))
+    staging_status = staging.stat()
     published = False
     try:
         projection = project_actor_database(
@@ -483,10 +484,17 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         return {"output_directory": str(output), **receipt}
     finally:
         # After publication this pathname is no longer ours: a competitor could
-        # have created a new entry there, so only pre-publication staging is ours
-        # to remove.
-        if not published and staging.exists():
-            shutil.rmtree(staging)
+        # have created a new entry there, so only pre-publication staging whose
+        # identity still matches the directory we created is ours to remove.
+        if not published:
+            try:
+                current = staging.stat()
+            except FileNotFoundError:
+                current = None
+            if current is not None and (current.st_dev, current.st_ino) == (
+                staging_status.st_dev, staging_status.st_ino,
+            ):
+                shutil.rmtree(staging)
 
 
 def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:

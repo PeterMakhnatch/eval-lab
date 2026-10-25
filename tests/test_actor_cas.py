@@ -480,9 +480,6 @@ def test_reads_checkpointed_projection_without_mutation_or_sidecars(root: Path) 
     source, destination = root / "source-cas", root / "staged-cas"
     uri = _object(source, b"readonly database fixture")
     database = _database(root, task_uri=uri)
-    with closing(sqlite3.connect(database)) as connection, connection:
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("UPDATE corpus_tasks SET instruction_text = 'inert updated text'")
     database.chmod(0o400)
     before = database.stat()
     before_digest = hashlib.sha256(database.read_bytes()).hexdigest()
@@ -495,6 +492,18 @@ def test_reads_checkpointed_projection_without_mutation_or_sidecars(root: Path) 
     assert database.stat().st_mtime_ns == before.st_mtime_ns
     assert database.stat().st_size == before.st_size
     assert stat.S_IMODE(database.stat().st_mode) == 0o400
+
+
+def test_refuses_wal_mode_projection_that_cannot_stand_alone(root: Path) -> None:
+    source, destination = root / "source-cas", root / "staged-cas"
+    uri = _object(source, b"inert WAL projection fixture")
+    database = _database(root, task_uri=uri)
+    with closing(sqlite3.connect(database)) as connection, connection:
+        assert connection.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
+
+    with pytest.raises(ValueError, match="rollback journal"):
+        stage_projection_cas(database, source, destination, approved_uris=[uri], max_bytes=100)
+    _assert_unpublished(root, destination)
 
 
 def test_refuses_uncheckpointed_projection_instead_of_ignoring_live_wal(root: Path) -> None:
@@ -530,7 +539,7 @@ def test_publication_of_a_substituted_tree_is_reported_not_accepted(
         original_publish(parent, substitute.name, destination_name)
 
     monkeypatch.setattr(actor_cas, "_publish_no_replace", publish_substitute)
-    with pytest.raises(ValueError, match="not the staged directory"):
+    with pytest.raises(actor_cas.PublicationUncertainError, match="not the staged tree"):
         publish_staged_directory(staging, destination)
 
     assert (destination / "unrelated").read_bytes() == b"unrelated bytes"

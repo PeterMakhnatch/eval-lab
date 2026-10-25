@@ -23,6 +23,7 @@ from evallab.production.outbox_relay import (
     TransientBrokerError,
 )
 from evallab.production.seeker_worker import RewardSeekerLiveWorker
+from evallab.production.supervisor import ProductionSupervisor
 from evallab.production.tq_worker import TaskQualityLiveWorker
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "PermanentPublishError",
     "PoisonQuarantine",
     "PoisonRecord",
+    "ProductionSupervisor",
     "PubAck",
     "RewardSeekerLiveWorker",
     "StoredMessage",

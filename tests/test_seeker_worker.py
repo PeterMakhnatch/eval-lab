@@ -6,6 +6,7 @@ import asyncio
 import copy
 import json
 import subprocess
+import shutil
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,6 +20,7 @@ from evallab.production.seeker_worker import (
     FailedShortcutRecord,
     RewardSeekerLiveWorker,
     SeekerAttemptCandidate,
+    SeekerEvidenceError,
     SeekerFailureMemory,
     SeekerRefusalError,
     compute_candidate_digest,
@@ -397,32 +399,41 @@ class MarkerGrader:
         output_dir = Path(kwargs["output_dir"])
         output_dir.mkdir(parents=True, exist_ok=True)
         passed = reward == 1.0
-        ctrf = output_dir / "ctrf.json"
-        ctrf.write_text(
-            json.dumps(
-                {
-                    "results": {
-                        "tests": [
-                            {
-                                "name": "test_output",
-                                "status": "passed" if passed else "failed",
-                                "trace": "" if passed else "AssertionError: wrong output",
-                            }
-                        ]
+        ctrf_payload = {
+            "results": {
+                "tests": [
+                    {
+                        "name": "test_output",
+                        "status": "passed" if passed else "failed",
+                        "trace": "" if passed else "AssertionError: wrong output",
                     }
-                }
-            ),
+                ]
+            }
+        }
+        ctrf = output_dir / "ctrf.json"
+        ctrf.write_text(json.dumps(ctrf_payload), encoding="utf-8")
+        # The declared trial dir must exist: confirmed evidence is pinned
+        # under content custody and a missing receipt fails the promotion.
+        trial = output_dir / "trial"
+        trial.mkdir(parents=True, exist_ok=True)
+        (trial / "result.json").write_text(
+            json.dumps({"verifier_result": {"rewards": {"reward": reward}}}),
             encoding="utf-8",
         )
+        (trial / "ctrf.json").write_text(json.dumps(ctrf_payload), encoding="utf-8")
+        provenance = None
+        if grader == "port":
+            port_task = output_dir / "port-task"
+            port_task.mkdir(parents=True, exist_ok=True)
+            (port_task / "task.toml").write_text('[task]\nname = "port-task"\n', encoding="utf-8")
+            provenance = {"task_dir": str(port_task)}
         return {
             "status": "measured",
             "reward": reward,
             "error": None,
             "output_dir": str(output_dir),
-            "trial_dir": str(output_dir / "trial"),
-            "grader_provenance": (
-                {"task_dir": str(output_dir / "port-task")} if grader == "port" else None
-            ),
+            "trial_dir": str(trial),
+            "grader_provenance": provenance,
             "per_test": {
                 "tests": [{"id": "test_output", "status": "passed" if passed else "failed"}],
                 "sources": [str(ctrf)],
@@ -440,7 +451,18 @@ class SequenceGrader:
         output_dir = Path(kwargs["output_dir"])
         output_dir.mkdir(parents=True, exist_ok=True)
         result.setdefault("output_dir", str(output_dir))
-        result.setdefault("trial_dir", str(output_dir / "trial"))
+        if "trial_dir" not in result:
+            # The declared trial dir must exist: a missing declared receipt
+            # blocks evidence pinning entirely.
+            trial = output_dir / "trial"
+            trial.mkdir(parents=True, exist_ok=True)
+            (trial / "result.json").write_text(
+                json.dumps(
+                    {"verifier_result": {"rewards": {"reward": result.get("reward")}}}
+                ),
+                encoding="utf-8",
+            )
+            result["trial_dir"] = str(trial)
         result.setdefault("per_test", {"tests": [], "sources": []})
         self.calls.append({"task": str(task), **result})
         return result
@@ -1354,3 +1376,203 @@ def test_differential_checks_protection_again_before_repaired_grade(
     assert grade.repaired_reward is None
     assert grade.failure_kind == "execution_backend_refused"
     assert not grade.differential_confirmed
+
+
+# --------------------------------------------------------------------------- evidence custody
+
+
+def _trial_tree(root: Path, name: str, marker: str) -> Path:
+    trial = root / name
+    (trial / "verifier").mkdir(parents=True)
+    (trial / "result.json").write_text(
+        json.dumps({"verifier_result": {"rewards": {"reward": 1.0}}}),
+        encoding="utf-8",
+    )
+    (trial / "verifier" / "reward.json").write_text(
+        json.dumps({"reward": 1.0}), encoding="utf-8"
+    )
+    (trial / "marker.txt").write_text(marker, encoding="utf-8")
+    return trial
+
+
+def test_same_candidate_on_changed_repaired_package_pins_fresh_receipts(
+    tmp_path: Path,
+) -> None:
+    """A repeated candidate digest on a changed package never reuses receipts.
+
+    The witness dir used to be keyed on the truncated candidate digest alone,
+    so the second job's confirmation silently referenced the first job's
+    pinned run receipts. Custody now binds the job and package identities and
+    the full source digests, so each confirmation publishes its own evidence.
+    """
+    original = _make_task(tmp_path, "original")
+    # Both repaired packages are named "repaired" so the marker grader scores
+    # the repaired side; distinct parents and bytes give distinct identities.
+    repaired_a = _make_task(tmp_path / "pkg-a", "repaired")
+    repaired_b = _make_task(tmp_path / "pkg-b", "repaired")
+    (repaired_b / "changed.txt").write_text("changed package bytes\n", encoding="utf-8")
+    queue = FakeQueue()
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=MarkerGrader(),
+        max_attempts=1,
+    )
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired_a),
+        run_id="run-custody",
+        event_id="job-custody-1",
+    )
+    first = asyncio.run(worker.run_once())
+    assert first is not None and first.exploit_confirmed
+
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired_b),
+        run_id="run-custody",
+        event_id="job-custody-2",
+    )
+    second = asyncio.run(worker.run_once())
+    assert second is not None and second.exploit_confirmed
+
+    p1 = first.confirmed_event["payload"]
+    p2 = second.confirmed_event["payload"]
+    assert p1["candidate_digest"] == p2["candidate_digest"]
+    refs1 = (p1["exploit_run"], p1["repaired_runs"][0], p1["solution_bundle"])
+    refs2 = (p2["exploit_run"], p2["repaired_runs"][0], p2["solution_bundle"])
+    for ref_a, ref_b in zip(refs1, refs2, strict=True):
+        assert ref_a != ref_b, f"{ref_a} silently reused the earlier pin"
+        assert Path(ref_a).exists() and Path(ref_b).exists()
+    witnesses = sorted(
+        p.name
+        for p in (tmp_path / "work" / "run-custody" / "task-a").iterdir()
+        if p.name.startswith("witness-")
+    )
+    assert len(witnesses) == 2
+
+
+def test_missing_declared_receipt_keeps_confirmed_evidence_unavailable(
+    tmp_path: Path,
+) -> None:
+    """A declared-but-absent receipt fails the promotion; no confirmed asset."""
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="run-missing-proof",
+        event_id="job-missing-proof",
+    )
+    grader = SequenceGrader(
+        [
+            {
+                "status": "measured",
+                "reward": 1.0,
+                "error": None,
+                "trial_dir": str(tmp_path / "ghost-original"),
+            },
+            {
+                "status": "measured",
+                "reward": 0.0,
+                "error": None,
+                "trial_dir": str(tmp_path / "ghost-repaired"),
+            },
+        ]
+    )
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=grader,
+        max_attempts=1,
+    )
+
+    with pytest.raises(SeekerEvidenceError):
+        asyncio.run(worker.run_once())
+
+    assert not any(
+        event["event_type"] == "seeker.exploit_confirmed" for event in queue.events
+    )
+    assert not any(event["event_type"] == "asset.verified" for event in queue.events)
+    assert any(event["event_type"] == "worker.failed" for event in queue.events)
+    assert queue.released == ["job-missing-proof"]
+    assert queue.acked == []
+
+
+def test_pin_evidence_refuses_symlinks_missing_and_conflicting_bytes(
+    tmp_path: Path,
+) -> None:
+    src = _trial_tree(tmp_path, "trial-src", "first-bytes")
+    destination = tmp_path / "witness" / "exploit_run"
+
+    pinned = RewardSeekerLiveWorker._pin_evidence(str(src), destination)
+    assert pinned == str(destination)
+    # An identical re-pin is an idempotent no-op.
+    assert RewardSeekerLiveWorker._pin_evidence(str(src), destination) == pinned
+
+    # Existing different bytes under the same destination are refused.
+    (destination / "marker.txt").write_text("stale-bytes", encoding="utf-8")
+    with pytest.raises(SeekerEvidenceError, match="conflicts"):
+        RewardSeekerLiveWorker._pin_evidence(str(src), destination)
+    assert (destination / "marker.txt").read_text(encoding="utf-8") == "stale-bytes"
+
+    # A declared source that is absent raises instead of silently falling back.
+    with pytest.raises(SeekerEvidenceError, match="missing"):
+        RewardSeekerLiveWorker._pin_evidence(
+            str(tmp_path / "gone"), tmp_path / "w2" / "exploit_run"
+        )
+    with pytest.raises(SeekerEvidenceError):
+        RewardSeekerLiveWorker._pin_evidence(None, tmp_path / "w2" / "exploit_run")
+
+    # Symlink destinations and sources are refused.
+    link = tmp_path / "dest-link"
+    link.symlink_to(src, target_is_directory=True)
+    with pytest.raises(SeekerEvidenceError):
+        RewardSeekerLiveWorker._pin_evidence(str(src), link)
+    with pytest.raises(SeekerEvidenceError):
+        RewardSeekerLiveWorker._pin_evidence(str(link), tmp_path / "w3" / "exploit_run")
+
+    # Symlinks inside the source tree are refused too.
+    linked_src = _trial_tree(tmp_path, "trial-linked", "linked")
+    (linked_src / "escape").symlink_to(tmp_path / "original")
+    with pytest.raises(SeekerEvidenceError, match="symlink"):
+        RewardSeekerLiveWorker._pin_evidence(
+            str(linked_src), tmp_path / "w4" / "exploit_run"
+        )
+
+
+def test_pin_evidence_interrupted_copy_leaves_no_partial_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A mid-copy failure stages nothing at the destination for the next retry."""
+    src = _trial_tree(tmp_path, "trial-src", "full-bytes")
+    destination = tmp_path / "witness" / "exploit_run"
+    real_copy2 = shutil.copy2
+    calls = {"count": 0}
+
+    def interrupted(source: Any, target: Any) -> Any:
+        calls["count"] += 1
+        if calls["count"] == 2:
+            raise OSError("simulated copy interruption")
+        return real_copy2(source, target)
+
+    monkeypatch.setattr(shutil, "copy2", interrupted)
+    with pytest.raises(OSError, match="simulated copy interruption"):
+        RewardSeekerLiveWorker._pin_evidence(str(src), destination)
+
+    assert not destination.exists()
+    leftovers = [
+        path.name
+        for path in destination.parent.iterdir()
+        if path.name.endswith(".tmp")
+    ]
+    assert leftovers == []
+
+    monkeypatch.setattr(shutil, "copy2", real_copy2)
+    pinned = RewardSeekerLiveWorker._pin_evidence(str(src), destination)
+    assert pinned == str(destination)
+    assert (destination / "marker.txt").read_text(encoding="utf-8") == "full-bytes"
+    assert (destination / "verifier" / "reward.json").is_file()

@@ -949,6 +949,17 @@ class TaskQualityLiveWorker:
             else None,
         )
         if qualified:
+            # The asset's mechanism signature is the producer's own semantic
+            # declaration: the shortcut mechanism this repair was qualified
+            # against, namespaced so a repaired task never collides with the
+            # exploit-witness row for the same mechanism. A repair job without
+            # one emits no signature and is honestly rejected at export.
+            shortcut = job.payload.get("shortcut_signature") or job.payload.get("mechanism")
+            signature = (
+                {"mechanism_signature": f"repaired-task:{shortcut}"}
+                if isinstance(shortcut, str) and shortcut.strip()
+                else {}
+            )
             self._emit(
                 job,
                 "asset.verified",
@@ -961,6 +972,7 @@ class TaskQualityLiveWorker:
                     "qualification_event_id": event["event_id"],
                     "control_rewards": rewards,
                     "control_evidence": records,
+                    **signature,
                 },
                 idempotency_key=f"tq-asset:{job.event_id}:{job.repaired_digest}",
             )

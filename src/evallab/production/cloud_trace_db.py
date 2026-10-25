@@ -4,6 +4,10 @@ Raw evidence stays in a SHA-256 CAS; these tables retain searchable, lossless te
 and explicit provenance, not inferred labels. A verified query means the supplied
 receipt explicitly has status ``confirmed`` or ``verified``. This store does not
 replace the verifier or grant training/export admission to held-out tasks.
+
+:class:`CloudTraceRetriever` reads the projection back for agent prompts: it ranks
+dev-split issues with their recorded trace evidence, refuses every reported split
+and held-out cohort, and supports leave-one-out exclusion.
 """
 
 from __future__ import annotations

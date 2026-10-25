@@ -12,6 +12,7 @@ DASHBOARD: str = r"""<!doctype html>
 .diff-layout{margin-top:12px}.diff-file:focus-visible{outline-offset:1px}
 .run-toolbar,.run-bottom,.run-controls{flex-wrap:wrap}.run-campaign{margin:5px 0}.run-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin:10px 0}.run-fact{border-top:1px solid var(--line);padding-top:6px;min-width:0}.run-fact dt{font-size:10px;color:var(--muted)}.run-fact dd{margin:2px 0 0;font:13px var(--mono);overflow-wrap:anywhere}.run-outcome{font-size:11px;overflow-wrap:anywhere}.campaign-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px}.campaign-controls>small{color:var(--warn)}.execution-summary{border:1px solid var(--line);border-radius:8px;padding:12px;margin:14px 0;background:var(--panel)}.execution-summary>small{display:block;margin-top:4px}.dialog-header>div:first-child{min-width:0}
 .run-main>.badge,.diff-file>.badge{flex-shrink:0;white-space:nowrap}
+.view-tabs{display:flex;flex-wrap:wrap;gap:7px;margin:18px 0 0}.view-tabs [aria-selected=true]{border-color:var(--accent);background:#143129;color:var(--accent)}.cloud-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px}.cloud-query{grid-column:1/-1}.cloud-filters .actions{grid-column:1/-1}.cloud-filters .check-label{display:flex;align-items:center;gap:8px;margin:0}.cloud-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(260px,1fr);gap:18px;margin-top:18px}.cloud-grid h3{margin-bottom:10px}.cloud-results{max-height:680px;overflow:auto}.cloud-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:7px;margin:12px 0}.cloud-table{border-collapse:collapse;width:100%;font-size:11px}.cloud-table th,.cloud-table td{padding:10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}.cloud-table th{color:var(--muted);background:var(--raised);white-space:nowrap}.cloud-table td{min-width:85px;overflow-wrap:anywhere}.cloud-table td small{display:block}.cloud-report{border-top:1px solid var(--line);padding-top:16px;margin-top:18px}.cloud-report h3{overflow-wrap:anywhere}.cloud-report summary{color:var(--blue)}.cloud-provenance{margin:8px 0}.cloud-issue-list{margin-top:8px;padding-left:18px;color:var(--muted)}@media(max-width:900px){.cloud-grid{grid-template-columns:1fr}}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}.focus-step{animation:step-focus 1.5s ease-out}@keyframes step-focus{from{box-shadow:0 0 0 5px #6ce4b844}to{box-shadow:0 0 0 0 transparent}}}
@@ -26,6 +27,12 @@ DASHBOARD: str = r"""<!doctype html>
   <div class="connection-box"><div id="connection" class="status" role="status">Connecting to journal…</div><div id="cursor" class="mono">Waiting for durable cursor</div><small>DEV work only · <span class="seal">TEST sealed</span></small></div>
  </div>
 </header>
+<nav id="view-tabs" class="view-tabs" role="tablist" aria-label="Production views">
+ <button id="live-tab" type="button" role="tab" aria-selected="true" aria-controls="live-view">Live Production</button>
+ <button id="trace-db-tab" type="button" role="tab" aria-selected="false" aria-controls="trace-db-view" tabindex="-1">Trace DB Search</button>
+ <button id="benchmark-tab" type="button" role="tab" aria-selected="false" aria-controls="benchmark-view" tabindex="-1">Opus vs Swarm</button>
+</nav>
+<div id="live-view" role="tabpanel" aria-labelledby="live-tab">
 <section class="panel" aria-labelledby="queue-title">
  <div class="panel-head"><div><div class="eyebrow">01 Fuel + 02 Engine</div><h2 id="queue-title">Public Corpus Queue</h2></div><div class="chips"><span class="chip">TB4 DEV</span><span class="chip">MiMo 567</span><span class="chip">Terminal Wrench</span><span class="chip">Goodfire</span><span class="chip">CheatBench</span></div></div>
  <div class="metrics"><div class="metric"><strong id="queue-depth">—</strong><span>Queue depth (queued + leased)</span></div><div class="metric"><strong id="leased">—</strong><span>Leased jobs</span></div><div class="metric"><strong id="completed">—</strong><span>Completed jobs</span></div><div class="metric"><strong id="events">—</strong><span>Journal sequence</span></div></div>
@@ -45,6 +52,29 @@ DASHBOARD: str = r"""<!doctype html>
  </div>
  <section class="panel assets-panel" aria-labelledby="assets-title"><div class="panel-head"><div><div class="eyebrow">04 Output / verified evidence</div><h2 id="assets-title">Verified Asset Store</h2></div><div class="metric"><strong id="asset-total">—</strong><span>Distinct verified assets</span></div></div><p>Exports are automatically checked against the effective <span class="seal">tb4-audit-v1 TEST seal</span>, including lineage.</p><div id="asset-kinds" class="chips asset-filters" role="group" aria-label="Filter assets by kind"></div><p id="assets-status" class="notice" role="status"></p><div class="cards asset-list" id="assets"></div><button id="assets-refresh" type="button" class="small">Refresh assets</button></section>
 </div>
+</div>
+<section id="trace-db-view" class="panel" role="tabpanel" aria-labelledby="trace-db-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Retained evidence / DEV only</div><h2>Cloud Trace DB Search</h2></div><span class="badge blue">Read only · no model calls</span></div>
+ <p>Search retained DEV traces and task issues. Statuses, outcomes, and verified receipts are source claims, not new verification. TEST and heldout records are omitted.</p>
+ <form id="cloud-search" class="cloud-filters">
+  <div class="cloud-query"><label for="cloud-query">Search retained text</label><input id="cloud-query" type="search" autocomplete="off" placeholder="Task, trace, issue, or tool-step text…"></div>
+  <div><label for="cloud-task">Task ID</label><input id="cloud-task" autocomplete="off" placeholder="Exact task ID"></div>
+  <div><label for="cloud-defect">Defect class</label><input id="cloud-defect" autocomplete="off" placeholder="Exact defect class"></div>
+  <div><label for="cloud-tool">Tool name (traces only)</label><input id="cloud-tool" autocomplete="off" placeholder="Exact tool name"></div>
+  <div><label for="cloud-direction">Direction</label><select id="cloud-direction"><option value="">Any direction</option><option value="wrong_pass">wrong_pass</option><option value="unfair_fail">unfair_fail</option></select></div>
+  <div class="actions"><label for="cloud-verified" class="check-label"><input id="cloud-verified" type="checkbox"> Only verified receipts / confirmed issues</label><button id="cloud-search-submit" type="submit" class="primary">Search DEV evidence</button></div>
+ </form>
+ <p id="cloud-search-status" class="notice" role="status"></p>
+ <div class="cloud-grid"><div><h3>Agent traces</h3><div id="cloud-traces" class="cards cloud-results"></div></div><div><h3>Task issues</h3><div id="cloud-issues" class="cards cloud-results"></div></div></div>
+</section>
+<section id="benchmark-view" class="panel" role="tabpanel" aria-labelledby="benchmark-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Retained benchmark comparison / provenance</div><h2>Opus vs Swarm</h2></div><button id="cloud-bench-refresh" type="button" class="small">Refresh retained reports</button></div>
+ <p class="seal">DEV-only key agreement, not held-out performance</p>
+ <p>A: single strong model + harness (optionally CloudTraceRetriever). B: many-cheap-agents swarm. C: hybrid swarm + Opus adjudicator. Model identities below are the provider/model strings actually served; a label alone is not evidence of Opus execution.</p>
+ <p id="cloud-bench-status" class="notice" role="status"></p>
+ <div id="cloud-benchmarks"></div>
+ <details id="cloud-bench-rejections" hidden><summary id="cloud-bench-rejection-title">Rejected retained reports</summary><div id="cloud-bench-rejected" class="cards"></div></details>
+</section>
 <footer>All live views are projections of the durable journal. Provisional suspicion is not a confirmed verdict. TEST and heldout splits are sealed; only verified DEV evidence is exportable. Credentials stay in this page’s memory.</footer>
 </main>
 <dialog id="timeline-drawer" aria-labelledby="timeline-title" aria-describedby="timeline-provenance"><div class="dialog-layout">
@@ -90,6 +120,190 @@ function errorMessage(error){
  if(error.detail?.code==='path_outside_roots')
   return 'Artifact path is outside the server’s approved evidence roots.';
  return error.message||'Request failed.';
+}
+function cloudApi(path){
+ const token=$('token').value;
+ return api(path,{headers:token?{Authorization:'Bearer '+token}:{}});
+}
+function cloudError(error,label){
+ if(error.status===404)return label+' is unavailable on this control plane (404). Open the authenticated cloud dashboard to use retained cloud data.';
+ if(error.status===503)return label+' is temporarily unavailable (503). Retry when the cloud store is ready.';
+ if(error.status===401)return label+' requires authentication (401). Sign in again or enter the cloud operator token above, then retry.';
+ return label+': '+errorMessage(error);
+}
+function cloudIssueLine(issue){
+ return text(issue.issue_id)+' · '+text(issue.defect_class)+' · '+text(issue.direction)+' · status: '+text(issue.status);
+}
+function cloudTraceCard(trace){
+ const card=basicCard(trace.task_id+' · '+trace.model_id,'Trace: '+trace.trace_id);
+ const meta=node('div',undefined,'chips');
+ meta.append(badge('Outcome: '+text(trace.outcome),tone(trace.outcome)),
+  badge('Reward: '+text(trace.reward)),badge('is_exploit: '+text(trace.is_exploit)),
+  badge(text(trace.step_count)+' steps'));
+ const receipt=trace.verified_receipt_json,receiptStatus=receipt?.status;
+ meta.append(badge('Verified receipt: '+(receiptStatus??'not recorded'),
+  ['verified','confirmed'].includes(receiptStatus)?'good':'warn'));
+ const issues=node('ul',undefined,'cloud-issue-list');
+ for(const issue of list(trace.issues))issues.append(node('li',cloudIssueLine(issue)));
+ card.append(meta);
+ if(issues.children.length)card.append(issues);
+ else card.append(node('small','No task issues retained.'));
+ return card;
+}
+function cloudIssueCard(issue){
+ const card=basicCard(issue.task_id,cloudIssueLine(issue),issue.status);
+ card.append(node('small','Original reward: '+text(issue.original_reward)+
+  ' · repaired reward: '+text(issue.repaired_reward)));
+ return card;
+}
+let cloudSearchVersion=0;
+async function searchCloudDb(event){
+ event?.preventDefault();
+ const version=++cloudSearchVersion,params=new URLSearchParams({split:'dev'});
+ for(const [id,key] of [['cloud-query','q'],['cloud-task','task_id'],['cloud-defect','defect_class'],['cloud-direction','direction']]){
+  const value=$(id).value.trim();if(value)params.set(key,value);
+ }
+ params.set('only_verified',String($('cloud-verified').checked));
+ const traceParams=new URLSearchParams(params),tool=$('cloud-tool').value.trim();
+ if(tool)traceParams.set('tool_name',tool);
+ $('cloud-search-submit').disabled=true;
+ $('cloud-traces').replaceChildren();$('cloud-issues').replaceChildren();
+ notice('cloud-search-status','Searching retained DEV evidence…');
+ try{
+  const results=await Promise.allSettled([
+   cloudApi('/api/cloud-db/traces?'+traceParams),cloudApi('/api/cloud-db/issues?'+params)
+  ]);
+  if(version!==cloudSearchVersion)return;
+  const messages=[];
+  for(const [index,[key,render,label]] of [
+   ['traces',cloudTraceCard,'Trace DB search'],['issues',cloudIssueCard,'Task issue search']
+  ].entries()){
+   const result=results[index],target=$('cloud-'+key);
+   if(result.status==='rejected'){
+    const message=cloudError(result.reason,label);
+    target.append(node('p',message,'empty'));messages.push(message);continue;
+   }
+   const retained=list(result.value?.[key]);
+   const rows=retained.filter(row=>row?.task?.split==='dev');
+   fillCards(target,rows,render,'No retained DEV '+key+' match these filters.');
+   messages.push(rows.length+' DEV '+key+(rows.length<retained.length?' · non-DEV records omitted':''));
+  }
+  notice('cloud-search-status',messages.join('\n'),results.some(result=>result.status==='rejected'));
+ }catch(error){
+  if(version===cloudSearchVersion)notice('cloud-search-status',cloudError(error,'Cloud Trace DB Search'),true);
+ }finally{
+  if(version===cloudSearchVersion)$('cloud-search-submit').disabled=false;
+ }
+}
+function cloudTable(headers,rows){
+ const wrap=node('div',undefined,'cloud-table-wrap'),table=node('table',undefined,'cloud-table');
+ const head=node('thead'),heading=node('tr'),body=node('tbody');
+ for(const label of headers){const cell=node('th',label);cell.scope='col';heading.append(cell);}
+ head.append(heading);
+ for(const values of rows){
+  const row=node('tr');
+  for(const value of values){const cell=node('td');cell.append(value instanceof Node?value:node('span',value));row.append(cell);}
+  body.append(row);
+ }
+ table.append(head,body);wrap.append(table);return wrap;
+}
+const cloudFraction=value=>typeof value==='number'&&Number.isFinite(value)?(value*100).toFixed(2)+'%':'Not recorded';
+const cloudSpend=value=>typeof value==='number'&&Number.isFinite(value)?'$'+value.toFixed(4):'Not recorded';
+function cloudDigest(value){
+ const digest=node('code',typeof value==='string'?value.slice(0,12):'Not recorded','mono');
+ if(typeof value==='string')digest.title=value;
+ return digest;
+}
+function cloudComparison(report,parent){
+ const meanings={A:'Single strong model + harness',B:'Many-cheap-agents swarm',C:'Hybrid swarm + Opus adjudicator'};
+ parent.append(node('p',report.cohort.dataset_id+' · DEV · '+report.cohort.task_count+
+  ' tasks · generated '+report.generated_at));
+ const rows=['A','B','C'].map(id=>{
+  const arm=list(report.arms).find(value=>value?.arm===id);
+  const label=node('div',id+' · '+meanings[id]);
+  if(!arm)return [label,'No retained result','—','—','—','—','—','—','—','—'];
+  label.append(node('small',arm.label));
+  const harness=node('div',arm.harness);
+  harness.append(node('small',arm.retrieval?'Retrieval enabled':'Retrieval disabled'));
+  return [label,list(arm.served_models).join(', '),harness,
+   arm.metrics.primary_hits_n+'/'+arm.metrics.primary_total_n,
+   cloudFraction(arm.metrics.precision),cloudFraction(arm.metrics.recall),cloudFraction(arm.metrics.f1),
+   cloudSpend(arm.spend_usd),arm.model_calls,cloudDigest(arm.artifact_sha256)];
+ });
+ parent.append(cloudTable(['Arm','Actually served models','Harness / retrieval','Primary hits n/N',
+  'Precision','Recall','F1','Spend USD','Model calls','Artifact SHA-256'],rows));
+}
+function cloudSwarm(report,parent){
+ parent.append(node('p','Swarm selection replay · not a measured A/B/C comparison. Budget per task: '+
+  report.budget_per_task+' · replay API spend: '+cloudSpend(report.paid_api_spend_usd)+
+  ' · replay model calls: '+report.model_calls));
+ parent.append(node('small','Replay spend is not total upstream worker cost. Off-key predictions are unverified, not certified false positives.'));
+ const rows=Object.entries(report.strategies||{}).map(([name,score])=>[
+  name,score.selected_count,score.primary_hits_n+'/'+score.primary_total_n,
+  score.secondary_hits_n+'/'+score.secondary_total_n,cloudFraction(score.unique_key_precision),
+  cloudFraction(score.secondary_f1),score.within_task_budget?'Within budget':'Unbudgeted / not equal-budget'
+ ]);
+ parent.append(cloudTable(['Strategy','Selected','Primary hits n/N','Secondary hits n/N',
+  'Unique-key precision','Secondary F1','Task budget'],rows));
+ const telemetry=node('details');
+ telemetry.append(node('summary','Retained worker telemetry (source claims)'),
+  node('pre',report.worker_telemetry));
+ parent.append(telemetry);
+}
+async function loadCloudBenchmarks(){
+ $('cloud-bench-refresh').disabled=true;
+ $('cloud-benchmarks').replaceChildren();$('cloud-bench-rejected').replaceChildren();
+ $('cloud-bench-rejections').hidden=true;
+ notice('cloud-bench-status','Loading retained DEV benchmark reports…');
+ try{
+  const data=await cloudApi('/api/cloud-db/benchmarks'),retained=list(data?.benchmarks);
+  const reports=retained.filter(entry=>entry?.report?.schema==='evallab.arm_comparison/v1'?
+   entry.report.cohort?.split==='dev':entry?.report?.schema==='evallab.swarm_bench/v1'&&
+   entry.report.split==='dev'&&(!entry.report.cohort||entry.report.cohort.split==='dev'));
+  for(const entry of reports){
+   const report=entry.report,section=node('article',undefined,'cloud-report');
+   section.append(node('h3',entry.file),node('small',report.schema));
+   const provenance=node('details',undefined,'cloud-provenance');
+   provenance.append(node('summary','Document SHA-256: '+text(entry.sha256).slice(0,12)),
+    node('pre',entry.sha256));
+   section.append(provenance,node('p','DEV-only key agreement, not held-out performance','seal'));
+   if(report.schema==='evallab.arm_comparison/v1')cloudComparison(report,section);
+   else cloudSwarm(report,section);
+   $('cloud-benchmarks').append(section);
+  }
+  const rejected=list(data?.rejected);
+  $('cloud-bench-rejections').hidden=!rejected.length;
+  $('cloud-bench-rejection-title').textContent='Rejected retained reports ('+rejected.length+')';
+  fillCards($('cloud-bench-rejected'),rejected,item=>basicCard(item.file,item.reason),'');
+  notice('cloud-bench-status',(reports.length?reports.length+' retained DEV benchmark reports.':
+   'No retained DEV benchmark reports. No benchmark results have been fabricated.')+
+   (rejected.length?' '+rejected.length+' invalid or unsafe files rejected; expand details below.':'')+
+   (reports.length<retained.length?' Non-DEV or unknown reports omitted.':''));
+ }catch(error){
+  $('cloud-benchmarks').replaceChildren();
+  notice('cloud-bench-status',cloudError(error,'Retained benchmark comparison'),true);
+ }finally{$('cloud-bench-refresh').disabled=false;}
+}
+$('cloud-search').addEventListener('submit',searchCloudDb);
+$('cloud-bench-refresh').addEventListener('click',loadCloudBenchmarks);
+const viewTabs=[...$('view-tabs').children];
+for(const tab of viewTabs){
+ tab.addEventListener('click',()=>{
+  for(const item of viewTabs){
+   const selected=item===tab;
+   item.setAttribute('aria-selected',String(selected));item.tabIndex=selected?0:-1;
+   $(item.getAttribute('aria-controls')).hidden=!selected;
+  }
+  if(tab.id==='trace-db-tab')searchCloudDb();
+  if(tab.id==='benchmark-tab')loadCloudBenchmarks();
+ });
+ tab.addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();
+  let next=event.key==='Home'?0:event.key==='End'?viewTabs.length-1:
+   (viewTabs.indexOf(tab)+(event.key==='ArrowRight'?1:-1)+viewTabs.length)%viewTabs.length;
+  viewTabs[next].click();viewTabs[next].focus();
+ });
 }
 function assetBadge(asset){
  return badge(asset.exportable?'Guard eligible':

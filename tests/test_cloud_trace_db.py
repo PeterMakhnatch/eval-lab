@@ -381,6 +381,89 @@ def test_native_full_text_indexes_are_used_when_available(db: CloudTraceDatabase
         assert len(db.search_traces("checksum")) == 1
 
 
+@pytest.fixture(scope="module")
+def oversized_document() -> str:
+    # Distinct lexemes exceed PostgreSQL's 1 MiB tsvector limit, not just a
+    # repeated word whose native vector is small despite a large source TEXT.
+    return "headmarker " + " ".join(f"entry{index:06d}" for index in range(70_000)) + " tailmarker running crème"
+
+
+@pytest.mark.parametrize("field", ("instruction_text", "reproducer_script", "model_id", "content_text"))
+def test_large_documents_preserve_and_search_both_ends(
+    db: CloudTraceDatabase, oversized_document: str, field: str,
+) -> None:
+    seed(db)
+    if field == "instruction_text":
+        db.upsert_task(task(instruction_text=oversized_document))
+    elif field == "reproducer_script":
+        db.upsert_task_issue(issue(reproducer_script=oversized_document))
+    elif field == "model_id":
+        db.upsert_trace(trace(model_id=oversized_document))
+    else:
+        db.replace_trace_steps("trace-1", [
+            {"step_index": 0, "role": "tool", "content_text": oversized_document},
+        ])
+    result = db.search_traces("headmarker tailmarker")
+    assert len(result) == 1
+    assert len(db.search_traces("entry069999")) == 1
+    assert db.search_traces("headmarker absentneedle") == []
+    record = (
+        result[0]["task"] if field == "instruction_text"
+        else result[0]["issues"][0] if field == "reproducer_script"
+        else result[0]["steps"][0] if field == "content_text"
+        else result[0]
+    )
+    assert record[field] == oversized_document
+
+
+def test_postgres_migrates_unbounded_vectors_without_losing_text(
+    postgres_server: str, oversized_document: str,
+) -> None:
+    schema = "cloud_trace_legacy_" + uuid4().hex
+    with psycopg.connect(postgres_server, autocommit=True) as connection:
+        connection.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
+        target = postgres_server + "&options=" + quote(f"-csearch_path={schema}", safe="")
+        try:
+            with CloudTraceDatabase(target) as db:
+                seed(db)
+            for table, columns in cloud_trace_db._SEARCH_COLUMNS.items():
+                identifier = sql.Identifier(schema, table)
+                fields = sql.SQL(" || ' ' || ").join(
+                    sql.SQL("coalesce({}, '')").format(sql.Identifier(column)) for column in columns
+                )
+                connection.execute(sql.SQL("ALTER TABLE {} DROP COLUMN search_vector").format(identifier))
+                connection.execute(sql.SQL(
+                    "ALTER TABLE {} ADD COLUMN search_vector TSVECTOR "
+                    "GENERATED ALWAYS AS (to_tsvector('english', {})) STORED"
+                ).format(identifier, fields))
+                connection.execute(sql.SQL("CREATE INDEX {} ON {} USING GIN(search_vector)").format(
+                    sql.Identifier(table + "_search"), identifier,
+                ))
+            with CloudTraceDatabase(target) as db:
+                assert db.get_trace("trace-1") is not None
+                db.replace_trace_steps("trace-1", steps(oversized_document))
+                result = db.search_traces("headmarker tailmarker")
+                assert len(result) == 1
+                assert result[0]["steps"][-1]["observation_preview"] == oversized_document
+                assert len(db.search_traces("runs crème")) == 1
+                assert db.search_traces("the and") == []
+                assert db._execute(
+                    "SELECT search_vector IS NULL FROM trace_steps WHERE step_index = 4"
+                ).fetchone()[0]
+                indexes = db._execute(
+                    "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema()"
+                ).fetchall()
+                assert sum("USING gin (search_vector)" in row[0] for row in indexes) == 4
+                db.replace_trace_steps("trace-1", steps("tiny marker"))
+                assert db.search_traces("tailmarker") == []
+                assert len(db.search_traces("tiny marker")) == 1
+                assert not db._execute(
+                    "SELECT search_vector IS NULL FROM trace_steps WHERE step_index = 4"
+                ).fetchone()[0]
+        finally:
+            connection.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
+
+
 def test_sqlite_automatically_falls_back_when_fts5_is_unavailable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     connect = sqlite3.connect
 

@@ -535,7 +535,7 @@ inputs:
   - path: src/evallab/production/inspector.py
     digest: sha256:5c0f81d453e402c96cc870bbdf53a47fa7a220609556a379220a3b878cd28fbf
   - path: src/evallab/production/modal_cloud.py
-    digest: sha256:f97ab3775ffd2fbb35fc6b6e45f4668d61a8a2260766a31dc8dda7c905068bd8
+    digest: sha256:359aab5afbe859e7c7585786a0b5a6111af27ca463f5df781090a2d42d0c95f0
   - path: src/evallab/production/monitor_worker.py
     digest: sha256:460f3bf444c294eac97d563ed3d916a23e5bfac499f77e4970c44afbc2859081
   - path: src/evallab/production/outbox_relay.py

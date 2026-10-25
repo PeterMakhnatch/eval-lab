@@ -837,7 +837,7 @@ modal volume create evallab-cloud-store
 modal volume put evallab-cloud-store /path/to/backup/prod.sqlite /prod.sqlite
 modal volume put evallab-cloud-store /path/to/backup/cloud-trace-db.sqlite /cloud-trace-db.sqlite
 modal volume put evallab-cloud-store /path/to/cas /cas
-modal deploy src/evallab/production/modal_cloud.py
+modal deploy --strategy recreate src/evallab/production/modal_cloud.py
 ```
 
 Provision `EVALLAB_CLOUD_TOKEN` in the Modal secret
@@ -860,6 +860,9 @@ local database; `lab db --cloud --stats` reports cloud record counts.
 One Modal class instance owns both SQLite stores. The web endpoint and worker
 method share that owner; do not deploy a second independent writer against
 the Volume, overwrite an active Volume, or scale its owner above one container.
+Use the **recreate** deployment strategy: a rolling deployment can briefly run
+old and new actor containers with independent SQLite snapshots, even though
+each version has `max_containers=1`.
 The callable `run_cloud_supervisor_step` forwards one explicit step to the
 owner, commits the Volume afterward, and requires an approval string and
 positive infrastructure budget. Both execution workers receive

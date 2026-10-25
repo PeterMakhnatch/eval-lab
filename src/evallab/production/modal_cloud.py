@@ -1,10 +1,11 @@
 """Authenticated Modal production control plane, durable stores, and CPU workers.
 
-Deploy with ``modal deploy src/evallab/production/modal_cloud.py`` after importing
-SQLite backups and CAS objects into ``evallab-cloud-store``. One cloud actor owns
+Deploy with ``modal deploy --strategy recreate src/evallab/production/modal_cloud.py``
+after importing SQLite backups and CAS objects into ``evallab-cloud-store``. One cloud actor owns
 all SQLite connections: independent Modal containers must never write snapshots
 of the same Volume-backed SQLite database. The remote worker entrypoint forwards
 to that actor; visiting the dashboard never dispatches work or calls a model.
+Recreate deployments quiesce the old actor before its replacement opens SQLite.
 """
 
 from __future__ import annotations

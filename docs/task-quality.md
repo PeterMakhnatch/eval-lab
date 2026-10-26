@@ -117,7 +117,10 @@ Recorded and queried item ids, dataset assignment keys, canonical task names
 trim+casefold normalization; immutable source values and provenance stay raw.
 Permanent TEST seals always apply in this shared gate; `sealed_task_ids` adds
 caller-specific seals rather than being required to preserve the permanent ones.
-Known canonical or assignment keys require an explicit DEV assignment, and
+Known canonical or assignment keys require an explicit DEV assignment. The one
+canonical key without ledger rows, `mimo-defect-map-v1`, resolves through its
+own inventory: the record id or normalized task name, with heldouts TEST. Once
+the ledger carries a key, only its rows authorize DEV. In addition,
 `assigned_test_anywhere` denies task/item identities marked TEST under **any**
 key, even if the DB row uses another dataset or a task-name DEV alias. This
 stricter retrieval guard is separate from secondary keys' local queue semantics.
@@ -134,7 +137,9 @@ Secondary item labels are checked **only as structured identities**, not as
 arbitrary prose substrings: a TEST item label `qa` rejects a row whose item id is
 `qa`, but does not ban an unrelated trace discussing QA. Secondary TEST **task
 names** do join unstructured text seals. Canonical registry sealed item ids and
-grader digests remain text-sealed.
+grader digests remain text-sealed, except bare numeric item ids (CheatBench row
+indices such as `44`): as substrings they match inside digests and counts, so
+they are sealed only as exact structured identities.
 
 `registry=None` attempts the default `CorpusRegistry()`. If its indices cannot
 load, the frozen permanent tb4/MiMo name guard still rejects sealed queries, but
@@ -144,8 +149,13 @@ verified DEV. A DB DEV label never authorizes a packaged/runtime fallback.
 Queries containing sealed identities raise without echoing them, including case
 variants and embedded longer tokens. A cached literal-pattern guard screens the
 bounded fields eligible for return, not unreturned receipt bodies or clipped
-tails. Unsafe steps (and their provenance), issues, or traces are dropped.
-Final serialization is checked again, including dataset/CAS provenance.
+tails. Ranking computes an upper bound per task from SQL term counts (steps of
+every role, without reading step bodies), then hydrates and screens candidate
+tasks best-first, a `top_k` batch at a time, until no unexpanded bound can
+outrank the current results. Only returnable evidence is screened: an expanded
+task's issues and traces, then the best-ranked steps of its chosen trace,
+skipping sealed ones. Step matches that are never returned may contribute to
+rank. Final serialization is checked again, including dataset/CAS provenance.
 
 At most one example per task and one trace per example is returned. `top_k`,
 `snippet_chars`, and `max_steps_per_trace` are positive integers. Overlong issue,

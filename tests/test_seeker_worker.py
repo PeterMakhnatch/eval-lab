@@ -2098,3 +2098,149 @@ def test_headless_candidate_reads_text_and_served_route_from_the_captured_stream
             model_route="openai-codex/gpt-6.1-sol",
             llm_stdout_text=stream,
         )
+
+
+def test_muse_spark_and_deepseek_lanes_and_openrouter_prefix_attestation(tmp_path: Path) -> None:
+    from evallab.production.seeker_worker import (
+        DEFAULT_HEADLESS_MODELS,
+        ResolvedSeekerTask,
+        _require_llm_attestation,
+        build_headless_seeker_prompt,
+    )
+    from evallab.seeker import lanes
+
+    expected_models = {
+        "meta/muse-spark-open",
+        "meta/muse-spark-1.3-contributor",
+        "meta/muse-wonder-1.0-contributor",
+        "openrouter/deepseek/deepseek-v4.1-flash",
+        "kimi-code/k3.1-pro-highspeed",
+        "anthropic/claude-sonnet-5-5",
+    }
+    assert set(DEFAULT_HEADLESS_MODELS) == expected_models
+    driver_models = {cfg["model"] for cfg in lanes.DRIVERS.values()}
+    assert expected_models <= driver_models
+
+    # OpenRouter serving a vendor-prefixed 2-segment route (meta/muse-spark-open) matches,
+    # while OpenRouter serving a different model is refused.
+    spark_cand = _lane_candidate(
+        tmp_path / "spark-open",
+        _omp_message(
+            "assistant",
+            _lane_write("w1", LANE_SOLVE),
+            provider="openrouter",
+            model="meta/muse-spark-open",
+        ),
+        _lane_write_result("w1"),
+        route="meta/muse-spark-open",
+    )
+    _require_llm_attestation(spark_cand, LANE_SOLVE)
+
+    deepseek_cand = _lane_candidate(
+        tmp_path / "deepseek",
+        _omp_message(
+            "assistant",
+            _lane_write("w1", LANE_SOLVE),
+            provider="openrouter",
+            model="deepseek/deepseek-v4.1-flash",
+        ),
+        _lane_write_result("w1"),
+        route="openrouter/deepseek/deepseek-v4.1-flash",
+    )
+    _require_llm_attestation(deepseek_cand, LANE_SOLVE)
+
+    task_dir = _make_task(tmp_path, "qa-task")
+    resolved = ResolvedSeekerTask(
+        run_id="qa-run",
+        job_type="reward_seeker.seek_task",
+        dataset_id="tb4-dev",
+        item_id="qa-task",
+        task_id="qa-task",
+        split="dev",
+        measurable=True,
+        original_task=task_dir,
+        repaired_task=task_dir,
+        repaired_grader_kind="package",
+        raw_payload={"attempt_1_mode": "surface_probe"},
+    )
+    ws = tmp_path / "qa-ws"
+    (ws / "task").mkdir(parents=True)
+    qa_prompt = build_headless_seeker_prompt(
+        resolved,
+        attempt_index=1,
+        selected_cue=None,
+        cues=(),
+        memory=SeekerFailureMemory(),
+        workspace=ws,
+        prompt_mode="qa_review",
+    )
+    for phrase in ("wrong submission", "grader weakness", "defect reproducer", "verified differential"):
+        assert phrase in qa_prompt
+    for forbidden in ("sitecustomize", "pytest_sessionfinish", "conftest.py"):
+        assert forbidden not in qa_prompt
+
+    bare_prompt = build_headless_seeker_prompt(
+        resolved,
+        attempt_index=1,
+        selected_cue=None,
+        cues=(),
+        memory=SeekerFailureMemory(),
+        workspace=ws,
+        prompt_mode="bare_task",
+    )
+    assert "Solve the benchmark task below" in bare_prompt
+    assert "Matched Hackbook Cues" not in bare_prompt
+
+
+def test_headless_candidate_recovers_outer_brace_variants_preserving_exact_solve_sha256() -> None:
+    from evallab.production.seeker_worker import (
+        _require_llm_attestation,
+        parse_headless_candidate_response,
+    )
+
+    # Variant 1: extra trailing '}' at end of JSON object
+    extra_brace_text = (
+        json.dumps(
+            {
+                "files": {"solve.sh": LANE_SOLVE},
+                "mechanism": "grader weakness reproducer",
+                "taxonomy_class": "weak_check",
+                "hackbook_entry_id": "HB-TS01-009",
+                "target_check": "tests/test_outputs.py",
+                "files_written": ["/app/output.json"],
+            }
+        )
+        + "}"
+    )
+    stream_extra = _omp_stream(_lane_answer({"type": "text", "text": extra_brace_text}, route=LANE_ROUTE))
+    cand_extra = parse_headless_candidate_response(
+        extra_brace_text,
+        default_cue=None,
+        model_route=LANE_ROUTE,
+        llm_stdout_text=stream_extra,
+    )
+    assert cand_extra is not None
+    assert cand_extra.files["solve.sh"] == LANE_SOLVE
+    assert cand_extra.llm_solve_sha256 == hashlib.sha256(LANE_SOLVE.encode()).hexdigest()
+    _require_llm_attestation(cand_extra, LANE_SOLVE)
+
+    # Variant 2: missing inner '}' before "mechanism" (metadata keys nested inside "files")
+    nested_meta_text = (
+        '{"files":{"solve.sh":'
+        + json.dumps(LANE_SOLVE)
+        + ',"mechanism":"nested metadata reproducer","taxonomy_class":"weak_check",'
+        + '"hackbook_entry_id":"HB-TS01-009","target_check":"tests/test_outputs.py",'
+        + '"files_written":["/app/output.json"]}'
+    )
+    stream_nested = _omp_stream(_lane_answer({"type": "text", "text": nested_meta_text}, route=LANE_ROUTE))
+    cand_nested = parse_headless_candidate_response(
+        nested_meta_text,
+        default_cue=None,
+        model_route=LANE_ROUTE,
+        llm_stdout_text=stream_nested,
+    )
+    assert cand_nested is not None
+    assert cand_nested.files == {"solve.sh": LANE_SOLVE}
+    assert cand_nested.mechanism == "nested metadata reproducer"
+    assert cand_nested.llm_solve_sha256 == hashlib.sha256(LANE_SOLVE.encode()).hexdigest()
+    _require_llm_attestation(cand_nested, LANE_SOLVE)

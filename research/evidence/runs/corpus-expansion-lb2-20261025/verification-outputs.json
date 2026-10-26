@@ -1,0 +1,50 @@
+{
+ "schema": "lb2.deepswe_ingestion_verification/1",
+ "gate_reproduces_existing_partition": {
+  "description": "admitted_cloud_task_ids over CorpusRegistry, applied to every goodfire-reward-hack-data task row as if DEV, must equal the existing DEV set and admit no held row. Aggregate output only.",
+  "before_ingestion": {
+   "goodfire_rows": 809,
+   "actual_dev": 714,
+   "actual_held": 95,
+   "gate_admits": 714,
+   "admitted_equals_actual_dev": true,
+   "held_admitted": 0
+  },
+  "after_ingestion": {
+   "goodfire_rows": 1143,
+   "actual_dev": 1048,
+   "actual_held": 95,
+   "gate_admits": 1048,
+   "admitted_equals_actual_dev": true,
+   "held_admitted": 0
+  },
+  "split_ledger_sha256": "sha256:542f28de8fc6c88a8a4667cfe6a57f07788f06757af5be29706db835d7eb4a86"
+ },
+ "gate_sensitivity_probe": {
+  "probe_ids_admitted_by_gate": 0,
+  "sealed_text_identities_probed": 1337
+ },
+ "retrieval_smoke_after_ingestion": {
+  "deepswe_task_rows": 334,
+  "deepswe_splits": [
+   "DEV"
+  ],
+  "retriever_admitted_tasks": 3418,
+  "deepswe_tasks_admitted_by_retriever": 334,
+  "retrieve_similar_examples": {
+   "queries_run": 10,
+   "examples_returned_total": 0,
+   "applies_equally_to_pre_existing_goodfire_rows": true,
+   "note": "Zero examples came back for DeepSWE queries and for a query naming a pre-existing Goodfire SWE-bench task. Admission itself is correct (334 of 334)."
+  }
+ },
+ "bare_numeric_seal_diagnosis": {
+  "script": "tools/falseseal_diag.py",
+  "sealed_text_identities": 1337,
+  "bare_numeric_seals": 108,
+  "goodfire_dev_task_ids": 1048,
+  "goodfire_dev_task_ids_containing_a_bare_numeric_seal_substring": 751,
+  "those_751_hit_only_bare_numeric_seals": true,
+  "interpretation": "[INFERENCE] The retriever drops any example whose task id contains a sealed identifier as a substring (_sealed_text). Goodfire task ids end in task-bundle-sha256-<hex>, so short numeric seals match inside the hex. This is the known CorpusRegistry.sealed_identifiers() false-seal defect (Priority #5, CE-2); this item did not change it. Not tested by removing the seals."
+ }
+}

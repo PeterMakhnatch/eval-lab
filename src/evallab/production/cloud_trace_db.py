@@ -696,34 +696,36 @@ class CloudTraceDatabase:
         if not terms:
             return task_ids
         found: set[str] = set()
-        for start in range(0, len(task_ids), 500):
-            page = task_ids[start:start + 500]
-            for table, alias in (
-                ("corpus_tasks", "t"), ("task_issues", "i"),
-                ("agent_traces", "a"), ("trace_steps", "s"),
-            ):
-                source = f"{table} {alias}"
-                identity = f"{alias}.task_id"
-                if table == "trace_steps":
-                    source += " JOIN agent_traces a ON a.trace_id = s.trace_id"
-                    identity = "a.task_id"
-                parameters: list[Any] = list(page)
-                match = self._search_match(
-                    table, alias, query, terms, parameters, conjunction=conjunction,
-                )
-                confirmed = " AND i.status = 'confirmed'" if table == "task_issues" else ""
-                if table == "trace_steps":
-                    confirmed += " AND s.role IN ('assistant', 'tool')"
-                found.update(row["task_id"] for row in self._rows(
-                    f"SELECT DISTINCT {identity} AS task_id FROM {source} WHERE {identity} "
-                    f"IN ({', '.join('?' for _ in page)}){confirmed} AND ({match})",
-                    parameters,
-                ))
+        if not task_ids:
+            return []
+        for table, alias in (
+            ("corpus_tasks", "t"), ("task_issues", "i"),
+            ("agent_traces", "a"), ("trace_steps", "s"),
+        ):
+            source = f"{table} {alias}"
+            identity = f"{alias}.task_id"
+            if table == "trace_steps":
+                source += " JOIN agent_traces a ON a.trace_id = s.trace_id"
+                identity = "a.task_id"
+            parameters: list[Any] = []
+            match = self._search_match(
+                table, alias, query, terms, parameters, conjunction=conjunction,
+            )
+            scope = self._task_id_scope(identity, task_ids, parameters)
+            confirmed = " AND i.status = 'confirmed'" if table == "task_issues" else ""
+            if table == "trace_steps":
+                confirmed += " AND s.role IN ('assistant', 'tool')"
+            found.update(row["task_id"] for row in self._rows(
+                f"SELECT DISTINCT {identity} AS task_id FROM {source} "
+                f"WHERE ({match}){confirmed} AND {scope}",
+                parameters,
+            ))
         return sorted(found)
 
     def _retrieval_matches(
         self, table: str, alias: str, column: str, values: Sequence[str],
         query: str, terms: Sequence[str], *, confirmed_only: bool = False,
+        columns: str | None = None,
     ) -> list[dict[str, Any]]:
         """Read admitted evidence with native term-match strength for ranking.
 
@@ -741,12 +743,38 @@ class CloudTraceDatabase:
             parameters.extend(page)
             confirmed = f" AND {alias}.status = 'confirmed'" if confirmed_only else ""
             rows.extend(self._rows(
-                f"SELECT {alias}.*, ({score}) AS query_match "
+                f"SELECT {columns or alias + '.*'}, ({score}) AS query_match "
                 f"FROM {table} {alias} WHERE {alias}.{column} "
                 f"IN ({', '.join('?' for _ in page)}){confirmed}",
                 parameters,
             ))
         return rows
+
+    def _retrieval_step_bounds(
+        self, trace_ids: Collection[str], terms: Sequence[str],
+    ) -> dict[str, int]:
+        """Per-trace upper bound of step term matches, without reading step bodies.
+
+        Every role is counted, so this bounds the assistant/tool strength that
+        ranking uses. With FTS5 only the primary-key index and term rowid sets
+        are read; callers use it to order expansion, never to select evidence.
+        """
+        if not trace_ids or not terms:
+            return {}
+        parameters: list[Any] = []
+        score = " + ".join(
+            "CASE WHEN (" + self._search_match("trace_steps", "s", term, (term,), parameters)
+            + ") THEN 1 ELSE 0 END" for term in terms
+        )
+        scope = self._task_id_scope("s.trace_id", trace_ids, parameters)
+        return {
+            row["trace_id"]: int(row["query_match"] or 0)
+            for row in self._rows(
+                f"SELECT s.trace_id, SUM({score}) AS query_match FROM trace_steps s "
+                f"WHERE {scope} GROUP BY s.trace_id",
+                parameters,
+            )
+        }
 
 
 # Identity-only emergency guard for packaged runtimes without corpus indices.
@@ -1063,8 +1091,8 @@ class CloudTraceRetriever:
         } | {identity.casefold() for identity in _PROTECTED_TASKS_FROZEN}
 
     @staticmethod
-    def _sealed_text(text: str, sealed_ids: set[str]) -> bool:
-        return _sealed_pattern(frozenset(sealed_ids)).search(text.casefold()) is not None
+    def _sealed_text(text: str, sealed: re.Pattern[str]) -> bool:
+        return sealed.search(text.casefold()) is not None
 
     def _admitted_ids(self) -> tuple[list[str], set[str]]:
         if self.registry is None:
@@ -1132,11 +1160,11 @@ class CloudTraceRetriever:
     def _example(
         self, kind: str | None, task: dict[str, Any], issues: list[dict[str, Any]],
         traces: list[dict[str, Any]], steps: Mapping[str, list[dict[str, Any]]],
-        sealed_ids: set[str], terms: Sequence[str], issue_kind: str | None,
+        sealed: re.Pattern[str], terms: Sequence[str], issue_kind: str | None,
     ) -> tuple[int, RetrievedExample] | None:
         if self._sealed_text("\n".join(
             str(task[name] or "") for name in ("task_id", "dataset_id", "cas_uri")
-        ), sealed_ids):
+        ), sealed):
             return None
         relevant_issues = [
             issue for issue in issues
@@ -1189,10 +1217,16 @@ class CloudTraceRetriever:
             flagged = [step for step in trace_steps if step["flags_json"]]
             if kind == "misalignment" and flagged:
                 trace_steps = flagged
-            selected_steps = sorted(trace_steps, key=lambda row: (
+            # Only evidence that can be returned is screened: the best-ranked
+            # unsealed steps of the chosen trace, never the whole trace.
+            for step in sorted(trace_steps, key=lambda row: (
                 -row["query_match"], _STEP_ROLE_RANK.get(row["role"], 2),
                 -int(kind == "reward_seeker" and bool(row["flags_json"])), row["step_index"],
-            ))[:self.max_steps_per_trace]
+            )):
+                if len(selected_steps) >= self.max_steps_per_trace:
+                    break
+                if not self._sealed_text(self._guarded_text(step), sealed):
+                    selected_steps.append(step)
             selected_steps.sort(key=lambda row: row["step_index"])
         issue_evidence = None if issue is None else {
             field: self._identity(issue[field]) if field in {"issue_id", "witness_digest"}
@@ -1276,8 +1310,8 @@ class CloudTraceRetriever:
             outcome=None if trace is None else self._snippet(trace["outcome"]),
             steps=tuple(legacy_steps),
         )
-        if self._sealed_text(example.prompt_text, sealed_ids) or self._sealed_text(
-            _json_text(example.to_dict()), sealed_ids,
+        if self._sealed_text(example.prompt_text, sealed) or self._sealed_text(
+            _json_text(example.to_dict()), sealed,
         ):
             return None
         return strength, example
@@ -1303,7 +1337,8 @@ class CloudTraceRetriever:
         database = self.database
         with database._transaction():
             admitted, sealed_ids = self._admitted_ids()
-            if self._sealed_text(query, sealed_ids):
+            sealed = _sealed_pattern(frozenset(sealed_ids))
+            if self._sealed_text(query, sealed):
                 raise ValueError("query contains a sealed task identity")
             if not terms:
                 return []
@@ -1317,46 +1352,114 @@ class CloudTraceRetriever:
                 candidates = sorted(set(candidates) | set(database._retrieval_task_ids(
                     admitted, query, terms, conjunction=False,
                 )))
-            admitted = candidates
             tasks = database._retrieval_matches(
-                "corpus_tasks", "t", "task_id", admitted, query, terms,
+                "corpus_tasks", "t", "task_id", candidates, query, terms, columns="t.task_id",
             )
             issues = database._retrieval_matches(
-                "task_issues", "i", "task_id", admitted, query, terms, confirmed_only=True,
+                "task_issues", "i", "task_id", candidates, query, terms, confirmed_only=True,
             )
             traces = database._retrieval_matches(
-                "agent_traces", "a", "task_id", admitted, query, terms,
+                "agent_traces", "a", "task_id", candidates, query, terms,
+                columns="a.trace_id, a.task_id, a.is_exploit",
             )
-            steps = database._retrieval_matches(
-                "trace_steps", "s", "trace_id", [trace["trace_id"] for trace in traces], query, terms,
+            bounds = database._retrieval_step_bounds(
+                [trace["trace_id"] for trace in traces], terms,
             )
-        issues_by_task: dict[str, list[dict[str, Any]]] = {}
-        traces_by_task: dict[str, list[dict[str, Any]]] = {}
-        steps_by_trace: dict[str, list[dict[str, Any]]] = {}
-        for issue in issues:
-            if issue_kind is not None and issue_kind not in (issue["defect_class"], issue["direction"]):
-                continue
-            if not self._sealed_text(self._guarded_text(issue), sealed_ids):
-                issues_by_task.setdefault(issue["task_id"], []).append(issue)
-        for trace in traces:
-            if not self._sealed_text(self._guarded_text(trace), sealed_ids):
+            issues_by_task: dict[str, list[dict[str, Any]]] = {}
+            traces_by_task: dict[str, list[dict[str, Any]]] = {}
+            for issue in issues:
+                if issue_kind is None or issue_kind in (issue["defect_class"], issue["direction"]):
+                    issues_by_task.setdefault(issue["task_id"], []).append(issue)
+            for trace in traces:
                 traces_by_task.setdefault(trace["task_id"], []).append(trace)
-        for step in steps:
-            if step["role"] not in _STEP_ROLE_RANK:
-                step["query_match"] = 0
-            if not self._sealed_text(self._guarded_text(step), sealed_ids):
-                steps_by_trace.setdefault(step["trace_id"], []).append(step)
-        ranked = []
-        for task in tasks:
-            found = self._example(
-                kind, task, issues_by_task.get(task["task_id"], []),
-                traces_by_task.get(task["task_id"], []), steps_by_trace, sealed_ids, terms, issue_kind,
-            )
-            if found is not None:
-                strength, example = found
-                ranked.append((-strength, task["task_id"], example))
-        ranked.sort(key=lambda entry: (entry[0], entry[1]))
+            # Screening and step hydration only remove strength, so each bound
+            # is an upper bound: tasks are expanded best-first, a batch at a
+            # time, until no unexpanded task can outrank the current top_k.
+            # Ranking uses each expanded task's step matches; only returnable
+            # evidence (the task, its issues/traces, selected steps, and the
+            # final example) is screened against sealed identities.
+            bounded = []
+            for task in tasks:
+                task_id = task["task_id"]
+                bound = self._strength_bound(
+                    kind, task, issues_by_task.get(task_id, []),
+                    traces_by_task.get(task_id, []), bounds, issue_kind,
+                )
+                if bound:
+                    bounded.append((-bound, task_id))
+            bounded.sort()
+            ranked: list[tuple[int, str, RetrievedExample]] = []
+            position = 0
+            while position < len(bounded) and not (
+                len(ranked) >= top_k and ranked[top_k - 1][:2] < bounded[position]
+            ):
+                batch = [task_id for _, task_id in bounded[position:position + top_k]]
+                position += len(batch)
+                hydrated = database._retrieval_matches(
+                    "corpus_tasks", "t", "task_id", batch, query, terms,
+                )
+                batch_traces: dict[str, list[dict[str, Any]]] = {}
+                for trace in database._retrieval_matches(
+                    "agent_traces", "a", "task_id", batch, query, terms,
+                ):
+                    batch_traces.setdefault(trace["task_id"], []).append(trace)
+                steps_by_trace: dict[str, list[dict[str, Any]]] = {}
+                for step in database._retrieval_matches(
+                    "trace_steps", "s", "trace_id", [
+                        trace["trace_id"] for task_id in batch
+                        for trace in batch_traces.get(task_id, [])
+                    ], query, terms,
+                ):
+                    if step["role"] not in _STEP_ROLE_RANK:
+                        step["query_match"] = 0
+                    steps_by_trace.setdefault(step["trace_id"], []).append(step)
+                for task in hydrated:
+                    task_id = task["task_id"]
+                    found = self._example(
+                        kind, task, [
+                            issue for issue in issues_by_task.get(task_id, [])
+                            if not self._sealed_text(self._guarded_text(issue), sealed)
+                        ], [
+                            trace for trace in batch_traces.get(task_id, [])
+                            if not self._sealed_text(self._guarded_text(trace), sealed)
+                        ], steps_by_trace, sealed, terms, issue_kind,
+                    )
+                    if found is not None:
+                        ranked.append((-found[0], task_id, found[1]))
+                ranked.sort(key=lambda entry: (entry[0], entry[1]))
         return [entry[2] for entry in ranked[:top_k]]
+
+    @staticmethod
+    def _strength_bound(
+        kind: str | None, task: Mapping[str, Any], issues: Sequence[Mapping[str, Any]],
+        traces: Sequence[Mapping[str, Any]], step_bounds: Mapping[str, int],
+        issue_kind: str | None,
+    ) -> int:
+        """Upper bound of ``_example`` strength; zero when it must return ``None``.
+
+        Misalignment relevance needs a flagged step, so any trace with steps
+        is counted as possibly relevant.
+        """
+        relevant_issues = [
+            issue for issue in issues
+            if issue["status"] == "confirmed"
+            and (kind != "reward_seeker" or issue["direction"] == "wrong_pass")
+        ]
+        relevant_traces = [
+            trace for trace in traces
+            if kind in (None, "task_quality") or trace["is_exploit"]
+            or (kind == "misalignment" and trace["trace_id"] in step_bounds)
+        ]
+        if (issue_kind is not None or kind == "task_quality") and not relevant_issues:
+            return 0
+        if kind == "misalignment" and not relevant_traces:
+            return 0
+        if not (relevant_issues or relevant_traces):
+            return 0
+        return task["query_match"] + sum(issue["query_match"] for issue in relevant_issues) + sum(
+            trace["query_match"] + step_bounds.get(trace["trace_id"], 0)
+            for trace in relevant_traces
+        )
 
     @staticmethod
     def format_for_prompt(examples: Sequence[RetrievedExample]) -> str:

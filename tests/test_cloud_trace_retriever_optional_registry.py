@@ -833,3 +833,64 @@ def test_public_admission_matches_class_on_readonly_sqlite_metadata_rows(
     assert frozenset(retriever._admitted_ids()[0]) == admitted
     for call in ENTRYPOINTS.values():
         assert ids(call(retriever, "pytest grader")) == set(admitted)
+
+
+def test_bare_numeric_test_item_does_not_seal_digits_inside_dev_evidence(
+    db: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    root = write_index(tmp_path / "numeric-index")
+    (root / "research/answer-keys/cheatbench-actions-v1/items.jsonl").write_text(json.dumps({
+        "item_id": "44", "split": "test", "subject": {"task_id": "cheatbench/numbered-held"},
+    }) + "\n")
+    retriever = CloudTraceRetriever(db, registry=CorpusRegistry(root))
+    seed(db, "digest-dev", cas_uri="cas://sha256/ab44cd61", instruction_text="pytest grader row 44")
+    seed(db, "names-held", instruction_text="pytest grader like numbered-held")
+    examples = retriever.retrieve_similar_examples("pytest grader", None, 10)
+    assert ids(examples) == {"digest-dev"}
+    assert "ab44cd61" in rendered(examples)
+
+
+def add_steps_trace(
+    db: CloudTraceDatabase, task_id: str, steps: list[tuple[str, str]],
+) -> None:
+    db.upsert_trace({
+        "trace_id": f"{task_id}/trace", "run_id": "synthetic-run", "task_id": task_id,
+        "model_id": "synthetic-model", "is_exploit": True,
+    }, steps=[
+        {"step_index": index, "role": role, "content_text": text}
+        for index, (role, text) in enumerate(steps)
+    ])
+
+
+def test_only_selected_steps_are_screened_and_sealed_steps_are_skipped(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever,
+) -> None:
+    add_task(db, "screened-dev", instruction_text="unrelated instructions")
+    add_steps_trace(db, "screened-dev", [
+        ("assistant", f"pytest grader mirrors {SEALED_NAME}"),
+        ("assistant", "pytest grader boundary"),
+        ("assistant", "pytest note"),
+        ("tool", "grader output"),
+        ("assistant", f"unrelated {SEALED_NAME} aside"),
+    ])
+    examples = retriever.retrieve_similar_examples("pytest grader", None, 5)
+    assert ids(examples) == {"screened-dev"}
+    assert [step["step_index"] for step in examples[0].trace_steps] == [1, 2, 3]
+    assert SEALED_NAME not in rendered(examples).casefold()
+
+
+def test_best_first_expansion_returns_exact_top_k_when_bounds_overestimate(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever,
+) -> None:
+    # User-role matches raise a task's ranking bound but never its exact strength.
+    add_task(db, "bound-heavy", instruction_text="unrelated instructions")
+    add_steps_trace(db, "bound-heavy", [
+        *(("user", "pytest grader") for _ in range(5)), ("assistant", "pytest grader"),
+    ])
+    add_task(db, "exact-strong", instruction_text="pytest grader")
+    add_steps_trace(db, "exact-strong", [("assistant", "pytest grader")])
+    top = retriever.retrieve_similar_examples("pytest grader", None, 1)
+    assert [example.task_id for example in top] == ["exact-strong"]
+    both = retriever.retrieve_similar_examples("pytest grader", None, 2)
+    assert [example.task_id for example in both] == ["exact-strong", "bound-heavy"]
+    assert both[0].score > both[1].score

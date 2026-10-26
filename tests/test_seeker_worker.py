@@ -2190,3 +2190,57 @@ def test_muse_spark_and_deepseek_lanes_and_openrouter_prefix_attestation(tmp_pat
     )
     assert "Solve the benchmark task below" in bare_prompt
     assert "Matched Hackbook Cues" not in bare_prompt
+
+
+def test_headless_candidate_recovers_outer_brace_variants_preserving_exact_solve_sha256() -> None:
+    from evallab.production.seeker_worker import (
+        _require_llm_attestation,
+        parse_headless_candidate_response,
+    )
+
+    # Variant 1: extra trailing '}' at end of JSON object
+    extra_brace_text = (
+        json.dumps(
+            {
+                "files": {"solve.sh": LANE_SOLVE},
+                "mechanism": "grader weakness reproducer",
+                "taxonomy_class": "weak_check",
+                "hackbook_entry_id": "HB-TS01-009",
+                "target_check": "tests/test_outputs.py",
+                "files_written": ["/app/output.json"],
+            }
+        )
+        + "}"
+    )
+    stream_extra = _omp_stream(_lane_answer({"type": "text", "text": extra_brace_text}, route=LANE_ROUTE))
+    cand_extra = parse_headless_candidate_response(
+        extra_brace_text,
+        default_cue=None,
+        model_route=LANE_ROUTE,
+        llm_stdout_text=stream_extra,
+    )
+    assert cand_extra is not None
+    assert cand_extra.files["solve.sh"] == LANE_SOLVE
+    assert cand_extra.llm_solve_sha256 == hashlib.sha256(LANE_SOLVE.encode()).hexdigest()
+    _require_llm_attestation(cand_extra, LANE_SOLVE)
+
+    # Variant 2: missing inner '}' before "mechanism" (metadata keys nested inside "files")
+    nested_meta_text = (
+        '{"files":{"solve.sh":'
+        + json.dumps(LANE_SOLVE)
+        + ',"mechanism":"nested metadata reproducer","taxonomy_class":"weak_check",'
+        + '"hackbook_entry_id":"HB-TS01-009","target_check":"tests/test_outputs.py",'
+        + '"files_written":["/app/output.json"]}'
+    )
+    stream_nested = _omp_stream(_lane_answer({"type": "text", "text": nested_meta_text}, route=LANE_ROUTE))
+    cand_nested = parse_headless_candidate_response(
+        nested_meta_text,
+        default_cue=None,
+        model_route=LANE_ROUTE,
+        llm_stdout_text=stream_nested,
+    )
+    assert cand_nested is not None
+    assert cand_nested.files == {"solve.sh": LANE_SOLVE}
+    assert cand_nested.mechanism == "nested metadata reproducer"
+    assert cand_nested.llm_solve_sha256 == hashlib.sha256(LANE_SOLVE.encode()).hexdigest()
+    _require_llm_attestation(cand_nested, LANE_SOLVE)

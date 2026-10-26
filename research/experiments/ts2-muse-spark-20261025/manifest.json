@@ -1,0 +1,3076 @@
+{
+  "by_task": {
+    "cargo-flight-dispatch": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.108991,
+          "llm_solve_sha256": "1604842b036b728ff8d90c051eb7977093715b8ac2d05bd6cacbf9532c3f446e",
+          "llm_stdout_sha256": "9a124951d08180cbe87292cf453a5af9741723cdf3a35b968ee557ca9fd3744a",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 24106,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "688cae2662b731dca106fa66192d93fc41abeb76e88db8a320e7124ecd9a8524",
+          "llm_stdout_sha256": "e56f4e3a35e704084771778d38b5710889e5bbe2f0127ea05a0c3939d7ee00ed",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 16530,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002157,
+          "llm_solve_sha256": "73c4aa9217b3c2fc58dd727fa36cb70032228a1fe07d8cc71682f76c0236bd14",
+          "llm_stdout_sha256": "c0fc8c03a2b0429e51718af88d8a232293da7adfd6fc26ff38f511d1be0dd2ce",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 16861,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.024577,
+          "llm_solve_sha256": "c40af02a0f9ddea15fd3805c48c21019d09195fdb5c2aa9a4e9cf8a4141699e4",
+          "llm_stdout_sha256": "a220f45a5a7707d15745ea4c9af612ed9ef315433617f5d02d5acb743d2aa7a7",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 15302,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "882bb4a23482024fc541211a0245faf1715b26f40d59a3c2f87b58bde0091a97",
+          "llm_stdout_sha256": "04098b1353a5a6f7619657f4e68a47ffef502036392d0dbe37a14a01f3573cd1",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 17677,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.004195,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "ce6340831c367ea89a996a4ff50aec930e786dba50994833ba01c0d97ff7301f",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 14569,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.127397,
+          "llm_solve_sha256": "86440b58cbb92dbf33f2fcdeaf90ef60c4e70d272c8ce0aba7751b66dd9e11e5",
+          "llm_stdout_sha256": "024b41341bf538b5086b8cf17c209be29544ff5c48e4b30e91ab1e706223f147",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 74575,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "9f7e9957dd6d5d4fe6606a81a62b7490087415cd2f3c329893fa8d207daf6d01",
+          "llm_stdout_sha256": "15af05776ac88c5b7505456b6f75510f5c0d002b70c7c10c7dd51deee84c5320",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 15127,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002318,
+          "llm_solve_sha256": "1c2b7f4f5dac99532790c0dac3999bb2ca7b840ab33a1e69446ff42cbfc84090",
+          "llm_stdout_sha256": "fb5a90359fef4041012d3250e0420f1155fc933f5676e00779329ae391d05c0d",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 18766,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.020262,
+          "llm_solve_sha256": "a1c276f0a84811de2f85e0b76aa56b1db6e4612a156366033cca1764a0b1f7aa",
+          "llm_stdout_sha256": "cf19128d0ba1d5d64df8288bfdc508a351bdc728029d6a933ed32f40668e69ee",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 15872,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "6677948b94fdeefe74a740cbb18752ad5661f3fb1c41ce816001b8cbfc1f15a4",
+          "llm_stdout_sha256": "faff390c40644f96f6f24227cdf69395cfdf366169cdda4761c6e414e423b0b0",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 16543,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.021121,
+          "llm_solve_sha256": "44075d1afa7228fc67cfd298245bd089ddf4b7a1893f2d8d725dfb6f500ba511",
+          "llm_stdout_sha256": "091c175f5030afd9a971a8de5b74c6144c50f9bdf5cd0ca0891b5fced6260f9a",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 28875,
+          "verified_differential": true
+        }
+      },
+      "dataset_id": "tb4-audit-v1"
+    },
+    "distributed-dedup": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.146746,
+          "llm_solve_sha256": "06a1c5b8291275377bf511d7334e7c8df49e6dc66a3c33fb7c8f62ed11e92ffe",
+          "llm_stdout_sha256": "b7d9472174b152e4a81ecde845474b3079d6053154ec1b329a69a693a3f47630",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 49984,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "b3899f30e9de6390d198aafd8d8c9d58becc97d4b8d9192c80f53278cfc6c7b6",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 11459,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002109,
+          "llm_solve_sha256": "9499809d33bca68e8dd1fddcad9b3b6ccb62194a2d8d5c8159f769db39f15f4f",
+          "llm_stdout_sha256": "31eb2a54ec389c9f5d46824f435c37d7c6c8f3df5980f33c3f49f77d3a39c6fd",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 16512,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.020008,
+          "llm_solve_sha256": "ad11355452571a90835d0d805d1ad544c95e85425b5d99cdda1a583ba7ad9201",
+          "llm_stdout_sha256": "8cb6b34e7698bbeb3da0f18b3802853cc94b1d81af74e568d4ce31bce28b958d",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 14070,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "eae446557e201d9009ee0e7315baa9944892da743056cce8cb73a16b30dca860",
+          "llm_stdout_sha256": "a3c43dada9d17028811db1cee6761783624795e7006950ab43e69f4f065a2a54",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 15058,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.020448,
+          "llm_solve_sha256": "2fe2260c93ea5242da31d11160946125a95b22f3ee63ada4c295aca80b3d268e",
+          "llm_stdout_sha256": "c003e46310ab712e6f529cad1778268ea851820492183b97789f44b64788eac0",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 61864,
+          "verified_differential": true
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.095141,
+          "llm_solve_sha256": "f404fe5b6507c71c8e4a8b333cecbb6cde1ab2d00b52aecac80e1e5792533f7e",
+          "llm_stdout_sha256": "78f7173f9b9bd94a06081995f71dcf6b3a534316c5d7bc67ae2103968315d24b",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 24908,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "f43a0293476a82e8a166d57bc87609bd71abd37581172fcca1b575f4844b2ab0",
+          "llm_stdout_sha256": "e9d07513b93d3d3ec3690c72fac241cd14c36d043daa232c260fb54bdd680fe5",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 15986,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002124,
+          "llm_solve_sha256": "c61c99edf0e3a4018c9d217004ea038bcf345a5cfa13a01bd829009385a7f218",
+          "llm_stdout_sha256": "d096fa31c4b44b1ebb59a396005a675870c068793f93c95e6d56420683d06d61",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 17629,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.032411,
+          "llm_solve_sha256": "294e4967e0567f5f792d862a107c1fcb11907b4e7b2cb43aa1762587feeb8949",
+          "llm_stdout_sha256": "fdab956074c99aa456383452a603fa557c395dddd77cd7cf665ca2671b214964",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 43757,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "64e84a28337780dae0269519d3c00db3c2bfe771ebc5954eb7c4ffba79321c41",
+          "llm_stdout_sha256": "465a4807eed7dbaf26d5f8474de8ee7622f41f22b820123ce962c660b9b37050",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 17737,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.008182,
+          "llm_solve_sha256": "5f7833b4df56a336fb6558496b9f610e5c4b49413f52713d1a62723d2fc7b07e",
+          "llm_stdout_sha256": "47d64e3bba6f351bd51a0910524ca50c6c36482e111ef7a45356bf8d26e40780",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 20014,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "tb4-audit-v1"
+    },
+    "fin-saccr-rwa": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.076655,
+          "llm_solve_sha256": "4014d1929f4ad55c324d7ff1d75c155b83290a26f500e54aa52039863b6c3dcb",
+          "llm_stdout_sha256": "28e59aa3c6006272e3f9e26f11cda752f9d588a36b7b8d9db43b801541c65253",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 21035,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "af7ee14ec893591ef00e9e7da3286d17a5112932620c657d0376ac69a61a07ab",
+          "llm_stdout_sha256": "4760e1e913301b97e935353d2f1866274a5e60edb98e0568521915c648744526",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 16409,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.003602,
+          "llm_solve_sha256": "4e54b03bbc911175ac81ce1d12b59741cb29ed35012a3e94a10f843fc5632b40",
+          "llm_stdout_sha256": "eff8cb78b9b06c938cfe8f08e31db5fe4a18faf20bc195a2a7f79a873f0a7841",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 24020,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.02197,
+          "llm_solve_sha256": "f49e642d1cc6263c8a7a3c27d0fdafe1b5132cba93e4358a2e4345c7bb7b6ad0",
+          "llm_stdout_sha256": "4ed36bdc521b58362f431fd7af1ffd9951a9790a012c870ea371f47f83e2abfb",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 14584,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "f0f631f3ce2aaba16f6ea06f25f4f3745d31dfda45cff60a897617e0a32794d3",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 0,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.013222,
+          "llm_solve_sha256": "eaf027b30fcfc4aaee09ce0fa82eaf7782d088bcb492f206f9ab74e7f183d44e",
+          "llm_stdout_sha256": "977f8331f539ece17f4a0ff59a29a16169b210402db20c140907db24d11c4839",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 30138,
+          "verified_differential": true
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.092143,
+          "llm_solve_sha256": "1df3e9341389ecdfcb6f299491b40d5e135346ba5147b2a041bdee8da49ffc2a",
+          "llm_stdout_sha256": "ee49c24f160afc0f9130e83e02e22366275dd01a21484daabb598c537a37ea49",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 24691,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "302c3244f08dd24daa8ae3d8366c846f7434c6674a78195a89a5c88f1f967b43",
+          "llm_stdout_sha256": "2a4636e475f5d4283cbd6f365f4e2c745f6b51172ae7ce679cae01ceaec1fba6",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 17416,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.00221,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "c322828bdd1a6db80dfec667492d3eb1897a893f7bf920805e373d0dbea20777",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 18234,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.028145,
+          "llm_solve_sha256": "a60314346697dc0ffc519c5f64a77653554c0f6ff9a3912d8d073b40ff22f565",
+          "llm_stdout_sha256": "a4cca07f056602971a6303560adf24a551ca353274f1bfaee437949847451598",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 31858,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "aa11073d85b22c7031dd776d52bdd0902a9e25b1725fb0c7a09912ad4a6ff15a",
+          "llm_stdout_sha256": "67f6fdd0af6e40d49b523b7ccc5882c068ae63b0869ee2968840c187c92cb804",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 22138,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.005137,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "ed696049d7e3923b449c4a955a37fd7f7ad327faa5e7a0686e1c74bc6b87c8d5",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 18859,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "tb4-audit-v1"
+    },
+    "format-code-task-000158": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.051419,
+          "llm_solve_sha256": "6369878cb821351b4a2b26fab4d26b751927974be3a3c1d05246a3ab1e709430",
+          "llm_stdout_sha256": "cadb74b8baa709cdf1460c859309d2311c45f7057ffe52ba22fcc22bd9929eaa",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 14078,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "c19149efcae2145151795d06db9fce4ada7ff2981a9a65d1018a184ac2f9d411",
+          "llm_stdout_sha256": "e8c4c8999f1dec7db819241e8f8de21c4e41d1cd63be6857c820d77a95f66fc1",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 10421,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001721,
+          "llm_solve_sha256": "12d7e18443a7233bfc885793b0673beac7e5a1b7cb160f78b7052157d0a1657d",
+          "llm_stdout_sha256": "8eaf4fa182c0ea8752271cc0411e8d3a859cb145ff9f313a8e6808159f5b5518",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 12445,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.031267,
+          "llm_solve_sha256": "381c47ecb30174dab041b04b0a4724b0ca091790c10ef4c34829a676dc4afd8e",
+          "llm_stdout_sha256": "01cb1c13abdd7308938b67537a2dfb7233ed97bab77f585c44b15e6a35ecd3f4",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 19074,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "3c62b6c6f992454bf6cd086e115f223757b2d3a540be2cd25dc14831cfd5d990",
+          "llm_stdout_sha256": "416d26ab19579fd0f39c837428705c6260708f2b64c0dbcb45c84cf331f4e187",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 11003,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.006946,
+          "llm_solve_sha256": "d2d5f5f880428ab88f3f64312d72418613f15fa6814d74dde52222db32d2c927",
+          "llm_stdout_sha256": "b0783658bc68dd5f5d7641f620d96ba0ba54287b7089761f05d85c9f0d365825",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 39907,
+          "verified_differential": true
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.056983,
+          "llm_solve_sha256": "151727672c52d0fcab86cebeaea6e5539152ba07b48df41c952bcca142abc53c",
+          "llm_stdout_sha256": "0061fddf48d58c14538b1104e1162a8b611fde1e3e05e357e1b0fc740d79f253",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 16744,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "86e95805646db4110329e985a98f123bdb9727169fc3d1e61fee927cdd440f77",
+          "llm_stdout_sha256": "011f0e4485965495da0808d878a2b2378f6d400582d945e12c3fb06f4c234c41",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 11102,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001664,
+          "llm_solve_sha256": "77159ef2d8ddf8abd7f1abafbc7d3481d08093b60213ba7eb3928234f889ae8d",
+          "llm_stdout_sha256": "8241a209244cc5499c7a085b4ff2b3916187077a66638e9e079c678dd4296edb",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 13298,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.023464,
+          "llm_solve_sha256": "a9a8343dad26ed82288b6151bcfcdf69c7f941da7651ad806cf06bd1c02ed1c5",
+          "llm_stdout_sha256": "78047ed5a60b0e58e0416d12c022d8b7df8cb537c02c03c243eac0f5004d29fd",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 12675,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "f0e3a3da1cee0d629e7df44778b68aea679864a8529b5c0d45fb6b7cf28d3159",
+          "llm_stdout_sha256": "1041583519c360fce546b3498847785d9f24e76a2b5faea9f17b23c343c19d6d",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 13540,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.001976,
+          "llm_solve_sha256": "91e0972b560420730640cb6247fb5fd2717fa7c427893ababaef336eff6859da",
+          "llm_stdout_sha256": "c0a2496d4be86e61a87c0e8b29100a7259fde9f6946cd73112f53b161a31a052",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 16265,
+          "verified_differential": true
+        }
+      },
+      "dataset_id": "mimo-defect-map-v1"
+    },
+    "format-code-task-000159": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.045691,
+          "llm_solve_sha256": "543712ace7750219e6ec143856a96a8e2725ea759e4e6507e8dcc1cc8449ed11",
+          "llm_stdout_sha256": "b7d85cdfc29e96a575a192785ad271300f19c4e13827060e13c15a2b3fcca218",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 13159,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "5c0946e0c1e874efef8410f2be13b202872253f263c87bcfb7380a0f81afa0ca",
+          "llm_stdout_sha256": "71fa6aaef8354338bad0267c3998c303f8208dcb1bf12696cc8bcf6d445cd12a",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 10419,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001436,
+          "llm_solve_sha256": "e2d83c215aa965b36aa75c6f2ba2675414ad3660e6c12b765ff2178c7773b24e",
+          "llm_stdout_sha256": "3a002a54c1bbb0a6f5096b0d67d9c0d3a9b3ffa3f4ea8bfd4e56aa19d6084a09",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 18040,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.009214,
+          "llm_solve_sha256": "d5d9907c1500e3c21ef1a35659672e6e778afeafd92521a925aea97bd30b8683",
+          "llm_stdout_sha256": "ff597d536e93607740e8d9a8c9a20a9e4823278e8ae81a54d3ac15aec991b320",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 8174,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "1667330d32e832e96057af60396444d7818ec6565b2e71e1df120f9ec93f0011",
+          "llm_stdout_sha256": "2cc23f4407df56d21968dbb416cccae52605c34864aa6e5e6bc41e42b09e95d1",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 10441,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.020813,
+          "llm_solve_sha256": "f2f6b1a6b395d2bb5a29d5d539a8f9b5888879d830d9efa57eb215f0dc88d1dc",
+          "llm_stdout_sha256": "4ccaed7beeb3a7c0bdd62f88466c97ef4e42bc9fe0fad16f7a39f0c4a02b1d5f",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 30343,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.061351,
+          "llm_solve_sha256": "2e02b995ad2e4e8d652bf631974c6a5066a0bbbd2eaeadecb40877714f829f3e",
+          "llm_stdout_sha256": "f43811e7a561a65c123d9b4d03c513b4aaeb1248eb5f96200d86ea0ecaf2649c",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 16774,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "5efccde9a64775a7265899ec187593e940b24567111427ceacbfa4699de5d563",
+          "llm_stdout_sha256": "3b4e7f92d7236388b5b03ee05bf0a19f8d4e6e2c2b64b996559cb4f73dda15b0",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 11500,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001564,
+          "llm_solve_sha256": "ddb591504aa09b6636ea6afbee3d496183dce98b37a1d48d2c8c52d42c25c13b",
+          "llm_stdout_sha256": "33fcdf01c19da2eb4547f446c56a04f829f9d35925f57a1088d00ff2a98a9da2",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 12570,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.018767,
+          "llm_solve_sha256": "573cd5d76c3f1f48dd557404f20325f2756206eb5c13fe2a9d630f64a4d2d6fd",
+          "llm_stdout_sha256": "f127442445dcbb83d81f363ba805b5749334b3c9745cca6afd16bd9932960f0a",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 12029,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "1f9d2883250ca584dd222011133a88960372265477f4eb40ff36bf0fc3019b64",
+          "llm_stdout_sha256": "0654e057ce089d40c2e1303bd022a645f59baba2e3f239cc2126aebcfd43771e",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 11746,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.01145,
+          "llm_solve_sha256": "4159a83b9b9ffd71f5847554ff2759de4a393fc324a16cc074a46385ec5b1eba",
+          "llm_stdout_sha256": "c3f0eb00816a24d6712589895ac7bf1c58d244488c0556cab65d8c6830ef9d6f",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 24557,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "mimo-defect-map-v1"
+    },
+    "format-code-task-000160": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.043923,
+          "llm_solve_sha256": "100c356beef41e7d3fd3c331c1dcdcb3c9d673e0702e1b73980ce4ef04b07ae7",
+          "llm_stdout_sha256": "881fa75250db466157880f2cedde50d0288f890f328c72e2e4fe2e861f5c62bd",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 13371,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "95039e7219c1c2f4ec329968413bef9b6f512144c746050c26bd01d503296fbc",
+          "llm_stdout_sha256": "0f7faebd1be531ae28ca429ae4fe761408fdf72a764835642cdac5415e1a4426",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 8102,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001196,
+          "llm_solve_sha256": "9a1ebb0a1e2b4987e851b74fd0033412e30db91f1c6f96c19f56a1f94ef17fe9",
+          "llm_stdout_sha256": "50b8dae411d50ddec2a8c360b177411471659f3d95ffd5a9efaadd837250f939",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 9794,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.005914,
+          "llm_solve_sha256": "4eca8efe730ad42be07ed0892976d9b466d9882ef09e406ff4caf86678734710",
+          "llm_stdout_sha256": "83f82bb636c88d7fcbb0127550001b4a145b4dc7990629526e7a08aeee6dc393",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 8248,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "628203650760e2d20502149761e0c2cdbe5472d690aa78f60589d364f2e5efba",
+          "llm_stdout_sha256": "48c819627b62c589b71050098ef29e3fe1a3b9c53d838b75d4b7ddc4145dcc50",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 10671,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.013834,
+          "llm_solve_sha256": "5bd2b040a613bfe44a093712eb5d6e9f07fd8ea4e0f7096d470987f440fa3ab0",
+          "llm_stdout_sha256": "58846b6d81d7afad6bbbf843ee11ba210aed2fc19b07e4f587b144f3625ce73c",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 17426,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.056751,
+          "llm_solve_sha256": "9224b27f5f683368eec08255c06059b5790b0de66057a83fafc882045dc3b5b3",
+          "llm_stdout_sha256": "7b8c61fe13dfc104ffcf61d049100b79b2ce7f4aafb799f7ee21ceb1939117ed",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 16689,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "9e606f4da9853daf9f7065266ec037f7e04c30755c0bb3bbabda5c6a2e6c4266",
+          "llm_stdout_sha256": "c834b6490fcc4ab05af42afd32bcc668fcfa11f8f74f56cc21a9eced69b693f0",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 9997,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001565,
+          "llm_solve_sha256": "d554d9b6ca6900e525034f946de5b59c538ec0ad9b6a98ae782be022216f344a",
+          "llm_stdout_sha256": "48771c77f0b10c63fccf82b53afb1850fbf2d75d7121cdfef00ca0519fe96798",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 12732,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.018664,
+          "llm_solve_sha256": "33ff3c1b259fd787b312468f2ffe849b612b83457e2c5384325a3e6498179c53",
+          "llm_stdout_sha256": "330e3edf910438483fc38419c3cc75c843ee401dc71050fc4fc6658d50602d86",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 12261,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "5e54b5645b1c6be7625dcc7803bac228e424420fb5b31e90138212bed557a2a3",
+          "llm_stdout_sha256": "862fe64a941650dd43ccf587aedb065361130c0317a165ea6a1d9157436d33c1",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 13118,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.005201,
+          "llm_solve_sha256": "0b19646f413f9895532d29eb7822b68462c9ffbd5fa2e5d6d5767af15a3106db",
+          "llm_stdout_sha256": "8c9ee1eda3207c984b4ed86547d188c12a3abcb97a2f3fc04baaba130fc6fede",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 19504,
+          "verified_differential": true
+        }
+      },
+      "dataset_id": "mimo-defect-map-v1"
+    },
+    "format-code-task-000169": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.066881,
+          "llm_solve_sha256": "c72c3c688298f148ffb28a8d8533ebb03799d2c05651a994ff4b2f59274fe4af",
+          "llm_stdout_sha256": "0d66ea8da1e16e591e29dd0c3e0d6d170a1289b9b82a5cef9fd5c6f070ee06bc",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 17252,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "104ed9dfecd0ab6e0f4d52b86622ab72fb03cb9dd22771b2e3ee36bfa38001fa",
+          "llm_stdout_sha256": "5224fa5e81db68c5be0f4b51ed8f8ed686037c71f5460e7efa8ad9fa382dad2b",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 12266,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001597,
+          "llm_solve_sha256": "71dfb72e6d65d81493c2754243bc5b0d2704ca5b15d3c09cd432898bf4efcada",
+          "llm_stdout_sha256": "380aa747c326ef0c46dc345c2fb1a3aaa128c1a5b2cd1e35574ffbe74932eed9",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 12549,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.019403,
+          "llm_solve_sha256": "812830137f7d0bb74d71e16339d58eb33d4eb06194f47251a605d6ca45bdeccd",
+          "llm_stdout_sha256": "a7a93549f2a75d2364431a8af10f28bc7b0378dc7c331985d5d2665ca510ca78",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 19407,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "5776e6959354b69a256ca5ebd8eb1615365b28bca4a3c961191adf5103cd3da8",
+          "llm_stdout_sha256": "13956132acc6c681b30b01683d66082a3d2ce91751ffbbe67c9fb702ae378ad8",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 13994,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.012468,
+          "llm_solve_sha256": "71e949175d11f96094b8657402d84e3bf1871ecda43176e3275b0c8c4c4b492a",
+          "llm_stdout_sha256": "7396ec6cffac9acdace8e073bdc96154cd4fb3b3764ed376ba21bf8a43048f11",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 26706,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.067893,
+          "llm_solve_sha256": "e1fd2cde8a058be27a78f276b8be25d1b008f7a84ca73ef9f9f4b62d4afaa0d6",
+          "llm_stdout_sha256": "9a248c2427e895b8a049433bbf5bdc656c131e49559dc474d9ea3fbda4479ddd",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 19434,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "6c34e4255eadc26b915df226ee16e5e4b7c27ca0ab09a84973228e69f34ef1fe",
+          "llm_stdout_sha256": "85ca951c4b60871c0ae0ad0f2f2a9044b4ab959a31af5679f7df0d74e49ab7be",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 13004,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001568,
+          "llm_solve_sha256": "9c1af2c99328a381a7518ddb58c4fef213bc26a2784680c6343c2230c5c7e2f0",
+          "llm_stdout_sha256": "97e254a38f3e2716335d9a40775c759c6c390f91f571a89cc85ff3cc82079588",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 13515,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.02314,
+          "llm_solve_sha256": "4c3d30ef4e842b032ef09f1bf6b5c9708d0d588bf619675a8c831493f3c377e7",
+          "llm_stdout_sha256": "654a0c7557978d94d1ad5488e7add6e996431c2812c72eb0fba9e7b53fdb1e7d",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 14392,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "31843dc6583e4d97d7b5fc8fe0bb2b6d87c362a476c2318dd19a97c2bc060022",
+          "llm_stdout_sha256": "1ac764a974375a7be3fcb45331efbeb12d5c1091dd323e716e8c2e03fe57c973",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 14180,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.005708,
+          "llm_solve_sha256": "2817ce017f0a1a9ce53f22cdb0f59a7c1fcd1e324f79543e91ba4f3cfe4ef83c",
+          "llm_stdout_sha256": "55a6e274e28cf437dec35548489b36cd2ad6e0e44abfc92ab6a7784bba7161d3",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 18616,
+          "verified_differential": true
+        }
+      },
+      "dataset_id": "mimo-defect-map-v1"
+    },
+    "format-code-task-000297": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.056893,
+          "llm_solve_sha256": "c22ba10c4b66760c3fd7b51ffd27cd1de0dfd6cf99359cd581660418d9f292eb",
+          "llm_stdout_sha256": "4ebe74215492bad9fc038b394790a896b3fac38ff8cef444e180f2bdeb7b6dd1",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 16060,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "c52abb5b3d30921be8607db98ef64cef4fec1152fdd01634fcb3e81b20ff68cb",
+          "llm_stdout_sha256": "f708ecdf76706bdd1d5e67a0955aefb14a2db28e7e6dbfdcc33a3f85d8cba263",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 10131,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001492,
+          "llm_solve_sha256": "aed9f867c9b534f169dd3a866e8a2f830521522e4b8303d727e64964c7aea8a7",
+          "llm_stdout_sha256": "7610a6a1e13ddeec4f3035e323229b4ce6997a2af584246a4cd5040800802be9",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": false,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 11910,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.010181,
+          "llm_solve_sha256": "643027a0522cc79b0ac606a199edef9f52849d66afd1b84198aa9e38f080654c",
+          "llm_stdout_sha256": "916463dbe63305a5acb3c1ff101d57cda381d5d8b408bcb47bf4049345944129",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 9662,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "bb0568eca10cf55fe3259afee93e6c65a4b1cbd79247134a621dea8fd19f1d5e",
+          "llm_stdout_sha256": "1f2577cd8880ef53bf264ec41deb55e7d945382511149d517e9f8743a60ceef4",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 12038,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.009567,
+          "llm_solve_sha256": "98e0d360bd2f3b783351f30f3b38b2c6b74728edf08507bcb5ef32cf576c934e",
+          "llm_stdout_sha256": "d8fdd19be73c8427a022547447485651fdf7930b470f2cff63fdb66e0cea74e7",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 15724,
+          "verified_differential": true
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.066791,
+          "llm_solve_sha256": "c5174e3eb25067f5bbd6b949d68479e7bee4d07fa9cf293cd9764a276e861028",
+          "llm_stdout_sha256": "0edb33be649faff158f0be43eda4a2e0d31f0943df8dbe3f1a1b6f28e2cefdda",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 19127,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "0a235c34161b5f2e82ea46532eee467ec17973fbf32fdb0446ec1dcb4b17f519",
+          "llm_stdout_sha256": "42fe00f17c1f67fb9103d27b189925d9d51bdd0a98cc8fa4bf17068d9ef4b87a",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 12259,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001386,
+          "llm_solve_sha256": "a8ea99f0d61bc234415145a794709c739261670a8bbb9d4b354862563de3c0a0",
+          "llm_stdout_sha256": "f82d5350548009fdba7d9962408263900f717e455b1dea6de2a48c906ffa2ecd",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 12510,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.017811,
+          "llm_solve_sha256": "5dfb8fd891f4da7c621d5cb29ac543bd07c0d87cbe5bdd3689a712cc5f149407",
+          "llm_stdout_sha256": "fe351170a336c1fb6845e3b0231fcc8e049d27d4ed785000c7131e3fade08338",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 12942,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "8d8bb6fe6eaf7ccef76aa63def41bece89c4929a8bc19d4c1acda182dd6f649e",
+          "llm_stdout_sha256": "1d5a1242d01e5d301beab21d2d73c21527a505d6e81895e341201aedb5681af9",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 16631,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.012168,
+          "llm_solve_sha256": "98351c7678ebc966a34ba7f78dd91565676a9eb35891ed22e9221f561a6b62dc",
+          "llm_stdout_sha256": "903354d75bb8fb6043c7689ddd95e1683e7ad5596d5faaa4c267cf7c78d86004",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 28428,
+          "verified_differential": true
+        }
+      },
+      "dataset_id": "mimo-defect-map-v1"
+    },
+    "format-code-task-000341": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.069017,
+          "llm_solve_sha256": "2157f16cd4db6a298e1b3236f198db7d61f546eb62051e5358cfc5eacef62eb0",
+          "llm_stdout_sha256": "a86fcdd68f3f1a3c3117054712e49aa039296b4348463657ef850f747f68e413",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 17141,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "6c9e19f604fb96ce998ca2ab58ad54d40b68e5daae2fbdf773c61e54dcd3c8a6",
+          "llm_stdout_sha256": "503f1efe7abe1fa9d85af1623690b3018115104a96490d2ba953dc85d5567f3c",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 13073,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001759,
+          "llm_solve_sha256": "3001f96eb0fa59c45755883872accf24e0db5d95a0efa2eec474c183eb9cadbd",
+          "llm_stdout_sha256": "4137e491ab17120e1b2003649654a851064f5bbf01ac1d5f5f597577e9a57393",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 13302,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.010243,
+          "llm_solve_sha256": "5f61be6b7e07409def336c1025488a068ececb2e805d1c7149613ae775711cb2",
+          "llm_stdout_sha256": "49725da359338191c7285fd8a6e4d11956bd7b6487d76a9e1271edf60103591e",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 9781,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "d5d5ab3e32f881c263891e50c6a8479cb7804fbdac81fcef6a2eee1cd94d1b54",
+          "llm_stdout_sha256": "f2024f144cb686b2a51b2a173280d96800e5eefb6a302b4c49b4aa967f60ad99",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 9169,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.019518,
+          "llm_solve_sha256": "9c58198ef93b8d125686f37cdcc15ad61159b45e8c6a19eb8d9059766755b918",
+          "llm_stdout_sha256": "e33230971afce632307864aafbfa68f9da273a0ec1d588ad8f52dcac36d7c200",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 31369,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.066451,
+          "llm_solve_sha256": "845d576c11966cec9590b06246c4a21f573bf68c941237c3f9fa7e79e7797675",
+          "llm_stdout_sha256": "1944999614aa36e187b855503cc9eb043363f73dfc951ad4d0ed5581c5f6d541",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 19042,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "0ce2b973d33144f3e19e4edd9bad3670e02b34b547406bbd0ca24bcc52c09bca",
+          "llm_stdout_sha256": "279c40bdba9a735fef304b277cfbbe6894ff4c062cc0d5b6aebadc1c45dd1bf8",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 11636,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002278,
+          "llm_solve_sha256": "9ba1dcdf4a4f550390d837161e350d9692696ba0a31a87119ca286eedaa2c39f",
+          "llm_stdout_sha256": "45ab06b07f2b00cd39c9cf25f77fd9e72030372564a87af6549ddefb13d6d8ca",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 17039,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.017059,
+          "llm_solve_sha256": "185bf75e88d1a0f48f14e7cb9c029a6ea48acfe654c84f54cc5e258decf54293",
+          "llm_stdout_sha256": "b08d41bdcb325c673cb72bf8b22903b3e9094585f0a735f4c192200ff0a731b4",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 12959,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "ef2bab9e52940e2f84ffb7ae8b8824cae92905abac4e950679cf5f1ec93565aa",
+          "llm_stdout_sha256": "73a2171c4bf4210292a97067e9a0531424ea39bf7f52173d578ea6d8b42c679b",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 13824,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.005709,
+          "llm_solve_sha256": "a99cdcdf8df04d786bbc4313823449cf0cdae21fc2c7367bb62e8f7cba450a73",
+          "llm_stdout_sha256": "ecbc013ab573a2d247ddc738e26ea92c6aa0689315814d5fcaa4be4d70348d2c",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 16638,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "mimo-defect-map-v1"
+    },
+    "format-code-task-000545": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.061815,
+          "llm_solve_sha256": "e2b1103053d53506f907bd9edefe22bbdc07031a0e53780dc4c49b233232e583",
+          "llm_stdout_sha256": "6bbfc3d31d30ebde15728211b23438dfa1f9537a7521f0b72645031615f2797e",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 15918,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "a9621de39599acb35e114d7e85c8c102e668087e0e6e6db145fcbbdb191ead9f",
+          "llm_stdout_sha256": "8ca80e3b77f1409066d5f1220e5be42be3c186febaea087ee8ae450f02b36542",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 11116,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001702,
+          "llm_solve_sha256": "dbc487b5469186863d570d063b736e4158a12a83c632497ee12ad565db5fdbee",
+          "llm_stdout_sha256": "6316365516a84db998d7778cae50912b912fb76836389fb9e1477a0a86c3e5ba",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 12719,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.013219,
+          "llm_solve_sha256": "5717b1de7ed82ecf6e70fab35c9ab573e33cfef8180899af47e4cf379498621e",
+          "llm_stdout_sha256": "87580ee53c0b23783a3f50fd3fd358427073eafcefe8acd1cf339b5fd2a0ce8b",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 9995,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "33e6eb6f81062c1e9e9982f6188f03908ebd1a385252577bbf6f86b4127984f5",
+          "llm_stdout_sha256": "5ef2a6e2f9c661dfaf8aebbb78a1f75945469002a840c2fe08bacce2c4cc68fd",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": false,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 13347,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.002814,
+          "llm_solve_sha256": "956906d44ab9c08e2fb46fc8c89497b0c1eb1b380534ad7c03353a6c6ff8952c",
+          "llm_stdout_sha256": "af3d2c3d521383cd2304cf6a49da99c61cf24f638c746a7f58c06cc778881b37",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 17956,
+          "verified_differential": true
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.063059,
+          "llm_solve_sha256": "9461e9154c1b53cef670ade978fd9f495ef6ab24a728860ec6cee50f35078bb0",
+          "llm_stdout_sha256": "a0567249d9a1b58de66db22c2ead46a9dcf52e17adb7321e08bb0e25fb4a3678",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 18263,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "9145ab8b351c9803de77f22712086b963e035d40eaeaa7cc6c3b5a9f7d260d28",
+          "llm_stdout_sha256": "de1177b8e0f1f7107f0ce408cb0091d03c71d76ca403681f195b720518bb4f27",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 11294,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001704,
+          "llm_solve_sha256": "d3f13dd9e8f6177fd1a0e98dc20a73f73c1c5ffd592210e513e677fa5acbb31e",
+          "llm_stdout_sha256": "fc5ada24f49ed995b029847a0e501c9fd93b571eaa90a0ff49af6c91e3541c7e",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 13915,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.013349,
+          "llm_solve_sha256": "429ea0261b6ec423f6086a2b06d99e80d548d20756413741cbb1e4689429ca67",
+          "llm_stdout_sha256": "a625f546420eb78a073fdf101c2f6b538ae8ac4b9532a466be6be4435cdd2d0d",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 12290,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "8b6de5891799ee7e1828fcf0af6b3c8630136382183902a8964bd42959e0a95d",
+          "llm_stdout_sha256": "79d8c4e94ce91f38aa15ff620aa19663d09f08e9e3e7601ba48beb7f08665521",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 14065,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.007428,
+          "llm_solve_sha256": "e135b272429b743bcca565b4e8ecdc5236a466e0a4f8dcfacbe491f43e5a1770",
+          "llm_stdout_sha256": "9c5ee167eaa8d87087e29c954615c4511e410c945bbebae5f2b6d89882c0ca90",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 24901,
+          "verified_differential": true
+        }
+      },
+      "dataset_id": "mimo-defect-map-v1"
+    },
+    "format-code-task-000636": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.057783,
+          "llm_solve_sha256": "b2399df1e6250657ea1c7d2dab98c6c373478b106bb0088d3e1f1d942956b006",
+          "llm_stdout_sha256": "5a26071df917908174143676939bba774b8cdb497f4ebb4bac201684ba5a1327",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 15684,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "986b861aa3842e03babb8203f346667e096921c22516d256e19e3c76df137b0a",
+          "llm_stdout_sha256": "b25c96222f395e7a479815ffffbf873579a0ca55f7a96463b6dd415e954034c6",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 9416,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001358,
+          "llm_solve_sha256": "9c9d32bc5b34ceb0f00198edc76b4d4c8bf7df8e4883e2632139071ad9e1221d",
+          "llm_stdout_sha256": "2489527249fe4582c9a7fa2a5495c43f63b30307b5b222280af9137f4d972d87",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 10996,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.011543,
+          "llm_solve_sha256": "746c360902e7f8252bd3da0fbeb50cc645bde5a73d9f8bbb7f49aeb0642e7e74",
+          "llm_stdout_sha256": "139fad0ee40cb199e62bdcb13179b2cfca131823649eadcf6b21c326d10bcaf0",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 9662,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "802c97006c65f92b8c46c60a37ce762f34ead9ca6ec194a821f055ca51e18eea",
+          "llm_stdout_sha256": "4cfd3f87d9839b131bbeb0e6708d19af41cd4eb74eeffb1fac544524bc4f0c84",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": false,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 10778,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.005812,
+          "llm_solve_sha256": "3a9c8c85d7eb5f7226037f14a19f78f0eb5c4d6884cd2533a139b4dfdcc8f507",
+          "llm_stdout_sha256": "8f3df2640d4400275e112a9427980838a7fe0630099af2ddbe060e8dc1936d88",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 15748,
+          "verified_differential": true
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.072501,
+          "llm_solve_sha256": "70ef89df195e7ecc0a7ab8ce0c6adf3f4d89a5f067079f2194c2c2774f1fc795",
+          "llm_stdout_sha256": "4ecc40cb0810aff7c434ae2d7f5188bff90d651bd6fc48b0f4cca37934d11013",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 19266,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "c455b2e2566f1371a718ffbbba3bef44fc3027cab83591307a6dd1bc2a7a00cb",
+          "llm_stdout_sha256": "ea4acda0fa4c243f9c653036133aea5d27c8355677d3ae11a45a762349319265",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 11615,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001664,
+          "llm_solve_sha256": "c3135d0b266d989ab2a4530b61270094bd15629b1d1dc9d6ecd7b304335d5950",
+          "llm_stdout_sha256": "489818cda6493bd2363c2e902e6b281c3b4d7df62db294964f208ca55068cd01",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 13664,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.014261,
+          "llm_solve_sha256": "26b4215da7366f60cb057f22b3849d8cc86644fc33d2331473dece353e6680ad",
+          "llm_stdout_sha256": "26434557c04180011f42b5a871bdff53c063cd5f84db22ee381af9ee512ce7a5",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 11937,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "c750065460c7cc7da61c105aeec5d2dc43bb92321add2a211034f9846d2b1e76",
+          "llm_stdout_sha256": "6ea2a7876e2fb24616a73d35a8a83983c30a87151337699f2f1cf2d4522528f3",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 13313,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.010278,
+          "llm_solve_sha256": "4c280d2b28795ecb09ba59df3437d7111444f30805aaba290ffbd93ab15077a9",
+          "llm_stdout_sha256": "579a6311af330c111adb4ae79f3d5aadeb5e165870a033375bc57c7748f00a31",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 20694,
+          "verified_differential": true
+        }
+      },
+      "dataset_id": "mimo-defect-map-v1"
+    },
+    "format-code-task-000666": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.045347,
+          "llm_solve_sha256": "1726de23c3953ef114fdc61b86080e63e2e9bef6e012a969da0d3d1ae02934bb",
+          "llm_stdout_sha256": "1fc2c37edd1d49db13d37c9a20821d80b7e2df40a89af29ff56bc6ac4c1dd352",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 14132,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "e188e6a5129cbce6a0799cee364ca843db46b71b142cf51230b0db94f54533cd",
+          "llm_stdout_sha256": "d9d0478a3a29f714cbbc395fbbd3021cebc0e28d00abd5f6284b235dbbf2e2e1",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 8846,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001572,
+          "llm_solve_sha256": "53cd4e698a9ff815a039b419bb82073f64a7ffd8cac4faf83e496be7f8e0dba0",
+          "llm_stdout_sha256": "4a0cd4f653a4ea0fc6edf6b1bbb36964e95513880c975b6f956c2809cdc181ff",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 11949,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.010606,
+          "llm_solve_sha256": "db05e34023ca7e72c8e9a2730d1d89f922820fadbbee124dd6bfa9b27a1a8201",
+          "llm_stdout_sha256": "cd80d267e646256e400c0137aae2fd9d426d2ff5bdd708c3abd02a2e5604da0e",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 9244,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "ec19fce549e0b36e01c510b21015ca6db264476f101c80e7e916e6b0f20beab5",
+          "llm_stdout_sha256": "30f08e5dfa5c1019d17792d6c166dc831268e810ec7ad8d6bb077f583df1e614",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": false,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 9989,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.018443,
+          "llm_solve_sha256": "6f3680feabe0eef388ebea98e6c42d15ec1a40e2d3f715aa02a2b601e93115f7",
+          "llm_stdout_sha256": "a95cb81b49e1678ccdef43da3e9a3f77ae7139c62a3d8b60cbed7b7f16da0fe5",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 27677,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.062193,
+          "llm_solve_sha256": "b614b9bb9e10fe4db19d3f39be47690b9be3fd6360b26c4f76a0e712081d30cf",
+          "llm_stdout_sha256": "90e1e001f7c3eccaed39ca2df7929efa31af989864fb2b069c9797bf7dc026a4",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 17943,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "9f99907117f7d322886013a79c7f145967e673a412699290b3987d1c7aec98ff",
+          "llm_stdout_sha256": "bef499b34b8603eaf813f8ef18c2225762e30d97d4dd6f18880120158e2c2baa",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 11272,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001566,
+          "llm_solve_sha256": "d59ea8736919f716730f75d90cef3d661e5490f2b2eb39bda08d048cd01d262d",
+          "llm_stdout_sha256": "02b5d33ff7d46eeb43c6e3084d2efa61b90a183ca5976b3816488bd0639d3bc7",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 13054,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.0118,
+          "llm_solve_sha256": "3a4b242de351efeb011652db89664e8be7f4542b7834db93df7c61acd1b987dc",
+          "llm_stdout_sha256": "df729d156a801e80f33b263e28ca512fa47966920c9efb4f9c1f212762d0de79",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 11687,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "e8e19220c1665e44ed00ed4b5aa41c23f02e2b8658e7531de65df6738b94a088",
+          "llm_stdout_sha256": "9b8af4bcbb5f8bc714b09ca3caa82fbc7664c763566c94395fa9bcfae43337fc",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 13292,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "fba4e445b4537121aa5f786b5758808af005c337222fc77bf566e44cfc53aa07",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 0,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "mimo-defect-map-v1"
+    },
+    "format-code-task-000803": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.045185,
+          "llm_solve_sha256": "cee5796d1bda8bea84935b076c25edf0bff8ee9c4cc1f4656cfc4637c2556930",
+          "llm_stdout_sha256": "5c1357142051885f84505271feda07d8993af2a23220f7ef349b8fa7376a0b8e",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 13325,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "557ad4cf9f1d10a44c84f00d4f1bf4bc43bc1aba4271e7764264f2e5dfdb13a9",
+          "llm_stdout_sha256": "9f92a1dba9c95fa0e608723189e2ad41b687a0189fe552ef08bbec3914b1139c",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 8650,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001303,
+          "llm_solve_sha256": "66da7c76f1a3ca1e99799811d3fd29d472c92bfdfc332f66770aedd05cd7ac8a",
+          "llm_stdout_sha256": "c55c50fab16d067177f387ed516ee4e134ff258d056a094d3521ee9b8f578407",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 10275,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.010577,
+          "llm_solve_sha256": "d52f6eb7b6c7a2b1e59e3f35e508cfa660e5d60191369db12cd708eb0191a583",
+          "llm_stdout_sha256": "4d3e8477dbcfe41d77060ffae05afb9707fdf020ba97fcf3b6a020438acef51e",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 9269,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "e97c1d4dc8ca1664f3b9ddc30b1e39b704d6fc832f2dfaff2e68f323113ffec1",
+          "llm_stdout_sha256": "a4063b4b5ae44397bff036076a900f16485a31da102ea336aa5fdec681f1ef5a",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 11540,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.020867,
+          "llm_solve_sha256": "78b49aa3a16ab5ef8d7b2b6c0d62de8fb91ce0822f97485530201a5705974542",
+          "llm_stdout_sha256": "c0633a453ba4e3d71bc9f2ad89ab25642ef01594dfc903bdd1805ec1fc0982a1",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 30635,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.064679,
+          "llm_solve_sha256": "1892dd2d89e6bc63b270923edbb0674d7dcf2a8796fe9e8a9ffdd95a0fc018b4",
+          "llm_stdout_sha256": "7a0a3bff3464f1a776e6bac3a10b367910377d28a812bffc66d229004b5cc763",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 33268,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "6894cae320700861eaffe58b773c064b0f7860999ed0eb904edd9f16af680923",
+          "llm_stdout_sha256": "081fb627c7b118fca30c01c0637f860c7c62eea4402eaf2c99f797cbee9ea276",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 11013,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001725,
+          "llm_solve_sha256": "f6bf379fec068872f554e03cbc7e7b7bfd9c937d6e8eb993e5287db4b0f583a1",
+          "llm_stdout_sha256": "7c194482bf54605635f86952fe8b10e5efb2fc4c2b95e2e5da4da93cad04f718",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 13551,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.011922,
+          "llm_solve_sha256": "dde5859175d91650c5557a3d2fae5dd6bac293e46173392b7a31b5d729fa5843",
+          "llm_stdout_sha256": "deb3ad4affbee24ca10c21c38775f7d576ef8f20e717e8e54beb1925f69ea042",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 11295,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "b4910274516d49973039956e3f07157f933cb0c1183f5e5820ab77f97c56d4a7",
+          "llm_stdout_sha256": "14704edcc7eeda5e1fa5e1b0730eb3986e3dc52ca94ba1a13575c34e4bb62244",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 13195,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.013707,
+          "llm_solve_sha256": "51831e31fa4fb3e84192c13f3089bc4483e74b12026887d1c705ebf0b3d3dcdb",
+          "llm_stdout_sha256": "02f79c411933ed0fb3a5673f8149dc5c0111b8aac6410b9d180dac5146d7416b",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 29087,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "mimo-defect-map-v1"
+    },
+    "freecad-impeller": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.076743,
+          "llm_solve_sha256": "a61f66b2878fb95c8eb7b20d4e8d9288d6471d3fa70bd289cd1bb3c0d3126827",
+          "llm_stdout_sha256": "19b63638901522123e393caead7be71dc8b3e0a7d1a7f1b48cc2970d9ebf8e18",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 19077,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "0c9f4347aa9735707cdaf385c9c58358a117bbd21273e1229420e7bdbf03ca88",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 20263,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001944,
+          "llm_solve_sha256": "dc9be3072f16497744fea3fdae7a0f8e76f98a2872f0d51d55b3e1cee3e32417",
+          "llm_stdout_sha256": "a80a7b2b9bfd37b4814bf77f191a5d0ba121fd77a62aba516f301f5b13e50831",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 14668,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.016317,
+          "llm_solve_sha256": "8bbd58d403f572d7b72acc492019c11bd04fe066fb8bcffcdff06d7e7263cb8a",
+          "llm_stdout_sha256": "6d1fca2f4ff3d8a7a8c92cbb367e4c5904cc0cc4f1b383c1683bb0f47274ad84",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 11799,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "6b4c3fac0c2ddd0ea598fc4606e5533eadd9fff06ded4c2626917ddae3da95cb",
+          "llm_stdout_sha256": "cf511d0e94f89ae5b1713c915c6513bc5ab42bafeb4a56c44c683f1cc4fec210",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 13810,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.023964,
+          "llm_solve_sha256": "a588dff5406747be160502be6f6bfef2eea490dff0abdd636576fce52f36d89f",
+          "llm_stdout_sha256": "eacf15815029285c9eb957daf713bb2bb58c886b9beeb3a972fcdd085ba9f8e7",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 35153,
+          "verified_differential": true
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.088737,
+          "llm_solve_sha256": "2ce8b94b46cc603688a50c8be2d870c6a93f3028832cfde5b8066fb080431519",
+          "llm_stdout_sha256": "b7ae260c64865848a9d9faa036ef65275d536eb827761fbc168d852d6f96645b",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 22386,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "0ccf74edd44b81e6710dc00aa66add2b5599fd9e3e2d6cb68cbc604b4b6cf2a5",
+          "llm_stdout_sha256": "623cdadcc7e3561a238879d01776f8b65252c664f2e47c287087a5f77384d530",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 19157,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001941,
+          "llm_solve_sha256": "4103019d94debf54c9b61de1b782d19b486ccc3ff26dfe5b38d3d890dd71139e",
+          "llm_stdout_sha256": "3d3cdf16903b3e653e66cbda13548fa5b6811e58c1c7a534b723135ae67c6ce8",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 15782,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.01993,
+          "llm_solve_sha256": "f9fc8dc73b277fc25fa7efc4be0ef5746ac7afd4f85e672e71391f845d60ad66",
+          "llm_stdout_sha256": "bce47a3ef885cb336dcd2d9c123ecb7e8b81197b00ddfa748ac836d1b577143f",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 14238,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "8d8539a55eb37e6fcd283fa311e4faeffce5a3bbe64861d63371d5d3b52b0c26",
+          "llm_stdout_sha256": "26a0db704f1491bcd615075df98192dd90a0cb4b228e060b6609358753a03711",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 16729,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "b0308e59fe4403a350d1a83374ebaf8f1683cfd0f766288fce8342a25ff4026b",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 0,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "tb4-audit-v1"
+    },
+    "freecad-platform-drawing": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.092269,
+          "llm_solve_sha256": "53651f1c2226f3808ad4a4bb249af2d2aa27bbc6eaa7f9cdd9f87a73732bc80d",
+          "llm_stdout_sha256": "d79c8496a919eb3507504d2f529d63ab5edb40394cde859d1bd96b8411b93fff",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": false,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 21175,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "df01795d1105617a709c4a32206bcf0d8d3de7304335ed60cafeacefef4df7e3",
+          "llm_stdout_sha256": "dfb67b2d8720eada278e1d65b1b554edcf3c9d5604dff44fbd462c87a4f945d6",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 15728,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002131,
+          "llm_solve_sha256": "95c5a2dba2aea8b6ce5538bf0af3a1e9a70c3e78e7c570efae3e9cc3b620a4c5",
+          "llm_stdout_sha256": "5d6095dd7ad3ef7c48f668a695eb4994bf19ad7574101a37897d733863b3282a",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 15880,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.023347,
+          "llm_solve_sha256": "967253a7d1fe6a36c5439af054324f7335817971a76cd732d844e3d9c66f39f6",
+          "llm_stdout_sha256": "ac3a200df866c5acfd655c16d84b747db75de9ade60055764d57cd712a208aed",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 13845,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "91408739221e8de4d45bca626443c02760d50c2001d95a5930c882b1dc33e139",
+          "llm_stdout_sha256": "90f17b0f60041de20d9fe135766e66c5eccc70593a0133374a293c4e0ca63c60",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 15571,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "3fe312c8d974e73f445010c05ef3adc5aa7b9b5bc49d1d18aa9c2d43c45208fd",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 0,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.096263,
+          "llm_solve_sha256": "a3a2eec7ffc05b97b30e3f6911a77c3a567f08e1931eed6baee16fd6cb363492",
+          "llm_stdout_sha256": "18f2650c64c5f1f3db5d7c5810bad6756c04bfb6d9f2bb8b1256ac00f7bb74f9",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 23669,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "40f8b67716a4f07baace09e4972317a1b2c589818b5d29d00d89d4ae614a80ca",
+          "llm_stdout_sha256": "5fea286bb9ce1abe7c2f9f425601d6f6bfd7203193ed5b23b0eab1ea1cb40cf1",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 15677,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002182,
+          "llm_solve_sha256": "b36fbdbb773d1eefdeb98887ebf8b991ffc20ab62cb245ed443d86746bc15183",
+          "llm_stdout_sha256": "cabedaeb718968c6cea38b40c0868817d9e5bdfc4caab65d91554d0c2d94b76e",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 30110,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.020201,
+          "llm_solve_sha256": "860ab294d822e397dc1dda0f61fa0bc4777b14501c03aa1899c1776643a7c888",
+          "llm_stdout_sha256": "6685e255a10c760482153b12a6740e6c3e39f8fd64d0ca20683c9d596ce1e848",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 15259,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "37430f47d0bae416dd1f27f2d2604d4e80fc7000c8e6c894f241d626d2c0c84c",
+          "llm_stdout_sha256": "a8f9ccfba8386d79a1ec58fb8b0483f215177ac45ac88bc753036a83444bbcae",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 18766,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "9bbd8886f17f752ef0ba5ac61b310eee3ddd752b8c8814651dd5f8bba98f2917",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 0,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "tb4-audit-v1"
+    },
+    "freecad-spring-clip": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.073709,
+          "llm_solve_sha256": "03f9f3861bdf0686b225c5140231310564bbbc05ec32b72fce7f9ca19f5bc2ee",
+          "llm_stdout_sha256": "c20426239c25e3fda043caeac3129963b8279906bd3d5a5826ca13a6551ed274",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 19409,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "bfcf34b8ead0e152e189fe996dc422e2e72916a80e474d3ca59433b0f5196ea8",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 10148,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002279,
+          "llm_solve_sha256": "88b8fbc9dcc66d8fc33b98e72bd3c48891ac87acc0caafcadecd4b4ee04158ed",
+          "llm_stdout_sha256": "3cb735829d99180c11cd781b4fcf7fcfcfda9e0dd935acc8b64087bdbbf837bb",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 16664,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.017206,
+          "llm_solve_sha256": "c45bebc985ad4744ee6ec0817621f9d784fafce92aa6d8f2eefbeded1c6f60fb",
+          "llm_stdout_sha256": "05183edf87d98b7b9b34dd27b6cd936b9b92216a66af0ed4fbd61c10f5191521",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 12429,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "cecda53aaab9e482817368aaa60e94bf76ebb3b9a183ada5419f4271c7d5b59e",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": false,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 0,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.002066,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "02c237d0c11781756a64ac35a98945656e0624abf495c1937aa312fc6c928b74",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 11629,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.090385,
+          "llm_solve_sha256": "3b07ca88cf1a3a5f7913f02cdb5a23a4d0006a016ce06c296e82f2a7994220a0",
+          "llm_stdout_sha256": "7d59d9d010d99470f11a7556fc25f73ff45dcf4df55333702e67b3393ba2dbb3",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 23209,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "93158b0cd18f0bec0c27a9d13af7f4ef3654267fef8309705233382ee62a5517",
+          "llm_stdout_sha256": "b2c8a8de4d765119dc9dde0ef43f247844c816514bf1ff968e39a8ad517bb325",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 16478,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002055,
+          "llm_solve_sha256": "6de7c59c44b3373cd5631023380add40a9076a668ce0e61cadaef4a5e98a085f",
+          "llm_stdout_sha256": "ef1ade66600730f4ffa9ee42c94bf66147af19bc68e7b05a0f55ccf8e8594ee9",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 16680,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.015937,
+          "llm_solve_sha256": "9062ac41f2fef3f6f3dc3d73c897eccd80c584eb40eb296f75b16f3f4c7a6242",
+          "llm_stdout_sha256": "3a624fda1be18af99dc81523141b07a845979e8267f1a6fd28a5c0eb35a814f5",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 14329,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "4f0c7dbb76e01fb0a34d620ede2bde61229bef627bc51711cdfdc8a48e658e42",
+          "llm_stdout_sha256": "fbd2217180bc904aaa296f116e00aed970c22d2e2e4f62e91d58b5f9950c66c8",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 18377,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "adf3c7612650ce36fb03d81eaf4651f9074902461d8fa55affb80fca18ea0286",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 0,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "tb4-audit-v1"
+    },
+    "heat-pump-warranty": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.056655,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "d2da519e37aca81465cc4162228d5e3415939b474fbd8f99a9db05e0872a7a07",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 17346,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "4c6ea0793d04a6691c8e53db87be4068d9acbc1d43ee7e705574e044ae83e638",
+          "llm_stdout_sha256": "bf70b35264dfaa4b594b0cb8a43226a444954580f5f9a55ae38ab790bab677ee",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 12779,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002006,
+          "llm_solve_sha256": "41bac5847b993f85e076deccad7222cec245bb457a48f2ce5c16e7cbc1bb830c",
+          "llm_stdout_sha256": "28a4f64c0e68c332a670e37e15e36326392639fadc2dc294569b893a0da4dbf4",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": false,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 15117,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.014298,
+          "llm_solve_sha256": "dc6cabee24f79428920cb32908aa6334a4d96909d80579b766a63732bc83ca21",
+          "llm_stdout_sha256": "8ada9924fbdba7e1f09b92945bcaa62196e7808ccc18b846081ac71822e0c34f",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 11475,
+          "verified_differential": false
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "746e3284887e89d11444324c432bb453d16877b7f8886524d79fb0e9c9c6dc59",
+          "llm_stdout_sha256": "7e88290d99d04343c7751e80d2e954a133343db8b1356e69c976b4a4fa832de5",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 20156,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.011776,
+          "llm_solve_sha256": "cb88d742c6d1cc28ef6e101972b59eb5d439e845d91c65a84cb49533ca50151b",
+          "llm_stdout_sha256": "8d7b38844fa6c9b547830ab3c4dee688ab707d8d14092bf47c05ca52735d144a",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 32939,
+          "verified_differential": true
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.014901,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "82236b4a86addebb1776592150cd24375702d6f69db3c418e6a307ddd917097d",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 41622,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "ac940e98bf7d5eeea94ae709123f83c35b35f52221e0c05e546d0c616a2a6465",
+          "llm_stdout_sha256": "bd76dd65487e531de8bbf6959162a17a0a9c333401089486950a1963d2d5f855",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 15347,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001921,
+          "llm_solve_sha256": "bc46ac0e5151af6aff0d37f3911a6ae6938edf22662c0b88b3715edfd01026e4",
+          "llm_stdout_sha256": "1fc3c60f5417df1823694d259ca3c47bb87792d2194101242faa5b42fdb6d410",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 28200,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.016172,
+          "llm_solve_sha256": "9a7ff090749e5caf410ef70924cb1a5fa097485528fb88a31ce81a66cf5dff71",
+          "llm_stdout_sha256": "acac1f83a6ec7feccdc01283ef0501a11e996267ab16dc0d64068a55824b5498",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 26336,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "bf1b6860628fff9b0ca8fba68b286e1e1f6c414ae8c1e801a40dee7c8d739513",
+          "llm_stdout_sha256": "dda15f1d8e78bfe5dd46d82f82d7724f07ad3cc8a5a355a9179c2a60ef964960",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 16224,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.009253,
+          "llm_solve_sha256": "db0602ddee954b5281b7cb59bd2673841f478c73e9b7e673b9924a9010e0fcf3",
+          "llm_stdout_sha256": "31e3f1e236a4d9a90174cb7378582b1c69e83aa877e147d30c41b1815979dc0e",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 18186,
+          "verified_differential": true
+        }
+      },
+      "dataset_id": "tb4-audit-v1"
+    },
+    "html-js-filter": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.088571,
+          "llm_solve_sha256": "6723a653ea489f65821f8a4cd0a2c6d4bbcd275ab4e0aeaadcf133961683ee81",
+          "llm_stdout_sha256": "53e832f70b06d5d5cf613712723c3a6d9c769d22ce41109e7fec6ee35ce3cef1",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 20585,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "cee55c1a13cb74d07a89bffa708568a93317b1fcdd200e13887b5efae5d12aed",
+          "llm_stdout_sha256": "a97f1a8e74f5c33eb17c1c547f0a46ee8ed77315e69e657852d377beebbf0f1e",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 15535,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.001508,
+          "llm_solve_sha256": "b0fb3a9178d26ee856f08d3111b2b283979fe89e8b425655d8fbe01be2067e63",
+          "llm_stdout_sha256": "4586479c11ea8b0d5b3f90504d13a7217b214a7bf27009184819afbec81b3a56",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 14178,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.01614,
+          "llm_solve_sha256": "35718fe1f22598936d90942b79409ead0e1298458fcd2324afc2af0f76afce77",
+          "llm_stdout_sha256": "cef303e63640e641b7e6e01d3e92b76bec344bd71a53ef42a52342447e094205",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 12049,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "41e76e80a5fea7fa11c797de572a9f3ea8e7d2f9533783b3622f7984491b04c9",
+          "llm_stdout_sha256": "8c1b6e3c07ee4e494974eb50ca5653c2d6d8ef06715fa9c77939bd021b42a81b",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 15453,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "f064fd497f5b6fead8620f6647e0d671ededbbd0544e41a874562d18f706c327",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 0,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.083235,
+          "llm_solve_sha256": "6af44eaf6cf60e49bcc119a19d3d137062b68300c43058eb2e26a3c7227197c6",
+          "llm_stdout_sha256": "4553edda5eabd683db14ed30b08d081dd25016c0cf70df007e4211a50acd8761",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 22125,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "833c891506b3a841733abc21be6920a8c72667547a7822a50a72713b42ef4bce",
+          "llm_stdout_sha256": "4ee90a01b88ce1a4a5317a0b7483a0d028739ae6ad1ded1f61216ff66f80a2ee",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 15844,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.00151,
+          "llm_solve_sha256": "3e362708fc0b6ead93ca4b456d7d78f12563fe6fdb646515fe1a68eef82d1396",
+          "llm_stdout_sha256": "efa76a0ed1274e9e0480e0109e5f67a22cc3ad02af0fe17784d7a62a82ebbd7f",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 13848,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.014451,
+          "llm_solve_sha256": "30d984af5977e0decdd7828b8aec784bb067fc1319a0e5485c9040d59e974b75",
+          "llm_stdout_sha256": "48b7161c8c5fcd2f8e292675052afb3b4d3273fb405a3d48cc90401dd9a0e412",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 13824,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "6ae3a7d77a6d52bae7585c155a8f8255addd817e5581de7683705a390d8cdfb6",
+          "llm_stdout_sha256": "abe6ae390f854d630b1be1d28f06d44fb38d9b6f01b92af47620f24317d28cf4",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 16767,
+          "verified_differential": false
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.017915,
+          "llm_solve_sha256": "3baf5a43782c351b6ff40c572807a2f7d4aecd7c1f064d70e1a32e6a734af8c4",
+          "llm_stdout_sha256": "4826341600b41579a49e69063d548d6592dc689096445378d70f063ec30214ea",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 30438,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "tb4-audit-v1"
+    },
+    "vba-userform-port": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.064957,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "e97450f76a79a910860f3daf3b761a34fca7186548549e1afcb33e9ce8ead2af",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 19282,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "838589014ddf004e8696229d4a272441554550346f0a7b6c4170a58776b1fde3",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 10639,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.003193,
+          "llm_solve_sha256": "8d8fc6a922cafe433197a15152db5b46e0ce313277e025b4d4426e1316f9ab91",
+          "llm_stdout_sha256": "902f4ec87fe8320f81178c567b6456a18cf13c503c3f4761e3614a88b66233ee",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 32428,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.029342,
+          "llm_solve_sha256": "ef4578ac12f82aea23468146f2f7e206a6a5301d0007bdfdb18eac710e140911",
+          "llm_stdout_sha256": "6f305976f77bf6377c241f0d590169228977139dfce0bb13b3c6694a2939a240",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 26523,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "b1b08ef792a59f6f9722ee92a008a77fb0878dc79091cbf57177f358a42d9450",
+          "llm_stdout_sha256": "13cb774e96fc72c0c5cfa25170c6441bb1bb1923111af65edc284c2d764b747b",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 20347,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.010695,
+          "llm_solve_sha256": "2556bed0e42a332a69d2875ac458999eb2bfcaea496fa1021e38921c291e70e5",
+          "llm_stdout_sha256": "e9248ceade49835ad7d7323e39c199d31341dfe862f2031aa2585d3bb082a8bc",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 31777,
+          "verified_differential": true
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.082083,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "de899a9fcadffe0b0d3fe92bb112b5af7db2b583b1ce463be6b8e3bd22c36ec5",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 23085,
+          "verified_differential": false
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "3725ee1ef97128e72ede55e09451d81210401b2f4a08ba5b7ca52c0ae67cce1f",
+          "llm_stdout_sha256": "dcf56eb55ddeac9493bda884e383c49443c0ca75a57e5baaab4b7bc71365d48b",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 17630,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.004214,
+          "llm_solve_sha256": "abd61c267bfc5c9f4d54a5ff5a1ec4d484243ef3706681122d62e91752e93402",
+          "llm_stdout_sha256": "a947395dab12e36b74c9a0f44866244eac59254d27f95e4aae9a9b5530fffb08",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 62060,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.025494,
+          "llm_solve_sha256": "5032ca1cd22ddf53cc71bddc7cd864246841fc21abd6e0b8da4ee4d755a079e4",
+          "llm_stdout_sha256": "dbd79ce46b5d2430ac16997519c95f83233e38f57536a9dee9cf99896c408743",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 29907,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "3a6c0c39aadc8f1199dad83adce4d77fdbf1327f25ac61d5232ddccbd991699b",
+          "llm_stdout_sha256": "cdadf7706eb0f64c6007f8aeeb20b05fca9b5e023d4a6007d03bcaf78259202e",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 16259,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "d20e6f4ab3afadd7301239a7853c0c25591885c68af218669f21a436f4f3341f",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 0,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "tb4-audit-v1"
+    },
+    "vf2-speedup-networkx": {
+      "condition_a_bare": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.121125,
+          "llm_solve_sha256": "2126894f7fbb6bd4f4873dbb07aec4537343f270b47ef8df5027d754e6227190",
+          "llm_stdout_sha256": "282d75682a30e98d9864a61cc228e80b0d3d92e213a721e41b56ca74685ccb76",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 25188,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "cab9761a94988d9089e762041b16d89b7a3b925f1e4fab4e8165d35cb349d636",
+          "llm_stdout_sha256": "345d0e77f3030cdd586d2e4aa28d5302da306c8a3aaeb2b30431bc164d83f331",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 13993,
+          "verified_differential": true
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "07ed6aed64aec92e1d06e32639008f09b5875d02552c6983d59a147c5de0d587",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 0,
+          "verified_differential": false
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.017781,
+          "llm_solve_sha256": "d23c6126584d8daa76f12cc6081478280e9481e5692c9c1c66c60ee180e59758",
+          "llm_stdout_sha256": "ff099585a9988109d5b79fbb8f4fb3112b550b278f4fe767d1fcec5af15918e9",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 25572,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "1dc1597f2c644d1e2844e59bfa086278975dfe1dbc80ecd56d65bd46ef16d73d",
+          "llm_stdout_sha256": "2a9d3118abdd39be1176525639fbeed51de9d96bae221b57b7b63e678e03f4a3",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 19297,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.006201,
+          "llm_solve_sha256": "3f0afae8ad3fc71e6da069bc275f7198778f7309fd49c29deb3d5eb18d1aa520",
+          "llm_stdout_sha256": "d7c4356f1741e4e5fde373b72dc1b102a271a7a03d8debd721dd82561fa284eb",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 19250,
+          "verified_differential": false
+        }
+      },
+      "condition_b_retrieval": {
+        "anthropic/claude-sonnet-5-5": {
+          "cost_usd": 0.145897,
+          "llm_solve_sha256": "d9bfceec033acf1074c5cc46b1686a0dc1691d5494d4f0723edb02edc9687c0d",
+          "llm_stdout_sha256": "7924c4c525cd2073003abbd05276aabc695a18ecd25ea4eb32ceea2c2855d505",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "anthropic/claude-sonnet-5-5",
+          "total_tokens": 29707,
+          "verified_differential": true
+        },
+        "kimi-code/k3.1-pro-highspeed": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "d1c1107f954025d2fe839251ad25ac6630b2568595e01b8b49149c865f10e210",
+          "llm_stdout_sha256": "0f805c42305b69b1a6c0349c8e0769655e0e7721f14e6e400699702e04d28283",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "kimi-code/k3.1-pro-highspeed",
+          "total_tokens": 15136,
+          "verified_differential": false
+        },
+        "meta/muse-spark-1.3-contributor": {
+          "cost_usd": 0.002085,
+          "llm_solve_sha256": "9ac678604af6ce838c4be61b774606985d866e155b4eb88839fd13cd64c10305",
+          "llm_stdout_sha256": "052c4cab610269064139179c81b2a27463d2e51ad4a91cd2683cce28821c4eac",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-spark-1.3-contributor",
+          "total_tokens": 33261,
+          "verified_differential": true
+        },
+        "meta/muse-spark-open": {
+          "cost_usd": 0.026761,
+          "llm_solve_sha256": "41dd8b3ebb15d6b6a4259698a88baa95411e8ea055723a011145c78b3c7da9a1",
+          "llm_stdout_sha256": "3c6113874c0a08a66720ea78264c0ed015291b2a4ef5a675d7d1c7a5d2dc0604",
+          "parsed_ok": true,
+          "probing_in_script": true,
+          "probing_step": true,
+          "served": "openrouter/meta/muse-spark-open",
+          "total_tokens": 17377,
+          "verified_differential": true
+        },
+        "meta/muse-wonder-1.0-contributor": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": "cda879676098972069240069aae4e7fcafad4d64883be1c19c99f75698c6c00a",
+          "llm_stdout_sha256": "67449007f6fc6d5c8402542f105b579e63868d3619880574479dc19c5e515b51",
+          "parsed_ok": true,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "meta/muse-wonder-1.0-contributor",
+          "total_tokens": 19167,
+          "verified_differential": true
+        },
+        "openrouter/deepseek/deepseek-v4.1-flash": {
+          "cost_usd": 0.0,
+          "llm_solve_sha256": null,
+          "llm_stdout_sha256": "8a2574c477f83a8ab4a96172c5eab5b6c1d6018016201c9162433552d27b9a5f",
+          "parsed_ok": false,
+          "probing_in_script": false,
+          "probing_step": true,
+          "served": "openrouter/deepseek/deepseek-v4.1-flash",
+          "total_tokens": 0,
+          "verified_differential": false
+        }
+      },
+      "dataset_id": "tb4-audit-v1"
+    }
+  },
+  "conditions": [
+    "condition_a_bare",
+    "condition_b_retrieval"
+  ],
+  "datasets": {
+    "mimo-defect-map-v1": 10,
+    "tb4-audit-v1": 10
+  },
+  "models": {
+    "anthropic/claude-sonnet-5-5": {
+      "attested_submissions": 36,
+      "conditions": {
+        "condition_a_bare": {
+          "cost_usd": 1.450375,
+          "differentials_per_100k_tokens": 1.549,
+          "mimo_dev_differentials": 0,
+          "parsed_submissions": 18,
+          "probing_in_reasoning": 19,
+          "probing_in_script": 4,
+          "probing_step_rate": 0.95,
+          "probing_steps": 19,
+          "tasks": 20,
+          "tb4_dev_differentials": 6,
+          "total_tokens": 387307,
+          "verified_differential_rate": 0.3,
+          "verified_differentials": 6
+        },
+        "condition_b_retrieval": {
+          "cost_usd": 1.554834,
+          "differentials_per_100k_tokens": 1.974,
+          "mimo_dev_differentials": 4,
+          "parsed_submissions": 18,
+          "probing_in_reasoning": 20,
+          "probing_in_script": 7,
+          "probing_step_rate": 1.0,
+          "probing_steps": 20,
+          "tasks": 20,
+          "tb4_dev_differentials": 6,
+          "total_tokens": 506527,
+          "verified_differential_rate": 0.5,
+          "verified_differentials": 10
+        }
+      },
+      "paired_b_vs_a": {
+        "only_cond_a": 1,
+        "only_cond_b": 5
+      },
+      "served_models": {
+        "anthropic/claude-sonnet-5-5": 40
+      },
+      "sha256_mismatches": 0,
+      "static_template_overwrites": 0,
+      "total_cost_usd": 3.005209,
+      "total_tokens": 893834
+    },
+    "kimi-code/k3.1-pro-highspeed": {
+      "attested_submissions": 36,
+      "conditions": {
+        "condition_a_bare": {
+          "cost_usd": 0.0,
+          "differentials_per_100k_tokens": 2.033,
+          "mimo_dev_differentials": 0,
+          "parsed_submissions": 16,
+          "probing_in_reasoning": 20,
+          "probing_in_script": 3,
+          "probing_step_rate": 1.0,
+          "probing_steps": 20,
+          "tasks": 20,
+          "tb4_dev_differentials": 5,
+          "total_tokens": 245923,
+          "verified_differential_rate": 0.25,
+          "verified_differentials": 5
+        },
+        "condition_b_retrieval": {
+          "cost_usd": 0.0,
+          "differentials_per_100k_tokens": 3.232,
+          "mimo_dev_differentials": 2,
+          "parsed_submissions": 20,
+          "probing_in_reasoning": 20,
+          "probing_in_script": 9,
+          "probing_step_rate": 1.0,
+          "probing_steps": 20,
+          "tasks": 20,
+          "tb4_dev_differentials": 7,
+          "total_tokens": 278490,
+          "verified_differential_rate": 0.45,
+          "verified_differentials": 9
+        }
+      },
+      "paired_b_vs_a": {
+        "only_cond_a": 2,
+        "only_cond_b": 6
+      },
+      "served_models": {
+        "kimi-code/k3.1-pro-highspeed": 40
+      },
+      "sha256_mismatches": 0,
+      "static_template_overwrites": 0,
+      "total_cost_usd": 0.0,
+      "total_tokens": 524413
+    },
+    "meta/muse-spark-1.3-contributor": {
+      "attested_submissions": 38,
+      "conditions": {
+        "condition_a_bare": {
+          "cost_usd": 0.036065,
+          "differentials_per_100k_tokens": 2.411,
+          "mimo_dev_differentials": 0,
+          "parsed_submissions": 19,
+          "probing_in_reasoning": 18,
+          "probing_in_script": 1,
+          "probing_step_rate": 0.9,
+          "probing_steps": 18,
+          "tasks": 20,
+          "tb4_dev_differentials": 7,
+          "total_tokens": 290307,
+          "verified_differential_rate": 0.35,
+          "verified_differentials": 7
+        },
+        "condition_b_retrieval": {
+          "cost_usd": 0.039244,
+          "differentials_per_100k_tokens": 2.049,
+          "mimo_dev_differentials": 1,
+          "parsed_submissions": 19,
+          "probing_in_reasoning": 20,
+          "probing_in_script": 4,
+          "probing_step_rate": 1.0,
+          "probing_steps": 20,
+          "tasks": 20,
+          "tb4_dev_differentials": 7,
+          "total_tokens": 390418,
+          "verified_differential_rate": 0.4,
+          "verified_differentials": 8
+        }
+      },
+      "paired_b_vs_a": {
+        "only_cond_a": 2,
+        "only_cond_b": 3
+      },
+      "served_models": {
+        "meta/muse-spark-1.3-contributor": 40
+      },
+      "sha256_mismatches": 0,
+      "static_template_overwrites": 0,
+      "total_cost_usd": 0.075309,
+      "total_tokens": 680725
+    },
+    "meta/muse-spark-open": {
+      "attested_submissions": 40,
+      "conditions": {
+        "condition_a_bare": {
+          "cost_usd": 0.333153,
+          "differentials_per_100k_tokens": 2.961,
+          "mimo_dev_differentials": 0,
+          "parsed_submissions": 20,
+          "probing_in_reasoning": 20,
+          "probing_in_script": 4,
+          "probing_step_rate": 1.0,
+          "probing_steps": 20,
+          "tasks": 20,
+          "tb4_dev_differentials": 8,
+          "total_tokens": 270164,
+          "verified_differential_rate": 0.4,
+          "verified_differentials": 8
+        },
+        "condition_b_retrieval": {
+          "cost_usd": 0.390001,
+          "differentials_per_100k_tokens": 2.88,
+          "mimo_dev_differentials": 1,
+          "parsed_submissions": 20,
+          "probing_in_reasoning": 20,
+          "probing_in_script": 7,
+          "probing_step_rate": 1.0,
+          "probing_steps": 20,
+          "tasks": 20,
+          "tb4_dev_differentials": 9,
+          "total_tokens": 347224,
+          "verified_differential_rate": 0.5,
+          "verified_differentials": 10
+        }
+      },
+      "paired_b_vs_a": {
+        "only_cond_a": 0,
+        "only_cond_b": 2
+      },
+      "served_models": {
+        "openrouter/meta/muse-spark-open": 40
+      },
+      "sha256_mismatches": 0,
+      "static_template_overwrites": 0,
+      "total_cost_usd": 0.723154,
+      "total_tokens": 617388
+    },
+    "meta/muse-wonder-1.0-contributor": {
+      "attested_submissions": 38,
+      "conditions": {
+        "condition_a_bare": {
+          "cost_usd": 0.0,
+          "differentials_per_100k_tokens": 2.796,
+          "mimo_dev_differentials": 0,
+          "parsed_submissions": 18,
+          "probing_in_reasoning": 16,
+          "probing_in_script": 3,
+          "probing_step_rate": 0.8,
+          "probing_steps": 16,
+          "tasks": 20,
+          "tb4_dev_differentials": 7,
+          "total_tokens": 250339,
+          "verified_differential_rate": 0.35,
+          "verified_differentials": 7
+        },
+        "condition_b_retrieval": {
+          "cost_usd": 0.0,
+          "differentials_per_100k_tokens": 2.852,
+          "mimo_dev_differentials": 1,
+          "parsed_submissions": 20,
+          "probing_in_reasoning": 20,
+          "probing_in_script": 4,
+          "probing_step_rate": 1.0,
+          "probing_steps": 20,
+          "tasks": 20,
+          "tb4_dev_differentials": 8,
+          "total_tokens": 315611,
+          "verified_differential_rate": 0.45,
+          "verified_differentials": 9
+        }
+      },
+      "paired_b_vs_a": {
+        "only_cond_a": 1,
+        "only_cond_b": 3
+      },
+      "served_models": {
+        "meta/muse-wonder-1.0-contributor": 40
+      },
+      "sha256_mismatches": 0,
+      "static_template_overwrites": 0,
+      "total_cost_usd": 0.0,
+      "total_tokens": 565950
+    },
+    "openrouter/deepseek/deepseek-v4.1-flash": {
+      "attested_submissions": 29,
+      "conditions": {
+        "condition_a_bare": {
+          "cost_usd": 0.223649,
+          "differentials_per_100k_tokens": 1.834,
+          "mimo_dev_differentials": 4,
+          "parsed_submissions": 16,
+          "probing_in_reasoning": 20,
+          "probing_in_script": 12,
+          "probing_step_rate": 1.0,
+          "probing_steps": 20,
+          "tasks": 20,
+          "tb4_dev_differentials": 5,
+          "total_tokens": 490810,
+          "verified_differential_rate": 0.45,
+          "verified_differentials": 9
+        },
+        "condition_b_retrieval": {
+          "cost_usd": 0.135233,
+          "differentials_per_100k_tokens": 2.539,
+          "mimo_dev_differentials": 6,
+          "parsed_submissions": 13,
+          "probing_in_reasoning": 20,
+          "probing_in_script": 8,
+          "probing_step_rate": 1.0,
+          "probing_steps": 20,
+          "tasks": 20,
+          "tb4_dev_differentials": 2,
+          "total_tokens": 315062,
+          "verified_differential_rate": 0.4,
+          "verified_differentials": 8
+        }
+      },
+      "paired_b_vs_a": {
+        "only_cond_a": 4,
+        "only_cond_b": 3
+      },
+      "served_models": {
+        "meta/muse-wonder-1.0-contributor": 1,
+        "openrouter/deepseek/deepseek-v4.1-flash": 39
+      },
+      "sha256_mismatches": 0,
+      "static_template_overwrites": 0,
+      "total_cost_usd": 0.358882,
+      "total_tokens": 805872
+    }
+  },
+  "retrieval_snapshot_path": "~/Developer/eval-lab-results/2026-10-25/ts2-muse-spark-comparison/dev-goodfire-mimo-tb4-snapshot.sqlite3",
+  "retrieval_snapshot_sha256": "fa2cecb0973a10e7bf7d901c7d65295ab681bf031de0a0746be9649fc67e934e",
+  "schema": "evallab.pt_self1_muse_spark_benchmark/v1",
+  "task_count": 20,
+  "total_cells": 240
+}

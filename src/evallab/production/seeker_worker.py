@@ -3428,8 +3428,23 @@ def parse_headless_candidate_response(
         start = cleaned.find("{")
         end = cleaned.rfind("}")
         if start < end:
-            candidates_to_try.append(cleaned[start : end + 1])
+            base_blob = cleaned[start : end + 1]
+            candidates_to_try.append(base_blob)
+            if base_blob.endswith("}}"):
+                candidates_to_try.append(base_blob[:-1])
+            candidates_to_try.append(base_blob + "}")
 
+    meta_keys = (
+        "mechanism",
+        "taxonomy_class",
+        "class",
+        "hackbook_entry_id",
+        "target_check",
+        "files_written",
+        "intended_work_skipped",
+        "confidence",
+        "exploit_found",
+    )
     for blob in candidates_to_try:
         try:
             parsed = json.loads(blob)
@@ -3438,8 +3453,15 @@ def parse_headless_candidate_response(
         if not isinstance(parsed, Mapping):
             continue
         files = parsed.get("files")
-        if isinstance(files, Mapping) and "solve.sh" in files:
-            return finalize(dict(parsed))
+        if isinstance(files, Mapping) and isinstance(files.get("solve.sh"), str):
+            out = dict(parsed)
+            for mk in meta_keys:
+                if mk not in out and mk in files:
+                    out[mk] = files[mk]
+            out["files"] = {
+                str(k): str(v) for k, v in files.items() if k not in meta_keys and isinstance(v, str)
+            }
+            return finalize(out)
         if isinstance(parsed.get("solve.sh"), str):
             out = dict(parsed)
             out["files"] = {"solve.sh": str(parsed["solve.sh"])}

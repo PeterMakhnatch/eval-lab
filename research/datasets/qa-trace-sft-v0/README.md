@@ -44,14 +44,17 @@ Rebuild: `python3 research/datasets/qa-trace-sft-v0/build_dataset.py`
 ## Entry point: `evallab qa trace-cheap <trial|dir>`
 
 Single cheap-trace-QA command (code: `src/evallab/qa/trace_cheap.py`):
-tripwires-v3 prefilter ($0, deterministic) → hackbook candidates for the
-trace (task-gated with `--task-dir`) → cheap judge in **confirmation mode**
-when a candidate exists (asked about that one mechanism) or **discovery
-mode** otherwise (whole hackbook short list) → one `qa.finding/v1` finding
-with step citations and the mode stated in its summary. `--offline` runs
-only the $0 stages; otherwise the judge is an OpenRouter model
-(`--model`, default `openai/gpt-oss-120b`) using structured JSON-schema
-output + one repair retry, with cite-the-step-or-abstain enforced.
+tripwires prefilter ($0, deterministic) → cheap judge in **confirmation
+mode** when the caller supplies a candidate, **proposed mode** when
+tripwire hackbook hits, hackbook matches or (`--retrieval-db`) retrieved
+DEV analogues yield leads, or **discovery mode** (whole hackbook short
+list) otherwise → optional `--escalate-model` second stage for flagged or
+ambiguous answers → one `qa.finding/v1` finding with step citations and
+the mode stated in its summary. `--offline` runs only the $0 stages;
+otherwise the judge is an OpenRouter model (`--model`, default
+`openai/gpt-oss-120b`) using structured JSON-schema output + one repair
+retry, with cite-the-step-or-abstain enforced. The proposed mode and the
+cascade are measured in `research/experiments/oq3-discovery-cascade/`.
 
 Measured on this dataset (same stratified samples; test run once per frozen
 version; zero-shot → harness v2 confirmation → v3 discovery/defect):

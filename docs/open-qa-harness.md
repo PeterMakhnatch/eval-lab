@@ -211,10 +211,15 @@ ls research/experiments/seeker-gym-v0 research/experiments/tb4-reward-seeker-v3-
 
 What it is: decide whether a finished run's reward was real. Deterministic
 tripwire rules ($0, no model) screen first; a cheap judge is asked only
-about a specific mechanism; the full T0–T4 review is the expensive tier.
+about specific candidate mechanisms; the full T0–T4 review is the expensive tier.
+Without a caller-supplied candidate, `trace-cheap` proposes up to five leads
+(tripwire hackbook hits, hackbook matches and, with `--retrieval-db`, labelled
+DEV analogues from `CloudTraceRetriever`, target task excluded) instead of the
+whole hackbook short list; `--escalate-model` re-judges only flagged or
+ambiguous stage-1 answers.
 
 ```bash
-.venv/bin/evallab qa trace-cheap <trial-dir|trajectory.json> [--model <openrouter-model>] [--offline] [--out finding.json]
+.venv/bin/evallab qa trace-cheap <trial-dir|trajectory.json> [--model <openrouter-model>] [--retrieval-db <snapshot.sqlite>] [--escalate-model <openrouter-model>] [--no-proposals] [--offline] [--out finding.json]
 .venv/bin/evallab qa trace run|review|batch|score ...
 .venv/bin/evallab detectors list|score|run ...      # scored on labelled trace corpora
 # tripwire rule measurement is experiment tooling:

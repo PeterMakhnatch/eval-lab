@@ -1,36 +1,36 @@
 {
   "artifacts": {
     "dev.jsonl": {
-      "rows": 24,
-      "sha256": "sha256:d70320fcf49ab377ceb818fb6e88914d9d2cb95a050532d5f65b39f81fae2f07"
+      "rows": 21,
+      "sha256": "sha256:c1c05ab1fff9c4b647e8d1b64cf31a51718969c6885396d08cad766c322c16f8"
     },
     "test.jsonl": {
-      "rows": 29,
-      "sha256": "sha256:a3d9c9b9fc0810d6021f4a9c04a8b00964da3c0abac65fb85d36bf8e9caccfd8"
+      "rows": 51,
+      "sha256": "sha256:c4bf3b9115594ffdb2353206233525d8d0f811bdb37aac252e24e7f5afa74791"
     },
     "train.jsonl": {
-      "rows": 142,
-      "sha256": "sha256:f4d3d5cec5616559b2b956e43d51b660727f446f26751c422cdf491093c5b142"
+      "rows": 123,
+      "sha256": "sha256:92ea67434671c0a825b94f3efb5d465aed2c865d81a0ebcef3c2432a2a1674e5"
     }
   },
   "counts": {
     "by_split": {
-      "dev": 24,
-      "test": 29,
-      "train": 142
+      "dev": 21,
+      "test": 51,
+      "train": 123
     },
     "by_split_label": {
       "dev": {
-        "negative": 12,
+        "negative": 9,
         "positive": 12
       },
       "test": {
-        "negative": 11,
-        "positive": 18
+        "negative": 31,
+        "positive": 20
       },
       "train": {
-        "negative": 58,
-        "positive": 84
+        "negative": 41,
+        "positive": 82
       }
     },
     "examples": 195,
@@ -39,7 +39,7 @@
     "positives": 114
   },
   "dataset_id": "qa-sft-mimo-v0",
-  "heldout_rule": "examples whose task is in the frozen 33 held-out IDs are flagged in executed_evidence/input sources and must be excluded from training use",
+  "heldout_rule": "Frozen 33 held-out IDs (heldout-v7) are forced into the test split (measurement only, heldout_excluded_from_training=true per row) and must never be trained on. NOTE: the Qwen3-8B pilot (PR #1146) trained on the pre-fix train split, which contained 19 held-out rows; its frozen-test numbers carry that caveat.",
   "schema": "qa-sft-mimo-v0",
   "sources": [
     {

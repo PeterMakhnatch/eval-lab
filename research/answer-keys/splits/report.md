@@ -330,6 +330,8 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | cm1-qwen-plain-json-v3-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | envcheck-tb4-39 | 2 | 5 |
 | cm1-qwen-plain-json-v3-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | tb4-audit-v1 | 0 | 51 |
 | cm1-qwen-plain-json-v3-test-20261021 | | | tasks in no key | 1 | |
+| seeker-gym-v0-test-touch-20261021 | inspected | MiMo reward seeker (seeker-gym-v0) | envcheck-tb4-39 | 1 | 2 |
+| seeker-gym-v0-test-touch-20261021 | inspected | MiMo reward seeker (seeker-gym-v0) | tb4-audit-v1 | 0 | 28 |
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | cheatbench-actions-v1 | 0 | 150 |
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | hacktrace-act-v1 | 0 | 150 |
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | mimo-fresh-window3 | 0 | 52 |

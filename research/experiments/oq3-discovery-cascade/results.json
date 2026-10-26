@@ -1,0 +1,1041 @@
+{
+ "schema": "oq3.results/v1",
+ "cohort_manifest_sha256": "0f4a4473ece4a5d7ae63a446076ac9cbb0a9daea350f3e3cbd2dc5ae170d591c",
+ "prose_cohort_manifest_sha256": "393d746745291ca7bce49418f515ad4235655f49d910d9d41cbaf5631f35fe7a",
+ "db_snapshot_sha256": "2ddb3c852f08475a80c736b073ff2032f0aae22b8c36cd4a0501025f15c055bd",
+ "primary_maxtok4096": {
+  "schema": "oq3.scores/v1",
+  "cases": 164,
+  "arms": [
+   "shortlist_deepseek",
+   "proposed_deepseek",
+   "proposed_sonnet",
+   "proposed_opus"
+  ],
+  "systems": {
+   "shortlist_deepseek": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 2,
+     "recall": 0.0625,
+     "false_alarms": 2,
+     "false_alarm_rate": 0.0625,
+     "correct": 32,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 582119,
+     "tp_per_mtok": 3.4357236235202766,
+     "correct_per_mtok": 54.971577976324426,
+     "openrouter_cost_usd": 0.019596,
+     "wall_seconds_work": 563.1,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 1,
+     "recall": 0.02,
+     "false_alarms": 2,
+     "false_alarm_rate": 0.04,
+     "correct": 49,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 1009265,
+     "tp_per_mtok": 0.9908200522162168,
+     "correct_per_mtok": 48.55018255859462,
+     "openrouter_cost_usd": 0.037329,
+     "wall_seconds_work": 1072.7,
+     "escalated": null
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 3,
+     "recall": 0.036585365853658534,
+     "false_alarms": 4,
+     "false_alarm_rate": 0.04878048780487805,
+     "correct": 81,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 1591384,
+     "tp_per_mtok": 1.8851515410485464,
+     "correct_per_mtok": 50.899091608310755,
+     "openrouter_cost_usd": 0.056925,
+     "wall_seconds_work": 1635.8,
+     "escalated": null
+    }
+   },
+   "proposed_deepseek": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 2,
+     "recall": 0.0625,
+     "false_alarms": 14,
+     "false_alarm_rate": 0.4375,
+     "correct": 20,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 582594,
+     "tp_per_mtok": 3.4329224125205546,
+     "correct_per_mtok": 34.32922412520555,
+     "openrouter_cost_usd": 0.023449,
+     "wall_seconds_work": 708.7,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 7,
+     "recall": 0.14,
+     "false_alarms": 2,
+     "false_alarm_rate": 0.04,
+     "correct": 55,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 1013160,
+     "tp_per_mtok": 6.9090765525682025,
+     "correct_per_mtok": 54.28560148446445,
+     "openrouter_cost_usd": 0.041248,
+     "wall_seconds_work": 1242.5,
+     "escalated": null
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 9,
+     "recall": 0.10975609756097561,
+     "false_alarms": 16,
+     "false_alarm_rate": 0.1951219512195122,
+     "correct": 75,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 1595754,
+     "tp_per_mtok": 5.639967062592354,
+     "correct_per_mtok": 46.999725521602954,
+     "openrouter_cost_usd": 0.064697,
+     "wall_seconds_work": 1951.2,
+     "escalated": null
+    }
+   },
+   "proposed_sonnet": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 2,
+     "recall": 0.0625,
+     "false_alarms": 3,
+     "false_alarm_rate": 0.09375,
+     "correct": 31,
+     "unanswered": 6,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 734910,
+     "tp_per_mtok": 2.7214216706807637,
+     "correct_per_mtok": 42.182035895551834,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 298.5,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 2,
+     "recall": 0.04,
+     "false_alarms": 0,
+     "false_alarm_rate": 0.0,
+     "correct": 52,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 1173127,
+     "tp_per_mtok": 1.7048452554582751,
+     "correct_per_mtok": 44.325976641915155,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 406.9,
+     "escalated": null
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 4,
+     "recall": 0.04878048780487805,
+     "false_alarms": 3,
+     "false_alarm_rate": 0.036585365853658534,
+     "correct": 83,
+     "unanswered": 6,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 1908037,
+     "tp_per_mtok": 2.09639540533019,
+     "correct_per_mtok": 43.50020466060145,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 705.5,
+     "escalated": null
+    }
+   },
+   "proposed_opus": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 2,
+     "recall": 0.0625,
+     "false_alarms": 13,
+     "false_alarm_rate": 0.40625,
+     "correct": 21,
+     "unanswered": 8,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 744141,
+     "tp_per_mtok": 2.6876626875820575,
+     "correct_per_mtok": 28.220458219611604,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 441.1,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 2,
+     "recall": 0.04,
+     "false_alarms": 1,
+     "false_alarm_rate": 0.02,
+     "correct": 51,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 1182718,
+     "tp_per_mtok": 1.6910201755617145,
+     "correct_per_mtok": 43.12101447682372,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 726.7,
+     "escalated": null
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 4,
+     "recall": 0.04878048780487805,
+     "false_alarms": 14,
+     "false_alarm_rate": 0.17073170731707318,
+     "correct": 72,
+     "unanswered": 8,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 1926859,
+     "tp_per_mtok": 2.075917334895807,
+     "correct_per_mtok": 37.36651202812453,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 1167.8,
+     "escalated": null
+    }
+   },
+   "union_deepseek_sonnet": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 4,
+     "recall": 0.125,
+     "false_alarms": 14,
+     "false_alarm_rate": 0.4375,
+     "correct": 22,
+     "unanswered": 6,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 4,
+     "total_tokens": 1317504,
+     "tp_per_mtok": 3.0360439133391623,
+     "correct_per_mtok": 16.698241523365393,
+     "openrouter_cost_usd": 0.023449,
+     "wall_seconds_work": 1007.3,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 8,
+     "recall": 0.16,
+     "false_alarms": 2,
+     "false_alarm_rate": 0.04,
+     "correct": 56,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 2186287,
+     "tp_per_mtok": 3.6591719202465187,
+     "correct_per_mtok": 25.61420344172563,
+     "openrouter_cost_usd": 0.041248,
+     "wall_seconds_work": 1649.4,
+     "escalated": null
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 12,
+     "recall": 0.14634146341463414,
+     "false_alarms": 16,
+     "false_alarm_rate": 0.1951219512195122,
+     "correct": 78,
+     "unanswered": 6,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 4,
+     "total_tokens": 3503791,
+     "tp_per_mtok": 3.4248618139609355,
+     "correct_per_mtok": 22.26160179074608,
+     "openrouter_cost_usd": 0.064697,
+     "wall_seconds_work": 2656.7,
+     "escalated": null
+    }
+   },
+   "cascade_deepseek_to_opus": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 2,
+     "recall": 0.0625,
+     "false_alarms": 12,
+     "false_alarm_rate": 0.375,
+     "correct": 22,
+     "unanswered": 2,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 948519,
+     "tp_per_mtok": 2.1085502767999373,
+     "correct_per_mtok": 23.19405304479931,
+     "openrouter_cost_usd": 0.023449,
+     "wall_seconds_work": 979.9,
+     "escalated": 31
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 2,
+     "recall": 0.04,
+     "false_alarms": 1,
+     "false_alarm_rate": 0.02,
+     "correct": 51,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 1620312,
+     "tp_per_mtok": 1.2343301783853975,
+     "correct_per_mtok": 31.47541954882763,
+     "openrouter_cost_usd": 0.041248,
+     "wall_seconds_work": 1645.7,
+     "escalated": 49
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 4,
+     "recall": 0.04878048780487805,
+     "false_alarms": 13,
+     "false_alarm_rate": 0.15853658536585366,
+     "correct": 73,
+     "unanswered": 2,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 2568831,
+     "tp_per_mtok": 1.5571285148770004,
+     "correct_per_mtok": 28.417595396505256,
+     "openrouter_cost_usd": 0.064697,
+     "wall_seconds_work": 2625.6,
+     "escalated": 80
+    }
+   }
+  },
+  "proposal_diagnostics": {
+   "qa-trace-sft-dev/exploit-pass": {
+    "cases": 32,
+    "with_any_proposal": 24,
+    "with_hackbook_proposal": 9,
+    "with_retrieved_analogue": 19,
+    "gold_hackbook_id_proposed": 0,
+    "retrieved_category_overlaps_gold": 0,
+    "escalation_reasons": {
+     "None": 20,
+     "tripwire_unresolved": 6,
+     "flagged": 2,
+     "forced_abstain": 4
+    }
+   },
+   "qa-trace-sft-dev/neither": {
+    "cases": 32,
+    "with_any_proposal": 25,
+    "with_hackbook_proposal": 21,
+    "with_retrieved_analogue": 22,
+    "gold_hackbook_id_proposed": null,
+    "retrieved_category_overlaps_gold": null,
+    "escalation_reasons": {
+     "flagged": 14,
+     "tripwire_unresolved": 4,
+     "None": 13,
+     "judge_unparsed": 1
+    }
+   },
+   "goodfire-dev/exploit-pass": {
+    "cases": 50,
+    "with_any_proposal": 50,
+    "with_hackbook_proposal": 43,
+    "with_retrieved_analogue": 50,
+    "gold_hackbook_id_proposed": null,
+    "retrieved_category_overlaps_gold": 45,
+    "escalation_reasons": {
+     "None": 17,
+     "tripwire_unresolved": 20,
+     "judge_unparsed": 4,
+     "flagged": 8,
+     "forced_abstain": 1
+    }
+   },
+   "goodfire-dev/neither": {
+    "cases": 50,
+    "with_any_proposal": 46,
+    "with_hackbook_proposal": 36,
+    "with_retrieved_analogue": 41,
+    "gold_hackbook_id_proposed": null,
+    "retrieved_category_overlaps_gold": null,
+    "escalation_reasons": {
+     "None": 34,
+     "tripwire_unresolved": 12,
+     "forced_abstain": 1,
+     "flagged": 2,
+     "judge_unparsed": 1
+    }
+   }
+  },
+  "served_models": [
+   "anthropic/claude-opus-5-5",
+   "anthropic/claude-sonnet-5-5",
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "call_statuses": {
+   "shortlist_deepseek": [
+    "answered"
+   ],
+   "proposed_deepseek": [
+    "answered"
+   ],
+   "proposed_sonnet": [
+    "answered",
+    "transport_error"
+   ],
+   "proposed_opus": [
+    "answered",
+    "transport_error"
+   ]
+  }
+ },
+ "first_run_maxtok1500": {
+  "schema": "oq3.scores/v1",
+  "cases": 164,
+  "arms": [
+   "shortlist_deepseek",
+   "proposed_deepseek",
+   "proposed_sonnet",
+   "proposed_opus"
+  ],
+  "systems": {
+   "shortlist_deepseek": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 2,
+     "recall": 0.0625,
+     "false_alarms": 0,
+     "false_alarm_rate": 0.0,
+     "correct": 34,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 629402,
+     "tp_per_mtok": 3.1776193911045723,
+     "correct_per_mtok": 54.01952964877773,
+     "openrouter_cost_usd": 0.029015,
+     "wall_seconds_work": 429.3,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 0,
+     "recall": 0.0,
+     "false_alarms": 0,
+     "false_alarm_rate": 0.0,
+     "correct": 50,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 1121269,
+     "tp_per_mtok": 0.0,
+     "correct_per_mtok": 44.59233243762202,
+     "openrouter_cost_usd": 0.033681,
+     "wall_seconds_work": 785.5,
+     "escalated": null
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 2,
+     "recall": 0.024390243902439025,
+     "false_alarms": 0,
+     "false_alarm_rate": 0.0,
+     "correct": 84,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 1750671,
+     "tp_per_mtok": 1.1424191067310763,
+     "correct_per_mtok": 47.981602482705206,
+     "openrouter_cost_usd": 0.062696,
+     "wall_seconds_work": 1214.7,
+     "escalated": null
+    }
+   },
+   "proposed_deepseek": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 1,
+     "recall": 0.03125,
+     "false_alarms": 7,
+     "false_alarm_rate": 0.21875,
+     "correct": 26,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 1,
+     "total_tokens": 641384,
+     "tp_per_mtok": 1.5591283848677235,
+     "correct_per_mtok": 40.53733800656081,
+     "openrouter_cost_usd": 0.021692,
+     "wall_seconds_work": 544.0,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 4,
+     "recall": 0.08,
+     "false_alarms": 1,
+     "false_alarm_rate": 0.02,
+     "correct": 53,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 1021487,
+     "tp_per_mtok": 3.9158599179431555,
+     "correct_per_mtok": 51.885143912746805,
+     "openrouter_cost_usd": 0.038809,
+     "wall_seconds_work": 825.7,
+     "escalated": null
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 5,
+     "recall": 0.06097560975609756,
+     "false_alarms": 8,
+     "false_alarm_rate": 0.0975609756097561,
+     "correct": 79,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 1,
+     "total_tokens": 1662871,
+     "tp_per_mtok": 3.006847795168717,
+     "correct_per_mtok": 47.50819516366573,
+     "openrouter_cost_usd": 0.060501,
+     "wall_seconds_work": 1369.7,
+     "escalated": null
+    }
+   },
+   "proposed_sonnet": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 2,
+     "recall": 0.0625,
+     "false_alarms": 3,
+     "false_alarm_rate": 0.09375,
+     "correct": 31,
+     "unanswered": 6,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 734910,
+     "tp_per_mtok": 2.7214216706807637,
+     "correct_per_mtok": 42.182035895551834,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 298.5,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 2,
+     "recall": 0.04,
+     "false_alarms": 0,
+     "false_alarm_rate": 0.0,
+     "correct": 52,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 1173127,
+     "tp_per_mtok": 1.7048452554582751,
+     "correct_per_mtok": 44.325976641915155,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 406.9,
+     "escalated": null
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 4,
+     "recall": 0.04878048780487805,
+     "false_alarms": 3,
+     "false_alarm_rate": 0.036585365853658534,
+     "correct": 83,
+     "unanswered": 6,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 1908037,
+     "tp_per_mtok": 2.09639540533019,
+     "correct_per_mtok": 43.50020466060145,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 705.5,
+     "escalated": null
+    }
+   },
+   "proposed_opus": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 2,
+     "recall": 0.0625,
+     "false_alarms": 13,
+     "false_alarm_rate": 0.40625,
+     "correct": 21,
+     "unanswered": 8,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 744141,
+     "tp_per_mtok": 2.6876626875820575,
+     "correct_per_mtok": 28.220458219611604,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 441.1,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 2,
+     "recall": 0.04,
+     "false_alarms": 1,
+     "false_alarm_rate": 0.02,
+     "correct": 51,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 1182718,
+     "tp_per_mtok": 1.6910201755617145,
+     "correct_per_mtok": 43.12101447682372,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 726.7,
+     "escalated": null
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 4,
+     "recall": 0.04878048780487805,
+     "false_alarms": 14,
+     "false_alarm_rate": 0.17073170731707318,
+     "correct": 72,
+     "unanswered": 8,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 1926859,
+     "tp_per_mtok": 2.075917334895807,
+     "correct_per_mtok": 37.36651202812453,
+     "openrouter_cost_usd": 0.0,
+     "wall_seconds_work": 1167.8,
+     "escalated": null
+    }
+   },
+   "union_deepseek_sonnet": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 3,
+     "recall": 0.09375,
+     "false_alarms": 8,
+     "false_alarm_rate": 0.25,
+     "correct": 27,
+     "unanswered": 6,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 3,
+     "total_tokens": 1376294,
+     "tp_per_mtok": 2.179766823077046,
+     "correct_per_mtok": 19.617901407693413,
+     "openrouter_cost_usd": 0.021692,
+     "wall_seconds_work": 842.5,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 5,
+     "recall": 0.1,
+     "false_alarms": 1,
+     "false_alarm_rate": 0.02,
+     "correct": 54,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 2194614,
+     "tp_per_mtok": 2.278304977549583,
+     "correct_per_mtok": 24.605693757535494,
+     "openrouter_cost_usd": 0.038809,
+     "wall_seconds_work": 1232.6,
+     "escalated": null
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 8,
+     "recall": 0.0975609756097561,
+     "false_alarms": 9,
+     "false_alarm_rate": 0.10975609756097561,
+     "correct": 81,
+     "unanswered": 6,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 3,
+     "total_tokens": 3570908,
+     "tp_per_mtok": 2.2403265499979277,
+     "correct_per_mtok": 22.683306318729016,
+     "openrouter_cost_usd": 0.060501,
+     "wall_seconds_work": 2075.1,
+     "escalated": null
+    }
+   },
+   "cascade_deepseek_to_opus": {
+    "qa-trace-sft-dev": {
+     "positives": 32,
+     "negatives": 32,
+     "true_positives": 2,
+     "recall": 0.0625,
+     "false_alarms": 12,
+     "false_alarm_rate": 0.375,
+     "correct": 22,
+     "unanswered": 2,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 995067,
+     "tp_per_mtok": 2.0099149102522746,
+     "correct_per_mtok": 22.10906401277502,
+     "openrouter_cost_usd": 0.021692,
+     "wall_seconds_work": 802.4,
+     "escalated": 30
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 2,
+     "recall": 0.04,
+     "false_alarms": 1,
+     "false_alarm_rate": 0.02,
+     "correct": 51,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 1639954,
+     "tp_per_mtok": 1.2195464019112732,
+     "correct_per_mtok": 31.098433248737464,
+     "openrouter_cost_usd": 0.038809,
+     "wall_seconds_work": 1235.4,
+     "escalated": 50
+    },
+    "all": {
+     "positives": 82,
+     "negatives": 82,
+     "true_positives": 4,
+     "recall": 0.04878048780487805,
+     "false_alarms": 13,
+     "false_alarm_rate": 0.15853658536585366,
+     "correct": 73,
+     "unanswered": 2,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 2,
+     "total_tokens": 2635021,
+     "tp_per_mtok": 1.518014467436882,
+     "correct_per_mtok": 27.703764030723093,
+     "openrouter_cost_usd": 0.060501,
+     "wall_seconds_work": 2037.8,
+     "escalated": 80
+    }
+   }
+  },
+  "proposal_diagnostics": {
+   "qa-trace-sft-dev/exploit-pass": {
+    "cases": 32,
+    "with_any_proposal": 24,
+    "with_hackbook_proposal": 9,
+    "with_retrieved_analogue": 19,
+    "gold_hackbook_id_proposed": 0,
+    "retrieved_category_overlaps_gold": 0,
+    "escalation_reasons": {
+     "None": 20,
+     "tripwire_unresolved": 6,
+     "flagged": 1,
+     "forced_abstain": 4,
+     "judge_unparsed": 1
+    }
+   },
+   "qa-trace-sft-dev/neither": {
+    "cases": 32,
+    "with_any_proposal": 25,
+    "with_hackbook_proposal": 21,
+    "with_retrieved_analogue": 22,
+    "gold_hackbook_id_proposed": null,
+    "retrieved_category_overlaps_gold": null,
+    "escalation_reasons": {
+     "flagged": 7,
+     "tripwire_unresolved": 5,
+     "None": 14,
+     "judge_unparsed": 6
+    }
+   },
+   "goodfire-dev/exploit-pass": {
+    "cases": 50,
+    "with_any_proposal": 50,
+    "with_hackbook_proposal": 43,
+    "with_retrieved_analogue": 50,
+    "gold_hackbook_id_proposed": null,
+    "retrieved_category_overlaps_gold": 45,
+    "escalation_reasons": {
+     "None": 16,
+     "tripwire_unresolved": 18,
+     "judge_unparsed": 11,
+     "flagged": 4,
+     "forced_abstain": 1
+    }
+   },
+   "goodfire-dev/neither": {
+    "cases": 50,
+    "with_any_proposal": 46,
+    "with_hackbook_proposal": 36,
+    "with_retrieved_analogue": 41,
+    "gold_hackbook_id_proposed": null,
+    "retrieved_category_overlaps_gold": null,
+    "escalation_reasons": {
+     "None": 34,
+     "tripwire_unresolved": 13,
+     "judge_unparsed": 2,
+     "flagged": 1
+    }
+   }
+  },
+  "served_models": [
+   "anthropic/claude-opus-5-5",
+   "anthropic/claude-sonnet-5-5",
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "call_statuses": {
+   "shortlist_deepseek": [
+    "answered"
+   ],
+   "proposed_deepseek": [
+    "answered"
+   ],
+   "proposed_sonnet": [
+    "answered",
+    "transport_error"
+   ],
+   "proposed_opus": [
+    "answered",
+    "transport_error"
+   ]
+  }
+ },
+ "posthoc_prose_view_goodfire": {
+  "schema": "oq3.scores/v1",
+  "cases": 100,
+  "arms": [
+   "shortlist_deepseek",
+   "proposed_deepseek"
+  ],
+  "systems": {
+   "shortlist_deepseek": {
+    "qa-trace-sft-dev": {
+     "positives": 0,
+     "negatives": 0,
+     "true_positives": 0,
+     "recall": null,
+     "false_alarms": 0,
+     "false_alarm_rate": null,
+     "correct": 0,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 0,
+     "tp_per_mtok": null,
+     "correct_per_mtok": null,
+     "openrouter_cost_usd": 0,
+     "wall_seconds_work": 0,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 2,
+     "recall": 0.04,
+     "false_alarms": 6,
+     "false_alarm_rate": 0.12,
+     "correct": 46,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 922885,
+     "tp_per_mtok": 2.1671172464608266,
+     "correct_per_mtok": 49.843696668599016,
+     "openrouter_cost_usd": 0.034065,
+     "wall_seconds_work": 931.9,
+     "escalated": null
+    },
+    "all": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 2,
+     "recall": 0.04,
+     "false_alarms": 6,
+     "false_alarm_rate": 0.12,
+     "correct": 46,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 922885,
+     "tp_per_mtok": 2.1671172464608266,
+     "correct_per_mtok": 49.843696668599016,
+     "openrouter_cost_usd": 0.034065,
+     "wall_seconds_work": 931.9,
+     "escalated": null
+    }
+   },
+   "proposed_deepseek": {
+    "qa-trace-sft-dev": {
+     "positives": 0,
+     "negatives": 0,
+     "true_positives": 0,
+     "recall": null,
+     "false_alarms": 0,
+     "false_alarm_rate": null,
+     "correct": 0,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 0,
+     "tp_per_mtok": null,
+     "correct_per_mtok": null,
+     "openrouter_cost_usd": 0,
+     "wall_seconds_work": 0,
+     "escalated": null
+    },
+    "goodfire-dev": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 2,
+     "recall": 0.04,
+     "false_alarms": 4,
+     "false_alarm_rate": 0.08,
+     "correct": 48,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 967506,
+     "tp_per_mtok": 2.067170642869398,
+     "correct_per_mtok": 49.61209542886556,
+     "openrouter_cost_usd": 0.045336,
+     "wall_seconds_work": 1213.2,
+     "escalated": null
+    },
+    "all": {
+     "positives": 50,
+     "negatives": 50,
+     "true_positives": 2,
+     "recall": 0.04,
+     "false_alarms": 4,
+     "false_alarm_rate": 0.08,
+     "correct": 48,
+     "unanswered": 0,
+     "mechanism_id_match": 0,
+     "mechanism_scored": 0,
+     "total_tokens": 967506,
+     "tp_per_mtok": 2.067170642869398,
+     "correct_per_mtok": 49.61209542886556,
+     "openrouter_cost_usd": 0.045336,
+     "wall_seconds_work": 1213.2,
+     "escalated": null
+    }
+   }
+  },
+  "proposal_diagnostics": {
+   "goodfire-dev/exploit-pass": {
+    "cases": 50,
+    "with_any_proposal": 50,
+    "with_hackbook_proposal": 43,
+    "with_retrieved_analogue": 50,
+    "gold_hackbook_id_proposed": null,
+    "retrieved_category_overlaps_gold": 45,
+    "escalation_reasons": {
+     "None": 17,
+     "tripwire_unresolved": 24,
+     "flagged": 5,
+     "judge_unparsed": 4
+    }
+   },
+   "goodfire-dev/neither": {
+    "cases": 50,
+    "with_any_proposal": 50,
+    "with_hackbook_proposal": 37,
+    "with_retrieved_analogue": 50,
+    "gold_hackbook_id_proposed": null,
+    "retrieved_category_overlaps_gold": null,
+    "escalation_reasons": {
+     "None": 32,
+     "tripwire_unresolved": 12,
+     "forced_abstain": 2,
+     "flagged": 4
+    }
+   }
+  },
+  "served_models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "call_statuses": {
+   "shortlist_deepseek": [
+    "answered"
+   ],
+   "proposed_deepseek": [
+    "answered"
+   ]
+  }
+ },
+ "merged_code_prompt_reproduction": {
+  "head": "5e7ab0603ef0e66e9162134e38b915f87c324dd9",
+  "match": 326,
+  "mismatch": [
+   [
+    "proposed_deepseek",
+    "qa-trace-sft-dev-c8c73dfbdb258cb7"
+   ],
+   [
+    "proposed_deepseek",
+    "goodfire-dev-b950842a551b8abb"
+   ]
+  ]
+ }
+}

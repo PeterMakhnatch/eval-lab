@@ -1249,6 +1249,8 @@ class CloudTraceRetriever:
         } for step in selected_steps]
         receipt = None if trace is None else trace["verified_receipt_json"]
         status = None if receipt is None else receipt.get("status")
+        source_label = None if receipt is None else receipt.get("source_label")
+        categories = source_label.get("categories") if isinstance(source_label, dict) else None
         provenance = {
             "task_id": task["task_id"], "dataset_id": task["dataset_id"], "split": "dev",
             "issue_id": None if issue is None else self._identity(issue["issue_id"]),
@@ -1262,6 +1264,12 @@ class CloudTraceRetriever:
             "raw_cas_uri": None if trace is None else trace["raw_cas_uri"],
             "observation_cas_uris": [step["observation_cas_uri"] for step in selected_steps],
             "receipt_status": self._snippet(status) if isinstance(status, str) else None,
+            # Publisher label categories (e.g. Goodfire consensus); provisional unless
+            # ``receipt_status`` says otherwise.
+            "label_categories": [
+                self._snippet(category) for category in categories[:8]
+                if isinstance(category, str) and category.strip()
+            ] if isinstance(categories, list) else [],
         }
         original = None if issue is None else issue["original_reward"]
         repaired = None if issue is None else issue["repaired_reward"]

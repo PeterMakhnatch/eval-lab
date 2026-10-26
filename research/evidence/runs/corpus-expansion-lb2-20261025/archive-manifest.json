@@ -1,0 +1,50 @@
+{
+ "schema": "lb2.corpus_archive_manifest/1",
+ "eval_lab_base_commit": "c35cf7ce984b6403eedf8298189727cab7df2fd0",
+ "depends_on_normalizer": {
+  "path": "research/evidence/runs/corpus-expansion-lb1-20261025/tools/goodfire_normalize_v3.py",
+  "sha256": "79538cd27eed1f924608f4477ea31b04e0135d7501716ccaed64aa6652e67616"
+ },
+ "files": [
+  {
+   "path": "README.md",
+   "sha256": "df9d66ec3583df9b2e5997814e934c03006b5bee984839cfe8121b29934ab379",
+   "bytes": 6463
+  },
+  {
+   "path": "ingestion-receipt.json",
+   "sha256": "82eab7cc6de46fe3fe4a9a6b192306ce35d88b755f8d22bb7f1cdaee80ef64f2",
+   "bytes": 8678
+  },
+  {
+   "path": "tools/falseseal_diag.py",
+   "sha256": "766ba36e9042abaab0ed7f408f9c80dc9ab5db474058123413d3a00c6303a610",
+   "bytes": 1521
+  },
+  {
+   "path": "tools/gate_validate.py",
+   "sha256": "ecc2374bd7edf79c7c0e1221075a8ee1e7e867e2093946c49bf188fcab183cb6",
+   "bytes": 1875
+  },
+  {
+   "path": "tools/ingest_goodfire_deepswe.py",
+   "sha256": "adc05342ee11d4c2f5b9326d0da1fa66c491e385edb4da0b720d0740a852f89c",
+   "bytes": 28124
+  },
+  {
+   "path": "tools/retrieval_baseline.py",
+   "sha256": "f276a6ff0a985b8779c11a2175db7e93a0e19a81778069c46bd77f442bc72ea4",
+   "bytes": 1415
+  },
+  {
+   "path": "tools/retrieval_smoke.py",
+   "sha256": "e10c8f520025134b954dbd475e2b7bcca78c3837c27496f7e2659abd89bcd0b3",
+   "bytes": 1763
+  },
+  {
+   "path": "verification-outputs.json",
+   "sha256": "a0c9e66ea01fc1c63c93abb1205cdf905f0a9bafb761eb7ef152e4e13588e6cd",
+   "bytes": 2065
+  }
+ ]
+}

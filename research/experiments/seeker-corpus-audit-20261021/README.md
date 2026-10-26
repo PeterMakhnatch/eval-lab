@@ -120,15 +120,51 @@ correction), so the probe was re-run at `3072` with grading
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `3072` | 24 | 22 (92%) | 22 | **0** | **0** |
 
-**The budget was necessary but not sufficient.** With the JSON intact, `22/22`
-candidates still fail the upstream grader. Their ideas are the tamper family —
-overwrite `test_outputs.py` with a passing dummy, `rm` it, replace `test.sh` with
-`exit 0`, write an empty `{}` at the expected output path — and none of them
-lands. That is the same shape the corpus audit found: the model names the right
-class (`grader_tamperable`) and cannot execute it. So the gym's data supply needs
-the budget fix *and* candidates that can actually reach a grader gap — a stronger
-generator or a tool loop that can read the grader before writing, which is what
-`evallab.seeker`'s `ConfinedTools` loop does and a single-shot JSON call cannot.
+**The budget was necessary but not sufficient — and the grading path is broken.**
+With the JSON intact, `22/22` candidates still fail the upstream grader. Their
+ideas are the tamper family — overwrite `test_outputs.py` with a passing dummy,
+`rm` it, replace `test.sh` with `exit 0`, write an empty `{}` at the expected
+output path — and none of them lands.
+
+**Correction (pE-SELF-9).** That "none lands" is an artifact, not a measurement.
+`run_candidate`'s own contract says a `files` mapping *installs artifacts, not
+executable scripts*: "A directory passed as `files` has exactly the same meaning
+even if it contains solve.sh. Only `solution_bundle` executes a caller's
+solve.sh." The gym calls `run_candidate(original, files={"solve.sh": ...})`, so
+**the candidate's `solve.sh` is never executed** — the grader runs against an
+unmodified workspace and returns `0.0` for every candidate. Measured control:
+the same Sonnet `cargo-flight-dispatch` submission scores `1.0` through
+`--solution-bundle` (the CLI path) and `0.0` through `files={"solve.sh": ...}`.
+
+So the gym's `0/32` (v0) and this probe's `0/22` are **unmeasured**, not negative
+results. The fix is one line: write the candidate's files to a fresh directory and
+pass `solution_bundle=<dir>`. The budget finding above stands; the "candidates
+cannot land" conclusion does not.
+
+## Reusable deterministic lints
+
+`evallab data lint` makes the dataset-local deduplication and coverage checks
+available without a model, Docker, or any answer-key access:
+
+```bash
+uv run evallab data lint path/to/dataset.jsonl --checks dedup coverage --json
+```
+
+The input may carry a `messages` list with `write_file` tool calls, a `files`
+mapping, or a `submission` mapping. `--body-path` selects the candidate-body
+suffix (default `submission/solve.sh`); rows without that body are excluded from
+deduplication, but still counted in coverage.
+
+To audit split membership, explicitly supply `--answer-keys path/to/tasks.jsonl`;
+the `split_leak` check flags `test` and `heldout` tasks. Add
+`--registry path/to/gym.json` to check the registry's `tb4-dev` family as well.
+These checks detect existing leaks; they do not replace the export-time
+`SplitGuard`. Tests use only inert synthetic datasets, split metadata, and
+registries, never the repository's real answer keys.
+
+Exit status is `1` for high/medium findings, `0` when none are present, and `2`
+for an input/command error. `--json` emits the structured report; otherwise the
+command prints a short finding summary.
 
 ## Files
 

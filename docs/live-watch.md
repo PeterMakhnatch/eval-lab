@@ -806,9 +806,9 @@ are preserved but not traversed. Each copied object is streamed, hash-checked,
 deduplicated, and bounded by `--max-bytes`. That cap covers CAS bytes only; SQLite
 size is reported separately as `projection.database_bytes`. The staged
 projection's direct references are read in place through `/dev/fd/N` of the
-identity-checked descriptor (`immutable=1`, no sidecars), so a swapped pathname is
-never read and projections larger than SQLite's 2 GiB single-allocation limit
-are supported.
+identity-checked descriptor (`immutable=1`, no sidecars), so projections larger
+than SQLite's 2 GiB single-allocation limit are supported. If the descriptor or
+its name changes identity during the read, staging fails closed.
 
 The bundle contains `cloud-trace-db.sqlite`, `cas/`, and `manifest.json`. SQLite
 is rebuilt into fresh canonical tables and FTS indexes rather than backed up and

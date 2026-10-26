@@ -1392,6 +1392,209 @@ def test_seeker_arms_may_name_any_models_and_conditions(
     assert result["benchmarks"][0]["report"]["arms"][0]["requested_model"] == "vendor/any-model:max"
 
 
+def _trust_tier_census_report() -> dict[str, Any]:
+    return {
+        "schema": "evallab.trust_tier_census/v1",
+        "split": "dev",
+        "unit": "traces",
+        "admitted_rows_n": 100,
+        "unclassified_n": 10,
+        "tiers": [
+            {
+                "tier": "tier1_container_verified",
+                "source": "synthetic-a",
+                "basis": "synthetic nine-run qualification",
+                "rows_n": 20,
+                "prompt_eligible_n": 20,
+            },
+            {
+                "tier": "tier2_consensus_labeled",
+                "source": "synthetic-b",
+                "basis": "synthetic three-vote consensus",
+                "rows_n": 50,
+                "prompt_eligible_n": 40,
+            },
+            {
+                "tier": "tier3_provisional",
+                "source": "synthetic-b",
+                "basis": "synthetic split votes",
+                "rows_n": 20,
+                "prompt_eligible_n": 0,
+            },
+        ],
+        "source_sha256": hashlib.sha256(b"synthetic census input").hexdigest(),
+        "generated_at": "2026-10-26T20:00:00Z",
+    }
+
+
+def _hackbook_qc_report() -> dict[str, Any]:
+    rules = [
+        ("rule-one", 6, 2, 3),
+        ("rule-two", 5, 1, 2),
+        ("rule-silent", 0, 0, 0),
+    ]
+    return {
+        "schema": "evallab.hackbook_qc/v1",
+        "ruleset_sha256": hashlib.sha256(b"synthetic ruleset").hexdigest(),
+        "cohort": {
+            "dataset_id": "synthetic-qc-cohort",
+            "split": "dev",
+            "positive_n": 10,
+            "clean_n": 20,
+            "unscored_n": 2,
+        },
+        "rules": [
+            {
+                "rule_id": name,
+                "positives_hit_n": positives,
+                "clean_hit_n": clean,
+                "marginal_true_positive_n": marginal,
+            }
+            for name, positives, clean, marginal in rules
+        ],
+        "union_positives_hit_n": 8,
+        "union_clean_hit_n": 3,
+        "generated_at": "2026-10-26T20:00:00Z",
+    }
+
+
+def _tune_cross_test_report(*, cross: bool = True) -> dict[str, Any]:
+    digest = hashlib.sha256(b"synthetic frozen system").hexdigest()
+
+    def entry(role: str, dataset: str, hour: int, hits: tuple[int, int]) -> dict[str, Any]:
+        return {
+            "role": role,
+            "dataset_id": dataset,
+            "split": "dev",
+            "system_sha256": digest,
+            "positive_n": 10,
+            "clean_n": 20,
+            "unscored_n": 1,
+            "true_positive_n": hits[0],
+            "false_positive_n": hits[1],
+            "measured_at": f"2026-10-26T{hour}:00:00Z",
+        }
+
+    entries = [entry("tune", "synthetic-tune-set", 18, (6, 2))]
+    if cross:
+        entries.append(entry("cross_test", "synthetic-unseen-set", 19, (0, 0)))
+    return {
+        "schema": "evallab.tune_cross_test/v1",
+        "system": "synthetic-frozen-system",
+        "frozen_sha256": digest,
+        "entries": entries,
+        "generated_at": "2026-10-26T20:00:00Z",
+    }
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        _trust_tier_census_report(),
+        _hackbook_qc_report(),
+        _tune_cross_test_report(),
+        _tune_cross_test_report(cross=False),
+    ],
+    ids=["tier-census", "hackbook-qc", "tune-cross-test", "tune-only-cross-test-not-run"],
+)
+def test_trust_qc_reports_are_retained_with_exact_bytes(
+    client: TestClient,
+    runtime: CloudRuntime,
+    report: dict[str, Any],
+) -> None:
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    raw = (json.dumps(report, indent=2) + "\n").encode("utf-8")
+    (directory / "report.json").write_bytes(raw)
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result == {
+        "benchmarks": [
+            {"file": "report.json", "sha256": hashlib.sha256(raw).hexdigest(), "report": report}
+        ],
+        "rejected": [],
+    }
+
+
+def _set(path: tuple[str | int, ...], value: Any) -> Callable[[dict[str, Any]], None]:
+    def mutate(report: dict[str, Any]) -> None:
+        target = report
+        for key in path[:-1]:
+            target = target[key]
+        target[path[-1]] = value
+
+    return mutate
+
+
+_TRUST_QC_REJECTIONS = [
+    # Tier census: the tier rows plus unclassified must partition the admitted rows.
+    (_trust_tier_census_report, _set(("admitted_rows_n",), 99)),
+    (_trust_tier_census_report, _set(("unclassified_n",), 11)),
+    (_trust_tier_census_report, _set(("tiers", 2, "prompt_eligible_n"), 1)),
+    (_trust_tier_census_report, _set(("tiers", 0, "prompt_eligible_n"), 21)),
+    (
+        _trust_tier_census_report,
+        # Same tier and a case-variant source as row 0: a duplicate pair, not a second source.
+        lambda report: (
+            _set(("tiers", 1, "tier"), "tier1_container_verified")(report),
+            _set(("tiers", 1, "source"), "SYNTHETIC-A")(report),
+        ),
+    ),
+    (_trust_tier_census_report, _set(("tiers", 0, "tier"), "tier4_unknown")),
+    (_trust_tier_census_report, _set(("split",), "test")),
+    (_trust_tier_census_report, _set(("generated_at",), "2026-10-26T20:00:00")),
+    (_trust_tier_census_report, _set(("source_sha256",), "abc")),
+    # Hackbook QC: hits are bounded by the cohort and by one another.
+    (_hackbook_qc_report, _set(("rules", 0, "positives_hit_n"), 11)),
+    (_hackbook_qc_report, _set(("rules", 0, "clean_hit_n"), 21)),
+    (_hackbook_qc_report, _set(("rules", 0, "marginal_true_positive_n"), 7)),
+    (
+        _hackbook_qc_report,
+        # 6 + 3 marginal positives cannot fit in 8 distinct positives hit overall.
+        lambda report: (
+            _set(("rules", 0, "marginal_true_positive_n"), 6)(report),
+            _set(("rules", 1, "marginal_true_positive_n"), 3)(report),
+        ),
+    ),
+    (_hackbook_qc_report, _set(("union_positives_hit_n",), 5)),
+    (_hackbook_qc_report, _set(("union_positives_hit_n",), 11)),
+    (_hackbook_qc_report, _set(("union_clean_hit_n",), 4)),
+    (_hackbook_qc_report, _set(("rules", 1, "rule_id"), "RULE-ONE")),
+    (_hackbook_qc_report, _set(("rules", 1, "rule_id"), " rule-two ")),
+    (_hackbook_qc_report, _set(("rules",), [])),
+    (_hackbook_qc_report, _set(("ruleset_sha256",), "abc")),
+    (_hackbook_qc_report, _set(("cohort", "split"), "test")),
+    (_hackbook_qc_report, _set(("cohort", "clean_n"), 0)),
+    # Tune versus cross-test: one frozen digest, disjoint cohorts, cross-test after tuning.
+    (_tune_cross_test_report, _set(("entries", 1, "system_sha256"), "0" * 64)),
+    (_tune_cross_test_report, _set(("entries", 1, "dataset_id"), "SYNTHETIC-TUNE-SET")),
+    (_tune_cross_test_report, _set(("entries", 1, "measured_at"), "2026-10-26T17:00:00Z")),
+    (_tune_cross_test_report, _set(("entries", 0, "role"), "cross_test")),
+    (_tune_cross_test_report, _set(("entries", 0, "true_positive_n"), 11)),
+    (_tune_cross_test_report, _set(("entries", 0, "false_positive_n"), 21)),
+    (_tune_cross_test_report, _set(("entries", 1, "split"), "test")),
+    (_tune_cross_test_report, _set(("entries", 1, "role"), "holdout")),
+    (_tune_cross_test_report, _set(("entries",), [])),
+    (_tune_cross_test_report, _set(("frozen_sha256",), "0" * 64)),
+]
+
+
+@pytest.mark.parametrize(("build", "mutate"), _TRUST_QC_REJECTIONS)
+def test_trust_qc_reports_reject_inconsistent_counts_or_broken_separation(
+    client: TestClient,
+    runtime: CloudRuntime,
+    build: Callable[[], dict[str, Any]],
+    mutate: Callable[[dict[str, Any]], None],
+) -> None:
+    report = build()
+    mutate(report)
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    (directory / "invalid.json").write_text(json.dumps(report))
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["benchmarks"] == []
+    assert [entry["file"] for entry in result["rejected"]] == ["invalid.json"]
+
+
 @pytest.mark.parametrize(
     "raw",
     [

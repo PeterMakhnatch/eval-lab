@@ -1209,6 +1209,42 @@ model-call count and digests may be null. The tab also lists the declared
 Priority #2 lanes with whether any retained report names each; that list is a
 request, not a result. No model is ranked.
 
+The **Trust & QC** tab renders three more retained, producer-written report
+schemas from `/data/benchmarks/*.json` through the same strict, exact-byte
+`/api/cloud-db/benchmarks` listing. They are consumer contracts: the dashboard
+validates and displays producer counts, derives only rates, and never computes a
+tier, rule hit or score itself. Nothing is ranked.
+
+- `evallab.trust_tier_census/v1` — `split: "dev"`, `unit`, `admitted_rows_n`,
+  `unclassified_n`, `tiers[]` of `{tier, source, basis, rows_n, prompt_eligible_n}`,
+  `source_sha256` (nullable) and `generated_at`. `tier` is one of
+  `tier1_container_verified`, `tier2_consensus_labeled`, `tier3_provisional`. Each
+  tier/source pair appears once, `sum(rows_n) + unclassified_n == admitted_rows_n`
+  (nothing is silently dropped), `prompt_eligible_n <= rows_n`, and a
+  `tier3_provisional` row must have `prompt_eligible_n == 0`.
+- `evallab.hackbook_qc/v1` — `ruleset_sha256`, `cohort` `{dataset_id, split: "dev",
+  positive_n, clean_n, unscored_n}` and `rules[]` of `{rule_id, positives_hit_n,
+  clean_hit_n, marginal_true_positive_n}` plus the union `union_positives_hit_n` /
+  `union_clean_hit_n`. Only counts are stored; the UI derives recall
+  (`positives_hit/positive_n`), false-alarm rate (`clean_hit/clean_n`) and precision
+  (`positives_hit/(positives_hit+clean_hit)`, unavailable when the rule never
+  fired). A marginal true positive is a positive only that rule catches. Hits are
+  bounded by the cohort, each union lies between the largest rule and the sum of
+  rules, and total marginal true positives cannot exceed the positive union.
+  Unscored cases are excluded from every rate. Precision depends on the cohort's
+  positive/clean mix and is not comparable across cohorts.
+- `evallab.tune_cross_test/v1` — one `system`, its `frozen_sha256` and `entries[]`
+  of `{role: "tune"|"cross_test", dataset_id, split: "dev", system_sha256,
+  positive_n, clean_n, unscored_n, true_positive_n, false_positive_n,
+  measured_at}`. Every entry must carry the frozen digest (the same system was
+  measured everywhere), at least one entry is `tune`, a dataset appears once (so no
+  cohort is both tuned and cross-tested), and no cross-test measurement may predate
+  the last tuning measurement. A report with no `cross_test` entry is valid and is
+  shown as "Cross-test not run". Dataset names are data, never hard-coded in the UI.
+
+Each tab section shows an explicit empty state when no such report is retained;
+none has been produced yet by a measuring lane, and no value is fabricated.
+
 One Modal class instance owns both SQLite stores. The web endpoint and worker
 method share that owner; do not deploy a second independent writer against
 the Volume, overwrite an active Volume, or scale its owner above one container.

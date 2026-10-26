@@ -349,6 +349,10 @@ def test_cli_benchmark_baselines_writes_the_evaluation_schema(tmp_path: Path) ->
     )
     for cell in scorer.HEADLINE:
         inflation = summary[cell]["task_collision_inflation"]
+        if inflation["any"] is None:
+            # Empty stratum: after the frozen Muse v2 + Qwen TEST runs every
+            # TEST task is inspected, so test/unexposed has no findings left.
+            continue
         assert inflation["any"] > 0.5 and inflation["category"] > 0
         assert summary[cell]["exact_id"]["matched"] == 0
 

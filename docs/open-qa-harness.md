@@ -185,8 +185,9 @@ intended work. Every claim is only real after differential replay (§3).
 ls research/experiments/seeker-gym-v0 research/experiments/tb4-reward-seeker-v3-20261021
 ```
 
-- Drivers/lanes: Kimi, Muse, Sonnet and Codex (subscription) and GPT-OSS-120b via
-  OpenRouter; seeker tools are read/search/write only inside a sandbox
+- Drivers/lanes: Kimi, Muse Wonder, Muse Spark Open, Muse Spark 1.3, Sonnet, Codex, and
+  DeepSeek V4.1 Flash (through OMP) plus GPT-OSS-120b via OpenRouter; seeker tools are
+  read/search/write only inside a sandbox
   (no host execution). `--hackbook` (RS-2, #1142) gives the seeker the
   top-8 matched hackbook mechanisms — claims on previously blank tasks
   went 0 → 8 of 17 valid submissions.

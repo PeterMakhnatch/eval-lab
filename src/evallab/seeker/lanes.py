@@ -26,6 +26,9 @@ DRIVERS: dict[str, dict[str, str]] = {
     "codex": {"kind": "omp", "model": "openai-codex/gpt-6-luna"},
     "kimi": {"kind": "omp", "model": "kimi-code/k3.1-pro-highspeed"},
     "muse": {"kind": "omp", "model": "meta/muse-wonder-1.0-contributor"},
+    "muse_spark_open": {"kind": "omp", "model": "meta/muse-spark-open"},
+    "muse_spark": {"kind": "omp", "model": "meta/muse-spark-1.3-contributor"},
+    "deepseek": {"kind": "omp", "model": "openrouter/deepseek/deepseek-v4.1-flash"},
     "gptoss": {"kind": "openrouter", "model": "openai/gpt-oss-120b"},
 }
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"

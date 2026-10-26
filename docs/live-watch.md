@@ -1171,6 +1171,40 @@ For example, this **synthetic blocked** report is valid; it contains no scores:
 }
 ```
 
+The **Corpus** tab reads `/api/cloud-db/corpus`, an aggregate-only census per
+`dataset_id` that never returns a task identity, label or body. Each task falls in
+exactly one bucket: `admitted_dev` (admitted by the shared
+`admitted_cloud_task_ids` gate, the same rows the DEV collections serve),
+`dev_not_admitted` (labelled DEV but denied by a seal or ledger), or `withheld`
+(any non-DEV split, e.g. `held`). Each bucket reports `tasks`, `traces` and `steps`
+(the sum of `agent_traces.step_count`). `enacted_exploit_traces` is the retained
+source `is_exploit` label on admitted DEV traces only; it is not new verification
+and is never reported for withheld or gate-denied rows. Without assignment
+authority nothing is admitted and every DEV-labelled row lands in
+`dev_not_admitted`. On the retained local DB (read-only, shipped code) the
+Goodfire dataset reads 714 admitted DEV tasks, 2,140 traces, 178,210 steps and 652
+exploit-labelled traces, with 95 withheld tasks (285 traces).
+
+The **Reward Seeker** tab renders retained `evallab.seeker_comparison/v1`
+documents (grader-weakness discovery by named model). A *verified differential* is
+a submission scoring 1.0 on the original grader and 0.0 on the repaired grader.
+`arms[]` are uniquely named (`arm`), each with one `requested_model` (unique
+`provider/model`) and `cells[]`, one per prompt `condition`; every arm must report
+the same condition set, so conditions are paired and never pooled. A cell
+partitions `cohort.task_count` into `attested_n`, `unattested_n`, `refused_n`,
+`unavailable_n`, `malformed_n`, `blocked_n` and `missing_n`, and records the
+funnel `graded_n <= attested_n`, `verified_differential_n <= original_pass_n <=
+graded_n`. `attested_n` means the executed artifact's sha256 equals the attested
+model response (no script overwrite); an attested cell requires actual
+`served_models` and an `artifact_sha256`. A fallback or other-provider answer must
+be recorded as `unavailable_n`, not counted under the requested model; the UI
+flags any served identity that differs from the request. There is no stored rate:
+the UI computes `verified_differential_n / task_count` only when `status` is
+`complete` (every cell graded) and otherwise shows `Not available`. Spend,
+model-call count and digests may be null. The tab also lists the declared
+Priority #2 lanes with whether any retained report names each; that list is a
+request, not a result. No model is ranked.
+
 One Modal class instance owns both SQLite stores. The web endpoint and worker
 method share that owner; do not deploy a second independent writer against
 the Volume, overwrite an active Volume, or scale its owner above one container.

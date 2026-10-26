@@ -11,7 +11,9 @@ Recreate deployments quiesce the old actor before its replacement opens SQLite.
 Retained benchmark documents live in ``<data_root>/benchmarks/*.json``. Named
 or incomplete studies use ``evallab.arm_comparison/v2``: coverage and protocol
 are explicit, unavailable metrics remain null, and requested models never
-substitute for served identities. See ``docs/live-watch.md`` for its wire contract.
+substitute for served identities. Reward-Seeker model studies use
+``evallab.seeker_comparison/v1``; ``/api/cloud-db/corpus`` serves aggregate-only
+corpus counts. See ``docs/live-watch.md`` for the wire contracts.
 Historic ``evallab.swarm_bench/v1`` reports with ``split: "dev"`` and the strict
 ``evallab.arm_comparison/v1`` contract below remain readable without rewriting::
 
@@ -298,6 +300,132 @@ class _NamedArmComparison(_BenchmarkRecord):
         return self
 
 
+_ModelId = Annotated[str, Field(pattern=r"^[^\s/]+/[^\s]+$")]
+_Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
+class _SeekerCell(_BenchmarkRecord):
+    """One model's retained outcome counts under one prompt condition."""
+
+    condition: _Label
+    prompt_sha256: _Sha256 | None
+    served_models: list[_ModelId]
+    attested_n: _Count
+    unattested_n: _Count
+    refused_n: _Count
+    unavailable_n: _Count
+    malformed_n: _Count
+    blocked_n: _Count
+    missing_n: _Count
+    graded_n: _Count
+    original_pass_n: _Count
+    verified_differential_n: _Count
+    spend_usd: _Spend | None
+    model_calls: _Count | None
+    artifact_sha256: _Sha256 | None
+
+    @field_validator("condition")
+    @classmethod
+    def validate_condition(cls, value: str) -> str:
+        if value != value.strip():
+            raise ValueError("condition names must not have surrounding whitespace")
+        return value
+
+    @field_validator("served_models")
+    @classmethod
+    def validate_distinct_served(cls, value: list[str]) -> list[str]:
+        if len({model.casefold() for model in value}) != len(value):
+            raise ValueError("served model identities must be distinct")
+        return value
+
+    @property
+    def terminal_total(self) -> int:
+        return (
+            self.attested_n
+            + self.unattested_n
+            + self.refused_n
+            + self.unavailable_n
+            + self.malformed_n
+            + self.blocked_n
+            + self.missing_n
+        )
+
+    @model_validator(mode="after")
+    def validate_funnel(self) -> Self:
+        if not self.graded_n <= self.attested_n:
+            raise ValueError("graded_n must not exceed attested_n")
+        if not self.verified_differential_n <= self.original_pass_n <= self.graded_n:
+            raise ValueError(
+                "verified_differential_n must not exceed original_pass_n, "
+                "which must not exceed graded_n"
+            )
+        if self.attested_n and (not self.served_models or self.artifact_sha256 is None):
+            raise ValueError(
+                "attested cells require actual served identities and an artifact digest"
+            )
+        return self
+
+
+class _SeekerArm(_BenchmarkRecord):
+    arm: _Label
+    label: _Label
+    requested_model: _ModelId
+    cells: Annotated[list[_SeekerCell], Field(min_length=1)]
+
+    @field_validator("arm")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        if value != value.strip():
+            raise ValueError("arm identifiers must not have surrounding whitespace")
+        return value
+
+
+class _SeekerComparison(_BenchmarkRecord):
+    """Grader-weakness discovery by named model across paired prompt conditions."""
+
+    schema_: Literal["evallab.seeker_comparison/v1"] = Field(alias="schema")
+    protocol: _Label
+    status: Literal["blocked", "incomplete", "complete"]
+    cohort: _NamedCohort
+    arms: Annotated[list[_SeekerArm], Field(min_length=1)]
+    generated_at: str
+
+    @field_validator("generated_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        timestamp = datetime.fromisoformat(value)
+        if timestamp.tzinfo is None or "T" not in value:
+            raise ValueError("generated_at must be an ISO-8601 timestamp with timezone")
+        return value
+
+    @model_validator(mode="after")
+    def validate_coverage(self) -> Self:
+        if len({arm.arm.casefold() for arm in self.arms}) != len(self.arms):
+            raise ValueError("arm identifiers must be unique")
+        if len({arm.requested_model.casefold() for arm in self.arms}) != len(self.arms):
+            raise ValueError("requested model identities must be unique across arms")
+        conditions = {cell.condition.casefold() for cell in self.arms[0].cells}
+        blocked = self.cohort.blocked_n > 0
+        complete = True
+        for arm in self.arms:
+            names = [cell.condition.casefold() for cell in arm.cells]
+            if len(set(names)) != len(names):
+                raise ValueError("condition names must be unique within an arm")
+            if set(names) != conditions:
+                raise ValueError("every arm must report the same paired prompt conditions")
+            for cell in arm.cells:
+                if cell.terminal_total != self.cohort.task_count:
+                    raise ValueError("terminal outcome counts must equal cohort.task_count")
+                if cell.blocked_n < self.cohort.blocked_n:
+                    raise ValueError("cell blocked_n must include every cohort blocked identity")
+                blocked |= cell.blocked_n > 0
+                complete &= cell.graded_n == self.cohort.task_count
+        expected = "blocked" if blocked else "complete" if complete else "incomplete"
+        if self.status != expected:
+            raise ValueError(f"status must be {expected} for the reported coverage")
+        return self
+
+
 class _SwarmScore(_BenchmarkRecord):
     # run_benchmark also retains selections, attribution, and descriptive deltas.
     model_config = ConfigDict(strict=True, extra="allow", allow_inf_nan=False)
@@ -368,6 +496,8 @@ def _benchmark_document(raw: bytes) -> dict[str, Any]:
         _ArmComparison.model_validate(document)
     elif schema == "evallab.arm_comparison/v2":
         _NamedArmComparison.model_validate(document)
+    elif schema == "evallab.seeker_comparison/v1":
+        _SeekerComparison.model_validate(document)
     elif schema == "evallab.swarm_bench/v1":
         if "arms" in document:
             raise ValueError("Comparison arms require an evallab.arm_comparison schema")
@@ -516,6 +646,53 @@ class CloudRuntime:
         for row in rows:
             row["metadata_json"] = json.loads(row["metadata_json"])
         return [row for row in rows if _matches(query, row)]
+
+    def _corpus_breakdown(self) -> dict[str, Any]:
+        """Aggregate-only corpus census; no task identity or body leaves this method."""
+        admitted = self._admitted_task_ids()
+        activity = {
+            row["task_id"]: row
+            for row in self._query(
+                "SELECT task_id, COUNT(*) AS traces, COALESCE(SUM(step_count), 0) AS steps,"
+                " COALESCE(SUM(is_exploit), 0) AS exploit FROM agent_traces GROUP BY task_id"
+            )
+        }
+        datasets: dict[str, dict[str, Any]] = {}
+        for task in self._query("SELECT task_id, dataset_id, split FROM corpus_tasks"):
+            entry = datasets.setdefault(
+                task["dataset_id"],
+                {
+                    "dataset_id": task["dataset_id"],
+                    **{
+                        bucket: {"tasks": 0, "traces": 0, "steps": 0}
+                        for bucket in ("admitted_dev", "dev_not_admitted", "withheld")
+                    },
+                    "enacted_exploit_traces": 0,
+                },
+            )
+            if task["task_id"] in admitted:
+                bucket = "admitted_dev"
+            elif str(task["split"]).strip().casefold() == "dev":
+                bucket = "dev_not_admitted"
+            else:
+                bucket = "withheld"
+            seen = activity.get(task["task_id"])
+            counts = entry[bucket]
+            counts["tasks"] += 1
+            if seen is not None:
+                counts["traces"] += seen["traces"]
+                counts["steps"] += seen["steps"]
+                if bucket == "admitted_dev":
+                    entry["enacted_exploit_traces"] += seen["exploit"]
+        ordered = sorted(datasets.values(), key=lambda entry: entry["dataset_id"])
+        return {
+            "datasets": ordered,
+            "notice": (
+                "Counts only. Withheld and gate-denied rows contribute no identity, label or body. "
+                "Enacted-exploit counts are the retained source is_exploit label on admitted DEV "
+                "traces, not new verification."
+            ),
+        }
 
     def _benchmarks(self) -> dict[str, list[dict[str, Any]]]:
         result: dict[str, list[dict[str, Any]]] = {"benchmarks": [], "rejected": []}
@@ -711,6 +888,10 @@ class CloudRuntime:
         @self.app.get("/api/cloud-db/benchmarks")
         def benchmarks():
             return self._benchmarks()
+
+        @self.app.get("/api/cloud-db/corpus")
+        def corpus():
+            return self._corpus_breakdown()
 
     def run_supervisor_step(self, approval: str, max_usd: float) -> dict[str, Any]:
         """One explicitly approved cloud step, never a laptop Docker fallback."""

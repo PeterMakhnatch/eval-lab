@@ -31,6 +31,8 @@ DASHBOARD: str = r"""<!doctype html>
  <button id="live-tab" type="button" role="tab" aria-selected="true" aria-controls="live-view">Live Production</button>
  <button id="trace-db-tab" type="button" role="tab" aria-selected="false" aria-controls="trace-db-view" tabindex="-1">Trace DB Search</button>
  <button id="benchmark-tab" type="button" role="tab" aria-selected="false" aria-controls="benchmark-view" tabindex="-1">Opus vs Swarm</button>
+ <button id="corpus-tab" type="button" role="tab" aria-selected="false" aria-controls="corpus-view" tabindex="-1">Corpus</button>
+ <button id="seeker-tab" type="button" role="tab" aria-selected="false" aria-controls="seeker-view" tabindex="-1">Reward Seeker</button>
 </nav>
 <div id="live-view" role="tabpanel" aria-labelledby="live-tab">
 <section class="panel" aria-labelledby="queue-title">
@@ -74,6 +76,21 @@ DASHBOARD: str = r"""<!doctype html>
  <p id="cloud-bench-status" class="notice" role="status"></p>
  <div id="cloud-benchmarks"></div>
  <details id="cloud-bench-rejections" hidden><summary id="cloud-bench-rejection-title">Rejected retained reports</summary><div id="cloud-bench-rejected" class="cards"></div></details>
+</section>
+<section id="corpus-view" class="panel" role="tabpanel" aria-labelledby="corpus-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Retained corpus census / counts only</div><h2>Goodfire DEV corpus and splits</h2></div><button id="cloud-corpus-refresh" type="button" class="small">Refresh census</button></div>
+ <p class="seal">Only rows admitted by the shared DEV gate are counted as DEV. Withheld and gate-denied rows are counted, never opened.</p>
+ <p id="cloud-corpus-status" class="notice" role="status"></p>
+ <div id="cloud-corpus-goodfire"></div>
+ <div id="cloud-corpus-table"></div>
+</section>
+<section id="seeker-view" class="panel" role="tabpanel" aria-labelledby="seeker-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Retained grader-weakness discovery / provenance</div><h2>Reward-Seeker model comparison</h2></div><button id="cloud-seeker-refresh" type="button" class="small">Refresh retained reports</button></div>
+ <p class="seal">Retained DEV-intended studies, not held-out performance</p>
+ <p>A verified differential is a submission that scored 1.0 on the original grader and 0.0 on the repaired grader. Only outputs whose sha256 matches the attested model response count as attested. Rates stay unavailable until every cell is graded; no model winner is inferred, and a requested model is not evidence that it served.</p>
+ <p id="cloud-seeker-status" class="notice" role="status"></p>
+ <div id="cloud-seeker-roster"></div>
+ <div id="cloud-seeker-reports"></div>
 </section>
 <footer>All live views are projections of the durable journal. Provisional suspicion is not a confirmed verdict. TEST and heldout splits are sealed; only verified DEV evidence is exportable. Credentials stay in this page’s memory.</footer>
 </main>
@@ -299,10 +316,7 @@ async function loadCloudBenchmarks(){
   for(const entry of reports){
    const report=entry.report,section=node('article',undefined,'cloud-report');
    section.append(node('h3',entry.file),node('small',report.schema));
-   const provenance=node('details',undefined,'cloud-provenance');
-   provenance.append(node('summary','Document SHA-256: '+text(entry.sha256).slice(0,12)),
-    node('pre',entry.sha256));
-   section.append(provenance);
+   cloudProvenance(entry,section);
    if(report.schema==='evallab.arm_comparison/v2')cloudNamedComparison(report,section);
    else{
     section.append(node('p','DEV-only key agreement, not held-out performance','seal'));
@@ -324,6 +338,121 @@ async function loadCloudBenchmarks(){
   notice('cloud-bench-status',cloudError(error,'Retained benchmark comparison'),true);
  }finally{$('cloud-bench-refresh').disabled=false;}
 }
+const cloudCount=value=>Number.isInteger(value)&&value>=0?value.toLocaleString('en-US'):'Not recorded';
+function cloudTile(value,label){
+ const tile=node('div',undefined,'metric');
+ tile.append(node('strong',value),node('span',label));
+ return tile;
+}
+async function loadCloudCorpus(){
+ $('cloud-corpus-refresh').disabled=true;
+ $('cloud-corpus-goodfire').replaceChildren();$('cloud-corpus-table').replaceChildren();
+ notice('cloud-corpus-status','Loading retained corpus census…');
+ try{
+  const data=await cloudApi('/api/cloud-db/corpus'),datasets=list(data?.datasets);
+  const goodfire=datasets.filter(item=>/goodfire/i.test(text(item.dataset_id)));
+  for(const item of goodfire){
+   const box=node('article',undefined,'cloud-report'),tiles=node('div',undefined,'metrics');
+   tiles.append(cloudTile(cloudCount(item.admitted_dev.tasks),'DEV tasks'),
+    cloudTile(cloudCount(item.admitted_dev.traces),'DEV traces'),
+    cloudTile(cloudCount(item.admitted_dev.steps),'DEV steps'),
+    cloudTile(cloudCount(item.enacted_exploit_traces),'Enacted-hack traces (source label)'),
+    cloudTile(cloudCount(item.withheld.tasks),'Withheld tasks (not served to agents)'),
+    cloudTile(cloudCount(item.withheld.traces),'Withheld traces'));
+   box.append(node('h3',item.dataset_id),tiles);
+   if(item.dev_not_admitted.tasks)box.append(node('small',cloudCount(item.dev_not_admitted.tasks)+
+    ' DEV-labelled tasks are denied by the shared gate and are not counted as DEV.'));
+   $('cloud-corpus-goodfire').append(box);
+  }
+  const rows=datasets.map(item=>[item.dataset_id,cloudCount(item.admitted_dev.tasks),
+   cloudCount(item.admitted_dev.traces),cloudCount(item.admitted_dev.steps),
+   cloudCount(item.enacted_exploit_traces),
+   cloudCount(item.dev_not_admitted.tasks)+' / '+cloudCount(item.dev_not_admitted.traces),
+   cloudCount(item.withheld.tasks)+' / '+cloudCount(item.withheld.traces)]);
+  $('cloud-corpus-table').append(cloudTable(['Dataset','Admitted DEV tasks','Admitted DEV traces',
+   'Admitted DEV steps','Enacted-hack traces (source label)','DEV-labelled, gate-denied (tasks / traces)',
+   'Withheld (tasks / traces)'],rows));
+  notice('cloud-corpus-status',(datasets.length?datasets.length+' datasets retained. ':
+   'No retained corpus rows. ')+(goodfire.length||!datasets.length?'':'No Goodfire dataset is retained. ')+
+   text(data?.notice));
+ }catch(error){
+  notice('cloud-corpus-status',cloudError(error,'Corpus census'),true);
+ }finally{$('cloud-corpus-refresh').disabled=false;}
+}
+const seekerRoster=['meta/muse-spark-open','meta/muse-spark-1.3-contributor',
+ 'meta/muse-wonder-1.0-contributor','kimi-code/k3.1-pro-highspeed',
+ 'openrouter/deepseek/deepseek-v4.1-flash','anthropic/claude-sonnet-5-5'];
+const modelBase=value=>text(value).toLowerCase().replace(/:[^:/]+$/,'');
+function cloudProvenance(entry,section){
+ const provenance=node('details',undefined,'cloud-provenance');
+ provenance.append(node('summary','Document SHA-256: '+text(entry.sha256).slice(0,12)),node('pre',entry.sha256));
+ section.append(provenance);
+}
+function cloudSeekerReport(report,parent){
+ const cohort=report.cohort,total=cohort.task_count,complete=report.status==='complete';
+ parent.append(node('p','Protocol: '+report.protocol),
+  node('p',cohort.dataset_id+' · reported cohort: '+total+' intended-DEV identities · eligible '+
+   cohort.eligible_n+' · blocked '+cohort.blocked_n+' · generated '+report.generated_at),
+  node('p','Coverage status: '+report.status.toUpperCase(),'seal'),
+  node('p',complete?'Every cell is attested and graded; rates are per cell and conditions are not pooled.':
+   'Rates are unavailable until every arm and condition is attested and graded.'));
+ parent.append(node('small','Coverage, served identities, attestation and grading are retained source claims, not independent verification by this page. No model winner is inferred.'));
+ const rows=[];
+ for(const arm of list(report.arms)){
+  for(const cell of list(arm.cells)){
+   const label=node('div',arm.arm);label.append(node('small',arm.label),node('small',arm.requested_model));
+   const states=node('div','Attested '+cell.attested_n+'/'+total);
+   states.append(node('small','Unattested '+cell.unattested_n+' · refused '+cell.refused_n+' · unavailable '+cell.unavailable_n),
+    node('small','Malformed '+cell.malformed_n+' · blocked '+cell.blocked_n+' · missing '+cell.missing_n));
+   const served=list(cell.served_models),shown=node('div',served.join(', ')||'Not recorded');
+   if(served.length&&!(served.length===1&&modelBase(served[0])===modelBase(arm.requested_model)))
+    shown.append(badge('Differs from requested','warn'));
+   const funnel=node('div','Graded '+cell.graded_n+'/'+total);
+   funnel.append(node('small','Original grader 1.0: '+cell.original_pass_n));
+   rows.push([label,cell.condition,states,funnel,cell.verified_differential_n+'/'+total,
+    complete?cloudFraction(cell.verified_differential_n/total):'Not available',shown,
+    cloudSpend(cell.spend_usd),cell.model_calls===null?'Not recorded':cell.model_calls,
+    cloudDigest(cell.artifact_sha256),cloudDigest(cell.prompt_sha256)]);
+  }
+ }
+ parent.append(cloudTable(['Named model (requested)','Prompt condition','Attested outputs','Graded',
+  'Verified differential n/N','Differential rate','Actually served models','Spend USD','Model calls',
+  'Artifact SHA-256','Prompt SHA-256'],rows));
+}
+async function loadSeekerComparison(){
+ $('cloud-seeker-refresh').disabled=true;
+ $('cloud-seeker-reports').replaceChildren();$('cloud-seeker-roster').replaceChildren();
+ notice('cloud-seeker-status','Loading retained Reward-Seeker reports…');
+ try{
+  const data=await cloudApi('/api/cloud-db/benchmarks');
+  const reports=list(data?.benchmarks).filter(entry=>
+   entry?.report?.schema==='evallab.seeker_comparison/v1'&&entry.report.cohort?.split==='dev');
+  const named=new Map();
+  for(const entry of reports){
+   const report=entry.report,section=node('article',undefined,'cloud-report');
+   section.append(node('h3',entry.file),node('small',report.schema));
+   cloudProvenance(entry,section);
+   cloudSeekerReport(report,section);
+   $('cloud-seeker-reports').append(section);
+   for(const arm of list(report.arms)){
+    const key=modelBase(arm.requested_model);named.set(key,(named.get(key)||0)+1);
+   }
+  }
+  const roster=node('article',undefined,'cloud-report');
+  roster.append(node('h3','Declared comparison lanes'),
+   node('small','Declared by the Priority #2 contract. Presence here is a request, not a result.'),
+   cloudTable(['Declared requested model','Retained reports naming it'],seekerRoster.map(id=>[id,
+    named.get(modelBase(id))?'Named in '+named.get(modelBase(id))+' retained report(s)':
+    'No retained report names this model'])));
+  $('cloud-seeker-roster').append(roster);
+  notice('cloud-seeker-status',reports.length?reports.length+' retained DEV Reward-Seeker comparison reports.':
+   'No retained DEV Reward-Seeker comparison report. No results have been fabricated.');
+ }catch(error){
+  notice('cloud-seeker-status',cloudError(error,'Reward-Seeker comparison'),true);
+ }finally{$('cloud-seeker-refresh').disabled=false;}
+}
+$('cloud-corpus-refresh').addEventListener('click',loadCloudCorpus);
+$('cloud-seeker-refresh').addEventListener('click',loadSeekerComparison);
 $('cloud-search').addEventListener('submit',searchCloudDb);
 $('cloud-bench-refresh').addEventListener('click',loadCloudBenchmarks);
 const viewTabs=[...$('view-tabs').children];
@@ -336,6 +465,8 @@ for(const tab of viewTabs){
   }
   if(tab.id==='trace-db-tab')searchCloudDb();
   if(tab.id==='benchmark-tab')loadCloudBenchmarks();
+  if(tab.id==='corpus-tab')loadCloudCorpus();
+  if(tab.id==='seeker-tab')loadSeekerComparison();
  });
  tab.addEventListener('keydown',event=>{
   if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;

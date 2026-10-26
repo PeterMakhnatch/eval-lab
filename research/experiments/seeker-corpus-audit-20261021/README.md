@@ -141,6 +141,31 @@ results. The fix is one line: write the candidate's files to a fresh directory a
 pass `solution_bundle=<dir>`. The budget finding above stands; the "candidates
 cannot land" conclusion does not.
 
+## Reusable deterministic lints
+
+`evallab data lint` makes the dataset-local deduplication and coverage checks
+available without a model, Docker, or any answer-key access:
+
+```bash
+uv run evallab data lint path/to/dataset.jsonl --checks dedup coverage --json
+```
+
+The input may carry a `messages` list with `write_file` tool calls, a `files`
+mapping, or a `submission` mapping. `--body-path` selects the candidate-body
+suffix (default `submission/solve.sh`); rows without that body are excluded from
+deduplication, but still counted in coverage.
+
+To audit split membership, explicitly supply `--answer-keys path/to/tasks.jsonl`;
+the `split_leak` check flags `test` and `heldout` tasks. Add
+`--registry path/to/gym.json` to check the registry's `tb4-dev` family as well.
+These checks detect existing leaks; they do not replace the export-time
+`SplitGuard`. Tests use only inert synthetic datasets, split metadata, and
+registries, never the repository's real answer keys.
+
+Exit status is `1` for high/medium findings, `0` when none are present, and `2`
+for an input/command error. `--json` emits the structured report; otherwise the
+command prints a short finding summary.
+
 ## Files
 
 | File | Role |

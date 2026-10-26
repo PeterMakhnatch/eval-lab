@@ -1,17 +1,11 @@
 """Deterministic lints for training datasets.
 
 The audit harness's *training-data* subject: leads are deterministic lints and
-confirmation is scripts only, no model. Every check here is free, offline, and
-reproducible, and each one names the measured issue it catches:
+confirmation is scripts only, no model. Every check is free and offline:
 
-- ``dedup`` — a dataset's row count is not its size. The seeker corpus's 90
-  conversations are 39 distinct ``(task, body)`` pairs, and 30 of the 90 are one
-  repeated no-op body.
-- ``split_leak`` — a task in a held-out or TEST split must never appear in
-  training data. The seeker-gym registry's ``tb4-dev`` family holds 41
-  ``tb4-audit-v1`` TEST tasks.
-- ``coverage`` — what the dataset can teach: classes, positive/negative balance,
-  and how much of the assistant content is execution rather than description.
+- ``dedup`` reports distinct ``(task, body)`` pairs and repeated candidate bodies.
+- ``split_leak`` detects held-out tasks in datasets and registry DEV families.
+- ``coverage`` reports task classes and positive/negative balance.
 
 Bodies are read from whichever shape a row uses: a ``messages`` list with
 ``write_file`` tool calls (the seeker SFT corpus), a ``files`` mapping (a gym
@@ -97,13 +91,17 @@ def lint_rows(
     """Run the dataset-local checks (everything except split leakage)."""
     findings: list[dict[str, Any]] = []
     wanted = set(checks)
-    bodies = [(task_of(row), body_of(row, body_path), row) for row in rows]
+    bodies = [
+        (task_of(row), _digest(body))
+        for row in rows
+        if (body := body_of(row, body_path)) is not None
+    ]
 
     if "dedup" in wanted:
-        pairs = {(task, _digest(body)) for task, body, _ in bodies if body is not None}
-        digests = Counter(_digest(body) for _, body, _ in bodies if body is not None)
+        pairs = set(bodies)
+        digests = Counter(digest for _, digest in bodies)
         duplicated = {digest: count for digest, count in digests.items() if count > 1}
-        if len(pairs) < len(rows):
+        if len(pairs) < len(bodies):
             findings.append(
                 _finding(
                     "dedup",
@@ -119,11 +117,7 @@ def lint_rows(
             )
         for digest, count in sorted(duplicated.items(), key=lambda item: -item[1])[:5]:
             tasks = sorted(
-                {
-                    task
-                    for task, body, _ in bodies
-                    if body is not None and task is not None and _digest(body) == digest
-                }
+                {task for task, body_digest in bodies if task is not None and body_digest == digest}
             )
             findings.append(
                 _finding(
@@ -160,15 +154,12 @@ def lint_split_leak(
     rows: Sequence[Mapping[str, Any]],
     answer_keys: Path,
     *,
-    held_out_splits: Sequence[str] = ("test",),
+    held_out_splits: Sequence[str] = ("test", "heldout"),
 ) -> list[dict[str, Any]]:
     """Tasks in the dataset that belong to a held-out split."""
     keys = _load_jsonl(answer_keys)
-    held = {
-        str(row["task"]).rsplit("/", 1)[-1]
-        for row in keys
-        if row.get("split") in set(held_out_splits)
-    }
+    held_splits = set(held_out_splits)
+    held = {str(row["task"]).rsplit("/", 1)[-1] for row in keys if row.get("split") in held_splits}
     tasks = {task for task in (task_of(row) for row in rows) if task}
     leaked = sorted(tasks & held)
     if not leaked:
@@ -191,22 +182,20 @@ def lint_registry_split_leak(
     answer_keys: Path,
     *,
     dev_families: Sequence[str] = ("tb4-dev",),
-    held_out_splits: Sequence[str] = ("test",),
+    held_out_splits: Sequence[str] = ("test", "heldout"),
 ) -> list[dict[str, Any]]:
     """A registry family that claims DEV but holds held-out tasks."""
     keys = _load_jsonl(answer_keys)
-    held = {
-        str(row["task"]).rsplit("/", 1)[-1]
-        for row in keys
-        if row.get("split") in set(held_out_splits)
-    }
+    held_splits = set(held_out_splits)
+    held = {str(row["task"]).rsplit("/", 1)[-1] for row in keys if row.get("split") in held_splits}
     dev = {str(row["task"]).rsplit("/", 1)[-1] for row in keys if row.get("split") == "dev"}
     registry_rows = json.loads(registry.read_text(encoding="utf-8"))
     pairs = registry_rows.get("pairs") or []
     findings: list[dict[str, Any]] = []
     for family in dev_families:
         members = [pair for pair in pairs if pair.get("family") == family]
-        leaked = sorted({str(pair.get("task")) for pair in members if pair.get("task") in held})
+        member_tasks = {task_of(pair) for pair in members}
+        leaked = sorted(held & member_tasks)
         if not leaked:
             continue
         findings.append(
@@ -217,9 +206,7 @@ def lint_registry_split_leak(
                 f"{len(leaked)} of {len(members)} '{family}' pairs are held-out tasks",
                 held_out_splits=list(held_out_splits),
                 leaked_tasks=leaked,
-                dev_tasks=sorted(
-                    {str(pair.get("task")) for pair in members if pair.get("task") in dev}
-                ),
+                dev_tasks=sorted(dev & member_tasks),
                 registry=registry.as_posix(),
                 answer_keys=answer_keys.as_posix(),
             )
@@ -236,16 +223,17 @@ def lint_dataset(
     checks: Iterable[str] = CHECKS,
 ) -> dict[str, Any]:
     rows = _load_jsonl(dataset)
-    findings = lint_rows(rows, body_path=body_path, checks=checks)
-    if answer_keys is not None and "split_leak" in set(checks):
+    wanted = set(checks)
+    findings = lint_rows(rows, body_path=body_path, checks=wanted)
+    if answer_keys is not None and "split_leak" in wanted:
         findings += lint_split_leak(rows, answer_keys)
-    if registry is not None and answer_keys is not None and "split_leak" in set(checks):
+    if registry is not None and answer_keys is not None and "split_leak" in wanted:
         findings += lint_registry_split_leak(registry, answer_keys)
     return {
         "schema": SCHEMA,
         "dataset": dataset.as_posix(),
         "rows": len(rows),
-        "checks": sorted(set(checks)),
+        "checks": sorted(wanted),
         "findings": findings,
         "status": "issues"
         if any(f["severity"] in {"high", "medium"} for f in findings)

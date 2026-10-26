@@ -5884,7 +5884,7 @@ def parser() -> argparse.ArgumentParser:
 
     data = commands.add_parser(
         "data",
-        help="Completed-trial data layer: reconcile durable trials to ANALYSIS_READY or HOLD",
+        help="Completed-trial reconciliation and deterministic training-data audits",
     )
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_backfill = data_commands.add_parser(
@@ -5920,7 +5920,9 @@ def parser() -> argparse.ArgumentParser:
         "lint",
         help="Deterministic training-data lints: dedup, split leakage, coverage",
     )
-    data_lint.add_argument("dataset", type=Path, help="Dataset JSONL (messages, files or submission rows)")
+    data_lint.add_argument(
+        "dataset", type=Path, help="Dataset JSONL (messages, files or submission rows)"
+    )
     data_lint.add_argument(
         "--answer-keys",
         type=Path,

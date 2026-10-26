@@ -217,22 +217,18 @@ def _direct_references(database: Path) -> list[str]:
             original = os.fstat(descriptor)
             _regular(original)
             _require_checkpointed(parent, database.name)
-            # Buffered file reads keep this off os.read, and the bytes come from
-            # the descriptor whose identity is checked, so SQLite never resolves
-            # the pathname to a different file.
-            with open(descriptor, "rb", closefd=False) as stream:
-                payload = stream.read()
-            if len(payload) != original.st_size:
-                raise ValueError("projected database ended before its declared size")
-            if payload[18:20] != b"\x01\x01":
+            if os.pread(descriptor, 2, 18) != b"\x01\x01":
                 raise ValueError(
                     "projected database must use a rollback journal, not WAL"
                 )
-            if _identity(os.fstat(descriptor)) != _identity(original):
-                raise ValueError("projected database changed while reading")
-            connection = sqlite3.connect(":memory:")
+            # SQLite opens /dev/fd/N, which duplicates this descriptor's checked
+            # inode, so a swapped pathname is never read. Reading in place, not
+            # deserializing a copy, has no 2 GiB SQLite allocation ceiling;
+            # immutable=1 takes no locks and creates no sidecars.
+            connection = sqlite3.connect(
+                f"file:/dev/fd/{descriptor}?mode=ro&immutable=1", uri=True,
+            )
             try:
-                connection.deserialize(payload)
                 connection.execute("PRAGMA query_only=ON")
                 connection.execute("PRAGMA trusted_schema=OFF")
                 references: set[str] = set()
@@ -247,10 +243,12 @@ def _direct_references(database: Path) -> list[str]:
                     ):
                         _digest(uri)
                         references.add(uri)
-                _require_checkpointed(parent, database.name)
-                return sorted(references)
             finally:
                 connection.close()
+            if _identity(os.fstat(descriptor)) != _identity(original):
+                raise ValueError("projected database changed while reading")
+            _require_checkpointed(parent, database.name)
+            return sorted(references)
         finally:
             os.close(descriptor)
 

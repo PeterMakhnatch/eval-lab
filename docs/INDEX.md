@@ -95,7 +95,7 @@ inputs:
   - path: docs/observability.md
     digest: sha256:17587e087cea130547b9997332df26f202fe6585a3dd330a3d84b7529646045c
   - path: docs/open-qa-harness.md
-    digest: sha256:4c03bc9a2798da1a63a6d41fa0d09ae1bb67a632638b404ad855bafe85968771
+    digest: sha256:a60edaca588801337dd0026288600326bb166df3dbd8973459994791cf7d8767
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md

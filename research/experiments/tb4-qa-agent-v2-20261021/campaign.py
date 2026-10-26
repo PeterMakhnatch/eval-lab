@@ -77,7 +77,9 @@ SESSION_SCHEMA_PREFIX = "qa.env.audit/"
 #: Everything an actor process can import or be steered by, plus the scorer-side code whose bytes
 #: the comparison depends on. Tracked files only: ``git ls-files`` supplies the exact set.
 SOURCE_PATHSPECS = (
-    "src/evallab", "pyproject.toml", "uv.lock",
+    "src/evallab",
+    "pyproject.toml",
+    "uv.lock",
     "research/answer-keys/tb4-audit-v1/views.py",
     "research/answer-keys/tb4-audit-v1/score_audit.py",
     "research/answer-keys/tb4-audit-v1/triage_signals.py",
@@ -85,7 +87,9 @@ SOURCE_PATHSPECS = (
     "research/answer-keys/splits/guard.py",
     "research/answer-keys/splits/exposure.jsonl",
     "research/experiments/tb4-qa-agent-v1-20261020/score.py",
-    f"{EXP}/campaign.py", f"{EXP}/score.py", f"{EXP}/plain_read_prompt.md",
+    f"{EXP}/campaign.py",
+    f"{EXP}/score.py",
+    f"{EXP}/plain_read_prompt.md",
 )
 #: Exposed to earlier systems without a registry record (v1 ``score.py`` ``EXPOSED``). Disclosed and
 #: scored with and without; not excluded, because v1 ran it.
@@ -94,11 +98,17 @@ KNOWN_UNREGISTERED_EXPOSURES = {
 }
 #: Same class -> key-category conversion v1 and the plain-read baseline applied to their findings.
 CATEGORY = {
-    "weak_check": "weak", "unstated_requirement": "prompt_misaligned",
-    "instruction_grader_contradiction": "prompt_misaligned", "grader_tamperable": "tamperable",
-    "answer_reachable": "reachable", "grader_logic_bug": "broken", "overstrict_oracle": "broken",
-    "wrong_answer_key": "broken", "env_mismatch_or_flaky": "broken",
-    "infeasible_as_written": "broken", "exploitable_llm_judge": "weak",
+    "weak_check": "weak",
+    "unstated_requirement": "prompt_misaligned",
+    "instruction_grader_contradiction": "prompt_misaligned",
+    "grader_tamperable": "tamperable",
+    "answer_reachable": "reachable",
+    "grader_logic_bug": "broken",
+    "overstrict_oracle": "broken",
+    "wrong_answer_key": "broken",
+    "env_mismatch_or_flaky": "broken",
+    "infeasible_as_written": "broken",
+    "exploitable_llm_judge": "weak",
 }
 ENTRY = "import sys; from evallab.cli import main; sys.exit(main())"
 
@@ -119,8 +129,9 @@ def sha256_file(path: Path) -> str:
 
 
 def canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-                      allow_nan=False).encode()
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode()
 
 
 def load_module(path: Path, name: str) -> Any:
@@ -157,7 +168,9 @@ def read_json(path: Path) -> Any:
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
 
 
 def git(*args: str) -> str:
@@ -168,7 +181,9 @@ def git(*args: str) -> str:
 
 
 def git_ok(*args: str) -> bool:
-    return subprocess.run(["git", *args], cwd=REPO, capture_output=True, check=False).returncode == 0
+    return (
+        subprocess.run(["git", *args], cwd=REPO, capture_output=True, check=False).returncode == 0
+    )
 
 
 def direction_group(direction: str) -> str:
@@ -190,11 +205,13 @@ def direction_groups() -> dict[str, Any]:
     }
     return {
         "rule": "false_pass only -> wrong_pass_oriented; string starting false_fail with no false_pass "
-                "-> wrong_fail_oriented; anything else (either, or a qualified/both-ways direction) "
-                "-> mixed_or_unspecified. Derived from the label-free taxonomy before any TEST view "
-                "input; never adjusted from observed matches.",
-        "source": {"path": KEY_TAXONOMY.relative_to(REPO).as_posix(),
-                   "sha256": sha256_file(KEY_TAXONOMY)},
+        "-> wrong_fail_oriented; anything else (either, or a qualified/both-ways direction) "
+        "-> mixed_or_unspecified. Derived from the label-free taxonomy before any TEST view "
+        "input; never adjusted from observed matches.",
+        "source": {
+            "path": KEY_TAXONOMY.relative_to(REPO).as_posix(),
+            "sha256": sha256_file(KEY_TAXONOMY),
+        },
         "classes": dict(sorted(classes.items())),
     }
 
@@ -202,8 +219,11 @@ def direction_groups() -> dict[str, Any]:
 def source_files() -> list[str]:
     out = git("ls-files", "-z", "--", *SOURCE_PATHSPECS)
     files = sorted(rel for rel in out.split("\0") if rel)
-    missing = [spec for spec in SOURCE_PATHSPECS
-               if not any(f == spec or f.startswith(spec + "/") for f in files)]
+    missing = [
+        spec
+        for spec in SOURCE_PATHSPECS
+        if not any(f == spec or f.startswith(spec + "/") for f in files)
+    ]
     if missing:
         raise ValueError(f"frozen source paths are not tracked at HEAD: {missing}")
     return files
@@ -227,7 +247,9 @@ def tree_digest(manifest: dict[str, str]) -> str:
 
 def child_env() -> dict[str, str]:
     env = dict(os.environ)
-    env["PYTHONPATH"] = str(REPO / "src") + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    env["PYTHONPATH"] = str(REPO / "src") + (
+        os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
+    )
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     return env
 
@@ -255,8 +277,11 @@ def registry_exposure(agent: str, system: str, at: str) -> dict[str, Any]:
             continue
         names = set(record.get("tasks") or [])
         for key_id, ids in guard.exposed_items(record, keys).items():
-            names |= {guard.task_name(item["subject"]["task_id"])
-                      for item in keys[key_id]["items"] if item["item_id"] in ids}
+            names |= {
+                guard.task_name(item["subject"]["task_id"])
+                for item in keys[key_id]["items"]
+                if item["item_id"] in ids
+            }
         bucket = "excluded" if record["kind"] in {"tuned", "selected"} else "disclosed"
         applied.append({"exposure_id": record["exposure_id"], "kind": record["kind"]})
         for name in names:
@@ -264,11 +289,13 @@ def registry_exposure(agent: str, system: str, at: str) -> dict[str, Any]:
     for name, reason in KNOWN_UNREGISTERED_EXPOSURES.items():
         buckets["disclosed"].setdefault(name, []).append(f"unregistered: {reason}")
     return {
-        "agent": agent, "row_date_utc": at, "applied_records": applied,
+        "agent": agent,
+        "row_date_utc": at,
+        "applied_records": applied,
         "excluded_names": {k: sorted(v) for k, v in sorted(buckets["excluded"].items())},
         "disclosed_names": {k: sorted(v) for k, v in sorted(buckets["disclosed"].items())},
         "policy": "tuned/selected -> not run, unmeasured in every denominator; inspected and "
-                  "unregistered exposures -> run, disclosed, scored with and without",
+        "unregistered exposures -> run, disclosed, scored with and without",
     }
 
 
@@ -293,18 +320,31 @@ def _upstream_pin(root_arg: str, declared: str) -> dict[str, Any]:
     if len(declared) != 40 or any(c not in "0123456789abcdef" for c in declared):
         raise ValueError("--source-pin must be the declared 40-hex upstream commit")
     observed = None
-    proc = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"],
-                          capture_output=True, text=True, check=False)
+    proc = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     if proc.returncode == 0 and Path(proc.stdout.strip()).resolve() == root.resolve():
-        observed = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True,
-                                  text=True, check=True).stdout.strip()
+        observed = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
         if observed != declared:
             raise ValueError(f"upstream HEAD {observed} is not the declared pin {declared}")
     return {
-        "root": str(root), "declared_pin": declared, "observed_git_head": observed,
-        "note": ("git metadata present; HEAD equals the declared pin" if observed
-                 else "extracted tree without git metadata: the declared pin plus the per-task byte "
-                      "binding written at run time are the evidence; no HEAD is claimed"),
+        "root": str(root),
+        "declared_pin": declared,
+        "observed_git_head": observed,
+        "note": (
+            "git metadata present; HEAD equals the declared pin"
+            if observed
+            else "extracted tree without git metadata: the declared pin plus the per-task byte "
+            "binding written at run time are the evidence; no HEAD is claimed"
+        ),
     }
 
 
@@ -317,20 +357,39 @@ def _runner(python_arg: str | None) -> dict[str, Any]:
     if not executable.is_file() or not os.access(python, os.X_OK):
         raise ValueError("--python must name an executable interpreter")
     probe = subprocess.run(
-        [str(python), "-c", "import evallab, json, sys; print(json.dumps({'file': evallab.__file__, "
-         "'python': sys.version}))"], capture_output=True, text=True, env=child_env(), cwd=REPO,
-        check=True)
+        [
+            str(python),
+            "-c",
+            "import evallab, json, sys; print(json.dumps({'file': evallab.__file__, "
+            "'python': sys.version}))",
+        ],
+        capture_output=True,
+        text=True,
+        env=child_env(),
+        cwd=REPO,
+        check=True,
+    )
     info = json.loads(probe.stdout)
     if not Path(info["file"]).resolve().is_relative_to((REPO / "src").resolve()):
-        raise ValueError(f"the interpreter imports evallab from {info['file']}, not this source root")
+        raise ValueError(
+            f"the interpreter imports evallab from {info['file']}, not this source root"
+        )
     omp_path = shutil.which("omp")
-    omp = subprocess.run([omp_path, "--version"], capture_output=True, text=True, check=False) \
-        if omp_path else None
-    return {"python": str(python), "python_version": info["python"], "evallab_file": info["file"],
-            "python_executable": str(executable), "python_sha256": sha256_file(executable),
-            "omp_executable": str(Path(omp_path).resolve()) if omp_path else None,
-            "omp_sha256": sha256_file(Path(omp_path)) if omp_path else None,
-            "omp_version": omp.stdout.strip() if omp is not None and omp.returncode == 0 else None}
+    omp = (
+        subprocess.run([omp_path, "--version"], capture_output=True, text=True, check=False)
+        if omp_path
+        else None
+    )
+    return {
+        "python": str(python),
+        "python_version": info["python"],
+        "evallab_file": info["file"],
+        "python_executable": str(executable),
+        "python_sha256": sha256_file(executable),
+        "omp_executable": str(Path(omp_path).resolve()) if omp_path else None,
+        "omp_sha256": sha256_file(Path(omp_path)) if omp_path else None,
+        "omp_version": omp.stdout.strip() if omp is not None and omp.returncode == 0 else None,
+    }
 
 
 def cmd_freeze(args: argparse.Namespace) -> int:
@@ -349,16 +408,24 @@ def cmd_freeze(args: argparse.Namespace) -> int:
     if agent and (args.max_seconds <= 0 or args.max_tool_calls < 1):
         raise ValueError("agent_v2 needs positive time and tool limits")
     if agent and args.lane == "openai":
-        if (not args.endpoint or not args.api_key_env
-                or not 0 < args.max_usd < float("inf")
-                or args.input_usd_per_million is None or args.output_usd_per_million is None
-                or not 0 < args.input_usd_per_million < float("inf")
-                or not 0 < args.output_usd_per_million < float("inf")):
-            raise ValueError("openai needs endpoint, key-env name, positive finite prices and model cap")
+        if (
+            not args.endpoint
+            or not args.api_key_env
+            or not 0 < args.max_usd < float("inf")
+            or args.input_usd_per_million is None
+            or args.output_usd_per_million is None
+            or not 0 < args.input_usd_per_million < float("inf")
+            or not 0 < args.output_usd_per_million < float("inf")
+        ):
+            raise ValueError(
+                "openai needs endpoint, key-env name, positive finite prices and model cap"
+            )
     elif agent and args.max_usd != 0:
         raise ValueError("subscription lanes need --max-usd 0")
     if agent and args.execution_config is None:
-        raise ValueError("agent_v2 needs the owner --execution-config (backend/approval/ledger policy)")
+        raise ValueError(
+            "agent_v2 needs the owner --execution-config (backend/approval/ledger policy)"
+        )
     if args.split == "test" and args.pm_port_manifest is None:
         raise ValueError("a TEST freeze must pin the published PM port mapping/provider")
 
@@ -377,9 +444,14 @@ def cmd_freeze(args: argparse.Namespace) -> int:
     manifest = source_manifest()
     runner = _runner(args.python)
     groups = direction_groups()
-    exposures_ledger = (owned_path(args.ledger_root, kind="--ledger-root") if args.ledger_root
-                        else campaign / "exposure-ledger")
-    if args.split == "test" and (args.ledger_root is None or exposures_ledger.is_relative_to(campaign)):
+    exposures_ledger = (
+        owned_path(args.ledger_root, kind="--ledger-root")
+        if args.ledger_root
+        else campaign / "exposure-ledger"
+    )
+    if args.split == "test" and (
+        args.ledger_root is None or exposures_ledger.is_relative_to(campaign)
+    ):
         raise ValueError("TEST needs a shared --ledger-root outside the campaign directory")
     view_root = owned_path(args.view, must_exist=True, kind="--view")
     bundle = view_root / "bundle.json"
@@ -390,8 +462,11 @@ def cmd_freeze(args: argparse.Namespace) -> int:
         "view_bundle": {"path": str(bundle), "sha256": sha256_file(bundle)},
         "upstream": _upstream_pin(args.upstream_root, args.source_pin),
         "pm_port": _file_pin(args.pm_port_manifest, "--pm-port-manifest", required=False),
-        "pm_port_status": ("pinned" if args.pm_port_manifest else
-                           "unpublished: DEV freeze only, no PM port mapping pinned"),
+        "pm_port_status": (
+            "pinned"
+            if args.pm_port_manifest
+            else "unpublished: DEV freeze only, no PM port mapping pinned"
+        ),
         "execution_config": _file_pin(args.execution_config, "--execution-config", required=agent),
         "hackbook": _file_pin(args.hackbook, "--hackbook", required=agent),
         "taxonomy": {"path": str(KEY_TAXONOMY), "sha256": groups["source"]["sha256"]},
@@ -399,54 +474,105 @@ def cmd_freeze(args: argparse.Namespace) -> int:
     if not agent:
         inputs["prompt"] = {"path": str(PLAIN_PROMPT), "sha256": sha256_file(PLAIN_PROMPT)}
     settings: dict[str, Any] = {
-        "model": args.model, "seed": args.seed, "once_only": True, "retries": 0,
+        "model": args.model,
+        "seed": args.seed,
+        "once_only": True,
+        "retries": 0,
         "concurrency_cap": MAX_CONCURRENCY,
         "native_container_cap_per_lane": 2,
         "native_container_cap_note": "enforced by the core harness admission, not here",
     }
     if agent:
-        settings |= {"lane": args.lane, "max_seconds": args.max_seconds, "max_tokens": args.max_tokens,
-                     "max_tool_calls": args.max_tool_calls, "max_usd": args.max_usd}
+        settings |= {
+            "lane": args.lane,
+            "max_seconds": args.max_seconds,
+            "max_tokens": args.max_tokens,
+            "max_tool_calls": args.max_tool_calls,
+            "max_usd": args.max_usd,
+        }
         if args.lane == "codex":
             settings["codex_weekly_ceiling"] = args.codex_weekly_ceiling
         elif args.lane == "openai":
-            settings |= {"endpoint": args.endpoint, "api_key_env": args.api_key_env,
-                         "input_usd_per_million": args.input_usd_per_million,
-                         "output_usd_per_million": args.output_usd_per_million}
+            settings |= {
+                "endpoint": args.endpoint,
+                "api_key_env": args.api_key_env,
+                "input_usd_per_million": args.input_usd_per_million,
+                "output_usd_per_million": args.output_usd_per_million,
+            }
     else:
-        settings |= {"batch_size": PLAIN_BATCH, "tools": "none: file reads inside assigned directories",
-                     "isolation": "instruction-confined subagent directories; weaker than the sealed "
-                                  "EnvTools view", "runner": "native OMP subagents launched by the parent"}
-    config_digest = sha256_bytes(canonical({
-        "condition": args.condition, "tree": tree_digest(manifest), "settings": settings,
-        "inputs": {k: v for k, v in inputs.items() if k not in {"view", "view_bundle"}},
-        "view_bundle": inputs["view_bundle"]["sha256"],
-    }))
-    system = (f"qa-env-audit-v2@{commit[:12]}+{config_digest[7:19]}" if agent
-              else f"qa-plain-read@{commit[:12]}+{config_digest[7:19]}")
+        settings |= {
+            "batch_size": PLAIN_BATCH,
+            "tools": "none: file reads inside assigned directories",
+            "isolation": "instruction-confined subagent directories; weaker than the sealed "
+            "EnvTools view",
+            "runner": "native OMP subagents launched by the parent",
+        }
+    config_digest = sha256_bytes(
+        canonical(
+            {
+                "condition": args.condition,
+                "tree": tree_digest(manifest),
+                "settings": settings,
+                "inputs": {k: v for k, v in inputs.items() if k not in {"view", "view_bundle"}},
+                "view_bundle": inputs["view_bundle"]["sha256"],
+            }
+        )
+    )
+    system = (
+        f"qa-env-audit-v2@{commit[:12]}+{config_digest[7:19]}"
+        if agent
+        else f"qa-plain-read@{commit[:12]}+{config_digest[7:19]}"
+    )
     created = now()
     registry = registry_exposure(args.registry_agent, system, created)
     freeze = {
-        "schema": FREEZE_SCHEMA, "condition": args.condition, "split": args.split,
-        "created_at": created, "system_id": system, "config_digest": config_digest,
-        "git": {"repo_root": str(REPO), "commit": commit, "origin_main": origin,
-                "merged_into_origin_main": merged},
-        "source": {"pathspecs": list(SOURCE_PATHSPECS), "files": len(manifest),
-                   "tree_digest": tree_digest(manifest), "manifest_path": str(campaign / "source-manifest.json"),
-                   "tree_digest_ordering": "sorted by relative .as_posix() string"},
-        "runner": runner, "settings": settings, "inputs": inputs, "registry": registry,
+        "schema": FREEZE_SCHEMA,
+        "condition": args.condition,
+        "split": args.split,
+        "created_at": created,
+        "system_id": system,
+        "config_digest": config_digest,
+        "git": {
+            "repo_root": str(REPO),
+            "commit": commit,
+            "origin_main": origin,
+            "merged_into_origin_main": merged,
+        },
+        "source": {
+            "pathspecs": list(SOURCE_PATHSPECS),
+            "files": len(manifest),
+            "tree_digest": tree_digest(manifest),
+            "manifest_path": str(campaign / "source-manifest.json"),
+            "tree_digest_ordering": "sorted by relative .as_posix() string",
+        },
+        "runner": runner,
+        "settings": settings,
+        "inputs": inputs,
+        "registry": registry,
         "direction_groups": groups,
-        "exposure_ledger": {"root": str(exposures_ledger), "key": f"{system}/{args.split}/<task>.json"},
+        "exposure_ledger": {
+            "root": str(exposures_ledger),
+            "key": f"{system}/{args.split}/<task>.json",
+        },
         "test_authorization_required": args.split == "test",
         "view_inputs_parsed_before_freeze": False,
     }
     campaign.mkdir(parents=True)
     write_new(campaign / "source-manifest.json", manifest)
     write_new(campaign / "freeze.json", freeze)
-    print(json.dumps({"campaign_dir": str(campaign), "system_id": system, "commit": commit,
-                      "freeze_sha256": sha256_file(campaign / "freeze.json"),
-                      "registry_excluded": len(registry["excluded_names"]),
-                      "registry_disclosed": len(registry["disclosed_names"])}, indent=2))
+    print(
+        json.dumps(
+            {
+                "campaign_dir": str(campaign),
+                "system_id": system,
+                "commit": commit,
+                "freeze_sha256": sha256_file(campaign / "freeze.json"),
+                "registry_excluded": len(registry["excluded_names"]),
+                "registry_disclosed": len(registry["disclosed_names"]),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -470,7 +596,9 @@ def verify_frozen(freeze: dict[str, Any]) -> list[str]:
         bad.append(f"HEAD {commit} is not the frozen commit {freeze['git']['commit']}")
     dirty = source_dirty()
     if dirty:
-        bad.append("frozen source has uncommitted or untracked changes: " + dirty.replace("\n", "; "))
+        bad.append(
+            "frozen source has uncommitted or untracked changes: " + dirty.replace("\n", "; ")
+        )
     manifest = read_json(Path(freeze["source"]["manifest_path"]))
     if tree_digest(manifest) != freeze["source"]["tree_digest"]:
         bad.append("source manifest does not reproduce the frozen tree digest")
@@ -486,13 +614,18 @@ def verify_frozen(freeze: dict[str, Any]) -> list[str]:
     python = Path(freeze["runner"]["python"])
     if not python.is_file():
         bad.append("frozen interpreter is missing")
-    elif (str(python.resolve()) != freeze["runner"]["python_executable"]
-          or sha256_file(python) != freeze["runner"]["python_sha256"]):
+    elif (
+        str(python.resolve()) != freeze["runner"]["python_executable"]
+        or sha256_file(python) != freeze["runner"]["python_sha256"]
+    ):
         bad.append("frozen interpreter executable changed")
     if freeze["settings"].get("lane") == "omp":
         omp = shutil.which("omp")
-        if (not omp or str(Path(omp).resolve()) != freeze["runner"]["omp_executable"]
-                or sha256_file(Path(omp)) != freeze["runner"]["omp_sha256"]):
+        if (
+            not omp
+            or str(Path(omp).resolve()) != freeze["runner"]["omp_executable"]
+            or sha256_file(Path(omp)) != freeze["runner"]["omp_sha256"]
+        ):
             bad.append("frozen OMP executable changed")
     return bad
 
@@ -500,7 +633,9 @@ def verify_frozen(freeze: dict[str, Any]) -> list[str]:
 def cmd_verify(args: argparse.Namespace) -> int:
     freeze = load_freeze(owned_path(args.campaign_dir, must_exist=True))
     bad = verify_frozen(freeze)
-    print(json.dumps({"ok": not bad, "violations": bad, "system_id": freeze["system_id"]}, indent=2))
+    print(
+        json.dumps({"ok": not bad, "violations": bad, "system_id": freeze["system_id"]}, indent=2)
+    )
     return 0 if not bad else 1
 
 
@@ -514,11 +649,17 @@ def cmd_authorize_test(args: argparse.Namespace) -> int:
     bad = verify_frozen(freeze)
     if bad:
         raise ValueError("freeze no longer verifies: " + "; ".join(bad))
-    write_new(campaign / "authorization.json", {
-        "schema": "tb4.qa.v2.test_authorization/v1", "freeze_sha256": freeze_digest(campaign),
-        "system_id": freeze["system_id"], "authorized_by": args.by, "reference": args.reference,
-        "at": now(),
-    })
+    write_new(
+        campaign / "authorization.json",
+        {
+            "schema": "tb4.qa.v2.test_authorization/v1",
+            "freeze_sha256": freeze_digest(campaign),
+            "system_id": freeze["system_id"],
+            "authorized_by": args.by,
+            "reference": args.reference,
+            "at": now(),
+        },
+    )
     return 0
 
 
@@ -539,8 +680,10 @@ def public_records(freeze: dict[str, Any]) -> list[dict[str, Any]]:
 
 def task_order(freeze: dict[str, Any], names: list[str]) -> list[str]:
     seed = freeze["settings"]["seed"]
-    return sorted(names, key=lambda n: (hashlib.sha256(f"{seed}:{freeze['system_id']}:{n}".encode())
-                                        .hexdigest(), n))
+    return sorted(
+        names,
+        key=lambda n: (hashlib.sha256(f"{seed}:{freeze['system_id']}:{n}".encode()).hexdigest(), n),
+    )
 
 
 def bind_task(freeze: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
@@ -559,7 +702,10 @@ def bind_task(freeze: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
     for path in sorted(source.rglob("*"), key=lambda p: p.relative_to(source).as_posix()):
         if path.is_file() and not _should_ignore_file(path):
             data = path.read_bytes()
-            files[path.relative_to(source).as_posix()] = {"sha256": sha256_bytes(data), "bytes": len(data)}
+            files[path.relative_to(source).as_posix()] = {
+                "sha256": sha256_bytes(data),
+                "bytes": len(data),
+            }
     view_files = {}
     view_task = Path(freeze["inputs"]["view"]["root"]) / "tasks" / name
     for path in sorted(view_task.rglob("*"), key=lambda p: p.relative_to(view_task).as_posix()):
@@ -569,11 +715,18 @@ def bind_task(freeze: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
                 raise ValueError(f"view file differs from the upstream source: {name}/{rel}")
             view_files[rel] = files[rel]["sha256"]
     return {
-        "schema": "tb4.qa.v2.source_binding/v1", "task": name,
-        "task_id": record["subject"]["task_id"], "task_digest": digest, "public_record": record,
-        "upstream_root": upstream["root"], "declared_pin": upstream["declared_pin"],
-        "observed_git_head": upstream["observed_git_head"], "source_files": files,
-        "view_files": view_files, "view_is_byte_subset_of_source": True, "bound_at": now(),
+        "schema": "tb4.qa.v2.source_binding/v1",
+        "task": name,
+        "task_id": record["subject"]["task_id"],
+        "task_digest": digest,
+        "public_record": record,
+        "upstream_root": upstream["root"],
+        "declared_pin": upstream["declared_pin"],
+        "observed_git_head": upstream["observed_git_head"],
+        "source_files": files,
+        "view_files": view_files,
+        "view_is_byte_subset_of_source": True,
+        "bound_at": now(),
     }
 
 
@@ -600,11 +753,23 @@ def recheck_binding(binding: dict[str, Any]) -> list[str]:
 
 def claim_exposure(freeze: dict[str, Any], task: str, campaign: Path) -> dict[str, Any] | None:
     """Exclusive once-only marker; returns ``None`` when this system already exposed the task."""
-    marker = Path(freeze["exposure_ledger"]["root"]) / freeze["system_id"] / freeze["split"] / f"{task}.json"
+    marker = (
+        Path(freeze["exposure_ledger"]["root"])
+        / freeze["system_id"]
+        / freeze["split"]
+        / f"{task}.json"
+    )
     marker.parent.mkdir(parents=True, exist_ok=True)
-    body = {"schema": "tb4.qa.v2.exposure_marker/v1", "system_id": freeze["system_id"],
-            "split": freeze["split"], "task": task, "campaign_dir": str(campaign),
-            "freeze_sha256": freeze_digest(campaign), "claimed_at": now(), "pid": os.getpid()}
+    body = {
+        "schema": "tb4.qa.v2.exposure_marker/v1",
+        "system_id": freeze["system_id"],
+        "split": freeze["split"],
+        "task": task,
+        "campaign_dir": str(campaign),
+        "freeze_sha256": freeze_digest(campaign),
+        "claimed_at": now(),
+        "pid": os.getpid(),
+    }
     try:
         write_new(marker, body)
     except FileExistsError:
@@ -619,21 +784,47 @@ def audit_argv(freeze: dict[str, Any], task_dir: Path, out: Path) -> list[str]:
         return str(int(value)) if float(value).is_integer() else repr(float(value))
 
     argv = [
-        freeze["runner"]["python"], "-c", ENTRY, "qa", "env", "audit",
-        "--lane", s["lane"], "--model", s["model"], "--task", str(task_dir),
-        "--view", inputs["view"]["root"], "--out", str(out),
-        "--max-seconds", num(s["max_seconds"]), "--max-tokens", str(s["max_tokens"]),
-        "--max-tool-calls", str(s["max_tool_calls"]), "--max-usd", num(s["max_usd"]),
-        "--execution-config", inputs["execution_config"]["path"],
-        "--hackbook", inputs["hackbook"]["path"],
+        freeze["runner"]["python"],
+        "-c",
+        ENTRY,
+        "qa",
+        "env",
+        "audit",
+        "--lane",
+        s["lane"],
+        "--model",
+        s["model"],
+        "--task",
+        str(task_dir),
+        "--view",
+        inputs["view"]["root"],
+        "--out",
+        str(out),
+        "--max-seconds",
+        num(s["max_seconds"]),
+        "--max-tokens",
+        str(s["max_tokens"]),
+        "--max-tool-calls",
+        str(s["max_tool_calls"]),
+        "--max-usd",
+        num(s["max_usd"]),
+        "--execution-config",
+        inputs["execution_config"]["path"],
+        "--hackbook",
+        inputs["hackbook"]["path"],
     ]
     if s["lane"] == "codex":
         argv += ["--codex-weekly-ceiling", num(s["codex_weekly_ceiling"])]
     elif s["lane"] == "openai":
         argv += [
-            "--endpoint", s["endpoint"], "--api-key-env", s["api_key_env"],
-            "--input-usd-per-million", num(s["input_usd_per_million"]),
-            "--output-usd-per-million", num(s["output_usd_per_million"]),
+            "--endpoint",
+            s["endpoint"],
+            "--api-key-env",
+            s["api_key_env"],
+            "--input-usd-per-million",
+            num(s["input_usd_per_million"]),
+            "--output-usd-per-million",
+            num(s["output_usd_per_million"]),
         ]
     return argv
 
@@ -656,20 +847,39 @@ def _plan(freeze: dict[str, Any], campaign: Path) -> dict[str, Any]:
     tasks = []
     for name in task_order(freeze, names):
         record = by_name[name]
-        tasks.append({
-            "task": name, "task_id": record["subject"]["task_id"],
-            "task_digest": record["subject"]["task_digest"],
-            "registry": ("excluded" if name in excluded else "disclosed" if name in disclosed else "clear"),
-            "registry_exposures": excluded.get(name) or disclosed.get(name) or [],
-        })
-    plan = {"schema": "tb4.qa.v2.plan/v1", "freeze_sha256": freeze_digest(campaign),
-            "system_id": freeze["system_id"], "created_at": now(), "tasks": tasks}
+        tasks.append(
+            {
+                "task": name,
+                "task_id": record["subject"]["task_id"],
+                "task_digest": record["subject"]["task_digest"],
+                "registry": (
+                    "excluded"
+                    if name in excluded
+                    else "disclosed"
+                    if name in disclosed
+                    else "clear"
+                ),
+                "registry_exposures": excluded.get(name) or disclosed.get(name) or [],
+            }
+        )
+    plan = {
+        "schema": "tb4.qa.v2.plan/v1",
+        "freeze_sha256": freeze_digest(campaign),
+        "system_id": freeze["system_id"],
+        "created_at": now(),
+        "tasks": tasks,
+    }
     write_new(path, plan)
     return plan
 
 
-def _run_one(freeze: dict[str, Any], campaign: Path, entry: dict[str, Any], abort: threading.Event,
-             records: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _run_one(
+    freeze: dict[str, Any],
+    campaign: Path,
+    entry: dict[str, Any],
+    abort: threading.Event,
+    records: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
     name = entry["task"]
     result: dict[str, Any] = {"task": name, "registry": entry["registry"]}
     run_dir = campaign / "runs" / name
@@ -699,13 +909,21 @@ def _run_one(freeze: dict[str, Any], campaign: Path, entry: dict[str, Any], abor
     try:
         stdout = (run_dir / "core-stdout.json").open("xb")
         stderr = (run_dir / "core-stderr.log").open("xb")
-        proc = subprocess.Popen(argv, cwd=REPO, env=child_env(), stdout=stdout, stderr=stderr,
-                                stdin=subprocess.DEVNULL)
-        write_new(run_dir / "controller-start.json", {
-            "task": name, "argv": argv, "pid": proc.pid, "started_at": started_at,
-            "freeze_sha256": freeze_digest(campaign), "frozen_verified": True,
-            "system_id": freeze["system_id"],
-        })
+        proc = subprocess.Popen(
+            argv, cwd=REPO, env=child_env(), stdout=stdout, stderr=stderr, stdin=subprocess.DEVNULL
+        )
+        write_new(
+            run_dir / "controller-start.json",
+            {
+                "task": name,
+                "argv": argv,
+                "pid": proc.pid,
+                "started_at": started_at,
+                "freeze_sha256": freeze_digest(campaign),
+                "frozen_verified": True,
+                "system_id": freeze["system_id"],
+            },
+        )
         hard_timeout = float(freeze["settings"]["max_seconds"]) + 300
         status, returncode = "done", None
         try:
@@ -724,17 +942,32 @@ def _run_one(freeze: dict[str, Any], campaign: Path, entry: dict[str, Any], abor
         (run_dir).mkdir(parents=True, exist_ok=True)
         result["error"] = f"{type(exc).__name__}: {exc}"
         if not (run_dir / "controller-start.json").exists():
-            write_new(run_dir / "controller-start.json", {
-                "task": name, "argv": argv, "pid": None, "started_at": started_at,
-                "freeze_sha256": freeze_digest(campaign), "frozen_verified": True,
-                "system_id": freeze["system_id"]})
-    write_new(run_dir / "controller-end.json", {
-        "task": name, "status": status, "returncode": returncode, "ended_at": now(),
-        "wall_seconds": round(time.monotonic() - started, 3),
-        "core_stdout_sha256": sha256_file(run_dir / "core-stdout.json")
-        if (run_dir / "core-stdout.json").exists() else None,
-        "no_retry": "a launched task is never relaunched, whatever its outcome",
-    })
+            write_new(
+                run_dir / "controller-start.json",
+                {
+                    "task": name,
+                    "argv": argv,
+                    "pid": None,
+                    "started_at": started_at,
+                    "freeze_sha256": freeze_digest(campaign),
+                    "frozen_verified": True,
+                    "system_id": freeze["system_id"],
+                },
+            )
+    write_new(
+        run_dir / "controller-end.json",
+        {
+            "task": name,
+            "status": status,
+            "returncode": returncode,
+            "ended_at": now(),
+            "wall_seconds": round(time.monotonic() - started, 3),
+            "core_stdout_sha256": sha256_file(run_dir / "core-stdout.json")
+            if (run_dir / "core-stdout.json").exists()
+            else None,
+            "no_retry": "a launched task is never relaunched, whatever its outcome",
+        },
+    )
     return result | {"status": status, "returncode": returncode}
 
 
@@ -749,7 +982,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         raise ValueError("campaign is closed")
     if freeze["split"] == "test":
         auth_path = campaign / "authorization.json"
-        if not auth_path.is_file() or read_json(auth_path)["freeze_sha256"] != freeze_digest(campaign):
+        if not auth_path.is_file() or read_json(auth_path)["freeze_sha256"] != freeze_digest(
+            campaign
+        ):
             raise ValueError("TEST needs authorize-test bound to this exact freeze")
     bad = verify_frozen(freeze)
     if bad:
@@ -762,8 +997,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     abort = threading.Event()
     statuses: dict[str, dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
-        futures = [pool.submit(_run_one, freeze, campaign, entry, abort, records)
-                   for entry in plan["tasks"]]
+        futures = [
+            pool.submit(_run_one, freeze, campaign, entry, abort, records)
+            for entry in plan["tasks"]
+        ]
         for future in futures:
             outcome = future.result()
             statuses[outcome["task"]] = outcome
@@ -783,8 +1020,12 @@ def _pid_alive(pid: int | None) -> bool:
     return True
 
 
-def _close(campaign: Path, freeze: dict[str, Any], plan: dict[str, Any],
-           statuses: dict[str, dict[str, Any]]) -> int:
+def _close(
+    campaign: Path,
+    freeze: dict[str, Any],
+    plan: dict[str, Any],
+    statuses: dict[str, dict[str, Any]],
+) -> int:
     tasks = {}
     for entry in plan["tasks"]:
         name = entry["task"]
@@ -802,26 +1043,41 @@ def _close(campaign: Path, freeze: dict[str, Any], plan: dict[str, Any],
                 state = "excluded_registry_exposure"
             else:
                 state = "never_started"
-        tasks[name] = {"status": state, "registry": entry["registry"],
-                       "exposed": (run_dir / "controller-start.json").exists()}
+        tasks[name] = {
+            "status": state,
+            "registry": entry["registry"],
+            "exposed": (run_dir / "controller-start.json").exists(),
+        }
     exposed = sorted(n for n, t in tasks.items() if t["exposed"])
-    write_new(campaign / "closed.json", {
-        "schema": "tb4.qa.v2.closed/v1", "closed_at": now(), "freeze_sha256": freeze_digest(campaign),
-        "system_id": freeze["system_id"], "tasks": tasks,
-        "status_counts": dict(sorted(Counter(t["status"] for t in tasks.values()).items())),
-    })
+    write_new(
+        campaign / "closed.json",
+        {
+            "schema": "tb4.qa.v2.closed/v1",
+            "closed_at": now(),
+            "freeze_sha256": freeze_digest(campaign),
+            "system_id": freeze["system_id"],
+            "tasks": tasks,
+            "status_counts": dict(sorted(Counter(t["status"] for t in tasks.values()).items())),
+        },
+    )
     if freeze["split"] == "test" and exposed:
         stamp = datetime.now(UTC)
         draft = {
             "exposure_id": f"tb4-qa-v2-{campaign.name}-test-exposed",
-            "date": stamp.date().isoformat(), "system": freeze["system_id"], "kind": "inspected",
-            "applies_to": [{"agent": freeze["registry"]["agent"],
-                            "from": (stamp + timedelta(days=1)).date().isoformat()}],
+            "date": stamp.date().isoformat(),
+            "system": freeze["system_id"],
+            "kind": "inspected",
+            "applies_to": [
+                {
+                    "agent": freeze["registry"]["agent"],
+                    "from": (stamp + timedelta(days=1)).date().isoformat(),
+                }
+            ],
             "tasks": exposed,
             "evidence": f"{campaign}/closed.json",
             "note": "DRAFT for the parent to review and append to splits/exposure.jsonl after scoring: "
-                    "later systems of this agent saw these tasks' outputs. `from` is the day after "
-                    "this run so this system's own row is not flagged by its own record.",
+            "later systems of this agent saw these tasks' outputs. `from` is the day after "
+            "this run so this system's own row is not flagged by its own record.",
         }
         write_new(campaign / "exposure-record-draft.json", draft)
     print(json.dumps({"closed": str(campaign / "closed.json"), "exposed_tasks": len(exposed)}))
@@ -865,7 +1121,12 @@ def _actual_models(value: Any, depth: int = 0) -> set[str]:
         return found
     if isinstance(value, dict):
         for key, item in value.items():
-            if key == "actual_model" and isinstance(item, str) and item.strip() and not any(c.isspace() for c in item):
+            if (
+                key == "actual_model"
+                and isinstance(item, str)
+                and item.strip()
+                and not any(c.isspace() for c in item)
+            ):
                 found.add(item)
             else:
                 found |= _actual_models(item, depth + 1)
@@ -883,8 +1144,13 @@ def validate_run(freeze: dict[str, Any], campaign: Path, task: str) -> dict[str,
     """
     run_dir = campaign / "runs" / task
     problems: list[str] = []
-    report: dict[str, Any] = {"task": task, "ok": False, "problems": problems, "findings": [],
-                              "quarantined_files": []}
+    report: dict[str, Any] = {
+        "task": task,
+        "ok": False,
+        "problems": problems,
+        "findings": [],
+        "quarantined_files": [],
+    }
     start = _load(run_dir / "controller-start.json", problems, "controller-start")
     end = _load(run_dir / "controller-end.json", problems, "controller-end")
     binding = _load(run_dir / "source-binding.json", problems, "source-binding")
@@ -921,45 +1187,78 @@ def validate_run(freeze: dict[str, Any], campaign: Path, task: str) -> dict[str,
             continue
         tool, observation = event.get("tool"), event.get("observation") or {}
         calls[tool] += 1
-        if observation.get("task_id") != binding["task_id"] or \
-                observation.get("task_digest") != binding["task_digest"]:
-            problems.append(f"journal seq {event.get('seq')}: observation names another task identity")
+        if (
+            observation.get("task_id") != binding["task_id"]
+            or observation.get("task_digest") != binding["task_digest"]
+        ):
+            problems.append(
+                f"journal seq {event.get('seq')}: observation names another task identity"
+            )
         result = observation.get("result")
         if isinstance(result, dict) and "execution_status" in result:
             native.setdefault(str(tool), Counter())[str(result["execution_status"])] += 1
-        if tool == "record-finding" and isinstance(result, dict) and isinstance(result.get("finding"), dict):
+        if (
+            tool == "record-finding"
+            and isinstance(result, dict)
+            and isinstance(result.get("finding"), dict)
+        ):
             payload = result["finding"]
             digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
             file = findings_dir / f"{digest}.json"
             if Path(str(result.get("path"))).name != file.name:
-                problems.append(f"journal seq {event.get('seq')}: receipt path is not the content hash")
+                problems.append(
+                    f"journal seq {event.get('seq')}: receipt path is not the content hash"
+                )
             if not file.is_file() or read_json(file) != payload:
-                problems.append(f"journal seq {event.get('seq')}: finding file missing or different")
+                problems.append(
+                    f"journal seq {event.get('seq')}: finding file missing or different"
+                )
                 continue
             subject = payload.get("subject") or {}
-            if subject.get("task_id") != binding["task_id"] or subject.get("task_digest") != binding["task_digest"]:
-                problems.append(f"finding {digest[:12]}: subject/digest differs from the bound task")
+            if (
+                subject.get("task_id") != binding["task_id"]
+                or subject.get("task_digest") != binding["task_digest"]
+            ):
+                problems.append(
+                    f"finding {digest[:12]}: subject/digest differs from the bound task"
+                )
                 continue
             witnessed = False
             for ref in payload.get("evidence_refs") or []:
                 if isinstance(ref, str) and ref.startswith("witness:"):
-                    obs = run_dir / "session" / "observations" / f"{ref.removeprefix('witness:')}.json"
+                    obs = (
+                        run_dir
+                        / "session"
+                        / "observations"
+                        / f"{ref.removeprefix('witness:')}.json"
+                    )
                     receipt = read_json(obs) if obs.is_file() else None
-                    if (not receipt or receipt.get("task_digest") != binding["task_digest"]
-                            or receipt.get("execution_status") != "measured"):
-                        problems.append(f"finding {digest[:12]}: witness {ref} has no measured receipt")
+                    if (
+                        not receipt
+                        or receipt.get("task_digest") != binding["task_digest"]
+                        or receipt.get("execution_status") != "measured"
+                    ):
+                        problems.append(
+                            f"finding {digest[:12]}: witness {ref} has no measured receipt"
+                        )
                     else:
                         witnessed = True
-            receipts[digest] = {"row": payload, "sha256": "sha256:" + digest, "file": str(file),
-                                "journal_seq": event.get("seq"),
-                                "evidence_basis": sorted(result.get("evidence_basis") or []),
-                                "self_executed_witness": witnessed}
+            receipts[digest] = {
+                "row": payload,
+                "sha256": "sha256:" + digest,
+                "file": str(file),
+                "journal_seq": event.get("seq"),
+                "evidence_basis": sorted(result.get("evidence_basis") or []),
+                "self_executed_witness": witnessed,
+            }
     if findings_dir.is_dir():
         for file in sorted(findings_dir.glob("*")):
             if file.stem not in receipts:
                 report["quarantined_files"].append(str(file))
         if report["quarantined_files"]:
-            problems.append(f"{len(report['quarantined_files'])} finding file(s) have no journal receipt")
+            problems.append(
+                f"{len(report['quarantined_files'])} finding file(s) have no journal receipt"
+            )
     if session is not None:
         if not str(session.get("schema", "")).startswith(SESSION_SCHEMA_PREFIX):
             problems.append("session record has an unexpected schema")
@@ -967,28 +1266,42 @@ def validate_run(freeze: dict[str, Any], campaign: Path, task: str) -> dict[str,
         if recorded != {r["journal_seq"] for r in receipts.values()}:
             problems.append("session recorded_findings disagree with the journal receipts")
         identity = session.get("task_identity")
-        if identity and (identity.get("task_id") != binding["task_id"]
-                         or identity.get("task_digest") != binding["task_digest"]):
+        if identity and (
+            identity.get("task_id") != binding["task_id"]
+            or identity.get("task_digest") != binding["task_digest"]
+        ):
             problems.append("session task identity differs from the bound task")
         declared = freeze["settings"]["model"]
-        observed = sorted(_actual_models(session) | {m for e in journal if e.get("event") == "model_turn"
-                                                      for m in _actual_models(e)})
+        observed = sorted(
+            _actual_models(session)
+            | {m for e in journal if e.get("event") == "model_turn" for m in _actual_models(e)}
+        )
         report["declared_model"], report["actual_model_observed"] = declared, observed or None
         if observed and any(_model_core(v) != _model_core(declared) for v in observed):
             problems.append(f"observed model {observed} differs from the frozen {declared}")
-        used, spend, quota = session.get("used") or {}, session.get("spend") or {}, session.get("quota") or {}
+        used, spend, quota = (
+            session.get("used") or {},
+            session.get("spend") or {},
+            session.get("quota") or {},
+        )
         readings = [r.get("weekly_used_fraction") for r in quota.get("readings") or []]
         metered = spend.get("metered_usd") if spend.get("known", True) is not False else None
         report |= {
-            "status": session.get("status"), "stop_reason": session.get("stop_reason"),
+            "status": session.get("status"),
+            "stop_reason": session.get("stop_reason"),
             "session_seconds": used.get("seconds"),
             "tokens": used.get("tokens") if used.get("tokens_known", True) else None,
-            "tool_calls_used": used.get("tool_calls"), "budgets": session.get("budgets"),
-            "usage": session.get("usage"), "spend": spend or None,
-            "metered_usd": metered if isinstance(metered, int | float) and not isinstance(metered, bool) else None,
+            "tool_calls_used": used.get("tool_calls"),
+            "budgets": session.get("budgets"),
+            "usage": session.get("usage"),
+            "spend": spend or None,
+            "metered_usd": metered
+            if isinstance(metered, int | float) and not isinstance(metered, bool)
+            else None,
             "quota_weekly_first": readings[0] if readings else None,
             "quota_weekly_last": readings[-1] if readings else None,
-            "transport": session.get("transport"), "errors": len(session.get("errors") or []),
+            "transport": session.get("transport"),
+            "errors": len(session.get("errors") or []),
             "final_present": session.get("final") is not None,
         }
     report |= {
@@ -997,7 +1310,9 @@ def validate_run(freeze: dict[str, Any], campaign: Path, task: str) -> dict[str,
         "tool_calls_by_tool": dict(calls),
         "native_execution": {t: dict(c) for t, c in sorted(native.items())},
         "native_measured": sum(c.get("measured", 0) for c in native.values()),
-        "native_not_measured": sum(v for c in native.values() for k, v in c.items() if k != "measured"),
+        "native_not_measured": sum(
+            v for c in native.values() for k, v in c.items() if k != "measured"
+        ),
         "findings": sorted(receipts.values(), key=lambda r: r["journal_seq"] or 0),
     }
     report["ok"] = not problems
@@ -1011,8 +1326,14 @@ def _taxonomy_markdown() -> str:
     taxonomy = read_json(KEY_TAXONOMY)
     out = ["# Task-side defect classes", ""]
     for row in taxonomy["task_side"]:
-        out += [f"## `{row['key']}`: {row['name']}", "", f"- direction: {row['direction']}",
-                f"- definition: {row['definition']}", f"- not this: {row['not_this']}", ""]
+        out += [
+            f"## `{row['key']}`: {row['name']}",
+            "",
+            f"- direction: {row['direction']}",
+            f"- definition: {row['definition']}",
+            f"- not this: {row['not_this']}",
+            "",
+        ]
     out += ["## Rules", ""] + [f"- {rule}" for rule in taxonomy["label_rules"]]
     return "\n".join(out) + "\n"
 
@@ -1053,27 +1374,54 @@ def cmd_plain_prepare(args: argparse.Namespace) -> int:
         if claim_exposure(freeze, name, campaign) is None:
             manifest[name] = {"status": "skipped_already_exposed_by_this_system"}
             continue
-        aid = "r-" + hashlib.sha256(f"tb4-plain-read:{seed}:{freeze['system_id']}:{name}".encode()).hexdigest()[:8]
+        aid = (
+            "r-"
+            + hashlib.sha256(
+                f"tb4-plain-read:{seed}:{freeze['system_id']}:{name}".encode()
+            ).hexdigest()[:8]
+        )
         shutil.copytree(Path(freeze["inputs"]["view"]["root"]) / "tasks" / name, inputs / aid)
         write_new(plain / "bindings" / f"{aid}.json", binding)
-        manifest[name] = {"status": "packet_built", "aid": aid, "task_id": binding["task_id"],
-                          "task_digest": binding["task_digest"]}
+        manifest[name] = {
+            "status": "packet_built",
+            "aid": aid,
+            "task_id": binding["task_id"],
+            "task_digest": binding["task_digest"],
+        }
     aids = sorted(m["aid"] for m in manifest.values() if "aid" in m)
     random.Random(f"{seed}:{freeze['system_id']}").shuffle(aids)
-    batches = [aids[i:i + PLAIN_BATCH] for i in range(0, len(aids), PLAIN_BATCH)]
-    write_new(plain / "private-manifest.json", {
-        "schema": "tb4.qa.v2.plain_manifest/v1", "freeze_sha256": freeze_digest(campaign),
-        "tasks": manifest, "prepared_at": now()})
-    write_new(plain / "launch.json", {
-        "schema": "tb4.qa.v2.plain_launch/v1", "system_id": freeze["system_id"],
-        "model": freeze["settings"]["model"], "input_root": str(inputs), "output_root": str(outputs),
-        "prompt": freeze["inputs"]["prompt"], "taxonomy": str(inputs / "taxonomy.md"),
-        "tools": freeze["settings"]["tools"], "isolation": freeze["settings"]["isolation"],
-        "batches": [{"batch": i, "aids": b} for i, b in enumerate(batches)],
-        "note": "Fresh subagent per batch; each sees only its assigned aid directories, taxonomy.md "
-                "and the prompt. Not launched by this entry.",
-    })
-    print(json.dumps({"packets": len(aids), "batches": len(batches), "launch": str(plain / "launch.json")}))
+    batches = [aids[i : i + PLAIN_BATCH] for i in range(0, len(aids), PLAIN_BATCH)]
+    write_new(
+        plain / "private-manifest.json",
+        {
+            "schema": "tb4.qa.v2.plain_manifest/v1",
+            "freeze_sha256": freeze_digest(campaign),
+            "tasks": manifest,
+            "prepared_at": now(),
+        },
+    )
+    write_new(
+        plain / "launch.json",
+        {
+            "schema": "tb4.qa.v2.plain_launch/v1",
+            "system_id": freeze["system_id"],
+            "model": freeze["settings"]["model"],
+            "input_root": str(inputs),
+            "output_root": str(outputs),
+            "prompt": freeze["inputs"]["prompt"],
+            "taxonomy": str(inputs / "taxonomy.md"),
+            "tools": freeze["settings"]["tools"],
+            "isolation": freeze["settings"]["isolation"],
+            "batches": [{"batch": i, "aids": b} for i, b in enumerate(batches)],
+            "note": "Fresh subagent per batch; each sees only its assigned aid directories, taxonomy.md "
+            "and the prompt. Not launched by this entry.",
+        },
+    )
+    print(
+        json.dumps(
+            {"packets": len(aids), "batches": len(batches), "launch": str(plain / "launch.json")}
+        )
+    )
     return 0
 
 
@@ -1085,7 +1433,13 @@ def cmd_plain_collect(args: argparse.Namespace) -> int:
     plain = campaign / "plain"
     manifest = read_json(plain / "private-manifest.json")
     rows: list[dict[str, Any]] = []
-    tally: dict[str, Any] = {"files": 0, "missing": [], "invalid": [], "problems": [], "outputs": {}}
+    tally: dict[str, Any] = {
+        "files": 0,
+        "missing": [],
+        "invalid": [],
+        "problems": [],
+        "outputs": {},
+    }
     taxonomy_classes = set(CATEGORY)
     for name, meta in sorted(manifest["tasks"].items()):
         if "aid" not in meta:
@@ -1102,8 +1456,12 @@ def cmd_plain_collect(args: argparse.Namespace) -> int:
         try:
             data = read_json(path)
             findings = data["findings"]
-            if data.get("aid") != aid or data["task_verdict"] not in {"defects_found", "no_defect_found", "cannot_tell"} \
-                    or len(findings) > 8 or (data["task_verdict"] == "no_defect_found" and findings):
+            if (
+                data.get("aid") != aid
+                or data["task_verdict"] not in {"defects_found", "no_defect_found", "cannot_tell"}
+                or len(findings) > 8
+                or (data["task_verdict"] == "no_defect_found" and findings)
+            ):
                 raise ValueError("output violates the frozen output schema")
         except (ValueError, KeyError, TypeError) as exc:
             tally["invalid"].append({"task": name, "error": str(exc)})
@@ -1113,33 +1471,88 @@ def cmd_plain_collect(args: argparse.Namespace) -> int:
         for rank, finding in enumerate(findings):
             cls = finding.get("class")
             if cls not in taxonomy_classes:
-                tally["invalid"].append({"task": name, "finding": rank, "error": f"unknown class {cls!r}"})
+                tally["invalid"].append(
+                    {"task": name, "finding": rank, "error": f"unknown class {cls!r}"}
+                )
                 continue
-            text = "\n".join(str(x) for x in [finding.get("title"), finding.get("summary"),
-                                              finding.get("instruction_quote"),
-                                              finding.get("grader_quote")] if x)
-            rows.append({
-                "schema": "qa.finding/v1", "id": None, "verdict": "fail",
-                "subject": {"kind": "task", "task_id": meta["task_id"], "task_digest": meta["task_digest"]},
-                "category": CATEGORY[cls], "root_cause": [cls], "taxonomy_class": cls,
-                "evidence_refs": finding.get("evidence_refs") or [], "summary": text,
-                "reviewer": {"agent": "qa-plain-read", "model": freeze["settings"]["model"], "cost_usd": None},
-                "confidence": finding.get("confidence"), "rank": rank, "aid": aid,
-            })
+            text = "\n".join(
+                str(x)
+                for x in [
+                    finding.get("title"),
+                    finding.get("summary"),
+                    finding.get("instruction_quote"),
+                    finding.get("grader_quote"),
+                ]
+                if x
+            )
+            rows.append(
+                {
+                    "schema": "qa.finding/v1",
+                    "id": None,
+                    "verdict": "fail",
+                    "subject": {
+                        "kind": "task",
+                        "task_id": meta["task_id"],
+                        "task_digest": meta["task_digest"],
+                    },
+                    "category": CATEGORY[cls],
+                    "root_cause": [cls],
+                    "taxonomy_class": cls,
+                    "evidence_refs": finding.get("evidence_refs") or [],
+                    "summary": text,
+                    "reviewer": {
+                        "agent": "qa-plain-read",
+                        "model": freeze["settings"]["model"],
+                        "cost_usd": None,
+                    },
+                    "confidence": finding.get("confidence"),
+                    "rank": rank,
+                    "aid": aid,
+                }
+            )
     out = plain / "collected"
     out.mkdir()
-    (out / "findings.jsonl").write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows), encoding="utf-8")
-    write_new(out / "collected.json", {
-        "schema": "tb4.qa.v2.plain_collected/v1", "freeze_sha256": freeze_digest(campaign),
-        "findings": len(rows), "findings_sha256": sha256_file(out / "findings.jsonl"), **tally,
-        "usage": None, "usage_note": "subagent token/cost usage is not captured by this entry: null, not zero"})
-    write_new(campaign / "closed.json", {
-        "schema": "tb4.qa.v2.closed/v1", "closed_at": now(), "freeze_sha256": freeze_digest(campaign),
-        "system_id": freeze["system_id"],
-        "tasks": {n: {"status": m["status"], "exposed": "aid" in m} for n, m in manifest["tasks"].items()},
-        "status_counts": dict(sorted(Counter(m["status"] for m in manifest["tasks"].values()).items()))})
-    print(json.dumps({"findings": len(rows), "files": tally["files"], "missing": len(tally["missing"]),
-                      "invalid": len(tally["invalid"])}))
+    (out / "findings.jsonl").write_text(
+        "".join(json.dumps(r, sort_keys=True) + "\n" for r in rows), encoding="utf-8"
+    )
+    write_new(
+        out / "collected.json",
+        {
+            "schema": "tb4.qa.v2.plain_collected/v1",
+            "freeze_sha256": freeze_digest(campaign),
+            "findings": len(rows),
+            "findings_sha256": sha256_file(out / "findings.jsonl"),
+            **tally,
+            "usage": None,
+            "usage_note": "subagent token/cost usage is not captured by this entry: null, not zero",
+        },
+    )
+    write_new(
+        campaign / "closed.json",
+        {
+            "schema": "tb4.qa.v2.closed/v1",
+            "closed_at": now(),
+            "freeze_sha256": freeze_digest(campaign),
+            "system_id": freeze["system_id"],
+            "tasks": {
+                n: {"status": m["status"], "exposed": "aid" in m}
+                for n, m in manifest["tasks"].items()
+            },
+            "status_counts": dict(
+                sorted(Counter(m["status"] for m in manifest["tasks"].values()).items())
+            ),
+        },
+    )
+    print(
+        json.dumps(
+            {
+                "findings": len(rows),
+                "files": tally["files"],
+                "missing": len(tally["missing"]),
+                "invalid": len(tally["invalid"]),
+            }
+        )
+    )
     return 0
 
 
@@ -1180,7 +1593,11 @@ def main(argv: list[str] | None = None) -> int:
         ("verify", cmd_verify, "read-only drift check against the freeze"),
         ("run", cmd_run, "run every task once through the core entry"),
         ("close", cmd_close, "close a crashed campaign without relaunching anything"),
-        ("plain-prepare", cmd_plain_prepare, "build once-only plain-read packets (does not launch)"),
+        (
+            "plain-prepare",
+            cmd_plain_prepare,
+            "build once-only plain-read packets (does not launch)",
+        ),
         ("plain-collect", cmd_plain_collect, "validate and convert plain-read outputs"),
     ):
         p = sub.add_parser(name, help=help_text)

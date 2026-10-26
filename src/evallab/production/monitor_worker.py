@@ -1945,6 +1945,11 @@ class MisalignmentLiveWorker:
                                 prefix is not None and max(_step_id(s) for s in steps) <= prefix
                             ):
                                 run.seen_events.add(source_id)
+                                # Checkpoints carry the run's cumulative count through
+                                # this fully consumed event; later ones supersede it.
+                                committed = isolation.get("withheld")
+                                if isinstance(committed, Mapping):
+                                    run.withheld = {str(k): int(v) for k, v in committed.items()}
                         else:
                             frozen = [
                                 copy.deepcopy(observed[n])

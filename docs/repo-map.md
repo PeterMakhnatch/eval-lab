@@ -567,7 +567,7 @@ inputs:
   - path: src/evallab/production/safe_paths.py
     digest: sha256:bcaab5996fe97a77fa456f340ff5a215f5a063d4cbfbb72645038740e3708e70
   - path: src/evallab/production/seeker_worker.py
-    digest: sha256:7e710fe0b4f352fae1ba97a7a1d606756dbb74e0da87861a5803cea0e7f9a67f
+    digest: sha256:036331043205d98ae11c5d899679cbc71e8e8151c3ee81c254b3cf69f2201811
   - path: src/evallab/production/supervisor.py
     digest: sha256:3ec40b331eab7fd92bea398f91d0ed801485303c943def42a414f8aad6d0d94d
   - path: src/evallab/production/swarm_bench.py
@@ -737,7 +737,7 @@ inputs:
   - path: src/evallab/seeker/feedback.py
     digest: sha256:93206293f24fb8bd1e40a35fa3d783d0cf46041a67f5c0ebb410534c87dc4ace
   - path: src/evallab/seeker/lanes.py
-    digest: sha256:7a60b46a7cd1d9b56a0790b41916db2610f9a48b72af5890246eee2febd68fbd
+    digest: sha256:0d85d86de535d4fe2cb06827c6d4d3edcf4e948906aa8df714bb5cc7fc9d7d53
   - path: src/evallab/seeker/packets.py
     digest: sha256:90f557dbf5bdbe3e209aceae0d4f96bf08aff8ca2975171d317444eed9f59fd8
   - path: src/evallab/seeker/prompt.py

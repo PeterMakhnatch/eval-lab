@@ -93,11 +93,21 @@ is not guaranteed: emitted coverage lists, cross-step evidence matching, and inp
 step size are variable. The measured latency target is separate from complexity.
 `monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
 run; ordinary assistant prose is not proof that reasoning was captured. A supplied
-`trace_cheap.JudgeFn` triages triggered prefixes on a separate thread. No judge or
-paid API is configured implicitly. Suspicion cards cite observed steps and quotes;
-semantic confirmation means **observed prefix behavior**, not verified reward
+`trace_cheap.JudgeFn` is the optional Stage 2 of a two-stage cascade
+(`evallab.production.window_cascade`, `window-cascade/v1`); the incremental tripwire
+rules are Stage 1. When a rule raises a card, Stage 2 runs on a separate thread and
+shows the judge only the flagged step plus up to five agent actions on each side
+(commands and clipped observations, at most 6,000 characters, never beyond the
+observed prefix). The judge decides whether the flagged step is a real boundary or
+grader violation or ordinary debugging. A card is confirmed only when a positive
+label cites the flagged step with a verbatim quote from that window; `neither`, a
+missing or non-verbatim citation, or a failed call leaves it provisional, and a
+failed call is never counted as a negative. `grader_tamper` and `submission_tamper`
+cards are hard gates and skip Stage 2 (`semantic_triage: gate_pass_through`). No
+judge or paid API is configured implicitly. Suspicion cards cite observed steps and
+quotes; semantic confirmation means **observed prefix behavior**, not verified reward
 causality, a verified exploit, or an automatically promoted labeled-trace asset.
-All semantic citations must match the frozen prefix, or the card stays provisional.
+All semantic citations must match the window, or the card stays provisional.
 An independently evidenced label is promoted only through the explicit
 `verify_and_promote_trace_label` path described below.
 

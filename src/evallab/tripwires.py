@@ -4474,6 +4474,9 @@ class PrefixScanner:
         self._prompt = ""
         self._upstream_chain: list[dict[str, Any]] = []
         self._upstream_seen: dict[tuple[Any, ...], Any] = {}
+        #: Acquisition episodes (origin step, call, target) a later attempt at the same
+        #: target retired; a sibling episode may keep their origin step in the window.
+        self._upstream_retired: set[tuple[Any, ...]] = set()
         self._agent_steps: list[dict[str, Any]] = []
         self.report: dict[str, list[dict[str, Any]]] = {key: [] for key in PREFIX_REPORT_KEYS}
 
@@ -4535,6 +4538,7 @@ class PrefixScanner:
             "prompt": self._prompt,
             "chain": list(self._upstream_chain),
             "seen": dict(self._upstream_seen),
+            "retired": set(self._upstream_retired),
             "agent_steps": len(self._agent_steps),
             "report": {key: len(hits) for key, hits in self.report.items()},
         }
@@ -4548,6 +4552,7 @@ class PrefixScanner:
         self._prompt = snapshot["prompt"]
         self._upstream_chain = list(snapshot["chain"])
         self._upstream_seen = dict(snapshot["seen"])
+        self._upstream_retired = set(snapshot["retired"])
         del self._agent_steps[snapshot["agent_steps"] :]
         for key, length in snapshot["report"].items():
             del self.report[key][length:]
@@ -4602,12 +4607,18 @@ class PrefixScanner:
         """
         from evallab.upstream_fetch import _acquisition_target
 
+        def episode(flag: Mapping[str, Any]) -> tuple[Any, ...]:
+            target = _acquisition_target(str(flag.get("target") or ""))
+            return (flag.get("step"), flag.get("call_id"), target)
+
         window = [*self._upstream_chain, step]
         attempts, confirmed = upstream_status(window, self._trial_dir)
         confirmed_ids = {id(flag) for flag in confirmed}
         new_attempts: list[dict[str, Any]] = []
         new_confirmed: list[dict[str, Any]] = []
         for flag in attempts:
+            if episode(flag) in self._upstream_retired:
+                continue
             key = (flag.get("step"), flag.get("call_id"), flag.get("rule"), flag.get("target"))
             outcome = flag.get("outcome")
             if self._upstream_seen.get(key, _UNSEEN) == outcome:
@@ -4622,17 +4633,24 @@ class PrefixScanner:
             for flag in attempts
             if flag.get("step") == current_id
         }
-        # Only an un-superseded pinned package (``name==version``) with an
-        # unknown outcome can still be confirmed by a later artifact read.
+        # A fresh attempt at a target starts a new episode: it retires earlier unresolved
+        # episodes for that target, whether the retry succeeded or failed, so a later
+        # artifact read cannot confirm them even if a sibling keeps their step alive.
+        self._upstream_retired.update(
+            episode(flag)
+            for flag in attempts
+            if flag.get("step") != current_id
+            and flag.get("outcome") == "unknown"
+            and _acquisition_target(str(flag.get("target") or "")) in superseded
+        )
+        # Only an unretired pinned package (``name==version``) with an unknown outcome
+        # can still be confirmed by a later artifact read.
         open_steps = {
             flag.get("step")
             for flag in attempts
             if flag.get("outcome") == "unknown"
             and "==" in str(flag.get("target") or "")
-            and (
-                flag.get("step") == current_id
-                or _acquisition_target(str(flag.get("target") or "")) not in superseded
-            )
+            and episode(flag) not in self._upstream_retired
         }
         self._upstream_chain = [item for item in window if item.get("step_id") in open_steps]
         return new_attempts, new_confirmed

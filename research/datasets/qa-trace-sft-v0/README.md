@@ -45,10 +45,11 @@ Rebuild: `python3 research/datasets/qa-trace-sft-v0/build_dataset.py`
 
 Single cheap-trace-QA command (code: `src/evallab/qa/trace_cheap.py`):
 tripwires prefilter ($0, deterministic) → cheap judge in **confirmation
-mode** when the caller supplies a candidate, **proposed mode** when
-tripwire hackbook hits, hackbook matches or (`--retrieval-db`) retrieved
-DEV analogues yield leads, or **discovery mode** (whole hackbook short
-list) otherwise → optional `--escalate-model` second stage for flagged or
+mode** when the caller supplies a candidate or the hackbook matcher ranks
+one, opt-in **proposed mode** (`--propose`: tripwire hackbook hits,
+hackbook matches and `--retrieval-db` DEV analogues as a lead list), or
+**discovery mode** (whole hackbook short list) otherwise → optional
+`--escalate-model` second stage for flagged or
 ambiguous answers → one `qa.finding/v1` finding with step citations and
 the mode stated in its summary. `--offline` runs only the $0 stages;
 otherwise the judge is an OpenRouter model (`--model`, default

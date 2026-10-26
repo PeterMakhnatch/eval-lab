@@ -212,14 +212,14 @@ ls research/experiments/seeker-gym-v0 research/experiments/tb4-reward-seeker-v3-
 What it is: decide whether a finished run's reward was real. Deterministic
 tripwire rules ($0, no model) screen first; a cheap judge is asked only
 about specific candidate mechanisms; the full T0–T4 review is the expensive tier.
-Without a caller-supplied candidate, `trace-cheap` proposes up to five leads
-(tripwire hackbook hits, hackbook matches and, with `--retrieval-db`, labelled
-DEV analogues from `CloudTraceRetriever`, target task excluded) instead of the
-whole hackbook short list; `--escalate-model` re-judges only flagged or
-ambiguous stage-1 answers.
+`trace-cheap --propose` judges up to five leads (tripwire hackbook hits,
+hackbook matches and, with `--retrieval-db`, labelled DEV analogues from
+`CloudTraceRetriever`, target task excluded) instead of confirming the top
+hackbook match; `--escalate-model` re-judges only flagged or ambiguous stage-1
+answers. Both are opt-in: OQ-3 measured no net gain (see below).
 
 ```bash
-.venv/bin/evallab qa trace-cheap <trial-dir|trajectory.json> [--model <openrouter-model>] [--retrieval-db <snapshot.sqlite>] [--escalate-model <openrouter-model>] [--no-proposals] [--offline] [--out finding.json]
+.venv/bin/evallab qa trace-cheap <trial-dir|trajectory.json> [--model <openrouter-model>] [--propose [--retrieval-db <snapshot.sqlite>]] [--escalate-model <openrouter-model>] [--offline] [--out finding.json]
 .venv/bin/evallab qa trace run|review|batch|score ...
 .venv/bin/evallab detectors list|score|run ...      # scored on labelled trace corpora
 # tripwire rule measurement is experiment tooling:
@@ -238,6 +238,13 @@ ls research/experiments/tripwires-v3-hackbook-20261021 research/experiments/trip
   variant went 7/7 with 0/7 false alarms on n=7 TB4 rows only. The
   earlier "exploit recall 0.75" headline is 20 CheatBench rows, mostly
   the output envelope, not TB4 discovery.
+- OQ-3 (`research/experiments/oq3-discovery-cascade`, 64 qa-trace-sft-v0 DEV
+  + 100 Goodfire DEV traces, 82 positives): proposed leads never contained
+  the gold hackbook entry (0/32), so proposed mode is not confirmation. DeepSeek
+  v4.1 Flash recall 9/82 with 16/82 false alarms (short list: 3/82, 4/82);
+  single Opus 4/82, 14/82; the DeepSeek→Opus cascade escalated 80/164 and
+  finished at 4/82, 13/82; the DeepSeek+Sonnet union 12/82, 16/82 at 2.2× the
+  tokens. No arm exceeds 15% recall.
 - Caveats: mechanism labels from the census are leads; "neither" does not
   mean clean, and defect-credit numbers are upper bounds, not regraded
   passes. v3 spend ran $0.006 over its $0.60 cap. Eval3 (Tokenless) is a

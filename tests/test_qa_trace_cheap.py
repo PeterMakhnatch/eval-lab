@@ -210,7 +210,7 @@ def test_without_candidate_tripwires_and_retrieval_propose_leads(tmp_path: Path)
     answer = {"label": "neither", "mechanism": None, "evidence": []}
     result = run_trace_cheap(
         _tamper_trial(tmp_path), judge=_judge(answer, seen), task_id="target-task",
-        root=REPO, retriever=retriever,  # type: ignore[arg-type]
+        root=REPO, propose=True, retriever=retriever,  # type: ignore[arg-type]
     )
     assert result["mode"] == "proposed"
     sources = [p["source"] for p in result["proposals"]]

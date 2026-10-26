@@ -7,15 +7,16 @@ Pipeline (one trial in, ``qa.finding/v1`` out):
    hackbook entry ids of ``hb_*`` hits are recorded, and the judge's action
    window is centred on the flagged steps.
 2. **Candidate mechanisms**:
-   - *confirmation mode* when the caller supplies candidates (``candidate_fn``):
-     the judge is asked about that one mechanism (the v2 harness);
-   - *proposed mode* otherwise, when anything can be proposed: up to
-     :data:`MAX_PROPOSALS` leads from tripwire hackbook hits, ranked hackbook
+   - *confirmation mode* when the caller supplies candidates (``candidate_fn``)
+     or, by default, the hackbook matcher ranks one: the judge is asked about
+     that one mechanism (the v2 harness);
+   - *proposed mode* (opt-in ``propose=True``) when anything can be proposed: up
+     to :data:`MAX_PROPOSALS` leads from tripwire hackbook hits, ranked hackbook
      matches (:func:`evallab.hackbook.matcher.match_trace`) and, with a
      ``retriever``, labelled DEV analogues from
      :class:`evallab.production.cloud_trace_db.CloudTraceRetriever` (target
      task excluded). The judge must pick one candidate the actions witness;
-   - *discovery mode* when nothing is proposed: the whole hackbook short list.
+   - *discovery mode* otherwise: the whole hackbook short list.
 3. **Cheap judge** (OpenRouter, structured JSON-schema output + one repair
    retry, cite-the-step-or-abstain enforced in this module).
 4. **Optional escalation** (two-stage cascade): when an ``escalate_judge`` is
@@ -479,24 +480,32 @@ def run_trace_cheap(
     root: Path | None = None,
     candidate_fn: Callable[[Path], list[dict[str, Any]]] | None = None,
     offline: bool = False,
-    propose: bool = True,
+    propose: bool = False,
     retriever: CloudTraceRetriever | None = None,
     escalate_judge: JudgeFn | None = None,
     escalate_model: str | None = None,
 ) -> dict[str, Any]:
     """Full pipeline for one trial; returns ``{finding, mode, ...}`` (no writes).
 
-    ``candidate_fn`` supplies caller-known candidates (confirmation mode) and
-    replaces the hackbook matcher; ``propose=False`` disables proposals so an
-    empty candidate list falls back to short-list discovery. An escalation
-    stage runs when ``escalate_judge`` (or ``escalate_model``) is given.
+    ``candidate_fn`` supplies caller-known candidates and replaces the hackbook
+    matcher. By default the top hackbook match is confirmed and no match means
+    short-list discovery. ``propose=True`` instead turns every lead (matcher,
+    tripwire hackbook hits, ``retriever`` analogues) into a proposed candidate
+    list; it is opt-in because OQ-3 measured no net gain (see
+    ``research/experiments/oq3-discovery-cascade``). An escalation stage runs
+    when ``escalate_judge`` (or ``escalate_model``) is given.
     """
     steps, traj = load_steps(Path(target))
     actions = actions_only(steps)
     prefilter = tripwire_prefilter(steps)
     resolved_task = task_id or (Path(target).name if Path(target).is_dir() else traj.parent.name)
     trial_id = traj.parent.parent.name if traj.parent.name == "agent" else traj.stem
-    candidates = candidate_fn(traj) if candidate_fn is not None else []
+    if candidate_fn is not None:
+        candidates = candidate_fn(traj)
+    elif not propose:
+        candidates = hackbook_candidates(traj, task_dir=task_dir, root=root)
+    else:
+        candidates = []
     candidate = candidates[0] if candidates else None
     proposals: list[dict[str, Any]] = []
     proposal_receipt: dict[str, Any] = {}
@@ -590,6 +599,9 @@ def run_trace_cheap(
 
 def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
     retriever = None
+    if args.retrieval_db and not args.propose:
+        print("error: evallab qa trace-cheap: --retrieval-db requires --propose", file=sys.stderr)
+        return 2
     try:
         if args.retrieval_db:
             from evallab.production.cloud_trace_db import CloudTraceDatabase, CloudTraceRetriever
@@ -602,7 +614,7 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
             task_id=args.task_id,
             root=root,
             offline=args.offline,
-            propose=not args.no_proposals,
+            propose=args.propose,
             retriever=retriever,
             escalate_model=args.escalate_model,
         )
@@ -635,8 +647,8 @@ def add_trace_cheap_commands(sub: Any) -> None:
     """Register ``trace-cheap`` under ``evallab qa``."""
     p = sub.add_parser(
         "trace-cheap",
-        help="Cheap-model trace QA: tripwires -> proposed candidates -> cheap judge "
-        "[-> escalation] (qa.finding/v1)",
+        help="Cheap-model trace QA: tripwires -> hackbook candidate (or --propose leads) "
+        "-> cheap judge [-> escalation] (qa.finding/v1)",
     )
     p.add_argument("target", type=Path, help="Trial dir, or its agent/trajectory.json")
     p.add_argument("--model", default=DEFAULT_MODEL, help="OpenRouter model id")
@@ -645,15 +657,16 @@ def add_trace_cheap_commands(sub: Any) -> None:
     )
     p.add_argument("--task-id", default=None, help="Subject task id (default: trial dir name)")
     p.add_argument(
-        "--retrieval-db",
-        default=None,
-        help="Cloud Trace DB (SQLite path or URL) for DEV analogue proposals; "
-        "the target task is excluded. Use a snapshot: opening initializes the schema.",
+        "--propose",
+        action="store_true",
+        help="Judge a proposed list of leads (hackbook matches, tripwire hackbook hits, "
+        "--retrieval-db analogues) instead of confirming the top match; measured in OQ-3",
     )
     p.add_argument(
-        "--no-proposals",
-        action="store_true",
-        help="Disable proposals: no candidate means hackbook short-list discovery",
+        "--retrieval-db",
+        default=None,
+        help="With --propose: Cloud Trace DB (SQLite path or URL) for DEV analogues; "
+        "the target task is excluded. Use a snapshot: opening initializes the schema.",
     )
     p.add_argument(
         "--escalate-model",

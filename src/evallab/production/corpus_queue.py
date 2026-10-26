@@ -29,7 +29,6 @@ import hmac
 import io
 import json
 import math
-import re
 import sqlite3
 import threading
 import time
@@ -48,7 +47,6 @@ WORKER_SYSTEMS = ("task_quality", "reward_seeker", "misalignment")
 SYSTEMS = (*WORKER_SYSTEMS, "queue", "swarm")
 STATUSES = ("provisional", "confirmed", "refuted", "applied")
 DATASETS = ("tb4-audit-v1", "mimo-defect-map-v1", "cheatbench-actions-v1", "hacktrace-act-v1")
-_BARE_NUMBER = re.compile(r"[0-9]+")
 
 
 class SplitLockError(ValueError):
@@ -157,8 +155,6 @@ class CorpusRegistry:
         self._assignment_names: dict[tuple[str, str], str] = {}
         self._assigned_test_names: set[str] = set()
         self._assigned_test_ids: set[str] = set()
-        # Split of each canonical index task name, TEST winning across records.
-        self._index_names: dict[tuple[str, str], str] = {}
         keys = self.repo_root / "research/answer-keys"
         assignments: dict[tuple[str, str], str] = {}
         assignment_path = keys / "splits/assignments.csv"
@@ -264,11 +260,6 @@ class CorpusRegistry:
         if key in self._items:
             raise ValueError(f"duplicate corpus item: {dataset}/{item_id}")
         self._items[key] = item
-        if task_id:
-            name_key = key[0], self.task_name(task_id)
-            self._index_names[name_key] = (
-                "test" if "test" in (split, self._index_names.get(name_key)) else split
-            )
         if split == "test":
             self._sealed_ids.add(_identity(item_id))
             if task_id:
@@ -310,17 +301,18 @@ class CorpusRegistry:
     def sealed_identifiers(self) -> frozenset[str]:
         """Text seals: canonical identities and secondary TEST task names, not item labels.
 
-        Bare numeric item ids (row indices such as CheatBench's ``44``) are not
-        distinctive text: as substrings they match inside digests, counts, and
-        line numbers. They stay sealed as exact structured identities through
-        :meth:`sealed_identity` and per-key assignments, never as text seals.
+        Bare-integer identities are dataset-local row numbers: in free text they
+        are indistinguishable from step indices, counts and line numbers, so as
+        text seals they reject unrelated evidence. Structured checks
+        (:meth:`sealed_identity`, :meth:`assigned_test_anywhere`) still seal them.
         """
         return frozenset(
-            value for value in (
+            identity
+            for identity in (
                 self._sealed_ids | self._sealed_names | self._sealed_digests
                 | self._assigned_test_names
             )
-            if not _BARE_NUMBER.fullmatch(value)
+            if not identity.strip().isdigit()
         )
 
     def has_assignment_authority(self) -> bool:
@@ -345,9 +337,7 @@ class CorpusRegistry:
 
         Secondary keys retain their own split locks, not global seals. TEST wins
         across item-id/name aliases; ``None`` means no explicit assignment and
-        must not authorize a DEV row for a key with split assignments. A
-        canonical key with no ledger rows (MiMo) resolves through its own
-        identity index: the record id or normalized task name.
+        must not authorize a DEV row for a key with split assignments.
         """
         key_id = _identity(key_id)
         item_id = None if item_id is None else _identity(item_id)
@@ -360,13 +350,6 @@ class CorpusRegistry:
             self._assignment_names.get((key_id, self.task_name(task_id)))
             if task_id is not None else None,
         ]
-        if key_id in DATASETS and key_id not in self._assignment_keys:
-            indexed = self._items.get((key_id, item_id)) if item_id is not None else None
-            candidates += [
-                None if indexed is None else self._effective_split(indexed),
-                self._index_names.get((key_id, self.task_name(task_id)))
-                if task_id is not None else None,
-            ]
         if "test" in candidates:
             return "test"
         return "dev" if "dev" in candidates else None

@@ -541,7 +541,7 @@ inputs:
   - path: src/evallab/production/corpus_expansion.py
     digest: sha256:be331af40c61e9b9da933b994bfcbbb0409d582707a3714e837b1940a0fa5f59
   - path: src/evallab/production/corpus_queue.py
-    digest: sha256:b40155ddc51e85e4cb61c38d1f2cfebf913a73054557e15540ccfd190ddd865f
+    digest: sha256:6c210efe2e89022392877917751709e9e2829d2bad588f7015cc62bf9d590a37
   - path: src/evallab/production/dashboard.py
     digest: sha256:d1dc26100cfde48f0b89a84f4a2e24fd15983b664d45d15fe413c68505eb331e
   - path: src/evallab/production/feeder.py

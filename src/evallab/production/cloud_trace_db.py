@@ -1783,19 +1783,21 @@ class CloudTraceRetriever:
                 and CorpusRegistry.task_name(task_id).casefold() not in excluded
             ]
             candidates = database._retrieval_task_ids(admitted, query, terms)
-            # Widening is seeded by matches backed by evidence at any tier, but
-            # its size is judged only by evidence that can actually be
-            # returned: a matching task whose evidence is all provisional
-            # never counts as a hit (this is lookahead only; the rest of the
-            # pipeline is unchanged). With no backed match at all, there is
-            # nothing to widen. Issue-led retrieval (task_quality, issue_kind)
-            # keeps strict all-term matching; trace-led kinds widen.
+            # When fewer than top_k matching tasks hold returnable evidence,
+            # every kind (issue-led included) widens to documents matching any
+            # term; ranking stays (tier, per-term strength), so tier 1 still
+            # outranks tier 2 and matching more terms ranks higher within a
+            # tier. Widening is seeded by matches backed by evidence at any
+            # tier, but its size is judged only by evidence that can actually
+            # be returned (lookahead only; screening and the rest of the
+            # pipeline are unchanged). With no backed match there is nothing
+            # to widen.
             eligible = 0
             if candidates:
                 eligible = sum(
                     task_id in database._evidence_task_ids(allowed) for task_id in candidates
                 )
-            if eligible < top_k and kind != "task_quality" and issue_kind is None:
+            if eligible < top_k:
                 widened = database._retrieval_task_ids(
                     admitted, query, terms, conjunction=False,
                 )

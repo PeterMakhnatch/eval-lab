@@ -7,6 +7,7 @@ import os
 import time
 import uuid
 from collections.abc import Callable
+from contextlib import suppress
 from typing import Any
 from urllib.request import Request, urlopen
 
@@ -106,10 +107,8 @@ def _span_secret_hits(spans: list[dict[str, Any]]) -> bool:
         for name in ("lmnr.span.input", "lmnr.span.output"):
             value = attributes.get(name)
             if isinstance(value, str):
-                try:
+                with suppress(ValueError):
                     attributes[name] = json.loads(value)
-                except ValueError:
-                    pass
         if secret_hits({**span, "attributes": attributes}):
             return True
     return False

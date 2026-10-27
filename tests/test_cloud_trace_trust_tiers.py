@@ -216,10 +216,19 @@ def test_issue_card_and_pointer_expansion_fail_closed(
     ]
     assert retriever.expand_pointer("issue:verified/issue")["issue"]["reproducer_script"].endswith("true")
 
-    # Provisional rows expand only on request; unknown rows and sealed identities never.
+    # Provisional rows expand only on request; unknown rows and sealed identities
+    # never. A refused pointer reads identity/trust columns only, never a body.
+    statements: list[str] = []
+    db._connection.set_trace_callback(statements.append)
     for pointer in ("issue:lead/issue", "trace:lead/trace:0-3", "trace:missing", "issue:missing"):
         with pytest.raises(ValueError, match="returnable"):
             retriever.expand_pointer(pointer)
+    db._connection.set_trace_callback(None)
+    reads = [statement for statement in statements if statement.lstrip().upper().startswith("SELECT")]
+    assert reads and not any(
+        body in statement for statement in reads
+        for body in ("SELECT *", "trace_steps", "reproducer_script", "flagged_passage_steps")
+    )
     assert retriever.expand_pointer("issue:lead/issue", include_provisional=True)["trust_tier"] == TIER3
     sealed = CloudTraceRetriever(db, registry=SyntheticRegistry(), sealed_task_ids=("verified",))
     with pytest.raises(ValueError, match="sealed"):

@@ -211,7 +211,14 @@ extra query.
 retrieval's own rules: admitted DEV task, returnable tier (`include_provisional`
 as in retrieval), every returned row free of sealed identities, at most
 `max_steps` (default 20) non-user steps, the same bounded fields and `flagged`
-marks. Anything else raises `ValueError` without saying whether the row exists.
+marks. Admission and trust are decided from identity columns, inside an
+admitted-task SQL scope, before any issue, trace or step body is read. Anything
+else raises `ValueError` without saying whether the row exists.
+`trace_feature_flags.inspect_step_window(steps, idx, task=...)` likewise refuses
+(`PermissionError`) before reading a step unless the trace's identity row is admitted
+DEV by `admitted_cloud_task_ids`. It discloses only agent/tool steps (never user or
+system prompts), as fresh projections whose command, prose and observation are each
+cut to `max_chars` (default 600).
 
 `evallab.production.CloudTraceRetriever` supplies a bounded, read-only DEV
 projection for consumers that need prior verified evidence. A local SQLite

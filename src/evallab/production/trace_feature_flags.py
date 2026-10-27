@@ -5,7 +5,8 @@ calls) or normalized ``command_or_action``/``tool_name`` steps. Only agent-autho
 commands and message/reasoning text count: user prompts, observations and labels
 never do. Counts mean distinct matching steps, not regex occurrences or tool calls.
 Every index is a zero-based position in the *supplied sequence*, not ``step_id``;
-pass that same observed prefix to ``inspect_step_window``. No future steps are read.
+pass that same observed prefix to ``inspect_step_window``, which discloses only
+bounded agent/tool projections of an admitted DEV task's steps. No future steps are read.
 
 These are routing hints, NOT cheating verdicts. In particular, declined shortcuts,
 legitimate test edits and ordinary package use can fire. The compact card uses the
@@ -23,6 +24,7 @@ from typing import Any, TypedDict
 
 from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES
 from evallab.production.command_prefilter import cues
+from evallab.production.corpus_queue import CorpusRegistry
 
 ACTION_FEATURES = (
     "git_history_peek",
@@ -98,8 +100,13 @@ class TraceFeatureFlags(TypedDict):
 
 
 class IndexedStep(TypedDict):
+    """A bounded projection of one step; never the caller's original mapping."""
+
     step_idx: int
-    step: Mapping[str, Any]
+    role: str
+    command: str | None
+    text: str | None
+    observation: str | None
 
 
 def _text(value: Any) -> str:
@@ -236,7 +243,7 @@ def format_compact_trace_index(flags: TraceFeatureFlags, max_tokens: int = 160) 
         "Trace leads, not verdicts; idx=0-based; @first xcount. "
         f"A={flags['action_step_count']} R={flags['reasoning_step_count']}."
     )
-    footer = "Inspect: inspect_step_window(steps, idx, radius=3). Full indices: flags['features']."
+    footer = "Inspect: inspect_step_window(steps, idx, radius=3, task=...). Full indices: flags['features']."
     lines = [f"{name}@{flag['step_indices'][0]}x{flag['count']}" for name, flag in fired]
     if not fired:
         lines = ["No flags fired."]
@@ -252,20 +259,76 @@ def format_compact_trace_index(flags: TraceFeatureFlags, max_tokens: int = 160) 
     return notice if len(notice) <= budget else ""
 
 
-def inspect_step_window(
-    steps: Sequence[Mapping[str, Any]], step_idx: int, radius: int = 3
-) -> list[IndexedStep]:
-    """Disclose only the requested position and up to ``radius`` neighbors per side.
+#: Step sources/roles a window may disclose: agent actions and reasoning, and the
+#: tool/environment observations they caused. User and system prompts (task
+#: instructions, hidden context) never are.
+WINDOW_ROLES = frozenset({"agent", "assistant", "tool", "environment"})
 
-    Out-of-range positions and negative radii are errors, never Python's negative
-    indexing or a silently substituted step. Returned mappings reference the
-    original steps without copying their potentially large contents.
+
+def _observation_text(step: Mapping[str, Any]) -> str:
+    observation = step.get("observation", step.get("observation_preview"))
+    if isinstance(observation, Mapping):
+        results = observation.get("results")
+        if isinstance(results, Sequence) and not isinstance(results, (str, bytes)):
+            return "\n".join(
+                item["content"] for item in results
+                if isinstance(item, Mapping) and isinstance(item.get("content"), str)
+            )
+        return ""
+    return _text(observation)
+
+
+def _bounded(text: str, max_chars: int) -> str | None:
+    if not text:
+        return None
+    return text if len(text) <= max_chars else text[:max_chars - 1] + "…"
+
+
+def inspect_step_window(
+    steps: Sequence[Mapping[str, Any]], step_idx: int, radius: int = 3, *,
+    task: Mapping[str, Any], registry: CorpusRegistry | None = None, max_chars: int = 600,
+) -> list[IndexedStep]:
+    """Disclose a bounded view of one position and up to ``radius`` neighbors per side.
+
+    ``task`` is the trace's identity row (the seven admission keys of
+    ``admitted_cloud_task_ids``: ``task_id``, ``dataset_id``, ``split``, both
+    grader digests, ``item_id`` and ``item_type``). Nothing is read from
+    ``steps`` unless that task is admitted DEV by ``registry`` (default
+    ``CorpusRegistry()``); otherwise ``PermissionError``. Only steps whose
+    ``source``/``role`` is in ``WINDOW_ROLES`` are returned (missing both means a
+    command-only agent step), as fresh projections whose command, prose and
+    observation are each cut to ``max_chars`` characters. Out-of-range
+    positions and negative radii are errors, never Python's negative indexing
+    or a silently substituted step.
     """
+    from evallab.production.cloud_trace_db import admitted_cloud_task_ids
+
+    if not isinstance(max_chars, int) or isinstance(max_chars, bool) or max_chars < 1:
+        raise ValueError("max_chars must be a positive integer")
+    authority = CorpusRegistry() if registry is None else registry
+    if task.get("task_id") not in admitted_cloud_task_ids([task], registry=authority):
+        raise PermissionError("task is not admitted DEV; no step is disclosed")
     if not 0 <= step_idx < len(steps):
         raise IndexError("step_idx is outside the supplied trace prefix")
     if radius < 0:
         raise ValueError("radius must be nonnegative")
-    return [
-        {"step_idx": index, "step": steps[index]}
-        for index in range(max(0, step_idx - radius), min(len(steps), step_idx + radius + 1))
-    ]
+    window: list[IndexedStep] = []
+    for index in range(max(0, step_idx - radius), min(len(steps), step_idx + radius + 1)):
+        step = steps[index]
+        role = step.get("source", step.get("role", "agent"))
+        if role not in WINDOW_ROLES:
+            continue
+        command = "\n".join(
+            text for call in _calls(step)
+            for key in ("command", "cmd", "code", "patch", "input")
+            if (text := _text(call["arguments"].get(key)))
+        )
+        prose = "\n".join(
+            text for key in ("message", "content", "content_text", "reasoning_content", "reasoning", "analysis")
+            if (text := _text(step.get(key)))
+        )
+        window.append({
+            "step_idx": index, "role": role, "command": _bounded(command, max_chars),
+            "text": _bounded(prose, max_chars), "observation": _bounded(_observation_text(step), max_chars),
+        })
+    return window

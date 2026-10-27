@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from typing import Any
 
 import pytest
 
+from evallab.production.corpus_queue import CorpusRegistry
 from evallab.production.trace_feature_flags import (
     ACTION_FEATURES,
     REASONING_FEATURES,
@@ -194,7 +196,7 @@ def test_card_names_flags_exact_inspection_indices_and_diagnostic_limit() -> Non
     assert "git_history_peek@1x1" in card
     assert "reasoning_mentions_hardcode@1x1" in card
     assert "leads, not verdicts" in card
-    assert "inspect_step_window(steps, idx, radius=3)" in card
+    assert "inspect_step_window(steps, idx, radius=3, task=...)" in card
     assert "idx=0-based" in card
     assert len(card) <= 160 * 4
 
@@ -230,23 +232,80 @@ def test_all_fired_families_remain_visible_at_default_budget() -> None:
     assert len(card) <= 640
 
 
+class SyntheticRegistry(CorpusRegistry):
+    """Valid split authority that admits the synthetic non-canonical DEV corpus."""
+
+    def __init__(self) -> None:
+        authority = b"key_id,item_id,split\nsynthetic-authority,source,dev\n"
+        self.split_assignments_digest = "sha256:" + hashlib.sha256(authority).hexdigest()
+        self._assignment_keys = frozenset({"synthetic-authority"})
+        self._assignments = {("synthetic-authority", "source"): "dev"}
+        self._assignment_names = {}
+        self._assigned_test_ids = set()
+        self._assigned_test_names = set()
+        self._sealed_names = set()
+        self._sealed_digests = set()
+        self._sealed_ids = set()
+
+
+TASK = {
+    "task_id": "synthetic-task", "dataset_id": "synthetic-corpus", "split": "dev",
+    "original_grader_digest": None, "repaired_grader_digest": None, "item_id": None, "item_type": None,
+}
+
+
+def _window(steps: list[dict[str, Any]], index: int, **options: Any) -> list[Any]:
+    return inspect_step_window(steps, index, task=options.pop("task", TASK), registry=SyntheticRegistry(), **options)
+
+
 def test_window_is_bounded_by_supplied_prefix_and_preserves_exact_positions() -> None:
     steps = [_step(f"echo {index}", step_id=1000 + index) for index in range(10)]
-    window = inspect_step_window(steps, 5)
+    window = _window(steps, 5)
     assert [item["step_idx"] for item in window] == list(range(2, 9))
-    assert window[3]["step"] is steps[5]
-    assert [item["step_idx"] for item in inspect_step_window(steps[:4], 3)] == [0, 1, 2, 3]
-    assert [item["step_idx"] for item in inspect_step_window(steps, 0, radius=0)] == [0]
+    assert window[3] == {"step_idx": 5, "role": "agent", "command": "echo 5", "text": None, "observation": None}
+    assert [item["step_idx"] for item in _window(steps[:4], 3)] == [0, 1, 2, 3]
+    assert [item["step_idx"] for item in _window(steps, 0, radius=0)] == [0]
+
+
+def test_window_discloses_only_bounded_agent_and_tool_projections() -> None:
+    secret = "hidden instructions " * 50
+    steps = [
+        {"source": "system", "message": secret},
+        {"source": "user", "message": secret},
+        _step("x" * 900, message="I will hardcode it", reasoning_content="think"),
+        {"role": "tool", "observation": {"results": [{"content": "ok " * 400}]}},
+    ]
+    window = _window(steps, 2, max_chars=50)
+    assert [(item["step_idx"], item["role"]) for item in window] == [(2, "agent"), (3, "tool")]
+    assert window[0]["command"] == "x" * 49 + "…"
+    assert window[0]["text"] == "I will hardcode it\nthink"
+    assert len(window[1]["observation"] or "") == 50
+    assert "hidden" not in json.dumps(window)
+    assert steps[2]["tool_calls"][0]["arguments"]["command"] == "x" * 900  # input untouched
+    with pytest.raises(ValueError, match="max_chars"):
+        _window(steps, 2, max_chars=0)
+
+
+@pytest.mark.parametrize("change", [
+    {"split": "test"}, {"split": None}, {"item_type": "integer"}, {"task_id": "vf2-speedup-networkx"},
+])
+def test_window_refuses_unadmitted_tasks_before_reading_steps(change: dict[str, Any]) -> None:
+    class Unreadable(list):
+        def __getitem__(self, index: Any) -> Any:
+            raise AssertionError("a step was read")
+
+    with pytest.raises(PermissionError, match="not admitted"):
+        _window(Unreadable([_step()]), 0, task={**TASK, **change})
 
 
 @pytest.mark.parametrize("index", [-1, 4])
 def test_window_rejects_nonexistent_positions(index: int) -> None:
     with pytest.raises(IndexError, match="supplied trace prefix"):
-        inspect_step_window([_step()] * 4, index)
+        _window([_step()] * 4, index)
     with pytest.raises(IndexError):
-        inspect_step_window([], 0)
+        _window([], 0)
 
 
 def test_window_rejects_negative_radius() -> None:
     with pytest.raises(ValueError, match="radius"):
-        inspect_step_window([_step()], 0, radius=-1)
+        _window([_step()], 0, radius=-1)

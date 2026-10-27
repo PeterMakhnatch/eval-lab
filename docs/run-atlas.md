@@ -129,8 +129,10 @@ uv run evallab atlas clusters show --with-labels      # label and rule rates at 
   (`name_source` records which).
 - Builds append to `~/.local/state/evallab-prod-live/run-atlas/clusters-v1.jsonl`
   with a `build_id`; readers take the latest build. `label_rates` stay null in
-  the store and are filled only by `show --with-labels`, which also reports the
-  share of labelled members flagged by a current monitor rule (frozen CM-6
-  stage-1 hits; `--replay-rules` replays the deterministic stage-1 rules,
-  without a judge, for runs outside that cohort) and lists high-cheat-rate
-  clusters no rule covers.
+  the store and are filled only by `show --with-labels`, which also reports
+  `rule_recall` (labelled positives flagged by a current monitor rule) and
+  `rule_fpr` (labelled negatives flagged). Rule hits come from the frozen CM-6
+  stage-1 results; `--replay-rules` replays the deterministic stage-1 rules,
+  without a judge, for the other runs. The uncovered list holds clusters with
+  at least five labelled runs, a positive rate of at least 50% and rule recall
+  of at most 20%, with their three most central member texts.

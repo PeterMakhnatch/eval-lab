@@ -1492,19 +1492,25 @@ def _tune_cross_test_report(*, cross: bool = True) -> dict[str, Any]:
 
 
 def _seeker_executed_report() -> dict[str, Any]:
-    def condition(name: str, static: int | None, hits: tuple[int, int]) -> dict[str, Any]:
+    def condition(name: str, a: tuple[int, int, int], b: tuple[int, int, int]) -> dict[str, Any]:
+        def cells(dataset: str, counts: tuple[int, int, int]) -> dict[str, Any]:
+            return {
+                "dataset_id": dataset,
+                "cells_n": counts[0],
+                "attested_n": counts[1],
+                "executed_differential_n": counts[2],
+            }
+
         return {
             "condition": name,
-            "static_match_n": static,
-            "executed_differential_n": sum(hits),
-            "executed_by_dataset": [
-                {"dataset_id": "synthetic-a", "count_n": hits[0]},
-                {"dataset_id": "synthetic-b", "count_n": hits[1]},
-            ],
+            "cells_n": a[0] + b[0],
+            "attested_n": a[1] + b[1],
+            "executed_differential_n": a[2] + b[2],
+            "by_dataset": [cells("synthetic-a", a), cells("synthetic-b", b)],
         }
 
     return {
-        "schema": "evallab.seeker_executed_differentials/v1",
+        "schema": "evallab.seeker_executed_differentials/v2",
         "protocol": "synthetic-executed-protocol",
         "cohort": {
             "split": "dev",
@@ -1522,12 +1528,17 @@ def _seeker_executed_report() -> dict[str, Any]:
                 "arm": model,
                 "requested_model": model,
                 "conditions": [
-                    condition("turn_1", 5, (0, 1)),
-                    condition("turn_2", None, (4, 4)),
+                    condition("turn_1", (6, 5, 0), (4, 4, 1)),
+                    # A partial condition: only 3 of 6 synthetic-a tasks were ever evaluated.
+                    condition("turn_2_partial", partial, (0, 0, 0)),
                 ],
             }
-            for model in ("provider/model-one", "provider/model-two")
+            for model, partial in (
+                ("provider/model-one", (3, 3, 3)),
+                ("provider/model-two", (0, 0, 0)),
+            )
         ],
+        "source_sha256": hashlib.sha256(b"synthetic cell lines").hexdigest(),
         "generated_at": "2026-10-27T10:00:00Z",
     }
 
@@ -1726,13 +1737,32 @@ _TRUST_QC_REJECTIONS = [
     (_seeker_executed_report, _set(("cohort", "audited_n"), 13)),
     (_seeker_executed_report, _set(("cohort", "datasets", 0, "count_n"), 7)),
     (_seeker_executed_report, _set(("cohort", "split"), "test")),
-    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "executed_differential_n"), 4)),
-    (_seeker_executed_report, _set(("arms", 0, "conditions", 1, "executed_by_dataset", 0, "count_n"), 7)),
-    (_seeker_executed_report, _set(("arms", 0, "conditions", 1, "executed_by_dataset"), [])),
-    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "static_match_n"), 11)),
+    # The count that VF-5 found published: executed above the arm's evaluated cells.
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 1, "executed_differential_n"), 5)),
+    (
+        _seeker_executed_report,
+        _set(("arms", 0, "conditions", 1, "by_dataset", 0, "executed_differential_n"), 4),
+    ),
+    (_seeker_executed_report, _set(("arms", 1, "conditions", 1, "executed_differential_n"), 1)),
+    (
+        _seeker_executed_report,
+        # A whole-cohort count for an arm that evaluated nothing in this condition.
+        lambda report: (
+            _set(("arms", 1, "conditions", 1, "cells_n"), 10)(report),
+            _set(("arms", 1, "conditions", 1, "attested_n"), 10)(report),
+            _set(("arms", 1, "conditions", 1, "executed_differential_n"), 10)(report),
+        ),
+    ),
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "attested_n"), 10)),
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "executed_differential_n"), 10)),
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "cells_n"), 11)),
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "by_dataset", 0, "cells_n"), 7)),
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "by_dataset"), [])),
     (_seeker_executed_report, _set(("arms", 1, "conditions", 0, "condition"), "turn_9")),
     (_seeker_executed_report, _set(("arms", 1, "requested_model"), "PROVIDER/model-one")),
     (_seeker_executed_report, _set(("arms", 0, "requested_model"), "no-provider")),
+    (_seeker_executed_report, _set(("source_sha256",), "abc")),
+    (_seeker_executed_report, _set(("schema",), "evallab.seeker_executed_differentials/v1")),
     # Monitor cascade: every identity cross-key checked and clean, hits inside the cohort.
     (_monitor_cascade_report, _set(("cohorts", 0, "non_dev_assignment_n"), 1)),
     (_monitor_cascade_report, _set(("cohorts", 0, "identities_checked_n"), 30)),

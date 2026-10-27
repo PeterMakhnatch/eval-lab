@@ -565,11 +565,30 @@ class _ExecutedCohort(_BenchmarkRecord):
         return self
 
 
-class _ExecutedCondition(_BenchmarkRecord):
-    condition: _Label
-    static_match_n: _Count | None
+class _CellCounts(_BenchmarkRecord):
+    """Evaluated, attested and executed-differential cells; each count bounds the next."""
+
+    cells_n: _Count
+    attested_n: _Count
     executed_differential_n: _Count
-    executed_by_dataset: list[_DatasetCount]
+
+    @model_validator(mode="after")
+    def validate_funnel(self) -> Self:
+        if not self.executed_differential_n <= self.attested_n <= self.cells_n:
+            raise ValueError(
+                "executed_differential_n must not exceed attested_n, "
+                "which must not exceed the evaluated cells_n"
+            )
+        return self
+
+
+class _DatasetCells(_CellCounts):
+    dataset_id: _Label
+
+
+class _ExecutedCondition(_CellCounts):
+    condition: _Label
+    by_dataset: list[_DatasetCells]
 
     @field_validator("condition")
     @classmethod
@@ -579,9 +598,10 @@ class _ExecutedCondition(_BenchmarkRecord):
         return value
 
     @model_validator(mode="after")
-    def validate_split_of_hits(self) -> Self:
-        if sum(row.count_n for row in self.executed_by_dataset) != self.executed_differential_n:
-            raise ValueError("per-dataset executed differentials must sum to the condition total")
+    def validate_split_of_cells(self) -> Self:
+        for field in ("cells_n", "attested_n", "executed_differential_n"):
+            if sum(getattr(row, field) for row in self.by_dataset) != getattr(self, field):
+                raise ValueError(f"per-dataset {field} must sum to the condition total")
         return self
 
 
@@ -599,17 +619,20 @@ class _ExecutedArm(_BenchmarkRecord):
 
 
 class _SeekerExecutedDifferentials(_BenchmarkRecord):
-    """Executed paired-grader differentials beside static mechanism matches, per model.
+    """Executed paired-grader differentials per model and prompt condition.
 
-    A static match names a mechanism; an executed differential passed the original
-    grader and failed the repaired grader when run. The two are reported separately
-    and never merged into one score.
+    An executed differential is a cell whose original grader passed (reward 1.0) and
+    whose repaired grader failed it (reward 0.0) when run. Only attested cells, whose
+    output matched its recorded digest and whose served model was the requested one,
+    can count. A condition's counts can never exceed the cells actually evaluated for
+    that arm, so a partial arm (or one with no cells) cannot be reported at full scale.
     """
 
-    schema_: Literal["evallab.seeker_executed_differentials/v1"] = Field(alias="schema")
+    schema_: Literal["evallab.seeker_executed_differentials/v2"] = Field(alias="schema")
     protocol: _Label
     cohort: _ExecutedCohort
     arms: Annotated[list[_ExecutedArm], Field(min_length=1)]
+    source_sha256: _Sha256
     generated_at: str
 
     @field_validator("generated_at")
@@ -632,18 +655,13 @@ class _SeekerExecutedDifferentials(_BenchmarkRecord):
             if found != names:
                 raise ValueError("every arm must report the same conditions in the same order")
             for condition in arm.conditions:
-                total = self.cohort.task_count
-                if condition.executed_differential_n > total or (
-                    condition.static_match_n is not None and condition.static_match_n > total
-                ):
-                    raise ValueError("condition counts must not exceed the cohort task_count")
-                split = {
-                    row.dataset_id.casefold(): row.count_n for row in condition.executed_by_dataset
-                }
-                if len(split) != len(condition.executed_by_dataset) or set(split) != set(capacity):
-                    raise ValueError("every cohort dataset must appear once in executed_by_dataset")
-                if any(split[name] > capacity[name] for name in split):
-                    raise ValueError("per-dataset hits must not exceed that dataset's tasks")
+                if condition.cells_n > self.cohort.task_count:
+                    raise ValueError("evaluated cells must not exceed the cohort task_count")
+                split = {row.dataset_id.casefold(): row for row in condition.by_dataset}
+                if len(split) != len(condition.by_dataset) or set(split) != set(capacity):
+                    raise ValueError("every cohort dataset must appear once in by_dataset")
+                if any(split[name].cells_n > capacity[name] for name in split):
+                    raise ValueError("per-dataset cells must not exceed that dataset's tasks")
         return self
 
 
@@ -799,7 +817,7 @@ def validate_benchmark_document(raw: bytes) -> dict[str, Any]:
         _HackbookQc.model_validate(document)
     elif schema == "evallab.tune_cross_test/v1":
         _TuneCrossTest.model_validate(document)
-    elif schema == "evallab.seeker_executed_differentials/v1":
+    elif schema == "evallab.seeker_executed_differentials/v2":
         _SeekerExecutedDifferentials.model_validate(document)
     elif schema == "evallab.monitor_cascade/v1":
         _MonitorCascade.model_validate(document)

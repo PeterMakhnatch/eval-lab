@@ -167,7 +167,13 @@ def register_parser(commands: Any) -> None:
     )
     export.add_argument(
         "--ts4-manifest", type=Path,
-        help="Recorded TS-3/TS-4 manifest.json; yields the cross-key-clean executed-differential report",
+        help="Recorded TS-3/TS-4 manifest.json (cross-key audit and strictly-DEV task list); "
+        "requires --ts4-cells",
+    )
+    export.add_argument(
+        "--ts4-cells", type=Path,
+        help="Retained per-cell results (<dataset>/<task>/<model>/<turn>/result.json); counts "
+        "executed differentials per arm and never above its evaluated cells",
     )
     export.add_argument(
         "--cm4-directory", type=Path,
@@ -435,6 +441,7 @@ def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         hackbook_qc=tuple(_local_path(root, path) for path in args.hackbook_qc),
         tune_cross_test=tuple(_local_path(root, path) for path in args.tune_cross_test),
         ts4_manifest=_optional_path(root, args.ts4_manifest),
+        ts4_cells=_optional_path(root, args.ts4_cells),
         cm4_directory=_optional_path(root, args.cm4_directory),
         generated_at=args.generated_at,
     )

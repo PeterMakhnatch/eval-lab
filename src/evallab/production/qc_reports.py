@@ -119,79 +119,92 @@ def trust_tier_census(
     }
 
 
+# (report condition, retained cell directory). The cell directories are the executed
+# truth: one result.json per task, model and turn. Summary fields in the TS-4 manifest
+# are not used for counts, because they are mislabelled (``*_static_*`` holds executed
+# counts) and one of them exceeds its arm's cell count.
 _TS4_CONDITIONS = (
-    # (condition, static key, executed total key, executed MiMo key, executed TB4 key)
-    (
-        "turn_1",
-        "turn_1_static_30",
-        "turn_1_executed_30",
-        "turn_1_executed_mimo_22",
-        "turn_1_executed_tb4_8",
-    ),
-    (
-        "turn_2_original_feedback",
-        "turn_2_static_30",
-        "turn_2_executed_pr1241_30",
-        "turn_2_executed_pr1241_mimo_22",
-        "turn_2_executed_pr1241_tb4_8",
-    ),
-    (
-        "turn_2_runner_accurate_feedback",
-        None,
-        "turn_2_executed_runner_accurate_30",
-        "turn_2_executed_runner_accurate_mimo_22",
-        None,
-    ),
-    (
-        "cumulative_runner_accurate_feedback",
-        None,
-        "cumul_executed_runner_accurate_30",
-        "cumul_executed_runner_accurate_mimo_22",
-        "cumul_executed_tb4_8",
-    ),
+    ("turn_1", "turn-1"),
+    ("turn_2_original_feedback", "turn-2"),
+    ("turn_2_runner_accurate_feedback", "turn-2-runner-accurate"),
 )
-_TS4_DATASETS = ("mimo-defect-map-v1", "tb4-audit-v1")
 
 
-def ts4_executed_differentials(manifest: dict[str, Any], *, generated_at: str) -> dict[str, Any]:
-    """Map the recorded TS-4 cross-key audit and per-model counts to the report schema.
+def _served_requested_route(cell: dict[str, Any], route: str) -> bool:
+    provider, model = cell.get("served_provider"), cell.get("served_model")
+    return bool(model) and route in (model, f"{provider}/{model}")
 
-    Every number is copied from the manifest; the only arithmetic is the TB4 share of a
-    total whose MiMo share is recorded (the strictly-DEV cohort has no other dataset).
+
+def ts4_executed_differentials(
+    manifest: dict[str, Any], cells_directory: Path, *, generated_at: str
+) -> dict[str, Any]:
+    """Count executed paired-grader differentials from the retained per-cell results.
+
+    The manifest supplies only the cross-key audit and the strictly-DEV task list; every
+    count comes from a cell's own ``result.json``. A cell counts as attested only when
+    ``attestation_ok`` is true and the served model is the requested route, and only an
+    attested cell with original reward 1.0 and repaired reward 0.0 is an executed
+    differential, so executed <= attested <= evaluated cells for every arm.
     """
     audit = manifest["ts4_cross_key_and_executed_audit"]
-    clean = audit["strictly_dev_everywhere_by_dataset"]
-    shares = {name: len(tasks) for name, tasks in clean.items() if tasks}
-    if set(shares) != set(_TS4_DATASETS):
-        raise ValueError(f"TS-4 cohort datasets are not {_TS4_DATASETS}: {sorted(shares)}")
+    clean = {
+        dataset: sorted(tasks)
+        for dataset, tasks in audit["strictly_dev_everywhere_by_dataset"].items()
+        if tasks
+    }
     task_count = audit["strictly_dev_everywhere_count"]
     if (
-        sum(shares.values()) != task_count
+        sum(len(tasks) for tasks in clean.values()) != task_count
         or len(audit["contaminated_tasks"]) != audit["secondary_key_contaminated_count"]
     ):
         raise ValueError("TS-4 audit counts disagree with its recorded task lists")
-    arms = []
-    for model, counts in sorted(audit["models_on_clean_30_tasks"].items()):
+    digest, found, arms = hashlib.sha256(), 0, []
+    for model in sorted(audit["models_on_clean_30_tasks"]):
         conditions = []
-        for name, static_key, total_key, mimo_key, tb4_key in _TS4_CONDITIONS:
-            total, mimo = counts[total_key], counts[mimo_key]
-            tb4 = counts[tb4_key] if tb4_key else total - mimo
-            if mimo + tb4 != total:
-                raise ValueError(f"TS-4 {model} {name}: dataset shares do not sum to the total")
+        for name, turn in _TS4_CONDITIONS:
+            by_dataset = []
+            for dataset, tasks in sorted(clean.items()):
+                cells = attested = executed = 0
+                for task in tasks:
+                    path = cells_directory / dataset / task / model.replace("/", "_") / turn
+                    try:
+                        cell = json.loads(read_owned_file(path / "result.json"))
+                    except FileNotFoundError:
+                        continue
+                    if cell.get("requested_model_route") != model:
+                        raise ValueError(f"{path} is not a cell for the requested route {model}")
+                    ok = cell.get("attestation_ok") is True and _served_requested_route(cell, model)
+                    hit = (
+                        ok
+                        and cell.get("original_reward") == 1.0
+                        and cell.get("repaired_reward") == 0.0
+                    )
+                    cells, attested, executed = cells + 1, attested + ok, executed + hit
+                    digest.update(f"{dataset}\t{task}\t{model}\t{turn}\t{ok:d}\t{hit:d}\n".encode())
+                by_dataset.append(
+                    {
+                        "dataset_id": dataset,
+                        "cells_n": cells,
+                        "attested_n": attested,
+                        "executed_differential_n": executed,
+                    }
+                )
+                found += cells
             conditions.append(
                 {
                     "condition": name,
-                    "static_match_n": counts[static_key] if static_key else None,
-                    "executed_differential_n": total,
-                    "executed_by_dataset": [
-                        {"dataset_id": "mimo-defect-map-v1", "count_n": mimo},
-                        {"dataset_id": "tb4-audit-v1", "count_n": tb4},
-                    ],
+                    **{
+                        field: sum(row[field] for row in by_dataset)
+                        for field in ("cells_n", "attested_n", "executed_differential_n")
+                    },
+                    "by_dataset": by_dataset,
                 }
             )
         arms.append({"arm": model, "requested_model": model, "conditions": conditions})
+    if not found:
+        raise ValueError(f"no TS-4 cell results were found under {cells_directory}")
     return {
-        "schema": "evallab.seeker_executed_differentials/v1",
+        "schema": "evallab.seeker_executed_differentials/v2",
         "protocol": audit["schema"],
         "cohort": {
             "split": "dev",
@@ -199,9 +212,13 @@ def ts4_executed_differentials(manifest: dict[str, Any], *, generated_at: str) -
             "audited_n": audit["total_tasks_audited"],
             "cross_key_excluded_n": audit["secondary_key_contaminated_count"],
             "task_count": task_count,
-            "datasets": [{"dataset_id": name, "count_n": shares[name]} for name in _TS4_DATASETS],
+            "datasets": [
+                {"dataset_id": dataset, "count_n": len(tasks)}
+                for dataset, tasks in sorted(clean.items())
+            ],
         },
         "arms": arms,
+        "source_sha256": digest.hexdigest(),
         "generated_at": generated_at,
     }
 
@@ -336,6 +353,7 @@ def export_qc_reports(
     hackbook_qc: tuple[Path, ...] = (),
     tune_cross_test: tuple[Path, ...] = (),
     ts4_manifest: Path | None = None,
+    ts4_cells: Path | None = None,
     cm4_directory: Path | None = None,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
@@ -359,15 +377,18 @@ def export_qc_reports(
             )
             for unit in _UNITS
         ]
-    if ts4_manifest is not None:
+    if (ts4_manifest is None) != (ts4_cells is None):
+        raise ValueError("TS-4 needs both the audit manifest and the per-cell results directory")
+    if ts4_manifest is not None and ts4_cells is not None:
         document = ts4_executed_differentials(
-            json.loads(read_owned_file(ts4_manifest)), generated_at=stamp
+            json.loads(read_owned_file(ts4_manifest)), ts4_cells, generated_at=stamp
         )
         artifacts.append(
             (
                 "seeker-executed-differentials-ts4.json",
                 _encode(document),
-                f"built from the recorded TS-4 audit in {ts4_manifest.name}",
+                f"counted from the per-cell results in {ts4_cells.name}; "
+                f"audit from {ts4_manifest.name}",
             )
         )
     if cm4_directory is not None:

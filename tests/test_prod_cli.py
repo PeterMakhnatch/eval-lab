@@ -948,72 +948,138 @@ def test_export_qc_reports_fails_closed_without_assignment_authority(
     assert list(source.parent.glob(".qc-reports-*")) == []
 
 
-def _ts4_manifest() -> dict[str, Any]:
-    def counts(tb4: tuple[int, ...]) -> dict[str, int]:
-        values = {
-            "turn_1_static_30": 15,
-            "turn_1_executed_mimo_22": 0,
-            "turn_2_static_30": 25,
-            "turn_2_executed_pr1241_mimo_22": 7,
-            "turn_2_executed_runner_accurate_mimo_22": 13,
-            "turn_2_executed_runner_accurate_30": 18,
-            "cumul_executed_runner_accurate_mimo_22": 13,
-            "cumul_executed_runner_accurate_30": 13 + tb4[0],
-            "cumul_executed_tb4_8": tb4[0],
-            "turn_1_executed_tb4_8": tb4[1],
-            "turn_2_executed_pr1241_tb4_8": tb4[2],
-        }
-        return values | {
-            "turn_1_executed_30": values["turn_1_executed_mimo_22"] + tb4[1],
-            "turn_2_executed_pr1241_30": values["turn_2_executed_pr1241_mimo_22"] + tb4[2],
-        }
+_TS4_MODELS = ("provider/model-one", "provider/model-two")
 
+
+def _ts4_manifest() -> dict[str, Any]:
+    # The summary counts are deliberately absurd: the builder must not read them. The
+    # real manifest's `*_static_*` fields hold executed counts and one field exceeds its
+    # arm's cell count.
+    bogus = {"turn_2_executed_runner_accurate_30": 99, "turn_1_static_30": 98}
     return {
         "ts4_cross_key_and_executed_audit": {
             "schema": "synthetic-ts4-protocol",
             "assignments_csv_key_count": 19,
-            "total_tasks_audited": 50,
-            "secondary_key_contaminated_count": 20,
-            "strictly_dev_everywhere_count": 30,
+            "total_tasks_audited": 7,
+            "secondary_key_contaminated_count": 2,
+            "strictly_dev_everywhere_count": 5,
             "strictly_dev_everywhere_by_dataset": {
-                "mimo-defect-map-v1": ["t"] * 22,
-                "tb4-audit-v1": ["u"] * 8,
-                "breaker-bench-v1": [],
+                "ds-a": ["a1", "a2", "a3"],
+                "ds-b": ["b1", "b2"],
+                "ds-empty": [],
             },
-            "contaminated_tasks": [{"task": index} for index in range(20)],
-            "models_on_clean_30_tasks": {
-                "provider/model-one": counts((5, 1, 5)),
-                "provider/model-two": counts((6, 4, 6)),
-            },
+            "contaminated_tasks": [{"task": "x"}, {"task": "y"}],
+            "models_on_clean_30_tasks": {model: dict(bogus) for model in _TS4_MODELS},
         }
     }
 
 
-def test_ts4_manifest_maps_recorded_counts_without_recomputation() -> None:
-    from evallab.production.benchmark_reports import validate_benchmark_document
-    from evallab.production.qc_reports import cm4_monitor_cascade, ts4_executed_differentials
+def _write_ts4_cell(
+    cells: Path,
+    dataset: str,
+    task: str,
+    turn: str,
+    *,
+    original: float = 1.0,
+    repaired: float = 0.0,
+    attested: bool = True,
+    served: str = "model-one",
+    route: str = "provider/model-one",
+) -> None:
+    directory = cells / dataset / task / route.replace("/", "_") / turn
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "result.json").write_text(
+        json.dumps(
+            {
+                "requested_model_route": route,
+                "served_provider": "provider",
+                "served_model": served,
+                "attestation_ok": attested,
+                "original_reward": original,
+                "repaired_reward": repaired,
+            }
+        ),
+        encoding="utf-8",
+    )
 
-    document = ts4_executed_differentials(_ts4_manifest(), generated_at="2026-10-27T10:00:00Z")
-    assert document["cohort"]["task_count"] == 30
-    first = document["arms"][0]["conditions"]
-    assert [(row["condition"], row["static_match_n"], row["executed_differential_n"]) for row in first] == [
-        ("turn_1", 15, 1),
-        ("turn_2_original_feedback", 25, 12),
-        ("turn_2_runner_accurate_feedback", None, 18),
-        ("cumulative_runner_accurate_feedback", None, 18),
+
+def _ts4_cells(cells: Path) -> Path:
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-1")  # attested differential
+    _write_ts4_cell(cells, "ds-a", "a2", "turn-1", repaired=1.0)  # attested, no differential
+    _write_ts4_cell(cells, "ds-a", "a3", "turn-1", attested=False)  # rewards alone are not enough
+    _write_ts4_cell(cells, "ds-b", "b1", "turn-1", served="other-model")  # another model served
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-2")
+    # model-two has no cells at all, and b2 was never evaluated for model-one.
+    return cells
+
+
+def test_ts4_counts_come_from_cells_and_never_exceed_the_arm_evaluated_cells(
+    tmp_path: Path,
+) -> None:
+    from evallab.production.benchmark_reports import validate_benchmark_document
+    from evallab.production.qc_reports import ts4_executed_differentials
+
+    cells = _ts4_cells(tmp_path / "cells")
+    document = ts4_executed_differentials(
+        _ts4_manifest(), cells, generated_at="2026-10-27T10:00:00Z"
+    )
+    assert validate_benchmark_document(json.dumps(document).encode()) == document
+    assert [(row["dataset_id"], row["count_n"]) for row in document["cohort"]["datasets"]] == [
+        ("ds-a", 3),
+        ("ds-b", 2),
     ]
-    assert [row["count_n"] for row in first[1]["executed_by_dataset"]] == [7, 5]
-    raw = json.dumps(document, indent=2, sort_keys=True).encode()
-    assert validate_benchmark_document(raw) == document
+    counts = {
+        (arm["arm"], condition["condition"]): (
+            condition["cells_n"],
+            condition["attested_n"],
+            condition["executed_differential_n"],
+        )
+        for arm in document["arms"]
+        for condition in arm["conditions"]
+    }
+    assert counts == {
+        ("provider/model-one", "turn_1"): (4, 2, 1),
+        ("provider/model-one", "turn_2_original_feedback"): (1, 1, 1),
+        ("provider/model-one", "turn_2_runner_accurate_feedback"): (0, 0, 0),
+        ("provider/model-two", "turn_1"): (0, 0, 0),
+        ("provider/model-two", "turn_2_original_feedback"): (0, 0, 0),
+        ("provider/model-two", "turn_2_runner_accurate_feedback"): (0, 0, 0),
+    }
+    # The exact table above also proves the manifest's own (bogus) summary numbers never surface.
+    first = document["arms"][0]["conditions"][0]["by_dataset"]
+    assert [(row["dataset_id"], row["cells_n"], row["attested_n"]) for row in first] == [
+        ("ds-a", 3, 2),
+        ("ds-b", 1, 0),
+    ]
+
+
+def test_ts4_source_digest_tracks_every_cell_and_bad_inputs_are_refused(tmp_path: Path) -> None:
+    from evallab.production.qc_reports import ts4_executed_differentials
+
+    stamp = "2026-10-27T10:00:00Z"
+    cells = _ts4_cells(tmp_path / "cells")
+    before = ts4_executed_differentials(_ts4_manifest(), cells, generated_at=stamp)
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-1", repaired=1.0)
+    after = ts4_executed_differentials(_ts4_manifest(), cells, generated_at=stamp)
+    assert after["source_sha256"] != before["source_sha256"]
+    assert after["arms"][0]["conditions"][0]["executed_differential_n"] == 0
+
+    _write_ts4_cell(cells, "ds-b", "b2", "turn-1", route="provider/model-two")
+    wrong = cells / "ds-b" / "b2" / "provider_model-one"
+    wrong.parent.mkdir(parents=True, exist_ok=True)
+    (cells / "ds-b" / "b2" / "provider_model-two").rename(wrong)
+    with pytest.raises(ValueError, match="requested route"):
+        ts4_executed_differentials(_ts4_manifest(), cells, generated_at=stamp)
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(ValueError, match="no TS-4 cell results"):
+        ts4_executed_differentials(_ts4_manifest(), empty, generated_at=stamp)
 
     manifest = _ts4_manifest()
     manifest["ts4_cross_key_and_executed_audit"]["contaminated_tasks"] = []
     with pytest.raises(ValueError, match="disagree"):
-        ts4_executed_differentials(manifest, generated_at="2026-10-27T10:00:00Z")
-
-    directory = Path("/does/not/exist")
-    with pytest.raises(FileNotFoundError):
-        cm4_monitor_cascade(directory, generated_at="2026-10-27T10:00:00Z")
+        ts4_executed_differentials(manifest, cells, generated_at=stamp)
 
 
 def _cm4_directory(directory: Path) -> Path:

@@ -985,6 +985,7 @@ def _write_ts4_cell(
     attested: bool = True,
     served: str = "model-one",
     route: str = "provider/model-one",
+    hide_tests: bool = True,
 ) -> None:
     directory = cells / dataset / task / route.replace("/", "_") / turn
     directory.mkdir(parents=True, exist_ok=True)
@@ -995,6 +996,7 @@ def _write_ts4_cell(
                 "served_provider": "provider",
                 "served_model": served,
                 "attestation_ok": attested,
+                "hide_tests": hide_tests,
                 "original_reward": original,
                 "repaired_reward": repaired,
             }
@@ -1081,6 +1083,34 @@ def test_ts4_source_digest_tracks_every_cell_and_bad_inputs_are_refused(tmp_path
     with pytest.raises(ValueError, match="disagree"):
         ts4_executed_differentials(manifest, cells, generated_at=stamp)
 
+
+
+def test_ts5_factorial_2x2_differentials_verifies_hide_tests_flag_on_visible_and_hidden_cells(
+    tmp_path: Path,
+) -> None:
+    from evallab.production.qc_reports import ts5_factorial_2x2_differentials
+
+    cells = tmp_path / "cells"
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-1-visible", hide_tests=False)
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-2-visible", hide_tests=False)
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-1", hide_tests=True, repaired=1.0)
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-2-runner-accurate", hide_tests=True)
+    doc = ts5_factorial_2x2_differentials(
+        _ts4_manifest(), cells, generated_at="2026-10-27T11:00:00Z"
+    )
+    cond_map = {c["condition"]: c for c in doc["arms"][0]["conditions"]}
+    assert cond_map["turn_1_visible"]["executed_differential_n"] == 1
+    assert cond_map["turn_1_visible"]["hide_tests"] is False
+    assert cond_map["turn_1_hidden"]["executed_differential_n"] == 0
+    assert cond_map["turn_1_hidden"]["hide_tests"] is True
+    assert cond_map["turn_2_hidden_runner_accurate_feedback"]["executed_differential_n"] == 1
+
+    # Flipping hide_tests on a visible cell is refused
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-1-visible", hide_tests=True)
+    with pytest.raises(ValueError, match="hide_tests"):
+        ts5_factorial_2x2_differentials(
+            _ts4_manifest(), cells, generated_at="2026-10-27T11:00:00Z"
+        )
 
 def _cm4_directory(directory: Path) -> Path:
     def scored(corpus: str, tp: int, fp: int) -> dict[str, Any]:

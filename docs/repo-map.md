@@ -701,7 +701,7 @@ inputs:
   - path: src/evallab/readers/laminar_signals.py
     digest: sha256:4a4b1f47880b7c0b305cf28d673e75d5412085184d8517980a69570de9d9273a
   - path: src/evallab/readers/scout_clouddb.py
-    digest: sha256:b5c3ae4a94c67de1e6c1075c1c7e81801fe3647933e6b37a6fee0261f4fe3bba
+    digest: sha256:55ca7060a11b1a00fbb49bcb3ae4ee8a48473bbde181beaca82c0ff37564b0f5
   - path: src/evallab/readers/scout_metr.py
     digest: sha256:2eb327cf49557ebdf8470d3d4fb9def637ebccab524b45d34794d5164c376315
   - path: src/evallab/readers/tool_scorecard.py

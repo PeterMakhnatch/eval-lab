@@ -183,3 +183,24 @@ def test_scan_errors_are_abstentions_not_negative_results(
 def test_rule_scanners_cannot_run_without_trial_metadata(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="deterministic scanners"):
         scan(tmp_path / "transcripts", tmp_path / "scans", ["rule_outcome"])
+
+
+def test_scan_subset_excludes_old_runs_and_quotes_opaque_ids(tmp_path: Path, scout_runtime: Any) -> None:
+    selected, other = "run-selected'quoted", "run-not-selected"
+    transcripts = tmp_path / "transcripts"
+    asyncio.run(_insert(transcripts, [
+        to_transcript(selected, [_message(10, "assistant", "Single message.")]),
+        to_transcript(other, [_message(20, "assistant", "Repeated."),
+                              _message(21, "assistant", "Repeated.")]),
+    ]))
+    status = scan(transcripts, tmp_path / "scans", transcript_ids=[selected])
+    assert status.complete and not status.errors
+    results = scout_runtime.scan_results_df(status.location, rows="results")
+    frame = results.scanners["repeated_assistant_message"]
+    assert frame["transcript_id"].tolist() == [selected]
+    assert frame["value"].tolist() == [0]
+
+
+def test_scan_rejects_explicit_empty_subset(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="transcript_ids must not be empty"):
+        scan(tmp_path / "transcripts", tmp_path / "scans", transcript_ids=[])

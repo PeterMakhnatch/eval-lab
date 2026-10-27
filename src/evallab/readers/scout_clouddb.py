@@ -16,6 +16,8 @@ The private key map is append-only and kept outside the Scout transcript DBs.
 ``sync`` inserts only ids absent from that map; content/reasoning are unbounded.
 ``scan`` accepts only the four deterministic scanners; ``collect`` retains one
 record per scanner label (nine records per run with the default scanner set).
+Scheduled callers can pass a nonempty ``transcript_ids`` subset to ``scan``;
+unselected transcript content is not loaded again.
 """
 
 from __future__ import annotations
@@ -226,8 +228,9 @@ def _scanner_module() -> Any:
 
 def scan(
     transcripts_dir: str | Path, scans_dir: str | Path, scanners: Sequence[str] = SCANNERS,
+    *, transcript_ids: Sequence[str] | None = None,
 ) -> Any:
-    """Run only existing deterministic text scanners, without a model provider."""
+    """Run deterministic text scanners, optionally only the given opaque ids."""
     _require_scout()
     from inspect_scout import scan as scout_scan  # ty: ignore[unresolved-import]
     from inspect_scout._transcript.factory import (  # ty: ignore[unresolved-import]
@@ -237,10 +240,16 @@ def scan(
     unsupported = set(scanners) - set(SCANNERS)
     if unsupported or not scanners:
         raise ValueError(f"Choose deterministic scanners from {SCANNERS}; unsupported={unsupported}")
+    if transcript_ids is not None and not transcript_ids:
+        raise ValueError("transcript_ids must not be empty")
+    transcripts = transcripts_from_db(str(transcripts_dir))
+    if transcript_ids is not None:
+        literals = ", ".join("'" + identifier.replace("'", "''") + "'" for identifier in transcript_ids)
+        transcripts = transcripts.where(f"transcript_id IN ({literals})")
     module = _scanner_module()
     return scout_scan(
         scanners={name: getattr(module, name)() for name in scanners},
-        transcripts=transcripts_from_db(str(transcripts_dir)),
+        transcripts=transcripts,
         scans=str(scans_dir), model="none/none", max_processes=1, max_transcripts=4,
         display="none", log_level="warning",
     )

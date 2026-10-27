@@ -73,22 +73,26 @@ def trust_tier_census(
     generated_at: str,
 ) -> dict[str, Any]:
     """Count admitted DEV rows per (tier, dataset) from a read-only connection."""
-    table, _ = _UNITS[unit]
+    table, key = _UNITS[unit]
     columns = {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
     if "trust_tier" not in columns:
         raise ValueError(f"{table} has no trust_tier column; the database predates evidence tiers")
     dataset_of = dict(connection.execute("SELECT task_id, dataset_id FROM corpus_tasks"))
     counts: Counter[tuple[str, str]] = Counter()
     unclassified = 0
-    for task_id, tier, rows in connection.execute(
-        f"SELECT task_id, trust_tier, COUNT(*) FROM {table} GROUP BY task_id, trust_tier"
+    # The digest identifies exactly which admitted rows were counted and at which tier,
+    # so a reader holding the same database can reproduce it.
+    digest = hashlib.sha256()
+    for row_id, task_id, tier in connection.execute(
+        f"SELECT {key}, task_id, trust_tier FROM {table} ORDER BY {key}"
     ):
         if task_id not in admitted:
             continue
+        digest.update(f"{row_id}\t{task_id}\t{tier}\n".encode())
         if tier in TRUST_TIERS:
-            counts[(tier, dataset_of[task_id])] += rows
+            counts[(tier, dataset_of[task_id])] += 1
         else:
-            unclassified += rows
+            unclassified += 1
     rank = {tier: index for index, tier in enumerate(TRUST_TIERS)}
     tiers = [
         {
@@ -110,7 +114,192 @@ def trust_tier_census(
         "admitted_rows_n": counts.total() + unclassified,
         "unclassified_n": unclassified,
         "tiers": tiers,
-        "source_sha256": None,
+        "source_sha256": digest.hexdigest(),
+        "generated_at": generated_at,
+    }
+
+
+_TS4_CONDITIONS = (
+    # (condition, static key, executed total key, executed MiMo key, executed TB4 key)
+    (
+        "turn_1",
+        "turn_1_static_30",
+        "turn_1_executed_30",
+        "turn_1_executed_mimo_22",
+        "turn_1_executed_tb4_8",
+    ),
+    (
+        "turn_2_original_feedback",
+        "turn_2_static_30",
+        "turn_2_executed_pr1241_30",
+        "turn_2_executed_pr1241_mimo_22",
+        "turn_2_executed_pr1241_tb4_8",
+    ),
+    (
+        "turn_2_runner_accurate_feedback",
+        None,
+        "turn_2_executed_runner_accurate_30",
+        "turn_2_executed_runner_accurate_mimo_22",
+        None,
+    ),
+    (
+        "cumulative_runner_accurate_feedback",
+        None,
+        "cumul_executed_runner_accurate_30",
+        "cumul_executed_runner_accurate_mimo_22",
+        "cumul_executed_tb4_8",
+    ),
+)
+_TS4_DATASETS = ("mimo-defect-map-v1", "tb4-audit-v1")
+
+
+def ts4_executed_differentials(manifest: dict[str, Any], *, generated_at: str) -> dict[str, Any]:
+    """Map the recorded TS-4 cross-key audit and per-model counts to the report schema.
+
+    Every number is copied from the manifest; the only arithmetic is the TB4 share of a
+    total whose MiMo share is recorded (the strictly-DEV cohort has no other dataset).
+    """
+    audit = manifest["ts4_cross_key_and_executed_audit"]
+    clean = audit["strictly_dev_everywhere_by_dataset"]
+    shares = {name: len(tasks) for name, tasks in clean.items() if tasks}
+    if set(shares) != set(_TS4_DATASETS):
+        raise ValueError(f"TS-4 cohort datasets are not {_TS4_DATASETS}: {sorted(shares)}")
+    task_count = audit["strictly_dev_everywhere_count"]
+    if (
+        sum(shares.values()) != task_count
+        or len(audit["contaminated_tasks"]) != audit["secondary_key_contaminated_count"]
+    ):
+        raise ValueError("TS-4 audit counts disagree with its recorded task lists")
+    arms = []
+    for model, counts in sorted(audit["models_on_clean_30_tasks"].items()):
+        conditions = []
+        for name, static_key, total_key, mimo_key, tb4_key in _TS4_CONDITIONS:
+            total, mimo = counts[total_key], counts[mimo_key]
+            tb4 = counts[tb4_key] if tb4_key else total - mimo
+            if mimo + tb4 != total:
+                raise ValueError(f"TS-4 {model} {name}: dataset shares do not sum to the total")
+            conditions.append(
+                {
+                    "condition": name,
+                    "static_match_n": counts[static_key] if static_key else None,
+                    "executed_differential_n": total,
+                    "executed_by_dataset": [
+                        {"dataset_id": "mimo-defect-map-v1", "count_n": mimo},
+                        {"dataset_id": "tb4-audit-v1", "count_n": tb4},
+                    ],
+                }
+            )
+        arms.append({"arm": model, "requested_model": model, "conditions": conditions})
+    return {
+        "schema": "evallab.seeker_executed_differentials/v1",
+        "protocol": audit["schema"],
+        "cohort": {
+            "split": "dev",
+            "key_count": audit["assignments_csv_key_count"],
+            "audited_n": audit["total_tasks_audited"],
+            "cross_key_excluded_n": audit["secondary_key_contaminated_count"],
+            "task_count": task_count,
+            "datasets": [{"dataset_id": name, "count_n": shares[name]} for name in _TS4_DATASETS],
+        },
+        "arms": arms,
+        "generated_at": generated_at,
+    }
+
+
+# CM-4 corpus -> (role, dataset id, cross-key record in crosskey.json). The producer froze
+# the cascade on Goodfire DEV before any CheatBench result (freeze.json, frozen_arm).
+_CM4_COHORTS = {
+    "goodfire": ("tune", "goodfire-reward-hack-data", "goodfire_sample"),
+    "cheatbench": ("cross_test", "cheatbench-actions-v1", "cheatbench-actions-v1"),
+}
+
+
+def _cm4_cohort(
+    corpus: str, summary_file: dict[str, Any], crosskey: dict[str, Any]
+) -> dict[str, Any]:
+    role, dataset_id, key = _CM4_COHORTS[corpus]
+    summary, rows = summary_file["summary"], summary_file["traces"]
+    positives = [row for row in rows if row["positive"]]
+    unscored = [
+        row for row in rows if not row["positive"] and row["stratum"].startswith("considered")
+    ]
+    negatives = [row for row in rows if not row["positive"] and row not in unscored]
+    cascade, stage1 = summary["cascade"], summary["stage1"]
+    counted = {
+        "positives": (len(positives), summary["positives"]),
+        "negatives": (len(negatives), summary["negatives"]),
+        "traces": (len(rows), summary["traces"]),
+        "cascade tp": (sum(1 for row in positives if row["alarmed"]), cascade["tp"]),
+        "cascade fp": (sum(1 for row in negatives if row["alarmed"]), cascade["fp"]),
+    }
+    for label, (found, recorded) in counted.items():
+        if found != recorded:
+            raise ValueError(
+                f"CM-4 {corpus}: {label} {found} disagrees with the summary {recorded}"
+            )
+    stage1_pos = sum(1 for row in positives if row["stage1"])
+    stage1_neg = sum(1 for row in negatives if row["stage1"])
+    if (
+        round(100 * stage1_pos / len(positives), 1) != stage1["recall"]
+        or round(100 * stage1_neg / len(negatives), 1) != stage1["far"]
+    ):
+        raise ValueError(f"CM-4 {corpus}: Stage-1 counts disagree with the summary rates")
+    checked = crosskey[key]
+    if checked["identities"] != len(rows):
+        raise ValueError(
+            f"CM-4 {corpus}: cross-key check covers {checked['identities']} identities, not {len(rows)}"
+        )
+    if checked["assigned_test_anywhere"] or checked["sealed_identity"]:
+        raise ValueError(f"CM-4 {corpus}: cross-key check found non-DEV assignments")
+    return {
+        "role": role,
+        "dataset_id": dataset_id,
+        "split": "dev",
+        "positive_n": len(positives),
+        "clean_n": len(negatives),
+        "unscored_n": len(unscored),
+        "identities_checked_n": checked["identities"],
+        "non_dev_assignment_n": 0,
+        "stage1_positive_hit_n": stage1_pos,
+        "stage1_clean_hit_n": stage1_neg,
+        "true_positive_n": cascade["tp"],
+        "false_positive_n": cascade["fp"],
+        "judge_calls_n": summary["judge_calls"],
+        "input_tokens_n": summary["input_tokens"],
+        "output_tokens_n": summary["output_tokens"],
+    }
+
+
+def cm4_monitor_cascade(directory: Path, *, generated_at: str) -> dict[str, Any]:
+    """Build the cascade report from CM-4's recorded freeze, scores, receipts and cross-key audit."""
+    freeze_raw = read_owned_file(directory / "freeze.json")
+    freeze = json.loads(freeze_raw)
+    arm = freeze["frozen_arm"].split()[0].rstrip(",")
+    crosskey = json.loads(read_owned_file(directory / "crosskey.json"))
+    cohorts = []
+    for corpus in _CM4_COHORTS:
+        scored = json.loads(read_owned_file(directory / f"score2-{corpus}-{arm}.json"))
+        if scored["summary"]["arm"] != arm:
+            raise ValueError(f"CM-4 {corpus}: score file is not the frozen {arm!r} arm")
+        cohorts.append(_cm4_cohort(corpus, scored, crosskey))
+    receipts = [
+        json.loads(line)
+        for line in read_owned_file(directory / "judge-receipts.jsonl").decode().splitlines()
+        if line.strip()
+    ]
+    served = sorted({row["served"] for row in receipts if row["arm"] == arm})
+    if not served:
+        raise ValueError("CM-4 has no judge receipts for the frozen arm")
+    return {
+        "schema": "evallab.monitor_cascade/v1",
+        "system": "window-cascade",
+        "cascade_version": freeze["cascade_version"],
+        "arm": arm,
+        "judge_models": served,
+        "frozen_sha256": hashlib.sha256(freeze_raw).hexdigest(),
+        "frozen_recorded_at": freeze["recorded_utc"],
+        "freeze_statement": freeze["frozen_arm"],
+        "cohorts": cohorts,
         "generated_at": generated_at,
     }
 
@@ -146,6 +335,8 @@ def export_qc_reports(
     repo_root: Path,
     hackbook_qc: tuple[Path, ...] = (),
     tune_cross_test: tuple[Path, ...] = (),
+    ts4_manifest: Path | None = None,
+    cm4_directory: Path | None = None,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
     """Stage, validate and atomically publish a directory of retained reports."""
@@ -168,6 +359,25 @@ def export_qc_reports(
             )
             for unit in _UNITS
         ]
+    if ts4_manifest is not None:
+        document = ts4_executed_differentials(
+            json.loads(read_owned_file(ts4_manifest)), generated_at=stamp
+        )
+        artifacts.append(
+            (
+                "seeker-executed-differentials-ts4.json",
+                _encode(document),
+                f"built from the recorded TS-4 audit in {ts4_manifest.name}",
+            )
+        )
+    if cm4_directory is not None:
+        artifacts.append(
+            (
+                "monitor-cascade-cm4.json",
+                _encode(cm4_monitor_cascade(cm4_directory, generated_at=stamp)),
+                f"built from the recorded CM-4 results in {cm4_directory.name}",
+            )
+        )
     artifacts += _recorded(hackbook_qc, "evallab.hackbook_qc/v1", "hackbook-qc")
     artifacts += _recorded(tune_cross_test, "evallab.tune_cross_test/v1", "tune-cross-test")
     names = [name for name, _, _ in artifacts]

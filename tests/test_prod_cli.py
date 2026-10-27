@@ -859,6 +859,21 @@ def test_export_qc_reports_counts_only_admitted_rows_and_copies_recorded_reports
         1,
         ["tier1_container_verified"],
     )
+    # source_sha256 digests exactly the admitted (row id, task, tier) lines, in key order.
+    counted = (
+        "gf-dev-trace-0\tgf-dev\ttier2_consensus_labeled",
+        "gf-dev-trace-1\tgf-dev\ttier2_consensus_labeled",
+        "gf-dev-trace-2\tgf-dev\ttier3_provisional",
+        "unmaterialized-dev-trace-0\tunmaterialized-dev\ttier1_container_verified",
+        "unmaterialized-dev-trace-1\tunmaterialized-dev\ttier2_consensus_labeled",
+        "unmaterialized-dev-trace-2\tunmaterialized-dev\ttier3_provisional",
+    )
+    assert traces["source_sha256"] == hashlib.sha256(
+        ("\n".join(counted) + "\n").encode()
+    ).hexdigest()
+    assert issues["source_sha256"] == hashlib.sha256(
+        b"unmaterialized-dev-issue-0\tunmaterialized-dev\ttier1_container_verified\n"
+    ).hexdigest()
     assert {
         path.name: path.read_bytes() for path in source.parent.glob("tier-source*")
     } == source_state
@@ -931,3 +946,135 @@ def test_export_qc_reports_fails_closed_without_assignment_authority(
     assert json.loads(capsys.readouterr().err)["error"]["type"] == "ValueError"
     assert not output.exists()
     assert list(source.parent.glob(".qc-reports-*")) == []
+
+
+def _ts4_manifest() -> dict[str, Any]:
+    def counts(tb4: tuple[int, ...]) -> dict[str, int]:
+        values = {
+            "turn_1_static_30": 15,
+            "turn_1_executed_mimo_22": 0,
+            "turn_2_static_30": 25,
+            "turn_2_executed_pr1241_mimo_22": 7,
+            "turn_2_executed_runner_accurate_mimo_22": 13,
+            "turn_2_executed_runner_accurate_30": 18,
+            "cumul_executed_runner_accurate_mimo_22": 13,
+            "cumul_executed_runner_accurate_30": 13 + tb4[0],
+            "cumul_executed_tb4_8": tb4[0],
+            "turn_1_executed_tb4_8": tb4[1],
+            "turn_2_executed_pr1241_tb4_8": tb4[2],
+        }
+        return values | {
+            "turn_1_executed_30": values["turn_1_executed_mimo_22"] + tb4[1],
+            "turn_2_executed_pr1241_30": values["turn_2_executed_pr1241_mimo_22"] + tb4[2],
+        }
+
+    return {
+        "ts4_cross_key_and_executed_audit": {
+            "schema": "synthetic-ts4-protocol",
+            "assignments_csv_key_count": 19,
+            "total_tasks_audited": 50,
+            "secondary_key_contaminated_count": 20,
+            "strictly_dev_everywhere_count": 30,
+            "strictly_dev_everywhere_by_dataset": {
+                "mimo-defect-map-v1": ["t"] * 22,
+                "tb4-audit-v1": ["u"] * 8,
+                "breaker-bench-v1": [],
+            },
+            "contaminated_tasks": [{"task": index} for index in range(20)],
+            "models_on_clean_30_tasks": {
+                "provider/model-one": counts((5, 1, 5)),
+                "provider/model-two": counts((6, 4, 6)),
+            },
+        }
+    }
+
+
+def test_ts4_manifest_maps_recorded_counts_without_recomputation() -> None:
+    from evallab.production.benchmark_reports import validate_benchmark_document
+    from evallab.production.qc_reports import cm4_monitor_cascade, ts4_executed_differentials
+
+    document = ts4_executed_differentials(_ts4_manifest(), generated_at="2026-10-27T10:00:00Z")
+    assert document["cohort"]["task_count"] == 30
+    first = document["arms"][0]["conditions"]
+    assert [(row["condition"], row["static_match_n"], row["executed_differential_n"]) for row in first] == [
+        ("turn_1", 15, 1),
+        ("turn_2_original_feedback", 25, 12),
+        ("turn_2_runner_accurate_feedback", None, 18),
+        ("cumulative_runner_accurate_feedback", None, 18),
+    ]
+    assert [row["count_n"] for row in first[1]["executed_by_dataset"]] == [7, 5]
+    raw = json.dumps(document, indent=2, sort_keys=True).encode()
+    assert validate_benchmark_document(raw) == document
+
+    manifest = _ts4_manifest()
+    manifest["ts4_cross_key_and_executed_audit"]["contaminated_tasks"] = []
+    with pytest.raises(ValueError, match="disagree"):
+        ts4_executed_differentials(manifest, generated_at="2026-10-27T10:00:00Z")
+
+    directory = Path("/does/not/exist")
+    with pytest.raises(FileNotFoundError):
+        cm4_monitor_cascade(directory, generated_at="2026-10-27T10:00:00Z")
+
+
+def _cm4_directory(directory: Path) -> Path:
+    def scored(corpus: str, tp: int, fp: int) -> dict[str, Any]:
+        rows = []
+        for index in range(10):
+            rows.append({"positive": True, "stratum": "enacted_yes", "stage1": index < 6, "alarmed": index < tp})
+        for index in range(20):
+            rows.append({"positive": False, "stratum": "clean_no", "stage1": index < 8, "alarmed": index < fp})
+        for _ in range(5):
+            rows.append({"positive": False, "stratum": "considered_only", "stage1": False, "alarmed": False})
+        return {
+            "summary": {
+                "corpus": corpus,
+                "arm": "plain",
+                "positives": 10,
+                "negatives": 20,
+                "traces": 35,
+                "stage1": {"recall": 60.0, "far": 40.0},
+                "cascade": {"tp": tp, "fp": fp},
+                "judge_calls": 9,
+                "input_tokens": 1000,
+                "output_tokens": 400,
+            },
+            "traces": rows,
+        }
+
+    directory.mkdir()
+    (directory / "freeze.json").write_text(json.dumps({
+        "cascade_version": "cascade/v2",
+        "frozen_arm": "plain, chosen on the tuning cohort before any cross-test result",
+        "recorded_utc": "2026-10-27T05:00:00Z",
+    }), encoding="utf-8")
+    (directory / "crosskey.json").write_text(json.dumps({
+        "goodfire_sample": {"identities": 35, "assigned_test_anywhere": 0, "sealed_identity": 0},
+        "cheatbench-actions-v1": {"identities": 35, "assigned_test_anywhere": 0, "sealed_identity": 0},
+    }), encoding="utf-8")
+    for corpus, (tp, fp) in (("goodfire", (3, 0)), ("cheatbench", (0, 0))):
+        document = scored(corpus, tp, fp)
+        (directory / f"score2-{corpus}-plain.json").write_text(json.dumps(document), encoding="utf-8")
+    (directory / "judge-receipts.jsonl").write_text(
+        json.dumps({"arm": "plain", "served": "provider/judge-model"}) + "\n", encoding="utf-8",
+    )
+    return directory
+
+
+def test_cm4_directory_maps_the_frozen_arm_and_refuses_disagreement(tmp_path: Path) -> None:
+    from evallab.production.benchmark_reports import validate_benchmark_document
+    from evallab.production.qc_reports import cm4_monitor_cascade
+
+    directory = _cm4_directory(tmp_path / "cm4")
+    document = cm4_monitor_cascade(directory, generated_at="2026-10-27T10:00:00Z")
+    assert document["judge_models"] == ["provider/judge-model"]
+    assert [(c["role"], c["true_positive_n"], c["unscored_n"]) for c in document["cohorts"]] == [
+        ("tune", 3, 5),
+        ("cross_test", 0, 5),
+    ]
+    assert validate_benchmark_document(json.dumps(document).encode()) == document
+
+    summary = json.loads((directory / "score2-goodfire-plain.json").read_text())
+    summary["summary"]["cascade"]["tp"] = 4
+    (directory / "score2-goodfire-plain.json").write_text(json.dumps(summary), encoding="utf-8")
+    with pytest.raises(ValueError, match="disagrees with the summary"):
+        cm4_monitor_cascade(directory, generated_at="2026-10-27T10:00:00Z")

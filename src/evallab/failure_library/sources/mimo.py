@@ -11,7 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from evallab.failure_library.records import DefectClass, Direction, Evidence, Finding, TaskRef
-from evallab.failure_library.sources import checked_file, json_rows, make_record
+from evallab.failure_library.sources import (
+    checked_file,
+    defensive_summary,
+    json_rows,
+    make_record,
+)
 from evallab.failure_library.store import default_state_root
 
 KEY = Path("research/answer-keys/mimo-weak-tests-v2.1")
@@ -111,9 +116,11 @@ def build_mimo_weak(root: Path, *, state_root: Path | None = None) -> list[Findi
                         receipt_ref=log,
                         reproducer_ref=str(KEY / witness["path"]),
                         note=(
-                            f"Archived scored full=1, nop=0, witness=1, rc=0 controls on the exact package; "
+                            "Retained historical grade logs report scored full=1, nop=0, "
+                            "witness=1, rc=0 controls on the exact package; "
                             f"complete patch sha256:{witness['sha256']}. "
-                            "Instruction-adjudicated required gap; not a fresh replay or a repaired-grader certification."
+                            "The importer checks archived hashes and control headers, not "
+                            "independent fresh execution or repaired-grader certification."
                         ),
                     )
                 ]
@@ -123,7 +130,11 @@ def build_mimo_weak(root: Path, *, state_root: Path | None = None) -> list[Findi
                         kind="static_finding",
                         url=source_url,
                         reproducer_ref=str(KEY / witness["path"]),
-                        note="Accepted instruction-level required-gap review and complete patch retained, but no hash-verified archived grade log is available. Execution is not asserted.",
+                        note=(
+                            "Source-reported instruction-level review and complete patch retained, "
+                            "but no hash-verified archived grade log is available. "
+                            "Execution is not asserted."
+                        ),
                     )
                 ]
             )
@@ -134,7 +145,7 @@ def build_mimo_weak(root: Path, *, state_root: Path | None = None) -> list[Findi
                     task=_task(row["task_id"], item["subject"]["task_digest"]),
                     defect_class="TS01",
                     direction="wrong_pass",
-                    summary=witness["reason"],
+                    summary=defensive_summary("TS01", "wrong_pass", evidence),
                     evidence=evidence,
                     finder="Eval Lab Traces / instruction-adjudicated ref-subset",
                     source_url=source_url,
@@ -231,9 +242,11 @@ def defect_map_records(rows: list[dict[str, Any]]) -> list[Finding]:
                     kind="executed",
                     receipt_ref=f"{receipt['cas_uri']}#{receipt['json_pointer']}",
                     note=(
-                        f"Cloud DB tier1_container_verified; original reward=1, repaired reward=0; "
+                        "Retained Cloud DB source reports historical tier1_container_verified "
+                        "qualification; original reward=1, repaired reward=0; "
                         f"witness={row['witness_digest']}; source file={receipt['source_file_digest']}. "
-                        "Reference-validated weak test and repair qualification; not confirmation of a witnessed model exploit."
+                        "Reference-validation and repair scope are source-reported, not "
+                        "independently replayed or proof of a witnessed model exploit."
                     ),
                 )
             ]
@@ -243,7 +256,11 @@ def defect_map_records(rows: list[dict[str, Any]]) -> list[Finding]:
                     kind="human_label",
                     label_source="Eval Lab consensus / cloud task_issues tier2_consensus_labeled",
                     url=source_url,
-                    note=f"Retained consensus label; issue={row['issue_id']}; witness={row['witness_digest']}; custody={row['cas_uri']}. Not container verification.",
+                    note=(
+                        f"Source-reported consensus label; issue={row['issue_id']}; "
+                        f"witness={row['witness_digest']}; custody={row['cas_uri']}. "
+                        "Consensus is not independent execution verification."
+                    ),
                 )
             ]
         elif tier == "tier3_provisional":
@@ -251,7 +268,10 @@ def defect_map_records(rows: list[dict[str, Any]]) -> list[Finding]:
                 Evidence(
                     kind="static_finding",
                     url=source_url,
-                    note=f"Retained provisional static finding; issue={row['issue_id']}; custody={row['cas_uri']}. No execution or consensus claim.",
+                    note=(
+                        f"Source-reported provisional static finding; issue={row['issue_id']}; "
+                        f"custody={row['cas_uri']}. No execution or consensus claim."
+                    ),
                 )
             ]
         else:
@@ -260,12 +280,15 @@ def defect_map_records(rows: list[dict[str, Any]]) -> list[Finding]:
         for variant in variants:
             receipt = variant.get("source_record", {})
             if receipt.get("cas_uri"):
+                variant_source = variant["source"]
+                if variant_source not in {"mimo30", "muse-r1", "muse-r2", "muse-w5"}:
+                    variant_source = "retained at source locator"
                 evidence.append(
                     Evidence(
                         kind="static_finding",
                         url=f"{receipt['cas_uri']}#{receipt.get('json_pointer', '')}",
                         note=(
-                            f"source={variant['source']}; source file={receipt.get('source_file_digest')}; "
+                            f"source={variant_source}; source file={receipt.get('source_file_digest')}; "
                             f"original package={variant.get('original_package_digest')}; "
                             f"local repaired package={variant.get('repaired_package_digest')}; "
                             "local repair does not establish fixed_upstream status."
@@ -275,14 +298,22 @@ def defect_map_records(rows: list[dict[str, Any]]) -> list[Finding]:
         direction: Direction = (
             row["direction"] if row["direction"] in {"wrong_pass", "unfair_fail"} else "other"
         )
+        code: DefectClass = _ISSUE_CLASSES.get(row["defect_class"], "unclassified")
+        native_status = row["status"]
+        if native_status not in {"confirmed", "refuted"}:
+            native_status = "retained at source locator"
         findings.append(
             make_record(
                 collection="mimo-defect-map",
                 locator=row["issue_id"],
                 task=_task(row["task_id"], next(iter(digests))),
-                defect_class=_ISSUE_CLASSES.get(row["defect_class"], "unclassified"),
+                defect_class=code,
                 direction=direction,
-                summary=f"{row['defect_class']}: retained {row['status']} issue ({tier}); see the pinned source record for its witness and qualification scope.",
+                summary=(
+                    f"{defensive_summary(code, direction, evidence)} "
+                    f"Source-native historical issue outcome: {native_status}; "
+                    "not independently confirmed or refuted by this importer."
+                ),
                 evidence=evidence,
                 finder="Eval Lab retained task_issues / mimo-defect-map-v1",
                 source_url=source_url,

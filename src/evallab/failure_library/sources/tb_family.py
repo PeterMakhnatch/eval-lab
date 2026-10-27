@@ -9,7 +9,12 @@ from typing import Any
 from urllib.request import urlopen
 
 from evallab.failure_library.records import DefectClass, Direction, Evidence, Finding, TaskRef
-from evallab.failure_library.sources import checked_file, json_rows, make_record
+from evallab.failure_library.sources import (
+    checked_file,
+    defensive_summary,
+    json_rows,
+    make_record,
+)
 from evallab.failure_library.store import default_state_root
 
 KEYS = Path("research/answer-keys")
@@ -53,17 +58,23 @@ def build_pm_tb4(root: Path, *, state_root: Path | None = None) -> list[Finding]
                 kind="human_label",
                 label_source="Preference Model",
                 url=item["source_url"],
-                note="Source-reported claim; PM's own execution claims alone do not upgrade this tier.",
+                note=(
+                    "Historical Preference Model label; source execution assertions alone "
+                    "are not independent verification or grounds for tier upgrades."
+                ),
             )
         ]
         port = item.get("port", {})
         if port:
+            port_status = port.get("status", "unknown")
+            if port_status not in {"fixed", "na", "open", "partial", "wontfix"}:
+                port_status = "unknown"
             evidence.append(
                 Evidence(
                     kind="static_finding",
                     url=f"{PORT_REPO}/tree/{PORT_REVISION}",
                     note=(
-                        f"Karotte port status={port.get('status', 'unknown')}; "
+                        f"Historical Karotte port status={port_status}; "
                         f"fix/port pin={PORT_REVISION}. This is a different repository, not a "
                         "confirmed repair of the pinned Harbor task or its current upstream head."
                     ),
@@ -92,9 +103,10 @@ def build_pm_tb4(root: Path, *, state_root: Path | None = None) -> list[Finding]
                     receipt_ref=f"{key}/witnesses.json#{witness['witness_id']}/upstream_replay",
                     reproducer_ref=item["reproducer"]["path"],
                     note=(
-                        f"Historical upstream reward=1; receipt={upstream['receipt_sha256']}; "
-                        f"fixed-port full-mode reward=0; receipt={fixed['receipt_sha256']}. "
-                        "No fresh replay performed by this importer."
+                        f"Retained historical receipt reports upstream reward=1; "
+                        f"receipt={upstream['receipt_sha256']}; paired fixed-port "
+                        f"full-mode reward=0; receipt={fixed['receipt_sha256']}. "
+                        "This importer checks retained provenance, not independent fresh replay."
                     ),
                 )
             )
@@ -109,7 +121,7 @@ def build_pm_tb4(root: Path, *, state_root: Path | None = None) -> list[Finding]
                 task=_tb4_task(item),
                 defect_class=code,
                 direction=direction,
-                summary=item["title"],
+                summary=defensive_summary(code, direction, evidence),
                 evidence=evidence,
                 finder="Preference Model",
                 source_url=item["source_url"],
@@ -177,7 +189,10 @@ def envcheck_records(items: list[dict[str, Any]], reported: list[dict[str, Any]]
                         kind="human_label",
                         label_source="Epoch AI",
                         url=source_url,
-                        note=f"{item['label_source']}; public issue claim, not re-executed.",
+                        note=(
+                            "Historical Epoch AI public issue label; not replayed or "
+                            "independently execution-verified by this importer."
+                        ),
                     )
                 ]
                 observed_at = "2026-10-15"
@@ -208,7 +223,12 @@ def envcheck_records(items: list[dict[str, Any]], reported: list[dict[str, Any]]
                         kind="executed",
                         url=source_url,
                         receipt_ref=f"{ENVCHECK_REPO}/blob/{ENVCHECK_REVISION}/{row['files']}{ref['file']}",
-                        note=f"Published graded wrong-pass case={ref['subject']}; receipt sha256:{ref['sha256']}. Not our execution.",
+                        note=(
+                            "Publisher-reported historical wrong-pass execution; "
+                            f"reported receipt sha256:{ref['sha256']}. "
+                            "Receipt metadata is a source assertion, not independently "
+                            "verified execution. No replay was performed by this importer."
+                        ),
                     )
                     for ref in receipts
                 ] or [
@@ -229,7 +249,7 @@ def envcheck_records(items: list[dict[str, Any]], reported: list[dict[str, Any]]
                     task=_tb4_task(item),
                     defect_class=code,
                     direction=direction,
-                    summary=cause["summary"],
+                    summary=defensive_summary(code, direction, evidence),
                     evidence=evidence,
                     finder=finder,
                     source_url=source_url,
@@ -289,7 +309,12 @@ def build_tb21_weak(root: Path, *, state_root: Path | None = None) -> list[Findi
                     kind="executed",
                     receipt_ref=str(key / control["evidence_path"]),
                     reproducer_ref=reported["reproducer"]["path"],
-                    note=f"Native historical original-reference=1, nop=0, full-targets=1, witness=1; witness receipt={control['evidence_sha256']}. No fresh replay.",
+                    note=(
+                        "Archived native receipts report original-reference=1, nop=0, "
+                        "full-targets=1, witness=1; "
+                        f"witness receipt={control['evidence_sha256']}. "
+                        "No independent fresh replay was performed by this importer."
+                    ),
                 )
             ]
             if receipts_present
@@ -315,7 +340,7 @@ def build_tb21_weak(root: Path, *, state_root: Path | None = None) -> list[Findi
                 ),
                 defect_class="TS01",
                 direction="wrong_pass",
-                summary=reported["summary"],
+                summary=defensive_summary("TS01", "wrong_pass", evidence),
                 evidence=evidence,
                 finder="Eval Lab Traces / native ref-subset controls",
                 source_url=f"{key}/findings.jsonl#{reported['id']}",
@@ -356,6 +381,19 @@ def build_tb2_fixes(root: Path, *, state_root: Path | None = None) -> list[Findi
         change = changes[task_id]
         code, direction = _FIX_CLASSES.get(task_id, ("unclassified", "other"))
         fix_url = f"https://github.com/{after['repo']}/tree/{after['commit']}/tasks/{task_id}"
+        evidence = [
+            Evidence(
+                kind="upstream_fix",
+                url=fix_url,
+                fix_revision=after["commit"],
+                note=(
+                    f"Before={before['repo']}@{before['commit']}; "
+                    f"after={after['repo']}@{after['commit']}; "
+                    f"after package={change['new_package_digest']}; "
+                    f"diff={source_path}#{task_id}. No executed differential reproducer claimed."
+                ),
+            )
+        ]
         findings.append(
             make_record(
                 collection="tb2-to-tb21-fixes",
@@ -370,20 +408,8 @@ def build_tb2_fixes(root: Path, *, state_root: Path | None = None) -> list[Findi
                 ),
                 defect_class=code,
                 direction=direction,
-                summary=f"TB2.1 {change['change_kind']}: {change['diff_summary']}",
-                evidence=[
-                    Evidence(
-                        kind="upstream_fix",
-                        url=fix_url,
-                        fix_revision=after["commit"],
-                        note=(
-                            f"Before={before['repo']}@{before['commit']}; "
-                            f"after={after['repo']}@{after['commit']}; "
-                            f"after package={change['new_package_digest']}; "
-                            f"diff={source_path}#{task_id}. No executed differential reproducer claimed."
-                        ),
-                    )
-                ],
+                summary=defensive_summary(code, direction, evidence),
+                evidence=evidence,
                 finder="Terminal-Bench maintainers / PR #53 version-diff cohort",
                 source_url=f"{source_path}#{task_id}",
                 observed_at="2026-10-27",

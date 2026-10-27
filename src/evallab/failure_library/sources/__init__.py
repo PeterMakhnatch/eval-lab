@@ -77,6 +77,94 @@ def normalize_split(value: str) -> Split:
         raise ValueError(f"unknown source split: {value}") from exc
 
 
+_DEFENSIVE_DESCRIPTIONS: dict[DefectClass, tuple[str, str]] = {
+    "TS01": (
+        "The verifier may leave required behavior unchecked.",
+        "Validate the complete requirement with an independent oracle and improve coverage.",
+    ),
+    "TS02": (
+        "Verifier decision logic may disagree with intended correctness.",
+        "Review decision boundaries against correct and incorrect benign reference cases.",
+    ),
+    "TS03": (
+        "Evaluation reference information may not be isolated from task execution.",
+        "Audit information boundaries and isolate reference artifacts from the task environment.",
+    ),
+    "TS04": (
+        "Task execution may affect the integrity of verification or scoring.",
+        "Validate results in a protected verification environment with immutable scoring inputs.",
+    ),
+    "TS05": (
+        "The verifier may require behavior not stated in the task instructions.",
+        "Reconcile the published requirement and oracle, then make the contract explicit.",
+    ),
+    "TS06": (
+        "The instructions and verifier may require contradictory behavior.",
+        "Resolve the contradiction and validate both against the same explicit requirement.",
+    ),
+    "TS07": (
+        "The oracle may reject behavior allowed by the stated requirement.",
+        "Check valid equivalent results and constrain assertions to the published contract.",
+    ),
+    "TS08": (
+        "The expected answer may disagree with the task's intended result.",
+        "Independently derive the reference result and review the answer-key provenance.",
+    ),
+    "TS09": (
+        "Environment assumptions or nondeterminism may affect the recorded grade.",
+        "Pin dependencies and resources, and assess reproducibility with benign controls.",
+    ),
+    "TS10": (
+        "Required behavior may be infeasible under the pinned task constraints.",
+        "Validate a legitimate reference solution within the documented resource limits.",
+    ),
+    "TS11": (
+        "An LLM judge may confuse untrusted task content with the evaluation rubric.",
+        "Separate rubric and evidence, and review judge decisions against independent labels.",
+    ),
+    "unclassified": (
+        "The source reports a task or verifier inconsistency without an established mechanism.",
+        "Reconcile instructions, oracle behavior and pinned version changes before classifying.",
+    ),
+}
+_DEFENSIVE_DIRECTIONS: dict[Direction, str] = {
+    "wrong_pass": "Reported direction: acceptance despite a requirement mismatch.",
+    "unfair_fail": "Reported direction: rejection despite stated requirement compliance.",
+    "other": "The direction of the reported correctness mismatch remains unresolved.",
+}
+
+
+def defensive_summary(
+    defect_class: DefectClass, direction: Direction, evidence: list[Evidence]
+) -> str:
+    """Publish symptoms and validation needs, never raw payloads or bypass narratives."""
+    kinds = {item.kind for item in evidence}
+    if "executed" in kinds:
+        provenance = (
+            "Retained source evidence reports historical execution; "
+            "the importer performs no independent replay."
+        )
+    elif "upstream_fix" in kinds:
+        provenance = (
+            "A pinned upstream change is retained as fix evidence; "
+            "no differential replay is claimed here."
+        )
+    elif "human_label" in kinds:
+        provenance = (
+            "Source-reported label or consensus assessment; "
+            "it is not independent execution evidence."
+        )
+    elif "judge_label" in kinds:
+        provenance = "Source-reported judge assessment; agreement is not independent verification."
+    else:
+        provenance = "Static source claim; the retained evidence does not establish execution."
+    symptom, validation = _DEFENSIVE_DESCRIPTIONS[defect_class]
+    return (
+        f"{provenance} {symptom} {_DEFENSIVE_DIRECTIONS[direction]} {validation} "
+        "Use the pinned source and independent validation before asserting current behavior."
+    )
+
+
 def make_record(
     *,
     collection: str,

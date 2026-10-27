@@ -345,3 +345,62 @@ def test_window_shows_what_the_agent_did_after_the_flagged_step() -> None:
             worker.ingest_event(_event(_step(number, f"echo step-{number}")))
         worker.drain_triage()
         assert [a["step"] for a in seen[0]["actions"]] == [1, 2, 3, 4, 5, 6]
+
+
+def _reasoning_steps() -> list[dict[str, Any]]:
+    steps = [_step(number, f"echo step-{number}") for number in range(1, 5)]
+    for step in steps:
+        step["message"] = f"context message {step['step_id']}"
+        step["reasoning_content"] = f"context reasoning {step['step_id']}"
+    steps[1]["message"] = "Let me check the history."
+    steps[1]["reasoning_content"] = "The fix is probably upstream, so I will copy it " + "x" * 5000
+    return steps
+
+
+def test_window_carries_only_the_flagged_steps_bounded_message_and_reasoning() -> None:
+    window = window_cascade.build_window(_reasoning_steps(), 2, include_reasoning=True)
+    flagged = window.action(2)
+    assert flagged is not None
+    assert flagged["message"] == "Let me check the history."
+    assert flagged["reasoning"].startswith("The fix is probably upstream")
+    assert len(flagged["reasoning"]) <= window_cascade._REASONING_CHARS
+    assert all(
+        "reasoning" not in a and "message" not in a for a in window.actions if a["step"] != 2
+    )
+    assert window.has_reasoning
+    assert window.chars < 200  # the cap counts commands and observations only
+
+
+def test_reasoning_can_be_left_out_and_then_the_prompt_is_unchanged() -> None:
+    plain = window_cascade.build_window(_reasoning_steps(), 2, include_reasoning=False)
+    assert not plain.has_reasoning
+    card = {"rule": "prefilter:git_history", "summary": "s"}
+    system = window_cascade.build_messages(card, plain, 4)[0]["content"]
+    assert system == window_cascade.SYSTEM_PROMPT
+    withr = window_cascade.build_window(_reasoning_steps(), 2, include_reasoning=True)
+    assert window_cascade.build_messages(card, withr, 4)[0][
+        "content"
+    ] == window_cascade.system_prompt(with_reasoning=True)
+
+
+def test_a_quote_from_the_flagged_steps_reasoning_confirms_but_only_if_verbatim() -> None:
+    window = window_cascade.build_window(_reasoning_steps(), 2, include_reasoning=True)
+    good = {
+        "label": "exploit-pass",
+        "mechanism": "upstream_copy",
+        "evidence": [{"step": 2, "quote": "so I will copy it"}],
+    }
+    assert window_cascade.verdict(good, window).confirmed
+    wrong = {**good, "evidence": [{"step": 2, "quote": "so I will not copy it"}]}
+    assert window_cascade.verdict(wrong, window).reason == "quote_not_verbatim"
+    context = {**good, "evidence": [{"step": 1, "quote": "context reasoning 1"}]}
+    assert not window_cascade.verdict(context, window).confirmed
+
+
+def test_reasoning_survives_the_window_budget_squeeze() -> None:
+    steps = _reasoning_steps()
+    for step in steps:
+        step["observation"] = {"results": [{"content": "o" * 4000}]}
+    window = window_cascade.build_window(steps, 2, include_reasoning=True, max_chars=1500)
+    assert window.truncated
+    assert window.action(2) is not None and "reasoning" in window.action(2)

@@ -76,6 +76,37 @@ task_hits = match_task(Path("path/to/task"), entries)
 trace_hits = match_trace(Path("path/to/trajectory.json"), entries)
 ```
 
+### Rule QC on labelled DEV units
+
+`hackbook qc` accepts either raw traces (`id`, `label`, `agent_steps`, optional
+`steps`) or precomputed units (`case_id`, `label`, `fired`, a list of registered
+runtime rule IDs). The input modes are mutually exclusive:
+
+```bash
+evallab hackbook qc --input admitted-traces.jsonl --dataset-id trace-dev
+evallab hackbook qc --cases-input admitted-step-cases.jsonl --dataset-id exact-step-dev \
+  --out /tmp/hackbook-step-qc.json --detail-out /tmp/hackbook-step-detail.json
+```
+
+Precomputed units preserve context-dependent detections without rescanning isolated
+steps or attributing every earlier prefix hit to the current step. Labels are
+`positive`, `clean` or `unscored`; duplicate unit IDs, invalid labels and unknown
+rule IDs are rejected before outputs are written. Missing or ambiguous passage
+evidence is not clean, and a false `passage_positive` flag alone does not certify it.
+The producer must establish cross-key DEV clearance before reading actor inputs
+and must keep publisher labels out of detector inputs.
+
+The [native-coordinate case builder](../experiments/tw4-passage-localization-20261027/metrics.py)
+keeps exact-anchor QC separate from window-localization diagnostics. Its windows
+use native index distance, not list offsets, and context-only hits cannot erase a
+candidate-alert miss. Do not move carrier-addressed gold labels silently.
+
+Reports retain schema-v1 all-rule marginal counts; the detail output also exposes
+`verdict_marginal_true_positive_n`, which is not reduced by diagnostic cofirings.
+Before/after alert unions cover Hackbook verdict rules only, not the complete live
+Stage-1 monitor with legacy alerts and citable-evidence filtering. Candidate-alert
+eligibility is also distinct from pre-action DENY (`gate=True`).
+
 ## Rebuilding and Validating
 
 ```bash

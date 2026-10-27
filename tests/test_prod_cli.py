@@ -671,3 +671,476 @@ def test_project_actor_refuses_output_under_the_source_cas_before_writing(
         path.relative_to(corpus_root): (path.stat().st_ino, path.stat().st_mtime_ns)
         for path in corpus_root.rglob("*")
     } == before
+
+
+def _tier_source(root: Path) -> Path:
+    """Inert DB: gate-admitted rows in every tier plus withheld and sealed rows."""
+    from evallab.production.cloud_trace_db import CloudTraceDatabase
+
+    _actor_source(root)
+    source = root.parent.resolve() / "tier-source.sqlite"
+    # (task, dataset, split, item identity, trace tiers, issue tiers)
+    fixtures = (
+        (
+            "unmaterialized-dev",
+            DATASET,
+            "DEV",
+            {"item_id": DEV},
+            ("tier1", "tier2", "tier3"),
+            ("tier1",),
+        ),
+        ("gf-dev", "synthetic-goodfire", "DEV", {}, ("tier2", "tier2", "tier3"), ()),
+        ("gf-held", "synthetic-goodfire", "held", {}, ("tier2",), ("tier1",)),
+        ("sealed-task", DATASET, "DEV", {"item_id": SEALED}, ("tier1",), ("tier2",)),
+    )
+    tiers = {
+        "tier1": "tier1_container_verified",
+        "tier2": "tier2_consensus_labeled",
+        "tier3": "tier3_provisional",
+    }
+    with CloudTraceDatabase(source) as database:
+        for task_id, dataset, split, metadata, trace_tiers, issue_tiers in fixtures:
+            database.upsert_task(
+                {
+                    "task_id": task_id,
+                    "dataset_id": dataset,
+                    "split": split,
+                    "instruction_text": "Inert tier census fixture.",
+                    "metadata_json": metadata,
+                }
+            )
+            for index, tier in enumerate(trace_tiers):
+                database.upsert_trace(
+                    {
+                        "trace_id": f"{task_id}-trace-{index}",
+                        "run_id": "inert",
+                        "task_id": task_id,
+                        "model_id": "synthetic/no-model",
+                        "trust_tier": tiers[tier],
+                    }
+                )
+            for index, tier in enumerate(issue_tiers):
+                database.upsert_task_issue(
+                    {
+                        "issue_id": f"{task_id}-issue-{index}",
+                        "task_id": task_id,
+                        "defect_class": "insufficient_checking",
+                        "direction": "wrong_pass",
+                        "status": "confirmed",
+                        "trust_tier": tiers[tier],
+                    }
+                )
+    return source
+
+
+def _recorded_reports(directory: Path) -> tuple[Path, Path]:
+    from evallab.hackbook.qc import score_cases
+    from evallab.tripwires import HACKBOOK_RULES
+
+    first, second = (rule["id"] for rule in HACKBOOK_RULES[:2])
+    cases = [
+        {"case_id": "p1", "label": "positive", "fired": frozenset({first})},
+        {"case_id": "p2", "label": "positive", "fired": frozenset({first, second})},
+        {"case_id": "c1", "label": "clean", "fired": frozenset({second})},
+        {"case_id": "c2", "label": "clean", "fired": frozenset()},
+        {"case_id": "u1", "label": "unscored", "fired": frozenset({first})},
+    ]
+    report, _ = score_cases(
+        cases,
+        (rule["id"] for rule in HACKBOOK_RULES),
+        dataset_id="synthetic-qc-cohort",
+        generated_at="2026-10-27T01:00:00+00:00",
+    )
+    digest = "ab" * 32
+    entry = {
+        "split": "dev",
+        "system_sha256": digest,
+        "positive_n": 4,
+        "clean_n": 6,
+        "unscored_n": 1,
+    }
+    tune_cross = {
+        "schema": "evallab.tune_cross_test/v1",
+        "system": "synthetic-frozen-system",
+        "frozen_sha256": digest,
+        "entries": [
+            {
+                **entry,
+                "role": "tune",
+                "dataset_id": "synthetic-tune",
+                "true_positive_n": 3,
+                "false_positive_n": 1,
+                "measured_at": "2026-10-27T01:10:00+00:00",
+            },
+            {
+                **entry,
+                "role": "cross_test",
+                "dataset_id": "synthetic-unseen",
+                "true_positive_n": 1,
+                "false_positive_n": 0,
+                "measured_at": "2026-10-27T01:20:00+00:00",
+            },
+        ],
+        "generated_at": "2026-10-27T01:30:00+00:00",
+    }
+    paths = directory / "QC Report (Synthetic).json", directory / "scoreboard.json"
+    paths[0].write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths[1].write_text(json.dumps(tune_cross, indent=2) + "\n", encoding="utf-8")
+    return paths
+
+
+def test_export_qc_reports_counts_only_admitted_rows_and_copies_recorded_reports_exactly(
+    corpus_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import hashlib
+
+    from evallab.production.benchmark_reports import validate_benchmark_document
+
+    source = _tier_source(corpus_root)
+    qc, scoreboard = _recorded_reports(source.parent)
+    source_state = {path.name: path.read_bytes() for path in source.parent.glob("tier-source*")}
+    output = source.parent / "qc-reports"
+    assert (
+        cli.run_cli(
+            [
+                "prod",
+                "export-qc-reports",
+                "--source-database",
+                str(source),
+                "--output-directory",
+                str(output),
+                "--hackbook-qc",
+                str(qc),
+                "--tune-cross-test",
+                str(scoreboard),
+                "--generated-at",
+                "2026-10-27T02:00:00+00:00",
+            ],
+            workspace=corpus_root,
+        )
+        == 0
+    )
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["uploaded"] is False
+    assert sorted(path.name for path in output.iterdir()) == [
+        "hackbook-qc-qc-report-synthetic.json",
+        "trust-tier-census-issues.json",
+        "trust-tier-census-traces.json",
+        "tune-cross-test-scoreboard.json",
+    ]
+    for artifact in receipt["artifacts"]:
+        raw = (output / artifact["file"]).read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == artifact["sha256"]
+        assert validate_benchmark_document(raw)["schema"] == artifact["schema"]
+        assert (output / artifact["file"]).stat().st_mode & 0o777 == 0o600
+    # Recorded measurements are copied byte for byte, never recomputed.
+    assert (output / "hackbook-qc-qc-report-synthetic.json").read_bytes() == qc.read_bytes()
+    assert (output / "tune-cross-test-scoreboard.json").read_bytes() == scoreboard.read_bytes()
+    traces = json.loads((output / "trust-tier-census-traces.json").read_text())
+    # Admitted DEV traces only: the held task and the sealed DEV-labelled task contribute nothing.
+    assert (traces["admitted_rows_n"], traces["unclassified_n"], traces["generated_at"]) == (
+        6,
+        0,
+        "2026-10-27T02:00:00+00:00",
+    )
+    assert [
+        (row["tier"], row["source"], row["rows_n"], row["prompt_eligible_n"])
+        for row in traces["tiers"]
+    ] == [
+        ("tier1_container_verified", DATASET, 1, 1),
+        ("tier2_consensus_labeled", "synthetic-goodfire", 2, 2),
+        ("tier2_consensus_labeled", DATASET, 1, 1),
+        ("tier3_provisional", "synthetic-goodfire", 1, 0),
+        ("tier3_provisional", DATASET, 1, 0),
+    ]
+    issues = json.loads((output / "trust-tier-census-issues.json").read_text())
+    assert (issues["admitted_rows_n"], [row["tier"] for row in issues["tiers"]]) == (
+        1,
+        ["tier1_container_verified"],
+    )
+    # source_sha256 digests exactly the admitted (row id, task, tier) lines, in key order.
+    counted = (
+        "gf-dev-trace-0\tgf-dev\ttier2_consensus_labeled",
+        "gf-dev-trace-1\tgf-dev\ttier2_consensus_labeled",
+        "gf-dev-trace-2\tgf-dev\ttier3_provisional",
+        "unmaterialized-dev-trace-0\tunmaterialized-dev\ttier1_container_verified",
+        "unmaterialized-dev-trace-1\tunmaterialized-dev\ttier2_consensus_labeled",
+        "unmaterialized-dev-trace-2\tunmaterialized-dev\ttier3_provisional",
+    )
+    assert traces["source_sha256"] == hashlib.sha256(
+        ("\n".join(counted) + "\n").encode()
+    ).hexdigest()
+    assert issues["source_sha256"] == hashlib.sha256(
+        b"unmaterialized-dev-issue-0\tunmaterialized-dev\ttier1_container_verified\n"
+    ).hexdigest()
+    assert {
+        path.name: path.read_bytes() for path in source.parent.glob("tier-source*")
+    } == source_state
+    assert not _path(corpus_root).exists()
+
+
+@pytest.mark.parametrize(
+    "failure", ["existing-output", "wrong-schema", "corrupt-count", "name-collision"]
+)
+def test_export_qc_reports_publishes_nothing_when_any_input_is_unsound(
+    corpus_root: Path,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    source = _tier_source(corpus_root)
+    qc, scoreboard = _recorded_reports(source.parent)
+    output = source.parent / "qc-reports"
+    argv = [
+        "prod",
+        "export-qc-reports",
+        "--source-database",
+        str(source),
+        "--output-directory",
+        str(output),
+    ]
+    if failure == "existing-output":
+        output.mkdir()
+    if failure == "wrong-schema":
+        argv += ["--hackbook-qc", str(scoreboard)]
+    elif failure == "corrupt-count":
+        report = json.loads(qc.read_text())
+        report["union_positives_hit_n"] = report["cohort"]["positive_n"] + 1
+        qc.write_text(json.dumps(report), encoding="utf-8")
+        argv += ["--hackbook-qc", str(qc)]
+    elif failure == "name-collision":
+        twin = qc.with_name("QC-Report Synthetic.json")
+        twin.write_bytes(qc.read_bytes())
+        argv += ["--hackbook-qc", str(qc), "--hackbook-qc", str(twin)]
+    assert cli.run_cli(argv, workspace=corpus_root) == 2
+    assert json.loads(capsys.readouterr().err)["error"]["type"] in {
+        "FileExistsError",
+        "ValueError",
+        "ValidationError",
+    }
+    assert not any(output.iterdir()) if failure == "existing-output" else not output.exists()
+    assert list(source.parent.glob(".qc-reports-*")) == []
+
+
+def test_export_qc_reports_fails_closed_without_assignment_authority(
+    corpus_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = _tier_source(corpus_root)
+    (corpus_root / "research/answer-keys/splits/assignments.csv").unlink()
+    output = source.parent / "qc-reports"
+    assert (
+        cli.run_cli(
+            [
+                "prod",
+                "export-qc-reports",
+                "--source-database",
+                str(source),
+                "--output-directory",
+                str(output),
+            ],
+            workspace=corpus_root,
+        )
+        == 2
+    )
+    assert json.loads(capsys.readouterr().err)["error"]["type"] == "ValueError"
+    assert not output.exists()
+    assert list(source.parent.glob(".qc-reports-*")) == []
+
+
+_TS4_MODELS = ("provider/model-one", "provider/model-two")
+
+
+def _ts4_manifest() -> dict[str, Any]:
+    # The summary counts are deliberately absurd: the builder must not read them. The
+    # real manifest's `*_static_*` fields hold executed counts and one field exceeds its
+    # arm's cell count.
+    bogus = {"turn_2_executed_runner_accurate_30": 99, "turn_1_static_30": 98}
+    return {
+        "ts4_cross_key_and_executed_audit": {
+            "schema": "synthetic-ts4-protocol",
+            "assignments_csv_key_count": 19,
+            "total_tasks_audited": 7,
+            "secondary_key_contaminated_count": 2,
+            "strictly_dev_everywhere_count": 5,
+            "strictly_dev_everywhere_by_dataset": {
+                "ds-a": ["a1", "a2", "a3"],
+                "ds-b": ["b1", "b2"],
+                "ds-empty": [],
+            },
+            "contaminated_tasks": [{"task": "x"}, {"task": "y"}],
+            "models_on_clean_30_tasks": {model: dict(bogus) for model in _TS4_MODELS},
+        }
+    }
+
+
+def _write_ts4_cell(
+    cells: Path,
+    dataset: str,
+    task: str,
+    turn: str,
+    *,
+    original: float = 1.0,
+    repaired: float = 0.0,
+    attested: bool = True,
+    served: str = "model-one",
+    route: str = "provider/model-one",
+) -> None:
+    directory = cells / dataset / task / route.replace("/", "_") / turn
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "result.json").write_text(
+        json.dumps(
+            {
+                "requested_model_route": route,
+                "served_provider": "provider",
+                "served_model": served,
+                "attestation_ok": attested,
+                "original_reward": original,
+                "repaired_reward": repaired,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _ts4_cells(cells: Path) -> Path:
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-1")  # attested differential
+    _write_ts4_cell(cells, "ds-a", "a2", "turn-1", repaired=1.0)  # attested, no differential
+    _write_ts4_cell(cells, "ds-a", "a3", "turn-1", attested=False)  # rewards alone are not enough
+    _write_ts4_cell(cells, "ds-b", "b1", "turn-1", served="other-model")  # another model served
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-2")
+    # model-two has no cells at all, and b2 was never evaluated for model-one.
+    return cells
+
+
+def test_ts4_counts_come_from_cells_and_never_exceed_the_arm_evaluated_cells(
+    tmp_path: Path,
+) -> None:
+    from evallab.production.benchmark_reports import validate_benchmark_document
+    from evallab.production.qc_reports import ts4_executed_differentials
+
+    cells = _ts4_cells(tmp_path / "cells")
+    document = ts4_executed_differentials(
+        _ts4_manifest(), cells, generated_at="2026-10-27T10:00:00Z"
+    )
+    assert validate_benchmark_document(json.dumps(document).encode()) == document
+    assert [(row["dataset_id"], row["count_n"]) for row in document["cohort"]["datasets"]] == [
+        ("ds-a", 3),
+        ("ds-b", 2),
+    ]
+    counts = {
+        (arm["arm"], condition["condition"]): (
+            condition["cells_n"],
+            condition["attested_n"],
+            condition["executed_differential_n"],
+        )
+        for arm in document["arms"]
+        for condition in arm["conditions"]
+    }
+    assert counts == {
+        ("provider/model-one", "turn_1"): (4, 2, 1),
+        ("provider/model-one", "turn_2_original_feedback"): (1, 1, 1),
+        ("provider/model-one", "turn_2_runner_accurate_feedback"): (0, 0, 0),
+        ("provider/model-two", "turn_1"): (0, 0, 0),
+        ("provider/model-two", "turn_2_original_feedback"): (0, 0, 0),
+        ("provider/model-two", "turn_2_runner_accurate_feedback"): (0, 0, 0),
+    }
+    # The exact table above also proves the manifest's own (bogus) summary numbers never surface.
+    first = document["arms"][0]["conditions"][0]["by_dataset"]
+    assert [(row["dataset_id"], row["cells_n"], row["attested_n"]) for row in first] == [
+        ("ds-a", 3, 2),
+        ("ds-b", 1, 0),
+    ]
+
+
+def test_ts4_source_digest_tracks_every_cell_and_bad_inputs_are_refused(tmp_path: Path) -> None:
+    from evallab.production.qc_reports import ts4_executed_differentials
+
+    stamp = "2026-10-27T10:00:00Z"
+    cells = _ts4_cells(tmp_path / "cells")
+    before = ts4_executed_differentials(_ts4_manifest(), cells, generated_at=stamp)
+    _write_ts4_cell(cells, "ds-a", "a1", "turn-1", repaired=1.0)
+    after = ts4_executed_differentials(_ts4_manifest(), cells, generated_at=stamp)
+    assert after["source_sha256"] != before["source_sha256"]
+    assert after["arms"][0]["conditions"][0]["executed_differential_n"] == 0
+
+    _write_ts4_cell(cells, "ds-b", "b2", "turn-1", route="provider/model-two")
+    wrong = cells / "ds-b" / "b2" / "provider_model-one"
+    wrong.parent.mkdir(parents=True, exist_ok=True)
+    (cells / "ds-b" / "b2" / "provider_model-two").rename(wrong)
+    with pytest.raises(ValueError, match="requested route"):
+        ts4_executed_differentials(_ts4_manifest(), cells, generated_at=stamp)
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(ValueError, match="no TS-4 cell results"):
+        ts4_executed_differentials(_ts4_manifest(), empty, generated_at=stamp)
+
+    manifest = _ts4_manifest()
+    manifest["ts4_cross_key_and_executed_audit"]["contaminated_tasks"] = []
+    with pytest.raises(ValueError, match="disagree"):
+        ts4_executed_differentials(manifest, cells, generated_at=stamp)
+
+
+def _cm4_directory(directory: Path) -> Path:
+    def scored(corpus: str, tp: int, fp: int) -> dict[str, Any]:
+        rows = []
+        for index in range(10):
+            rows.append({"positive": True, "stratum": "enacted_yes", "stage1": index < 6, "alarmed": index < tp})
+        for index in range(20):
+            rows.append({"positive": False, "stratum": "clean_no", "stage1": index < 8, "alarmed": index < fp})
+        for _ in range(5):
+            rows.append({"positive": False, "stratum": "considered_only", "stage1": False, "alarmed": False})
+        return {
+            "summary": {
+                "corpus": corpus,
+                "arm": "plain",
+                "positives": 10,
+                "negatives": 20,
+                "traces": 35,
+                "stage1": {"recall": 60.0, "far": 40.0},
+                "cascade": {"tp": tp, "fp": fp},
+                "judge_calls": 9,
+                "input_tokens": 1000,
+                "output_tokens": 400,
+            },
+            "traces": rows,
+        }
+
+    directory.mkdir()
+    (directory / "freeze.json").write_text(json.dumps({
+        "cascade_version": "cascade/v2",
+        "frozen_arm": "plain, chosen on the tuning cohort before any cross-test result",
+        "recorded_utc": "2026-10-27T05:00:00Z",
+    }), encoding="utf-8")
+    (directory / "crosskey.json").write_text(json.dumps({
+        "goodfire_sample": {"identities": 35, "assigned_test_anywhere": 0, "sealed_identity": 0},
+        "cheatbench-actions-v1": {"identities": 35, "assigned_test_anywhere": 0, "sealed_identity": 0},
+    }), encoding="utf-8")
+    for corpus, (tp, fp) in (("goodfire", (3, 0)), ("cheatbench", (0, 0))):
+        document = scored(corpus, tp, fp)
+        (directory / f"score2-{corpus}-plain.json").write_text(json.dumps(document), encoding="utf-8")
+    (directory / "judge-receipts.jsonl").write_text(
+        json.dumps({"arm": "plain", "served": "provider/judge-model"}) + "\n", encoding="utf-8",
+    )
+    return directory
+
+
+def test_cm4_directory_maps_the_frozen_arm_and_refuses_disagreement(tmp_path: Path) -> None:
+    from evallab.production.benchmark_reports import validate_benchmark_document
+    from evallab.production.qc_reports import cm4_monitor_cascade
+
+    directory = _cm4_directory(tmp_path / "cm4")
+    document = cm4_monitor_cascade(directory, generated_at="2026-10-27T10:00:00Z")
+    assert document["judge_models"] == ["provider/judge-model"]
+    assert [(c["role"], c["true_positive_n"], c["unscored_n"]) for c in document["cohorts"]] == [
+        ("tune", 3, 5),
+        ("cross_test", 0, 5),
+    ]
+    assert validate_benchmark_document(json.dumps(document).encode()) == document
+
+    summary = json.loads((directory / "score2-goodfire-plain.json").read_text())
+    summary["summary"]["cascade"]["tp"] = 4
+    (directory / "score2-goodfire-plain.json").write_text(json.dumps(summary), encoding="utf-8")
+    with pytest.raises(ValueError, match="disagrees with the summary"):
+        cm4_monitor_cascade(directory, generated_at="2026-10-27T10:00:00Z")

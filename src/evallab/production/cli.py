@@ -145,6 +145,43 @@ def register_parser(commands: Any) -> None:
     )
     project.set_defaults(func=_command)
 
+    export = actions.add_parser(
+        "export-qc-reports",
+        help="Write validated Trust & QC dashboard reports from a live database; never upload",
+        description=(
+            "Generates the trust-tier census from a read-only database and validates recorded "
+            "Hackbook QC and tune-vs-cross-test reports with the dashboard's own validator, "
+            "copying them byte for byte. Publishes one new directory; uploads nothing."
+        ),
+    )
+    export.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    export.add_argument("--source-database", type=Path, required=True)
+    export.add_argument("--output-directory", type=Path, required=True)
+    export.add_argument(
+        "--hackbook-qc", type=Path, action="append", default=[],
+        help="Recorded evallab.hackbook_qc/v1 report (evallab hackbook qc --out); repeatable",
+    )
+    export.add_argument(
+        "--tune-cross-test", type=Path, action="append", default=[],
+        help="Recorded evallab.tune_cross_test/v1 report; repeatable",
+    )
+    export.add_argument(
+        "--ts4-manifest", type=Path,
+        help="Recorded TS-3/TS-4 manifest.json (cross-key audit and strictly-DEV task list); "
+        "requires --ts4-cells",
+    )
+    export.add_argument(
+        "--ts4-cells", type=Path,
+        help="Retained per-cell results (<dataset>/<task>/<model>/<turn>/result.json); counts "
+        "executed differentials per arm and never above its evaluated cells",
+    )
+    export.add_argument(
+        "--cm4-directory", type=Path,
+        help="Recorded CM-4 results directory (freeze, score2-*, crosskey, judge receipts)",
+    )
+    export.add_argument("--generated-at", metavar="ISO", help="Census timestamp (default: now, UTC)")
+    export.set_defaults(func=_command)
+
     once = actions.add_parser("run-once", help="Run selected live consumers, then relay once")
     _queue_options(once)
     _worker_options(once, WORKER_SYSTEMS)
@@ -386,6 +423,34 @@ def _read_allowlist(path: Path) -> bytes:
     return read_owned_file(path)
 
 
+def _local_path(root: Path, path: Path) -> Path:
+    path = path.expanduser()
+    path = path if path.is_absolute() else root / path
+    if ".." in path.parts or any(part.is_symlink() for part in (path, *path.parents)):
+        raise ValueError("Operator paths must not contain symlinks or '..'")
+    return path
+
+
+def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    from evallab.production.qc_reports import export_qc_reports
+
+    return export_qc_reports(
+        source_database=_local_path(root, args.source_database),
+        output_directory=_local_path(root, args.output_directory),
+        repo_root=root,
+        hackbook_qc=tuple(_local_path(root, path) for path in args.hackbook_qc),
+        tune_cross_test=tuple(_local_path(root, path) for path in args.tune_cross_test),
+        ts4_manifest=_optional_path(root, args.ts4_manifest),
+        ts4_cells=_optional_path(root, args.ts4_cells),
+        cm4_directory=_optional_path(root, args.cm4_directory),
+        generated_at=args.generated_at,
+    )
+
+
+def _optional_path(root: Path, path: Path | None) -> Path | None:
+    return None if path is None else _local_path(root, path)
+
+
 def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     """Stage an operator-approved subset, never the raw database or its free pages."""
     import sqlite3
@@ -403,11 +468,7 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     from evallab.production.corpus_queue import CorpusRegistry
 
     def local_path(path: Path) -> Path:
-        path = path.expanduser()
-        path = path if path.is_absolute() else root / path
-        if ".." in path.parts or any(part.is_symlink() for part in (path, *path.parents)):
-            raise ValueError("Actor projection paths must not contain symlinks or '..'")
-        return path
+        return _local_path(root, path)
 
     source = local_path(args.source_database)
     source_cas = local_path(args.source_cas)
@@ -490,6 +551,9 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
         exit_code = 0
         if args.prod_command == "project-actor":
             _emit({"command": args.prod_command, **_project_actor(args, root)}, args)
+            return 0
+        if args.prod_command == "export-qc-reports":
+            _emit({"command": args.prod_command, **_export_qc_reports(args, root)}, args)
             return 0
         with _open_queue(args, root) as connection:
             if args.prod_command == "ingest":

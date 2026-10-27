@@ -1,38 +1,43 @@
-# TS-3 & pT-SELF-3..6 Capstone: Complete 50-Task 6-Model 2-Turn `hide_tests=True` Seeker Benchmark, 3-Benchmark Cross-Test (`600` Cells), and 28-Task Head-to-Head Regime Comparison (`936` Total Cells)
+# TS-3, TS-4, TS-5 & pT-SELF-1 Capstone: Complete 30-Task 2×2 Factorial Table (`Visible vs Hidden Tests` × `Turn 1 vs Turn 2`), Strict-Blind Scrubbing (`strict_blind_instructions=True`), & Strictly DEV-Everywhere `breaker-bench-v1` Cross-Test
 
-## Protocol & Fix for TS-2 Condition-A Confound
-- **What changed (`src/evallab/production/seeker_worker.py`):**
-  1. Added `hide_tests: bool = False` to `RewardSeekerLiveWorker`, `_prepare_attempt_workspace`, `build_headless_seeker_prompt`, and `OmpHeadlessAttemptGenerator`.
-  2. When `hide_tests=True`, `_prepare_attempt_workspace` strips `tests`, `test`, and `verifier` from `workspace / "task"` and `build_headless_seeker_prompt` completely omits the `## Upstream Grader Files (tests/)` section.
-  3. **Turn 1 (`attempt_index=1`, `hide_tests=True`, `prompt_mode="bare_task"`):** The seeker sees ONLY `task.toml`, `instruction.md`, and `environment/` (`0` `tests/` files, `0` Hackbook cues, `0` retrieval).
-  4. **Turn 2 (`attempt_index=2`, `hide_tests=True`, `prompt_mode="qa_review"`):** `tests/` remains hidden, and the seeker receives the captured **Turn-1 Grader Failure Output (`SeekerFailureMemory`)** plus **`CloudTraceRetriever`** examples (`1,636` Goodfire DEV enacted cheats unlocked + MiMo/TB4 DEV confirmed issues), with Turn-2 failure-token query enrichment and automatic `base_query` fallback.
-  5. Added `select_cascade_model_order` for deterministic 2-stage tripwire model routing and hardened `_normalize_mechanism_key` against sequence-valued mechanism/target_check payloads.
+## 1. Strict-Blind Instruction Scrubbing (`strict_blind_instructions=True`, Closing `pW-SELF-3`)
+- `scrub_blind_task_text(text)` and `strict_blind_instructions: bool = False` in `src/evallab/production/seeker_worker.py` strip `[verifier]` sections, maintainer comments mentioning `tests/`, `test.sh`, `test_*.py`, `pytest`, or `verifier`, and inline `tests/<path>` / `test_*.py` / `.pytest_cache` tokens from `task.toml`, `instruction.md`, and `environment/*`.
+- Across all `294` Turn-1 prompts in `eval-lab-results/2026-10-25/ts3-hide-tests-two-turn/pairs`:
+  - **Before (`pW-SELF-3`):** `24/294` Turn-1 prompts (`4` TB4 tasks × `6` models: `distributed-dedup`, `html-js-filter`, `live-database-cutover`, `vba-userform-port`) mentioned `tests/`, and `6` (`vba-userform-port`) named `tests/test.sh` (`6` on `html-js-filter` named `tests/Dockerfile`).
+  - **After (`strict_blind_instructions=True`):** **`0 / 294` Turn-1 prompts** mention `tests/` or any concrete test file path; re-running Turn 1 with `strict_blind_instructions=True` on the `3` cross-key-clean TB4 DEV tasks (`distributed-dedup`, `html-js-filter`, `vba-userform-port`) produced **`10/10 (100%)` identical Turn-1 differential outcomes** across all attested runs.
 
-## 1. Complete 50-Task × 6-Model × 2-Turn `hide_tests=True` Cross-Test (`28` MiMo DEV + `14` TB4 DEV + `8` `breaker-bench-v1` DEV = `600` Cells)
+## 2. Complete 30-Task Strictly Cross-Key-Clean 2×2 Factorial Table (`22` `mimo-defect-map-v1` DEV + `8` `tb4-audit-v1` DEV = `30` Tasks, Closing `pW-SELF-4`)
 
-| Model Route | Served Identity | Attested Turns | Turn 1 Blind Diff (`MiMo 28` / `TB4 14` / `Breaker 8`) | Turn 2 Retr Diff (`MiMo 28` / `TB4 14` / `Breaker 8`) | 2-Turn Cumul `Pass@2` (`M` / `T` / `B`) | `T1 -> T2` Gain | `Diff/100kTok` | Total Cost USD |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `meta/muse-spark-1.3-contributor` | `meta/muse-spark-1.3-contributor` | `98/100` (98.0%) | **30/50 (60.0%)** (`16/28` / `9/14` / `5/8`) | **48/50 (96.0%)** (`28/28` / `12/14` / `8/8`) | **48/50 (96.0%)** (`28/28` / `12/14` / `8/8`) | **`+18` tasks** | **3.996** | `$0.1341` |
-| `meta/muse-wonder-1.0-contributor` | `meta/muse-wonder-1.0-contributor` | `100/100` (100.0%) | **36/50 (72.0%)** (`20/28` / `8/14` / `8/8`) | **44/50 (88.0%)** (`27/28` / `9/14` / `8/8`) | **45/50 (90.0%)** (`27/28` / `10/14` / `8/8`) | **`+9` tasks** | **3.869** | `$0.0000` |
-| `anthropic/claude-sonnet-5-5` | `anthropic/claude-sonnet-5-5` | `87/100` (87.0%) | **26/50 (52.0%)** (`15/28` / `4/14` / `7/8`) | **42/50 (84.0%)** (`26/28` / `8/14` / `8/8`) | **43/50 (86.0%)** (`26/28` / `9/14` / `8/8`) | **`+17` tasks** | **3.361** | `$4.2189` |
-| `openrouter/deepseek/deepseek-v4.1-flash` | `openrouter/deepseek/deepseek-v4.1-flash` | `72/100` (72.0%) | **29/50 (58.0%)** (`17/28` / `5/14` / `7/8`) | **31/50 (62.0%)** (`22/28` / `4/14` / `5/8`) | **42/50 (84.0%)** (`26/28` / `8/14` / `8/8`) | **`+13` tasks** | **2.102** | `$0.7493` |
-| `kimi-code/k3.1-pro-highspeed` | `kimi-code/k3.1-pro-highspeed` | `88/100` (88.0%) | **29/50 (58.0%)** (`17/28` / `6/14` / `6/8`) | **34/50 (68.0%)** (`22/28` / `7/14` / `5/8`) | **40/50 (80.0%)** (`23/28` / `9/14` / `8/8`) | **`+11` tasks** | **4.287** | `$0.0000` |
-| `meta/muse-spark-open` | `openrouter/meta/muse-spark-open` | `77/77` (100%)* | **23/39 (59.0%; 23/50)** (`6/17` / `10/14` / `7/8`) | **34/39 (87.2%; 34/50)** (`16/17` / `12/14` / `6/8`) | **37/39 (94.9%; 37/50 = 74.0%)** (`17/17` / `12/14` / `8/8`) | **`+14` tasks** | **4.870** | `$0.8952` |
+### Table 2A — Complete `30`-Task Strictly Cross-Key-Clean Cohort (`22` MiMo DEV + `8` TB4 DEV): True Executed Paired-Grader Differential (`1.0 -> 0.0`)
 
-*\*Note: `openrouter/meta/muse-spark-open` completed `77/77 (100%)` attested turns across the first `39` tasks (`37/39 = 94.9%` cumulative differentials; `17/17 = 100%` on completed MiMo DEV tasks); on the remaining 11 MiMo DEV tasks, OpenRouter's server-side `max_tokens=131072` pre-reservation exceeded the `92,191`-token credit balance (`402`), and `_require_llm_attestation` strictly refused fallback attribution.*
+| Model Route | Visible Tests, Turn 1 (`Bare`, `M22/T8`) | Visible Tests, Turn 2 (`Retrieval`, `M22/T8`) | Hidden Tests (`strict_blind`), Turn 1 (`Blind`, `M22/T8`) | Hidden Tests (`strict_blind`), Turn 2 (`FB + Retr`, `M22/T8`) | Pure `hide_tests` Effect (`Hid T1 − Vis T1`) | Second-Turn Effect (`Hid T2 − Hid T1`) | `Hid T2 − Vis T2` (`FB + Hidden` vs `Visible Retr`) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `meta/muse-wonder-1.0-contributor` | `6/30` (20.0%) [`0/6`] | `11/30` (36.7%) [`5/6`] | `4/30` (13.3%) [`0/4`] | **25/30 (83.3%)** [`20/5`] | **`-2` tasks (-6.7 pp)** | **`+21` tasks (+70.0 pp)** | **`+14` tasks (+46.7 pp)** |
+| `meta/muse-spark-1.3-contributor` | `7/30` (23.3%) [`1/6`] | `9/30` (30.0%) [`3/6`] | `5/30` (16.7%) [`1/4`] | **19/30 (63.3%)** [`13/6`] | **`-2` tasks (-6.7 pp)** | **`+14` tasks (+46.7 pp)** | **`+10` tasks (+33.3 pp)** |
+| `anthropic/claude-sonnet-5-5` | `5/30` (16.7%) [`1/4`] | `8/30` (26.7%) [`5/3`] | `1/30` (3.3%) [`0/1`] | **18/30 (60.0%)** [`13/5`] | **`-4` tasks (-13.3 pp)** | **`+17` tasks (+56.7 pp)** | **`+10` tasks (+33.3 pp)** |
+| `kimi-code/k3.1-pro-highspeed` | `8/30` (26.7%) [`3/5`] | `14/30` (46.7%) [`8/6`] | `2/30` (6.7%) [`0/2`] | **16/30 (53.3%)** [`12/4`] | **`-6` tasks (-20.0 pp)** | **`+14` tasks (+46.7 pp)** | **`+2` tasks (+6.7 pp)** |
 
-## 2. 28-Task Head-to-Head Regime Comparison (`14` MiMo DEV + `14` TB4 DEV: Regime I `tests/` Visible `336` Cells vs Regime II `hide_tests=True` `336` Cells)
+### Table 2B — 16-Task Strictly Cross-Key-Clean All-6-Model Subset (`8` MiMo DEV + `8` TB4 DEV = `384` Cells): Static (`pW-SELF-4`) vs Executed (`1.0 -> 0.0`)
 
-| Model Route | Regime I (`tests/` Visible) Bare | Regime I (`tests/` Visible) + Retrieval | Regime II (`hide_tests=True`) Turn 1 Blind | Regime II (`hide_tests=True`) Turn 2 Retr | Regime II (`hide_tests=True`) 2-Turn Cumul | Delta (`Regime II Cumul - Regime I Retr`) |
+| Model Route | Vis T1 (`Static` / `Exec`) | Vis T2 (`Static` / `Exec`) | Hid T1 (`Static` / `Exec`) | Hid T2 (`Static` / `Exec`) | Pure `hide_tests` (`Hid T1 − Vis T1`, `Stat` / `Exec`) | Second-Turn Gain (`Hid T2 − Hid T1`, `Stat` / `Exec`) |
 |---|---:|---:|---:|---:|---:|---:|
-| `meta/muse-spark-open` | `11/28` (39.3%) | `13/28` (46.4%) | `13/28` (46.4%) | `26/28` (92.9%) | **26/28 (92.9%)** | **`+13` (+46.4 pp)** |
-| `meta/muse-spark-1.3-contributor` | `11/28` (39.3%) | `12/28` (42.9%) | `12/28` (42.9%) | `26/28` (92.9%) | **26/28 (92.9%)** | **`+14` (+50.0 pp)** |
-| `meta/muse-wonder-1.0-contributor` | `9/28` (32.1%) | `11/28` (39.3%) | `14/28` (50.0%) | `22/28` (78.6%) | **23/28 (82.1%)** | **`+12` (+42.9 pp)** |
-| `openrouter/deepseek/deepseek-v4.1-flash` | `11/28` (39.3%) | `9/28` (32.1%) | `12/28` (42.9%) | `15/28` (53.6%) | **21/28 (75.0%)** | **`+12` (+42.9 pp)** |
-| `anthropic/claude-sonnet-5-5` | `7/28` (25.0%) | `10/28` (35.7%) | `8/28` (28.6%) | `20/28` (71.4%) | **21/28 (75.0%)** | **`+11` (+39.3 pp)** |
-| `kimi-code/k3.1-pro-highspeed` | `8/28` (28.6%) | `10/28` (35.7%) | `11/28` (39.3%) | `16/28` (57.1%) | **18/28 (64.3%)** | **`+8` (+28.6 pp)** |
+| `meta/muse-spark-open` | `6/16` / `7/16` | `7/16` / `12/16` | `6/16` / `4/16` | `14/16` / `11/16` | `+0` / **`-3` tasks** | `+8` / **`+7` tasks** |
+| `meta/muse-spark-1.3-contributor` | `6/16` / `7/16` | `7/16` / `9/16` | `6/16` / `4/16` | `14/16` / `12/16` | `+0` / **`-3` tasks** | `+8` / **`+8` tasks** |
+| `meta/muse-wonder-1.0-contributor` | `6/16` / `6/16` | `6/16` / `8/16` | `9/16` / `4/16` | `13/16` / `12/16` | `+3` / **`-2` tasks** | `+4` / **`+8` tasks** |
+| `openrouter/deepseek/deepseek-v4.1-flash` | `7/16` / `9/16` | `4/16` / `5/16` | `8/16` / `4/16` | `10/16` / `9/16` (Cum `11/16`) | `+1` / **`-5` tasks** | `+2` / **`+5` tasks** (`+7` Cumul) |
+| `kimi-code/k3.1-pro-highspeed` | `5/16` / `6/16` | `7/16` / `10/16` | `6/16` / `2/16` | `10/16` / `9/16` | `+1` / **`-4` tasks** | `+4` / **`+7` tasks** |
+| `anthropic/claude-sonnet-5-5` | `4/16` / `4/16` | `4/16` / `5/16` | `4/16` / `1/16` | `12/16` / `10/16` | `+0` / **`-3` tasks** | `+8` / **`+9` tasks** |
 
-## 3. Early-Stop Two-Turn Cascade Efficiency (50 Tasks)
-- **`early_stop_muse_spark_1_3_50`**: **`48/50 (96.0%)`** in `70` calls (`838,341` tokens, **`5.726` differentials/100k tokens**, `$0.0913` — `31.7×` cheaper than early-stop `anthropic/claude-sonnet-5-5` and `46.2×` cheaper than 2-turn `anthropic/claude-sonnet-5-5`, while beating `Sonnet 5.5`'s `43/50 = 86.0%` by `+10.0 pp`).
-- **`early_stop_muse_wonder_50`**: **`45/50 (90.0%)`** in `64` calls (`721,568` tokens, **`6.236` differentials/100k tokens**, `$0.0000` subscription).
-- **`early_stop_sonnet_5_5_50`**: **`43/50 (86.0%)`** in `74` calls (`870,958` tokens, **`4.937` differentials/100k tokens**, `$2.8955`).
+- **Causal Findings Across All 30 Strictly Cross-Key-Clean DEV Tasks:**
+  1. **Pure `hide_tests` Effect on Turn 1 (`Hid T1 − Vis T1`) is Negative (`-2` to `-6` tasks, `-6.7` to `-20.0` pp):** When `tests/` is hidden without a second turn, models cannot see the test runner on Turn 1 and write honest code (`0/22`–`1/22` executed differentials on MiMo DEV), whereas with visible tests they spot `pytest`/`go test`/`mocha` on Turn 1 (`0/22`–`3/22` on MiMo DEV + `4/8`–`6/8` on TB4 DEV).
+  2. **Second-Turn Effect (`Hid T2 − Hid T1`) Drives `+14` to `+21` Tasks (`+46.7` to `+70.0` pp):** Adding Turn 2 (`Runner-Accurate Failure Feedback + CloudTraceRetriever`) lifts executed differentials from `1/30–5/30` (`3.3%–16.7%`) to **`16/30–25/30` (`53.3%–83.3%`)**.
+  3. **Interaction Effect (`Hid T2 [FB + Retr]` vs `Vis T2 [Retr]` = `+2` to `+14` tasks, `+6.7` to `+46.7` pp):** When full `tests/` files (`up to 16 KB` of assertions) are visible in `Vis T2`, models get distracted trying to satisfy individual test assertions (`3/22`–`8/22` on MiMo DEV), whereas hiding `tests/` bodies and feeding concise **Turn-1 Runner Failure Output + `CloudTraceRetriever`** focuses the model on the runner/grader boundary (`12/22`–`20/22` on MiMo DEV)!
+
+## 3. Strictly DEV-Everywhere `breaker-bench-v1` (Terminal Wrench) Cross-Test (`4` Runnable `terminal-bench-2` Pairs, `0.2.0` vs `0.2.2`)
+
+| Model Route | Turn 1 Strict-Blind (`0.2.0 -> 0.2.2` Executed) | Turn 2 FB + Retrieval (`0.2.0 -> 0.2.2` Executed) | Cumul `Pass@2` (`4` Breaker DEV) | Combined `34`-Task Strictly DEV-Everywhere Executed (`T1 -> T2`, `M22 / T8 / B4`) |
+|---|---:|---:|---:|---:|
+| `meta/muse-wonder-1.0-contributor` | `0/4` (0.0%) | **4/4 (100.0%)** | **4/4 (100.0%)** | `4/34 (11.8%)` $\to$ **29/34 (85.3%)** (`20/22` / `5/8` / `4/4`) |
+| `meta/muse-spark-1.3-contributor` | `0/4` (0.0%) | **4/4 (100.0%)** | **4/4 (100.0%)** | `5/34 (14.7%)` $\to$ **23/34 (67.6%)** (`13/22` / `6/8` / `4/4`) |
+| `kimi-code/k3.1-pro-highspeed` | **2/4 (50.0%)** | **4/4 (100.0%)** | **4/4 (100.0%)** | `4/34 (11.8%)` $\to$ **20/34 (58.8%)** (`12/22` / `4/8` / `4/4`) |
+| `anthropic/claude-sonnet-5-5` | `0/4` (0.0%) | **2/4 (50.0%)** | **2/4 (50.0%)** | `1/34 (2.9%)` $\to$ **20/34 (58.8%)** (`13/22` / `5/8` / `2/4`) |

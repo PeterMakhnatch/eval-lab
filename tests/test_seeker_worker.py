@@ -2386,3 +2386,36 @@ def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2
         target_check=["tests/test_outputs.py"],
         files_written=("/app/output/sa_ccr_results.csv",),
     )
+    from evallab.production.seeker_worker import (
+        SeekerRefusalError,
+        find_cross_key_non_dev_assignments,
+        require_cross_key_dev_only,
+    )
+    csv_tmp = tmp_path / "assignments.csv"
+    csv_tmp.write_text(
+        "key_id,item_id,task,unit,split,expected_verdict,exposures\n"
+        "tb4-audit-v1,tb4:fin-saccr-rwa,fin-saccr-rwa,fin-saccr-rwa,dev,fail,1\n"
+        "tb4-audit-v1,tb4:cargo-flight-dispatch,cargo-flight-dispatch,cargo-flight-dispatch,dev,fail,1\n"
+        "envcheck-tb4-39,env:cargo-flight-dispatch,cargo-flight-dispatch,cargo-flight-dispatch,heldout,fail,1\n",
+        encoding="utf-8",
+    )
+    assert find_cross_key_non_dev_assignments("terminal-bench/fin-saccr-rwa", assignments_csv=csv_tmp) == ()
+    require_cross_key_dev_only("terminal-bench/fin-saccr-rwa", assignments_csv=csv_tmp)
+    assert find_cross_key_non_dev_assignments(
+        "terminal-bench/cargo-flight-dispatch", assignments_csv=csv_tmp
+    ) == (("envcheck-tb4-39", "heldout"),)
+    with pytest.raises(SeekerRefusalError, match="envcheck-tb4-39"):
+        require_cross_key_dev_only("terminal-bench/cargo-flight-dispatch", assignments_csv=csv_tmp)
+    from evallab.production.seeker_worker import scrub_blind_task_text
+    leaked_toml = (
+        'schema_version = "1.0"\n'
+        "# anyway (tests/test.sh, prepare_fresh_runtime)\n"
+        "# Playwright image (see tests/Dockerfile)\n"
+        "[verifier]\n"
+        'artifacts = ["/workspace/generated_app"]\n'
+    )
+    scrubbed_toml = scrub_blind_task_text(leaked_toml)
+    assert "tests/" not in scrubbed_toml
+    assert "test.sh" not in scrubbed_toml
+    assert "[verifier]" not in scrubbed_toml
+    assert 'artifacts = ["/workspace/generated_app"]' in scrubbed_toml

@@ -24,6 +24,7 @@ from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -3209,6 +3210,93 @@ def select_cascade_model_order(
     return tuple(ordered)
 
 
+@lru_cache(maxsize=8)
+def _load_assignments_csv_index(csv_path: str) -> dict[str, tuple[tuple[str, str], ...]]:
+    import csv as _csv
+
+    by_bare: dict[str, set[tuple[str, str]]] = {}
+    path = Path(csv_path)
+    if not path.is_file():
+        return {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = _csv.DictReader(handle)
+        for row in reader:
+            key_id = str(row.get("key_id") or "").strip()
+            split = str(row.get("split") or "").strip().casefold()
+            if not key_id or not split:
+                continue
+            for col in ("item_id", "task", "unit"):
+                val = str(row.get(col) or "").strip()
+                if not val:
+                    continue
+                bare = val.split("@", 1)[0].rsplit("/", 1)[-1]
+                by_bare.setdefault(bare, set()).add((key_id, split))
+                if "__" in bare:
+                    by_bare.setdefault(bare.split("__")[-1], set()).add((key_id, split))
+    return {k: tuple(sorted(v)) for k, v in by_bare.items()}
+
+
+def find_cross_key_non_dev_assignments(
+    task_id: str,
+    *,
+    assignments_csv: Path | None = None,
+) -> tuple[tuple[str, str], ...]:
+    """Return ``(key_id, split)`` pairs where ``task_id`` is non-DEV in ``assignments.csv``."""
+    csv_file = (
+        Path(assignments_csv)
+        if assignments_csv is not None
+        else Path(__file__).resolve().parents[3] / "research/answer-keys/splits/assignments.csv"
+    )
+    index = _load_assignments_csv_index(str(csv_file.resolve()))
+    raw = str(task_id or "").strip()
+    bare = raw.split("@", 1)[0].rsplit("/", 1)[-1]
+    candidates = {bare}
+    if "__" in bare:
+        candidates.add(bare.split("__")[-1])
+    non_dev: set[tuple[str, str]] = set()
+    for cand in candidates:
+        for key_id, split in index.get(cand, ()):
+            if split not in {"dev", "train"}:
+                non_dev.add((key_id, split))
+    return tuple(sorted(non_dev))
+
+
+def require_cross_key_dev_only(
+    task_id: str,
+    *,
+    assignments_csv: Path | None = None,
+) -> None:
+    """Raise ``SeekerRefusalError`` if ``task_id`` has any test/heldout row in ``assignments.csv``."""
+    non_dev = find_cross_key_non_dev_assignments(task_id, assignments_csv=assignments_csv)
+    if non_dev:
+        raise SeekerRefusalError(
+            f"task {task_id!r} has non-DEV split in secondary assignments.csv keys: {list(non_dev)}"
+        )
+
+
+_BLIND_COMMENT_LEAK_RE = re.compile(
+    r"\btests?/|test_[A-Za-z0-9_]+|[A-Za-z0-9_]+_test\.|\btest\.sh\b|\bpytest\b|\bverifier\b",
+    re.IGNORECASE,
+)
+_BLIND_INLINE_TEST_PATH_RE = re.compile(
+    r"/?\btests/[A-Za-z0-9_./-]*|\btest_[A-Za-z0-9_]+\.[A-Za-z0-9]+|\b[A-Za-z0-9_]+_test\.[A-Za-z0-9]+|\btest\.sh\b|\.pytest_cache"
+)
+
+
+def scrub_blind_task_text(text: str) -> str:
+    """Scrub ``tests/...`` path references, test filenames, and verifier comments from blind task text."""
+    out_lines: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#") and _BLIND_COMMENT_LEAK_RE.search(stripped):
+            continue
+        if re.match(r"^\[verifier(?:\.[^\]]+)?\]\s*$", stripped, re.IGNORECASE):
+            continue
+        scrubbed = _BLIND_INLINE_TEST_PATH_RE.sub("[scrubbed-test-path]", line)
+        out_lines.append(scrubbed)
+    return "\n".join(out_lines)
+
+
 def build_headless_seeker_prompt(
     task: ResolvedSeekerTask,
     *,
@@ -3221,15 +3309,23 @@ def build_headless_seeker_prompt(
     dev_task_allowlist: frozenset[str] | None = None,
     prompt_mode: Literal["qa_review", "bare_task"] = "qa_review",
     hide_tests: bool = False,
+    strict_blind_instructions: bool = False,
+    enforce_cross_key_dev: bool = False,
+    assignments_csv: Path | None = None,
 ) -> str:
     """Build a self-contained prompt for ``omp -p --no-tools --no-skills --no-rules``."""
     if dev_task_allowlist is not None and (
         task.split.casefold() != "dev" or task.task_id not in dev_task_allowlist
     ):
         raise SeekerRefusalError("task is outside the sealed DEV-only prompt allowlist")
+    if enforce_cross_key_dev or bool(task.raw_payload.get("enforce_cross_key_dev", False)):
+        require_cross_key_dev_only(task.task_id, assignments_csv=assignments_csv)
     if len(retrieval_markdown) > 4500:
         raise SeekerRefusalError("retrieved trace prompt exceeds the 4500-character bound")
     effective_hide_tests = bool(hide_tests or task.raw_payload.get("hide_tests", False))
+    effective_strict_blind = bool(
+        strict_blind_instructions or task.raw_payload.get("strict_blind_instructions", False)
+    )
     task_dir = workspace / "task"
     if prompt_mode == "bare_task":
         sections: list[str] = [
@@ -3260,8 +3356,8 @@ def build_headless_seeker_prompt(
                 sections.extend(["", memory.render_markdown()[:4000]])
     else:
         rule_4 = (
-            "4. TWO-TURN BLIND SEEKER MODE (`hide_tests=True`): The upstream grader's `tests/` "
-            "directory is hidden. On Turn 1 (Attempt 1), you see only `instruction.md`, "
+            "4. TWO-TURN BLIND SEEKER MODE (`hide_tests=True`): The upstream grader's test "
+            "suite is hidden. On Turn 1 (Attempt 1), you see only `instruction.md`, "
             "`task.toml`, and `environment/` to probe the environment and grader failure output. "
             "On Turn 2+ (Attempt >= 2), combine the captured Turn-1 Grader Failure Output and "
             "`CloudTraceRetriever` examples below to construct a minimal defect reproducer "
@@ -3353,12 +3449,15 @@ def build_headless_seeker_prompt(
     ):
         p = task_dir / meta_name
         if p.is_file():
+            raw_meta = p.read_text(encoding="utf-8", errors="replace")
+            if effective_strict_blind:
+                raw_meta = scrub_blind_task_text(raw_meta)
             sections.extend(
                 [
                     "",
                     f"## File: `{meta_name}`",
                     "```",
-                    p.read_text(encoding="utf-8", errors="replace")[:limit],
+                    raw_meta[:limit],
                     "```",
                 ]
             )
@@ -3369,7 +3468,10 @@ def build_headless_seeker_prompt(
         for df in sorted(env_data_dir.rglob("*")):
             if df.is_file() and df.suffix.lower() in {".csv", ".json", ".txt", ".tsv"}:
                 rel = df.relative_to(task_dir).as_posix()
-                chunk = df.read_text(encoding="utf-8", errors="replace")[:1200]
+                chunk = df.read_text(encoding="utf-8", errors="replace")
+                if effective_strict_blind:
+                    chunk = scrub_blind_task_text(chunk)
+                chunk = chunk[:1200]
                 if len(chunk) <= data_budget:
                     sections.extend(["", f"## File: `{rel}`", "```", chunk, "```"])
                     data_budget -= len(chunk)
@@ -3394,7 +3496,10 @@ def build_headless_seeker_prompt(
                 continue
             if ef.stat().st_size > 50_000:
                 continue
-            chunk = ef.read_text(encoding="utf-8", errors="replace")[: min(1200, env_extra_budget)]
+            chunk = ef.read_text(encoding="utf-8", errors="replace")
+            if effective_strict_blind:
+                chunk = scrub_blind_task_text(chunk)
+            chunk = chunk[: min(1200, env_extra_budget)]
             if chunk:
                 sections.extend(["", f"## File: `{rel}`", "```", chunk, "```"])
                 env_extra_budget -= len(chunk)
@@ -3615,6 +3720,7 @@ class OmpHeadlessAttemptGenerator:
         retriever: CloudTraceRetriever | None = None,
         dev_task_allowlist: frozenset[str] | None = None,
         hide_tests: bool = False,
+        strict_blind_instructions: bool = False,
         prompt_mode: Literal["qa_review", "bare_task"] = "qa_review",
         use_cascade_routing: bool = False,
     ) -> None:
@@ -3627,6 +3733,7 @@ class OmpHeadlessAttemptGenerator:
         self.retriever = retriever
         self.dev_task_allowlist = dev_task_allowlist
         self.hide_tests = bool(hide_tests)
+        self.strict_blind_instructions = bool(strict_blind_instructions)
         self.prompt_mode: Literal["qa_review", "bare_task"] = prompt_mode
         self.use_cascade_routing = bool(use_cascade_routing)
         self.attestations: list[dict[str, Any]] = []
@@ -3693,6 +3800,10 @@ class OmpHeadlessAttemptGenerator:
             dev_task_allowlist=self.dev_task_allowlist,
             prompt_mode=self.prompt_mode,
             hide_tests=effective_hide_tests,
+            strict_blind_instructions=bool(
+                self.strict_blind_instructions
+                or task.raw_payload.get("strict_blind_instructions", False)
+            ),
         )
         (workspace / "headless_prompt.md").write_text(prompt, encoding="utf-8")
 

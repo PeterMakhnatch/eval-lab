@@ -165,24 +165,28 @@ hydrated, and step flags are decoded only for steps screened for return.
 
 **Trust tiers.** `task_issues` and `agent_traces` carry `trust_tier`, one of
 `tier1_container_verified` (container-verified differentials: qualified repairs,
-differentially replayed witnesses, maintainer fixes), `tier2_consensus_labeled`
-(unanimous judge votes with passage-level spans, human-verified runs) or
-`tier3_provisional` (unverified leads). A row whose writer declares no tier is
+differentially replayed witnesses, patch witnesses with repeat reference/nop
+controls, maintainer fixes), `tier2_consensus_labeled` (three-vote judge labels
+with passage-level spans, single-run witnessed differentials, human-verified runs)
+or `tier3_provisional` (unverified leads). A row whose writer declares no tier is
 provisional; re-upserting a row without `trust_tier` keeps the stored tier, and
 `assign_trust_tiers` sets tiers on existing rows atomically, touching nothing
 else. Older stores gain the columns, provisional by default, when opened.
 `retrieve_similar_examples` omits provisional issues and traces entirely unless
 `include_provisional=True`; examples rank by their strongest returned tier, then
-match strength, and each example prefers its strongest evidence. A trace's
-`flagged_passage_steps` (labeled cheat spans) restricts its returned steps to
-exactly those steps. Each example reports `trust_tier`, prints a `- trust:` line,
+match strength, and each example prefers its strongest evidence. A trace with
+labeled passage steps (or LB-3 `passage_positive` step marks) returns one window:
+its best-matching passage step with up to three steps on each side; provenance
+reports `passage_window` and `flagged_step_indices`, and prompt lines mark flagged
+steps. A list of flag names flags a step; source metadata objects do not. Each
+example reports `trust_tier`, prints a `- trust:` line,
 and records issue/trace tiers in provenance. Staged publisher bundles stay
 provisional. The tier assignment used for the shared store, and its policy, is
 `research/evidence/runs/trust-tiers-20261026/`. Terms must co-occur in one
-document; when fewer than `top_k` matching tasks hold returnable evidence,
-trace-led calls (`kind=None`, `reward_seeker`, `misalignment`) widen to
-documents matching any term, ranked by per-term strength. Issue-led calls
-(`task_quality`, any `issue_kind`) keep the strict all-term reading.
+document; when fewer than `top_k` matching tasks hold returnable evidence, every
+call (trace-led and issue-led, including `task_quality` and any `issue_kind`)
+widens to documents matching any term. Ranking stays tier first, then per-term
+strength, so matching more terms ranks higher only within a tier.
 
 At most one example per task and one trace per example is returned. `top_k`,
 `snippet_chars`, and `max_steps_per_trace` are positive integers. Overlong issue,
@@ -247,6 +251,14 @@ Goodfire rows carry no marks. Query a step mark with
 non-empty `flags_json`, so a test such as "`flags_json` is truthy" marks all of them;
 consumers that want the cheat window must read `passage_positive`. The updater and its
 receipts are archived under `research/evidence/runs/corpus-expansion-lb3-20261026/`.
+
+LB-5 measured the current Stage-1 tripwires against these marks (read-only, DEV only,
+`research/evidence/runs/corpus-expansion-lb5-20261027/`). Two cautions for anyone reading the
+marks as a recall target: the label also marks passages where the agent only mentions or
+declines a shortcut (use `verified_receipt_json.source_label.verdict_enacted == "yes"`), and
+76.6% of positive rows are in the reasoning channel, where command rules cannot see them. On the
+664 `tool_calls` positives of enacted-yes traces the live rules catch 16.0% (verdict-class) and
+28.9% (with diagnostic rules); the verdict-class rules alarm on 32.8% of clean traces.
 
 ## Many cheap agents or one strong model
 

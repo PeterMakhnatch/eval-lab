@@ -21,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from evallab.execution_backend import ExecutionBackendConfig
+from evallab.production.benchmark_reports import MAX_BENCHMARK_BYTES
 from evallab.production.cloud_trace_db import CloudTraceDatabase, S3CompatibleCAS
 from evallab.production.corpus_queue import ContinuousWorkQueue
 
@@ -1043,7 +1044,7 @@ def test_invalid_benchmark_files_are_each_rejected_with_a_reason(
     ):
         (directory / name).write_text(json.dumps(report), encoding="utf-8")
     (directory / "malformed.json").write_text('{"schema":', encoding="utf-8")
-    (directory / "oversized.json").write_bytes(b" " * (modal_cloud._MAX_BENCHMARK_BYTES + 1))
+    (directory / "oversized.json").write_bytes(b" " * (MAX_BENCHMARK_BYTES + 1))
     response = client.get("/api/cloud-db/benchmarks", headers=AUTH)
     assert response.status_code == 200
     assert response.json()["benchmarks"] == []
@@ -1490,6 +1491,95 @@ def _tune_cross_test_report(*, cross: bool = True) -> dict[str, Any]:
     }
 
 
+def _seeker_executed_report() -> dict[str, Any]:
+    def condition(name: str, a: tuple[int, int, int], b: tuple[int, int, int]) -> dict[str, Any]:
+        def cells(dataset: str, counts: tuple[int, int, int]) -> dict[str, Any]:
+            return {
+                "dataset_id": dataset,
+                "cells_n": counts[0],
+                "attested_n": counts[1],
+                "executed_differential_n": counts[2],
+            }
+
+        return {
+            "condition": name,
+            "cells_n": a[0] + b[0],
+            "attested_n": a[1] + b[1],
+            "executed_differential_n": a[2] + b[2],
+            "by_dataset": [cells("synthetic-a", a), cells("synthetic-b", b)],
+        }
+
+    return {
+        "schema": "evallab.seeker_executed_differentials/v2",
+        "protocol": "synthetic-executed-protocol",
+        "cohort": {
+            "split": "dev",
+            "key_count": 7,
+            "audited_n": 12,
+            "cross_key_excluded_n": 2,
+            "task_count": 10,
+            "datasets": [
+                {"dataset_id": "synthetic-a", "count_n": 6},
+                {"dataset_id": "synthetic-b", "count_n": 4},
+            ],
+        },
+        "arms": [
+            {
+                "arm": model,
+                "requested_model": model,
+                "conditions": [
+                    condition("turn_1", (6, 5, 0), (4, 4, 1)),
+                    # A partial condition: only 3 of 6 synthetic-a tasks were ever evaluated.
+                    condition("turn_2_partial", partial, (0, 0, 0)),
+                ],
+            }
+            for model, partial in (
+                ("provider/model-one", (3, 3, 3)),
+                ("provider/model-two", (0, 0, 0)),
+            )
+        ],
+        "source_sha256": hashlib.sha256(b"synthetic cell lines").hexdigest(),
+        "generated_at": "2026-10-27T10:00:00Z",
+    }
+
+
+def _monitor_cascade_report() -> dict[str, Any]:
+    def cohort(role: str, dataset: str, *, unscored: int, tp: int, fp: int) -> dict[str, Any]:
+        return {
+            "role": role,
+            "dataset_id": dataset,
+            "split": "dev",
+            "positive_n": 10,
+            "clean_n": 20,
+            "unscored_n": unscored,
+            "identities_checked_n": 30 + unscored,
+            "non_dev_assignment_n": 0,
+            "stage1_positive_hit_n": 6,
+            "stage1_clean_hit_n": 8,
+            "true_positive_n": tp,
+            "false_positive_n": fp,
+            "judge_calls_n": 9,
+            "input_tokens_n": 1000,
+            "output_tokens_n": 400,
+        }
+
+    return {
+        "schema": "evallab.monitor_cascade/v1",
+        "system": "synthetic-cascade",
+        "cascade_version": "cascade/v2",
+        "arm": "plain",
+        "judge_models": ["provider/judge-model"],
+        "frozen_sha256": hashlib.sha256(b"synthetic freeze").hexdigest(),
+        "frozen_recorded_at": "2026-10-27T05:00:00Z",
+        "freeze_statement": "plain arm chosen on the tuning cohort before any cross-test result",
+        "cohorts": [
+            cohort("tune", "synthetic-tune-set", unscored=5, tp=3, fp=0),
+            cohort("cross_test", "synthetic-unseen-set", unscored=0, tp=0, fp=0),
+        ],
+        "generated_at": "2026-10-27T10:00:00Z",
+    }
+
+
 @pytest.mark.parametrize(
     "report",
     [
@@ -1497,8 +1587,17 @@ def _tune_cross_test_report(*, cross: bool = True) -> dict[str, Any]:
         _hackbook_qc_report(),
         _tune_cross_test_report(),
         _tune_cross_test_report(cross=False),
+        _seeker_executed_report(),
+        _monitor_cascade_report(),
     ],
-    ids=["tier-census", "hackbook-qc", "tune-cross-test", "tune-only-cross-test-not-run"],
+    ids=[
+        "tier-census",
+        "hackbook-qc",
+        "tune-cross-test",
+        "tune-only-cross-test-not-run",
+        "seeker-executed",
+        "monitor-cascade",
+    ],
 )
 def test_trust_qc_reports_are_retained_with_exact_bytes(
     client: TestClient,
@@ -1516,6 +1615,62 @@ def test_trust_qc_reports_are_retained_with_exact_bytes(
         ],
         "rejected": [],
     }
+
+
+def test_exported_qc_reports_are_listed_by_the_cloud_api_without_rejections(
+    client: TestClient,
+    runtime: CloudRuntime,
+    repo_root: Path,
+    tmp_path: Path,
+) -> None:
+    from evallab.production.qc_reports import export_qc_reports
+
+    source = tmp_path / "source.sqlite"
+    with CloudTraceDatabase(source) as database:
+        database.upsert_task(_task("exported-dev", "Inert census fixture."))
+        database.upsert_task(_task("exported-held", "Withheld census fixture.", split="held"))
+        for task_id, tier in (
+            ("exported-dev", "tier2_consensus_labeled"),
+            ("exported-dev", "tier3_provisional"),
+            ("exported-held", "tier1_container_verified"),
+        ):
+            database.upsert_trace(
+                {
+                    "trace_id": f"{task_id}-{tier}",
+                    "run_id": "inert",
+                    "task_id": task_id,
+                    "model_id": "synthetic/no-model",
+                    "trust_tier": tier,
+                }
+            )
+    recorded = {
+        "qc.json": _hackbook_qc_report(),
+        "scoreboard.json": _tune_cross_test_report(),
+    }
+    for name, report in recorded.items():
+        (tmp_path / name).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    receipt = export_qc_reports(
+        source_database=source,
+        output_directory=runtime.data_root / "benchmarks",
+        repo_root=repo_root,
+        hackbook_qc=(tmp_path / "qc.json",),
+        tune_cross_test=(tmp_path / "scoreboard.json",),
+        generated_at="2026-10-27T02:00:00+00:00",
+    )
+    listing = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert listing["rejected"] == []
+    served = {item["file"]: item for item in listing["benchmarks"]}
+    assert {name: item["sha256"] for name, item in served.items()} == {
+        artifact["file"]: artifact["sha256"] for artifact in receipt["artifacts"]
+    }
+    census = served["trust-tier-census-traces.json"]["report"]
+    assert [(row["tier"], row["rows_n"], row["prompt_eligible_n"]) for row in census["tiers"]] == [
+        ("tier2_consensus_labeled", 1, 1),
+        ("tier3_provisional", 1, 0),
+    ]
+    assert census["admitted_rows_n"] == 2
+    assert served["hackbook-qc-qc.json"]["report"] == recorded["qc.json"]
+    assert served["tune-cross-test-scoreboard.json"]["report"] == recorded["scoreboard.json"]
 
 
 def _set(path: tuple[str | int, ...], value: Any) -> Callable[[dict[str, Any]], None]:
@@ -1578,6 +1733,47 @@ _TRUST_QC_REJECTIONS = [
     (_tune_cross_test_report, _set(("entries", 1, "role"), "holdout")),
     (_tune_cross_test_report, _set(("entries",), [])),
     (_tune_cross_test_report, _set(("frozen_sha256",), "0" * 64)),
+    # Executed differentials: the audit and per-dataset splits must be arithmetic truths.
+    (_seeker_executed_report, _set(("cohort", "audited_n"), 13)),
+    (_seeker_executed_report, _set(("cohort", "datasets", 0, "count_n"), 7)),
+    (_seeker_executed_report, _set(("cohort", "split"), "test")),
+    # The count that VF-5 found published: executed above the arm's evaluated cells.
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 1, "executed_differential_n"), 5)),
+    (
+        _seeker_executed_report,
+        _set(("arms", 0, "conditions", 1, "by_dataset", 0, "executed_differential_n"), 4),
+    ),
+    (_seeker_executed_report, _set(("arms", 1, "conditions", 1, "executed_differential_n"), 1)),
+    (
+        _seeker_executed_report,
+        # A whole-cohort count for an arm that evaluated nothing in this condition.
+        lambda report: (
+            _set(("arms", 1, "conditions", 1, "cells_n"), 10)(report),
+            _set(("arms", 1, "conditions", 1, "attested_n"), 10)(report),
+            _set(("arms", 1, "conditions", 1, "executed_differential_n"), 10)(report),
+        ),
+    ),
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "attested_n"), 10)),
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "executed_differential_n"), 10)),
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "cells_n"), 11)),
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "by_dataset", 0, "cells_n"), 7)),
+    (_seeker_executed_report, _set(("arms", 0, "conditions", 0, "by_dataset"), [])),
+    (_seeker_executed_report, _set(("arms", 1, "conditions", 0, "condition"), "turn_9")),
+    (_seeker_executed_report, _set(("arms", 1, "requested_model"), "PROVIDER/model-one")),
+    (_seeker_executed_report, _set(("arms", 0, "requested_model"), "no-provider")),
+    (_seeker_executed_report, _set(("source_sha256",), "abc")),
+    (_seeker_executed_report, _set(("schema",), "evallab.seeker_executed_differentials/v1")),
+    # Monitor cascade: every identity cross-key checked and clean, hits inside the cohort.
+    (_monitor_cascade_report, _set(("cohorts", 0, "non_dev_assignment_n"), 1)),
+    (_monitor_cascade_report, _set(("cohorts", 0, "identities_checked_n"), 30)),
+    (_monitor_cascade_report, _set(("cohorts", 0, "true_positive_n"), 11)),
+    (_monitor_cascade_report, _set(("cohorts", 1, "stage1_clean_hit_n"), 21)),
+    (_monitor_cascade_report, _set(("cohorts", 1, "dataset_id"), "SYNTHETIC-TUNE-SET")),
+    (_monitor_cascade_report, _set(("cohorts", 0, "role"), "cross_test")),
+    (_monitor_cascade_report, _set(("cohorts", 1, "split"), "test")),
+    (_monitor_cascade_report, _set(("judge_models",), [])),
+    (_monitor_cascade_report, _set(("frozen_recorded_at",), "2026-10-27T05:00:00")),
+    (_monitor_cascade_report, _set(("frozen_sha256",), "abc")),
 ]
 
 

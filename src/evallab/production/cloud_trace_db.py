@@ -2150,38 +2150,41 @@ class CloudTraceRetriever:
         refused = ValueError("pointer does not name returnable evidence")
         database = self.database
         table, key = ("agent_traces", "trace_id") if source == "trace" else ("task_issues", "issue_id")
+        confirmed = " AND status = 'confirmed'" if source == "issue" else ""
         with database._transaction():
             admitted, sealed_ids = self._admitted_ids()
             sealed = _sealed_pattern(frozenset(sealed_ids))
             if self._sealed_text(pointer, sealed):
                 raise ValueError("pointer contains a sealed task identity")
-            confirmed = " AND status = 'confirmed'" if source == "issue" else ""
-            rows = database._rows(f"SELECT * FROM {table} WHERE {key} = ?{confirmed}", (identity,))
-            if not rows and re.fullmatch(r"sha256:[0-9a-f]{64}", identity):
+            # Admission and trust are decided from identity columns alone, with
+            # the admitted-task scope inside the query: no body column of any
+            # row is read before that row is known to be returnable.
+            parameters: list[Any] = []
+            scope = database._task_id_scope("task_id", admitted, parameters)
+            head = f"SELECT {key}, task_id, trust_tier FROM {table} WHERE {scope}{confirmed}"
+            heads = database._rows(f"{head} AND {key} = ?", [*parameters, identity])
+            if not heads and re.fullmatch(r"sha256:[0-9a-f]{64}", identity):
                 # Overlong identities are shown as their SHA-256 reference.
-                rows = [
-                    row for row in database._rows(f"SELECT * FROM {table} WHERE 1 = 1{confirmed}")
-                    if self._identity(row[key]) == identity
-                ]
-            if len(rows) != 1:
+                heads = [row for row in database._rows(head, parameters) if self._identity(row[key]) == identity]
+            if len(heads) != 1 or heads[0]["trust_tier"] not in allowed:
                 raise refused
-            row = rows[0]
+            raw_id, task_id = heads[0][key], heads[0]["task_id"]
             tasks = database._rows(
-                "SELECT task_id, dataset_id, cas_uri FROM corpus_tasks WHERE task_id = ?", (row["task_id"],),
+                "SELECT task_id, dataset_id, cas_uri FROM corpus_tasks WHERE task_id = ?", (task_id,),
             )
-            if (
-                row["task_id"] not in set(admitted) or row["trust_tier"] not in allowed or not tasks
-                or self._sealed_text("\n".join(str(value or "") for value in tasks[0].values()), sealed)
-            ):
+            if not tasks or self._sealed_text("\n".join(str(value or "") for value in tasks[0].values()), sealed):
                 raise refused
-            result: dict[str, Any] = {
-                "pointer": pointer, "task_id": row["task_id"], "trust_tier": row["trust_tier"],
-            }
+            result: dict[str, Any] = {"pointer": pointer, "task_id": task_id, "trust_tier": heads[0]["trust_tier"]}
             if source == "issue":
+                (row,) = database._rows(f"SELECT * FROM {table} WHERE {key} = ?", (raw_id,))
                 if self._sealed_text(self._guarded_text(row), sealed):
                     raise refused
                 result["issue"] = self._issue_evidence(row)
                 return result
+            (row,) = database._rows(
+                "SELECT trace_id, run_id, model_id, raw_cas_uri, flagged_passage_steps "
+                "FROM agent_traces WHERE trace_id = ?", (raw_id,),
+            )
             if self._sealed_text(self._guarded_text({
                 field: row[field] for field in ("trace_id", "run_id", "model_id", "raw_cas_uri")
             }), sealed):
@@ -2191,11 +2194,11 @@ class CloudTraceRetriever:
             for step in database._rows(
                 f"SELECT {_RAW_FLAG_STEP_COLUMNS} FROM trace_steps s WHERE s.trace_id = ? "
                 "AND s.step_index BETWEEN ? AND ? AND s.role != 'user' ORDER BY s.step_index",
-                (row["trace_id"], first, last),
+                (raw_id, first, last),
             ):
                 _, step["flagged"] = _step_flag(step["flags_text"], step["step_index"], labeled)
                 step["flags_json"] = json.loads(step.pop("flags_text"))
                 if not self._sealed_text(self._guarded_text(step), sealed):
                     steps.append(self._step_evidence(step))
-            result.update(trace_id=self._identity(row["trace_id"]), steps=steps)
+            result.update(trace_id=self._identity(raw_id), steps=steps)
             return result

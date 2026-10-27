@@ -667,6 +667,56 @@ def test_route_pool_returns_none_when_every_route_is_excluded() -> None:
     assert pool.acquire("synthetic-run", {ROUTE, OTHER_ROUTE}) is None
 
 
+def test_extract_runs_benches_gateway_fallback_and_succeeds_on_another_route(
+    tmp_path: Path, atlas_run: atlas.AtlasRun, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FallbackTransport(FakeTransport):
+        def complete(
+            self, model: str, messages: Sequence[Mapping[str, str]], *, max_tokens: int,
+        ) -> atlas.Completion:
+            self.requests.append((model, [dict(message) for message in messages], max_tokens))
+            assert model in (ROUTE, OTHER_ROUTE)
+            served_model = "anthropic/claude-opus-5-5" if model == ROUTE else model
+            return atlas._completion(model, {
+                "status": 200,
+                "body": {
+                    "model": served_model,
+                    "choices": [{"message": {"role": "assistant", "content": json.dumps(_form())}}],
+                    "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+                },
+            }, 0.125)
+
+    # Fix only the starting-route hash; acquisition, quota handling and retry stay real.
+    monkeypatch.setattr(atlas.zlib, "crc32", lambda _run_id: 0)
+    transport = FallbackTransport([])
+    pool = atlas.RoutePool([ROUTE, OTHER_ROUTE], per_route=1, cooldown_seconds=60, clock=lambda: 100.0)
+    facets_path, calls_path = tmp_path / "facets.jsonl", tmp_path / "calls.jsonl"
+    summary = atlas.extract_runs(
+        [atlas_run], extractor=atlas.FacetExtractor(transport, backoff_seconds=0), pool=pool,
+        facets_path=facets_path, calls_path=calls_path, log=lambda _message: None,
+    )
+    assert summary == {
+        "written": 1, "failed": 0, "skipped": 0, "input_tokens": 11,
+        "output_tokens": 7, "errors": {},
+    }
+    assert [request[0] for request in transport.requests] == [ROUTE, OTHER_ROUTE]
+    records = atlas.load_facets(facets_path)
+    assert list(records) == [atlas_run.run_id]
+    assert records[atlas_run.run_id]["facet_model"] == OTHER_ROUTE
+    calls = [json.loads(line) for line in calls_path.read_text().splitlines()]
+    assert len(calls) == 3
+    assert calls[0]["requested_model"] == ROUTE
+    assert calls[0]["status"] == "error" and calls[0]["quota"] is True
+    assert "gateway answered with anthropic/claude-opus-5-5" in calls[0]["error"]
+    assert calls[1]["requested_model"] == calls[1]["served_model"] == OTHER_ROUTE
+    assert calls[1]["status"] == "ok"
+    assert calls[2]["purpose"] == "run" and calls[2]["status"] == "ok"
+    assert pool.benched[ROUTE] == 160.0
+    next_route = pool.acquire("another-run", set())
+    assert next_route == OTHER_ROUTE
+    pool.release(next_route)
+
+
 def test_extract_runs_is_idempotent_by_run_id(tmp_path: Path, atlas_run: atlas.AtlasRun) -> None:
     facets_path, calls_path = tmp_path / "facets.jsonl", tmp_path / "calls.jsonl"
     transport = FakeTransport([_completion()])

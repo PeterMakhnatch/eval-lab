@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from test_clouddb_blind import FORBIDDEN, OBSERVATION, REASONING
@@ -20,7 +21,10 @@ from evallab.readers.scout_clouddb import (
     to_transcript,
 )
 
-scout = pytest.importorskip("inspect_scout")
+
+@pytest.fixture(autouse=True)
+def scout_runtime() -> Any:
+    return pytest.importorskip("inspect_scout")
 
 
 def test_concrete_messages_keep_unbounded_reasoning_and_only_blind_metadata(corpus: tuple) -> None:
@@ -43,7 +47,9 @@ def test_concrete_messages_keep_unbounded_reasoning_and_only_blind_metadata(corp
         assert forbidden not in json.dumps(dumped, ensure_ascii=False)
 
 
-def test_incremental_sync_never_inserts_already_keyed_ids(corpus: tuple, tmp_path: Path) -> None:
+def test_incremental_sync_never_inserts_already_keyed_ids(
+    corpus: tuple, tmp_path: Path, scout_runtime: Any,
+) -> None:
     root, db_path, _ = corpus
     keymap = tmp_path / "private/keymap.jsonl"
     keymap.parent.mkdir()
@@ -58,7 +64,7 @@ def test_incremental_sync_never_inserts_already_keyed_ids(corpus: tuple, tmp_pat
     assert keymap.read_bytes() == before
 
     async def ids() -> set[str]:
-        async with scout.transcripts_db(str(transcripts)) as db:
+        async with scout_runtime.transcripts_db(str(transcripts)) as db:
             return set(await db.transcript_ids())
 
     assert asyncio.run(ids()) == {opaque_id(trace) for trace in ("trace-goodfire", "trace-tb4", "trace-mimo")}
@@ -150,7 +156,9 @@ def test_native_scan_collect_thresholds_labels_and_assistant_only_reference_mapp
         }
 
 
-def test_scan_errors_are_abstentions_not_negative_results(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_scan_errors_are_abstentions_not_negative_results(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scout_runtime: Any,
+) -> None:
     from types import SimpleNamespace
 
     import pandas as pd
@@ -160,7 +168,7 @@ def test_scan_errors_are_abstentions_not_negative_results(tmp_path: Path, monkey
         "transcript_id": opaque, "label": None, "value": float("nan"),
         "scan_error": "synthetic read failure", "message_references": "[]",
     }])
-    monkeypatch.setattr(scout, "scan_results_df", lambda *args, **kwargs: SimpleNamespace(
+    monkeypatch.setattr(scout_runtime, "scan_results_df", lambda *args, **kwargs: SimpleNamespace(
         scanners={"repeated_assistant_message": frame},
     ))
     keymap = tmp_path / "keymap.jsonl"

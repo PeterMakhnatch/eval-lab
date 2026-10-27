@@ -13,7 +13,9 @@ or incomplete studies use ``evallab.arm_comparison/v2``: coverage and protocol
 are explicit, unavailable metrics remain null, and requested models never
 substitute for served identities. Reward-Seeker model studies use
 ``evallab.seeker_comparison/v1``; ``/api/cloud-db/corpus`` serves aggregate-only
-corpus counts. See ``docs/live-watch.md`` for the wire contracts.
+corpus counts. Trust-tier censuses, Hackbook QC and tune-versus-cross-test
+scoreboards use ``evallab.trust_tier_census/v1``, ``evallab.hackbook_qc/v1`` and
+``evallab.tune_cross_test/v1``. See ``docs/live-watch.md`` for the wire contracts.
 Historic ``evallab.swarm_bench/v1`` reports with ``split: "dev"`` and the strict
 ``evallab.arm_comparison/v1`` contract below remain readable without rewriting::
 
@@ -426,6 +428,192 @@ class _SeekerComparison(_BenchmarkRecord):
         return self
 
 
+def _aware_timestamp(value: str) -> str:
+    timestamp = datetime.fromisoformat(value)
+    if timestamp.tzinfo is None or "T" not in value:
+        raise ValueError("timestamps must be ISO-8601 with a timezone")
+    return value
+
+
+class _TierRow(_BenchmarkRecord):
+    tier: Literal["tier1_container_verified", "tier2_consensus_labeled", "tier3_provisional"]
+    source: _Label
+    basis: _Label
+    rows_n: _Count
+    prompt_eligible_n: _Count
+
+    @model_validator(mode="after")
+    def validate_prompt_eligibility(self) -> Self:
+        if self.prompt_eligible_n > self.rows_n:
+            raise ValueError("prompt_eligible_n must not exceed rows_n")
+        if self.tier == "tier3_provisional" and self.prompt_eligible_n:
+            raise ValueError("tier3_provisional rows must never be prompt eligible")
+        return self
+
+
+class _TrustTierCensus(_BenchmarkRecord):
+    """Producer-reported memory tier counts over admitted DEV rows."""
+
+    schema_: Literal["evallab.trust_tier_census/v1"] = Field(alias="schema")
+    split: Literal["dev"]
+    unit: _Label
+    admitted_rows_n: _Count
+    unclassified_n: _Count
+    tiers: list[_TierRow]
+    source_sha256: _Sha256 | None
+    generated_at: str
+
+    @field_validator("generated_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        return _aware_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_partition(self) -> Self:
+        keys = [(row.tier, row.source.casefold()) for row in self.tiers]
+        if len(set(keys)) != len(keys):
+            raise ValueError("each tier/source pair may appear once")
+        if sum(row.rows_n for row in self.tiers) + self.unclassified_n != self.admitted_rows_n:
+            raise ValueError("tier rows plus unclassified_n must equal admitted_rows_n")
+        return self
+
+
+class _QcCohort(_BenchmarkRecord):
+    dataset_id: _Label
+    split: Literal["dev"]
+    positive_n: _Count
+    clean_n: _Count
+    unscored_n: _Count
+
+    @model_validator(mode="after")
+    def validate_scored(self) -> Self:
+        if self.positive_n + self.clean_n == 0:
+            raise ValueError("a QC cohort needs at least one scored case")
+        return self
+
+
+class _QcRule(_BenchmarkRecord):
+    rule_id: _Label
+    positives_hit_n: _Count
+    clean_hit_n: _Count
+    marginal_true_positive_n: _Count
+
+    @field_validator("rule_id")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        if value != value.strip():
+            raise ValueError("rule identifiers must not have surrounding whitespace")
+        return value
+
+    @model_validator(mode="after")
+    def validate_marginal(self) -> Self:
+        if self.marginal_true_positive_n > self.positives_hit_n:
+            raise ValueError("marginal_true_positive_n must not exceed positives_hit_n")
+        return self
+
+
+class _HackbookQc(_BenchmarkRecord):
+    """Per-rule hit counts on labelled positives and clean controls; rates are derived."""
+
+    schema_: Literal["evallab.hackbook_qc/v1"] = Field(alias="schema")
+    ruleset_sha256: _Sha256
+    cohort: _QcCohort
+    rules: Annotated[list[_QcRule], Field(min_length=1)]
+    union_positives_hit_n: _Count
+    union_clean_hit_n: _Count
+    generated_at: str
+
+    @field_validator("generated_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        return _aware_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_counts(self) -> Self:
+        if len({rule.rule_id.casefold() for rule in self.rules}) != len(self.rules):
+            raise ValueError("rule identifiers must be unique")
+        for label, hits, union, total in (
+            (
+                "positive",
+                [rule.positives_hit_n for rule in self.rules],
+                self.union_positives_hit_n,
+                self.cohort.positive_n,
+            ),
+            (
+                "clean",
+                [rule.clean_hit_n for rule in self.rules],
+                self.union_clean_hit_n,
+                self.cohort.clean_n,
+            ),
+        ):
+            if union > total:
+                raise ValueError(f"union {label} hits must not exceed the {label} cohort")
+            if not max(hits) <= union <= sum(hits):
+                raise ValueError(
+                    f"union {label} hits must lie between the largest rule and the sum"
+                )
+        if sum(rule.marginal_true_positive_n for rule in self.rules) > self.union_positives_hit_n:
+            raise ValueError("marginal true positives must not exceed the union of positives hit")
+        return self
+
+
+class _TuneCrossEntry(_BenchmarkRecord):
+    role: Literal["tune", "cross_test"]
+    dataset_id: _Label
+    split: Literal["dev"]
+    system_sha256: _Sha256
+    positive_n: _Count
+    clean_n: _Count
+    unscored_n: _Count
+    true_positive_n: _Count
+    false_positive_n: _Count
+    measured_at: str
+
+    @field_validator("measured_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        return _aware_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_counts(self) -> Self:
+        if self.positive_n + self.clean_n == 0:
+            raise ValueError("an entry needs at least one scored case")
+        if self.true_positive_n > self.positive_n or self.false_positive_n > self.clean_n:
+            raise ValueError("hits must not exceed the scored cohort they are drawn from")
+        return self
+
+
+class _TuneCrossTest(_BenchmarkRecord):
+    """One frozen system measured on tuning cohorts and on unseen cross-test cohorts."""
+
+    schema_: Literal["evallab.tune_cross_test/v1"] = Field(alias="schema")
+    system: _Label
+    frozen_sha256: _Sha256
+    entries: Annotated[list[_TuneCrossEntry], Field(min_length=1)]
+    generated_at: str
+
+    @field_validator("generated_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        return _aware_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_separation(self) -> Self:
+        if any(entry.system_sha256 != self.frozen_sha256 for entry in self.entries):
+            raise ValueError("every entry must measure the same frozen system digest")
+        tune = [entry for entry in self.entries if entry.role == "tune"]
+        cross = [entry for entry in self.entries if entry.role == "cross_test"]
+        if not tune:
+            raise ValueError("a scoreboard needs at least one tune entry")
+        names = [entry.dataset_id.casefold() for entry in self.entries]
+        if len(set(names)) != len(names):
+            raise ValueError("a dataset may appear once, so none is both tuned and cross-tested")
+        latest_tune = max(datetime.fromisoformat(entry.measured_at) for entry in tune)
+        if any(datetime.fromisoformat(entry.measured_at) < latest_tune for entry in cross):
+            raise ValueError("cross-test measurements must not predate the last tuning measurement")
+        return self
+
+
 class _SwarmScore(_BenchmarkRecord):
     # run_benchmark also retains selections, attribution, and descriptive deltas.
     model_config = ConfigDict(strict=True, extra="allow", allow_inf_nan=False)
@@ -498,6 +686,12 @@ def _benchmark_document(raw: bytes) -> dict[str, Any]:
         _NamedArmComparison.model_validate(document)
     elif schema == "evallab.seeker_comparison/v1":
         _SeekerComparison.model_validate(document)
+    elif schema == "evallab.trust_tier_census/v1":
+        _TrustTierCensus.model_validate(document)
+    elif schema == "evallab.hackbook_qc/v1":
+        _HackbookQc.model_validate(document)
+    elif schema == "evallab.tune_cross_test/v1":
+        _TuneCrossTest.model_validate(document)
     elif schema == "evallab.swarm_bench/v1":
         if "arms" in document:
             raise ValueError("Comparison arms require an evallab.arm_comparison schema")

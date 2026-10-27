@@ -33,6 +33,7 @@ DASHBOARD: str = r"""<!doctype html>
  <button id="benchmark-tab" type="button" role="tab" aria-selected="false" aria-controls="benchmark-view" tabindex="-1">Opus vs Swarm</button>
  <button id="corpus-tab" type="button" role="tab" aria-selected="false" aria-controls="corpus-view" tabindex="-1">Corpus</button>
  <button id="seeker-tab" type="button" role="tab" aria-selected="false" aria-controls="seeker-view" tabindex="-1">Reward Seeker</button>
+ <button id="trust-tab" type="button" role="tab" aria-selected="false" aria-controls="trust-view" tabindex="-1">Trust &amp; QC</button>
 </nav>
 <div id="live-view" role="tabpanel" aria-labelledby="live-tab">
 <section class="panel" aria-labelledby="queue-title">
@@ -91,6 +92,15 @@ DASHBOARD: str = r"""<!doctype html>
  <p id="cloud-seeker-status" class="notice" role="status"></p>
  <div id="cloud-seeker-roster"></div>
  <div id="cloud-seeker-reports"></div>
+</section>
+<section id="trust-view" class="panel" role="tabpanel" aria-labelledby="trust-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Retained producer reports / counts and arithmetic only</div><h2>Trust tiers, Hackbook QC and cross-test</h2></div><button id="cloud-trust-refresh" type="button" class="small">Refresh retained reports</button></div>
+ <p class="seal">Retained DEV-intended studies, not held-out performance</p>
+ <p>Counts come from retained producer reports and are source claims; this page only derives rates from them. Unscored cases are shown separately and never enter a rate. Tier 3 provisional rows are never prompt eligible. No benchmark or rule is ranked or declared a winner.</p>
+ <p id="cloud-trust-status" class="notice" role="status"></p>
+ <h3>Trusted-memory tiers</h3><div id="cloud-trust-tiers"></div>
+ <h3>Hackbook QC per rule</h3><div id="cloud-trust-qc"></div>
+ <h3>Tune versus cross-test</h3><div id="cloud-trust-tune"></div>
 </section>
 <footer>All live views are projections of the durable journal. Provisional suspicion is not a confirmed verdict. TEST and heldout splits are sealed; only verified DEV evidence is exportable. Credentials stay in this page’s memory.</footer>
 </main>
@@ -451,6 +461,77 @@ async function loadSeekerComparison(){
   notice('cloud-seeker-status',cloudError(error,'Reward-Seeker comparison'),true);
  }finally{$('cloud-seeker-refresh').disabled=false;}
 }
+const cloudRatio=(count,total)=>total>0?cloudFraction(count/total):'Not available';
+function cloudTierCensus(report,parent){
+ parent.append(node('p','Unit: '+report.unit+' · admitted DEV rows '+cloudCount(report.admitted_rows_n)+
+  ' · unclassified '+cloudCount(report.unclassified_n)+' · generated '+report.generated_at));
+ const totals=new Map(),tiles=node('div',undefined,'metrics');
+ for(const row of list(report.tiers))totals.set(row.tier,(totals.get(row.tier)||0)+row.rows_n);
+ for(const [tier,label] of [['tier1_container_verified','Tier 1 · container-verified'],
+  ['tier2_consensus_labeled','Tier 2 · consensus-labeled'],['tier3_provisional','Tier 3 · provisional (never in prompts)']])
+  tiles.append(cloudTile(cloudCount(totals.get(tier)||0),label));
+ tiles.append(cloudTile(cloudCount(report.unclassified_n),'Unclassified'));
+ parent.append(tiles,cloudTable(['Tier','Source','Evidence basis','Rows','Prompt eligible'],
+  list(report.tiers).map(row=>[row.tier,row.source,row.basis,cloudCount(row.rows_n),
+   row.tier==='tier3_provisional'?'0 · excluded':cloudCount(row.prompt_eligible_n)])));
+ parent.append(node('small','Tier counts are producer-reported source claims; this page did not re-derive them.'));
+}
+function cloudHackbookQc(report,parent){
+ const cohort=report.cohort;
+ parent.append(node('p',cohort.dataset_id+' · DEV · '+cohort.positive_n+' labelled positives · '+cohort.clean_n+
+  ' clean controls · '+cohort.unscored_n+' unscored (excluded from every rate)'),
+  node('p','Ruleset SHA-256: '+report.ruleset_sha256.slice(0,12)+' · generated '+report.generated_at));
+ const row=(name,positives,clean,marginal)=>[name,positives+'/'+cohort.positive_n,
+  cloudRatio(positives,cohort.positive_n),clean+'/'+cohort.clean_n,cloudRatio(clean,cohort.clean_n),
+  cloudRatio(positives,positives+clean),marginal];
+ const rows=list(report.rules).map(rule=>row(rule.rule_id,rule.positives_hit_n,rule.clean_hit_n,
+  rule.marginal_true_positive_n));
+ rows.push(row('All rules (union)',report.union_positives_hit_n,report.union_clean_hit_n,'—'));
+ parent.append(cloudTable(['Rule','Positives hit','Recall','Clean controls hit','False-alarm rate','Precision',
+  'Marginal true positives'],rows),
+  node('small','Precision depends on this cohort’s positive/clean mix and is not comparable across cohorts. A marginal true positive is a positive only that rule catches.'));
+}
+function cloudTuneCross(report,parent){
+ const entries=list(report.entries),cross=entries.filter(entry=>entry.role==='cross_test');
+ parent.append(node('p','System: '+report.system+' · frozen digest '+report.frozen_sha256.slice(0,12)+
+  ' · generated '+report.generated_at),
+  node('p',cross.length?cross.length+' cross-test cohort(s) measured on the same frozen digest after the last tuning measurement.':
+   'Cross-test not run: no unseen cohort has been measured for this frozen system.','seal'));
+ parent.append(cloudTable(['Role','Dataset','Scored positives / clean','Recall','False-alarm rate','Precision','Measured'],
+  entries.map(entry=>[entry.role==='tune'?'Tune':'Cross-test',entry.dataset_id,
+   entry.positive_n+' / '+entry.clean_n+' · unscored '+entry.unscored_n,
+   cloudRatio(entry.true_positive_n,entry.positive_n),cloudRatio(entry.false_positive_n,entry.clean_n),
+   cloudRatio(entry.true_positive_n,entry.true_positive_n+entry.false_positive_n),entry.measured_at])));
+ parent.append(node('small','Each dataset appears once, so no cohort is both tuned and cross-tested. Rows are not pooled.'));
+}
+const trustSections=[
+ ['evallab.trust_tier_census/v1','cloud-trust-tiers',cloudTierCensus,'No retained trust-tier census.'],
+ ['evallab.hackbook_qc/v1','cloud-trust-qc',cloudHackbookQc,'No retained Hackbook QC report.'],
+ ['evallab.tune_cross_test/v1','cloud-trust-tune',cloudTuneCross,'No retained tune-versus-cross-test scoreboard.']];
+async function loadTrustQc(){
+ $('cloud-trust-refresh').disabled=true;
+ for(const [,id] of trustSections)$(id).replaceChildren();
+ notice('cloud-trust-status','Loading retained reports…');
+ try{
+  const data=await cloudApi('/api/cloud-db/benchmarks');
+  let shown=0;
+  for(const [schema,id,render,empty] of trustSections){
+   const found=list(data?.benchmarks).filter(entry=>entry?.report?.schema===schema);
+   if(!found.length)$(id).append(node('p',empty+' None has been fabricated.','empty'));
+   for(const entry of found){
+    const section=node('article',undefined,'cloud-report');
+    section.append(node('h4',entry.file),node('small',schema));
+    cloudProvenance(entry,section);
+    render(entry.report,section);
+    $(id).append(section);shown++;
+   }
+  }
+  notice('cloud-trust-status',shown?shown+' retained DEV reports.':'No retained trust, QC or cross-test reports. No results have been fabricated.');
+ }catch(error){
+  notice('cloud-trust-status',cloudError(error,'Trust and QC reports'),true);
+ }finally{$('cloud-trust-refresh').disabled=false;}
+}
+$('cloud-trust-refresh').addEventListener('click',loadTrustQc);
 $('cloud-corpus-refresh').addEventListener('click',loadCloudCorpus);
 $('cloud-seeker-refresh').addEventListener('click',loadSeekerComparison);
 $('cloud-search').addEventListener('submit',searchCloudDb);
@@ -467,6 +548,7 @@ for(const tab of viewTabs){
   if(tab.id==='benchmark-tab')loadCloudBenchmarks();
   if(tab.id==='corpus-tab')loadCloudCorpus();
   if(tab.id==='seeker-tab')loadSeekerComparison();
+  if(tab.id==='trust-tab')loadTrustQc();
  });
  tab.addEventListener('keydown',event=>{
   if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;

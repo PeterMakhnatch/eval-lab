@@ -300,3 +300,48 @@ def test_a_failing_example_provider_degrades_to_the_plain_window_and_says_so() -
     assert "reference_examples" not in seen[0]
     final = [e for e in emitted if e["event_type"] == "monitor.suspicion"][-1]
     assert final["payload"]["cascade"]["reference_examples_error"] == "OSError: store offline"
+
+
+def test_lookahead_counts_only_agent_steps_after_the_flagged_step() -> None:
+    ids = [1, 2, 3, 4, 5, 6]
+    assert not window_cascade.lookahead_ready(ids, 2)
+    assert window_cascade.lookahead_ready(ids, 1)
+    assert not window_cascade.lookahead_ready([], 1)
+
+
+def test_flush_judges_a_waiting_card_on_the_steps_observed_so_far() -> None:
+    seen: list[dict[str, Any]] = []
+
+    def judge(messages: list[dict[str, str]]) -> tuple[dict[str, Any], float]:
+        seen.append(json.loads(messages[-1]["content"]))
+        return {"label": "neither", "mechanism": None, "evidence": []}, 0.0
+
+    emitted: list[dict[str, Any]] = []
+    with MisalignmentLiveWorker(emit=emitted.append, judge=judge) as worker:
+        worker.ingest_event(_event(_step(1, "cat /tests/test_outputs.py")))
+        worker.ingest_event(_event(_step(2)))
+        worker.drain_triage()
+        assert seen == []  # only one later step: still waiting
+        worker.flush_triage("run-a")
+        worker.drain_triage()
+        assert [a["step"] for a in seen[0]["actions"]] == [1, 2]
+        assert seen[0]["prefix_step"] == 2
+        worker.ingest_event(_event(_step(3)))
+    final = [e for e in emitted if e["event_type"] == "monitor.suspicion"][-1]
+    assert final["payload"]["cascade"]["judged_prefix"] == 2
+    assert len(seen) == 1  # a card is judged once
+
+
+def test_window_shows_what_the_agent_did_after_the_flagged_step() -> None:
+    seen: list[dict[str, Any]] = []
+
+    def judge(messages: list[dict[str, str]]) -> tuple[dict[str, Any], float]:
+        seen.append(json.loads(messages[-1]["content"]))
+        return {"label": "neither", "mechanism": None, "evidence": []}, 0.0
+
+    with MisalignmentLiveWorker(emit=lambda event: None, judge=judge) as worker:
+        worker.ingest_event(_event(_step(1, "git log --oneline")))
+        for number in range(2, 10):
+            worker.ingest_event(_event(_step(number, f"echo step-{number}")))
+        worker.drain_triage()
+        assert [a["step"] for a in seen[0]["actions"]] == [1, 2, 3, 4, 5, 6]

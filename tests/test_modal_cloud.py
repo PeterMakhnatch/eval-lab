@@ -1580,6 +1580,83 @@ def _monitor_cascade_report() -> dict[str, Any]:
     }
 
 
+def _playbook_result(label: str, hits: int, of: int, **fields: Any) -> dict[str, Any]:
+    return {
+        "label": label,
+        "hit_label": "synthetic hits",
+        "hits_n": hits,
+        "of_n": of,
+        "planned_of_n": None,
+        "false_alarm_n": None,
+        "false_alarm_of_n": None,
+        "stage_one_hits_n": None,
+        "stage_one_false_alarm_n": None,
+        "cost": {
+            "calls_n": 4,
+            "input_tokens_n": 1000,
+            "output_tokens_n": 200,
+            "usd": None,
+            "complete": True,
+            "scope": "all 4 synthetic calls",
+            "usd_basis": "no price",
+        },
+    } | fields
+
+
+def _system_playbook_report() -> dict[str, Any]:
+    def system(system_id: str, name: str, runs: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "system_id": system_id,
+            "name": name,
+            "plain_english": "Does a synthetic thing.",
+            "measure": "synthetic hits",
+            "version": "synthetic/v1",
+            "served_models": ["provider/model-one"],
+            "runs": runs,
+            "flags": [
+                {
+                    "flag": "synthetic flag",
+                    "plain_english": "Switches a synthetic feature.",
+                    "role": runs[0]["role"],
+                    "cohort": runs[0]["cohort"],
+                    "variants": [
+                        _playbook_result("off", 1, 10),
+                        _playbook_result("on", 2, 10),
+                    ],
+                }
+            ],
+            "caveats": ["A synthetic limit."],
+        }
+
+    def run(role: str, cohort: str, **fields: Any) -> dict[str, Any]:
+        return {
+            "role": role,
+            "cohort": cohort,
+            "frozen": role != "dev_only",
+            "result": _playbook_result("frozen", 3, 10, **fields),
+        }
+
+    clean = {"false_alarm_n": 1, "false_alarm_of_n": 8, "stage_one_hits_n": 5, "stage_one_false_alarm_n": 4}
+    return {
+        "schema": "evallab.system_playbook/v1",
+        "systems": [
+            system(
+                "task_bug_finder",
+                "Task Bug Finder",
+                [run("tune", "synthetic-tune"), run("cross_test", "synthetic-cross", planned_of_n=12)],
+            ),
+            system("reward_seeker", "Reward Seeker", [run("dev_only", "synthetic-dev")]),
+            system(
+                "live_monitor",
+                "Live Monitor",
+                [run("tune", "synthetic-a", **clean), run("cross_test", "synthetic-b", **clean)],
+            ),
+        ],
+        "sources": [{"label": "synthetic source", "sha256": hashlib.sha256(b"source").hexdigest()}],
+        "generated_at": "2026-10-27T10:00:00Z",
+    }
+
+
 @pytest.mark.parametrize(
     "report",
     [
@@ -1589,6 +1666,7 @@ def _monitor_cascade_report() -> dict[str, Any]:
         _tune_cross_test_report(cross=False),
         _seeker_executed_report(),
         _monitor_cascade_report(),
+        _system_playbook_report(),
     ],
     ids=[
         "tier-census",
@@ -1597,6 +1675,7 @@ def _monitor_cascade_report() -> dict[str, Any]:
         "tune-only-cross-test-not-run",
         "seeker-executed",
         "monitor-cascade",
+        "system-playbook",
     ],
 )
 def test_trust_qc_reports_are_retained_with_exact_bytes(
@@ -1774,6 +1853,24 @@ _TRUST_QC_REJECTIONS = [
     (_monitor_cascade_report, _set(("judge_models",), [])),
     (_monitor_cascade_report, _set(("frozen_recorded_at",), "2026-10-27T05:00:00")),
     (_monitor_cascade_report, _set(("frozen_sha256",), "abc")),
+    # System playbook: hits inside their cohort, one cohort never both tuned and cross-tested.
+    (_system_playbook_report, _set(("systems", 0, "runs", 0, "result", "hits_n"), 11)),
+    (_system_playbook_report, _set(("systems", 0, "runs", 1, "result", "planned_of_n"), 9)),
+    (_system_playbook_report, _set(("systems", 2, "runs", 0, "result", "false_alarm_n"), 9)),
+    (_system_playbook_report, _set(("systems", 2, "runs", 0, "result", "stage_one_false_alarm_n"), 9)),
+    (_system_playbook_report, _set(("systems", 2, "runs", 0, "result", "stage_one_hits_n"), 11)),
+    (_system_playbook_report, _set(("systems", 2, "runs", 0, "result", "false_alarm_of_n"), None)),
+    (_system_playbook_report, _set(("systems", 0, "runs", 1, "cohort"), "SYNTHETIC-TUNE")),
+    (_system_playbook_report, _set(("systems", 0, "runs", 0, "role"), "cross_test")),
+    (_system_playbook_report, _set(("systems", 1, "flags", 0, "variants", 1, "label"), "OFF")),
+    (_system_playbook_report, _set(("systems", 1, "flags", 0, "variants"), [_playbook_result("only", 1, 2)])),
+    (_system_playbook_report, _set(("systems", 1, "runs", 0, "result", "cost", "input_tokens_n"), None)),
+    (_system_playbook_report, _set(("systems", 1, "runs", 0, "result", "cost", "usd"), -1.0)),
+    (_system_playbook_report, _set(("systems", 1, "caveats"), [])),
+    (_system_playbook_report, _set(("systems", 1, "served_models"), ["no-provider"])),
+    (_system_playbook_report, _set(("systems", 1, "system_id"), "live_monitor")),
+    (_system_playbook_report, _set(("systems",), [])),
+    (_system_playbook_report, _set(("sources",), [])),
 ]
 
 

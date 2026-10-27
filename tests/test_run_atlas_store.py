@@ -319,9 +319,9 @@ def test_cluster_hierarchy_replaces_atomically(faceted: CloudTraceDatabase) -> N
     ([cluster("c1", 1, None, ["dev-task/pass"])] * 2, "duplicate cluster_id"),
     ([cluster("c1", 1, None, ["dev-task/pass"], label_rates=[0.5])], "label_rates"),
     ([cluster("c1", 1, None, ["dev-task/pass"], cluster_version="run-clusters/v2")], "cluster_version"),
-    ([cluster("c1", 1.0, None, ["dev-task/pass"])], "level must be"),
-    ([cluster("c1", 1, [], ["dev-task/pass"])], "parent must be"),
-    ([cluster("c1", 1, None, [{}])], "distinct run IDs"),
+    ([{**cluster("c1", 1, None, ["dev-task/pass"]), "level": 1.0}], "level must be"),
+    ([{**cluster("c1", 1, None, ["dev-task/pass"]), "parent": []}], "parent must be"),
+    ([{**cluster("c1", 1, None, ["dev-task/pass"]), "run_ids": [{}]}], "distinct run IDs"),
     ([cluster("c1", 1, None, ["dev-task/pass"], size=1.0)], "size must be"),
 ])
 def test_invalid_hierarchy_keeps_the_stored_one(

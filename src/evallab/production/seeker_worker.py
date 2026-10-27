@@ -3657,8 +3657,26 @@ class OmpHeadlessAttemptGenerator:
         effective_hide_tests = bool(self.hide_tests or task.raw_payload.get("hide_tests", False))
         retrieval_markdown = ""
         if self.retriever is not None and not (effective_hide_tests and attempt_index == 1):
-            query = selected_cue.taxonomy_class if selected_cue is not None else "weak_check"
-            retrieval = self.retriever.retrieve(task_id=task.task_id, query=query)
+            base_query = selected_cue.taxonomy_class if selected_cue is not None else "weak_check"
+            retrieval = None
+            if attempt_index > 1 and memory.records:
+                last_rec = memory.records[-1]
+                failure_tokens = [
+                    tok
+                    for tok in _TOKEN_RE.findall(
+                        f"{last_rec.target_check or ''} {' '.join(last_rec.failed_tests)}".lower()
+                    )
+                    if len(tok) >= 4 and tok not in {"tests", "test"}
+                ]
+                if failure_tokens:
+                    cand_retrieval = self.retriever.retrieve(
+                        task_id=task.task_id,
+                        query=f"{base_query} {failure_tokens[0]}",
+                    )
+                    if cand_retrieval.hits:
+                        retrieval = cand_retrieval
+            if retrieval is None:
+                retrieval = self.retriever.retrieve(task_id=task.task_id, query=base_query)
             retrieval_markdown = retrieval.render_prompt_markdown()
             (workspace / "retrieval.json").write_text(
                 json.dumps(retrieval.to_dict(), indent=2, sort_keys=True) + "\n",

@@ -1088,6 +1088,7 @@ def test_ts4_source_digest_tracks_every_cell_and_bad_inputs_are_refused(tmp_path
 def test_ts5_factorial_2x2_differentials_verifies_hide_tests_flag_on_visible_and_hidden_cells(
     tmp_path: Path,
 ) -> None:
+    from evallab.production.benchmark_reports import validate_benchmark_document
     from evallab.production.qc_reports import ts5_factorial_2x2_differentials
 
     cells = tmp_path / "cells"
@@ -1098,6 +1099,7 @@ def test_ts5_factorial_2x2_differentials_verifies_hide_tests_flag_on_visible_and
     doc = ts5_factorial_2x2_differentials(
         _ts4_manifest(), cells, generated_at="2026-10-27T11:00:00Z"
     )
+    assert validate_benchmark_document(json.dumps(doc).encode()) == doc
     cond_map = {c["condition"]: c for c in doc["arms"][0]["conditions"]}
     assert cond_map["turn_1_visible"]["executed_differential_n"] == 1
     assert cond_map["turn_1_visible"]["hide_tests"] is False

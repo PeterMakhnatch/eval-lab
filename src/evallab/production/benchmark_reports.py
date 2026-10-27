@@ -665,6 +665,19 @@ class _SeekerExecutedDifferentials(_BenchmarkRecord):
         return self
 
 
+class _FactorialCondition(_ExecutedCondition):
+    hide_tests: bool
+
+
+class _FactorialArm(_ExecutedArm):
+    conditions: Annotated[list[_FactorialCondition], Field(min_length=1)]  # type: ignore[assignment]
+
+
+class _SeekerFactorialDifferentials(_SeekerExecutedDifferentials):
+    schema_: Literal["evallab.seeker_factorial_2x2_differentials/v1"] = Field(alias="schema")  # type: ignore[assignment]
+    arms: Annotated[list[_FactorialArm], Field(min_length=1)]  # type: ignore[assignment]
+
+
 class _CascadeCohort(_BenchmarkRecord):
     role: Literal["tune", "cross_test"]
     dataset_id: _Label
@@ -949,6 +962,8 @@ def validate_benchmark_document(raw: bytes) -> dict[str, Any]:
         _TuneCrossTest.model_validate(document)
     elif schema == "evallab.seeker_executed_differentials/v2":
         _SeekerExecutedDifferentials.model_validate(document)
+    elif schema == "evallab.seeker_factorial_2x2_differentials/v1":
+        _SeekerFactorialDifferentials.model_validate(document)
     elif schema == "evallab.monitor_cascade/v1":
         _MonitorCascade.model_validate(document)
     elif schema == "evallab.system_playbook/v1":

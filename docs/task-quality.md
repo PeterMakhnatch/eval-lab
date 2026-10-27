@@ -232,7 +232,9 @@ list only narrows admission, never grants it. `source` (`dataset_id`),
 `fail` if ≤ 0, otherwise `unknown`) are copied from the database; the receipt
 counts disagreements and refusals by reason. `evallab prod import-run-facets
 --cloud-database <db> --jsonl <facets-v1.jsonl>` imports the interim append-only
-JSONL with retrieval's own admission; a later line supersedes an earlier one.
+JSONL with retrieval's own admission; the last fully valid record wins. Refused
+replacements cannot discard a valid prefix, and a torn UTF-8/JSON append is counted
+without losing the complete preceding records.
 
 `evallab.production.CloudTraceRetriever` supplies a bounded, read-only DEV
 projection for consumers that need prior verified evidence. A local SQLite

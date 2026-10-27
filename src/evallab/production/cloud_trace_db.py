@@ -537,7 +537,7 @@ class CloudTraceDatabase:
                 self._execute(f"""CREATE TABLE IF NOT EXISTS run_facets (
                     run_id TEXT PRIMARY KEY REFERENCES agent_traces(trace_id) ON DELETE CASCADE,
                     task_id TEXT NOT NULL REFERENCES corpus_tasks(task_id),
-                    source TEXT NOT NULL, split TEXT NOT NULL CHECK(lower(split) = 'dev'),
+                    source TEXT NOT NULL, split TEXT NOT NULL,
                     outcome TEXT NOT NULL CHECK({checks["outcome"]}),
                     facet_version TEXT NOT NULL CHECK(facet_version = '{RUN_FACETS_VERSION}'),
                     facet_model TEXT NOT NULL,
@@ -804,8 +804,8 @@ class CloudTraceDatabase:
         ``run_id`` must name a stored trace whose task is admitted, and every
         ``evidence_steps`` entry one of its stored steps;
         ``source``, ``split`` and ``outcome`` are copied from the database. A
-        later record for a run supersedes an earlier one. Refused records are
-        counted by reason (with up to 20 examples) and never partially stored.
+        later valid record for a run supersedes an earlier one. Refused records
+        are counted by reason (with up to 20 examples) and never partially stored.
         """
         reasons: dict[str, int] = {}
         examples: list[dict[str, Any]] = []
@@ -816,7 +816,7 @@ class CloudTraceDatabase:
                 examples.append({"run_id": run_id if isinstance(run_id, str) else None, "reason": reason})
 
         count = 0
-        rows: dict[str, dict[str, Any]] = {}
+        rows: list[dict[str, Any]] = []
         for record in records:
             count += 1
             try:
@@ -824,10 +824,9 @@ class CloudTraceDatabase:
             except ValueError as error:
                 refuse(record.get("run_id") if isinstance(record, Mapping) else None, str(error))
                 continue
-            rows.pop(row["run_id"], None)
-            rows[row["run_id"]] = row
+            rows.append(row)
         overrides = dict.fromkeys(_FACET_DATABASE_FIELDS, 0)
-        stored = 0
+        selected: dict[str, dict[str, Any]] = {}
         with self._transaction(write=True):
             if self._postgres:
                 self._execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
@@ -836,19 +835,20 @@ class CloudTraceDatabase:
             if allowed_task_ids is not None:
                 allowed = allowed.intersection(allowed_task_ids)
             parameters: list[Any] = []
-            scope = self._task_id_scope("a.trace_id", list(rows), parameters)
+            run_ids = {row["run_id"] for row in rows}
+            scope = self._task_id_scope("a.trace_id", run_ids, parameters)
             runs = {run["trace_id"]: run for run in self._rows(
                 "SELECT a.trace_id, a.task_id, a.reward, c.dataset_id, c.split FROM agent_traces a "
                 f"JOIN corpus_tasks c ON c.task_id = a.task_id WHERE {scope}", parameters,
             )}
-            cited = [
-                run_id for run_id, row in rows.items()
-                if row["evidence_steps"] and run_id in runs and runs[run_id]["task_id"] in allowed
-            ]
+            cited = {
+                row["run_id"] for row in rows
+                if row["evidence_steps"] and row["run_id"] in runs and runs[row["run_id"]]["task_id"] in allowed
+            }
             parameters = []
             scope = self._task_id_scope("trace_id", cited, parameters)
             step_scope = self._task_id_scope(
-                "step_index", sorted({index for run_id in cited for index in rows[run_id]["evidence_steps"]}),
+                "step_index", sorted({index for row in rows if row["run_id"] in cited for index in row["evidence_steps"]}),
                 parameters,
             )
             stored_steps = {
@@ -856,7 +856,8 @@ class CloudTraceDatabase:
                     f"SELECT trace_id, step_index FROM trace_steps WHERE {scope} AND {step_scope}", parameters,
                 )
             }
-            for run_id, row in rows.items():
+            for row in rows:
+                run_id = row["run_id"]
                 run = runs.get(run_id)
                 if run is None:
                     refuse(run_id, "run_id names no stored trace")
@@ -865,17 +866,20 @@ class CloudTraceDatabase:
                 elif any((run_id, index) not in stored_steps for index in row["evidence_steps"]):
                     refuse(run_id, "evidence_steps must name stored steps of the run")
                 else:
-                    database = {
-                        "source": run["dataset_id"], "split": run["split"],
-                        "outcome": _reward_outcome(run["reward"]),
-                    }
-                    for field, value in database.items():
-                        overrides[field] += field in row and row[field] != value
-                    row |= database | {"task_id": run["task_id"]}
-                    self._upsert("run_facets", {column: row[column] for column in _FACET_COLUMNS}, ("run_id",))
-                    stored += 1
+                    selected[run_id] = row
+            for run_id, row in selected.items():
+                run = runs[run_id]
+                database = {
+                    "source": run["dataset_id"], "split": run["split"],
+                    "outcome": _reward_outcome(run["reward"]),
+                }
+                for field, value in database.items():
+                    overrides[field] += field in row and row[field] != value
+                row |= database | {"task_id": run["task_id"]}
+                self._upsert("run_facets", {column: row[column] for column in _FACET_COLUMNS}, ("run_id",))
         return {
-            "admitted_tasks": len(allowed), "records": count, "runs": len(rows), "stored": stored,
+            "admitted_tasks": len(allowed), "records": count, "runs": len(run_ids), "stored": len(selected),
+            "superseded": count - len(selected) - sum(reasons.values()),
             "refused": sum(reasons.values()), "refused_by_reason": dict(sorted(reasons.items())),
             "refused_examples": examples, "database_overrides": overrides,
         }
@@ -2388,19 +2392,19 @@ def import_run_facets(
 ) -> dict[str, Any]:
     """Import the interim Run Atlas JSONL, one ``run-facets/v1`` object per line.
 
-    The file is append-only and keyed by ``run_id``: a later line supersedes an
-    earlier one. Admission is retrieval's own (registry-admitted DEV tasks minus
+    The file is append-only and keyed by ``run_id``: the last fully valid record
+    wins. Admission is retrieval's own (registry-admitted DEV tasks minus
     sealed identities); without a loadable split authority nothing is stored.
     Re-importing the same file stores the same rows.
     """
     data = Path(path).read_bytes()
     records: list[Any] = []
     invalid = 0
-    for line in data.decode("utf-8").splitlines():
+    for line in data.split(b"\n"):
         if line.strip():
             try:
                 records.append(json.loads(line))
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 invalid += 1
     return {
         "schema": "evallab.run_facets_import/v1", "path": str(path),

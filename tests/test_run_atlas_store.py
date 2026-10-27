@@ -160,3 +160,47 @@ def test_writer_uses_current_task_identity_not_an_earlier_allowlist(db: CloudTra
     assert receipt["stored"] == 0
     assert receipt["refused_by_reason"] == {"task is not admitted DEV": 1}
     assert stored(db) == {}
+
+
+def test_invalid_replacement_cannot_make_full_import_differ_from_valid_prefix(
+    db: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    path = tmp_path / "facets.jsonl"
+    valid = facet(suspicion=1)
+    invalid = facet(evidence_steps=[99])
+    write_jsonl(path, valid, invalid)
+    fresh = import_run_facets(db, path, registry=SyntheticRegistry())
+    assert (fresh["stored"], fresh["refused"]) == (1, 1)
+    fresh_rows = stored(db)
+    assert fresh_rows["dev-task/pass"]["suspicion"] == 1
+
+    db._execute("DELETE FROM run_facets")
+    write_jsonl(path, valid)
+    import_run_facets(db, path, registry=SyntheticRegistry())
+    write_jsonl(path, valid, invalid)
+    import_run_facets(db, path, registry=SyntheticRegistry())
+    assert stored(db) == fresh_rows
+
+
+def test_jsonl_preserves_unicode_line_separators_and_imports_before_a_torn_utf8_tail(
+    db: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    path = tmp_path / "facets.jsonl"
+    valid = facet(goal="Fix\u2028parser\u0085behavior")
+    path.write_bytes(json.dumps(valid, ensure_ascii=False).encode("utf-8") + b'\n{"goal":"torn \xe2\x82')
+    receipt = import_run_facets(db, path, registry=SyntheticRegistry())
+    assert (receipt["stored"], receipt["invalid_json_lines"]) == (1, 1)
+    assert stored(db)["dev-task/pass"]["goal"] == valid["goal"]
+
+
+@pytest.mark.parametrize("split", [" DEV ", "\tDeV\n"])
+def test_facet_split_preserves_the_admitted_database_spelling(
+    db: CloudTraceDatabase, tmp_path: Path, split: str,
+) -> None:
+    db.upsert_task({
+        "task_id": "dev-task", "dataset_id": "synthetic-corpus", "split": split,
+        "instruction_text": "synthetic task",
+    })
+    receipt = import_run_facets(db, write_jsonl(tmp_path / "facets.jsonl", facet()), registry=SyntheticRegistry())
+    assert receipt["stored"] == 1
+    assert stored(db)["dev-task/pass"]["split"] == split

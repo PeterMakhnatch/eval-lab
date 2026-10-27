@@ -133,6 +133,7 @@ uv run evallab atlas clusters show --with-labels      # label and rule rates at 
   `rule_recall` (labelled positives flagged by a current monitor rule) and
   `rule_fpr` (labelled negatives flagged). Rule hits come from the frozen CM-6
   stage-1 results; `--replay-rules` replays the deterministic stage-1 rules,
-  without a judge, for the other runs. The uncovered list holds clusters with
+  without a judge, for the other runs. `--coverage alarm` counts only the
+  cascade's confirmed alarms (CM-6 cohort). The uncovered list holds clusters with
   at least five labelled runs, a positive rate of at least 50% and rule recall
   of at most 20%, with their three most central member texts.

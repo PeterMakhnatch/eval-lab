@@ -1,0 +1,31 @@
+{
+  "schema": "tt7.delivery_checks/v1",
+  "local_static": {
+    "command": "make check",
+    "observed_exit_code": 0,
+    "elapsed_s": 317.35,
+    "final_output": "static checks passed: Python 3.12; no tests or runtime smoke run; not CI green",
+    "scope": "Locked install, repository lint, docindex, repomap, governance, registry audit, lessons freshness, and ty static checkpoint",
+    "tests_run": false,
+    "runtime_smoke_run": false,
+    "baseline_warnings": [
+      "semantic_facts CapabilityOpportunity/EvidenceCoverage construct fields shadow the FactRow parent attribute",
+      "legacy registry records lack certification packets; registry audit passed",
+      "a derived/parquet ownership diagnostic references the primary checkout; static checkpoint still exited zero and lessons freshness passed"
+    ]
+  },
+  "earlier_attempts": [
+    {
+      "command": "uv run --locked --python 3.12 ruff check research/evidence/runs/trace-tools-tt7-20261027",
+      "observed_exit_code": 1,
+      "reason": "B007 unused loop variable in score.py; fixed before the successful make check"
+    },
+    {
+      "command": "make check",
+      "status": "cancelled",
+      "reason": "Stopped by owner while integrating known scorer/summary fixes; not claimed as verification"
+    }
+  ],
+  "src_package_changes": false,
+  "ci_claim": "No CI-green claim is made by this local checkpoint. Exact-head required GitHub checks and merge evidence are separate."
+}

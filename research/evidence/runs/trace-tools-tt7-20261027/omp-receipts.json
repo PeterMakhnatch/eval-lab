@@ -1,0 +1,84 @@
+{
+  "schema": "tt7.omp_receipts/v1",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "started_at": "2026-10-27T22:35:57.623516+00:00",
+  "routes": {
+    "anthropic/claude-sonnet-5-5": {
+      "status": "partial",
+      "reason": "90% stop: highest applicable window 90.0%",
+      "stopped_at": "2026-10-27T22:38:49.089727+00:00",
+      "pending_runs": 196,
+      "recorded_runs": 4,
+      "valid_runs": 4,
+      "abstentions": 0,
+      "missing_runs": 196,
+      "input_tokens": 308320,
+      "output_tokens": 409,
+      "list_price_usd": 0.62073,
+      "marginal_usd": 0,
+      "errors": {
+        "valid": 4
+      }
+    },
+    "anthropic/claude-opus-5-5": {
+      "status": "partial",
+      "reason": "90% stop: highest applicable window 90.0%",
+      "stopped_at": "2026-10-27T22:38:46.155168+00:00",
+      "pending_runs": 197,
+      "recorded_runs": 3,
+      "valid_runs": 3,
+      "abstentions": 0,
+      "missing_runs": 197,
+      "input_tokens": 281185,
+      "output_tokens": 315,
+      "list_price_usd": 1.13104,
+      "marginal_usd": 0,
+      "errors": {
+        "valid": 3
+      }
+    },
+    "openai-codex/gpt-6-luna": {
+      "status": "partial",
+      "reason": "90% stop: highest applicable window 90.0%",
+      "stopped_at": "2026-10-27T22:36:56.866491+00:00",
+      "pending_runs": 198,
+      "recorded_runs": 2,
+      "valid_runs": 2,
+      "abstentions": 0,
+      "missing_runs": 198,
+      "input_tokens": 136154,
+      "output_tokens": 123,
+      "list_price_usd": 0.013676900000000002,
+      "marginal_usd": 0,
+      "errors": {
+        "valid": 2
+      }
+    }
+  },
+  "commands": "omp -p --mode json --no-session --no-tools --no-lsp --no-extensions --no-skills --no-rules --no-title --no-pty --config <no-fallback-overlay> --model <route> --system-prompt <frozen> --thinking low",
+  "pricing_basis": "omp models find <route> --json --no-extensions; uncached list-price equivalent, not marginal spend",
+  "context_windows": {
+    "anthropic/claude-sonnet-5-5": 1000000,
+    "anthropic/claude-opus-5-5": 1000000,
+    "openai-codex/gpt-6-luna": 272000
+  },
+  "rates_per_million_input_output": {
+    "anthropic/claude-sonnet-5-5": [
+      2.0,
+      10.0
+    ],
+    "anthropic/claude-opus-5-5": [
+      4.0,
+      20.0
+    ],
+    "openai-codex/gpt-6-luna": [
+      0.1,
+      0.5
+    ]
+  },
+  "deferred": {
+    "xai-oauth/grok-4.3": "weekly quota exhausted until 2026-10-30 14:10 ET; no call",
+    "laminar/flow-1": "paid Signals approved but not funded; no call"
+  },
+  "finished_at": "2026-10-27T22:38:49.111110+00:00"
+}

@@ -93,11 +93,21 @@ is not guaranteed: emitted coverage lists, cross-step evidence matching, and inp
 step size are variable. The measured latency target is separate from complexity.
 `monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
 run; ordinary assistant prose is not proof that reasoning was captured. A supplied
-`trace_cheap.JudgeFn` triages triggered prefixes on a separate thread. No judge or
-paid API is configured implicitly. Suspicion cards cite observed steps and quotes;
-semantic confirmation means **observed prefix behavior**, not verified reward
+`trace_cheap.JudgeFn` is the optional Stage 2 of a two-stage cascade
+(`evallab.production.window_cascade`, `window-cascade/v1`); the incremental tripwire
+rules are Stage 1. When a rule raises a card, Stage 2 runs on a separate thread and
+shows the judge only the flagged step plus up to five agent actions on each side
+(commands and clipped observations, at most 6,000 characters, never beyond the
+observed prefix). The judge decides whether the flagged step is a real boundary or
+grader violation or ordinary debugging. A card is confirmed only when a positive
+label cites the flagged step with a verbatim quote from that window; `neither`, a
+missing or non-verbatim citation, or a failed call leaves it provisional, and a
+failed call is never counted as a negative. `grader_tamper` and `submission_tamper`
+cards are hard gates and skip Stage 2 (`semantic_triage: gate_pass_through`). No
+judge or paid API is configured implicitly. Suspicion cards cite observed steps and
+quotes; semantic confirmation means **observed prefix behavior**, not verified reward
 causality, a verified exploit, or an automatically promoted labeled-trace asset.
-All semantic citations must match the frozen prefix, or the card stays provisional.
+All semantic citations must match the window, or the card stays provisional.
 An independently evidenced label is promoted only through the explicit
 `verify_and_promote_trace_label` path described below.
 
@@ -804,7 +814,11 @@ operator assertion, not independent rights adjudication. Only direct references
 in the task, issue, trace and step URI columns are followed; embedded references
 are preserved but not traversed. Each copied object is streamed, hash-checked,
 deduplicated, and bounded by `--max-bytes`. That cap covers CAS bytes only; SQLite
-size is reported separately as `projection.database_bytes`.
+size is reported separately as `projection.database_bytes`. The staged
+projection's direct references are read in place through `/dev/fd/N` of the
+identity-checked descriptor (`immutable=1`, no sidecars), so projections larger
+than SQLite's 2 GiB single-allocation limit are supported. If the descriptor or
+its name changes identity during the read, staging fails closed.
 
 The bundle contains `cloud-trace-db.sqlite`, `cas/`, and `manifest.json`. SQLite
 is rebuilt into fresh canonical tables and FTS indexes rather than backed up and
@@ -1170,6 +1184,76 @@ For example, this **synthetic blocked** report is valid; it contains no scores:
   "generated_at": "2026-10-25T15:15:00Z"
 }
 ```
+
+The **Corpus** tab reads `/api/cloud-db/corpus`, an aggregate-only census per
+`dataset_id` that never returns a task identity, label or body. Each task falls in
+exactly one bucket: `admitted_dev` (admitted by the shared
+`admitted_cloud_task_ids` gate, the same rows the DEV collections serve),
+`dev_not_admitted` (labelled DEV but denied by a seal or ledger), or `withheld`
+(any non-DEV split, e.g. `held`). Each bucket reports `tasks`, `traces` and `steps`
+(the sum of `agent_traces.step_count`). `enacted_exploit_traces` is the retained
+source `is_exploit` label on admitted DEV traces only; it is not new verification
+and is never reported for withheld or gate-denied rows. Without assignment
+authority nothing is admitted and every DEV-labelled row lands in
+`dev_not_admitted`. On the retained local DB (read-only, shipped code) the
+Goodfire dataset reads 714 admitted DEV tasks, 2,140 traces, 178,210 steps and 652
+exploit-labelled traces, with 95 withheld tasks (285 traces).
+
+The **Reward Seeker** tab renders retained `evallab.seeker_comparison/v1`
+documents (grader-weakness discovery by named model). A *verified differential* is
+a submission scoring 1.0 on the original grader and 0.0 on the repaired grader.
+`arms[]` are uniquely named (`arm`), each with one `requested_model` (unique
+`provider/model`) and `cells[]`, one per prompt `condition`; every arm must report
+the same condition set, so conditions are paired and never pooled. A cell
+partitions `cohort.task_count` into `attested_n`, `unattested_n`, `refused_n`,
+`unavailable_n`, `malformed_n`, `blocked_n` and `missing_n`, and records the
+funnel `graded_n <= attested_n`, `verified_differential_n <= original_pass_n <=
+graded_n`. `attested_n` means the executed artifact's sha256 equals the attested
+model response (no script overwrite); an attested cell requires actual
+`served_models` and an `artifact_sha256`. A fallback or other-provider answer must
+be recorded as `unavailable_n`, not counted under the requested model; the UI
+flags any served identity that differs from the request. There is no stored rate:
+the UI computes `verified_differential_n / task_count` only when `status` is
+`complete` (every cell graded) and otherwise shows `Not available`. Spend,
+model-call count and digests may be null. The tab also lists the declared
+Priority #2 lanes with whether any retained report names each; that list is a
+request, not a result. No model is ranked.
+
+The **Trust & QC** tab renders three more retained, producer-written report
+schemas from `/data/benchmarks/*.json` through the same strict, exact-byte
+`/api/cloud-db/benchmarks` listing. They are consumer contracts: the dashboard
+validates and displays producer counts, derives only rates, and never computes a
+tier, rule hit or score itself. Nothing is ranked.
+
+- `evallab.trust_tier_census/v1` — `split: "dev"`, `unit`, `admitted_rows_n`,
+  `unclassified_n`, `tiers[]` of `{tier, source, basis, rows_n, prompt_eligible_n}`,
+  `source_sha256` (nullable) and `generated_at`. `tier` is one of
+  `tier1_container_verified`, `tier2_consensus_labeled`, `tier3_provisional`. Each
+  tier/source pair appears once, `sum(rows_n) + unclassified_n == admitted_rows_n`
+  (nothing is silently dropped), `prompt_eligible_n <= rows_n`, and a
+  `tier3_provisional` row must have `prompt_eligible_n == 0`.
+- `evallab.hackbook_qc/v1` — `ruleset_sha256`, `cohort` `{dataset_id, split: "dev",
+  positive_n, clean_n, unscored_n}` and `rules[]` of `{rule_id, positives_hit_n,
+  clean_hit_n, marginal_true_positive_n}` plus the union `union_positives_hit_n` /
+  `union_clean_hit_n`. Only counts are stored; the UI derives recall
+  (`positives_hit/positive_n`), false-alarm rate (`clean_hit/clean_n`) and precision
+  (`positives_hit/(positives_hit+clean_hit)`, unavailable when the rule never
+  fired). A marginal true positive is a positive only that rule catches. Hits are
+  bounded by the cohort, each union lies between the largest rule and the sum of
+  rules, and total marginal true positives cannot exceed the positive union.
+  Unscored cases are excluded from every rate. Precision depends on the cohort's
+  positive/clean mix and is not comparable across cohorts.
+- `evallab.tune_cross_test/v1` — one `system`, its `frozen_sha256` and `entries[]`
+  of `{role: "tune"|"cross_test", dataset_id, split: "dev", system_sha256,
+  positive_n, clean_n, unscored_n, true_positive_n, false_positive_n,
+  measured_at}`. Every entry must carry the frozen digest (the same system was
+  measured everywhere), at least one entry is `tune`, a dataset appears once (so no
+  cohort is both tuned and cross-tested), and no cross-test measurement may predate
+  the last tuning measurement. A report with no `cross_test` entry is valid and is
+  shown as "Cross-test not run". Dataset names are data, never hard-coded in the UI.
+
+Each tab section shows an explicit empty state when no such report is retained;
+none has been produced yet by a measuring lane, and no value is fabricated.
 
 One Modal class instance owns both SQLite stores. The web endpoint and worker
 method share that owner; do not deploy a second independent writer against

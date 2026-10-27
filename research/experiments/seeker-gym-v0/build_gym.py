@@ -39,8 +39,20 @@ def split_for(name: str) -> str:
 
 def main() -> None:
     pairs: list[dict[str, Any]] = []
+    # tb4-audit-v1 split guard: ONLY dev tasks may enter the gym. The key's
+    # tasks.jsonl is the split authority; TEST tasks are never paired/run.
+    key_tasks = ROOT / "research/answer-keys/tb4-audit-v1/tasks.jsonl"
+    dev_tasks: set[str] = set()
+    if key_tasks.exists():
+        for line in key_tasks.read_text().splitlines():
+            if line.strip():
+                row = json.loads(line)
+                if row.get("split") == "dev":
+                    dev_tasks.add(row["task"])
     if UPSTREAM.exists():
         for task in sorted(p.name for p in UPSTREAM.iterdir() if p.is_dir()):
+            if task not in dev_tasks:
+                continue
             port = PORT / task
             pairs.append(
                 {

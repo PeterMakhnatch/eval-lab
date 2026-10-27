@@ -81,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:426cc8dd88c31592ef07f29aa9a5dc35c365f981b79503b83c1c5a31d9e13b92
+    digest: sha256:52f116482228bde58e8b24c3e6ee57735a11e8eec51eec32cd8e93e9ec8ee731
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
@@ -95,7 +95,7 @@ inputs:
   - path: docs/observability.md
     digest: sha256:17587e087cea130547b9997332df26f202fe6585a3dd330a3d84b7529646045c
   - path: docs/open-qa-harness.md
-    digest: sha256:4a1ed425f6bada0ff74267a4a7bcad1659b6764a61ecf0cf2fb03effc84cabb9
+    digest: sha256:a60edaca588801337dd0026288600326bb166df3dbd8973459994791cf7d8767
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
@@ -141,7 +141,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:db03e00cc9b4d14284416351b92f301da64e9f3ac81b3aca5b1f14f85b158d17
+    digest: sha256:145a6938c7e6090a173350d6868573b06db31a59267d7fb5cd9de87d31088c97
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

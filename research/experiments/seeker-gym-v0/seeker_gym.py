@@ -102,9 +102,67 @@ def generate(model_id: str, provider: dict, prompt: str, key: str) -> tuple[dict
         return None, cost
 
 
+def hackbook_block(task_dir: pathlib.Path) -> str:
+    """Generic hackbook probe/exploit templates for the task's predicted classes.
+
+    Only generic mechanism/template text is used; task-specific examples and
+    PM findings are stripped. Predicted classes come from the local
+    hackbook matcher (task-side hits).
+    """
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            [
+                str(ROOT / ".venv/bin/evallab"),
+                "hackbook",
+                "match",
+                str(task_dir),
+                "--kind",
+                "task",
+                "--top",
+                "51",
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=str(ROOT),
+        )
+        data = json.loads(proc.stdout)
+        classes = sorted(
+            {m["taxonomy_class_id"] for m in data.get("matches", []) if m.get("side") == "task"}
+        )
+    except Exception:
+        classes = []
+    entries = [
+        json.loads(line)
+        for line in (ROOT / "research/hackbook/entries.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    blocks = []
+    for entry in entries:
+        if entry.get("taxonomy_class_id") in classes and entry.get("side") == "task":
+            template = entry.get("exploit_template") or {}
+            goal = template.get("goal", "") if isinstance(template, dict) else ""
+            blocks.append(
+                f"- [{entry['taxonomy_class_id']}] {entry.get('mechanism', '')[:400]} Exploit goal: {str(goal)[:300]}"
+            )
+        if len(blocks) >= 3:
+            break
+    if not blocks:
+        return ""
+    return (
+        "\n\nHackbook probe/exploit templates for this task's predicted defect classes (generic; adapt to this grader):\n"
+        + "\n".join(blocks)
+        + "\n"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="gpt-oss-120b", choices=sorted(MODELS))
+    parser.add_argument("--arm", default="A", choices=["A", "B"])
     parser.add_argument("--tasks", default="")
     parser.add_argument("--k", type=int, default=8)
     parser.add_argument("--split", default="train")
@@ -116,7 +174,11 @@ def main() -> None:
     from evallab.candidate_runner import run_candidate
 
     gym = json.loads((HERE / "gym.json").read_text())
-    pairs = [p for p in gym["pairs"] if p["runnable"] and p["split"] == args.split]
+    pairs = [
+        p
+        for p in gym["pairs"]
+        if p["runnable"] and (args.split == "all" or p["split"] == args.split)
+    ]
     if args.tasks:
         wanted = {t.strip() for t in args.tasks.split(",")}
         pairs = [p for p in pairs if p["task"] in wanted]
@@ -130,10 +192,13 @@ def main() -> None:
     for pair in pairs:
         original = pathlib.Path(pair["original_task"]).resolve()
         prompt = task_view(original)
+        if args.arm == "B":
+            prompt += hackbook_block(original)
         for index in range(args.k):
             candidate, cost = generate(model_id, provider, prompt, key)
             row: dict = {
                 "pair_id": pair["pair_id"],
+                "arm": args.arm,
                 "task": pair["task"],
                 "k": index,
                 "gen_cost_usd": cost,

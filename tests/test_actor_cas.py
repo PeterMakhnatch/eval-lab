@@ -494,6 +494,32 @@ def test_reads_checkpointed_projection_without_mutation_or_sidecars(root: Path) 
     assert stat.S_IMODE(database.stat().st_mode) == 0o400
 
 
+def test_swapped_pathname_is_never_read_and_the_change_fails_closed(
+    root: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source, destination = root / "source-cas", root / "staged-cas"
+    approved = _object(source, b"approved projection fixture")
+    unapproved = _object(source, b"unapproved swapped fixture")
+    database = _database(root, task_uri=approved)
+    (root / "replacement").mkdir()
+    replacement = _database(root / "replacement", task_uri=unapproved)
+    connect = sqlite3.connect
+
+    def swap_then_connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+        if replacement.exists():
+            os.replace(replacement, database)
+        return connect(*args, **kwargs)
+
+    monkeypatch.setattr(actor_cas.sqlite3, "connect", swap_then_connect)
+    # Reading the swapped file would demand approval for its URI instead.
+    with pytest.raises(ValueError, match="changed while reading"):
+        stage_projection_cas(
+            database, source, destination, approved_uris=[approved], max_bytes=100,
+        )
+    assert not replacement.exists()
+    _assert_unpublished(root, destination)
+
+
 def test_refuses_wal_mode_projection_that_cannot_stand_alone(root: Path) -> None:
     source, destination = root / "source-cas", root / "staged-cas"
     uri = _object(source, b"inert WAL projection fixture")

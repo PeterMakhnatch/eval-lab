@@ -83,7 +83,7 @@ def add_issue(
         "original_reward": 1.0, "repaired_reward": 0.0,
         "citation_file": "tests/test_checks.py", "citation_line": 41,
         "reproducer_script": "sed -i 's/assert/pass/' tests/test_checks.py\n",
-        "witness_digest": "synthetic-witness-digest", **extra,
+        "witness_digest": "synthetic-witness-digest", "trust_tier": "tier1_container_verified", **extra,
     })
 
 
@@ -104,7 +104,8 @@ def add_trace(
     db.upsert_trace({
         "trace_id": trace_id, "run_id": "synthetic-run", "task_id": task_id,
         "model_id": "synthetic-agent", "outcome": "wrong_pass", "reward": 1.0,
-        "is_exploit": True, "verified_receipt_json": {"status": "verified"}, **extra,
+        "is_exploit": True, "verified_receipt_json": {"status": "verified"},
+        "trust_tier": "tier1_container_verified", **extra,
     }, steps=default_steps() if steps is None else steps)
 
 

@@ -142,7 +142,8 @@ def add_issue(db: CloudTraceDatabase, task_id: str, issue_id: str, **extra: Any)
         "issue_id": issue_id, "task_id": task_id, "defect_class": "missing_output_check",
         "direction": "wrong_pass", "status": "confirmed", "citation_file": "tests/check.py",
         "citation_line": 17, "reproducer_script": "pytest grader accepts empty output",
-        "witness_digest": "synthetic-witness-digest", "cas_uri": "cas://issue", **extra,
+        "witness_digest": "synthetic-witness-digest", "cas_uri": "cas://issue",
+        "trust_tier": "tier1_container_verified", **extra,
     })
 
 
@@ -150,7 +151,8 @@ def add_trace(db: CloudTraceDatabase, task_id: str, trace_id: str, **extra: Any)
     db.upsert_trace({
         "trace_id": trace_id, "run_id": "synthetic-run", "task_id": task_id,
         "model_id": "synthetic-model", "is_exploit": True,
-        "raw_cas_uri": "cas://raw-trace", "verified_receipt_json": {"status": "verified"}, **extra,
+        "raw_cas_uri": "cas://raw-trace", "verified_receipt_json": {"status": "verified"},
+        "trust_tier": "tier1_container_verified", **extra,
     }, steps=[
         {"step_index": 0, "role": "user", "content_text": "Solve the synthetic task."},
         {
@@ -855,7 +857,7 @@ def add_steps_trace(
 ) -> None:
     db.upsert_trace({
         "trace_id": f"{task_id}/trace", "run_id": "synthetic-run", "task_id": task_id,
-        "model_id": "synthetic-model", "is_exploit": True,
+        "model_id": "synthetic-model", "is_exploit": True, "trust_tier": "tier1_container_verified",
     }, steps=[
         {"step_index": index, "role": role, "content_text": text}
         for index, (role, text) in enumerate(steps)
@@ -894,3 +896,36 @@ def test_best_first_expansion_returns_exact_top_k_when_bounds_overestimate(
     both = retriever.retrieve_similar_examples("pytest grader", None, 2)
     assert [example.task_id for example in both] == ["exact-strong", "bound-heavy"]
     assert both[0].score > both[1].score
+
+
+def test_step_only_match_is_found_behind_many_user_role_matches(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever,
+) -> None:
+    add_task(db, "late-assistant", instruction_text="unrelated instructions")
+    add_steps_trace(db, "late-assistant", [
+        *(("user", "pytest grader") for _ in range(30)), ("assistant", "pytest grader"),
+    ])
+    add_task(db, "user-only", instruction_text="unrelated instructions")
+    add_steps_trace(db, "user-only", [("user", "pytest grader") for _ in range(30)])
+    examples = retriever.retrieve_similar_examples("pytest grader", "reward_seeker", 5)
+    assert ids(examples) == {"late-assistant"}
+    assert [step["step_index"] for step in examples[0].trace_steps] == [30]
+
+
+def test_writes_between_calls_are_visible_from_this_and_other_connections(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever, tmp_path: Path,
+) -> None:
+    add_task(db, "first-dev", instruction_text="unrelated instructions")
+    add_steps_trace(db, "first-dev", [("assistant", "pytest grader")])
+    assert ids(retriever.retrieve_similar_examples("pytest grader", None, 5)) == {"first-dev"}
+    add_task(db, "same-connection", instruction_text="unrelated instructions")
+    add_steps_trace(db, "same-connection", [("assistant", "pytest grader")])
+    assert ids(retriever.retrieve_similar_examples("pytest grader", None, 5)) == {
+        "first-dev", "same-connection",
+    }
+    with CloudTraceDatabase(tmp_path / "evidence.sqlite", sqlite_fts=db._fts) as other:
+        add_task(other, "other-connection", instruction_text="unrelated instructions")
+        add_steps_trace(other, "other-connection", [("tool", "pytest grader")])
+    assert ids(retriever.retrieve_similar_examples("pytest grader", None, 5)) == {
+        "first-dev", "same-connection", "other-connection",
+    }

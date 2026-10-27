@@ -2190,3 +2190,193 @@ def test_muse_spark_and_deepseek_lanes_and_openrouter_prefix_attestation(tmp_pat
     )
     assert "Solve the benchmark task below" in bare_prompt
     assert "Matched Hackbook Cues" not in bare_prompt
+
+
+def test_headless_candidate_recovers_outer_brace_variants_preserving_exact_solve_sha256() -> None:
+    from evallab.production.seeker_worker import (
+        _require_llm_attestation,
+        parse_headless_candidate_response,
+    )
+
+    # Variant 1: extra trailing '}' at end of JSON object
+    extra_brace_text = (
+        json.dumps(
+            {
+                "files": {"solve.sh": LANE_SOLVE},
+                "mechanism": "grader weakness reproducer",
+                "taxonomy_class": "weak_check",
+                "hackbook_entry_id": "HB-TS01-009",
+                "target_check": "tests/test_outputs.py",
+                "files_written": ["/app/output.json"],
+            }
+        )
+        + "}"
+    )
+    stream_extra = _omp_stream(_lane_answer({"type": "text", "text": extra_brace_text}, route=LANE_ROUTE))
+    cand_extra = parse_headless_candidate_response(
+        extra_brace_text,
+        default_cue=None,
+        model_route=LANE_ROUTE,
+        llm_stdout_text=stream_extra,
+    )
+    assert cand_extra is not None
+    assert cand_extra.files["solve.sh"] == LANE_SOLVE
+    assert cand_extra.llm_solve_sha256 == hashlib.sha256(LANE_SOLVE.encode()).hexdigest()
+    _require_llm_attestation(cand_extra, LANE_SOLVE)
+
+    # Variant 2: missing inner '}' before "mechanism" (metadata keys nested inside "files")
+    nested_meta_text = (
+        '{"files":{"solve.sh":'
+        + json.dumps(LANE_SOLVE)
+        + ',"mechanism":"nested metadata reproducer","taxonomy_class":"weak_check",'
+        + '"hackbook_entry_id":"HB-TS01-009","target_check":"tests/test_outputs.py",'
+        + '"files_written":["/app/output.json"]}'
+    )
+    stream_nested = _omp_stream(_lane_answer({"type": "text", "text": nested_meta_text}, route=LANE_ROUTE))
+    cand_nested = parse_headless_candidate_response(
+        nested_meta_text,
+        default_cue=None,
+        model_route=LANE_ROUTE,
+        llm_stdout_text=stream_nested,
+    )
+    assert cand_nested is not None
+    assert cand_nested.files == {"solve.sh": LANE_SOLVE}
+    assert cand_nested.mechanism == "nested metadata reproducer"
+    assert cand_nested.llm_solve_sha256 == hashlib.sha256(LANE_SOLVE.encode()).hexdigest()
+    _require_llm_attestation(cand_nested, LANE_SOLVE)
+
+
+def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2(tmp_path: Path) -> None:
+    from evallab.production.seeker_worker import (
+        OmpHeadlessAttemptGenerator,
+        ResolvedSeekerTask,
+        RewardSeekerLiveWorker,
+        SeekerFailureMemory,
+        build_headless_seeker_prompt,
+        select_cascade_model_order,
+    )
+
+    orig_dir, rep_dir = _make_task(tmp_path, "original"), _make_task(tmp_path, "repaired")
+    (orig_dir / "tests").mkdir(parents=True, exist_ok=True)
+    (orig_dir / "tests" / "test_outputs.py").write_text(
+        "def test_secret_grader_assertion():\n    assert False, 'HIDDEN_TEST_ASSERTION_SENTINEL'\n",
+        encoding="utf-8",
+    )
+    (orig_dir / "environment").mkdir(parents=True, exist_ok=True)
+    (orig_dir / "environment" / "setup.sh").write_text(
+        "#!/bin/bash\necho 'ENV_SETUP_VISIBLE'\n",
+        encoding="utf-8",
+    )
+
+    worker = RewardSeekerLiveWorker(
+        queue=FakeQueue(),
+        worker_id="blind-two-turn",
+        repo_root=REPO_ROOT,
+        work_root=tmp_path / "work",
+        hide_tests=True,
+    )
+    resolved = ResolvedSeekerTask(
+        run_id="r-hide-tests",
+        job_type="reward_seeker.seek_task",
+        dataset_id="tb4-audit-v1",
+        item_id="tb4-dev-hide",
+        task_id="terminal-bench/fin-saccr-rwa",
+        split="dev",
+        measurable=True,
+        original_task=orig_dir,
+        repaired_task=rep_dir,
+        repaired_grader_kind="port",
+        raw_payload={"hide_tests": True},
+    )
+    cues = match_task_hackbook_cues(orig_dir, entries=worker.hackbook_entries)
+    cue = cues[0]
+    memory = SeekerFailureMemory()
+
+    # Turn 1 workspace & prompt: tests/ must be absent from workspace and prompt; only instruction.md, task.toml, environment/ visible
+    ws1 = worker._prepare_attempt_workspace(
+        resolved,
+        attempt_index=1,
+        cues=(cue,),
+        memory=memory,
+        last_feedback_markdown=None,
+    )
+    assert not (ws1 / "task" / "tests").exists()
+    prompt1 = build_headless_seeker_prompt(
+        resolved,
+        attempt_index=1,
+        selected_cue=cue,
+        cues=(cue,),
+        memory=memory,
+        workspace=ws1,
+        retrieval_markdown="## Retrieved Historical Traces\n- Trace 1",
+        hide_tests=True,
+    )
+    assert "HIDDEN_TEST_ASSERTION_SENTINEL" not in prompt1
+    assert "Upstream Grader Files (`tests/`)" not in prompt1
+    assert "Retrieved Historical Traces" not in prompt1
+    assert "ENV_SETUP_VISIBLE" in prompt1
+
+    # Turn 2 after recording Turn-1 grader failure output: tests/ still hidden, but feedback + retrieval are included
+    memory.record(
+        FailedShortcutRecord(
+            attempt_index=1,
+            shortcut_signature="sig-turn1",
+            candidate_digest="sha256:" + "a" * 64,
+            hackbook_entry_id=None,
+            taxonomy_class="weak_check",
+            mechanism="surface probe",
+            target_check="tests/test_outputs.py",
+            files_written=("/app/output/sa_ccr_results.csv",),
+            failure_kind="upstream_failed",
+            failure_reason="AssertionError: missing rwa_amount in /app/output/sa_ccr_results.csv",
+            failed_tests=("tests/test_outputs.py::test_rwa_column",),
+            excerpts=(("tests/test_outputs.py::test_rwa_column", "AssertionError: missing rwa_amount"),),
+            original_reward=0.0,
+            repaired_reward=0.0,
+        )
+    )
+    ws2 = worker._prepare_attempt_workspace(
+        resolved,
+        attempt_index=2,
+        cues=(cue,),
+        memory=memory,
+        last_feedback_markdown=None,
+    )
+    assert not (ws2 / "task" / "tests").exists()
+    prompt2 = build_headless_seeker_prompt(
+        resolved,
+        attempt_index=2,
+        selected_cue=cue,
+        cues=(cue,),
+        memory=memory,
+        workspace=ws2,
+        retrieval_markdown="## Retrieved Historical Traces\n- Goodfire enacted-hack trace",
+        hide_tests=True,
+    )
+    assert "HIDDEN_TEST_ASSERTION_SENTINEL" not in prompt2
+    assert "Upstream Grader Files (`tests/`)" not in prompt2
+    assert "missing rwa_amount in /app/output/sa_ccr_results.csv" in prompt2
+    assert "Goodfire enacted-hack trace" in prompt2
+
+    # Cascade routing check
+    tb4_order = select_cascade_model_order(resolved)
+    assert tb4_order[0] == "meta/muse-spark-open"
+    mimo_task = ResolvedSeekerTask(
+        run_id="r-mimo",
+        job_type="reward_seeker.seek_task",
+        dataset_id="mimo-defect-map-v1",
+        item_id="format-code-task-000158",
+        task_id="format-code-task-000158",
+        split="dev",
+        measurable=True,
+        original_task=orig_dir,
+        repaired_task=rep_dir,
+        repaired_grader_kind="package",
+        raw_payload={},
+    )
+    mimo_order = select_cascade_model_order(mimo_task)
+    assert mimo_order[0] == "openrouter/deepseek/deepseek-v4.1-flash"
+    assert mimo_order[1] == "meta/muse-spark-open"
+    gen = OmpHeadlessAttemptGenerator(hide_tests=True, use_cascade_routing=True)
+    assert gen.select_model(resolved, 1) == "meta/muse-spark-open"
+    assert gen.select_model(mimo_task, 1) == "openrouter/deepseek/deepseek-v4.1-flash"

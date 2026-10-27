@@ -111,9 +111,12 @@ https://usetokenless.com/eval3/ . Its local source copy is
 `research-context/sources/links/usetokenless.com/2026-10-20-eval-leaderboard-tokenless.md`.
 
 `score_frontier.py` converts reader finals with the original class/category
-mapping, loads v1's validated findings, and invokes that unchanged scorer. It preserves failed,
-missing and abstained coverage, separates DEV from TEST cost, and omits runs
-with incomplete coverage or unknown billed cost from the dollar frontier.
+mapping, loads v1's validated findings, and invokes that unchanged scorer. It
+preserves failed, missing and abstained coverage and reports each frozen adapter
+version separately, including its DEV and TEST costs. Runs with unknown billed
+cost stay off the dollar frontier. Completed TEST runs use filled markers;
+partial TEST runs use open markers labelled with adapter version and task
+coverage, retaining the full 152-finding denominator.
 Run it only after configurations are frozen and their TEST exposures recorded:
 
 ```sh

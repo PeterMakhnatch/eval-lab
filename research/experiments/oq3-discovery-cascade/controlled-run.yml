@@ -1,0 +1,14 @@
+memory:
+  backend: "off"
+mnemopi:
+  autoRecall: false
+hindsight:
+  autoRecall: false
+retry:
+  enabled: false
+  maxRetries: 0
+  modelFallback: false
+  usageAwareFallback: false
+  fallbackChains: {}
+advisor:
+  enabled: false

@@ -35,7 +35,11 @@ def digest(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
-def split_for(task_id: str) -> str:
+def split_for(task_id: str, heldout: set[str] | None = None) -> str:
+    # Frozen held-out IDs (heldout-v7, 33 tasks) are NEVER train examples:
+    # they are forced into test (measurement only, flagged per row).
+    if heldout and task_id in heldout:
+        return "test"
     bucket = int(hashlib.sha256(task_id.encode()).hexdigest()[:8], 16) % 10
     return "train" if bucket < 8 else "dev" if bucket == 8 else "test"
 
@@ -77,15 +81,21 @@ def main() -> None:
         for row in json.loads((DEFECT / "inventory.json").read_bytes())["tasks"]
     }
     pool = json.loads(POOL.read_bytes())
-    clean_tasks = {
-        row["record_id"]: row for row in json.loads(CLEAN.read_bytes())["tasks"]
-    }
+    clean_tasks = {row["record_id"]: row for row in json.loads(CLEAN.read_bytes())["tasks"]}
+    heldout_ids = {
+        row["task_id"]
+        for row in json.loads(CLEAN.read_bytes())["tasks"]
+        if row.get("heldout_excluded_from_training")
+    } | set(
+        json.loads(CLEAN.read_bytes())["usage"][
+            "heldout_task_ids_excluded_from_training_all_versions"
+        ]
+    )
 
     atlas = [
         row
         for row in findings
-        if row["category"] == "atlas114"
-        and row["evidence_status"] == "source_supported_historical"
+        if row["category"] == "atlas114" and row["evidence_status"] == "source_supported_historical"
     ]
     by_package: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for row in atlas:
@@ -98,7 +108,8 @@ def main() -> None:
         examples.append(
             {
                 "id": f"qa-sft-mimo-v0:pos:{record_id}",
-                "split": split_for(task_id),
+                "split": split_for(task_id, heldout_ids),
+                "heldout_excluded_from_training": task_id in heldout_ids,
                 "label": "positive",
                 "task_id": task_id,
                 "package_digest": package,
@@ -120,7 +131,7 @@ def main() -> None:
         examples.append(
             {
                 "id": f"qa-sft-mimo-v0:neg:{member['record_id']}",
-                "split": split_for(member["task_id"]),
+                "split": split_for(member["task_id"], heldout_ids),
                 "label": "negative",
                 "task_id": member["task_id"],
                 "package_digest": member["package_digest"],
@@ -136,9 +147,7 @@ def main() -> None:
                     "cohort": member["cohort"],
                     "reference_rewards": (controls.get("reference") or {}).get("rewards"),
                     "nop_rewards": (controls.get("nop") or {}).get("rewards"),
-                    "heldout_excluded_from_training": member[
-                        "heldout_excluded_from_training"
-                    ],
+                    "heldout_excluded_from_training": member["heldout_excluded_from_training"],
                 },
                 "label_source": "mimo-executed-clean-v1 (executed strict controls, no open supported finding)",
             }
@@ -163,9 +172,7 @@ def main() -> None:
             "examples": len(examples),
             "positives": sum(row["label"] == "positive" for row in examples),
             "negatives": sum(row["label"] == "negative" for row in examples),
-            "findings_in_positive_targets": sum(
-                len(row["target"]["findings"]) for row in examples
-            ),
+            "findings_in_positive_targets": sum(len(row["target"]["findings"]) for row in examples),
             "by_split": {name: len(rows) for name, rows in splits.items()},
             "by_split_label": {
                 name: dict(sorted(Counter(row["label"] for row in rows).items()))
@@ -175,13 +182,25 @@ def main() -> None:
         "split_rule": "sha256(task_id) bucket ~80/10/10; no task_id in two splits",
         "tb4_audit_v1_check": "producer never reads tb4-audit-v1; emitted blob scanned for tb4-audit references: none",
         "training_authorized_by_this_release": False,
-        "heldout_rule": "examples whose task is in the frozen 33 held-out IDs are flagged in executed_evidence/input sources and must be excluded from training use",
+        "heldout_rule": "Frozen 33 held-out IDs (heldout-v7) are forced into the test split (measurement only, heldout_excluded_from_training=true per row) and must never be trained on. NOTE: the Qwen3-8B pilot (PR #1146) trained on the pre-fix train split, which contained 19 held-out rows; its frozen-test numbers carry that caveat.",
         "artifacts": bindings,
         "sources": [
-            {"path": "research/experiments/mimo-defect-map-v1/findings.json", "sha256": digest((DEFECT / "findings.json").read_bytes())},
-            {"path": "research/experiments/mimo-defect-map-v1/inventory.json", "sha256": digest((DEFECT / "inventory.json").read_bytes())},
-            {"path": "research/experiments/mimo-executed-clean-v1/manifest.json", "sha256": digest(POOL.read_bytes())},
-            {"path": "research/experiments/mimo-clean-v7/manifest.json", "sha256": digest(CLEAN.read_bytes())},
+            {
+                "path": "research/experiments/mimo-defect-map-v1/findings.json",
+                "sha256": digest((DEFECT / "findings.json").read_bytes()),
+            },
+            {
+                "path": "research/experiments/mimo-defect-map-v1/inventory.json",
+                "sha256": digest((DEFECT / "inventory.json").read_bytes()),
+            },
+            {
+                "path": "research/experiments/mimo-executed-clean-v1/manifest.json",
+                "sha256": digest(POOL.read_bytes()),
+            },
+            {
+                "path": "research/experiments/mimo-clean-v7/manifest.json",
+                "sha256": digest(CLEAN.read_bytes()),
+            },
         ],
         "spend_usd": 0,
     }

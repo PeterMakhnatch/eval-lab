@@ -12,6 +12,7 @@ and held-out cohort, and supports leave-one-out exclusion.
 
 from __future__ import annotations
 
+import bisect
 import csv
 import hashlib
 import json
@@ -21,7 +22,8 @@ import re
 import sqlite3
 import tempfile
 import threading
-from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
+from array import array
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import closing, contextmanager
 from dataclasses import asdict, dataclass
 from dataclasses import field as dataclass_field
@@ -41,11 +43,12 @@ _TASK_COLUMNS = (
 _ISSUE_COLUMNS = (
     "issue_id", "task_id", "defect_class", "direction", "status", "witness_digest",
     "original_reward", "repaired_reward", "citation_file", "citation_line",
-    "reproducer_script", "cas_uri",
+    "reproducer_script", "cas_uri", "trust_tier",
 )
 _TRACE_COLUMNS = (
     "trace_id", "run_id", "task_id", "model_id", "outcome", "reward", "is_exploit",
     "is_task_defect_fail", "step_count", "raw_cas_uri", "verified_receipt_json",
+    "trust_tier", "flagged_passage_steps",
 )
 _STEP_COLUMNS = (
     "trace_id", "step_index", "role", "tool_name", "command_or_action", "content_text",
@@ -60,7 +63,19 @@ _SEARCH_COLUMNS = {
 # A tsvector is limited to 1 MiB regardless of the underlying TEXT/CAS capacity.
 # Bound only the accelerated representation; overflow searches parse all text.
 _POSTGRES_VECTOR_SOURCE_BYTES = 65_536
-_JSON_COLUMNS = {"metadata_json", "verified_receipt_json", "flags_json"}
+# Derived read structures (FTS rowid postings, step rowid ranges) reused while
+# a SQLite database is unchanged; the oldest entry is evicted beyond this count.
+_READ_MEMO_ENTRIES = 24
+_JSON_COLUMNS = {"metadata_json", "verified_receipt_json", "flags_json", "flagged_passage_steps"}
+# Evidence trust, strongest first. Tier 1: container-verified differentials
+# (qualified repairs, differentially replayed witnesses, maintainer fixes).
+# Tier 2: consensus-labeled evidence (unanimous judge votes with passage-level
+# spans, human-verified runs). Tier 3: unverified leads, the default for any row
+# whose writer does not declare a tier; retrieval omits it unless requested.
+TRUST_TIERS = ("tier1_container_verified", "tier2_consensus_labeled", "tier3_provisional")
+PROVISIONAL_TIER = TRUST_TIERS[-1]
+_TRUST_RANK = {tier: rank for rank, tier in enumerate(TRUST_TIERS)}
+_TRUST_CHECK = "trust_tier IN (" + ", ".join(f"'{tier}'" for tier in TRUST_TIERS) + ")"
 _DIRECTIONS = {"wrong_pass", "unfair_fail"}
 _STATUSES = {"provisional", "confirmed", "refuted"}
 _CAS_URI = re.compile(r"cas://sha256/([0-9a-f]{64})\Z")
@@ -106,6 +121,24 @@ def _integer(value: Any, field: str, *, minimum: int = 0) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
         raise ValueError(f"{field} must be an integer >= {minimum}")
     return value
+
+
+def _trust_tier(value: Any) -> str:
+    if value not in _TRUST_RANK:
+        raise ValueError(f"trust_tier must be one of {', '.join(TRUST_TIERS)}")
+    return value
+
+
+def _passage_steps(value: Any) -> list[int]:
+    """Distinct step indices of labeled passage spans, stored ascending."""
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, (list, tuple)):
+        raise ValueError("flagged_passage_steps must be a list of step indices")
+    indices = [_integer(index, "flagged_passage_steps entry") for index in value]
+    if len(set(indices)) != len(indices):
+        raise ValueError("flagged_passage_steps must not repeat a step index")
+    return sorted(indices)
 
 
 def _record(record: Mapping[str, Any], columns: Sequence[str], defaults: Mapping[str, Any]) -> dict[str, Any]:
@@ -230,6 +263,31 @@ class S3CompatibleCAS:
         return json.loads(self.get_bytes(uri))
 
 
+# Retrieval hydrates step flags as raw text in schema column order; only the
+# steps screened for return are decoded.
+_RAW_FLAG_STEP_COLUMNS = ", ".join(
+    f"s.{column} AS flags_text" if column == "flags_json" else f"s.{column}"
+    for column in _STEP_COLUMNS
+)
+
+
+def _json_truthy(text: str | None) -> bool:
+    """Truthiness of the decoded JSON value, without decoding nonempty containers."""
+    if text is None:
+        return False
+    stripped = text.strip()
+    if stripped[:1] in ("{", "["):
+        return stripped[1:].lstrip()[:1] not in ("}", "]")
+    if stripped[:1] == '"':
+        return stripped != '""'
+    return bool(json.loads(stripped))
+
+
+def _contains(postings: array[int], rowid: int) -> bool:
+    index = bisect.bisect_left(postings, rowid)
+    return index < len(postings) and postings[index] == rowid
+
+
 class CloudTraceDatabase:
     """Thread-safe synchronous projection, with explicit atomic ingestion methods.
 
@@ -249,6 +307,8 @@ class CloudTraceDatabase:
         self._postgres = target.startswith(("postgresql://", "postgres://"))
         self._lock = threading.RLock()
         self._fts = False
+        self._memo_token: tuple[int, int] | None = None
+        self._memo_values: dict[tuple[Any, ...], Any] = {}
         self._connection: Any
         if self._postgres:
             self._connection = psycopg.connect(target, autocommit=True)
@@ -297,6 +357,15 @@ class CloudTraceDatabase:
     def _initialize(self, *, sqlite_fts: bool) -> None:
         json_type = "JSONB" if self._postgres else "TEXT"
         boolean_type = "BOOLEAN" if self._postgres else "INTEGER"
+        trust_columns = {
+            "task_issues": (
+                ("trust_tier", f"TEXT NOT NULL DEFAULT '{PROVISIONAL_TIER}' CHECK({_TRUST_CHECK})"),
+            ),
+            "agent_traces": (
+                ("trust_tier", f"TEXT NOT NULL DEFAULT '{PROVISIONAL_TIER}' CHECK({_TRUST_CHECK})"),
+                ("flagged_passage_steps", f"{json_type} NOT NULL DEFAULT '[]'"),
+            ),
+        }
         schemas = {
             "corpus_tasks": f"""task_id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL,
                 split TEXT NOT NULL, instruction_text TEXT NOT NULL,
@@ -321,6 +390,8 @@ class CloudTraceDatabase:
                 observation_preview TEXT, observation_cas_uri TEXT, flags_json {json_type} NOT NULL,
                 PRIMARY KEY(trace_id, step_index)""",
         }
+        for table, columns in trust_columns.items():
+            schemas[table] += "".join(f", {name} {definition}" for name, definition in columns)
         with self._transaction(write=True):
             if self._postgres:
                 self._execute("SELECT pg_advisory_xact_lock(731643697002024)")
@@ -339,6 +410,13 @@ class CloudTraceDatabase:
                     self._migrate_search_vector(table, vector)
                 if self._postgres and not self._exists(f"{table}_search"):
                     self._execute(f"CREATE INDEX {table}_search ON {table} USING GIN(search_vector)")
+            # Additive migration for stores created before trust tiers: existing
+            # rows take the provisional default until a tier is assigned.
+            for table, columns in trust_columns.items():
+                present = self._column_names(table)
+                for name, definition in columns:
+                    if name not in present:
+                        self._execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
             for table, fields in (
                 ("task_issues", "task_id, direction, status, defect_class"),
                 ("agent_traces", "task_id, run_id"),
@@ -348,6 +426,14 @@ class CloudTraceDatabase:
                     self._execute(f"CREATE INDEX IF NOT EXISTS {table}_lookup ON {table} ({fields})")
             if not self._postgres and sqlite_fts:
                 self._initialize_fts()
+
+    def _column_names(self, table: str) -> set[str]:
+        if self._postgres:
+            return {row[0] for row in self._execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = current_schema() AND table_name = ?", (table,),
+            )}
+        return {row[1] for row in self._execute(f"PRAGMA table_info({table})")}
 
     def _exists(self, name: str) -> bool:
         # PostgreSQL's CREATE INDEX IF NOT EXISTS still locks the target table.
@@ -427,10 +513,11 @@ class CloudTraceDatabase:
             self._upsert("corpus_tasks", row, ("task_id",))
 
     def upsert_task_issue(self, issue: Mapping[str, Any]) -> None:
+        """Insert or replace an issue; an omitted ``trust_tier`` keeps the stored tier."""
         row = _record(issue, _ISSUE_COLUMNS, {
             "status": "provisional", "witness_digest": None, "original_reward": None,
             "repaired_reward": None, "citation_file": None, "citation_line": None,
-            "reproducer_script": None, "cas_uri": None,
+            "reproducer_script": None, "cas_uri": None, "trust_tier": PROVISIONAL_TIER,
         })
         for field in ("issue_id", "task_id", "defect_class"):
             _text(row[field], field)
@@ -440,8 +527,12 @@ class CloudTraceDatabase:
             row[field] = _reward(row[field])
         if row["citation_line"] is not None:
             _integer(row["citation_line"], "citation_line", minimum=1)
+        _trust_tier(row["trust_tier"])
         with self._transaction(write=True):
-            self._upsert("task_issues", row, ("issue_id",))
+            self._upsert(
+                "task_issues", row, ("issue_id",),
+                preserve=() if "trust_tier" in issue else ("trust_tier",),
+            )
 
     def _steps(self, trace_id: str, steps: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         rows = []
@@ -466,11 +557,17 @@ class CloudTraceDatabase:
     def upsert_trace(
         self, trace: Mapping[str, Any], *, steps: Sequence[Mapping[str, Any]] | None = None,
     ) -> None:
-        """Atomically replace trace metadata and, if supplied, its complete step set."""
+        """Atomically replace trace metadata and, if supplied, its complete step set.
+
+        Omitted ``trust_tier``/``flagged_passage_steps`` keep their stored values
+        (provisional and empty for a new trace). Flagged passage steps must name
+        steps of this trace.
+        """
         row = _record(trace, _TRACE_COLUMNS, {
             "outcome": "unknown", "reward": None, "is_exploit": False,
             "is_task_defect_fail": False, "step_count": 0, "raw_cas_uri": None,
-            "verified_receipt_json": None,
+            "verified_receipt_json": None, "trust_tier": PROVISIONAL_TIER,
+            "flagged_passage_steps": [],
         })
         for field in ("trace_id", "run_id", "task_id", "model_id", "outcome"):
             _text(row[field], field)
@@ -481,19 +578,86 @@ class CloudTraceDatabase:
         row["verified_receipt_json"] = _json_value(row["verified_receipt_json"], nullable=True)
         if row["verified_receipt_json"] is not None and not isinstance(row["verified_receipt_json"], dict):
             raise ValueError("verified_receipt_json must be an object or null")
+        _trust_tier(row["trust_tier"])
+        row["flagged_passage_steps"] = _passage_steps(row["flagged_passage_steps"])
         step_rows = None if steps is None else self._steps(row["trace_id"], steps)
         if step_rows is not None:
             if "step_count" in trace and row["step_count"] != len(step_rows):
                 raise ValueError("step_count does not match the supplied steps")
             row["step_count"] = len(step_rows)
+            if not set(row["flagged_passage_steps"]) <= {step["step_index"] for step in step_rows}:
+                raise ValueError("flagged_passage_steps must name supplied steps")
         _integer(row["step_count"], "step_count")
         with self._transaction(write=True):
             # Preserve the existing count inside ON CONFLICT, not with a racy
             # read-before-write that could overwrite a concurrent step replacement.
             preserve = ("step_count",) if step_rows is None and "step_count" not in trace else ()
+            preserve += tuple(
+                field for field in ("trust_tier", "flagged_passage_steps") if field not in trace
+            )
             self._upsert("agent_traces", row, ("trace_id",), preserve=preserve)
             if step_rows is not None:
                 self._replace_steps(row["trace_id"], step_rows)
+            elif row["flagged_passage_steps"]:
+                self._require_steps(row["trace_id"], row["flagged_passage_steps"])
+
+    def _require_steps(self, trace_id: str, indices: Sequence[int]) -> None:
+        parameters: list[Any] = [trace_id]
+        scope = self._task_id_scope("step_index", indices, parameters)
+        found = self._execute(
+            f"SELECT count(*) FROM trace_steps WHERE trace_id = ? AND {scope}", parameters,
+        ).fetchone()[0]
+        if found != len(indices):
+            raise ValueError("flagged_passage_steps must name stored steps of the trace")
+
+    def assign_trust_tiers(
+        self, *, issues: Mapping[str, str] | None = None,
+        traces: Mapping[str, Mapping[str, Any]] | None = None,
+    ) -> dict[str, int]:
+        """Atomically set trust on existing rows, touching no other column.
+
+        ``issues`` maps issue IDs to tiers; ``traces`` maps trace IDs to
+        ``{"trust_tier": ..., "flagged_passage_steps": [...]}`` (steps default
+        to none). Unknown IDs or steps abort the whole assignment. Returns the
+        number of rows whose stored trust changed.
+        """
+        issue_rows = [(_trust_tier(tier), _text(issue_id, "issue_id")) for issue_id, tier in (issues or {}).items()]
+        trace_rows = []
+        for trace_id, value in (traces or {}).items():
+            unknown = set(value) - {"trust_tier", "flagged_passage_steps"}
+            if unknown:
+                raise ValueError(f"unknown trace trust fields: {', '.join(sorted(unknown))}")
+            trace_rows.append((
+                _trust_tier(value.get("trust_tier")),
+                _passage_steps(value.get("flagged_passage_steps", [])),
+                _text(trace_id, "trace_id"),
+            ))
+        changed = {"task_issues": 0, "agent_traces": 0}
+        steps_value = (lambda steps: Jsonb(steps)) if self._postgres else _json_text
+        with self._transaction(write=True):
+            for tier, issue_id in issue_rows:
+                row = self._execute("SELECT trust_tier FROM task_issues WHERE issue_id = ?", (issue_id,)).fetchone()
+                if row is None:
+                    raise KeyError(issue_id)
+                if row[0] != tier:
+                    self._execute("UPDATE task_issues SET trust_tier = ? WHERE issue_id = ?", (tier, issue_id))
+                    changed["task_issues"] += 1
+            for tier, steps, trace_id in trace_rows:
+                row = self._execute(
+                    "SELECT trust_tier, flagged_passage_steps FROM agent_traces WHERE trace_id = ?", (trace_id,),
+                ).fetchone()
+                if row is None:
+                    raise KeyError(trace_id)
+                if steps:
+                    self._require_steps(trace_id, steps)
+                stored = json.loads(row[1]) if isinstance(row[1], str) else row[1]
+                if (row[0], stored) != (tier, steps):
+                    self._execute(
+                        "UPDATE agent_traces SET trust_tier = ?, flagged_passage_steps = ? WHERE trace_id = ?",
+                        (tier, steps_value(steps), trace_id),
+                    )
+                    changed["agent_traces"] += 1
+        return changed
 
     def _replace_steps(self, trace_id: str, rows: Sequence[Mapping[str, Any]]) -> None:
         self._execute("DELETE FROM trace_steps WHERE trace_id = ?", (trace_id,))
@@ -607,9 +771,9 @@ class CloudTraceDatabase:
         return " AND ".join(f"lower({text}) LIKE lower(?) ESCAPE '\\'" for _ in terms)
 
     def _task_id_scope(
-        self, column: str, task_ids: Collection[str], parameters: list[Any],
+        self, column: str, task_ids: Collection[str] | Collection[int], parameters: list[Any],
     ) -> str:
-        """Bind exact raw IDs in one read-only predicate, without parameter-count limits."""
+        """Bind exact raw IDs (or step indices) in one read-only predicate, without parameter-count limits."""
         values = list(task_ids)
         parameters.append(values if self._postgres else _json_text(values))
         if self._postgres:
@@ -689,6 +853,99 @@ class CloudTraceDatabase:
                 issue["task"] = tasks[issue["task_id"]]
             return issues
 
+    def _read_memo(self, key: tuple[Any, ...], build: Callable[[], Any]) -> Any:
+        """Reuse a derived read structure while this SQLite database is unchanged.
+
+        Caller holds a read transaction. The token combines ``data_version``
+        (commits by other connections) with this connection's own change count,
+        so any committed write discards every entry. PostgreSQL has no
+        equivalent cheap token and always rebuilds.
+        """
+        if self._postgres:
+            return build()
+        token = (
+            self._execute("PRAGMA data_version").fetchone()[0], self._connection.total_changes,
+        )
+        if token != self._memo_token:
+            self._memo_values.clear()
+            self._memo_token = token
+        if key in self._memo_values:
+            value = self._memo_values[key] = self._memo_values.pop(key)
+            return value
+        value = self._memo_values[key] = build()
+        while len(self._memo_values) > _READ_MEMO_ENTRIES:
+            del self._memo_values[next(iter(self._memo_values))]
+        return value
+
+    def _postings(self, table: str, terms: Sequence[str]) -> array[int]:
+        """Ascending rowids of one FTS5 literal-AND match, the set ``_search_match`` tests."""
+        expression = " AND ".join('"' + term + '"' for term in terms)
+        return self._read_memo(("postings", table, expression), lambda: array("q", (
+            row[0] for row in self._execute(
+                f"SELECT rowid FROM {table}_fts WHERE {table}_fts MATCH ? ORDER BY rowid",
+                (expression,),
+            )
+        )))
+
+    def _step_ranges(self) -> dict[str, tuple[int, int]]:
+        """Each trace's lowest and highest step rowid; every step lies inside its range."""
+        return self._read_memo(("step_ranges",), lambda: {
+            trace_id: (low, high) for trace_id, low, high in self._execute(
+                "SELECT trace_id, min(rowid), max(rowid) FROM trace_steps GROUP BY trace_id"
+            )
+        })
+
+    def _step_task_ids(
+        self, task_ids: Collection[str], terms: Sequence[str], *, conjunction: bool,
+    ) -> set[str]:
+        """Tasks with an assistant/tool step document matching the FTS5 predicate.
+
+        Only postings inside the scoped traces' rowid ranges are candidates, and
+        each task's candidates are role-checked in widening rounds, so a common
+        term stops at a task's first qualifying step instead of reading every
+        matching step. A task leaves the rounds only when found or exhausted.
+        """
+        parameters: list[Any] = []
+        scope = self._task_id_scope("task_id", task_ids, parameters)
+        ranges = self._step_ranges()
+        groups = [terms] if conjunction or len(terms) == 1 else [(term,) for term in terms]
+        postings = [self._postings("trace_steps", group) for group in groups]
+        candidates: dict[str, set[int]] = {}
+        for trace_id, task_id in self._execute(
+            f"SELECT trace_id, task_id FROM agent_traces WHERE {scope}", parameters,
+        ):
+            if trace_id not in ranges:
+                continue
+            low, high = ranges[trace_id]
+            for term_postings in postings:
+                candidates.setdefault(task_id, set()).update(term_postings[
+                    bisect.bisect_left(term_postings, low):bisect.bisect_right(term_postings, high)
+                ])
+        pending = {task_id: sorted(rowids) for task_id, rowids in candidates.items() if rowids}
+        found: set[str] = set()
+        offset, width = 0, 4
+        while pending:
+            parameters = [_json_text([
+                rowid for rowids in pending.values() for rowid in rowids[offset:offset + width]
+            ])]
+            scope = self._task_id_scope("a.task_id", task_ids, parameters)
+            # A range can hold another trace's steps; the join reports the
+            # step's actual task, which must itself be in scope.
+            found.update(row[0] for row in self._execute(
+                "SELECT DISTINCT a.task_id FROM json_each(?) j "
+                "CROSS JOIN trace_steps s ON s.rowid = j.value "
+                "JOIN agent_traces a ON a.trace_id = s.trace_id "
+                f"WHERE s.role IN ('assistant', 'tool') AND {scope}",
+                parameters,
+            ))
+            offset += width
+            width *= 4
+            pending = {
+                task_id: rowids for task_id, rowids in pending.items()
+                if task_id not in found and offset < len(rowids)
+            }
+        return found
+
     def _retrieval_task_ids(
         self, task_ids: list[str], query: str, terms: Sequence[str], *, conjunction: bool = True,
     ) -> list[str]:
@@ -702,6 +959,11 @@ class CloudTraceDatabase:
             ("corpus_tasks", "t"), ("task_issues", "i"),
             ("agent_traces", "a"), ("trace_steps", "s"),
         ):
+            if table == "trace_steps" and self._fts:
+                remaining = [task_id for task_id in task_ids if task_id not in found]
+                if remaining:
+                    found |= self._step_task_ids(remaining, terms, conjunction=conjunction)
+                continue
             source = f"{table} {alias}"
             identity = f"{alias}.task_id"
             if table == "trace_steps":
@@ -731,15 +993,23 @@ class CloudTraceDatabase:
 
         Caller holds a read transaction. Identifiers are internal constants and
         values are bound. Unconfirmed issue text is neither fetched nor searched.
+        With FTS5, ``query_match`` counts the terms whose rowid postings contain
+        the row, the same per-term predicate the SQL score evaluates.
         """
+        if not values:
+            return []
+        postings = [self._postings(table, (term,)) for term in terms] if self._fts else None
         rows = []
         for start in range(0, len(values), 500):
             page = values[start:start + 500]
             parameters: list[Any] = []
-            score = " + ".join(
-                "CASE WHEN (" + self._search_match(table, alias, term, (term,), parameters)
-                + ") THEN 1 ELSE 0 END" for term in terms
-            ) or "1"
+            if postings is not None:
+                score = f"{alias}.rowid"
+            else:
+                score = " + ".join(
+                    "CASE WHEN (" + self._search_match(table, alias, term, (term,), parameters)
+                    + ") THEN 1 ELSE 0 END" for term in terms
+                ) or "1"
             parameters.extend(page)
             confirmed = f" AND {alias}.status = 'confirmed'" if confirmed_only else ""
             rows.extend(self._rows(
@@ -748,6 +1018,12 @@ class CloudTraceDatabase:
                 f"IN ({', '.join('?' for _ in page)}){confirmed}",
                 parameters,
             ))
+        if postings is not None:
+            for row in rows:
+                rowid = row["query_match"]
+                row["query_match"] = sum(
+                    _contains(term_postings, rowid) for term_postings in postings
+                ) if postings else 1
         return rows
 
     def _retrieval_step_bounds(
@@ -756,11 +1032,25 @@ class CloudTraceDatabase:
         """Per-trace upper bound of step term matches, without reading step bodies.
 
         Every role is counted, so this bounds the assistant/tool strength that
-        ranking uses. With FTS5 only the primary-key index and term rowid sets
-        are read; callers use it to order expansion, never to select evidence.
+        ranking uses; callers use it to order expansion, never to select
+        evidence. Traces without steps are absent. With FTS5 each term counts
+        its postings inside the trace's rowid range, which contains every step
+        of the trace, so the count can only exceed the true match count.
         """
         if not trace_ids or not terms:
             return {}
+        if self._fts:
+            ranges = self._step_ranges()
+            postings = [self._postings("trace_steps", (term,)) for term in terms]
+            return {
+                trace_id: sum(
+                    bisect.bisect_right(term_postings, high)
+                    - bisect.bisect_left(term_postings, low)
+                    for term_postings in postings
+                )
+                for trace_id in trace_ids if trace_id in ranges
+                for low, high in (ranges[trace_id],)
+            }
         parameters: list[Any] = []
         score = " + ".join(
             "CASE WHEN (" + self._search_match("trace_steps", "s", term, (term,), parameters)
@@ -1002,6 +1292,7 @@ class RetrievedExample:
     model_id: str | None = None
     outcome: str | None = None
     steps: tuple[RetrievedStep, ...] = ()
+    trust_tier: str | None = None
 
     def __post_init__(self) -> None:
         if not self.prompt_text:
@@ -1014,6 +1305,8 @@ class RetrievedExample:
         lines = [_clip(head, 400)]
         source = f"dataset {self.dataset_id}; issue {self.issue_id}; trace {self.trace_id}"
         lines.append(_clip(f"- source: {source}", 400))
+        if self.trust_tier is not None:
+            lines.append(f"- trust: {self.trust_tier}")
         for label, value in (
             ("citation", self.citation), ("differential proof", self.differential),
             ("reproducer", self.reproducer), ("task asks", self.instruction),
@@ -1115,10 +1408,14 @@ class CloudTraceRetriever:
             else "CASE WHEN json_valid(metadata_json) "
             "THEN json_type(metadata_json, '$.item_id') ELSE 'invalid' END"
         )
-        identities = database._rows(
-            "SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest, "
-            f"{item} AS item_id, {item_type} AS item_type FROM corpus_tasks ORDER BY task_id"
-        )
+        # Only the identity read is reused while the database is unchanged; the
+        # registry decides admission afresh on every call.
+        identities = [dict(row) for row in database._read_memo(("admission_identities",), lambda: tuple(
+            database._rows(
+                "SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest, "
+                f"{item} AS item_id, {item_type} AS item_type FROM corpus_tasks ORDER BY task_id"
+            )
+        ))]
         admitted = admitted_cloud_task_ids(
             identities, registry=self.registry, sealed_task_ids=self._sealed_ids,
         )
@@ -1161,7 +1458,7 @@ class CloudTraceRetriever:
         self, kind: str | None, task: dict[str, Any], issues: list[dict[str, Any]],
         traces: list[dict[str, Any]], steps: Mapping[str, list[dict[str, Any]]],
         sealed: re.Pattern[str], terms: Sequence[str], issue_kind: str | None,
-    ) -> tuple[int, RetrievedExample] | None:
+    ) -> tuple[int, int, RetrievedExample] | None:
         if self._sealed_text("\n".join(
             str(task[name] or "") for name in ("task_id", "dataset_id", "cas_uri")
         ), sealed):
@@ -1175,7 +1472,7 @@ class CloudTraceRetriever:
             trace for trace in traces
             if kind in (None, "task_quality") or trace["is_exploit"]
             or (kind == "misalignment" and any(
-                step["flags_json"] for step in steps.get(trace["trace_id"], ())
+                step["flagged"] for step in steps.get(trace["trace_id"], ())
             ))
         ]
         if issue_kind is not None and not relevant_issues:
@@ -1196,11 +1493,15 @@ class CloudTraceRetriever:
         )
         if not strength:
             return None
-        relevant_issues.sort(key=lambda row: (-row["query_match"], row["issue_id"]))
+        # Stronger trust is chosen first; within a tier, the old evidence order holds.
+        relevant_issues.sort(key=lambda row: (
+            _TRUST_RANK[row["trust_tier"]], -row["query_match"], row["issue_id"],
+        ))
         relevant_traces.sort(key=lambda row: (
+            _TRUST_RANK[row["trust_tier"]],
             -int(kind == "task_quality" and row["is_task_defect_fail"]),
             -int(kind == "misalignment" and any(
-                step["flags_json"] for step in steps.get(row["trace_id"], ())
+                step["flagged"] for step in steps.get(row["trace_id"], ())
             )),
             -sum(step["query_match"] for step in steps.get(row["trace_id"], ())),
             -sum(step["role"] in _STEP_ROLE_RANK for step in steps.get(row["trace_id"], ())),
@@ -1209,24 +1510,36 @@ class CloudTraceRetriever:
         ))
         issue = relevant_issues[0] if relevant_issues else None
         trace = relevant_traces[0] if relevant_traces else None
+        tier = min(_TRUST_RANK[row["trust_tier"]] for row in (issue, trace) if row is not None)
         selected_steps = []
+        passage_steps = set(trace["flagged_passage_steps"] or ()) if trace is not None else set()
         if trace is not None:
             trace_steps = [
                 step for step in steps.get(trace["trace_id"], []) if step["role"] != "user"
             ]
-            flagged = [step for step in trace_steps if step["flags_json"]]
-            if kind == "misalignment" and flagged:
+            flagged = [step for step in trace_steps if step["flagged"]]
+            if passage_steps:
+                # A labeled trace contributes only its flagged passage steps,
+                # never unlabeled setup steps.
+                trace_steps = [step for step in trace_steps if step["step_index"] in passage_steps]
+            elif kind == "misalignment" and flagged:
                 trace_steps = flagged
             # Only evidence that can be returned is screened: the best-ranked
-            # unsealed steps of the chosen trace, never the whole trace.
+            # unsealed steps of the chosen trace, never the whole trace. Their
+            # raw flags are decoded only here.
             for step in sorted(trace_steps, key=lambda row: (
                 -row["query_match"], _STEP_ROLE_RANK.get(row["role"], 2),
-                -int(kind == "reward_seeker" and bool(row["flags_json"])), row["step_index"],
+                -int(kind == "reward_seeker" and row["flagged"]), row["step_index"],
             )):
                 if len(selected_steps) >= self.max_steps_per_trace:
                     break
-                if not self._sealed_text(self._guarded_text(step), sealed):
-                    selected_steps.append(step)
+                decoded = {
+                    "flags_json" if name == "flags_text" else name:
+                    json.loads(value) if name == "flags_text" else value
+                    for name, value in step.items() if name != "flagged"
+                }
+                if not self._sealed_text(self._guarded_text(decoded), sealed):
+                    selected_steps.append(decoded)
             selected_steps.sort(key=lambda row: row["step_index"])
         issue_evidence = None if issue is None else {
             field: self._identity(issue[field]) if field in {"issue_id", "witness_digest"}
@@ -1249,6 +1562,8 @@ class CloudTraceRetriever:
         } for step in selected_steps]
         receipt = None if trace is None else trace["verified_receipt_json"]
         status = None if receipt is None else receipt.get("status")
+        source_label = None if receipt is None else receipt.get("source_label")
+        categories = source_label.get("categories") if isinstance(source_label, dict) else None
         provenance = {
             "task_id": task["task_id"], "dataset_id": task["dataset_id"], "split": "dev",
             "issue_id": None if issue is None else self._identity(issue["issue_id"]),
@@ -1262,6 +1577,16 @@ class CloudTraceRetriever:
             "raw_cas_uri": None if trace is None else trace["raw_cas_uri"],
             "observation_cas_uris": [step["observation_cas_uri"] for step in selected_steps],
             "receipt_status": self._snippet(status) if isinstance(status, str) else None,
+            "trust_tier": TRUST_TIERS[tier],
+            "issue_trust_tier": None if issue is None else issue["trust_tier"],
+            "trace_trust_tier": None if trace is None else trace["trust_tier"],
+            "passage_steps_only": bool(passage_steps),
+            # Publisher label categories (e.g. Goodfire consensus); provisional unless
+            # ``receipt_status`` says otherwise.
+            "label_categories": [
+                self._snippet(category) for category in categories[:8]
+                if isinstance(category, str) and category.strip()
+            ] if isinstance(categories, list) else [],
         }
         original = None if issue is None else issue["original_reward"]
         repaired = None if issue is None else issue["repaired_reward"]
@@ -1308,19 +1633,29 @@ class CloudTraceRetriever:
             trace_id=provenance["trace_id"],
             model_id=None if trace is None else trace["model_id"],
             outcome=None if trace is None else self._snippet(trace["outcome"]),
-            steps=tuple(legacy_steps),
+            steps=tuple(legacy_steps), trust_tier=TRUST_TIERS[tier],
         )
         if self._sealed_text(example.prompt_text, sealed) or self._sealed_text(
             _json_text(example.to_dict()), sealed,
         ):
             return None
-        return strength, example
+        return tier, strength, example
 
     def retrieve_similar_examples(
         self, query: str, kind: str | None = None, top_k: int = 3, *,
         issue_kind: str | None = None, exclude_task_ids: Iterable[str] | None = None,
+        include_provisional: bool = False,
     ) -> list[RetrievedExample]:
-        """Return confirmed issues or explicitly labelled/flagged stored traces."""
+        """Return confirmed issues or explicitly labelled/flagged stored traces.
+
+        Examples rank by trust tier first (container-verified, then
+        consensus-labeled), then by match strength. Tier-3 provisional issues
+        and traces are omitted entirely unless ``include_provisional`` is true,
+        in which case they rank after every stronger example.
+        """
+        if not isinstance(include_provisional, bool):
+            raise ValueError("include_provisional must be a boolean")
+        allowed = set(TRUST_TIERS) if include_provisional else set(TRUST_TIERS[:-1])
         if kind is not None and kind not in {"task_quality", "reward_seeker", "misalignment"}:
             raise ValueError("kind must be task_quality, reward_seeker, or misalignment")
         _integer(top_k, "top_k", minimum=1)
@@ -1358,60 +1693,70 @@ class CloudTraceRetriever:
             issues = database._retrieval_matches(
                 "task_issues", "i", "task_id", candidates, query, terms, confirmed_only=True,
             )
-            traces = database._retrieval_matches(
-                "agent_traces", "a", "task_id", candidates, query, terms,
-                columns="a.trace_id, a.task_id, a.is_exploit",
-            )
+            traces = [
+                trace for trace in database._retrieval_matches(
+                    "agent_traces", "a", "task_id", candidates, query, terms,
+                    columns="a.trace_id, a.task_id, a.is_exploit, a.trust_tier",
+                ) if trace["trust_tier"] in allowed
+            ]
             bounds = database._retrieval_step_bounds(
                 [trace["trace_id"] for trace in traces], terms,
             )
             issues_by_task: dict[str, list[dict[str, Any]]] = {}
             traces_by_task: dict[str, list[dict[str, Any]]] = {}
             for issue in issues:
-                if issue_kind is None or issue_kind in (issue["defect_class"], issue["direction"]):
+                if issue["trust_tier"] in allowed and (
+                    issue_kind is None or issue_kind in (issue["defect_class"], issue["direction"])
+                ):
                     issues_by_task.setdefault(issue["task_id"], []).append(issue)
             for trace in traces:
                 traces_by_task.setdefault(trace["task_id"], []).append(trace)
-            # Screening and step hydration only remove strength, so each bound
-            # is an upper bound: tasks are expanded best-first, a batch at a
-            # time, until no unexpanded task can outrank the current top_k.
-            # Ranking uses each expanded task's step matches; only returnable
-            # evidence (the task, its issues/traces, selected steps, and the
-            # final example) is screened against sealed identities.
+            # Screening and step hydration only remove evidence, so each task's
+            # (best tier, strength) bound is never outranked by its example:
+            # tasks are expanded best-first, a batch at a time, until no
+            # unexpanded task can outrank the current top_k. Ranking uses each
+            # expanded task's step matches; only returnable evidence (the task,
+            # its issues/traces, selected steps, and the final example) is
+            # screened against sealed identities.
             bounded = []
             for task in tasks:
                 task_id = task["task_id"]
-                bound = self._strength_bound(
+                tier, bound = self._strength_bound(
                     kind, task, issues_by_task.get(task_id, []),
                     traces_by_task.get(task_id, []), bounds, issue_kind,
                 )
                 if bound:
-                    bounded.append((-bound, task_id))
+                    bounded.append((tier, -bound, task_id))
             bounded.sort()
-            ranked: list[tuple[int, str, RetrievedExample]] = []
+            ranked: list[tuple[int, int, str, RetrievedExample]] = []
             position = 0
             while position < len(bounded) and not (
-                len(ranked) >= top_k and ranked[top_k - 1][:2] < bounded[position]
+                len(ranked) >= top_k and ranked[top_k - 1][:3] < bounded[position]
             ):
-                batch = [task_id for _, task_id in bounded[position:position + top_k]]
+                batch = [task_id for _, _, task_id in bounded[position:position + top_k]]
                 position += len(batch)
+                # Unreturned metadata is not hydrated, and step flags stay raw
+                # text: only the screened/returned steps are decoded in _example.
                 hydrated = database._retrieval_matches(
                     "corpus_tasks", "t", "task_id", batch, query, terms,
+                    columns="t.task_id, t.dataset_id, t.instruction_text, t.cas_uri",
                 )
                 batch_traces: dict[str, list[dict[str, Any]]] = {}
                 for trace in database._retrieval_matches(
                     "agent_traces", "a", "task_id", batch, query, terms,
                 ):
-                    batch_traces.setdefault(trace["task_id"], []).append(trace)
+                    if trace["trust_tier"] in allowed:
+                        batch_traces.setdefault(trace["task_id"], []).append(trace)
                 steps_by_trace: dict[str, list[dict[str, Any]]] = {}
                 for step in database._retrieval_matches(
                     "trace_steps", "s", "trace_id", [
                         trace["trace_id"] for task_id in batch
                         for trace in batch_traces.get(task_id, [])
-                    ], query, terms,
+                    ], query, terms, columns=_RAW_FLAG_STEP_COLUMNS,
                 ):
                     if step["role"] not in _STEP_ROLE_RANK:
                         step["query_match"] = 0
+                    step["flagged"] = _json_truthy(step["flags_text"])
                     steps_by_trace.setdefault(step["trace_id"], []).append(step)
                 for task in hydrated:
                     task_id = task["task_id"]
@@ -1425,17 +1770,18 @@ class CloudTraceRetriever:
                         ], steps_by_trace, sealed, terms, issue_kind,
                     )
                     if found is not None:
-                        ranked.append((-found[0], task_id, found[1]))
-                ranked.sort(key=lambda entry: (entry[0], entry[1]))
-        return [entry[2] for entry in ranked[:top_k]]
+                        ranked.append((found[0], -found[1], task_id, found[2]))
+                ranked.sort(key=lambda entry: entry[:3])
+        return [entry[3] for entry in ranked[:top_k]]
 
     @staticmethod
     def _strength_bound(
         kind: str | None, task: Mapping[str, Any], issues: Sequence[Mapping[str, Any]],
         traces: Sequence[Mapping[str, Any]], step_bounds: Mapping[str, int],
         issue_kind: str | None,
-    ) -> int:
-        """Upper bound of ``_example`` strength; zero when it must return ``None``.
+    ) -> tuple[int, int]:
+        """Upper bound of ``_example``'s (tier rank, strength); strength zero when
+        it must return ``None``. The tier is the strongest relevant evidence's.
 
         Misalignment relevance needs a flagged step, so any trace with steps
         is counted as possibly relevant.
@@ -1451,12 +1797,13 @@ class CloudTraceRetriever:
             or (kind == "misalignment" and trace["trace_id"] in step_bounds)
         ]
         if (issue_kind is not None or kind == "task_quality") and not relevant_issues:
-            return 0
+            return len(TRUST_TIERS), 0
         if kind == "misalignment" and not relevant_traces:
-            return 0
+            return len(TRUST_TIERS), 0
         if not (relevant_issues or relevant_traces):
-            return 0
-        return task["query_match"] + sum(issue["query_match"] for issue in relevant_issues) + sum(
+            return len(TRUST_TIERS), 0
+        tier = min(_TRUST_RANK[row["trust_tier"]] for row in (*relevant_issues, *relevant_traces))
+        return tier, task["query_match"] + sum(issue["query_match"] for issue in relevant_issues) + sum(
             trace["query_match"] + step_bounds.get(trace["trace_id"], 0)
             for trace in relevant_traces
         )

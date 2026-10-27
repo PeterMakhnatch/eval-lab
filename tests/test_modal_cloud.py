@@ -194,6 +194,7 @@ def _issue(
         "citation_line": 27,
         "reproducer_script": reproducer,
         "cas_uri": None,
+        "trust_tier": "tier3_provisional",
     }
 
 
@@ -215,6 +216,8 @@ def _trace(
         "is_task_defect_fail": outcome == "unfair_fail",
         "raw_cas_uri": None,
         "verified_receipt_json": receipt,
+        "trust_tier": "tier3_provisional",
+        "flagged_passage_steps": [],
     }
 
 
@@ -805,6 +808,68 @@ def test_cloud_api_does_not_hydrate_denied_task_bodies(
         assert {row["task_id"] for row in response.json()[collection]} == {"allowed"}
 
 
+def _census_fixture(runtime: CloudRuntime) -> None:
+    # (task, dataset, split, trace outcomes): one trace per outcome, two steps each.
+    fixtures = (
+        ("census-dev-a", "synthetic-goodfire", "DEV", ("wrong_pass", "unknown")),
+        ("census-dev-b", "synthetic-goodfire", " dev ", ("wrong_pass",)),
+        ("census-no-traces", "synthetic-goodfire", "dev", ()),
+        ("census-held", "synthetic-goodfire", "held", ("wrong_pass", "wrong_pass", "unknown")),
+        # DEV label but sealed by the task-name ledger: counted as gate-denied, not DEV.
+        ("sealed-task-name", "synthetic-goodfire", "dev", ("wrong_pass",)),
+        ("census-other", "synthetic-other", "dev", ("unknown",)),
+    )
+    for task_id, dataset, split, outcomes in fixtures:
+        runtime.database.upsert_task(
+            {**_task(task_id, "Inert census body", split=split), "dataset_id": dataset}
+        )
+        for number, outcome in enumerate(outcomes):
+            runtime.database.upsert_trace(
+                _trace(f"trace-{task_id}-{number}", task_id, None, outcome=outcome),
+                steps=[
+                    {"step_index": step, "role": "user", "content_text": "Inert census step"}
+                    for step in range(2)
+                ],
+            )
+
+
+def test_corpus_census_separates_admitted_dev_gate_denied_and_withheld_counts(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    _census_fixture(runtime)
+    response = client.get("/api/cloud-db/corpus", headers=AUTH)
+    assert response.status_code == 200
+    datasets = {entry["dataset_id"]: entry for entry in response.json()["datasets"]}
+    assert list(datasets) == ["synthetic-goodfire", "synthetic-other"]
+    assert datasets["synthetic-goodfire"] == {
+        "dataset_id": "synthetic-goodfire",
+        "admitted_dev": {"tasks": 3, "traces": 3, "steps": 6},
+        "dev_not_admitted": {"tasks": 1, "traces": 1, "steps": 2},
+        "withheld": {"tasks": 1, "traces": 3, "steps": 6},
+        # Exploit labels count only on admitted DEV traces: the held and sealed ones do not.
+        "enacted_exploit_traces": 2,
+    }
+    assert datasets["synthetic-other"]["admitted_dev"] == {"tasks": 1, "traces": 1, "steps": 2}
+    assert datasets["synthetic-other"]["enacted_exploit_traces"] == 0
+    # Aggregates only: no identity or body of any row, admitted or not, is returned.
+    for identity in ("census-held", "sealed-task-name", "census-dev-a", "Inert census"):
+        assert identity not in response.text
+
+
+def test_corpus_census_counts_nothing_as_dev_without_assignment_authority(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    _census_fixture(runtime)
+    (runtime.repo_root / "research/answer-keys/splits/assignments.csv").unlink()
+    runtime.registry = type(runtime.registry)(runtime.repo_root)
+    datasets = client.get("/api/cloud-db/corpus", headers=AUTH).json()["datasets"]
+    assert sum(entry["admitted_dev"]["tasks"] for entry in datasets) == 0
+    assert sum(entry["enacted_exploit_traces"] for entry in datasets) == 0
+    assert sum(entry["dev_not_admitted"]["tasks"] for entry in datasets) == 5
+
+
 def _swarm_benchmark_report() -> dict[str, Any]:
     return {
         "schema": "evallab.swarm_bench/v1",
@@ -1138,6 +1203,393 @@ def test_named_arm_cannot_omit_common_blocked_identities_from_its_accounting(
 ) -> None:
     report = _named_arm_comparison_report()
     report["arms"][0]["coverage"].update(blocked_n=0, missing_n=2)
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    (directory / "invalid.json").write_text(json.dumps(report))
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["benchmarks"] == []
+    assert [entry["file"] for entry in result["rejected"]] == ["invalid.json"]
+
+
+_SEEKER_MODELS = (
+    ("muse-spark-open", "meta/muse-spark-open"),
+    ("muse-spark-1.3", "meta/muse-spark-1.3-contributor"),
+    ("muse-wonder", "meta/muse-wonder-1.0-contributor"),
+    ("kimi-k3.1", "kimi-code/k3.1-pro-highspeed"),
+    ("deepseek-v4.1", "openrouter/deepseek/deepseek-v4.1-flash"),
+    ("sonnet-5.5", "anthropic/claude-sonnet-5-5"),
+)
+_SEEKER_CONDITIONS = ("bare", "retrieval-augmented")
+_SEEKER_COUNTS = (
+    "attested_n",
+    "unattested_n",
+    "refused_n",
+    "unavailable_n",
+    "malformed_n",
+    "blocked_n",
+    "missing_n",
+)
+
+
+def _seeker_comparison_report(state: str = "blocked") -> dict[str, Any]:
+    """Inert synthetic fixture: counts exercise the schema, they are not model results."""
+    arms = []
+    for index, (name, model) in enumerate(_SEEKER_MODELS):
+        answered = state == "complete" or index % 2 == 0
+        cells = []
+        for condition in _SEEKER_CONDITIONS:
+            counts = dict.fromkeys(_SEEKER_COUNTS, 0)
+            graded = original_pass = differential = 0
+            if state == "complete":
+                counts["attested_n"] = graded = 4
+                original_pass, differential = 2, index % 2
+            elif state == "blocked" and answered:
+                counts.update(attested_n=2, unavailable_n=1, blocked_n=1)
+                graded, original_pass, differential = 2, 1, 1
+            elif state == "blocked":
+                counts.update(blocked_n=1, missing_n=3)
+            elif answered:
+                counts.update(attested_n=3, missing_n=1)
+                graded, original_pass, differential = 2, 1, 1
+            else:
+                counts["missing_n"] = 4
+            cells.append(
+                {
+                    "condition": condition,
+                    "prompt_sha256": hashlib.sha256(condition.encode()).hexdigest(),
+                    "served_models": [model] if answered else [],
+                    **counts,
+                    "graded_n": graded,
+                    "original_pass_n": original_pass,
+                    "verified_differential_n": differential,
+                    "spend_usd": 0.0 if state == "complete" else None,
+                    "model_calls": 4 if state == "complete" else None,
+                    "artifact_sha256": hashlib.sha256((name + condition).encode()).hexdigest()
+                    if answered
+                    else None,
+                }
+            )
+        arms.append(
+            {"arm": name, "label": "Synthetic " + name, "requested_model": model, "cells": cells}
+        )
+    return {
+        "schema": "evallab.seeker_comparison/v1",
+        "protocol": "synthetic-grader-weakness-v1",
+        "status": state,
+        "cohort": {
+            "dataset_id": "synthetic-cloud-fixture",
+            "split": "dev",
+            "task_count": 4,
+            "eligible_n": 3 if state == "blocked" else 4,
+            "blocked_n": 1 if state == "blocked" else 0,
+        },
+        "arms": arms,
+        "generated_at": "2026-10-26T15:00:00Z",
+    }
+
+
+@pytest.mark.parametrize("state", ["blocked", "incomplete", "complete"])
+def test_seeker_comparison_reports_are_retained_with_exact_bytes_and_distinct_zero(
+    client: TestClient,
+    runtime: CloudRuntime,
+    state: str,
+) -> None:
+    report = _seeker_comparison_report(state)
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    raw = (json.dumps(report, indent=2) + "\n").encode("utf-8")
+    (directory / "seeker.json").write_bytes(raw)
+    response = client.get("/api/cloud-db/benchmarks", headers=AUTH)
+    assert response.status_code == 200
+    assert response.json() == {
+        "benchmarks": [
+            {"file": "seeker.json", "sha256": hashlib.sha256(raw).hexdigest(), "report": report}
+        ],
+        "rejected": [],
+    }
+    cells = [cell for arm in report["arms"] for cell in arm["cells"]]
+    assert len(report["arms"]) == 6
+    # An arm that never answered keeps null spend/served identity rather than a fake zero.
+    assert (None in {cell["spend_usd"] for cell in cells}) is (state != "complete")
+    assert (0 in {cell["verified_differential_n"] for cell in cells}) is True
+
+
+@pytest.mark.parametrize(
+    ("state", "path", "value"),
+    [
+        ("blocked", ("status",), "incomplete"),
+        ("blocked", ("status",), "complete"),
+        ("complete", ("status",), "incomplete"),
+        ("incomplete", ("status",), "blocked"),
+        ("blocked", ("cohort", "blocked_n"), 0),
+        ("blocked", ("arms", 0, "cells", 0, "missing_n"), 2),
+        ("blocked", ("arms", 0, "cells", 0, "graded_n"), 3),
+        ("blocked", ("arms", 0, "cells", 0, "original_pass_n"), 3),
+        ("blocked", ("arms", 0, "cells", 0, "verified_differential_n"), 2),
+        ("blocked", ("arms", 0, "cells", 0, "served_models"), []),
+        ("blocked", ("arms", 0, "cells", 0, "artifact_sha256"), None),
+        ("blocked", ("arms", 0, "cells", 0, "served_models"), ["fixture/a", "FIXTURE/A"]),
+        ("blocked", ("arms", 0, "cells", 0, "served_models"), ["no-provider"]),
+        ("blocked", ("arms", 0, "cells", 0, "model_calls"), -1),
+        ("blocked", ("arms", 0, "cells", 0, "prompt_sha256"), "ABC"),
+        ("blocked", ("arms", 0, "cells", 0, "discovery_rate"), 0.5),
+        ("blocked", ("arms", 0, "cells", 1, "condition"), "BARE"),
+        ("blocked", ("arms", 0, "cells", 1, "condition"), "other-condition"),
+        ("blocked", ("arms", 0, "cells", 1, "condition"), " retrieval-augmented "),
+        ("blocked", ("arms", 0, "cells"), []),
+        ("blocked", ("arms", 1, "arm"), "MUSE-SPARK-OPEN"),
+        ("blocked", ("arms", 1, "requested_model"), "META/MUSE-SPARK-OPEN"),
+        ("blocked", ("arms", 0, "requested_model"), "requested-without-provider"),
+        ("blocked", ("arms",), []),
+    ],
+)
+def test_seeker_comparison_rejects_inconsistent_coverage_funnel_or_identity_claims(
+    client: TestClient,
+    runtime: CloudRuntime,
+    state: str,
+    path: tuple[str | int, ...],
+    value: Any,
+) -> None:
+    report = _seeker_comparison_report(state)
+    target = report
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    (directory / "invalid.json").write_text(json.dumps(report))
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["benchmarks"] == []
+    assert [entry["file"] for entry in result["rejected"]] == ["invalid.json"]
+
+
+def test_seeker_cell_cannot_omit_a_common_blocked_identity_from_its_accounting(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    report = _seeker_comparison_report("blocked")
+    # Keeps the terminal total at 4, so only the cohort-blocked invariant can reject it.
+    report["arms"][0]["cells"][0].update(blocked_n=0, missing_n=1)
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    (directory / "invalid.json").write_text(json.dumps(report))
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["benchmarks"] == []
+    assert [entry["file"] for entry in result["rejected"]] == ["invalid.json"]
+
+
+def test_seeker_arms_may_name_any_models_and_conditions(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    report = _seeker_comparison_report("complete")
+    report["arms"] = report["arms"][:1]
+    report["arms"][0].update(arm="Any Name", requested_model="vendor/any-model:max")
+    for cell, condition in zip(report["arms"][0]["cells"], ("zero-shot", "Hints"), strict=True):
+        cell["condition"] = condition
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    (directory / "any.json").write_text(json.dumps(report))
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["rejected"] == []
+    assert result["benchmarks"][0]["report"]["arms"][0]["requested_model"] == "vendor/any-model:max"
+
+
+def _trust_tier_census_report() -> dict[str, Any]:
+    return {
+        "schema": "evallab.trust_tier_census/v1",
+        "split": "dev",
+        "unit": "traces",
+        "admitted_rows_n": 100,
+        "unclassified_n": 10,
+        "tiers": [
+            {
+                "tier": "tier1_container_verified",
+                "source": "synthetic-a",
+                "basis": "synthetic nine-run qualification",
+                "rows_n": 20,
+                "prompt_eligible_n": 20,
+            },
+            {
+                "tier": "tier2_consensus_labeled",
+                "source": "synthetic-b",
+                "basis": "synthetic three-vote consensus",
+                "rows_n": 50,
+                "prompt_eligible_n": 40,
+            },
+            {
+                "tier": "tier3_provisional",
+                "source": "synthetic-b",
+                "basis": "synthetic split votes",
+                "rows_n": 20,
+                "prompt_eligible_n": 0,
+            },
+        ],
+        "source_sha256": hashlib.sha256(b"synthetic census input").hexdigest(),
+        "generated_at": "2026-10-26T20:00:00Z",
+    }
+
+
+def _hackbook_qc_report() -> dict[str, Any]:
+    rules = [
+        ("rule-one", 6, 2, 3),
+        ("rule-two", 5, 1, 2),
+        ("rule-silent", 0, 0, 0),
+    ]
+    return {
+        "schema": "evallab.hackbook_qc/v1",
+        "ruleset_sha256": hashlib.sha256(b"synthetic ruleset").hexdigest(),
+        "cohort": {
+            "dataset_id": "synthetic-qc-cohort",
+            "split": "dev",
+            "positive_n": 10,
+            "clean_n": 20,
+            "unscored_n": 2,
+        },
+        "rules": [
+            {
+                "rule_id": name,
+                "positives_hit_n": positives,
+                "clean_hit_n": clean,
+                "marginal_true_positive_n": marginal,
+            }
+            for name, positives, clean, marginal in rules
+        ],
+        "union_positives_hit_n": 8,
+        "union_clean_hit_n": 3,
+        "generated_at": "2026-10-26T20:00:00Z",
+    }
+
+
+def _tune_cross_test_report(*, cross: bool = True) -> dict[str, Any]:
+    digest = hashlib.sha256(b"synthetic frozen system").hexdigest()
+
+    def entry(role: str, dataset: str, hour: int, hits: tuple[int, int]) -> dict[str, Any]:
+        return {
+            "role": role,
+            "dataset_id": dataset,
+            "split": "dev",
+            "system_sha256": digest,
+            "positive_n": 10,
+            "clean_n": 20,
+            "unscored_n": 1,
+            "true_positive_n": hits[0],
+            "false_positive_n": hits[1],
+            "measured_at": f"2026-10-26T{hour}:00:00Z",
+        }
+
+    entries = [entry("tune", "synthetic-tune-set", 18, (6, 2))]
+    if cross:
+        entries.append(entry("cross_test", "synthetic-unseen-set", 19, (0, 0)))
+    return {
+        "schema": "evallab.tune_cross_test/v1",
+        "system": "synthetic-frozen-system",
+        "frozen_sha256": digest,
+        "entries": entries,
+        "generated_at": "2026-10-26T20:00:00Z",
+    }
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        _trust_tier_census_report(),
+        _hackbook_qc_report(),
+        _tune_cross_test_report(),
+        _tune_cross_test_report(cross=False),
+    ],
+    ids=["tier-census", "hackbook-qc", "tune-cross-test", "tune-only-cross-test-not-run"],
+)
+def test_trust_qc_reports_are_retained_with_exact_bytes(
+    client: TestClient,
+    runtime: CloudRuntime,
+    report: dict[str, Any],
+) -> None:
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    raw = (json.dumps(report, indent=2) + "\n").encode("utf-8")
+    (directory / "report.json").write_bytes(raw)
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result == {
+        "benchmarks": [
+            {"file": "report.json", "sha256": hashlib.sha256(raw).hexdigest(), "report": report}
+        ],
+        "rejected": [],
+    }
+
+
+def _set(path: tuple[str | int, ...], value: Any) -> Callable[[dict[str, Any]], None]:
+    def mutate(report: dict[str, Any]) -> None:
+        target = report
+        for key in path[:-1]:
+            target = target[key]
+        target[path[-1]] = value
+
+    return mutate
+
+
+_TRUST_QC_REJECTIONS = [
+    # Tier census: the tier rows plus unclassified must partition the admitted rows.
+    (_trust_tier_census_report, _set(("admitted_rows_n",), 99)),
+    (_trust_tier_census_report, _set(("unclassified_n",), 11)),
+    (_trust_tier_census_report, _set(("tiers", 2, "prompt_eligible_n"), 1)),
+    (_trust_tier_census_report, _set(("tiers", 0, "prompt_eligible_n"), 21)),
+    (
+        _trust_tier_census_report,
+        # Same tier and a case-variant source as row 0: a duplicate pair, not a second source.
+        lambda report: (
+            _set(("tiers", 1, "tier"), "tier1_container_verified")(report),
+            _set(("tiers", 1, "source"), "SYNTHETIC-A")(report),
+        ),
+    ),
+    (_trust_tier_census_report, _set(("tiers", 0, "tier"), "tier4_unknown")),
+    (_trust_tier_census_report, _set(("split",), "test")),
+    (_trust_tier_census_report, _set(("generated_at",), "2026-10-26T20:00:00")),
+    (_trust_tier_census_report, _set(("source_sha256",), "abc")),
+    # Hackbook QC: hits are bounded by the cohort and by one another.
+    (_hackbook_qc_report, _set(("rules", 0, "positives_hit_n"), 11)),
+    (_hackbook_qc_report, _set(("rules", 0, "clean_hit_n"), 21)),
+    (_hackbook_qc_report, _set(("rules", 0, "marginal_true_positive_n"), 7)),
+    (
+        _hackbook_qc_report,
+        # 6 + 3 marginal positives cannot fit in 8 distinct positives hit overall.
+        lambda report: (
+            _set(("rules", 0, "marginal_true_positive_n"), 6)(report),
+            _set(("rules", 1, "marginal_true_positive_n"), 3)(report),
+        ),
+    ),
+    (_hackbook_qc_report, _set(("union_positives_hit_n",), 5)),
+    (_hackbook_qc_report, _set(("union_positives_hit_n",), 11)),
+    (_hackbook_qc_report, _set(("union_clean_hit_n",), 4)),
+    (_hackbook_qc_report, _set(("rules", 1, "rule_id"), "RULE-ONE")),
+    (_hackbook_qc_report, _set(("rules", 1, "rule_id"), " rule-two ")),
+    (_hackbook_qc_report, _set(("rules",), [])),
+    (_hackbook_qc_report, _set(("ruleset_sha256",), "abc")),
+    (_hackbook_qc_report, _set(("cohort", "split"), "test")),
+    (_hackbook_qc_report, _set(("cohort", "clean_n"), 0)),
+    # Tune versus cross-test: one frozen digest, disjoint cohorts, cross-test after tuning.
+    (_tune_cross_test_report, _set(("entries", 1, "system_sha256"), "0" * 64)),
+    (_tune_cross_test_report, _set(("entries", 1, "dataset_id"), "SYNTHETIC-TUNE-SET")),
+    (_tune_cross_test_report, _set(("entries", 1, "measured_at"), "2026-10-26T17:00:00Z")),
+    (_tune_cross_test_report, _set(("entries", 0, "role"), "cross_test")),
+    (_tune_cross_test_report, _set(("entries", 0, "true_positive_n"), 11)),
+    (_tune_cross_test_report, _set(("entries", 0, "false_positive_n"), 21)),
+    (_tune_cross_test_report, _set(("entries", 1, "split"), "test")),
+    (_tune_cross_test_report, _set(("entries", 1, "role"), "holdout")),
+    (_tune_cross_test_report, _set(("entries",), [])),
+    (_tune_cross_test_report, _set(("frozen_sha256",), "0" * 64)),
+]
+
+
+@pytest.mark.parametrize(("build", "mutate"), _TRUST_QC_REJECTIONS)
+def test_trust_qc_reports_reject_inconsistent_counts_or_broken_separation(
+    client: TestClient,
+    runtime: CloudRuntime,
+    build: Callable[[], dict[str, Any]],
+    mutate: Callable[[dict[str, Any]], None],
+) -> None:
+    report = build()
+    mutate(report)
     directory = runtime.data_root / "benchmarks"
     directory.mkdir()
     (directory / "invalid.json").write_text(json.dumps(report))

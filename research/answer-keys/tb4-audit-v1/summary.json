@@ -331,8 +331,10 @@
     "exposures_by_task": {
       "atrx-vep-crispr": [
         "cm1-qwen-plain-json-v3-test-20261021",
+        "cm1-qwen-plain-json-v4-test-20261021",
         "qa-task-s2-prompt-dev",
         "ref-subset-tb4-39-sweep",
+        "seeker-gym-v0-test-touch-20261021",
         "tr1-historical-eight-inspection-20261021",
         "tr1-legacy8-frozen-once-20261021"
       ],
@@ -343,20 +345,25 @@
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep",
+        "seeker-gym-v0-test-touch-20261021",
         "tr1-historical-eight-inspection-20261021",
         "tr1-legacy8-frozen-once-20261021"
       ],
       "biped-contact-dynamics": [
         "cm1-qwen-plain-json-v3-test-20261021",
+        "qa-env-audit-v2-muse-test-20261021",
+        "seeker-gym-v0-test-touch-20261021",
         "tr1-historical-eight-inspection-20261021",
         "tr1-legacy8-frozen-once-20261021"
       ],
       "bun-sourcemap-leak": [
         "cm1-qwen-plain-json-v3-test-20261021",
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "seeker-gym-v0-test-touch-20261021"
       ],
       "cargo-flight-dispatch": [
         "breaker-rediscovery-pilot",
@@ -368,16 +375,19 @@
       ],
       "coq-block-bound": [
         "cm1-qwen-plain-json-v3-test-20261021",
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
       ],
       "ctr-optimization": [
-        "cm1-qwen-plain-json-v3-test-20261021"
+        "cm1-qwen-plain-json-v3-test-20261021",
+        "qa-env-audit-v2-muse-test-20261021"
       ],
       "cumulative-layout-shift": [
         "cm1-qwen-plain-json-v3-test-20261021",
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
@@ -408,6 +418,9 @@
         "breaker-rediscovery-pilot",
         "ref-subset-tb4-39-sweep"
       ],
+      "foodstuff-beta-activity": [
+        "qa-env-audit-v2-muse-test-20261021"
+      ],
       "formal-crypto": [
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
@@ -415,6 +428,7 @@
         "ref-subset-tb4-39-sweep"
       ],
       "fp8-rmsnorm-gemm": [
+        "qa-env-audit-v2-muse-test-20261021",
         "ref-subset-tb4-39-sweep"
       ],
       "freecad-impeller": [
@@ -422,6 +436,9 @@
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
+      ],
+      "freight-dispatch-shift": [
+        "qa-env-audit-v2-muse-test-20261021"
       ],
       "glycan-ms2-elucidation": [
         "breaker-rediscovery-pilot",
@@ -431,6 +448,7 @@
         "ref-subset-tb4-39-sweep"
       ],
       "hof-topology-interpenetration": [
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
@@ -441,27 +459,35 @@
         "ref-subset-tb4-39-sweep"
       ],
       "intrastat-meldung": [
+        "qa-env-audit-v2-muse-test-20261021",
         "ref-subset-tb4-39-sweep"
       ],
       "jax-speedrun-gpu": [
         "ref-subset-tb4-39-sweep"
       ],
       "ks-solver-cpp": [
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
       ],
+      "kv-live-surgery": [
+        "qa-env-audit-v2-muse-test-20261021"
+      ],
       "lake-temp-glm": [
+        "qa-env-audit-v2-muse-test-20261021",
         "ref-subset-tb4-39-sweep"
       ],
       "layout-config-recreation": [
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
       ],
       "legacy-utility-triage": [
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
@@ -479,7 +505,17 @@
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
       ],
+      "medical-claims-processing": [
+        "qa-env-audit-v2-muse-test-20261021"
+      ],
+      "mp-checkpoint-consolidation": [
+        "qa-env-audit-v2-muse-test-20261021"
+      ],
+      "music-harmony": [
+        "qa-env-audit-v2-muse-test-20261021"
+      ],
       "mvcc-lsm-compaction": [
+        "qa-env-audit-v2-muse-test-20261021",
         "ref-subset-tb4-39-sweep"
       ],
       "nextjs-performance": [
@@ -489,31 +525,45 @@
         "ref-subset-tb4-39-sweep"
       ],
       "ontology-kg-querying": [
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
       ],
       "payments-pipeline-fix": [
+        "qa-env-audit-v2-muse-test-20261021",
         "ref-subset-tb4-39-sweep"
       ],
       "production-planning": [
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
       ],
       "react-lead-form": [
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
       ],
       "retro-console-soc": [
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
+      ],
+      "risk-scorer-replay": [
+        "qa-env-audit-v2-muse-test-20261021"
+      ],
+      "roy-polymorph-cn": [
+        "qa-env-audit-v2-muse-test-20261021"
+      ],
+      "rs-archive-clone": [
+        "qa-env-audit-v2-muse-test-20261021"
       ],
       "session-window-debug": [
         "breaker-rediscovery-pilot",
@@ -529,15 +579,21 @@
         "ref-subset-tb4-39-sweep"
       ],
       "shadow-relay": [
+        "qa-env-audit-v2-muse-test-20261021",
         "ref-subset-tb4-39-sweep"
       ],
+      "sound-change-cascade": [
+        "qa-env-audit-v2-muse-test-20261021"
+      ],
       "takens-embedding-lean": [
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
       ],
       "telecom-entity-resolution": [
+        "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
@@ -557,6 +613,9 @@
         "tr1-dev-census-calibration-20261021",
         "tr1-historical-eight-inspection-20261021"
       ],
+      "vllm-deepseek-streaming": [
+        "qa-env-audit-v2-muse-test-20261021"
+      ],
       "vpp-loss-divergence": [
         "ref-subset-tb4-39-sweep"
       ],
@@ -565,6 +624,9 @@
         "ref-subset-tb4-39-sweep",
         "tr1-historical-eight-inspection-20261021",
         "tr1-legacy8-frozen-once-20261021"
+      ],
+      "wdm-design": [
+        "qa-env-audit-v2-muse-test-20261021"
       ]
     },
     "rule": "tuned if any matching exposure is tuned, else inspected_only if any is inspected, else unexposed",
@@ -576,9 +638,9 @@
         "unexposed": 31
       },
       "test": {
-        "inspected_only": 86,
+        "inspected_only": 114,
         "tuned": 38,
-        "unexposed": 28
+        "unexposed": 0
       }
     },
     "tasks": {
@@ -588,9 +650,9 @@
         "unexposed": 12
       },
       "test": {
-        "inspected_only": 21,
+        "inspected_only": 33,
         "tuned": 8,
-        "unexposed": 12
+        "unexposed": 0
       }
     }
   },

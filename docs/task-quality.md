@@ -156,6 +156,29 @@ outrank the current results. Only returnable evidence is screened: an expanded
 task's issues and traces, then the best-ranked steps of its chosen trace,
 skipping sealed ones. Step matches that are never returned may contribute to
 rank. Final serialization is checked again, including dataset/CAS provenance.
+With SQLite FTS5, term scores come from per-term rowid postings and step bounds
+from postings inside each trace's rowid range. Postings, those ranges, and the
+identity rows read for admission are reused only while SQLite reports the
+database unchanged (`data_version` plus this connection's change count); the
+registry decides admission on every call. Unreturned task metadata is not
+hydrated, and step flags are decoded only for steps screened for return.
+
+**Trust tiers.** `task_issues` and `agent_traces` carry `trust_tier`, one of
+`tier1_container_verified` (container-verified differentials: qualified repairs,
+differentially replayed witnesses, maintainer fixes), `tier2_consensus_labeled`
+(unanimous judge votes with passage-level spans, human-verified runs) or
+`tier3_provisional` (unverified leads). A row whose writer declares no tier is
+provisional; re-upserting a row without `trust_tier` keeps the stored tier, and
+`assign_trust_tiers` sets tiers on existing rows atomically, touching nothing
+else. Older stores gain the columns, provisional by default, when opened.
+`retrieve_similar_examples` omits provisional issues and traces entirely unless
+`include_provisional=True`; examples rank by their strongest returned tier, then
+match strength, and each example prefers its strongest evidence. A trace's
+`flagged_passage_steps` (labeled cheat spans) restricts its returned steps to
+exactly those steps. Each example reports `trust_tier`, prints a `- trust:` line,
+and records issue/trace tiers in provenance. Staged publisher bundles stay
+provisional. The tier assignment used for the shared store, and its policy, is
+`research/evidence/runs/trust-tiers-20261026/`.
 
 At most one example per task and one trace per example is returned. `top_k`,
 `snippet_chars`, and `max_steps_per_trace` are positive integers. Overlong issue,
@@ -199,6 +222,27 @@ default (`auto` for custom endpoints, `us-east-1` for AWS S3). `put_bytes` /
 `get_bundle` handle deterministic JSON bundles. Pass `local_directory=` for
 an offline CAS, or alongside S3 configuration for an atomic local mirror.
 CAS references do not assert that the corresponding object has been ingested.
+
+### Goodfire passage labels on steps
+
+Goodfire's publisher judge marks the exact passages where a rollout cheated. Ingestion
+kept every passage record (text removed) on the step it addresses as
+`trace_steps.flags_json.source_passages`; `consensus` is `positive`, `ambiguous` or
+`negative`. LB-3 derived flat marks from `consensus` for the 1,048 DEV Goodfire tasks:
+on every step that has a passage record, `flags_json.passage_positive` and
+`passage_ambiguous` (booleans) and `passage_labels` (counts, channels, vote strength);
+on every judged trace, `verified_receipt_json.passage_step_labels` with the exact
+`positive_step_indices`, `ambiguous_step_indices` and the runs of consecutive assistant
+turns (`positive_turn_runs`: `[first, last, turns]`). Positive steps are always assistant
+turns and are never adjacent by step index, so adjacency is taken over assistant turns.
+Derived counts equal the publisher's own `n_passages`, `n_passages_positive` and
+`n_passages_ambiguous` on every judged trace. Labels stay provisional publisher
+three-vote LLM-judge source labels; `status` and `is_exploit` are unchanged; held
+Goodfire rows carry no marks. Query a step mark with
+`json_extract(flags_json, '$.passage_positive') = 1`. Every DEV Goodfire step has a
+non-empty `flags_json`, so a test such as "`flags_json` is truthy" marks all of them;
+consumers that want the cheat window must read `passage_positive`. The updater and its
+receipts are archived under `research/evidence/runs/corpus-expansion-lb3-20261026/`.
 
 ## Many cheap agents or one strong model
 

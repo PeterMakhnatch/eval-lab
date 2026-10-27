@@ -1,0 +1,225 @@
+{
+  "cross_fixed_completion_reasons": {
+    "audit_incomplete_or_unanswered": 3,
+    "complete": 18,
+    "existing_candidate_contract_not_satisfied": 1,
+    "scorer_incomplete_or_invalid": 4
+  },
+  "cross_original_completion_reasons": {
+    "complete": 8,
+    "existing_candidate_contract_not_satisfied": 2,
+    "no_readable_pinned_maintainer_grader_diff": 10,
+    "scorer_incomplete_or_invalid": 6
+  },
+  "cross_test": {
+    "tb2-to-tb21-v1": {
+      "answered_audits": 49,
+      "classic_false_positive_rate": null,
+      "complete_task_versions": 26,
+      "contradicted_finding_fraction": 0.0,
+      "evaluable_key_findings": 8,
+      "fixed_control_contradicted_claim_rate": null,
+      "fixed_controls_complete": 18,
+      "fixed_controls_with_source_contradicted_claims": 0,
+      "fixed_negative_control_task_versions": 26,
+      "judged_findings": 17,
+      "matched_key_findings": 1,
+      "missing_task_versions": 26,
+      "planned_key_findings": 26,
+      "planned_task_versions": 52,
+      "recall_complete_cells": 0.125,
+      "recall_full_planned": null,
+      "repair_qualification": {
+        "executed_proposals": 0,
+        "qualified": null,
+        "rate": null,
+        "reason": "exact-spec cloud execution approval absent; local Docker forbidden"
+      },
+      "retrieved_issue_contexts": 52,
+      "same_task_failure_context": 0,
+      "verdict_counts": {
+        "match": 1,
+        "plausible_unkeyed": 16
+      }
+    }
+  },
+  "cross_test_completion_reasons": {
+    "audit_incomplete_or_unanswered": 3,
+    "complete": 26,
+    "existing_candidate_contract_not_satisfied": 3,
+    "no_readable_pinned_maintainer_grader_diff": 10,
+    "scorer_incomplete_or_invalid": 10
+  },
+  "dev": {
+    "mimo-defect-map-v1": {
+      "answered_audits": 4,
+      "classic_false_positive_rate": null,
+      "complete_task_versions": 4,
+      "contradicted_finding_fraction": 0.0,
+      "evaluable_key_findings": 5,
+      "fixed_control_contradicted_claim_rate": null,
+      "fixed_controls_complete": 0,
+      "fixed_controls_with_source_contradicted_claims": null,
+      "fixed_negative_control_task_versions": 0,
+      "judged_findings": 2,
+      "matched_key_findings": 2,
+      "missing_task_versions": 0,
+      "planned_key_findings": 5,
+      "planned_task_versions": 4,
+      "recall_complete_cells": 0.4,
+      "recall_full_planned": 0.4,
+      "repair_qualification": {
+        "executed_proposals": 0,
+        "qualified": null,
+        "rate": null,
+        "reason": "exact-spec cloud execution approval absent; local Docker forbidden"
+      },
+      "retrieved_issue_contexts": 4,
+      "same_task_failure_context": 0,
+      "verdict_counts": {
+        "match": 2
+      }
+    },
+    "tb4-audit-v1": {
+      "answered_audits": 2,
+      "classic_false_positive_rate": null,
+      "complete_task_versions": 2,
+      "contradicted_finding_fraction": null,
+      "evaluable_key_findings": 8,
+      "fixed_control_contradicted_claim_rate": null,
+      "fixed_controls_complete": 0,
+      "fixed_controls_with_source_contradicted_claims": null,
+      "fixed_negative_control_task_versions": 0,
+      "judged_findings": 0,
+      "matched_key_findings": 0,
+      "missing_task_versions": 2,
+      "planned_key_findings": 11,
+      "planned_task_versions": 4,
+      "recall_complete_cells": 0.0,
+      "recall_full_planned": null,
+      "repair_qualification": {
+        "executed_proposals": 0,
+        "qualified": null,
+        "rate": null,
+        "reason": "exact-spec cloud execution approval absent; local Docker forbidden"
+      },
+      "retrieved_issue_contexts": 3,
+      "same_task_failure_context": 2,
+      "verdict_counts": {}
+    }
+  },
+  "exposure_id": "oq4-tq-augment-v1-tb2-test-once-20261026",
+  "freeze_sha256": "0d1a2641c0f7ae7b93d20a759239ffde9e34817d0c16a1ffc79fc30dca2d7b9f",
+  "frozen_at": "2026-10-26T23:49:48.085887+00:00",
+  "frozen_code_commit": "93c458fb9e86992c011cb928791d601ca0db0e26",
+  "integrity": {
+    "absolute_zero_set_study_bodies_hydrated_or_prompted": 0,
+    "cloud_controls_executed": 0,
+    "frozen_files_changed_during_evaluation": 0,
+    "frozen_files_checked": 19,
+    "local_docker_executions": 0,
+    "new_model_graders_executed": 0,
+    "post_test_reruns": 0,
+    "post_test_tuning": false,
+    "response_hash_mismatches": 0,
+    "test_key_exposures": 1
+  },
+  "limits": [
+    "Zero protected-body counter is scoped to study input preparation and hosted auditor/scorer prompts, not pre-existing repository CI key-reading tests",
+    "After the frozen study, metadata tools automatically emitted adjacent TEST key metadata; no protected task source/test body was opened or reused",
+    "Selected positive DEV cohort, not a census",
+    "Incomplete positive keys do not certify negatives",
+    "Ten original TEST versions lack a readable maintainer grader diff in the frozen view",
+    "Invalid/incomplete model or scorer cells remain missing, not zero",
+    "Auditor and scorer share the served model",
+    "MiMo retrieval admission remains zero",
+    "Three confirmed admitted issue rows represent only one distinct other task",
+    "No live repair qualification or native executed-differential recall claim"
+  ],
+  "metric_kind": "model-adjudicated semantic key recall; not newly executed verified differentials",
+  "model_call_index_sha256": "af16411b1861610ee7fd56394360a87d911e7d42d079c9a589b7f4ac452f6efc",
+  "model_usage": {
+    "all_raw_response_hashes_present": true,
+    "answered_calls": 108,
+    "by_stage": {
+      "cross-test-v1": {
+        "calls": 75,
+        "known_cost_usd": 0.01800522471,
+        "tokens_in": 369516,
+        "tokens_out": 205939,
+        "unknown_cost_calls": 0
+      },
+      "dev-audit-v0": {
+        "calls": 10,
+        "known_cost_usd": 0.004587856156,
+        "tokens_in": 99251,
+        "tokens_out": 30458,
+        "unknown_cost_calls": 0
+      },
+      "dev-audit-v1": {
+        "calls": 10,
+        "known_cost_usd": 0.004488786824,
+        "tokens_in": 91954,
+        "tokens_out": 52042,
+        "unknown_cost_calls": 0
+      },
+      "dev-audit-v2": {
+        "calls": 8,
+        "known_cost_usd": 0.003299419372,
+        "tokens_in": 75887,
+        "tokens_out": 2444,
+        "unknown_cost_calls": 0
+      },
+      "dev-audit-v3": {
+        "calls": 12,
+        "known_cost_usd": 0.005918834396,
+        "tokens_in": 118791,
+        "tokens_out": 79229,
+        "unknown_cost_calls": 0
+      }
+    },
+    "calls_with_unknown_cost": 0,
+    "calls_with_unknown_tokens": 0,
+    "known_cost_usd": 0.036300121458,
+    "model_calls": 115,
+    "model_wall_seconds_sum": 3061.188454207004,
+    "served_routes": [
+      {
+        "calls": 115,
+        "model": "deepseek/deepseek-v4.1-flash",
+        "provider": "OpenInference"
+      }
+    ],
+    "tokens_in": 755399,
+    "tokens_out": 370112
+  },
+  "qualification": {
+    "blocker": "No standing exact-spec authorization for OQ-4 cloud/oracle controls; local Docker forbidden",
+    "estimate_is_bill_upper_bound": false,
+    "new_repairs_executed": 0,
+    "numerator": null,
+    "planning_usd_per_execution": 0.01,
+    "planning_usd_per_nine_controls": 0.09,
+    "planning_usd_with_one_retry": 0.18,
+    "rate": null
+  },
+  "raw_artifacts": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-26/oq4-task-quality",
+  "recorded_at": "2026-10-27T00:05:35.759149+00:00",
+  "report": "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-25-systems-and-swarms/oq4-task-quality.md",
+  "schema": "oq4.task-quality-summary/v1",
+  "selected_dev_stage": "dev-audit-v1",
+  "snapshot_sha256": "2ddb3c852f08475a80c736b073ff2032f0aae22b8c36cd4a0501025f15c055bd",
+  "verification": {
+    "focused_final_passed": 612,
+    "full_suite": {
+      "failed": 137,
+      "notes": "One required full invocation under mandatory Docker ban; existing mocked-runtime policy refusals and initially missing benchmark/Lance dependencies; no affected-module failures",
+      "passed": 15007,
+      "skipped": 659,
+      "xfailed": 1
+    },
+    "make_docs": "passed",
+    "ruff": "passed",
+    "ty": "passed"
+  }
+}

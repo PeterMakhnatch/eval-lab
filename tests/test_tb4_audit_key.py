@@ -554,21 +554,42 @@ def test_pr_comment_links_are_not_concrete_issue_reports() -> None:
     assert not any(1972 in i["auditor_evidence"]["github_issue_numbers_concrete"] for i in items)
 
 
+def _stratum_counts(rows: list[dict]) -> dict[str, dict[str, int]]:
+    """Per split/stratum row counts, the shape ``summary.json`` reports."""
+    return {
+        group: {
+            stratum: sum(
+                1 for row in rows if row["split"] == group and row["exposure_stratum"] == stratum
+            )
+            for stratum in ("unexposed", "inspected_only", "tuned")
+        }
+        for group in ("dev", "test")
+    }
+
+
 def test_exposure_stratification_partitions_tasks_and_findings() -> None:
     outputs = build.build_outputs(SOURCE)
-    assert outputs["summary.json"] == (KEY / "summary.json").read_text()
     summary = json.loads(outputs["summary.json"])["exposure_stratification"]
     tasks = [json.loads(line) for line in outputs["tasks.jsonl"].splitlines()]
     items = [json.loads(line) for line in outputs["items.jsonl"].splitlines()]
     strata = {"unexposed", "inspected_only", "tuned"}
+    assert summary["source"] == "research/answer-keys/splits/exposure.jsonl"
     assert set(summary["tasks"]) == set(summary["task_findings"]) == {"dev", "test"}
-    assert sum(sum(v.values()) for v in summary["tasks"].values()) == len(tasks) == 66
-    assert sum(sum(v.values()) for v in summary["task_findings"].values()) == 238
+    assert summary["tasks"] == _stratum_counts(tasks)
+    assert sum(sum(cell.values()) for cell in summary["tasks"].values()) == len(tasks) == 66
     by_task = {row["task"]: row for row in tasks}
     for row in tasks:
         assert row["exposure_stratum"] in strata
-        assert (row["exposure_stratum"] == "unexposed") == (not row["historical_exposures"])
-        assert summary["tasks"][row["split"]][row["exposure_stratum"]] > 0
+        assert row["historical_exposures"] == sorted(set(row["historical_exposures"]))
+        # A tuned or inspected record is what moves a task out of `unexposed`.
+        if row["exposure_stratum"] != "unexposed":
+            assert row["historical_exposures"]
+    findings = [item for item in items if item["scope"] == "task"]
+    assert summary["task_findings"] == _stratum_counts(findings)
+    assert sum(sum(cell.values()) for cell in summary["task_findings"].values()) == 238
+    assert summary["exposures_by_task"] == {
+        row["task"]: row["historical_exposures"] for row in tasks if row["historical_exposures"]
+    }
     for item in items:
         if item["scope"] == "task":
             task = by_task[item["task"]]

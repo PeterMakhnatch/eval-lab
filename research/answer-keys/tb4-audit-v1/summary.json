@@ -365,13 +365,19 @@
         "ref-subset-tb4-39-sweep",
         "seeker-gym-v0-test-touch-20261021"
       ],
+      "cad-model": [
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tw-p1-evaluator-schema-peek-20261024"
+      ],
       "cargo-flight-dispatch": [
         "breaker-rediscovery-pilot",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-903-separate-verifier-dev",
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tw-p1-evaluator-schema-peek-20261024"
       ],
       "coq-block-bound": [
         "cm1-qwen-plain-json-v3-test-20261021",
@@ -404,7 +410,10 @@
       ],
       "distributed-dedup": [
         "tr1-dev-census-calibration-20261021",
-        "tr1-historical-eight-inspection-20261021"
+        "tr1-historical-eight-inspection-20261021",
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024",
+        "tw-p1-evaluator-schema-peek-20261024"
       ],
       "embedding-drift-monitor": [
         "breaker-rediscovery-pilot",
@@ -416,7 +425,10 @@
       ],
       "fin-saccr-rwa": [
         "breaker-rediscovery-pilot",
-        "ref-subset-tb4-39-sweep"
+        "oq4-tq-augment-v1-dev-tuning-20261026",
+        "ref-subset-tb4-39-sweep",
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tw-p1-evaluator-schema-peek-20261024"
       ],
       "foodstuff-beta-activity": [
         "qa-env-audit-v2-muse-test-20261021"
@@ -435,7 +447,15 @@
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "tripwires-inherited-tb4-dev-inspection-20261024"
+      ],
+      "freecad-platform-drawing": [
+        "tripwires-inherited-tb4-dev-inspection-20261024"
+      ],
+      "freecad-spring-clip": [
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024"
       ],
       "freight-dispatch-shift": [
         "qa-env-audit-v2-muse-test-20261021"
@@ -447,12 +467,25 @@
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
       ],
+      "gsea-proteomics": [
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024"
+      ],
+      "heat-pump-warranty": [
+        "oq4-tq-augment-v1-dev-tuning-20261026",
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024"
+      ],
       "hof-topology-interpenetration": [
         "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
+      ],
+      "html-js-filter": [
+        "oq4-tq-augment-v1-dev-tuning-20261026",
+        "tripwires-inherited-tb4-dev-inspection-20261024"
       ],
       "interleaved-vigenere": [
         "qa-task-s2-prompt-dev",
@@ -463,7 +496,9 @@
         "ref-subset-tb4-39-sweep"
       ],
       "jax-speedrun-gpu": [
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024"
       ],
       "ks-solver-cpp": [
         "qa-env-audit-v2-muse-test-20261021",
@@ -486,6 +521,9 @@
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep"
       ],
+      "layout-config-recreation2": [
+        "tripwires-inherited-tb4-dev-inspection-20261024"
+      ],
       "legacy-utility-triage": [
         "qa-env-audit-v2-muse-test-20261021",
         "qa-task-s1-heldout-read",
@@ -497,13 +535,16 @@
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "tripwires-inherited-tb4-dev-inspection-20261024"
       ],
       "math-eval-grader": [
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024"
       ],
       "medical-claims-processing": [
         "qa-env-audit-v2-muse-test-20261021"
@@ -522,7 +563,8 @@
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "tripwires-inherited-tb4-dev-inspection-20261024"
       ],
       "ontology-kg-querying": [
         "qa-env-audit-v2-muse-test-20261021",
@@ -534,6 +576,11 @@
       "payments-pipeline-fix": [
         "qa-env-audit-v2-muse-test-20261021",
         "ref-subset-tb4-39-sweep"
+      ],
+      "photonic-waveguide-routing": [
+        "oq4-tq-augment-v1-dev-tuning-20261026",
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024"
       ],
       "production-planning": [
         "qa-env-audit-v2-muse-test-20261021",
@@ -565,6 +612,10 @@
       "rs-archive-clone": [
         "qa-env-audit-v2-muse-test-20261021"
       ],
+      "satb-audio-transcription": [
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024"
+      ],
       "session-window-debug": [
         "breaker-rediscovery-pilot",
         "qa-task-s1-heldout-read",
@@ -576,7 +627,8 @@
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "tripwires-inherited-tb4-dev-inspection-20261024"
       ],
       "shadow-relay": [
         "qa-env-audit-v2-muse-test-20261021",
@@ -603,7 +655,13 @@
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024"
+      ],
+      "vba-userform-port": [
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024"
       ],
       "vf2-speedup-networkx": [
         "qa-task-s1-heldout-read",
@@ -611,13 +669,16 @@
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep",
         "tr1-dev-census-calibration-20261021",
-        "tr1-historical-eight-inspection-20261021"
+        "tr1-historical-eight-inspection-20261021",
+        "tripwires-inherited-tb4-dev-inspection-20261024",
+        "tripwires-v4-inherited-tune-boundary-20261024"
       ],
       "vllm-deepseek-streaming": [
         "qa-env-audit-v2-muse-test-20261021"
       ],
       "vpp-loss-divergence": [
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "tripwires-inherited-tb4-dev-inspection-20261024"
       ],
       "wal-recovery-ordering": [
         "qa-task-s2-prompt-dev",
@@ -633,9 +694,9 @@
     "source": "research/answer-keys/splits/exposure.jsonl",
     "task_findings": {
       "dev": {
-        "inspected_only": 34,
-        "tuned": 21,
-        "unexposed": 31
+        "inspected_only": 36,
+        "tuned": 50,
+        "unexposed": 0
       },
       "test": {
         "inspected_only": 114,
@@ -646,8 +707,8 @@
     "tasks": {
       "dev": {
         "inspected_only": 9,
-        "tuned": 4,
-        "unexposed": 12
+        "tuned": 14,
+        "unexposed": 2
       },
       "test": {
         "inspected_only": 33,

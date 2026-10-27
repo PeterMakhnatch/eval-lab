@@ -8,6 +8,8 @@ A failed worker never prevents the other requested systems from making progress.
 Executable packages are bound to registry-pinned originals and trusted comparison
 pairs before the workers receive them. Differential repair jobs retain their exact
 confirmed source, and qualified rebreaks recover the original Task Quality lineage.
+An opt-in grader retry must retain earlier rejection/reservation/start events,
+exact model-output attestation, unchanged non-grader files and nine fresh controls.
 Unavailable grading is a released provisional failure, never a measured refutation.
 
 Only an explicit ``sonnet`` or ``codex`` subscription driver permits generation.
@@ -24,7 +26,7 @@ import asyncio
 import hashlib
 import json
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -35,6 +37,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from evallab.cheatbench_fidelity import blind_atif, find_forbidden_json
 from evallab.execution_backend import ExecutionBackendConfig
+from evallab.production.cloud_trace_db import CloudTraceRetriever
 from evallab.production.corpus_queue import (
     WORKER_SYSTEMS,
     ContinuousWorkQueue,
@@ -52,7 +55,14 @@ from evallab.production.seeker_worker import (
     SeekerFailureMemory,
     compute_candidate_digest,
 )
-from evallab.production.tq_worker import TaskQualityLiveWorker
+from evallab.production.swarm_coordinator import model_identity_matches
+from evallab.production.tq_worker import (
+    MAX_REPAIR_GRADER_BYTES,
+    GraderRepairRequest,
+    GraderRepairResponse,
+    TaskQualityLiveWorker,
+)
+from evallab.qa.models import Finding
 from evallab.registry import task_directory_digest
 from evallab.seeker import lanes
 
@@ -213,6 +223,9 @@ class _DevWorkerQueue:
             "task_package", "task_package_digest", "repaired_task", "repaired_task_digest",
             "original_task_package", "exploit_files", "exploit_run", "solution_bundle",
             "passing_runs", "failing_runs", "repaired_runs", "candidate_digest",
+            "retry_count", "first_qualification_event_id", "repair_retry_requested_event_id",
+            "repair_retry_started_event_id", "prior_repaired_task", "prior_repaired_task_digest",
+            "repair_grader_path", "repair_output_sha256", "repair_call", "input_digest",
         ):
             if key in source["payload"] and job["payload"].get(key) != source["payload"][key]:
                 raise SplitLockError("chained job changed its confirmed source package or replay input")
@@ -235,6 +248,250 @@ class _DevWorkerQueue:
             if payload.get(key) is not None and payload[key] != expected:
                 raise SplitLockError("queued package digest does not match its authorized task pair")
 
+    def _qualification_refs(
+        self, event: Mapping[str, Any], *, qualified: bool, after_seq: int
+    ) -> set[Path]:
+        """Recheck the nine measured facts, not just qualification count claims."""
+        payload = event["payload"]
+        records = payload.get("control_evidence")
+        if (
+            payload.get("measured") is not True
+            or payload.get("qualified") is not qualified
+            or not isinstance(records, Mapping)
+            or set(records) != {"reference", "nop", "exploit"}
+            or any(
+                type(payload.get(key)) is not int or payload[key] != 3
+                for key in ("reference_trials", "nop_trials", "exploit_trials")
+            )
+        ):
+            raise SplitLockError("retry qualification lacks nine measured control facts")
+        rewards: dict[str, list[float]] = {}
+        references: set[Path] = set()
+        control_ids: set[str] = set()
+        for name, group in records.items():
+            if not isinstance(group, list) or len(group) != 3:
+                raise SplitLockError("retry qualification control group is incomplete")
+            rewards[name] = []
+            for repeat, record in enumerate(group, 1):
+                if not isinstance(record, Mapping):
+                    raise SplitLockError("retry qualification control is not a measured record")
+                reward, ref = record.get("reward"), record.get("evidence_ref")
+                execution = record.get("execution")
+                control_id = record.get("control_event_id")
+                control = self.queue.get_event(control_id) if isinstance(control_id, str) else None
+                if control is None or (
+                    control["event_type"] != "task_quality.repair_control"
+                    or control["system"] != "task_quality" or control["status"] != "provisional"
+                    or control["run_id"] != event["run_id"]
+                    or not after_seq < control["seq"] < event["seq"]
+                ):
+                    raise SplitLockError("retry control lacks its own earlier measured journal event")
+                measured = control["payload"]
+                if (
+                    measured.get("job_id") != payload.get("job_id")
+                    or any(measured.get(key) != payload.get(key) for key in ("dataset_id", "item_id"))
+                    or measured.get("control") != name
+                    or type(measured.get("repeat")) is not int or measured["repeat"] != repeat
+                    or type(measured.get("retry_count")) is not int
+                    or measured["retry_count"] != payload.get("retry_count")
+                    or measured.get("task_package") != payload.get("task_package")
+                    or measured.get("task_package_digest") != payload.get("task_package_digest")
+                    or any(measured.get(key) != record.get(key)
+                           for key in ("reward", "measured", "evidence_ref", "execution"))
+                ):
+                    raise SplitLockError("retry control changed its measured journal facts or package")
+                control_ids.add(control_id)
+                if (
+                    record.get("measured") is not True
+                    or type(reward) not in (int, float)
+                    or not math.isfinite(reward)
+                    or not 0.0 <= reward <= 1.0
+                    or not isinstance(ref, str)
+                    or not ref
+                    or not isinstance(execution, Mapping)
+                ):
+                    raise SplitLockError("retry qualification control has unusable evidence")
+                facts = execution.get("facts")
+                if isinstance(facts, Mapping):
+                    observed, observed_ref = facts.get("reward"), facts.get("job_path")
+                    usable = execution.get("status") == "executed" and not facts.get("exception")
+                elif "regraded" in execution:
+                    observed = execution.get("regraded")
+                    observed_ref = (
+                        execution.get("job_dir") or execution.get("regrade_dir")
+                        or execution.get("matrix_receipt")
+                    )
+                    usable = (
+                        not execution.get("execution_error") and not execution.get("refusals")
+                        and execution.get("outcome") != "refused"
+                    )
+                else:
+                    observed, observed_ref = execution.get("reward"), execution.get("output_dir")
+                    usable = (
+                        execution.get("status") == "measured"
+                        and execution.get("executed") is True and not execution.get("error")
+                    )
+                if (
+                    not usable or type(observed) not in (int, float)
+                    or observed != reward or observed_ref != ref
+                ):
+                    raise SplitLockError("retry qualification disagrees with its execution facts")
+                rewards[name].append(reward)
+                references.add(self._path(ref))
+        target = {"reference": [1.0] * 3, "nop": [0.0] * 3, "exploit": [0.0] * 3}
+        counts = {
+            "ref_passes": sum(reward == 1.0 for reward in rewards["reference"]),
+            "nop": sum(reward > 0.0 for reward in rewards["nop"]),
+            "exploit": sum(reward > 0.0 for reward in rewards["exploit"]),
+        }
+        if (
+            len(references) != 9 or len(control_ids) != 9
+            or payload.get("control_rewards") != rewards
+            or (rewards == target) is not qualified
+            or any(type(payload.get(key)) is not int or payload[key] != value
+                   for key, value in counts.items())
+        ):
+            raise SplitLockError("retry qualification counts or independent evidence are inconsistent")
+        return references
+
+    @staticmethod
+    def _non_grader_files(package: Path, grader: str) -> dict[str, str]:
+        files: dict[str, str] = {}
+        for path in package.rglob("*"):
+            if path.is_symlink() or not (path.is_file() or path.is_dir()):
+                raise SplitLockError("retry package contains a symlink or special file")
+            if path.is_file() and path.relative_to(package).as_posix() != grader:
+                files[path.relative_to(package).as_posix()] = hashlib.sha256(
+                    path.read_bytes()
+                ).hexdigest()
+        return files
+
+    def _retried_pair(
+        self,
+        event: Mapping[str, Any],
+        origin: Mapping[str, Any],
+        item: CorpusItem,
+        pair: _TaskPair,
+    ) -> _TaskPair:
+        """Admit one journal-bound grader-only cutover, never queued retry flags."""
+        payload = event["payload"]
+
+        def linked(key: str, kind: str, status: str) -> dict[str, Any]:
+            event_id = payload.get(key)
+            source = self.queue.get_event(event_id) if isinstance(event_id, str) else None
+            if source is None or (
+                source["event_type"] != kind or source["system"] != "task_quality"
+                or source["status"] != status or source["run_id"] != event["run_id"]
+                or not origin["seq"] < source["seq"] < event["seq"]
+                or source["payload"].get("job_id") != origin["event_id"]
+            ):
+                raise SplitLockError("retry lacks an earlier matching Task Quality journal event")
+            self._identity(source, item)
+            return source
+
+        first = linked("first_qualification_event_id", "task_quality.repair_rejected", "refuted")
+        requested = linked(
+            "repair_retry_requested_event_id", "task_quality.repair_retry_requested", "provisional"
+        )
+        started = linked(
+            "repair_retry_started_event_id", "task_quality.repair_retry_started", "provisional"
+        )
+        if not first["seq"] < requested["seq"] < started["seq"]:
+            raise SplitLockError("retry journal events are not in causal order")
+        for source, count in ((first, 0), (requested, 1), (started, 1)):
+            evidence = source["payload"]
+            if type(evidence.get("retry_count")) is not int or evidence["retry_count"] != count:
+                raise SplitLockError("retry journal does not describe exactly one repair attempt")
+            if source is not first and (
+                evidence.get("first_qualification_event_id") != first["event_id"]
+            ):
+                raise SplitLockError("retry journal changed its measured rejection")
+        if (
+            not isinstance(requested["payload"].get("attempt_id"), str)
+            or not requested["payload"]["attempt_id"]
+            or started["payload"].get("repair_retry_requested_event_id") != requested["event_id"]
+        ):
+            raise SplitLockError("retry start is not bound to its durable attempt reservation")
+        old = first["payload"]
+        for evidence in (old, payload):
+            if self._path(evidence.get("original_task_package")) != pair.original:
+                raise SplitLockError("retry changed its registered original package")
+            for key in (
+                "exploit_files", "exploit_run", "solution_bundle", "passing_runs", "failing_runs",
+                "candidate_digest", "reference_patch",
+            ):
+                if evidence.get(key) != origin["payload"].get(key):
+                    raise SplitLockError("retry changed its originating retained submission input")
+        if (
+            self._path(old.get("task_package")) != pair.repaired
+            or self._path(old.get("repaired_task")) != pair.repaired
+            or old.get("task_package_digest") != pair.repaired_digest
+            or old.get("repaired_task_digest") != pair.repaired_digest
+            or self._path(payload.get("prior_repaired_task")) != pair.repaired
+            or payload.get("prior_repaired_task_digest") != pair.repaired_digest
+            or not isinstance(old.get("input_digest"), str)
+            or not old["input_digest"]
+            or payload.get("input_digest") != old["input_digest"]
+        ):
+            raise SplitLockError("retry is not bound to its rejected package and pinned input")
+        stage = self._path(payload.get("task_package"))
+        root = self.repo_root / "runs/task-quality-live"
+        if (
+            stage == pair.repaired or stage.parent.parent != root or stage.name != "repaired-task"
+            or len(stage.parent.name) != 32
+            or any(char not in "0123456789abcdef" for char in stage.parent.name)
+            or any(path.is_symlink() for path in (root.parent, root, stage.parent, stage))
+            or self._path(payload.get("repaired_task")) != stage
+            or payload.get("repaired_task_digest") != payload.get("task_package_digest")
+        ):
+            raise SplitLockError("retry does not name one new worker-staged repaired package")
+        receipt = started["payload"]
+        for key in (
+            "task_package", "task_package_digest", "repair_grader_path",
+            "repair_output_sha256", "repair_call",
+        ):
+            if receipt.get(key) != payload.get(key):
+                raise SplitLockError("qualified retry changed its earlier attested start receipt")
+        call = receipt.get("repair_call")
+        if (
+            not isinstance(call, Mapping)
+            or not isinstance(call.get("call_id"), str) or not call["call_id"].strip()
+            or call.get("error") is not None or call.get("quarantined_fallback") is not False
+            or call.get("work_kind") != "repair_proposal" or call.get("subject_id") != item.task_id
+            or call.get("role") not in {"strong", "proposer", "adjudicator"}
+            or not model_identity_matches(call.get("requested_model"), call.get("served_model"))
+            or call.get("attributed_model") != call.get("requested_model")
+            or not isinstance(call.get("prompt_sha256"), str)
+            or len(call["prompt_sha256"]) != 64
+            or any(char not in "0123456789abcdef" for char in call["prompt_sha256"])
+            or call.get("response_sha256") != receipt.get("repair_output_sha256")
+        ):
+            raise SplitLockError("retry lacks usable provider/model/raw-output call attestation")
+        try:
+            grader = TaskQualityLiveWorker._designated_grader_path(receipt.get("repair_grader_path"))
+            if grader is None:
+                raise ValueError("retry has no designated grader")
+            if self._non_grader_files(stage, grader) != self._non_grader_files(pair.repaired, grader):
+                raise SplitLockError("retry changed files outside the designated grader")
+            path = TaskQualityLiveWorker._grader_file(stage, grader)
+            with path.open("rb") as stream:
+                raw = stream.read(MAX_REPAIR_GRADER_BYTES + 1)
+            if (
+                not raw or len(raw) > MAX_REPAIR_GRADER_BYTES
+                or hashlib.sha256(raw).hexdigest() != call["response_sha256"]
+            ):
+                raise SplitLockError("retry grader bytes differ from its attested model output")
+            digest = self._digest(stage, payload.get("task_package_digest"))
+        except (OSError, TypeError, ValueError) as exc:
+            raise SplitLockError(f"retry package or attestation is invalid: {exc}") from exc
+        if self._qualification_refs(first, qualified=False, after_seq=origin["seq"]).intersection(
+            self._qualification_refs(event, qualified=True, after_seq=started["seq"])
+        ):
+            raise SplitLockError("retry qualification reused its rejected package's control evidence")
+        return _TaskPair(
+            pair.original, pair.original_digest, stage, digest, "package", pair.baseline
+        )
+
     def _pair(
         self, event: Mapping[str, Any], item: CorpusItem, canonical: Mapping[str, Any]
     ) -> _TaskPair:
@@ -246,9 +503,16 @@ class _DevWorkerQueue:
             origin = self.queue.get_event(payload.get("job_id", ""))
             if origin is None or origin["event_type"] not in (
                 "task_quality.audit_task", "task_quality.repair_task"
-            ) or origin["seq"] >= event["seq"] or origin["run_id"] != event["run_id"]:
+            ) or origin["system"] != "queue" or origin["seq"] >= event["seq"] or (
+                origin["run_id"] != event["run_id"]
+            ):
                 raise SplitLockError("qualified repair lacks its actual earlier Task Quality job")
             pair = self._pair(origin, item, canonical)
+            retry_count = payload.get("retry_count", 0)
+            if type(retry_count) is not int or retry_count not in (0, 1):
+                raise SplitLockError("qualification cannot authorize more than one grader repair retry")
+            if retry_count == 1:
+                return self._retried_pair(event, origin, item, pair)
             for key, expected in (
                 ("original_task_package", pair.original),
                 ("task_package", pair.repaired), ("repaired_task", pair.repaired),
@@ -436,6 +700,8 @@ class ProductionRuntime:
     lazily so one unavailable dependency cannot disable the monitor. Calls are
     synchronous and sequential; a caller that has an event loop should run the
     cycle in its worker thread, as the production server does.
+    Task Quality reader, retriever and repair callback settings are explicit
+    constructor-only dependencies; defaults never enable model repair or spend.
     """
 
     def __init__(
@@ -448,6 +714,13 @@ class ProductionRuntime:
         worker_id: str = "production",
         seeker_driver: str | None = None,
         execution_config: ExecutionBackendConfig | None = None,
+        task_quality_reader: Callable[[Finding, dict[str, Any]], Finding] | None = None,
+        task_quality_audit_retriever: CloudTraceRetriever | None = None,
+        task_quality_audit_source_digest: str | None = None,
+        task_quality_repair_callback: (
+            Callable[[GraderRepairRequest], GraderRepairResponse] | None
+        ) = None,
+        task_quality_repair_grader_path: str | None = None,
     ) -> None:
         if isinstance(systems, str) or not systems or any(s not in WORKER_SYSTEMS for s in systems):
             raise ValueError("systems must name one or more production worker systems")
@@ -461,6 +734,11 @@ class ProductionRuntime:
         self.systems = tuple(s for s in WORKER_SYSTEMS if s in systems)
         self.worker_id = worker_id
         self.seeker_driver = seeker_driver
+        self.task_quality_reader = task_quality_reader
+        self.task_quality_audit_retriever = task_quality_audit_retriever
+        self.task_quality_audit_source_digest = task_quality_audit_source_digest
+        self.task_quality_repair_callback = task_quality_repair_callback
+        self.task_quality_repair_grader_path = task_quality_repair_grader_path
         self.execution_config = execution_config or ExecutionBackendConfig(
             backend="modal", allow_local_docker=False,
         )
@@ -538,6 +816,11 @@ class ProductionRuntime:
                 repo_root=self.repo_root,
                 worker_id=f"{self.worker_id}:task_quality",
                 execution_config=self.execution_config,
+                reader=self.task_quality_reader,
+                audit_retriever=self.task_quality_audit_retriever,
+                audit_source_digest=self.task_quality_audit_source_digest,
+                repair_callback=self.task_quality_repair_callback,
+                repair_grader_path=self.task_quality_repair_grader_path,
             )
         result = self._tq.run_once()
         return {

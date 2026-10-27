@@ -9,6 +9,7 @@ import sys
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -21,7 +22,8 @@ from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
 from evallab.production.ingest import resolve_public_trace
 from evallab.production.runtime import ProductionRuntime
 from evallab.production.seeker_worker import RewardSeekerLiveWorker
-from evallab.production.tq_worker import TaskQualityLiveWorker
+from evallab.production.swarm_coordinator import ModelCall, Role, WorkKind
+from evallab.production.tq_worker import GraderRepairResponse, TaskQualityLiveWorker
 from evallab.registry import task_directory_digest
 
 DATASET = "cheatbench-actions-v1"
@@ -694,3 +696,236 @@ def test_worker_lifecycle_write_failure_does_not_strand_its_lease(
         assert not result["ok"]
         assert result["failures"]["reward_seeker"]["error_type"] == "OSError"
         assert queue.queue_snapshot()["jobs"] == {"queued": 1, "leased": 0, "completed": 0}
+
+
+class _MockRetryGrader:
+    """Fresh measured fixture facts only; never execute a submitted script."""
+
+    def __init__(self, original: Path) -> None:
+        self.original = original
+        self.calls: list[Path] = []
+
+    def __call__(self, package: Path, *, output_dir: Path, **_: Any) -> dict[str, Any]:
+        self.calls.append(package)
+        output_dir.mkdir(parents=True)
+        result = {
+            "status": "measured", "executed": True, "reward": float(package == self.original),
+            "error": None, "output_dir": str(output_dir), "trial_dir": str(output_dir),
+        }
+        (output_dir / "result.json").write_text(json.dumps(result), encoding="utf-8")
+        return result
+
+
+class _MockRetryControls(_LocalControls):
+    environment = "modal"
+
+    def control(self, task: AuditTask, agent: str, *, timeout_seconds: int) -> AuditObservation:
+        self.count += 1
+        path = self.root / f"control-{self.count}"
+        path.mkdir(parents=True)
+        reward = float(agent == "oracle" and self.count != 1)
+        return AuditObservation(
+            stage="oracle" if agent == "oracle" else "nop", status="executed",
+            facts={
+                "reward": reward, "job_path": str(path), "exception": None,
+                "verifier_stdout": "Traceback:\nAssertionError: fixture grader failure"
+                if self.count == 1 else "",
+            },
+        )
+
+
+def _mocked_runtime_retry(
+    queue: ContinuousWorkQueue, root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> SimpleNamespace:
+    grader = _MockRetryGrader(root / "packages/original")
+    controls = _MockRetryControls(tmp_path / "retry-controls", grader)
+    monkeypatch.setattr(
+        runtime_module, "RewardSeekerLiveWorker",
+        partial(RewardSeekerLiveWorker, grader_fn=grader),
+    )
+    monkeypatch.setattr("evallab.qa.task.HarborBackend", lambda **_: controls)
+    monkeypatch.setattr("evallab.candidate_runner.run_candidate", grader)
+    _seek(queue, root, candidates=True)
+    with ProductionRuntime(
+        queue, repo_root=root, work_root=tmp_path / "work", systems=("reward_seeker",)
+    ) as runtime:
+        assert runtime.run_once()["ok"]
+    requests = []
+    responses = []
+    bundles = []
+
+    def reader(finding, bundle):
+        bundles.append(bundle)
+        return finding
+
+    def repair(request):
+        requests.append(request)
+        raw = b"# traceback-fed fixture grader repair\n" + request.grader_source.encode("utf-8")
+        response = GraderRepairResponse(
+            raw_output=raw,
+            call=ModelCall(
+                call_id="runtime-trusted-repair-call", role=Role.STRONG,
+                requested_model="fixture-provider/fixture-model",
+                served_model="fixture-provider/fixture-model",
+                prompt_sha256=hashlib.sha256(b"trusted repair prompt").hexdigest(),
+                response_sha256=hashlib.sha256(raw).hexdigest(),
+                tokens_in=20, tokens_out=10, latency_ms=1, quarantined_fallback=False,
+                work_kind=WorkKind.REPAIR_PROPOSAL, subject_id=request.task_id,
+            ),
+        )
+        responses.append(response)
+        return response
+
+    with ProductionRuntime(
+        queue, repo_root=root, work_root=tmp_path / "work", systems=("task_quality",),
+        task_quality_reader=reader, task_quality_repair_callback=repair,
+        task_quality_repair_grader_path="tests/check.py",
+    ) as runtime:
+        report = runtime.run_once()
+    assert report["ok"]
+    return SimpleNamespace(
+        report=report, grader=grader, controls=controls, requests=requests,
+        responses=responses, bundles=bundles,
+    )
+
+
+def test_runtime_executes_configured_retry_and_admits_the_latest_journal_bound_rebreak(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _ = _repo(tmp_path, monkeypatch)
+    model_calls = _forbid_models(monkeypatch)
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=CorpusRegistry(root)) as queue:
+        fixture = _mocked_runtime_retry(queue, root, tmp_path, monkeypatch)
+        result = fixture.report["workers"]["task_quality"]["result"]["qualification"]
+        qualified = result["event"]
+        stage = Path(qualified["payload"]["task_package"])
+        assert result["qualified"] is True and result["retry_count"] == 1
+        assert len(fixture.requests) == len(fixture.responses) == 1
+        assert fixture.bundles and "Traceback" in fixture.requests[0].diagnostics
+        assert fixture.controls.count == 12
+        assert stage != root / "packages/repaired"
+        assert (stage / "tests/check.py").read_bytes() == fixture.responses[0].raw_output
+        assert qualified["payload"]["fixed_task"] == str(stage)
+        assert qualified["payload"]["task_package_digest"] == task_directory_digest(stage)
+        assert len(_events(queue, "task_quality.repair_rejected")) == 1
+        assert len(_events(queue, "task_quality.repair_retry_requested")) == 1
+        assert len(_events(queue, "task_quality.repair_retry_started")) == 1
+        controls = [
+            record for phase in (result["first_qualification"], result["final_qualification"])
+            for group in phase["control_evidence"].values() for record in group
+        ]
+        assert len({record["control_event_id"] for record in controls}) == 18
+        assert len({record["evidence_ref"] for record in controls}) == 18
+        rebreaks = _events(queue, "reward_seeker.rebreak_task")
+        assert len(rebreaks) == 1
+        assert rebreaks[0]["payload"]["source_event_id"] == qualified["event_id"]
+        before = len(fixture.grader.calls)
+        # Restart without callback configuration: retained journal proof owns admission.
+        with ProductionRuntime(
+            queue, repo_root=root, work_root=tmp_path / "work", systems=("reward_seeker",)
+        ) as runtime:
+            rebreak = runtime.run_once()
+        assert rebreak["ok"]
+        assert rebreak["workers"]["reward_seeker"]["status"] == "completed"
+        assert not rebreak["workers"]["reward_seeker"]["exploit_confirmed"]
+        assert fixture.grader.calls[before:] and all(
+            package == stage for package in fixture.grader.calls[before:]
+        )
+        assert queue.queue_snapshot()["jobs"] == {"queued": 0, "leased": 0, "completed": 3}
+    assert model_calls == []
+
+
+@pytest.mark.parametrize(
+    "forgery",
+    ["missing_rejection", "missing_reservation", "missing_start", "more_than_one_retry",
+     "changed_call", "reused_control", "unlinked_control",
+     "changed_grader_bytes", "changed_other_file"],
+)
+def test_runtime_refuses_forged_or_mutated_retry_before_rebreak_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, forgery: str
+) -> None:
+    root, _ = _repo(tmp_path, monkeypatch)
+    _forbid_models(monkeypatch)
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=CorpusRegistry(root)) as queue:
+        fixture = _mocked_runtime_retry(queue, root, tmp_path, monkeypatch)
+        qualified = _events(queue, "task_quality.repair_qualified")[0]
+        # Consume the genuine child without executing it; the next child is the forgery.
+        genuine = queue.claim("fixture", job_types=("reward_seeker.rebreak_task",))
+        assert genuine is not None
+        queue.ack(genuine["event_id"], lease_token=genuine["lease_token"])
+        payload = json.loads(json.dumps(qualified["payload"]))
+        if forgery.startswith("missing_"):
+            key = {
+                "missing_rejection": "first_qualification_event_id",
+                "missing_reservation": "repair_retry_requested_event_id",
+                "missing_start": "repair_retry_started_event_id",
+            }[forgery]
+            payload[key] = "not-a-journal-event"
+        elif forgery == "more_than_one_retry":
+            payload["retry_count"] = 2
+        elif forgery == "changed_call":
+            payload["repair_call"]["response_sha256"] = "f" * 64
+        elif forgery == "reused_control":
+            first = _events(queue, "task_quality.repair_rejected")[0]
+            ref = first["payload"]["control_evidence"]["reference"][0]["evidence_ref"]
+            record = payload["control_evidence"]["reference"][0]
+            record["evidence_ref"] = ref
+            record["execution"]["facts"]["job_path"] = ref
+        elif forgery == "unlinked_control":
+            payload["control_evidence"]["reference"][0]["control_event_id"] = "not-journaled"
+        elif forgery == "changed_grader_bytes":
+            (Path(payload["task_package"]) / "tests/check.py").write_bytes(b"assert False\n")
+        else:
+            (Path(payload["task_package"]) / "instruction.md").write_text(
+                "A different task instruction.\n", encoding="utf-8"
+            )
+        forged = queue.append_event({
+            "event_id": f"forged-qualified-{forgery}", "run_id": qualified["run_id"],
+            "system": "task_quality", "event_type": "task_quality.repair_qualified",
+            "status": "confirmed", "prefix_step": None, "ts": datetime.now(UTC).isoformat(),
+            "payload": payload,
+        })
+        assert len(_events(queue, "reward_seeker.rebreak_task")) == 2
+        before = len(fixture.grader.calls)
+        with ProductionRuntime(
+            queue, repo_root=root, work_root=tmp_path / "work", systems=("reward_seeker",)
+        ) as runtime:
+            result = runtime.run_once()
+        assert not result["ok"]
+        assert result["failures"]["reward_seeker"]["error_type"] == "SplitLockError"
+        assert len(fixture.grader.calls) == before
+        blocked = _events(queue, "reward_seeker.job_blocked")[-1]
+        child = _events(queue, "reward_seeker.rebreak_task")[-1]
+        assert child["payload"]["source_event_id"] == forged["event_id"]
+        assert blocked["payload"]["job_id"] == child["event_id"]
+        assert queue.queue_snapshot()["jobs"]["queued"] == 1
+
+
+def test_runtime_queued_retry_flags_cannot_override_authoritative_qualification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _ = _repo(tmp_path, monkeypatch)
+    _forbid_models(monkeypatch)
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=CorpusRegistry(root)) as queue:
+        fixture = _mocked_runtime_retry(queue, root, tmp_path, monkeypatch)
+        claim = queue.claim
+
+        def changed_job(*args, **kwargs):
+            job = claim(*args, **kwargs)
+            if job is None:
+                return None
+            return {
+                **job,
+                "payload": {**job["payload"], "repair_output_sha256": "f" * 64},
+            }
+
+        monkeypatch.setattr(queue, "claim", changed_job)
+        before = len(fixture.grader.calls)
+        with ProductionRuntime(
+            queue, repo_root=root, work_root=tmp_path / "work", systems=("reward_seeker",)
+        ) as runtime:
+            result = runtime.run_once()
+        assert not result["ok"]
+        assert result["failures"]["reward_seeker"]["error_type"] == "SplitLockError"
+        assert len(fixture.grader.calls) == before
+        assert queue.queue_snapshot()["jobs"]["queued"] == 1

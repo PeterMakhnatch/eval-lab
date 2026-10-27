@@ -1641,6 +1641,52 @@ class CloudTraceRetriever:
             return None
         return tier, strength, example
 
+    def failed_run_summary(self, task_id: str) -> dict[str, Any] | None:
+        """Read one same-task DEV failure, admitting identities before any text.
+
+        This is diagnostic evidence, not a task-defect verdict. Prefer an
+        explicitly labelled task-defect failure, then a stable trace id. Only
+        bounded tool observations are returned: no commands, submission scripts,
+        assistant reasoning, issue answers, or CAS hydration.
+        """
+        task_id = _text(task_id, "task_id")
+        name = CorpusRegistry.task_name(task_id)
+        database = self.database
+        with database._transaction():
+            admitted, sealed_ids = self._admitted_ids()
+            matching = [
+                identity for identity in admitted
+                if CorpusRegistry.task_name(identity) == name
+            ]
+            if not matching:
+                return None
+            parameters: list[Any] = []
+            scope = database._task_id_scope("a.task_id", matching, parameters)
+            traces = database._rows(
+                "SELECT a.trace_id, a.run_id, a.task_id, t.dataset_id, t.split, "
+                "a.model_id, a.outcome, a.reward, a.is_task_defect_fail, a.raw_cas_uri "
+                "FROM agent_traces a JOIN corpus_tasks t ON t.task_id = a.task_id "
+                f"WHERE {scope} AND lower(t.split) = 'dev' AND NOT a.is_exploit "
+                "AND (a.reward < 1 OR a.is_task_defect_fail OR "
+                "lower(a.outcome) IN ('fail', 'failed', 'failure', 'error', 'unfair_fail')) "
+                "ORDER BY a.is_task_defect_fail DESC, a.trace_id LIMIT 1",
+                parameters,
+            )
+            if not traces:
+                return None
+            trace = traces[0]
+            trace["observations"] = list(reversed(database._rows(
+                "SELECT step_index, substr(observation_preview, 1, ?) AS observation "
+                "FROM trace_steps WHERE trace_id = ? AND role = 'tool' "
+                "AND observation_preview IS NOT NULL "
+                "ORDER BY step_index DESC LIMIT 3",
+                (min(self.snippet_chars, 600), trace["trace_id"]),
+            )))
+            sealed = _sealed_pattern(frozenset(sealed_ids))
+            if self._sealed_text(_json_text(trace), sealed):
+                return None
+            return trace
+
     def retrieve_similar_examples(
         self, query: str, kind: str | None = None, top_k: int = 3, *,
         issue_kind: str | None = None, exclude_task_ids: Iterable[str] | None = None,

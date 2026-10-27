@@ -1,0 +1,1 @@
+{"collection":"hacktrace","count":20000,"label_kinds":{"construction":12159,"executed":26299,"judge":61862},"outcomes":{"fail":13701,"pass":6299},"schema_version":"failure-library/v1","sha256":"ac7bbb68014e999b797f6d46fb7adb1864d7a7c038c3ff9b14fef33aedeae060","source_revision":"291cf50ffc3cb4d2af42ade5e0cd728cb0037312"}

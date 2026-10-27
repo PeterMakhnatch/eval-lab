@@ -640,3 +640,28 @@ def test_later_ablation_rollout_envelope_keeps_oracles_and_static_flags_separate
     static = next((item for item in run.labels if item.label == "is_hardcode_static=true"), None)
     assert static is None or static.kind == "construction"
     assert workspace[2].verify_runs("reward-hacking-ablation") == []
+
+
+def test_ablation_reused_native_episode_id_keeps_each_published_row(
+    workspace: tuple[Path, Path, LibraryStore], tmp_path: Path
+) -> None:
+    source = tmp_path / "reused-episode"
+    first = {
+        "id": "FBLBF",
+        "episode": "FBLBF#1",
+        "task": "chess",
+        "model": "model",
+        "grader_state": {"harness_win": True, "trusted_win": False, "false_win": True},
+    }
+    second = {
+        **first,
+        "grader_state": {"harness_win": False, "trusted_win": False, "false_win": False},
+    }
+    jsonl(source / "cheatbench/chess/episodes.jsonl", [first, second])
+    result = ingest("reward-hacking-ablation", workspace, source)
+    runs = list(workspace[2].iter_runs())
+    assert result["count"] == 2
+    assert len({run.run_id for run in runs}) == 2
+    assert {run.transcript_ref.split("#", 1)[1] for run in runs} == {"line=1", "line=2"}
+    assert all(run.split == "cross_test" for run in runs)
+    assert workspace[2].verify_runs("reward-hacking-ablation") == []

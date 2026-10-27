@@ -205,11 +205,8 @@ def _ablation(root: Path, inputs: Inputs) -> Iterator[Candidate]:
         relative = str(path.relative_to(root))
         for index, row in jsonl_rows(path):
             ref = reference(path, index, jsonl=True)
-            identity = (
-                relative
-                + ":"
-                + str(row.get("trajectory_id", row.get("rollout_id", row.get("episode", index))))
-            )
+            native_id = row.get("trajectory_id", row.get("rollout_id", row.get("episode", index)))
+            identity = f"{relative}:line={index + 1}:{native_id}"
             if path.name == "episodes.jsonl":
                 run = published.ablation_cheatbench(row, ref, identity=identity)
                 texts = agent_text(row.get("harbor_trajectory") or {})
@@ -223,7 +220,9 @@ def _ablation(root: Path, inputs: Inputs) -> Iterator[Candidate]:
             if path.name == "records.jsonl.gz" and row.get("env") == "grader":
                 family = str((row.get("labels") or {}).get("family", family))
             yield Candidate(run, texts, family=family)
-    inputs.details["row_identity"] = "source relative path plus native trajectory/episode id"
+    inputs.details["row_identity"] = (
+        "source relative path plus native start line and trajectory/episode id; publisher-reused episode ids are preserved as distinct exported rows, not independent replication claims"
+    )
     inputs.details["license"] = "No dataset license declared by upstream; preserve locally"
     inputs.details["later_rhenvs_records"] = (
         "All records.jsonl.gz exports included; plain oracle test flags stay executed, static/elicitation flags stay construction. Native family=heldout and MBPP split=test remain heldout. No scalar rewards are invented."

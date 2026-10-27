@@ -894,3 +894,36 @@ def test_best_first_expansion_returns_exact_top_k_when_bounds_overestimate(
     both = retriever.retrieve_similar_examples("pytest grader", None, 2)
     assert [example.task_id for example in both] == ["exact-strong", "bound-heavy"]
     assert both[0].score > both[1].score
+
+
+def test_step_only_match_is_found_behind_many_user_role_matches(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever,
+) -> None:
+    add_task(db, "late-assistant", instruction_text="unrelated instructions")
+    add_steps_trace(db, "late-assistant", [
+        *(("user", "pytest grader") for _ in range(30)), ("assistant", "pytest grader"),
+    ])
+    add_task(db, "user-only", instruction_text="unrelated instructions")
+    add_steps_trace(db, "user-only", [("user", "pytest grader") for _ in range(30)])
+    examples = retriever.retrieve_similar_examples("pytest grader", "reward_seeker", 5)
+    assert ids(examples) == {"late-assistant"}
+    assert [step["step_index"] for step in examples[0].trace_steps] == [30]
+
+
+def test_writes_between_calls_are_visible_from_this_and_other_connections(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever, tmp_path: Path,
+) -> None:
+    add_task(db, "first-dev", instruction_text="unrelated instructions")
+    add_steps_trace(db, "first-dev", [("assistant", "pytest grader")])
+    assert ids(retriever.retrieve_similar_examples("pytest grader", None, 5)) == {"first-dev"}
+    add_task(db, "same-connection", instruction_text="unrelated instructions")
+    add_steps_trace(db, "same-connection", [("assistant", "pytest grader")])
+    assert ids(retriever.retrieve_similar_examples("pytest grader", None, 5)) == {
+        "first-dev", "same-connection",
+    }
+    with CloudTraceDatabase(tmp_path / "evidence.sqlite", sqlite_fts=db._fts) as other:
+        add_task(other, "other-connection", instruction_text="unrelated instructions")
+        add_steps_trace(other, "other-connection", [("tool", "pytest grader")])
+    assert ids(retriever.retrieve_similar_examples("pytest grader", None, 5)) == {
+        "first-dev", "same-connection", "other-connection",
+    }

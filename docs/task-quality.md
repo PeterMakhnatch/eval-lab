@@ -163,6 +163,23 @@ database unchanged (`data_version` plus this connection's change count); the
 registry decides admission on every call. Unreturned task metadata is not
 hydrated, and step flags are decoded only for steps screened for return.
 
+**Trust tiers.** `task_issues` and `agent_traces` carry `trust_tier`, one of
+`tier1_container_verified` (container-verified differentials: qualified repairs,
+differentially replayed witnesses, maintainer fixes), `tier2_consensus_labeled`
+(unanimous judge votes with passage-level spans, human-verified runs) or
+`tier3_provisional` (unverified leads). A row whose writer declares no tier is
+provisional; re-upserting a row without `trust_tier` keeps the stored tier, and
+`assign_trust_tiers` sets tiers on existing rows atomically, touching nothing
+else. Older stores gain the columns, provisional by default, when opened.
+`retrieve_similar_examples` omits provisional issues and traces entirely unless
+`include_provisional=True`; examples rank by their strongest returned tier, then
+match strength, and each example prefers its strongest evidence. A trace's
+`flagged_passage_steps` (labeled cheat spans) restricts its returned steps to
+exactly those steps. Each example reports `trust_tier`, prints a `- trust:` line,
+and records issue/trace tiers in provenance. Staged publisher bundles stay
+provisional. The tier assignment used for the shared store, and its policy, is
+`research/evidence/runs/trust-tiers-20261026/`.
+
 At most one example per task and one trace per example is returned. `top_k`,
 `snippet_chars`, and `max_steps_per_trace` are positive integers. Overlong issue,
 witness, and trace identifiers use stable SHA-256 references; CAS URIs retain

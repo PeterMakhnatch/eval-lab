@@ -194,6 +194,7 @@ def _issue(
         "citation_line": 27,
         "reproducer_script": reproducer,
         "cas_uri": None,
+        "trust_tier": "tier3_provisional",
     }
 
 
@@ -215,6 +216,8 @@ def _trace(
         "is_task_defect_fail": outcome == "unfair_fail",
         "raw_cas_uri": None,
         "verified_receipt_json": receipt,
+        "trust_tier": "tier3_provisional",
+        "flagged_passage_steps": [],
     }
 
 

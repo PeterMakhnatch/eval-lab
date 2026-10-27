@@ -287,6 +287,8 @@ def test_execute_retains_every_step_source_receipt_and_long_field(
     ("trace", "is_task_defect_fail", True),
     ("trace", "step_count", 1),
     ("trace", "reward", 2**53 + 1),
+    ("trace", "trust_tier", "tier2_consensus_labeled"),
+    ("trace", "flagged_passage_steps", [0]),
     ("trace", "verified_receipt_json", {"status": "confirmed"}),
     ("trace", "verified_receipt_json", {"status": "unverified", "verified": True}),
     ("trace", "verified_receipt_json", {"status": ["unverified"]}),

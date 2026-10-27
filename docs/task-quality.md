@@ -156,6 +156,12 @@ outrank the current results. Only returnable evidence is screened: an expanded
 task's issues and traces, then the best-ranked steps of its chosen trace,
 skipping sealed ones. Step matches that are never returned may contribute to
 rank. Final serialization is checked again, including dataset/CAS provenance.
+With SQLite FTS5, term scores come from per-term rowid postings and step bounds
+from postings inside each trace's rowid range. Postings, those ranges, and the
+identity rows read for admission are reused only while SQLite reports the
+database unchanged (`data_version` plus this connection's change count); the
+registry decides admission on every call. Unreturned task metadata is not
+hydrated, and step flags are decoded only for steps screened for return.
 
 At most one example per task and one trace per example is returned. `top_k`,
 `snippet_chars`, and `max_steps_per_trace` are positive integers. Overlong issue,

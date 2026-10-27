@@ -25,7 +25,7 @@ import threading
 from array import array
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import closing, contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from dataclasses import field as dataclass_field
 from functools import lru_cache
 from pathlib import Path
@@ -35,6 +35,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from evallab.production.corpus_queue import DATASETS, CorpusRegistry
+from evallab.production.trace_feature_flags import compute_trace_feature_flags
 
 _TASK_COLUMNS = (
     "task_id", "dataset_id", "split", "instruction_text", "original_grader_digest",
@@ -307,6 +308,21 @@ def _step_flag(flags: Any, step_index: int, labeled: Collection[int]) -> tuple[b
     named, positive = _step_marks(flags)
     passage = step_index in labeled if labeled else positive
     return passage, named or passage
+
+
+def _with_feature_flags(
+    example: RetrievedExample, trace_steps: Sequence[Mapping[str, Any]] | None,
+) -> RetrievedExample:
+    """Attach fired trace feature flags, as step indices, over every step of the
+    example's trace; positions in the step-ordered input map back to indices."""
+    if trace_steps is None:
+        return example
+    ordered = sorted(trace_steps, key=lambda row: row["step_index"])
+    return replace(example, feature_flags={
+        name: [ordered[position]["step_index"] for position in flag["step_indices"]]
+        for name, flag in compute_trace_feature_flags(ordered)["features"].items()
+        if flag["fired"]
+    })
 
 
 def _contains(postings: array[int], rowid: int) -> bool:
@@ -1389,6 +1405,10 @@ class RetrievedExample:
     outcome: str | None = None
     steps: tuple[RetrievedStep, ...] = ()
     trust_tier: str | None = None
+    # Fired trace feature flags (routing leads, not verdicts) mapped to the
+    # step indices where they fire, over the whole chosen trace; ``None``
+    # without a trace.
+    feature_flags: dict[str, list[int]] | None = None
 
     def __post_init__(self) -> None:
         if not self.prompt_text:
@@ -1458,6 +1478,12 @@ class RetrievedExample:
             *("  | " + _clip(line, 96) for line in excerpt),
             _clip(f"- verify: {'; '.join(verify) or 'no recorded proof'}", 160),
         ]
+        if self.feature_flags is not None:
+            leads = sorted(self.feature_flags.items(), key=lambda item: (item[1][0], item[0]))
+            lines.append(_clip(
+                "- flags: " + (", ".join(f"{name}@{indices[0]}" for name, indices in leads) or "none"),
+                200,
+            ))
         if self.pointer:
             lines.append(_clip(f"- expand: {self.pointer}", 160))
         return lines
@@ -1633,7 +1659,7 @@ class CloudTraceRetriever:
         self, kind: str | None, task: dict[str, Any], issues: list[dict[str, Any]],
         traces: list[dict[str, Any]], steps: Mapping[str, list[dict[str, Any]]],
         sealed: re.Pattern[str], terms: Sequence[str], issue_kind: str | None,
-    ) -> tuple[int, int, RetrievedExample] | None:
+    ) -> tuple[int, int, RetrievedExample, list[dict[str, Any]] | None] | None:
         if self._sealed_text("\n".join(
             str(task[name] or "") for name in ("task_id", "dataset_id", "cas_uri")
         ), sealed):
@@ -1688,6 +1714,9 @@ class CloudTraceRetriever:
         tier = min(_TRUST_RANK[row["trust_tier"]] for row in (issue, trace) if row is not None)
         selected_steps = []
         passage_window = False
+        # Feature flags need no read: the caller computes them only for
+        # returned examples, from the chosen trace's already-hydrated steps.
+        trace_rows = None if trace is None else steps.get(trace["trace_id"], [])
         if trace is not None:
             trace_steps = [
                 step for step in steps.get(trace["trace_id"], []) if step["role"] != "user"
@@ -1843,7 +1872,7 @@ class CloudTraceRetriever:
             _json_text(example.to_dict()), sealed,
         ):
             return None
-        return tier, strength, example
+        return tier, strength, example, trace_rows
 
     def failed_run_summary(self, task_id: str) -> dict[str, Any] | None:
         """Read one same-task DEV failure, admitting identities before any text.
@@ -1996,7 +2025,7 @@ class CloudTraceRetriever:
                 if bound:
                     bounded.append((tier, -bound, task_id))
             bounded.sort()
-            ranked: list[tuple[int, int, str, RetrievedExample]] = []
+            ranked: list[tuple[int, int, str, RetrievedExample, list[dict[str, Any]] | None]] = []
             position = 0
             while position < len(bounded) and not (
                 len(ranked) >= top_k and ranked[top_k - 1][:3] < bounded[position]
@@ -2042,9 +2071,9 @@ class CloudTraceRetriever:
                         ], steps_by_trace, sealed, terms, issue_kind,
                     )
                     if found is not None:
-                        ranked.append((found[0], -found[1], task_id, found[2]))
+                        ranked.append((found[0], -found[1], task_id, found[2], found[3]))
                 ranked.sort(key=lambda entry: entry[:3])
-        return [entry[3] for entry in ranked[:top_k]]
+        return [_with_feature_flags(entry[3], entry[4]) for entry in ranked[:top_k]]
 
     @staticmethod
     def _strength_bound(

@@ -887,6 +887,22 @@ class CloudTraceDatabase:
             )
         )))
 
+    def _evidence_task_ids(self, tiers: Collection[str]) -> frozenset[str]:
+        """Tasks holding a confirmed issue or any trace at one of ``tiers``."""
+        values = tuple(sorted(tiers))
+
+        def build() -> frozenset[str]:
+            parameters: list[Any] = []
+            traces = self._task_id_scope("trust_tier", values, parameters)
+            issues = self._task_id_scope("trust_tier", values, parameters)
+            return frozenset(row[0] for row in self._execute(
+                f"SELECT task_id FROM agent_traces WHERE {traces} UNION "
+                f"SELECT task_id FROM task_issues WHERE status = 'confirmed' AND {issues}",
+                parameters,
+            ))
+
+        return self._read_memo(("evidence_tasks", values), build)
+
     def _step_ranges(self) -> dict[str, tuple[int, int]]:
         """Each trace's lowest and highest step rowid; every step lies inside its range."""
         return self._read_memo(("step_ranges",), lambda: {
@@ -1729,10 +1745,26 @@ class CloudTraceRetriever:
                 and CorpusRegistry.task_name(task_id).casefold() not in excluded
             ]
             candidates = database._retrieval_task_ids(admitted, query, terms)
-            if kind is None and len(candidates) < top_k:
-                candidates = sorted(set(candidates) | set(database._retrieval_task_ids(
+            # Widening is seeded by matches backed by evidence at any tier, but
+            # its size is judged only by evidence that can actually be
+            # returned: a matching task whose evidence is all provisional
+            # never counts as a hit (this is lookahead only; the rest of the
+            # pipeline is unchanged). With no backed match at all, there is
+            # nothing to widen. Issue-led retrieval (task_quality, issue_kind)
+            # keeps strict all-term matching; trace-led kinds widen.
+            eligible = 0
+            if candidates:
+                eligible = sum(
+                    task_id in database._evidence_task_ids(allowed) for task_id in candidates
+                )
+            if eligible < top_k and kind != "task_quality" and issue_kind is None:
+                widened = database._retrieval_task_ids(
                     admitted, query, terms, conjunction=False,
-                )))
+                )
+                if any(
+                    task_id in database._evidence_task_ids(TRUST_TIERS) for task_id in widened
+                ):
+                    candidates = sorted(set(candidates) | set(widened))
             tasks = database._retrieval_matches(
                 "corpus_tasks", "t", "task_id", candidates, query, terms, columns="t.task_id",
             )

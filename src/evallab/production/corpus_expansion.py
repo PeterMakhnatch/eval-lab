@@ -312,8 +312,11 @@ def _prepare_bundle(document: Any, clearance: ClearanceRecord) -> PreparedBundle
         trace = _row(entry["trace"], cloud._TRACE_COLUMNS, {
             "outcome": "unknown", "reward": None, "is_exploit": False,
             "is_task_defect_fail": False, "step_count": len(steps), "raw_cas_uri": None,
-            "verified_receipt_json": None,
+            "verified_receipt_json": None, "trust_tier": cloud.PROVISIONAL_TIER,
+            "flagged_passage_steps": [],
         }, "trace")
+        if trace["trust_tier"] != cloud.PROVISIONAL_TIER or trace["flagged_passage_steps"] != []:
+            raise ValueError("staged publisher traces stay provisional, without labeled passages")
         for field in ("trace_id", "run_id", "task_id", "model_id", "outcome"):
             _identity_text(trace[field], field)
         if trace["task_id"] != task["task_id"]:

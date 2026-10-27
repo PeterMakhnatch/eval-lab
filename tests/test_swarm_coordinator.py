@@ -1414,6 +1414,7 @@ def test_cloud_trace_database_retriever_reads_real_issues_and_traces_with_leave_
                     "citation_line": 6,
                     "original_reward": 1.0,
                     "repaired_reward": 0.0,
+                    "trust_tier": "tier1_container_verified",
                 }
             )
             database.upsert_trace(
@@ -1424,6 +1425,7 @@ def test_cloud_trace_database_retriever_reads_real_issues_and_traces_with_leave_
                     "model_id": KIMI,
                     "outcome": "audit_proposals_not_execution",
                     "step_count": 1,
+                    "trust_tier": "tier1_container_verified",
                 },
                 steps=[
                     {

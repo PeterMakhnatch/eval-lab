@@ -1305,18 +1305,26 @@ tier, rule hit or score itself. Nothing is ranked.
   cohort is both tuned and cross-tested), and no cross-test measurement may predate
   the last tuning measurement. A report with no `cross_test` entry is valid and is
   shown as "Cross-test not run". Dataset names are data, never hard-coded in the UI.
-- `evallab.seeker_executed_differentials/v1` (seen in the Reward Seeker tab) —
+- `evallab.seeker_executed_differentials/v2` (seen in the Reward Seeker tab) —
   `protocol`, a `cohort` `{split: "dev", key_count, audited_n, cross_key_excluded_n,
-  task_count, datasets[] of {dataset_id, count_n}}` and `arms[]` of
-  `{arm, requested_model, conditions[] of {condition, static_match_n (nullable),
-  executed_differential_n, executed_by_dataset[] of {dataset_id, count_n}}}`. The audit
-  must reconcile exactly (`task_count + cross_key_excluded_n == audited_n` and the
-  dataset shares sum to `task_count`), every arm reports the same conditions, and
-  per-dataset executed counts sum to each condition total without exceeding that
-  dataset's tasks. A static match names a mechanism; an executed differential passed
-  the original grader and failed the repaired grader when run. The page shows them
-  separately and never merges them. Requested model names only: served identities
-  are not recorded by this report.
+  task_count, datasets[] of {dataset_id, count_n}}`, `arms[]` of `{arm,
+  requested_model, conditions[] of {condition, cells_n, attested_n,
+  executed_differential_n, by_dataset[] of {dataset_id, cells_n, attested_n,
+  executed_differential_n}}}`, a `source_sha256` and `generated_at`. The audit must
+  reconcile exactly (`task_count + cross_key_excluded_n == audited_n`; dataset shares
+  sum to `task_count`). Every count is bounded by the one before it:
+  `executed_differential_n <= attested_n <= cells_n`, at every level, and a
+  condition's `cells_n` cannot exceed the cohort `task_count` (nor a dataset's cells
+  its task count), so a partial arm or one with no cells cannot be reported at full
+  scale. Per-dataset counts sum to each condition total, every arm reports the same
+  conditions, and `v1` (which had no such bound) is no longer accepted. An executed
+  differential is an **attested** cell (its output matched the recorded digest and
+  the served model was the requested route) whose original grader passed (reward 1.0)
+  and whose repaired grader failed it (0.0) when run. Unattested cells stay in the
+  denominator and never in the numerator. Requested model names only. The page shows
+  evaluated cells, attested cells and the rate over evaluated cells; conditions cover
+  different tasks and are never pooled. Static mechanism matches are not reported:
+  TS-4's summary labelled executed counts `*_static_*`, so they cannot be told apart.
 - `evallab.monitor_cascade/v1` — `system`, `cascade_version`, `arm`,
   `judge_models[]`, `frozen_sha256`, `frozen_recorded_at`, `freeze_statement` and
   `cohorts[]` of `{role: "tune"|"cross_test", dataset_id, split: "dev", positive_n,
@@ -1342,6 +1350,7 @@ uv run evallab prod export-qc-reports \
   --hackbook-qc /path/to/qc-report.json \
   --tune-cross-test /path/to/tune-cross-test.json \
   --ts4-manifest /path/to/ts3-ts4/manifest.json \
+  --ts4-cells /path/to/ts3-hide-tests-two-turn/pairs \
   --cm4-directory /path/to/cm4-results
 
 - The trust-tier census is **generated** from the source database, opened
@@ -1362,14 +1371,18 @@ uv run evallab prod export-qc-reports \
   an input whose schema is not the one the flag names. A summary that lacks the
   frozen digest, per-cohort counts or `measured_at` cannot be exported; the
   exporter does not invent them.
-- `--ts4-manifest` builds `seeker-executed-differentials-ts4.json` from the
-  recorded TS-4 cross-key audit in the TS-3/TS-4 manifest, and `--cm4-directory`
-  builds `monitor-cascade-cm4.json` from CM-4's recorded `freeze.json`,
-  `score2-*-<frozen arm>.json`, `crosskey.json` and `judge-receipts.jsonl`. Both
-  builders copy recorded counts and cross-check the summaries against their own
-  per-trace rows and audits; a disagreement (or a non-DEV assignment) fails the
-  export. CM-4's with-examples arm is a DEV tuning measurement, not the frozen
-  plain arm, so only the frozen arm is exported.
+- `--ts4-manifest` plus `--ts4-cells` build `seeker-executed-differentials-ts4.json`.
+  The manifest supplies the cross-key audit and the strictly-DEV task list only; every
+  count is taken from the retained per-cell results
+  (`<dataset>/<task>/<model>/<turn>/result.json`), never from the manifest's summary
+  fields, which are mislabelled and in one case exceed their arm's cell count.
+  `source_sha256` digests one line per counted cell (dataset, task, model, turn,
+  attested, differential). `--cm4-directory` builds `monitor-cascade-cm4.json` from
+  CM-4's recorded `freeze.json`, `score2-*-<frozen arm>.json`, `crosskey.json` and
+  `judge-receipts.jsonl`. The CM-4 builder copies recorded counts and cross-checks the
+  summaries against their own per-trace rows and audits; a disagreement (or a non-DEV
+  assignment) fails the export. CM-4's with-examples arm is a DEV tuning measurement,
+  not the frozen plain arm, so only the frozen arm is exported.
 - The output directory must not exist. Files are staged in a sibling directory,
   mode `0600`, validated again as written, and published by one rename; any failure
   leaves nothing behind. The receipt (stdout) has `"uploaded": false`: copying the

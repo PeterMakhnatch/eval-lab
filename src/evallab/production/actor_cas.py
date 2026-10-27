@@ -217,40 +217,53 @@ def _direct_references(database: Path) -> list[str]:
             original = os.fstat(descriptor)
             _regular(original)
             _require_checkpointed(parent, database.name)
-            # Buffered file reads keep this off os.read, and the bytes come from
-            # the descriptor whose identity is checked, so SQLite never resolves
-            # the pathname to a different file.
-            with open(descriptor, "rb", closefd=False) as stream:
-                payload = stream.read()
-            if len(payload) != original.st_size:
-                raise ValueError("projected database ended before its declared size")
-            if payload[18:20] != b"\x01\x01":
+            if os.pread(descriptor, 2, 18) != b"\x01\x01":
                 raise ValueError(
                     "projected database must use a rollback journal, not WAL"
                 )
-            if _identity(os.fstat(descriptor)) != _identity(original):
-                raise ValueError("projected database changed while reading")
-            connection = sqlite3.connect(":memory:")
+
+            def unchanged() -> bool:
+                try:
+                    named = os.stat(database.name, dir_fd=parent, follow_symlinks=False)
+                except FileNotFoundError:
+                    return False
+                return _identity(os.fstat(descriptor)) == _identity(original) == _identity(named)
+
+            # SQLite reads in place through /dev/fd/N of the checked descriptor:
+            # unlike deserializing a copy, there is no 2 GiB allocation ceiling,
+            # and immutable=1 takes no locks and creates no sidecars. macOS opens
+            # the descriptor itself; Linux SQLite resolves it to the inode's
+            # current name. Either way the descriptor and name must keep the
+            # checked identity throughout, or the read fails closed.
+            references: set[str] = set()
             try:
-                connection.deserialize(payload)
-                connection.execute("PRAGMA query_only=ON")
-                connection.execute("PRAGMA trusted_schema=OFF")
-                references: set[str] = set()
-                for table, column in _DIRECT_COLUMNS:
-                    table_type = connection.execute(
-                        "SELECT type FROM sqlite_schema WHERE name = ?", (table,),
-                    ).fetchone()
-                    if table_type != ("table",):
-                        raise ValueError(f"projected database requires core table {table}")
-                    for (uri,) in connection.execute(
-                        f'SELECT "{column}" FROM "{table}" WHERE "{column}" IS NOT NULL'
-                    ):
-                        _digest(uri)
-                        references.add(uri)
-                _require_checkpointed(parent, database.name)
-                return sorted(references)
-            finally:
-                connection.close()
+                connection = sqlite3.connect(
+                    f"file:/dev/fd/{descriptor}?mode=ro&immutable=1", uri=True,
+                )
+                try:
+                    connection.execute("PRAGMA query_only=ON")
+                    connection.execute("PRAGMA trusted_schema=OFF")
+                    for table, column in _DIRECT_COLUMNS:
+                        table_type = connection.execute(
+                            "SELECT type FROM sqlite_schema WHERE name = ?", (table,),
+                        ).fetchone()
+                        if table_type != ("table",):
+                            raise ValueError(f"projected database requires core table {table}")
+                        for (uri,) in connection.execute(
+                            f'SELECT "{column}" FROM "{table}" WHERE "{column}" IS NOT NULL'
+                        ):
+                            _digest(uri)
+                            references.add(uri)
+                finally:
+                    connection.close()
+            except sqlite3.Error as error:
+                if not unchanged():
+                    raise ValueError("projected database changed while reading") from error
+                raise
+            if not unchanged():
+                raise ValueError("projected database changed while reading")
+            _require_checkpointed(parent, database.name)
+            return sorted(references)
         finally:
             os.close(descriptor)
 

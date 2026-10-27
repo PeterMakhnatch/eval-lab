@@ -537,7 +537,7 @@ class CloudTraceDatabase:
                 self._execute(f"""CREATE TABLE IF NOT EXISTS run_facets (
                     run_id TEXT PRIMARY KEY REFERENCES agent_traces(trace_id) ON DELETE CASCADE,
                     task_id TEXT NOT NULL REFERENCES corpus_tasks(task_id),
-                    source TEXT NOT NULL, split TEXT NOT NULL,
+                    source TEXT NOT NULL, split TEXT NOT NULL CHECK(lower(split) = 'dev'),
                     outcome TEXT NOT NULL CHECK({checks["outcome"]}),
                     facet_version TEXT NOT NULL CHECK(facet_version = '{RUN_FACETS_VERSION}'),
                     facet_model TEXT NOT NULL,
@@ -794,18 +794,19 @@ class CloudTraceDatabase:
         return changed
 
     def upsert_run_facets(
-        self, records: Iterable[Any], *, allowed_task_ids: Collection[str],
+        self, records: Iterable[Any], *, registry: CorpusRegistry | None = None,
+        allowed_task_ids: Collection[str] | None = None,
     ) -> dict[str, Any]:
         """Store valid ``run-facets/v1`` records of admitted runs; refuse the rest.
 
-        ``allowed_task_ids`` is the caller's DEV admission (``import_run_facets``
-        uses retrieval's own). ``run_id`` must name a stored trace whose task is
-        admitted, and every ``evidence_steps`` entry one of its stored steps;
+        Registry admission is recomputed inside the write snapshot.
+        ``allowed_task_ids`` can further restrict it, never grant admission.
+        ``run_id`` must name a stored trace whose task is admitted, and every
+        ``evidence_steps`` entry one of its stored steps;
         ``source``, ``split`` and ``outcome`` are copied from the database. A
         later record for a run supersedes an earlier one. Refused records are
         counted by reason (with up to 20 examples) and never partially stored.
         """
-        allowed = frozenset(allowed_task_ids)
         reasons: dict[str, int] = {}
         examples: list[dict[str, Any]] = []
 
@@ -828,6 +829,12 @@ class CloudTraceDatabase:
         overrides = dict.fromkeys(_FACET_DATABASE_FIELDS, 0)
         stored = 0
         with self._transaction(write=True):
+            if self._postgres:
+                self._execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            admitted, _ = CloudTraceRetriever(self, registry=registry)._admitted_ids()
+            allowed = frozenset(admitted)
+            if allowed_task_ids is not None:
+                allowed = allowed.intersection(allowed_task_ids)
             parameters: list[Any] = []
             scope = self._task_id_scope("a.trace_id", list(rows), parameters)
             runs = {run["trace_id"]: run for run in self._rows(
@@ -868,7 +875,7 @@ class CloudTraceDatabase:
                     self._upsert("run_facets", {column: row[column] for column in _FACET_COLUMNS}, ("run_id",))
                     stored += 1
         return {
-            "records": count, "runs": len(rows), "stored": stored,
+            "admitted_tasks": len(allowed), "records": count, "runs": len(rows), "stored": stored,
             "refused": sum(reasons.values()), "refused_by_reason": dict(sorted(reasons.items())),
             "refused_examples": examples, "database_overrides": overrides,
         }
@@ -2395,11 +2402,8 @@ def import_run_facets(
                 records.append(json.loads(line))
             except json.JSONDecodeError:
                 invalid += 1
-    with database._transaction():
-        admitted, _ = CloudTraceRetriever(database, registry=registry)._admitted_ids()
     return {
         "schema": "evallab.run_facets_import/v1", "path": str(path),
         "sha256": hashlib.sha256(data).hexdigest(), "invalid_json_lines": invalid,
-        "admitted_tasks": len(admitted),
-        **database.upsert_run_facets(records, allowed_task_ids=admitted),
+        **database.upsert_run_facets(records, registry=registry),
     }

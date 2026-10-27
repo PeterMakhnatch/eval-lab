@@ -129,3 +129,34 @@ def test_without_split_authority_nothing_is_stored(db: CloudTraceDatabase, tmp_p
     assert (receipt["admitted_tasks"], receipt["stored"]) == (0, 0)
     assert receipt["refused_by_reason"] == {"task is not admitted DEV": 1}
     assert stored(db) == {}
+
+
+def test_writer_never_treats_an_allowed_id_list_as_dev_admission(db: CloudTraceDatabase) -> None:
+    receipt = db.upsert_run_facets(
+        [facet(), facet("test-task/pass")], registry=SyntheticRegistry(),
+        allowed_task_ids=["dev-task", "test-task"],
+    )
+    assert receipt["stored"] == 1
+    assert receipt["refused_by_reason"] == {"task is not admitted DEV": 1}
+    assert set(stored(db)) == {"dev-task/pass"}
+
+
+def test_writer_checks_cross_key_test_assignments_even_for_allowlisted_ids(db: CloudTraceDatabase) -> None:
+    registry = SyntheticRegistry()
+    registry._assigned_test_names.add("dev-task")
+    receipt = db.upsert_run_facets([facet()], registry=registry, allowed_task_ids=["dev-task"])
+    assert receipt["stored"] == 0
+    assert receipt["refused_by_reason"] == {"task is not admitted DEV": 1}
+    assert stored(db) == {}
+
+
+def test_writer_uses_current_task_identity_not_an_earlier_allowlist(db: CloudTraceDatabase) -> None:
+    registry = SyntheticRegistry()
+    db.upsert_task({
+        "task_id": "dev-task", "dataset_id": "synthetic-corpus", "split": "held",
+        "instruction_text": "unavailable",
+    })
+    receipt = db.upsert_run_facets([facet()], registry=registry, allowed_task_ids=["dev-task"])
+    assert receipt["stored"] == 0
+    assert receipt["refused_by_reason"] == {"task is not admitted DEV": 1}
+    assert stored(db) == {}

@@ -222,11 +222,13 @@ cut to `max_chars` (default 600).
 
 **Run Atlas facets.** `run_facets` stores one `run-facets/v1` record per run, keyed
 by `run_id` = `agent_traces.trace_id` (the trace's `run_id` column is a batch id).
-`CloudTraceDatabase.upsert_run_facets(records, allowed_task_ids=...)` validates each
+`CloudTraceDatabase.upsert_run_facets(records, registry=...)` validates each
 record (enums, booleans, word limits, `suspicion` 0–3, at most five distinct
-`evidence_steps`) and stores it only if the trace exists, its task is in the
-caller's DEV admission, and every evidence step is a stored `step_index` of that
-trace. `source` (`dataset_id`), `split` and `outcome` (`pass` if reward ≥ 1,
+`evidence_steps`) and stores it only if the trace exists, its current task is
+registry-admitted DEV, and every evidence step is a stored `step_index` of that
+trace. Admission and writes share one snapshot; an optional `allowed_task_ids`
+list only narrows admission, never grants it. `source` (`dataset_id`),
+`split` and `outcome` (`pass` if reward ≥ 1,
 `fail` if ≤ 0, otherwise `unknown`) are copied from the database; the receipt
 counts disagreements and refusals by reason. `evallab prod import-run-facets
 --cloud-database <db> --jsonl <facets-v1.jsonl>` imports the interim append-only

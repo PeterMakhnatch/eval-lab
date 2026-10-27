@@ -180,6 +180,26 @@ def test_trace_without_labeled_steps_uses_passage_marks_and_metadata_never_flags
     assert not any(step["flagged"] for step in plain.trace_steps)
 
 
+@pytest.mark.parametrize("issue_kind", (None, "missing_output_check"))
+def test_issue_led_queries_fall_back_to_ranked_partial_matches(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever, issue_kind: str | None,
+) -> None:
+    # No document holds every term. Tier 1 outranks tier 2 even with fewer
+    # matched terms; within tier 2 more terms rank higher; tier 3 never returns.
+    for task_id, tier, text in (
+        ("verified-one-term", TIER1, "conftest"),
+        ("consensus-two-terms", TIER2, "conftest exit"),
+        ("consensus-one-term", TIER2, "exit"),
+        ("provisional-three-terms", TIER3, "conftest exit status"),
+    ):
+        add_task(db, task_id)
+        add_issue(db, task_id, f"{task_id}/issue", tier, text)
+    examples = retriever.retrieve_similar_examples(
+        "conftest exit status hook", "task_quality", 5, issue_kind=issue_kind,
+    )
+    assert task_ids(examples) == ["verified-one-term", "consensus-two-terms", "consensus-one-term"]
+
+
 @pytest.mark.parametrize("kind", (None, "reward_seeker", "misalignment"))
 def test_kind_filtered_queries_fall_back_to_partial_matches_ranked_by_strength(
     db: CloudTraceDatabase, retriever: CloudTraceRetriever, kind: str | None,

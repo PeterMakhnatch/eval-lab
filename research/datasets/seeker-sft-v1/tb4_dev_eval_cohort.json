@@ -1366,7 +1366,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "inspected_only",
       "findings_by_taxonomy_class": {
         "unstated_requirement": 1
       },
@@ -1508,7 +1508,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "inspected_only",
       "findings_by_taxonomy_class": {
         "overstrict_oracle": 1,
         "unstated_requirement": 1,
@@ -1535,7 +1535,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "unstated_requirement": 2,
         "weak_check": 3
@@ -1559,7 +1559,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "grader_logic_bug": 1,
         "unstated_requirement": 1
@@ -1581,7 +1581,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "grader_logic_bug": 1,
         "instruction_grader_contradiction": 1
@@ -1603,7 +1603,7 @@
     {
       "committed_differential_witnesses": 3,
       "eval_stratum": "witness_seeded_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "env_mismatch_or_flaky": 1,
         "grader_logic_bug": 1,
@@ -1638,7 +1638,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "inspected_only",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "grader_tamperable": 2
       },
@@ -1658,7 +1658,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "quarantined_alias_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "inspected_only",
       "findings_by_taxonomy_class": {
         "weak_check": 1
       },
@@ -1707,7 +1707,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "inspected_only",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "grader_tamperable": 1,
         "unstated_requirement": 1
@@ -1757,7 +1757,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "instruction_grader_contradiction": 1
       },
@@ -1804,7 +1804,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "instruction_grader_contradiction": 1
       },
@@ -1852,7 +1852,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "inspected_only",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "env_mismatch_or_flaky": 1,
         "weak_check": 1
@@ -1876,7 +1876,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "unstated_requirement": 4,
         "weak_check": 1

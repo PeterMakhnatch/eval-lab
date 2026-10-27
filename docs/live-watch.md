@@ -888,6 +888,41 @@ suspicions. Seeker attempt/feedback `step` objects are phase telemetry, not agen
 rollouts: they never become partial traces or labeled-trace assets. Missing
 reasoning/tool capture remains a coverage gap, not a clean trace.
 
+For an audit reader, pass the exported
+`evallab.production.cloud_trace_db.CloudTraceRetriever` as `audit_retriever` and
+optionally pin its snapshot's lowercase SHA-256 with `audit_source_digest`.
+The reader bundle gains `audit_context`: one same-task failed DEV run (when
+available) and up to three ranked, leave-target-out DEV issues with citations
+and recorded reward differentials. Identity admission precedes text reads;
+missing same-task evidence stays explicitly unavailable. Queries use at most
+three literal-AND terms (`payload.retrieval_query` can select them). The
+16,000-character context treats all history as untrusted diagnostic evidence,
+omits submission scripts and raw commands, and records source/context digests
+in the finding event. A failed solver run is not itself a grader-defect verdict.
+An unconfigured retriever marks history unavailable. `ProductionRuntime` exposes the
+same opt-in settings as `task_quality_reader`, `task_quality_audit_retriever`,
+and `task_quality_audit_source_digest`; constructing a runtime never enables
+model calls implicitly.
+
+A configured `repair_callback` can revise a grader after a **measured failed**
+nine-control check, exactly once. `TracebackGraderRepair` adapts an existing
+model transport; `repair_grader_path` selects one existing grader file under
+`tests/` (`.py`, `.sh`, or a native `.patch`; the model cannot select paths).
+Bounded pytest/control diagnostics and the prior grader go back to the model.
+Its raw grader-only output must
+match the usable served-model `ModelCall.response_sha256` before staging and
+before/after execution. The retry creates a new pinned package, preserves the
+first attempt's evidence, and requires nine fresh controls under the same
+worker-owned spend policy. Unavailable controls, already-qualified repairs,
+and absent callbacks never trigger a model retry. Mocked tests establish the
+retry contract, not live repair qualification; model permission never grants
+cloud-compute permission.
+`ProductionRuntime` accepts `task_quality_repair_callback` and
+`task_quality_repair_grader_path`. A durable per-job reservation prevents a
+second model retry after a lease reclaim or restart. Qualified retry chaining
+checks the linked rejection, reservation, attested start, and all eighteen
+control receipts before accepting the new grader package for a rebreak.
+
 Both execution-backed workers accept an
 `evallab.execution_backend.ExecutionBackendConfig` through `execution_config`,
 or the equivalent constructor keywords: `backend`, `modal_app_name`,

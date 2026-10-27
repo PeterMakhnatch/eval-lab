@@ -94,12 +94,14 @@ step size are variable. The measured latency target is separate from complexity.
 `monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
 run; ordinary assistant prose is not proof that reasoning was captured. A supplied
 `trace_cheap.JudgeFn` is the optional Stage 2 of a two-stage cascade
-(`evallab.production.window_cascade`, `window-cascade/v6`); the incremental tripwire
+(`evallab.production.window_cascade`, `window-cascade/v7`); the incremental tripwire
 rules and the command-state cues below are Stage 1. When a rule raises a card, Stage 2
 waits until five agent steps have followed the flagged step (`flush_triage`, or closing
 the worker, judges earlier cards on the steps seen so far), then runs on a separate
 thread and shows the judge the flagged step plus up to five agent actions on each
-side (commands and clipped observations, at most 6,000 characters, cut from the
+side (commands, clipped observations and the flagged step's message and reasoning, at
+most 9,000 characters in all, about 2.3k tokens; `Window.chars` and `approx_tokens` count
+every one of those fields; cut from the
 prefix observed at that moment). The judge decides whether the flagged step is a real
 boundary or grader violation or ordinary debugging. A card is confirmed only when a positive
 label cites the flagged step with a verbatim quote from that window; `neither`, a

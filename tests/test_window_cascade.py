@@ -61,8 +61,8 @@ def test_window_text_is_capped_without_shortening_the_flagged_step() -> None:
     huge = "x" * 50_000
     steps = [_step(n, "cat " + "y" * 900, huge) for n in range(1, 12)]
     steps[5] = _step(6, "cat /tests/test_outputs.py", "FAILED test_outputs.py::test_one")
-    window = window_cascade.build_window(steps, 6)
-    assert window.chars <= window_cascade.MAX_WINDOW_CHARS
+    window = window_cascade.build_window(steps, 6, max_chars=6000)
+    assert window.chars <= 6000
     assert window.truncated
     flagged = window.action(6)
     assert flagged is not None
@@ -374,7 +374,7 @@ def test_flagged_step_keeps_long_reasoning_and_context_steps_get_short_excerpts(
     long_one = window.action(3)
     assert long_one is not None and len(long_one["reasoning"]) <= 300
     assert window.has_reasoning and window.has_context_reasoning
-    assert window.chars < 200  # the cap counts commands and observations only
+    assert window.chars == _free_text(window)  # the count includes message and reasoning
 
 
 def test_reasoning_can_be_left_out_and_then_the_prompt_is_unchanged() -> None:
@@ -436,6 +436,80 @@ def test_reasoning_survives_the_window_budget_squeeze() -> None:
     window = window_cascade.build_window(steps, 2, include_reasoning=True, max_chars=1500)
     assert window.truncated
     assert window.action(2) is not None and "reasoning" in window.action(2)
+
+
+def _free_text(window: window_cascade.Window) -> int:
+    """Independent count of every free-text character the judge is shown for a window."""
+    return sum(
+        len(a["text"])
+        + len(a["observation"])
+        + len(a.get("message", ""))
+        + len(a.get("reasoning", ""))
+        for a in window.actions
+    )
+
+
+def test_window_size_counts_the_flagged_steps_message_and_reasoning() -> None:
+    steps = _reasoning_steps()
+    steps[1]["message"] = "m" * 700
+    steps[1]["reasoning_content"] = "r" * 5000
+    window = window_cascade.build_window(steps, 2, include_reasoning=True)
+    flagged = window.action(2)
+    assert flagged is not None
+    assert len(flagged["message"]) == window_cascade._MESSAGE_CHARS
+    assert len(flagged["reasoning"]) == window_cascade._REASONING_CHARS
+    assert window.chars == _free_text(window)
+    assert window.chars >= window_cascade._MESSAGE_CHARS + window_cascade._REASONING_CHARS
+    assert window.approx_tokens >= window.chars // 4
+    bare = window_cascade.build_window(steps, 2, include_reasoning=False)
+    assert window.chars - bare.chars == len(flagged["message"]) + len(flagged["reasoning"])
+
+
+def test_window_size_counts_context_excerpts_too() -> None:
+    steps = _reasoning_steps()
+    plain = window_cascade.build_window(steps, 2, include_reasoning=True)
+    excerpts = window_cascade.build_window(
+        steps, 2, include_reasoning=True, context_reasoning_chars=300
+    )
+    added = sum(len(a["reasoning"]) for a in excerpts.actions if a["step"] != 2)
+    assert added > 0
+    assert excerpts.chars - plain.chars == added == _free_text(excerpts) - _free_text(plain)
+
+
+def test_the_cap_bounds_the_whole_prompt_text_and_never_shortens_the_flagged_step() -> None:
+    steps = _reasoning_steps()
+    for step in steps:
+        step["observation"] = {"results": [{"content": "o" * 4000}]}
+        step["command"] = None
+    steps[1]["message"] = "m" * 700
+    steps[1]["reasoning_content"] = "r" * 5000
+    for cap in (4500, 4000):
+        window = window_cascade.build_window(
+            steps, 2, include_reasoning=True, context_reasoning_chars=300, max_chars=cap
+        )
+        flagged = window.action(2)
+        assert flagged is not None
+        assert window.chars == _free_text(window) <= cap
+        assert window.truncated
+        assert len(flagged["message"]) == window_cascade._MESSAGE_CHARS
+        assert len(flagged["reasoning"]) == window_cascade._REASONING_CHARS
+    default = window_cascade.build_window(
+        steps, 2, include_reasoning=True, context_reasoning_chars=300
+    )
+    assert default.chars <= window_cascade.MAX_WINDOW_CHARS
+
+
+def test_reasoning_alone_can_force_the_squeeze() -> None:
+    # Commands and observations fit in 1,500 characters; with the flagged step's own text the
+    # window does not, so context observations are dropped first.
+    steps = [_step(number, f"echo {number}", observation="o" * 200) for number in range(1, 6)]
+    steps[2]["reasoning_content"] = "r" * 2000
+    fits = window_cascade.build_window(steps, 3, include_reasoning=False, max_chars=2500)
+    assert not fits.truncated
+    squeezed = window_cascade.build_window(steps, 3, include_reasoning=True, max_chars=2500)
+    assert squeezed.truncated
+    assert squeezed.chars <= 2500
+    assert all(not a["observation"] for a in squeezed.actions if a["step"] != 3)
 
 
 def test_a_playbook_card_is_context_and_can_never_be_cited() -> None:

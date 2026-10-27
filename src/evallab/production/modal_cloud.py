@@ -15,7 +15,9 @@ substitute for served identities. Reward-Seeker model studies use
 ``evallab.seeker_comparison/v1``; ``/api/cloud-db/corpus`` serves aggregate-only
 corpus counts. Trust-tier censuses, Hackbook QC and tune-versus-cross-test
 scoreboards use ``evallab.trust_tier_census/v1``, ``evallab.hackbook_qc/v1`` and
-``evallab.tune_cross_test/v1``. See ``docs/live-watch.md`` for the wire contracts.
+``evallab.tune_cross_test/v1``; executed seeker differentials and monitor cascades
+use ``evallab.seeker_executed_differentials/v1`` and ``evallab.monitor_cascade/v1``.
+See ``docs/live-watch.md`` for the wire contracts.
 Historic ``evallab.swarm_bench/v1`` reports with ``split: "dev"`` and the strict
 ``evallab.arm_comparison/v1`` contract below remain readable without rewriting::
 

@@ -165,17 +165,21 @@ hydrated, and step flags are decoded only for steps screened for return.
 
 **Trust tiers.** `task_issues` and `agent_traces` carry `trust_tier`, one of
 `tier1_container_verified` (container-verified differentials: qualified repairs,
-differentially replayed witnesses, maintainer fixes), `tier2_consensus_labeled`
-(unanimous judge votes with passage-level spans, human-verified runs) or
-`tier3_provisional` (unverified leads). A row whose writer declares no tier is
+differentially replayed witnesses, patch witnesses with repeat reference/nop
+controls, maintainer fixes), `tier2_consensus_labeled` (three-vote judge labels
+with passage-level spans, single-run witnessed differentials, human-verified runs)
+or `tier3_provisional` (unverified leads). A row whose writer declares no tier is
 provisional; re-upserting a row without `trust_tier` keeps the stored tier, and
 `assign_trust_tiers` sets tiers on existing rows atomically, touching nothing
 else. Older stores gain the columns, provisional by default, when opened.
 `retrieve_similar_examples` omits provisional issues and traces entirely unless
 `include_provisional=True`; examples rank by their strongest returned tier, then
-match strength, and each example prefers its strongest evidence. A trace's
-`flagged_passage_steps` (labeled cheat spans) restricts its returned steps to
-exactly those steps. Each example reports `trust_tier`, prints a `- trust:` line,
+match strength, and each example prefers its strongest evidence. A trace with
+labeled passage steps (or LB-3 `passage_positive` step marks) returns one window:
+its best-matching passage step with up to three steps on each side; provenance
+reports `passage_window` and `flagged_step_indices`, and prompt lines mark flagged
+steps. A list of flag names flags a step; source metadata objects do not. Each
+example reports `trust_tier`, prints a `- trust:` line,
 and records issue/trace tiers in provenance. Staged publisher bundles stay
 provisional. The tier assignment used for the shared store, and its policy, is
 `research/evidence/runs/trust-tiers-20261026/`. Terms must co-occur in one

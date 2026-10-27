@@ -121,19 +121,64 @@ def test_provisional_evidence_is_never_mixed_into_a_trusted_example(
     assert widened.issue_id == "mixed/verified"
 
 
-def test_consensus_trace_returns_only_its_flagged_passage_steps(
+def add_window_trace(
+    db: CloudTraceDatabase, task_id: str, texts: dict[int, str],
+    flags: dict[int, Any] | None = None, **extra: Any,
+) -> None:
+    # Step 0 is the user prompt; then assistant/tool turns alternate, each with
+    # publisher-style source metadata that is not a flag.
+    db.upsert_trace({
+        "trace_id": f"{task_id}/trace", "run_id": "synthetic-run", "task_id": task_id,
+        "model_id": "synthetic-model", "is_exploit": True, **extra,
+    }, steps=[{
+        "step_index": index, "role": "user" if index == 0 else ("assistant", "tool")[(index - 1) % 2],
+        "content_text": texts.get(index, f"routine step {index}"),
+        "flags_json": (flags or {}).get(index, {"native_node_index": index, "source_passages": []}),
+    } for index in range(15)])
+
+
+def test_labeled_trace_returns_a_window_centered_on_its_best_passage(
     db: CloudTraceDatabase, retriever: CloudTraceRetriever,
 ) -> None:
+    # The setup steps match the query best, but only the window around the
+    # best-matching labeled passage (step 9, not 3) is returned.
     add_task(db, "labeled")
-    add_trace(db, "labeled", TIER2, [
-        ("assistant", "pytest grader setup pytest grader"),
-        ("assistant", "pytest grader install"),
-        ("assistant", "overwrite the grader"),
-        ("tool", "pytest passed"),
-    ], flagged_passage_steps=[2, 3])
+    add_window_trace(db, "labeled", {
+        1: "pytest grader setup pytest grader", 2: "pytest grader install",
+        3: "edit the readme", 9: "overwrite the pytest grader", 14: "pytest grader again",
+    }, trust_tier=TIER2, flagged_passage_steps=[3, 9])
+    for kind in (None, "reward_seeker", "misalignment"):
+        (example,) = retriever.retrieve_similar_examples("pytest grader", kind, 5)
+        assert [step["step_index"] for step in example.trace_steps] == [6, 7, 8, 9, 10, 11, 12]
+        assert [step["step_index"] for step in example.trace_steps if step["flagged"]] == [9]
+        assert [step.step_index for step in example.steps if step.flagged] == [9]
+        assert example.provenance["passage_window"] is True
+        assert example.provenance["flagged_step_indices"] == [9]
+        assert "step 9 [assistant] FLAGGED overwrite" not in example.prompt_text  # no command text
+        assert "- step 9 [assistant] FLAGGED observed: overwrite the pytest grader" in example.prompt_text
+
+
+def test_trace_without_labeled_steps_uses_passage_marks_and_metadata_never_flags(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever,
+) -> None:
+    add_task(db, "marked")
+    add_window_trace(db, "marked", {1: "pytest grader setup", 5: "pytest grader overwrite"}, {
+        5: {"passage_positive": True, "passage_labels": {"passage_positive": False}},
+        7: {"passage_positive": False, "note": '"passage_positive": true'},
+    }, trust_tier=TIER2)
     (example,) = retriever.retrieve_similar_examples("pytest grader", "reward_seeker", 5)
-    assert [step["step_index"] for step in example.trace_steps] == [2, 3]
-    assert example.provenance["passage_steps_only"] is True
+    assert [step["step_index"] for step in example.trace_steps] == [2, 3, 4, 5, 6, 7, 8]
+    assert example.provenance["flagged_step_indices"] == [5]
+
+    # Source metadata alone flags nothing: no window, ordinary best steps.
+    add_task(db, "unmarked")
+    add_window_trace(db, "unmarked", {1: "kitten mitten setup", 2: "kitten mitten install"},
+                     trust_tier=TIER2)
+    (plain,) = retriever.retrieve_similar_examples("kitten mitten", "reward_seeker", 5)
+    assert plain.provenance["passage_window"] is False
+    assert [step["step_index"] for step in plain.trace_steps] == [1, 2, 3]
+    assert not any(step["flagged"] for step in plain.trace_steps)
+
 
 @pytest.mark.parametrize("kind", (None, "reward_seeker", "misalignment"))
 def test_kind_filtered_queries_fall_back_to_partial_matches_ranked_by_strength(

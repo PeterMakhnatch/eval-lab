@@ -128,6 +128,8 @@ inputs:
     digest: sha256:bb52ffc71923ab06175dbe300d266ba22574796dc14d5a547971b0b4654a3a34
   - path: docs/rollout.md
     digest: sha256:478b97b1ff840eb80549057203e5626209a4475c14c69aac9caf04fcf6298daf
+  - path: docs/run-atlas.md
+    digest: sha256:ae87ef7f22298b1f62cbce3be1bc308ed17de8435a1384186fe918f15f148303
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/scaling.md
@@ -278,6 +280,7 @@ an operator can see what is archived.
 | `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/research/trajectory-intelligence.md` | Trajectory intelligence: metrics and failure signals | `living` | `analyst` |
+| `docs/run-atlas.md` | Run Atlas | `living` | `analyst, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
@@ -392,6 +395,7 @@ an operator can see what is archived.
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/rollout.md` | Rollout engine (`evallab rollout`) | `living` | `builder, operator` |
+| `docs/run-atlas.md` | Run Atlas | `living` | `analyst, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |

@@ -98,7 +98,33 @@ def repo_root(tmp_path: Path) -> Path:
         directory = keys / dataset
         directory.mkdir(parents=True)
         (directory / "items.jsonl").write_text("", encoding="utf-8")
+    (keys / "tb4-audit-v1/items.jsonl").write_text(
+        "".join(
+            json.dumps(row) + "\n"
+            for row in (
+                {
+                    "item_id": "cloud-dev-item",
+                    "split": "dev",
+                    "subject": {"task_id": "cloud-dev-task"},
+                },
+                {
+                    "item_id": "sealed-item",
+                    "split": "test",
+                    "subject": {"task_id": "sealed-task-name"},
+                },
+            )
+        ),
+        encoding="utf-8",
+    )
     (keys / "tb4-audit-v1/tasks.jsonl").write_text("", encoding="utf-8")
+    ledger = keys / "splits/assignments.csv"
+    ledger.parent.mkdir()
+    ledger.write_text(
+        "key_id,item_id,task,unit,split,expected_verdict,exposures\n"
+        "synthetic-ledger-fixture,ledger-dev,ledger-dev,,dev,fail,\n"
+        "synthetic-ledger-fixture,ledger-test,ledger-test,,test,fail,\n",
+        encoding="utf-8",
+    )
     inventory = root / "research/experiments/mimo-defect-map-v1/inventory.json"
     inventory.parent.mkdir(parents=True)
     inventory.write_text(
@@ -203,7 +229,7 @@ def records(runtime: CloudRuntime) -> dict[str, Any]:
     issue_uri = runtime.cas.put_bundle({"source_reproducer": reproducer})
     tasks = {
         PRIMARY: {**_task(PRIMARY, instruction), "cas_uri": package_uri},
-        SECONDARY: _task(SECONDARY, "secondaryinstruction retained fixture", split="test"),
+        SECONDARY: _task(SECONDARY, "secondaryinstruction retained fixture"),
     }
     issues = {
         "issue-confirmed-primary": {
@@ -602,35 +628,181 @@ def test_database_endpoints_do_not_clip_result_collections(
         }
 
 
-def test_dev_split_filter_omits_sealed_tasks_traces_and_issues_without_changing_defaults(
+def test_cloud_db_serves_only_dev_tasks_admitted_by_label_seal_and_ledger(
     client: TestClient,
+    runtime: CloudRuntime,
     records: dict[str, Any],
 ) -> None:
-    for collection, key, all_ids, dev_ids in (
-        ("tasks", "task_id", {PRIMARY, SECONDARY}, {PRIMARY}),
-        ("traces", "trace_id", {VERIFIED, PROVISIONAL, REFUTED}, {VERIFIED, PROVISIONAL}),
-        (
-            "issues",
-            "issue_id",
-            set(records["issues"]),
-            {"issue-confirmed-primary", "issue-provisional-primary"},
-        ),
+    served = {PRIMARY, SECONDARY, "ledger-dev", "mixed-case"}
+    withheld = {"label-test", "sealed-task-name", "ledger-test", "ledger-unassigned"}
+    for task_id, dataset, split in (
+        ("ledger-dev", "synthetic-ledger-fixture", "dev"),
+        ("mixed-case", "synthetic-cloud-fixture", "DEV"),
+        ("label-test", "synthetic-cloud-fixture", "test"),
+        # Labelled DEV, but a canonical TEST row seals the task name.
+        ("sealed-task-name", "synthetic-cloud-fixture", "dev"),
+        # Labelled DEV in the database, TEST (or absent) in the split ledger.
+        ("ledger-test", "synthetic-ledger-fixture", "dev"),
+        ("ledger-unassigned", "synthetic-ledger-fixture", "dev"),
     ):
-        default = client.get(f"/api/cloud-db/{collection}", headers=AUTH)
-        assert {row[key] for row in default.json()[collection]} == all_ids
-        dev = client.get(f"/api/cloud-db/{collection}", headers=AUTH, params={"split": "dev"})
-        assert dev.status_code == 200
-        assert {row[key] for row in dev.json()[collection]} == dev_ids
-        assert "secondaryinstruction" not in dev.text
-        assert "secondarytrace" not in dev.text
-        assert (
-            client.get(
+        runtime.database.upsert_task(
+            {**_task(task_id, f"{task_id} withheldneedle"), "dataset_id": dataset, "split": split}
+        )
+        runtime.database.upsert_task_issue(_issue(f"issue-{task_id}", task_id))
+        runtime.database.upsert_trace(
+            _trace(f"trace-{task_id}", task_id, None),
+            steps=[{"step_index": 0, "role": "user", "content_text": f"{task_id} withheldneedle"}],
+        )
+    for collection in ("tasks", "issues", "traces"):
+        for params in ({}, {"split": "dev"}, {"q": "withheldneedle"}):
+            response = client.get(f"/api/cloud-db/{collection}", headers=AUTH, params=params)
+            assert response.status_code == 200
+            owners = {row["task_id"] for row in response.json()[collection]}
+            assert owners <= served
+            assert not owners & withheld
+            if params.get("q"):
+                assert owners == {"ledger-dev", "mixed-case"}
+        for withheld_task in withheld:
+            rows = client.get(
+                f"/api/cloud-db/{collection}", headers=AUTH, params={"task_id": withheld_task}
+            ).json()[collection]
+            assert rows == []
+        for split in ("test", "heldout", "held", "all", ""):
+            refused = client.get(
+                f"/api/cloud-db/{collection}", headers=AUTH, params={"split": split}
+            )
+            assert refused.status_code == 400
+            assert "withheldneedle" not in refused.text
+
+
+def test_cloud_admission_normalizes_comparison_identities_but_preserves_raw_records(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    allowed = {"Raw-DEV-Alias", "null-item"}
+    fixtures = (
+        ("Raw-DEV-Alias", " SyNtHeTiC-LeDgEr-FiXtUrE ", {"item_id": " LeDgEr-DeV "}),
+        ("null-item", "synthetic-cloud-fixture", {"item_id": None}),
+        # A DEV task-name alias cannot override its padded TEST item identity.
+        ("ledger-dev", " SyNtHeTiC-LeDgEr-FiXtUrE ", {"item_id": " LeDgEr-TeSt "}),
+        ("cross-key-test", "synthetic-cloud-fixture", {"item_id": " LeDgEr-TeSt "}),
+        ("sealed-item-alias", "synthetic-cloud-fixture", {"item_id": " SeAlEd-ItEm "}),
+        ("namespace/SEALED-TASK-NAME@v1", "synthetic-cloud-fixture", {}),
+        ("invalid-item-object", "synthetic-cloud-fixture", {"item_id": {"id": "ledger-dev"}}),
+        ("invalid-item-number", "synthetic-cloud-fixture", {"item_id": 0}),
+    )
+    for task_id, dataset, metadata in fixtures:
+        runtime.database.upsert_task(
+            {
+                **_task(task_id, "Synthetic identityfixture", split=" DEV "),
+                "dataset_id": dataset,
+                "metadata_json": metadata,
+            }
+        )
+        runtime.database.upsert_task_issue(_issue("issue-" + task_id, task_id))
+        runtime.database.upsert_trace(
+            _trace("trace-" + task_id, task_id, None),
+            steps=[{"step_index": 0, "role": "user", "content_text": "Synthetic identityfixture"}],
+        )
+    for collection in ("tasks", "issues", "traces"):
+        response = client.get(f"/api/cloud-db/{collection}", headers=AUTH)
+        assert response.status_code == 200
+        assert {row["task_id"] for row in response.json()[collection]} == allowed
+        for task_id, _, _ in fixtures:
+            response = client.get(
                 f"/api/cloud-db/{collection}",
                 headers=AUTH,
-                params={"task_id": SECONDARY, "split": "dev"},
-            ).json()[collection]
-            == []
-        )
+                params={"task_id": task_id},
+            )
+            assert response.status_code == 200
+            assert {row["task_id"] for row in response.json()[collection]} == (
+                {task_id} if task_id in allowed else set()
+            )
+    raw = client.get(
+        "/api/cloud-db/tasks",
+        headers=AUTH,
+        params={"task_id": "Raw-DEV-Alias"},
+    ).json()["tasks"][0]
+    assert raw["dataset_id"] == " SyNtHeTiC-LeDgEr-FiXtUrE "
+    assert raw["metadata_json"]["item_id"] == " LeDgEr-DeV "
+    assert raw["split"] == " DEV "
+
+
+@pytest.mark.parametrize("metadata", ["{", "null", "[]", '"not an identity mapping"'])
+def test_cloud_api_isolates_malformed_identity_metadata_from_valid_siblings(
+    client: TestClient,
+    runtime: CloudRuntime,
+    metadata: str,
+) -> None:
+    for task_id in ("valid", "invalid-metadata"):
+        runtime.database.upsert_task(_task(task_id, "Synthetic metadata fixture"))
+        runtime.database.upsert_task_issue(_issue("issue-" + task_id, task_id))
+        runtime.database.upsert_trace(_trace("trace-" + task_id, task_id, None))
+    runtime.database._connection.execute(
+        "UPDATE corpus_tasks SET metadata_json = ? WHERE task_id = ?",
+        (metadata, "invalid-metadata"),
+    )
+    for collection in ("tasks", "issues", "traces"):
+        response = client.get(f"/api/cloud-db/{collection}", headers=AUTH)
+        assert response.status_code == 200
+        assert {row["task_id"] for row in response.json()[collection]} == {"valid"}
+
+
+def test_cloud_api_refuses_every_collection_when_assignment_authority_is_missing(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    runtime.database.upsert_task(_task("otherwise-dev", "Synthetic unassigned source"))
+    runtime.database.upsert_task_issue(_issue("issue", "otherwise-dev"))
+    runtime.database.upsert_trace(_trace("trace", "otherwise-dev", None))
+    (runtime.repo_root / "research/answer-keys/splits/assignments.csv").unlink()
+    runtime.registry = type(runtime.registry)(runtime.repo_root)
+    for collection in ("tasks", "issues", "traces"):
+        response = client.get(f"/api/cloud-db/{collection}", headers=AUTH)
+        assert response.status_code == 200
+        assert response.json()[collection] == []
+
+
+def test_cloud_api_does_not_hydrate_denied_task_bodies(
+    client: TestClient,
+    runtime: CloudRuntime,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for task_id, split in (("allowed", "dev"), ("denied", "test")):
+        runtime.database.upsert_task(_task(task_id, "Inert synthetic body", split=split))
+        runtime.database.upsert_task_issue(_issue("issue-" + task_id, task_id))
+        runtime.database.upsert_trace(_trace("trace-" + task_id, task_id, None))
+
+    def guarded_body(value: str, task_id: str) -> str:
+        if task_id == "denied":
+            raise AssertionError("the denied synthetic body must not be hydrated")
+        return value
+
+    connection = runtime.database._connection
+    connection.create_function("guarded_body", 2, guarded_body)
+    original_connect = sqlite3.connect
+
+    def guarded_connection(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+        opened = original_connect(*args, **kwargs)
+        opened.create_function("guarded_body", 2, guarded_body)
+        return opened
+
+    monkeypatch.setattr(sqlite3, "connect", guarded_connection)
+    columns = [row[1] for row in connection.execute("PRAGMA table_info(corpus_tasks)")]
+    projection = ", ".join(
+        "guarded_body(instruction_text, task_id) AS instruction_text"
+        if name == "instruction_text"
+        else '"' + name + '"'
+        for name in columns
+    )
+    connection.execute("ALTER TABLE corpus_tasks RENAME TO guarded_tasks")
+    connection.execute(f"CREATE VIEW corpus_tasks AS SELECT {projection} FROM guarded_tasks")
+    # Reading identity columns is safe; selecting a denied instruction raises
+    # inside SQLite. A post-hydration Python filter cannot pass this boundary.
+    for collection in ("tasks", "issues", "traces"):
+        response = client.get(f"/api/cloud-db/{collection}", headers=AUTH)
+        assert response.status_code == 200
+        assert {row["task_id"] for row in response.json()[collection]} == {"allowed"}
 
 
 def _swarm_benchmark_report() -> dict[str, Any]:
@@ -686,7 +858,65 @@ def _arm_comparison_report() -> dict[str, Any]:
     }
 
 
-def test_retained_benchmarks_list_both_schemas_and_hash_exact_document_bytes(
+def _named_arm_comparison_report(*, complete: bool = False) -> dict[str, Any]:
+    arms = []
+    for name in (
+        "solo-frontier",
+        "cheap-swarm",
+        "retrieval-swarm",
+        "hybrid-adjudicated",
+        "baseline",
+    ):
+        unanswered = name == "baseline" and not complete
+        arms.append(
+            {
+                "arm": name,
+                "label": "Synthetic " + name,
+                "harness": "synthetic-review-only",
+                "retrieval": name == "retrieval-swarm",
+                "requested_models": ["fixture/requested-" + name],
+                "served_models": [] if unanswered else ["fixture/served-" + name],
+                "coverage": {
+                    "answered_n": 7 if complete else 0 if unanswered else 2,
+                    "judged_n": 7 if complete else 0 if unanswered else 1,
+                    "missing_n": 0 if complete else 6 if unanswered else 1,
+                    "blocked_n": 0 if complete else 1,
+                    "refused_n": 0 if complete or unanswered else 1,
+                    "unavailable_n": 0 if complete or unanswered else 1,
+                    "malformed_n": 0 if complete or unanswered else 1,
+                    "unattested_n": 0,
+                },
+                "metrics": {
+                    "primary_hits_n": 0 if complete else None,
+                    "primary_total_n": 7 if complete else None,
+                    "precision": 0.0 if complete else None,
+                    "recall": 0.0 if complete else None,
+                    "f1": None,
+                },
+                "spend_usd": 0.0 if complete else None,
+                "model_calls": 7 if complete else None,
+                "artifact_sha256": None
+                if unanswered
+                else hashlib.sha256(("synthetic evidence: " + name).encode()).hexdigest(),
+            }
+        )
+    return {
+        "schema": "evallab.arm_comparison/v2",
+        "protocol": "synthetic-clean-input-v1",
+        "status": "complete" if complete else "blocked",
+        "cohort": {
+            "dataset_id": "synthetic-cloud-fixture",
+            "split": "dev",
+            "task_count": 7,
+            "eligible_n": 7 if complete else 6,
+            "blocked_n": 0 if complete else 1,
+        },
+        "arms": arms,
+        "generated_at": "2026-10-25T15:15:00Z",
+    }
+
+
+def test_retained_benchmarks_preserve_historic_and_named_reports_with_exact_byte_hashes(
     client: TestClient,
     runtime: CloudRuntime,
 ) -> None:
@@ -695,6 +925,7 @@ def test_retained_benchmarks_list_both_schemas_and_hash_exact_document_bytes(
     expected = []
     for name, report in (
         ("arms.json", _arm_comparison_report()),
+        ("named.json", _named_arm_comparison_report()),
         ("swarm.json", _swarm_benchmark_report()),
     ):
         raw = (json.dumps(report, indent=2) + "\n").encode("utf-8")
@@ -806,6 +1037,115 @@ def test_arm_comparison_schema_is_strict(
     assert reason in result["rejected"][0]["reason"]
 
 
+@pytest.mark.parametrize("complete", [False, True], ids=["awaiting-judgment", "complete-with-zero"])
+def test_named_reports_keep_unavailable_metrics_distinct_from_measured_zero(
+    client: TestClient,
+    runtime: CloudRuntime,
+    complete: bool,
+) -> None:
+    report = _named_arm_comparison_report(complete=complete)
+    if not complete:
+        report["status"] = "incomplete"
+        report["cohort"].update(eligible_n=7, blocked_n=0)
+        for arm in report["arms"]:
+            arm["coverage"]["blocked_n"] = 0
+            arm["coverage"]["missing_n"] += 1
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    (directory / "named.json").write_text(json.dumps(report))
+    response = client.get("/api/cloud-db/benchmarks", headers=AUTH)
+    assert response.status_code == 200
+    result = response.json()
+    assert result["rejected"] == []
+    returned = result["benchmarks"][0]["report"]
+    assert returned == report
+    assert returned["arms"][0]["metrics"]["f1"] is None
+    assert returned["arms"][0]["metrics"]["recall"] == (0.0 if complete else None)
+    if not complete:
+        assert returned["arms"][-1]["served_models"] == []
+        assert returned["arms"][-1]["requested_models"] == ["fixture/requested-baseline"]
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("status",), "complete"),
+        (("status",), "incomplete"),
+        (("cohort", "eligible_n"), 7),
+        (("arms", 0, "coverage", "missing_n"), 2),
+        (("arms", 0, "coverage", "judged_n"), 3),
+        (("arms", 0, "coverage", "unattested_n"), True),
+        (("arms", 0, "metrics", "recall"), 0.0),
+        (("arms", 0, "metrics", "primary_total_n"), 7),
+        (("arms", 0, "served_models"), []),
+        (("arms", 0, "served_models"), ["fixture/actual", "fixture/actual"]),
+        (("arms", 0, "served_models"), ["fixture/actual", "FIXTURE/ACTUAL"]),
+        (("arms", 0, "requested_models"), ["fixture/planned", "fixture/planned"]),
+        (("arms", 0, "artifact_sha256"), None),
+        (("arms", 0, "arm"), "  "),
+        (("arms", 0, "arm"), " solo-frontier "),
+        (("arms", 1, "arm"), "SOLO-FRONTIER"),
+        (("arms", 0, "model_calls"), -1),
+        (("arms", 0, "served_models"), ["requested-name-without-provider"]),
+        (("protocol",), " "),
+    ],
+)
+def test_named_comparison_rejects_inconsistent_coverage_or_identity_claims(
+    client: TestClient,
+    runtime: CloudRuntime,
+    path: tuple[str | int, ...],
+    value: Any,
+) -> None:
+    report = _named_arm_comparison_report()
+    target = report
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    (directory / "invalid.json").write_text(json.dumps(report))
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["benchmarks"] == []
+    assert [entry["file"] for entry in result["rejected"]] == ["invalid.json"]
+
+
+def test_incomplete_arm_keeps_every_full_comparison_metric_unavailable(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    report = _named_arm_comparison_report(complete=True)
+    report["status"] = "incomplete"
+    report["arms"][-1]["coverage"]["judged_n"] = 0
+    report["arms"][-1]["metrics"] = dict.fromkeys(report["arms"][-1]["metrics"])
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    path = directory / "named.json"
+    path.write_text(json.dumps(report))
+    rejected = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert rejected["benchmarks"] == []
+    assert [entry["file"] for entry in rejected["rejected"]] == ["named.json"]
+    for arm in report["arms"]:
+        arm["metrics"] = dict.fromkeys(arm["metrics"])
+    path.write_text(json.dumps(report))
+    accepted = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert accepted["rejected"] == []
+    assert accepted["benchmarks"][0]["report"]["status"] == "incomplete"
+
+
+def test_named_arm_cannot_omit_common_blocked_identities_from_its_accounting(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    report = _named_arm_comparison_report()
+    report["arms"][0]["coverage"].update(blocked_n=0, missing_n=2)
+    directory = runtime.data_root / "benchmarks"
+    directory.mkdir()
+    (directory / "invalid.json").write_text(json.dumps(report))
+    result = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert result["benchmarks"] == []
+    assert [entry["file"] for entry in result["rejected"]] == ["invalid.json"]
+
+
 @pytest.mark.parametrize(
     "raw",
     [
@@ -884,6 +1224,85 @@ def _append_live_event(
             else {"step": {"step_id": 2, "message": event_id}},
         }
     )
+
+
+def test_cloud_runtime_refuses_receiptless_asset_via_the_store(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    _append_live_event(
+        runtime.queue,
+        "bare-asset",
+        event_type="asset.verified",
+        status="confirmed",
+        payload={
+            "dataset_id": "tb4-audit-v1",
+            "item_id": "cloud-dev-item",
+            "asset_id": "witness:bare",
+            "kind": "exploit_witness",
+            "source_event_id": "not-journaled",
+            "candidate_digest": None,
+            "original_reward": 1.0,
+            "repaired_reward": 0.0,
+        },
+    )
+    response = client.get("/api/assets", headers=AUTH)
+    assert response.status_code == 200
+    assert response.json()["assets"] == []
+    assert (
+        client.get(
+            "/api/assets/detail", headers=AUTH, params={"asset_id": "witness:bare"}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/assets/export", headers=AUTH, json={"asset_id": "witness:bare"}
+        ).status_code
+        == 404
+    )
+
+
+@pytest.mark.parametrize("outside_roots", [False, True])
+def test_cloud_runtime_inspects_replay_diffs_only_inside_evidence_roots(
+    client: TestClient,
+    runtime: CloudRuntime,
+    tmp_path: Path,
+    outside_roots: bool,
+) -> None:
+    snapshots = (tmp_path / "outside" if outside_roots else runtime.data_root) / "snapshots"
+    original, repaired = snapshots / "original", snapshots / "repaired"
+    for directory, body in (
+        (original, "accepts_any = True\n"),
+        (repaired, "accepts_any = False\n"),
+    ):
+        directory.mkdir(parents=True)
+        (directory / "verifier.py").write_text(body, encoding="utf-8")
+    _append_live_event(
+        runtime.queue,
+        "replay-observation",
+        event_type="seeker.replay_observation",
+        payload={
+            "dataset_id": "tb4-audit-v1",
+            "item_id": "cloud-dev-item",
+            "original_task": str(original),
+            "repaired_task": str(repaired),
+            "snapshot_status": "snapshot_unverified",
+            "recorded_rewards": {"original": 1.0, "repaired": 0.0},
+        },
+    )
+    response = client.get("/api/grader-diff", headers=AUTH, params={"run_id": "cloud-live-run"})
+    if outside_roots:
+        assert response.status_code == 403
+        assert response.json()["detail"]["code"] == "path_outside_roots"
+        return
+    assert response.status_code == 200
+    diff = response.json()
+    assert diff["original"]["reward"] is None and diff["repaired"]["reward"] is None
+    verifier = next(file for file in diff["files"] if file["path"] == "verifier.py")
+    assert verifier["original"] == "accepts_any = True\n"
+    assert verifier["repaired"] == "accepts_any = False\n"
+    assert "+accepts_any = False" in verifier["unified_diff"]
 
 
 def test_state_keeps_existing_control_plane_shape_and_projects_live_events(

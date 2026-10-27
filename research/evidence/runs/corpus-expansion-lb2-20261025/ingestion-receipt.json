@@ -1,0 +1,262 @@
+{
+ "applied": true,
+ "apply": {
+  "backup": {
+   "bytes": 1545261056,
+   "integrity_check": "ok",
+   "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/corpus-expansion-lb2/deepswe-stage/backup/cloud-trace-db.pre-lb2.sqlite",
+   "reused_existing_pre_write_backup": true
+  },
+  "by_split": {
+   "DEV": {
+    "is_exploit": 984,
+    "steps": 372745,
+    "tasks": 334,
+    "traces": 1534
+   },
+   "held": {
+    "is_exploit": 0,
+    "steps": 0,
+    "tasks": 0,
+    "traces": 0
+   }
+  },
+  "cas_objects_copied_or_confirmed": 4928,
+  "database_integrity": {
+   "agent_traces_fts": "ok",
+   "corpus_tasks_fts": "ok",
+   "foreign_key_violations": 0,
+   "integrity_check": "ok",
+   "task_issues_fts": "ok",
+   "trace_steps_fts": "ok"
+  },
+  "native_nodes_reconstructed_from_raw_cas": 372745,
+  "new_dev_tasks_admitted_by_gate": 334,
+  "new_held_tasks_admitted_by_gate": 0,
+  "preexisting_rows_fingerprint_after": {
+   "agent_traces": {
+    "rows": 3437,
+    "sha256": "62b4a8647cd783bc80c71c13316839350259520ea59448e4062825358435ff7c"
+   },
+   "corpus_tasks": {
+    "rows": 3373,
+    "sha256": "2b8ebec9ebc228a9a6ff0d90ccd88931a402a41d695838ba3ab36f105830ca4f"
+   },
+   "task_issues": {
+    "rows": 252,
+    "sha256": "2bde66d8d1198bc52faa2459552216e9ebc78dc874049eb95b980a33720e31ac"
+   },
+   "trace_steps": {
+    "rows": 222510,
+    "sha256": "3f625b15e9df68f88eec019e9ab2ed6acb0db2b71f318e18a4cdbd9fd401fd2f"
+   }
+  },
+  "preexisting_rows_fingerprint_before": {
+   "agent_traces": {
+    "rows": 3437,
+    "sha256": "62b4a8647cd783bc80c71c13316839350259520ea59448e4062825358435ff7c"
+   },
+   "corpus_tasks": {
+    "rows": 3373,
+    "sha256": "2b8ebec9ebc228a9a6ff0d90ccd88931a402a41d695838ba3ab36f105830ca4f"
+   },
+   "task_issues": {
+    "rows": 252,
+    "sha256": "2bde66d8d1198bc52faa2459552216e9ebc78dc874049eb95b980a33720e31ac"
+   },
+   "trace_steps": {
+    "rows": 222510,
+    "sha256": "3f625b15e9df68f88eec019e9ab2ed6acb0db2b71f318e18a4cdbd9fd401fd2f"
+   }
+  },
+  "preexisting_rows_unchanged": true,
+  "row_count_delta": {
+   "agent_traces": 1534,
+   "corpus_tasks": 334,
+   "task_issues": 0,
+   "trace_steps": 372745
+  },
+  "row_counts_after": {
+   "agent_traces": 4971,
+   "corpus_tasks": 3707,
+   "task_issues": 252,
+   "trace_steps": 595255
+  },
+  "row_counts_before": {
+   "agent_traces": 3437,
+   "corpus_tasks": 3373,
+   "task_issues": 252,
+   "trace_steps": 222510
+  },
+  "tasks_already_present": 0,
+  "tasks_written": 334,
+  "traces_already_present": 0,
+  "traces_written": 1534
+ },
+ "authority": "CONTRACT.md section 4 (Peter Makhnatch direct instruction, 2026-10-25 afternoon)",
+ "created_at": "2026-10-26T21:28:05.585030+00:00",
+ "decode": {
+  "distinct_native_tasks": 334,
+  "fetch_receipts": {
+   "/private/tmp/lb1-20261025/goodfire-wrench/goodfire-fetch-metadata.json": "cab5bd5885a5e6541b49f59c72f471bc8c19f83a7e584b91ede56010c8fa4a6b",
+   "/private/tmp/lb1-20261025/goodfire-wrench/goodfire-fetch-streams.json": "5b51c281fea704cdc78ad94a52f835e50551cb779febccb843bf04293ba88c55"
+  },
+  "ingest_script_sha256": "04ff6f15b4bec6adc60823863750e05cb0ae1139fa58db01866ce2ff72724ecc",
+  "json_decoded_by_this_phase": true,
+  "native_rows": 1534,
+  "network_requests": 0,
+  "normalizer_sha256": "79538cd27eed1f924608f4477ea31b04e0135d7501716ccaed64aa6652e67616",
+  "publisher_manifest_facts": {
+   "deepswe-glm-5.2-fp8": {
+    "publisher_complete_flag": false,
+    "publisher_errored_rows": 2,
+    "publisher_expected_episodes": 565,
+    "publisher_manifest_sha256": "d5b78b6f4352f943dbe5ea9340b4dccb3a93511a85fc0fbf3fca563af4c08254",
+    "publisher_marker_files": [
+     "_PARTIAL"
+    ],
+    "publisher_rows": 562
+   },
+   "deepswe-kimi-k3": {
+    "publisher_complete_flag": false,
+    "publisher_errored_rows": 43,
+    "publisher_expected_episodes": 565,
+    "publisher_manifest_sha256": "97e836956c5e50b48a9f59ff035013ba201799ec597775852f667a64c9a559ed",
+    "publisher_marker_files": [
+     "_PARTIAL"
+    ],
+    "publisher_rows": 520
+   },
+   "deepswe-qwen3.8-2.4t-a95b-fp8": {
+    "publisher_complete_flag": null,
+    "publisher_errored_rows": 0,
+    "publisher_expected_episodes": null,
+    "publisher_manifest_sha256": "0296d5168a068dc52e9b38aefa8184689fa25e9c52bfef2b0a97530927067ce0",
+    "publisher_marker_files": [
+     "_SUCCESS"
+    ],
+    "publisher_rows": 452
+   }
+  },
+  "repo": "Goodfire/reward-hack-data",
+  "revision": "bd8fb473568b8ef1d12fc2325a5c8af939c15ad9",
+  "runs": [
+   {
+    "branching_rows": 375,
+    "family": "deepswe",
+    "handoff": "/Users/petermakhnatch/.local/state/evallab-prod-live/corpus-expansion-lb2/deepswe-stage/handoff/traces-deepswe-glm-5.2-fp8.jsonl",
+    "handoff_sha256": "ab72b3573eb3d865a7b72e66c15917718d417a2e010babaceee0270cdcd8f497",
+    "judged": 562,
+    "label_rows": 562,
+    "mode": "decoded",
+    "native_rows": 562,
+    "nodes_off_final_path": 12029,
+    "passage_rows": 147247,
+    "reasoning_steps": 41663,
+    "run": "deepswe-glm-5.2-fp8",
+    "seconds": 63.2,
+    "steps": 164957,
+    "tasks_new": 113,
+    "tool_call_steps": 79736,
+    "unjudged": 0
+   },
+   {
+    "branching_rows": 0,
+    "family": "deepswe",
+    "handoff": "/Users/petermakhnatch/.local/state/evallab-prod-live/corpus-expansion-lb2/deepswe-stage/handoff/traces-deepswe-kimi-k3.jsonl",
+    "handoff_sha256": "bbf53a672e9d2ad7fe32391914554b1a5a09f26e709a9d50304a323209ee52ce",
+    "judged": 512,
+    "label_rows": 520,
+    "mode": "decoded",
+    "native_rows": 520,
+    "nodes_off_final_path": 0,
+    "passage_rows": 116161,
+    "reasoning_steps": 42375,
+    "run": "deepswe-kimi-k3",
+    "seconds": 40.5,
+    "steps": 102178,
+    "tasks_new": 221,
+    "tool_call_steps": 45980,
+    "unjudged": 8
+   },
+   {
+    "branching_rows": 11,
+    "family": "deepswe",
+    "handoff": "/Users/petermakhnatch/.local/state/evallab-prod-live/corpus-expansion-lb2/deepswe-stage/handoff/traces-deepswe-qwen3.8-2.4t-a95b-fp8.jsonl",
+    "handoff_sha256": "efb22392165065a99c7b579c0c2d0be8251b101f99712ddfa1900b713b3b8954",
+    "judged": 452,
+    "label_rows": 452,
+    "mode": "decoded",
+    "native_rows": 452,
+    "nodes_off_final_path": 15,
+    "passage_rows": 129813,
+    "reasoning_steps": 46833,
+    "run": "deepswe-qwen3.8-2.4t-a95b-fp8",
+    "seconds": 53.7,
+    "steps": 105610,
+    "tasks_new": 0,
+    "tool_call_steps": 46812,
+    "unjudged": 0
+   }
+  ],
+  "schema": "lb2.goodfire.deepswe_decode_receipt/1",
+  "shard_sha256": "e0f13336fb4865f18abd02583963688ac61cfb28bdfdc309a7b002df449bb827",
+  "source_files_sha256": {
+   "deepswe-glm-5.2-fp8/labels/judge_passages.jsonl": "d0e14640af46d1a90879ee4a85656355e52e119efaf0b80f0a68ae924ff1d7f2",
+   "deepswe-glm-5.2-fp8/labels/judge_rollouts.jsonl": "c7c8d733f68f14029052d8464eda634729e1f699600083573a02376c2ac9bced",
+   "deepswe-glm-5.2-fp8/traces.jsonl": "0fea097d0f3f273dec19066633dc247b2782a4c3c9cf017c43883c16c870cef7",
+   "deepswe-kimi-k3/labels/judge_passages.jsonl": "ecf2047e2c0d1b9c52a82a40397a2a30656e2984da19cf5a3844d5b82c9a62d2",
+   "deepswe-kimi-k3/labels/judge_rollouts.jsonl": "f548ec0d1c067c2867eca16924e4df99b83bc93658d3c8531a01de24ef1b1b13",
+   "deepswe-kimi-k3/traces.jsonl": "c9d5b5883a85dab5abf9c4aef8e5f78c12f8d60fa7df372482873e188c16a6e1",
+   "deepswe-qwen3.8-2.4t-a95b-fp8/labels/judge_passages.jsonl": "a04cb8b7c2c04968b6fa0b27f86704acb859de2131a5883abb480865e3107b11",
+   "deepswe-qwen3.8-2.4t-a95b-fp8/labels/judge_rollouts.jsonl": "17007c1291b4a0e0084898262334cb2bbefbca2d59043af2062200fff4a8ce0d",
+   "deepswe-qwen3.8-2.4t-a95b-fp8/traces.jsonl": "dc5fe76d04ac03964f71eed0cc08500140f5cc01e7f6d713ed4dc29a9375dec2"
+  },
+  "steps": 372745
+ },
+ "docker_runs": 0,
+ "eval_lab_commit": "c35cf7ce984b6403eedf8298189727cab7df2fd0",
+ "gate_sensitivity_probe": {
+  "probe_ids_admitted_by_gate": 0,
+  "sealed_text_identities_probed": 1337
+ },
+ "ingest_script_sha256": "adc05342ee11d4c2f5b9326d0da1fa66c491e385edb4da0b720d0740a852f89c",
+ "model_calls": 0,
+ "network_requests": 0,
+ "normalizer_sha256": "79538cd27eed1f924608f4477ea31b04e0135d7501716ccaed64aa6652e67616",
+ "plan": {
+  "assignment_ledger_sha256": "sha256:542f28de8fc6c88a8a4667cfe6a57f07788f06757af5be29706db835d7eb4a86",
+  "totals": {
+   "DEV": {
+    "enacted_yes": 984,
+    "is_exploit": 984,
+    "steps": 372745,
+    "tasks": 334,
+    "traces": 1534
+   },
+   "held": {
+    "enacted_yes": 0,
+    "is_exploit": 0,
+    "steps": 0,
+    "tasks": 0,
+    "traces": 0
+   }
+  },
+  "traces_by_run_and_split": {
+   "deepswe-glm-5.2-fp8": {
+    "DEV": 562,
+    "held": 0
+   },
+   "deepswe-kimi-k3": {
+    "DEV": 520,
+    "held": 0
+   },
+   "deepswe-qwen3.8-2.4t-a95b-fp8": {
+    "DEV": 452,
+    "held": 0
+   }
+  }
+ },
+ "schema": "lb2.goodfire.deepswe_ingestion_receipt/1",
+ "sealed_identities_in_receipt": 0
+}

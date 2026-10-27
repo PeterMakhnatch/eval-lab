@@ -77,6 +77,20 @@ on its original frozen prefix. Retain source events for this recovery contract.
 Each new observed prefix uses causal `tripwires.scan_prefix` rules and the same
 alert renderer as the filesystem watcher. `monitor.prefix_scored` reports measured
 deterministic latency against the 2-second target, not an unmeasured guarantee.
+Scoring is incremental: `monitor_worker.IncrementalPrefixState` owns one
+`tripwires.PrefixScanner` per run, so a newly observed step is scored once and the
+cross-step rules advance their own carried state instead of rescanning steps 1..k
+(`scan_prefix` remains the offline/batch reference). The run state also maintains
+an incremental SHA-256 prefix digest (`trace_prefix_sha256`), incremental
+capture-coverage tracking, and the rolling identical-command run and completion
+counters the run alarm reads, so `repetition`/`completion_loop` fire once at the
+prefix step that first crossed their threshold and carry a real cited step.
+Digest finalization and immutable card-prefix snapshots are O(1); appending hashes
+only the new step's bytes. Semantic triage and offline promotion materialize the
+snapshot outside the scoring path. Amended or out-of-order steps explicitly replay
+the observed prefix instead of double-counting an action. Whole-worker strict O(1)
+is not guaranteed: emitted coverage lists, cross-step evidence matching, and input
+step size are variable. The measured latency target is separate from complexity.
 `monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
 run; ordinary assistant prose is not proof that reasoning was captured. A supplied
 `trace_cheap.JudgeFn` triages triggered prefixes on a separate thread. No judge or
@@ -86,6 +100,23 @@ causality, a verified exploit, or an automatically promoted labeled-trace asset.
 All semantic citations must match the frozen prefix, or the card stays provisional.
 An independently evidenced label is promoted only through the explicit
 `verify_and_promote_trace_label` path described below.
+
+Scoring an *early* prefix of a finished trace is a different measurement, so it is
+declared, not inferred. `MisalignmentLiveWorker(prefix_fraction=0.25|0.5|0.75)`
+truncates batch `payload.steps` snapshots, ordered by step ID, to
+`ceil(prefix_fraction * n_agent_steps)` and strips structured post-run fields.
+Verifier steps are dropped whole; `outcome`, `passed`, `resolved`, `verifier_result`,
+`verifier_stdout`, `grader_output`, `reward` and `final_reward` are removed
+from steps and payloads (failing closed on over-deep
+nesting), and `monitor.prefix_scored.payload.causal_isolation` counts exactly what
+was withheld. At the default `prefix_fraction=1.0` the trace is finished and
+nothing is withheld. Without this the verifier's verdict — which only exists after
+the agent's last action — leaks into an "early warning" measurement and the result
+is retrospective diagnosis, not causal detection.
+Recovery applies the same isolation and refuses a checkpoint from a different
+`prefix_fraction`. Single-step events are already observed prefixes: replay callers
+must stop feeding them at their chosen cutoff; the worker cannot infer a live run's
+future length.
 
 Sandbox executors call `pre_action_gate(run_id, proposed_step)` synchronously
 before a tool action and honor its `allow` result; proposed actions never become
@@ -746,6 +777,70 @@ uses a durable `<queue-stem>.poison.sqlite` beside the selected SQLite queue or
 PostgreSQL fallback path. Delivery is at least once: consumers must deduplicate by
 event ID beyond JetStream's configured finite duplicate window.
 
+### Physically separate actor bundles
+
+`project-actor` prepares a new local SQLite/CAS bundle without opening the
+production queue, starting workers, executing stored content, uploading data, or
+authorizing cloud spend. It consults the canonical registry using identity
+metadata first; missing split authority and unadmitted task IDs fail closed.
+Repeat `--task-id` to narrow the admitted set, or omit it to select all admitted
+rows. The source database is opened read-only, and all seven admission identity
+fields are compared again inside the coherent source snapshot used for copying.
+
+```bash
+uv run evallab prod project-actor \
+  --repo-root /path/to/corpus-workspace \
+  --source-database /path/to/source/cloud-trace-db.sqlite \
+  --source-cas /path/to/source/cas \
+  --cas-allowlist /path/to/operator-approved-cas-uris.json \
+  --output-directory /path/to/new/actor-bundle \
+  --task-id approved-dev-task \
+  --max-bytes 104857600
+```
+
+The CAS allowlist is a JSON array of explicitly approved URI strings, each
+`cas://sha256/` followed by 64 lowercase hexadecimal characters. Approval is an
+operator assertion, not independent rights adjudication. Only direct references
+in the task, issue, trace and step URI columns are followed; embedded references
+are preserved but not traversed. Each copied object is streamed, hash-checked,
+deduplicated, and bounded by `--max-bytes`. That cap covers CAS bytes only; SQLite
+size is reported separately as `projection.database_bytes`.
+
+The bundle contains `cloud-trace-db.sqlite`, `cas/`, and `manifest.json`. SQLite
+is rebuilt into fresh canonical tables and FTS indexes rather than backed up and
+filtered: unrelated tables, deleted source pages and excluded rows are not copied.
+Full admitted step bodies and source labels remain intact. Admission is not
+label verification, training eligibility, semantic decontamination or blinding;
+the manifest explicitly records that this export has not independently verified
+the labels. It includes the selected identity-set digest, database hash/size,
+allowlist digest and each staged object hash/size, without hashing the entire raw
+source database.
+
+The output must not already exist. Paths must have symlink-free, stable ancestry,
+and the destination parent must be writable only by the operator: publication is
+atomic against ordinary concurrent creators, not against an adversary who can
+replace entries inside that parent. The caller must exclusively own the source
+projection and staging tree during preparation. A destination inside, containing,
+or physically aliasing the source CAS tree—including its `sha256/`
+directory—is refused before any staging entry is created, so a failed run leaves
+the source tree entry-for-entry unchanged.
+
+The source database is never written to, and no journal file is created beside
+it: a rollback-journal source is opened read-only, and a WAL-format source is read
+as an immutable image only when it is closed and checkpointed. A source with a
+live `-wal`/`-shm` is refused with an explicit message, because SQLite would
+otherwise create sidecar files in the source directory; close and checkpoint the
+source first.
+
+Publication uses atomic no-clobber operations on Linux/macOS, not a replace
+fallback, and re-verifies that the published directory is the staged one.
+Directories are private and database, manifest and CAS files are mode `0600`;
+publication flushes the staged tree and its parent directory.
+Unsupported publication platforms fail closed. A failed preparation removes its
+own private staging tree, never an existing destination or unrelated source data.
+This command does not lift a hold on raw data or authorize a whole-store upload.
+
+
 ### HTTP and worker contracts
 
 `evallab.production.control_plane.create_app(queue, operator_tokens={token: operator})`
@@ -816,6 +911,36 @@ the laptop's Docker daemon when local execution is disabled. Selecting Modal
 does not grant spend approval: missing approval/cap/ledger/attribution refuses
 before provider calls, and a Modal refusal never falls back to local Docker.
 
+Fresh Seeker candidates are bound to the captured OMP JSON event stream by
+`llm_stdout_sha256`; `llm_solve_sha256` binds the extracted `solve.sh` bytes to
+that response. Attempt, feedback, confirmed-witness, and verified-asset records
+also carry the actual `served_provider` and `served_model` from the assistant
+message, separately from the requested `model_route`. The worker rechecks the
+script at staging, native bundle execution, and promotion. Missing attestations,
+unknown served identity, implicit static templates, or any later script rewrite
+refuse execution/promotion instead of acquiring model credit. Direct non-LLM
+controls may still use differential replay without being promoted as LLM assets.
+
+`llm_solve_sha256` is never computed from the workspace file that will be graded,
+and never from text found anywhere in the stream. A workspace lane's digest is the
+content of the last assistant `write` call to `submission/solve.sh` whose tool
+result reports success; a prompt echo, assistant prose, a failed or unmatched
+write, another path, or a tool call not authored by the assistant attests nothing.
+A headless response must be the final assistant message of the captured stream,
+and its served identity is read from that stream, not declared by the caller. The
+served route counts every assistant message: a mid-session fallback reads as a
+mismatch, a candidate with no requested `model_route` is refused, and only a
+`:thinking` selector is ignored when comparing the requested and served route.
+These hashes establish local byte custody, not a provider-signed attestation.
+
+Headless consumers may supply an explicit OMP configuration and a sealed
+`dev_task_allowlist`. The latter rejects non-DEV or unlisted tasks before
+workspace reads and avoids opening mixed-split manifests for prompt admission.
+An optional `CloudTraceRetriever` adds only its bounded evidence block and
+writes `retrieval.json` beside the raw model response. Reuse one retriever
+instance to keep its DEV snapshot fixed across a comparison; see
+[`task-quality.md`](task-quality.md#cloud-task-issue-and-trace-evidence).
+
 `evallab.production.asset_exporter.VerifiedAssetExporter` is the downstream
 evidence gate: it rescans the durable journal, re-verifies every
 `asset.verified` event end to end, and writes `assets.jsonl` with
@@ -830,8 +955,15 @@ experiment matrix receipt — and any identity metadata they declare must match
 the qualification record citing them. A bare `{"reward": ...}` JSON object is
 never measured evidence. A `labeled_trace` requires a verified
 `evallab.trace_label/v1` receipt bound to the asset's dataset, item, and the
-labeled trace itself, with citations resolving verbatim; a completed
-`monitor.suspicion` card is raw suspicion, never a verified label.
+labeled trace itself, with citations resolving verbatim. Its `verification`
+block is mandatory: the exporter reloads and checks an independent measured
+execution or source-record-backed human adjudication proof, linked through
+`source_event_id` and `source_event_type` to a confirmed `trace.label_verified`
+promotion carrying the identical receipt. Missing, null, malformed, or forged
+proofs and missing, wrong-type, or unconfirmed promotion sources fail closed
+for both asset export and training backing. Citations and a `verified` status
+alone never prove a label; a completed `monitor.suspicion` card is raw
+suspicion, never a verified label.
 
 `MisalignmentLiveWorker.verify_and_promote_trace_label(run_id, card_id,
 receipt)` is the producer for that asset kind. It promotes one journaled
@@ -891,9 +1023,16 @@ failed native executions never become measured evidence.
 `export_training_bundle` applies the same gate to training candidates: every
 candidate's identity is re-resolved against the registry, recognized
 identity/provenance fields nested in rows and linked event payloads are
-inspected for sealed or conflicting identities (prose is never scanned), and
-deduplication keys on the exact `(dataset_id, canonical task name,
-mechanism_signature)` tuple so `benchmark/name@version` aliases collapse
+inspected for sealed or conflicting identities (prose is never scanned).
+Every row must reference an `asset.verified` or `task_quality.repair_qualified`
+event whose measured execution or ground-truth adjudication receipts re-verify
+at export time; event-free rows and unverified-only references are rejected.
+Any unconfirmed referenced event or payload declaring `provisional`,
+`suspected`, or `candidate` status rejects the row even when another reference
+is verified, so provisional evidence cannot ride along into training.
+`provenance.verified_by` names each backing reference key, event id/type, and
+journal sequence. Deduplication keys on the exact `(dataset_id, canonical task
+name, mechanism_signature)` tuple so `benchmark/name@version` aliases collapse
 within one dataset. Writes refuse output directories under a symlink
 ancestor and any same-named file whose existing bytes differ, leave no
 mismatched half-bundle on failure, and a durable consumer cursor acknowledges
@@ -904,14 +1043,17 @@ only after the complete bundle is on disk.
 `src/evallab/production/modal_cloud.py` deploys the `evallab-cloud-production`
 Modal app. Its `evallab-cloud-store` Volume is mounted at `/data` and retains
 `prod.sqlite`, `cloud-trace-db.sqlite`, `cas/`, the relay outbox, execution
-evidence, and one shared `cloud-spend.json` infrastructure ledger. Import
-consistent SQLite backups, not live database files without their WAL:
+evidence, and one shared `cloud-spend.json` infrastructure ledger. Cloud adoption
+requires an allowlisted actor projection and its reachable CAS objects, plus
+integrated admission/comparison contract proof. Never copy an entire raw
+database/CAS tree to unblock deployment or treat retained metadata counts as
+production eligibility. Preserve existing evidence and reports; data transfer
+remains stopped until its exact allowlisted object scope is proven.
+
+Once those prerequisites and the protected merge are complete, deploy the
+merged code with the single-owner recreation strategy:
 
 ```bash
-modal volume create evallab-cloud-store
-modal volume put evallab-cloud-store /path/to/backup/prod.sqlite /prod.sqlite
-modal volume put evallab-cloud-store /path/to/backup/cloud-trace-db.sqlite /cloud-trace-db.sqlite
-modal volume put evallab-cloud-store /path/to/cas /cas
 modal deploy --strategy recreate src/evallab/production/modal_cloud.py
 ```
 
@@ -929,15 +1071,105 @@ The existing `/`, `/api/state`, and `/api/stream` control plane runs alongside
 `/api/cloud-db/stats`, `/api/cloud-db/issues`, `/api/cloud-db/traces?q=...`,
 and `/api/cloud-db/tasks`. Searches return complete retained records and
 ordered trace steps, without changing source claims into new verification.
+`tasks`, `issues`, and `traces` use the same identity-only
+`admitted_cloud_task_ids` gate as retrieval and actor projection. Keys, item IDs,
+task-name aliases, and digest seals are compared after whitespace/case
+normalization; returned source IDs and metadata are not rewritten. Canonical or
+ledger-known keys require explicit DEV assignments, and TEST identities remain
+excluded across dataset aliases. Missing/invalid assignment authority admits
+nothing; malformed/non-object metadata or non-string item identities exclude
+only their own rows, without poisoning valid siblings. The admitted raw-ID
+allowlist is applied before instruction/issue/trace/step hydration, not after
+fetching denied bodies. `split` defaults to `dev`; any other value is HTTP 400.
+`stats` counts retained rows, not production-eligible rows.
 `lab db --cloud QUERY` searches over authenticated HTTPS without opening a
 local database; `lab db --cloud --stats` reports cloud record counts.
 
+The cloud control plane wires the same `VerifiedAssetStore` and `RunInspector`
+used locally. Asset browsing and replay grader diffs are enabled only within
+the repository and durable `/data` evidence roots. The cloud store is
+browse-only (`export_root=None`): deployment does not authorize asset exports.
+
 The dashboard adds a **Trace DB Search** tab (always `split=dev`) and an
 **Opus vs Swarm** tab backed by `/api/cloud-db/benchmarks`, which lists retained
-DEV-only `evallab.swarm_bench/v1` reports and `evallab.arm_comparison/v1`
-documents (arms A single strong model, B cheap swarm, C swarm plus Opus
-adjudicator) from `/data/benchmarks/*.json` with exact-byte SHA-256 digests;
-invalid or non-DEV files are reported under `rejected`, never rendered.
+`evallab.swarm_bench/v1`, historic `evallab.arm_comparison/v1` documents
+(arms A single strong model, B cheap swarm, C swarm plus Opus adjudicator), and
+named `evallab.arm_comparison/v2` studies from `/data/benchmarks/*.json`.
+Each document retains its exact-byte SHA-256; invalid or non-DEV-intended
+files are reported under `rejected`, never rendered. Existing reports are not
+rewritten, upgraded into verified coverage, or pooled with another protocol.
+
+The v2 contract supports any nonempty list of uniquely named arms, including
+five-arm studies. `protocol` identifies one prompt/input stratum. The cohort
+retains its full `task_count`: reported `eligible_n + blocked_n` must equal that
+denominator. `split: "dev"` describes the intended cohort, not independent
+clearance of blocked identities. No task contents or model execution are needed
+to read a report.
+
+Each arm's `coverage` partitions that denominator into `answered_n`, `missing_n`,
+`blocked_n`, `refused_n`, `unavailable_n`, `malformed_n`, and `unattested_n`.
+`judged_n` is a subset of answered cells, not another terminal state. An answered
+cell means **all required outputs for that arm/identity** exist and are attested;
+a valid empty answer is not missing. Every arm must retain the common cohort's
+blocked identities. `status` must be `blocked` if any blocked identity exists,
+otherwise `incomplete` until every arm has every answer and required judgment,
+and only then `complete`. These are validated source-reported counts, not an
+independent execution/adjudication audit by the dashboard.
+
+All five full-comparison metric fields must be **null** for blocked or incomplete
+reports, including otherwise complete individual arms. Complete coverage permits
+recorded metrics but does not turn an undefined metric into zero. Non-null
+precision/recall/F1 are finite fractions in `[0, 1]`; primary hit/total counts are
+either both null or nonnegative integers with hits no greater than the total.
+The UI distinguishes `Not available` from a legitimate `0.00%` and never ranks
+models or silently substitutes an answered-only denominator.
+
+`requested_models` and `served_models` are separate lists of distinct
+`provider/model` identities. An unanswered arm can have no served identity;
+the UI never copies requested IDs into that column. Answered arms require served
+identities and an `artifact_sha256` binding retained source evidence. Digest
+presence is not independently verified provider attestation. Unknown spend,
+model-call counts, and an unanswered arm's evidence digest may be null, not
+fabricated zeros or hashes. Arm IDs are trimmed and case-insensitively unique;
+model lists likewise reject duplicate identities. Other fields remain strict
+and extra fields are rejected.
+
+For example, this **synthetic blocked** report is valid; it contains no scores:
+
+```json
+{
+  "schema": "evallab.arm_comparison/v2",
+  "protocol": "synthetic-clean-input-v1",
+  "status": "blocked",
+  "cohort": {
+    "dataset_id": "synthetic-fixture",
+    "split": "dev",
+    "task_count": 7,
+    "eligible_n": 6,
+    "blocked_n": 1
+  },
+  "arms": [{
+    "arm": "planned-frontier",
+    "label": "Synthetic pending arm",
+    "harness": "synthetic-review-only",
+    "retrieval": false,
+    "requested_models": ["fixture/requested-model"],
+    "served_models": [],
+    "coverage": {
+      "answered_n": 0, "judged_n": 0, "missing_n": 6, "blocked_n": 1,
+      "refused_n": 0, "unavailable_n": 0, "malformed_n": 0, "unattested_n": 0
+    },
+    "metrics": {
+      "primary_hits_n": null, "primary_total_n": null,
+      "precision": null, "recall": null, "f1": null
+    },
+    "spend_usd": null,
+    "model_calls": null,
+    "artifact_sha256": null
+  }],
+  "generated_at": "2026-10-25T15:15:00Z"
+}
+```
 
 One Modal class instance owns both SQLite stores. The web endpoint and worker
 method share that owner; do not deploy a second independent writer against

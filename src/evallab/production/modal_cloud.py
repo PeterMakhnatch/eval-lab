@@ -1,15 +1,19 @@
 """Authenticated Modal production control plane, durable stores, and CPU workers.
 
 Deploy with ``modal deploy --strategy recreate src/evallab/production/modal_cloud.py``
-after importing SQLite backups and CAS objects into ``evallab-cloud-store``. One cloud actor owns
-all SQLite connections: independent Modal containers must never write snapshots
-of the same Volume-backed SQLite database. The remote worker entrypoint forwards
+only after integrated contract proof and an allowlisted actor projection plus
+its reachable CAS scope are established. Never bulk-copy a raw database.
+One cloud actor owns all SQLite connections: independent Modal containers must
+never write snapshots of the same Volume-backed SQLite database. The remote worker entrypoint forwards
 to that actor; visiting the dashboard never dispatches work or calls a model.
 Recreate deployments quiesce the old actor before its replacement opens SQLite.
 
-Retained benchmark documents live in ``<data_root>/benchmarks/*.json``. The
-read-only listing accepts ``evallab.swarm_bench/v1`` reports with ``split: "dev"``
-and this strict ``evallab.arm_comparison/v1`` JSON contract (no extra fields)::
+Retained benchmark documents live in ``<data_root>/benchmarks/*.json``. Named
+or incomplete studies use ``evallab.arm_comparison/v2``: coverage and protocol
+are explicit, unavailable metrics remain null, and requested models never
+substitute for served identities. See ``docs/live-watch.md`` for its wire contract.
+Historic ``evallab.swarm_bench/v1`` reports with ``split: "dev"`` and the strict
+``evallab.arm_comparison/v1`` contract below remain readable without rewriting::
 
     {
       "schema": "evallab.arm_comparison/v1",
@@ -38,7 +42,7 @@ Model identifiers record what was actually served, not requested model aliases.
 Counts are nonnegative integers, hits cannot exceed totals, metric fractions
 are finite in [0, 1], and spend is finite and nonnegative. Each listing entry
 includes the SHA-256 of the exact document bytes, separate from arm artifacts.
-Reports describe DEV-only key agreement, never held-out performance.
+Reports retain DEV-intended evidence and coverage, never held-out capability.
 """
 
 from __future__ import annotations
@@ -64,9 +68,15 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from evallab.execution_backend import ExecutionBackendConfig
-from evallab.production.cloud_trace_db import CloudTraceDatabase, S3CompatibleCAS
+from evallab.production.asset_store import VerifiedAssetStore
+from evallab.production.cloud_trace_db import (
+    CloudTraceDatabase,
+    S3CompatibleCAS,
+    admitted_cloud_task_ids,
+)
 from evallab.production.control_plane import create_app
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
+from evallab.production.inspector import RunInspector
 from evallab.production.monitor_worker import MisalignmentLiveWorker
 from evallab.production.outbox_relay import LocalJetStreamAdapter, OutboxRelay
 from evallab.production.seeker_worker import RewardSeekerLiveWorker
@@ -146,6 +156,148 @@ class _ArmComparison(_BenchmarkRecord):
         return self
 
 
+class _NamedCohort(_BenchmarkCohort):
+    task_count: Annotated[int, Field(gt=0)]
+    eligible_n: _Count
+    blocked_n: _Count
+
+    @model_validator(mode="after")
+    def validate_denominator(self) -> Self:
+        if self.eligible_n + self.blocked_n != self.task_count:
+            raise ValueError("eligible_n + blocked_n must equal task_count")
+        return self
+
+
+class _ArmCoverage(_BenchmarkRecord):
+    answered_n: _Count
+    judged_n: _Count
+    missing_n: _Count
+    blocked_n: _Count
+    refused_n: _Count
+    unavailable_n: _Count
+    malformed_n: _Count
+    unattested_n: _Count
+
+    @model_validator(mode="after")
+    def validate_judgments(self) -> Self:
+        if self.judged_n > self.answered_n:
+            raise ValueError("judged_n must not exceed answered_n")
+        return self
+
+
+class _NullableArmMetrics(_BenchmarkRecord):
+    primary_hits_n: _Count | None
+    primary_total_n: _Count | None
+    precision: _Fraction | None
+    recall: _Fraction | None
+    f1: _Fraction | None
+
+    @model_validator(mode="after")
+    def validate_hits(self) -> Self:
+        hits, total = self.primary_hits_n, self.primary_total_n
+        if (hits is None) != (total is None):
+            raise ValueError("primary hits and total must both be recorded or both be null")
+        if hits is not None and total is not None and hits > total:
+            raise ValueError("primary_hits_n must not exceed primary_total_n")
+        return self
+
+
+class _NamedComparisonArm(_BenchmarkRecord):
+    arm: _Label
+    label: _Label
+    harness: _Label
+    retrieval: bool
+    requested_models: list[Annotated[str, Field(pattern=r"^[^\s/]+/[^\s]+$")]]
+    served_models: list[Annotated[str, Field(pattern=r"^[^\s/]+/[^\s]+$")]]
+    coverage: _ArmCoverage
+    metrics: _NullableArmMetrics
+    spend_usd: _Spend | None
+    model_calls: _Count | None
+    artifact_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")] | None
+
+    @field_validator("arm")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        if value != value.strip():
+            raise ValueError("arm identifiers must not have surrounding whitespace")
+        return value
+
+    @field_validator("requested_models", "served_models")
+    @classmethod
+    def validate_distinct_models(cls, value: list[str]) -> list[str]:
+        if len({model.casefold() for model in value}) != len(value):
+            raise ValueError("model identities must be distinct")
+        return value
+
+    @model_validator(mode="after")
+    def validate_answer_backing(self) -> Self:
+        if self.coverage.answered_n and (not self.served_models or self.artifact_sha256 is None):
+            raise ValueError(
+                "answered cells require actual served identities and an artifact digest"
+            )
+        return self
+
+
+class _NamedArmComparison(_BenchmarkRecord):
+    schema_: Literal["evallab.arm_comparison/v2"] = Field(alias="schema")
+    protocol: _Label
+    status: Literal["blocked", "incomplete", "complete"]
+    cohort: _NamedCohort
+    arms: Annotated[list[_NamedComparisonArm], Field(min_length=1)]
+    generated_at: str
+
+    @field_validator("generated_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        timestamp = datetime.fromisoformat(value)
+        if timestamp.tzinfo is None or "T" not in value:
+            raise ValueError("generated_at must be an ISO-8601 timestamp with timezone")
+        return value
+
+    @model_validator(mode="after")
+    def validate_coverage(self) -> Self:
+        if len({arm.arm.casefold() for arm in self.arms}) != len(self.arms):
+            raise ValueError("arm identifiers must be unique")
+        blocked = self.cohort.blocked_n > 0
+        complete = True
+        for arm in self.arms:
+            coverage = arm.coverage
+            answer_total = (
+                coverage.answered_n
+                + coverage.missing_n
+                + coverage.blocked_n
+                + coverage.refused_n
+                + coverage.unavailable_n
+                + coverage.malformed_n
+                + coverage.unattested_n
+            )
+            if answer_total != self.cohort.task_count:
+                raise ValueError("terminal answer-state counts must equal cohort.task_count")
+            if coverage.blocked_n < self.cohort.blocked_n:
+                raise ValueError("arm blocked_n must include every cohort blocked identity")
+            blocked |= coverage.blocked_n > 0
+            complete &= (
+                coverage.answered_n == self.cohort.task_count
+                and coverage.judged_n == self.cohort.task_count
+            )
+            metrics = arm.metrics
+            if self.status != "complete" and any(
+                value is not None
+                for value in (
+                    metrics.primary_hits_n,
+                    metrics.primary_total_n,
+                    metrics.precision,
+                    metrics.recall,
+                    metrics.f1,
+                )
+            ):
+                raise ValueError("full-comparison metrics must be null until coverage is complete")
+        expected = "blocked" if blocked else "complete" if complete else "incomplete"
+        if self.status != expected:
+            raise ValueError(f"status must be {expected} for the reported coverage")
+        return self
+
+
 class _SwarmScore(_BenchmarkRecord):
     # run_benchmark also retains selections, attribution, and descriptive deltas.
     model_config = ConfigDict(strict=True, extra="allow", allow_inf_nan=False)
@@ -214,9 +366,11 @@ def _benchmark_document(raw: bytes) -> dict[str, Any]:
     schema = document.get("schema")
     if schema == "evallab.arm_comparison/v1":
         _ArmComparison.model_validate(document)
+    elif schema == "evallab.arm_comparison/v2":
+        _NamedArmComparison.model_validate(document)
     elif schema == "evallab.swarm_bench/v1":
         if "arms" in document:
-            raise ValueError("Comparison arms require schema evallab.arm_comparison/v1")
+            raise ValueError("Comparison arms require an evallab.arm_comparison schema")
         _SwarmBenchmark.model_validate(document)
     else:
         raise ValueError("Unknown benchmark schema")
@@ -250,6 +404,11 @@ _LOGIN = """<!doctype html><meta charset="utf-8"><title>Eval Lab cloud login</ti
 
 class _LoginRequest(BaseModel):
     token: str
+
+
+def _require_dev(split: str) -> None:
+    if split != "dev":
+        raise HTTPException(400, "Only split=dev is served; sealed and held-out splits are refused")
 
 
 def _matches(query: str, record: Mapping[str, Any]) -> bool:
@@ -302,7 +461,18 @@ class CloudRuntime:
             self.database = CloudTraceDatabase(self.data_root / "cloud-trace-db.sqlite")
             cleanup.callback(self.database.close)
             self.cas = S3CompatibleCAS(local_directory=self.cas_root, bucket="")
-            self.app = create_app(self.queue, operator_tokens={token: "Peter"})
+            roots = [self.repo_root, self.data_root]
+            self.app = create_app(
+                self.queue,
+                operator_tokens={token: "Peter"},
+                asset_store=VerifiedAssetStore(
+                    self.queue,
+                    self.registry,
+                    export_root=None,
+                    allowed_roots=roots,
+                ),
+                inspector=RunInspector(self.queue, self.registry, allowed_roots=roots),
+            )
             self._add_routes(token)
             cleanup.pop_all()
 
@@ -312,22 +482,37 @@ class CloudRuntime:
             connection.row_factory = sqlite3.Row
             return [dict(row) for row in connection.execute(sql, parameters)]
 
-    def _tasks(
-        self,
-        task_id: str | None,
-        query: str,
-        *,
-        split: str | None = None,
-    ) -> list[dict[str, Any]]:
-        conditions, parameters = [], []
-        for field, value in (("task_id", task_id), ("split", split)):
-            if value is not None:
-                conditions.append(f"{field} = ?")
-                parameters.append(value)
-        where = " WHERE " + " AND ".join(conditions) if conditions else ""
-        rows = self._query(
-            "SELECT * FROM corpus_tasks" + where + " ORDER BY task_id", tuple(parameters)
+    def _admitted_task_ids(self, task_id: str | None = None) -> frozenset[str]:
+        """Apply the shared admission policy to identity metadata before hydration."""
+        identities = self._query(
+            "WITH identities AS ("
+            " SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest,"
+            " metadata_json, CASE WHEN json_valid(metadata_json)"
+            " THEN json_type(metadata_json) END AS metadata_type FROM corpus_tasks"
+            ") SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest,"
+            " CASE WHEN metadata_type = 'object'"
+            " THEN json_extract(metadata_json, '$.item_id') END AS item_id,"
+            " CASE WHEN metadata_type = 'object'"
+            " THEN json_type(metadata_json, '$.item_id') ELSE 'invalid' END AS item_type"
+            " FROM identities"
         )
+        admitted = admitted_cloud_task_ids(identities, registry=self.registry)
+        return admitted if task_id is None else admitted.intersection((task_id,))
+
+    def _tasks(self, task_id: str | None, query: str) -> list[dict[str, Any]]:
+        identifiers = sorted(self._admitted_task_ids(task_id))
+        rows: list[dict[str, Any]] = []
+        # Match the store's bounded hydration batches, keeping SQL bind counts
+        # independent of corpus size and denied bodies out of the SELECT.
+        for start in range(0, len(identifiers), 500):
+            page = identifiers[start : start + 500]
+            placeholders = ", ".join("?" for _ in page)
+            rows.extend(
+                self._query(
+                    f"SELECT * FROM corpus_tasks WHERE task_id IN ({placeholders}) ORDER BY task_id",
+                    tuple(page),
+                )
+            )
         for row in rows:
             row["metadata_json"] = json.loads(row["metadata_json"])
         return [row for row in rows if _matches(query, row)]
@@ -453,8 +638,9 @@ class CloudRuntime:
             }
 
         @self.app.get("/api/cloud-db/tasks")
-        def tasks(q: str = "", task_id: str | None = None, split: str | None = None):
-            return {"tasks": self._tasks(task_id, q, split=split)}
+        def tasks(q: str = "", task_id: str | None = None, split: str = "dev"):
+            _require_dev(split)
+            return {"tasks": self._tasks(task_id, q)}
 
         @self.app.get("/api/cloud-db/issues")
         def issues(
@@ -463,20 +649,22 @@ class CloudRuntime:
             direction: Literal["wrong_pass", "unfair_fail"] | None = None,
             defect_class: str | None = None,
             only_verified: bool = False,
-            split: str | None = None,
+            split: str = "dev",
         ):
+            _require_dev(split)
+            admitted = self._admitted_task_ids(task_id)
             rows = self.database.query_task_issues(
                 task_id,
                 direction=direction,
                 confirmed_only=only_verified,
+                allowed_task_ids=admitted,
             )
             return {
                 "issues": [
                     row
                     for row in rows
                     if (
-                        (split is None or row["task"]["split"] == split)
-                        and (defect_class is None or row["defect_class"] == defect_class)
+                        (defect_class is None or row["defect_class"] == defect_class)
                         and _matches(q, row)
                     )
                 ]
@@ -490,32 +678,31 @@ class CloudRuntime:
             tool_name: str | None = None,
             only_verified: bool = False,
             direction: Literal["wrong_pass", "unfair_fail"] | None = None,
-            split: str | None = None,
+            split: str = "dev",
         ):
+            _require_dev(split)
+            admitted = self._admitted_task_ids(task_id)
             rows = self.database.search_traces(
                 q,
                 defect_class=defect_class,
                 tool_name=tool_name,
                 only_verified=only_verified,
+                allowed_task_ids=admitted,
             )
             return {
                 "traces": [
                     row
                     for row in rows
                     if (
-                        (task_id is None or row["task_id"] == task_id)
-                        and (split is None or row["task"]["split"] == split)
-                        and (
-                            not (direction or defect_class)
-                            or any(
-                                _issue_matches(
-                                    issue,
-                                    direction=direction,
-                                    defect_class=defect_class,
-                                    only_verified=only_verified,
-                                )
-                                for issue in row["issues"]
+                        not (direction or defect_class)
+                        or any(
+                            _issue_matches(
+                                issue,
+                                direction=direction,
+                                defect_class=defect_class,
+                                only_verified=only_verified,
                             )
+                            for issue in row["issues"]
                         )
                     )
                 ]

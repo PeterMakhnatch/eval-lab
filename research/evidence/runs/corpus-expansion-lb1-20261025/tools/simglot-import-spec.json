@@ -1,0 +1,24 @@
+{
+  "production_root": "/Users/petermakhnatch/.local/state/evallab-prod-live",
+  "sources": [
+    {
+      "source": "SimGlot 840 annotation envelopes; one non-runnable catalog row",
+      "cas_root": "/private/tmp/lb1-20261025/simglot/verified-fetch-202ea4ada91e441c92d5e568b90307a1/local-cas",
+      "cas_manifest": "/private/tmp/lb1-20261025/simglot-cas-manifest.handoff.json",
+      "cas_manifest_sha256": "2444881f30afa22ffd356b75c41af6f011f6317280d2a538f1d66ac72853e5a1",
+      "task_jsonl": [
+        {
+          "path": "/private/tmp/lb1-20261025/simglot-catalog.handoff.jsonl",
+          "sha256": "ab96005115812a329f6b2f5599d872148cf9c77a970858577b1cec933b1f6d7f",
+          "expected_records": 1
+        }
+      ],
+      "retain_artifacts": [
+        {
+          "path": "/private/tmp/lb1-20261025/simglot/verified-fetch-202ea4ada91e441c92d5e568b90307a1/simglot-metadata.jsonl",
+          "sha256": "e9cd8a9e609aaba63ae006d768384ddc319881b824680a39b2da587ff87e5351"
+        }
+      ]
+    }
+  ]
+}

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import posixpath
 import re
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from evallab.edit_signals import step_bash_commands
@@ -435,6 +436,73 @@ def _update_state(seg: str, state: dict[str, Any]) -> None:
     _derive(seg, state["files"], state["dirs"], state["cwd"])
 
 
+class CorroborationState:
+    """One trajectory's working-directory/tree/derivation state, advanced per step.
+
+    :func:`content_corroboration` is already a single ordered pass over the
+    steps, so a live prefix only has to keep the pass's state alive instead of
+    re-deriving it from step 1 on every new step.
+    """
+
+    def __init__(
+        self,
+        watched_shas: Sequence[str] = (),
+        watched_prefixes: Sequence[str] = (),
+    ) -> None:
+        self._watched_shas = list(watched_shas)
+        self._watched_prefixes = list(watched_prefixes)
+        self._state: dict[str, Any] = {
+            "cwd": None,
+            "tree": "own",
+            "files": set(),
+            "dirs": set(),
+            "peer_dirs": set(),
+        }
+
+    def snapshot(self) -> tuple[Any, str, set[str], set[str], set[str]]:
+        """Save point for speculative scoring (the pre-action gate)."""
+        state = self._state
+        return (
+            state["cwd"],
+            state["tree"],
+            set(state["files"]),
+            set(state["dirs"]),
+            set(state["peer_dirs"]),
+        )
+
+    def restore(self, snapshot: tuple[Any, str, set[str], set[str], set[str]]) -> None:
+        cwd, tree, files, dirs, peer_dirs = snapshot
+        self._state = {
+            "cwd": cwd,
+            "tree": tree,
+            "files": set(files),
+            "dirs": set(dirs),
+            "peer_dirs": set(peer_dirs),
+        }
+
+    def advance(self, step: Mapping[str, Any]) -> list[dict[str, Any]]:
+        """Return the corroboration hits this step adds."""
+        state = self._state
+        hits: list[dict[str, Any]] = []
+        step_id = step.get("step_id")
+        for keys in step_bash_commands(dict(step)):
+            for seg in _segments(keys):
+                kind = _content_kind(
+                    seg,
+                    state["files"],
+                    self._watched_shas,
+                    sorted(state["files"] | state["dirs"] | state["peer_dirs"]),
+                    self._watched_prefixes,
+                    state["tree"],
+                    state["cwd"],
+                    step_id,
+                )
+                if kind is not None:
+                    hits.append({"step": step_id, "kind": kind, "command": seg[:200]})
+                _update_state(seg, state)
+        return hits
+
+
 def content_corroboration(
     agent_steps: list[dict[str, Any]],
     watched_shas: list[str],
@@ -447,35 +515,8 @@ def content_corroboration(
     resolved against the tracked working directory, whose tree flips to peer
     material on non-default checkouts and local peer-branch clones.
     """
-    state: dict[str, Any] = {
-        "cwd": None,
-        "tree": "own",
-        "files": set(),
-        "dirs": set(),
-        "peer_dirs": set(),
-    }
+    state = CorroborationState(watched_shas, watched_prefixes)
     hits: list[dict[str, Any]] = []
     for step in agent_steps:
-        step_id = step.get("step_id")
-        for keys in step_bash_commands(step):
-            for seg in _segments(keys):
-                kind = _content_kind(
-                    seg,
-                    state["files"],
-                    watched_shas,
-                    sorted(state["files"] | state["dirs"] | state["peer_dirs"]),
-                    watched_prefixes,
-                    state["tree"],
-                    state["cwd"],
-                    step_id,
-                )
-                if kind is not None:
-                    hits.append(
-                        {
-                            "step": step_id,
-                            "kind": kind,
-                            "command": seg[:200],
-                        }
-                    )
-                _update_state(seg, state)
+        hits.extend(state.advance(step))
     return hits

@@ -7,6 +7,7 @@ bytes, queue, provider credentials, or paid execution are touched.
 
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 import sqlite3
@@ -27,6 +28,7 @@ from evallab.production.corpus_queue import (
     IdempotencyConflict,
     LeaseLostError,
     SplitLockError,
+    source_record_digest,
 )
 
 DATASET = "tb4-audit-v1"
@@ -254,6 +256,38 @@ def test_registry_indexes_all_four_public_corpora_and_exact_mimo_versions(
         registry.get("mimo-defect-map-v1", "mimo-dev")
 
 
+def test_bare_numeric_item_ids_seal_structurally_but_not_as_text(corpus_root: Path) -> None:
+    _write_jsonl(
+        corpus_root / "research/answer-keys/cheatbench-actions-v1/items.jsonl",
+        [_item("44", "test", "cheatbench/numbered-held"), _item("45", "dev", "cheatbench/numbered")],
+    )
+    registry = CorpusRegistry(corpus_root)
+    seals = registry.sealed_identifiers()
+    assert "44" not in seals
+    assert "numbered-held" in seals
+    assert registry.sealed_identity(item_id=" 44 ") == "item_id"
+    assert registry.sealed_identity(item_id="45") is None
+    with pytest.raises(SplitLockError):
+        registry.admit("cheatbench-actions-v1", "44")
+
+
+def test_mimo_without_ledger_rows_resolves_through_inventory_names(
+    registry: CorpusRegistry, corpus_root: Path,
+) -> None:
+    key = " MIMO-DEFECT-MAP-V1 "
+    assert registry.assigned_split(key, task_id="mimo-code/MIMO-DEV@v3") == "dev"
+    assert registry.assigned_split(key, item_id=" mimo-dev@sha256:version1 ") == "dev"
+    assert registry.assigned_split(key, task_id="mimo-code/mimo-held") == "test"
+    assert registry.assigned_split(key, task_id="mimo-hidden") == "test"
+    assert registry.assigned_split(key, task_id="mimo-unknown") is None
+    # Once the ledger carries the key, its explicit rows alone authorize DEV.
+    ledger = corpus_root / "research/answer-keys/splits/assignments.csv"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text("key_id,item_id,task,split\nmimo-defect-map-v1,other,,dev\n")
+    assert CorpusRegistry(corpus_root).assigned_split(key, task_id="mimo-dev") is None
+
+
+
 def test_registry_dev_admission_and_test_split_rejection(registry: CorpusRegistry) -> None:
     assert registry.admit(**DEV).split == "dev"
     for token in (None, "wrong-token"):
@@ -307,6 +341,125 @@ def _assignments(corpus_root: Path, rows: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("key_id,item_id,task,split\n" + rows, encoding="utf-8")
     return path
+
+
+def test_registry_normalizes_seals_without_rewriting_source_identities(corpus_root: Path) -> None:
+    source = _item(
+        " Canonical-Sealed-Item ", " TEST ", " Namespace@release/Canonical-Sealed-Task@v2 ",
+        " SHA256:CANONICAL-SEALED-DIGEST ",
+    )
+    source["key_id"] = " TB4-AUDIT-V1 "
+    _write_jsonl(
+        corpus_root / "research/answer-keys/tb4-audit-v1/items.jsonl",
+        [_item("finding-dev", "dev", "terminal-bench/dev-task"), source],
+    )
+    _write_jsonl(
+        corpus_root / "research/answer-keys/cheatbench-actions-v1/items.jsonl",
+        [
+            _item("name-alias", "dev", "Other/CANONICAL-SEALED-TASK@v9"),
+            _item("digest-alias", "dev", "other/unrelated", " sha256:canonical-sealed-digest "),
+        ],
+    )
+    registry = CorpusRegistry(corpus_root)
+    stored = registry.get(" TB4-AUDIT-V1 ", "canonical-sealed-item")
+    assert stored.item_id == source["item_id"]
+    assert stored.task_id == source["subject"]["task_id"]
+    assert stored.task_digest == source["subject"]["task_digest"]
+    assert stored.metadata == source
+    assert stored.source_record_sha256 == source_record_digest(source)
+    assert registry.sealed_identity(item_id=" CANONICAL-SEALED-ITEM ") == "item_id"
+    assert registry.sealed_identity(
+        task_id=" other@release/canonical-sealed-task@v99 ",
+    ) == "task name"
+    assert registry.sealed_identity(
+        task_digest=" sha256:canonical-sealed-digest ",
+    ) == "task digest"
+    for dataset, item_id in (
+        (DATASET, " CANONICAL-SEALED-ITEM "),
+        (" CHEATBENCH-ACTIONS-V1 ", " NAME-ALIAS "),
+        ("cheatbench-actions-v1", "digest-alias"),
+    ):
+        with pytest.raises(SplitLockError):
+            registry.admit(dataset, item_id)
+    assert registry.admit(" TB4-AUDIT-V1 ", " FINDING-DEV ").item_id == "finding-dev"
+
+
+def test_normalized_assignment_test_wins_without_global_secondary_queue_seals(
+    corpus_root: Path,
+) -> None:
+    _assignments(
+        corpus_root,
+        " MIXED-KEY , ITEM-DEV , Namespace/Dev-Task@v1 , DEV \n"
+        " mixed-key , ITEM-TEST , Namespace/Other-Task@v1 , TEST \n"
+        f" {SECONDARY_KEY.upper()} , FINDING-DEV , TERMINAL-BENCH/DEV-TASK@v9 , TEST \n",
+    )
+    registry = CorpusRegistry(corpus_root)
+    assert registry.has_assignment_authority()
+    assert registry.has_split_assignments(" MIXED-KEY ")
+    assert registry.assigned_split(
+        " mixed-key ", item_id=" item-test ", task_id="Other/DEV-TASK@v7",
+    ) == "test"
+    assert registry.assigned_split(
+        " MIXED-KEY ", task_id=" Namespace@old/ DEV-TASK @v99 ",
+    ) == "dev"
+    assert registry.assigned_test_anywhere(item_id=" Finding-Dev ")
+    assert registry.assigned_test_anywhere(task_id=" Alias@old/DEV-TASK@v3 ")
+    assert registry.sealed_identity(task_id=" Alias/DEV-TASK@v3 ") is None
+    assert registry.admit(" TB4-AUDIT-V1 ", " FINDING-DEV ").split == "dev"
+
+
+def test_package_seal_normalizes_heldout_versions_and_digest(corpus_root: Path) -> None:
+    record = {
+        "record_id": " Raw-Package-Record ",
+        "task_id": " Namespace/MIXED-PACKAGE-TASK@v5 ",
+        "package_digest": " SHA256:PACKAGE-SEALED ",
+    }
+    inventory = corpus_root / "research/experiments/mimo-defect-map-v1/inventory.json"
+    inventory.write_text(json.dumps({
+        "dataset_id": "mimo-defect-map-v1",
+        "heldout_task_ids_excluded_from_training_all_versions": [" Mixed-Package-Task "],
+        "tasks": [record],
+    }), encoding="utf-8")
+    registry = CorpusRegistry(corpus_root)
+    stored = registry.get(" MIMO-DEFECT-MAP-V1 ", "raw-package-record")
+    assert stored.split == "test"
+    assert stored.item_id == record["record_id"]
+    assert stored.task_id == record["task_id"]
+    assert stored.task_digest == record["package_digest"]
+    assert stored.source_record_sha256 == source_record_digest(record)
+    assert registry.sealed_identity(task_digest=" sha256:package-sealed ") == "task digest"
+
+
+@pytest.mark.parametrize("ledger", (None, "", "key_id,item_id,task,split\n"))
+def test_source_only_registry_without_nonempty_ledger_is_not_assignment_authority(
+    corpus_root: Path, ledger: str | None,
+) -> None:
+    if ledger is not None:
+        path = corpus_root / "research/answer-keys/splits/assignments.csv"
+        path.parent.mkdir()
+        path.write_text(ledger, encoding="utf-8")
+    registry = CorpusRegistry(corpus_root)
+    if ledger is None:
+        assert registry.split_assignments_digest is None
+    else:
+        assert registry.split_assignments_digest is not None
+    assert not registry.has_assignment_authority()
+    assert registry.get(DATASET, "finding-dev").task_id == "terminal-bench/dev-task"
+
+
+@pytest.mark.parametrize("ledger", (
+    "key_id,item_id,task\nk,i,t\n",
+    "key_id,item_id,task,split\nk,i,t\n",
+    'key_id,item_id,task,split\n"k,i,t,dev\n',
+))
+def test_malformed_assignment_ledger_cannot_be_authority(
+    corpus_root: Path, ledger: str,
+) -> None:
+    path = corpus_root / "research/answer-keys/splits/assignments.csv"
+    path.parent.mkdir()
+    path.write_text(ledger, encoding="utf-8")
+    with pytest.raises((ValueError, KeyError, csv.Error)):
+        CorpusRegistry(corpus_root)
 
 
 def test_secondary_key_heldout_never_seals_canonical_dev_or_cross_dataset_alias(

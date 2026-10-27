@@ -4015,6 +4015,8 @@ def _v10_repeat_fixture(
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    # The fixture copies .git; detached auto-maintenance can remove a lock mid-copy.
+    subprocess.run(["git", "config", "maintenance.auto", "false"], cwd=repo, check=True)
     (repo / "core.py").write_text("VALUE = 1\n", encoding="utf-8")
     (repo / ".gitignore").write_text(
         "node_modules/\npolaris-tokens/dist/\nmimo_build_env.tar.gz.b64\nmimo_run_marker.txt\n__pycache__/\n",

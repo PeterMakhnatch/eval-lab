@@ -101,6 +101,7 @@ DASHBOARD: str = r"""<!doctype html>
  <h3>Trusted-memory tiers</h3><div id="cloud-trust-tiers"></div>
  <h3>Hackbook QC per rule</h3><div id="cloud-trust-qc"></div>
  <h3>Tune versus cross-test</h3><div id="cloud-trust-tune"></div>
+<h3>Monitor cascade per stage</h3><div id="cloud-trust-cascade"></div>
 </section>
 <footer>All live views are projections of the durable journal. Provisional suspicion is not a confirmed verdict. TEST and heldout splits are sealed; only verified DEV evidence is exportable. Credentials stay in this page’s memory.</footer>
 </main>
@@ -448,6 +449,15 @@ async function loadSeekerComparison(){
     const key=modelBase(arm.requested_model);named.set(key,(named.get(key)||0)+1);
    }
   }
+  const executed=list(data?.benchmarks).filter(entry=>
+   entry?.report?.schema==='evallab.seeker_executed_differentials/v1'&&entry.report.cohort?.split==='dev');
+  for(const entry of executed){
+   const section=node('article',undefined,'cloud-report');
+   section.append(node('h3',entry.file),node('small',entry.report.schema));
+   cloudProvenance(entry,section);
+   cloudExecutedDifferentials(entry.report,section);
+   $('cloud-seeker-reports').append(section);
+  }
   const roster=node('article',undefined,'cloud-report');
   roster.append(node('h3','Declared comparison lanes'),
    node('small','Declared by the Priority #2 contract. Presence here is a request, not a result.'),
@@ -455,16 +465,38 @@ async function loadSeekerComparison(){
     named.get(modelBase(id))?'Named in '+named.get(modelBase(id))+' retained report(s)':
     'No retained report names this model'])));
   $('cloud-seeker-roster').append(roster);
-  notice('cloud-seeker-status',reports.length?reports.length+' retained DEV Reward-Seeker comparison reports.':
+  notice('cloud-seeker-status',reports.length+executed.length?
+   (reports.length+executed.length)+' retained DEV Reward-Seeker reports.':
    'No retained DEV Reward-Seeker comparison report. No results have been fabricated.');
  }catch(error){
   notice('cloud-seeker-status',cloudError(error,'Reward-Seeker comparison'),true);
  }finally{$('cloud-seeker-refresh').disabled=false;}
 }
+function cloudExecutedDifferentials(report,parent){
+ const cohort=report.cohort,total=cohort.task_count,capacity=new Map();
+ for(const row of list(cohort.datasets))capacity.set(row.dataset_id,row.count_n);
+ parent.append(node('p','Protocol: '+report.protocol+' · generated '+report.generated_at),
+  node('p','Cross-key audit: '+cohort.audited_n+' tasks joined against '+cohort.key_count+' assignment keys; '+
+   cohort.cross_key_excluded_n+' excluded for a test or heldout row under any key; '+total+
+   ' strictly DEV everywhere ('+list(cohort.datasets).map(row=>row.dataset_id+' '+row.count_n).join(', ')+').','seal'));
+ const rows=[];
+ for(const arm of list(report.arms)){
+  for(const condition of list(arm.conditions)){
+   const split=list(condition.executed_by_dataset).map(row=>row.dataset_id+' '+row.count_n+'/'+capacity.get(row.dataset_id)).join(' · ');
+   rows.push([arm.requested_model,condition.condition,
+    condition.static_match_n===null?'Not recorded':condition.static_match_n+'/'+total+' · '+cloudRatio(condition.static_match_n,total),
+    condition.executed_differential_n+'/'+total,cloudRatio(condition.executed_differential_n,total),split]);
+  }
+ }
+ parent.append(cloudTable(['Named model (requested)','Prompt condition','Static mechanism match','Executed differential n/N',
+  'Executed rate','Executed by dataset'],rows),
+  node('small','A static match names a mechanism; an executed differential passed the original grader and failed the repaired grader when run. They are never merged, and conditions are not pooled. Requested model names only: served identities are not recorded in this table. No model is ranked.'));
+}
 const cloudRatio=(count,total)=>total>0?cloudFraction(count/total):'Not available';
 function cloudTierCensus(report,parent){
  parent.append(node('p','Unit: '+report.unit+' · admitted DEV rows '+cloudCount(report.admitted_rows_n)+
-  ' · unclassified '+cloudCount(report.unclassified_n)+' · generated '+report.generated_at));
+  ' · unclassified '+cloudCount(report.unclassified_n)+' · source digest '+
+  (report.source_sha256?report.source_sha256.slice(0,12):'not recorded')+' · generated '+report.generated_at));
  const totals=new Map(),tiles=node('div',undefined,'metrics');
  for(const row of list(report.tiers))totals.set(row.tier,(totals.get(row.tier)||0)+row.rows_n);
  for(const [tier,label] of [['tier1_container_verified','Tier 1 · container-verified'],
@@ -504,10 +536,27 @@ function cloudTuneCross(report,parent){
    cloudRatio(entry.true_positive_n,entry.true_positive_n+entry.false_positive_n),entry.measured_at])));
  parent.append(node('small','Each dataset appears once, so no cohort is both tuned and cross-tested. Rows are not pooled.'));
 }
+function cloudMonitorCascade(report,parent){
+ parent.append(node('p',report.system+' '+report.cascade_version+' · arm '+report.arm+' · judge '+
+  list(report.judge_models).join(', ')+' · frozen digest '+report.frozen_sha256.slice(0,12)+' · generated '+report.generated_at),
+  node('p','Producer freeze statement: '+report.freeze_statement+' (recorded '+report.frozen_recorded_at+
+   '). Per-cohort measurement times were not recorded, so this page cannot verify the freeze preceded the cross-test.','seal'));
+ parent.append(cloudTable(['Role','Dataset','Scored positives / clean','Cross-key check','Stage 1 recall','Stage 1 false-alarm',
+  'Cascade recall','Cascade false-alarm','Cascade precision','Judge calls','Judge tokens in / out'],
+  list(report.cohorts).map(cohort=>[cohort.role==='tune'?'Tune':'Cross-test',cohort.dataset_id,
+   cohort.positive_n+' / '+cohort.clean_n+' · unscored '+cohort.unscored_n,
+   cohort.identities_checked_n+' checked · '+cohort.non_dev_assignment_n+' non-DEV',
+   cloudRatio(cohort.stage1_positive_hit_n,cohort.positive_n),cloudRatio(cohort.stage1_clean_hit_n,cohort.clean_n),
+   cloudRatio(cohort.true_positive_n,cohort.positive_n),cloudRatio(cohort.false_positive_n,cohort.clean_n),
+   cloudRatio(cohort.true_positive_n,cohort.true_positive_n+cohort.false_positive_n),
+   cloudCount(cohort.judge_calls_n),cloudCount(cohort.input_tokens_n)+' / '+cloudCount(cohort.output_tokens_n)])),
+  node('small','Counts are retained producer source claims; rates are derived here. Unscored cases never enter a rate. Precision depends on each cohort’s positive/clean mix. Nothing is ranked.'));
+}
 const trustSections=[
  ['evallab.trust_tier_census/v1','cloud-trust-tiers',cloudTierCensus,'No retained trust-tier census.'],
  ['evallab.hackbook_qc/v1','cloud-trust-qc',cloudHackbookQc,'No retained Hackbook QC report.'],
- ['evallab.tune_cross_test/v1','cloud-trust-tune',cloudTuneCross,'No retained tune-versus-cross-test scoreboard.']];
+ ['evallab.tune_cross_test/v1','cloud-trust-tune',cloudTuneCross,'No retained tune-versus-cross-test scoreboard.'],
+ ['evallab.monitor_cascade/v1','cloud-trust-cascade',cloudMonitorCascade,'No retained monitor-cascade report.']];
 async function loadTrustQc(){
  $('cloud-trust-refresh').disabled=true;
  for(const [,id] of trustSections)$(id).replaceChildren();

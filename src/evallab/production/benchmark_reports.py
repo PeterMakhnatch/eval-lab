@@ -538,6 +538,188 @@ class _TuneCrossTest(_BenchmarkRecord):
         return self
 
 
+class _DatasetCount(_BenchmarkRecord):
+    dataset_id: _Label
+    count_n: _Count
+
+
+class _ExecutedCohort(_BenchmarkRecord):
+    """Tasks left after the cross-key audit: DEV under every benchmark key."""
+
+    split: Literal["dev"]
+    key_count: Annotated[int, Field(gt=0)]
+    audited_n: Annotated[int, Field(gt=0)]
+    cross_key_excluded_n: _Count
+    task_count: Annotated[int, Field(gt=0)]
+    datasets: Annotated[list[_DatasetCount], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def validate_audit(self) -> Self:
+        if self.cross_key_excluded_n + self.task_count != self.audited_n:
+            raise ValueError("task_count plus cross_key_excluded_n must equal audited_n")
+        names = [row.dataset_id.casefold() for row in self.datasets]
+        if len(set(names)) != len(names):
+            raise ValueError("dataset identifiers must be unique")
+        if sum(row.count_n for row in self.datasets) != self.task_count:
+            raise ValueError("dataset task counts must sum to task_count")
+        return self
+
+
+class _ExecutedCondition(_BenchmarkRecord):
+    condition: _Label
+    static_match_n: _Count | None
+    executed_differential_n: _Count
+    executed_by_dataset: list[_DatasetCount]
+
+    @field_validator("condition")
+    @classmethod
+    def validate_condition(cls, value: str) -> str:
+        if value != value.strip():
+            raise ValueError("condition names must not have surrounding whitespace")
+        return value
+
+    @model_validator(mode="after")
+    def validate_split_of_hits(self) -> Self:
+        if sum(row.count_n for row in self.executed_by_dataset) != self.executed_differential_n:
+            raise ValueError("per-dataset executed differentials must sum to the condition total")
+        return self
+
+
+class _ExecutedArm(_BenchmarkRecord):
+    arm: _Label
+    requested_model: _ModelId
+    conditions: Annotated[list[_ExecutedCondition], Field(min_length=1)]
+
+    @field_validator("arm")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        if value != value.strip():
+            raise ValueError("arm identifiers must not have surrounding whitespace")
+        return value
+
+
+class _SeekerExecutedDifferentials(_BenchmarkRecord):
+    """Executed paired-grader differentials beside static mechanism matches, per model.
+
+    A static match names a mechanism; an executed differential passed the original
+    grader and failed the repaired grader when run. The two are reported separately
+    and never merged into one score.
+    """
+
+    schema_: Literal["evallab.seeker_executed_differentials/v1"] = Field(alias="schema")
+    protocol: _Label
+    cohort: _ExecutedCohort
+    arms: Annotated[list[_ExecutedArm], Field(min_length=1)]
+    generated_at: str
+
+    @field_validator("generated_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        return _aware_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_arms(self) -> Self:
+        if len({arm.arm.casefold() for arm in self.arms}) != len(self.arms):
+            raise ValueError("arm identifiers must be unique")
+        if len({arm.requested_model.casefold() for arm in self.arms}) != len(self.arms):
+            raise ValueError("requested model identities must be unique across arms")
+        capacity = {row.dataset_id.casefold(): row.count_n for row in self.cohort.datasets}
+        names = [condition.condition.casefold() for condition in self.arms[0].conditions]
+        for arm in self.arms:
+            found = [condition.condition.casefold() for condition in arm.conditions]
+            if len(set(found)) != len(found):
+                raise ValueError("condition names must be unique within an arm")
+            if found != names:
+                raise ValueError("every arm must report the same conditions in the same order")
+            for condition in arm.conditions:
+                total = self.cohort.task_count
+                if condition.executed_differential_n > total or (
+                    condition.static_match_n is not None and condition.static_match_n > total
+                ):
+                    raise ValueError("condition counts must not exceed the cohort task_count")
+                split = {
+                    row.dataset_id.casefold(): row.count_n for row in condition.executed_by_dataset
+                }
+                if len(split) != len(condition.executed_by_dataset) or set(split) != set(capacity):
+                    raise ValueError("every cohort dataset must appear once in executed_by_dataset")
+                if any(split[name] > capacity[name] for name in split):
+                    raise ValueError("per-dataset hits must not exceed that dataset's tasks")
+        return self
+
+
+class _CascadeCohort(_BenchmarkRecord):
+    role: Literal["tune", "cross_test"]
+    dataset_id: _Label
+    split: Literal["dev"]
+    positive_n: _Count
+    clean_n: _Count
+    unscored_n: _Count
+    identities_checked_n: _Count
+    non_dev_assignment_n: Literal[0]
+    stage1_positive_hit_n: _Count
+    stage1_clean_hit_n: _Count
+    true_positive_n: _Count
+    false_positive_n: _Count
+    judge_calls_n: _Count
+    input_tokens_n: _Count
+    output_tokens_n: _Count
+
+    @model_validator(mode="after")
+    def validate_counts(self) -> Self:
+        if self.positive_n + self.clean_n == 0:
+            raise ValueError("a cohort needs at least one scored case")
+        if self.identities_checked_n != self.positive_n + self.clean_n + self.unscored_n:
+            raise ValueError(
+                "every cohort identity, scored or not, must have been cross-key checked"
+            )
+        if (
+            max(self.stage1_positive_hit_n, self.true_positive_n) > self.positive_n
+            or max(self.stage1_clean_hit_n, self.false_positive_n) > self.clean_n
+        ):
+            raise ValueError("hits must not exceed the scored cohort they are drawn from")
+        return self
+
+
+class _MonitorCascade(_BenchmarkRecord):
+    """A frozen two-stage monitor measured on tuning and cross-test cohorts, per stage.
+
+    ``freeze_statement`` is the producer's own account of when the system was frozen;
+    no per-cohort measurement times were recorded, so ordering is not validated here.
+    """
+
+    schema_: Literal["evallab.monitor_cascade/v1"] = Field(alias="schema")
+    system: _Label
+    cascade_version: _Label
+    arm: _Label
+    judge_models: Annotated[list[_ModelId], Field(min_length=1)]
+    frozen_sha256: _Sha256
+    frozen_recorded_at: str
+    freeze_statement: _Label
+    cohorts: Annotated[list[_CascadeCohort], Field(min_length=1)]
+    generated_at: str
+
+    @field_validator("frozen_recorded_at", "generated_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        return _aware_timestamp(value)
+
+    @field_validator("judge_models")
+    @classmethod
+    def validate_distinct_judges(cls, value: list[str]) -> list[str]:
+        if len({model.casefold() for model in value}) != len(value):
+            raise ValueError("judge model identities must be distinct")
+        return value
+
+    @model_validator(mode="after")
+    def validate_separation(self) -> Self:
+        if not any(cohort.role == "tune" for cohort in self.cohorts):
+            raise ValueError("a cascade report needs at least one tune cohort")
+        names = [cohort.dataset_id.casefold() for cohort in self.cohorts]
+        if len(set(names)) != len(names):
+            raise ValueError("a dataset may appear once, so none is both tuned and cross-tested")
+        return self
+
+
 class _SwarmScore(_BenchmarkRecord):
     # run_benchmark also retains selections, attribution, and descriptive deltas.
     model_config = ConfigDict(strict=True, extra="allow", allow_inf_nan=False)
@@ -617,6 +799,10 @@ def validate_benchmark_document(raw: bytes) -> dict[str, Any]:
         _HackbookQc.model_validate(document)
     elif schema == "evallab.tune_cross_test/v1":
         _TuneCrossTest.model_validate(document)
+    elif schema == "evallab.seeker_executed_differentials/v1":
+        _SeekerExecutedDifferentials.model_validate(document)
+    elif schema == "evallab.monitor_cascade/v1":
+        _MonitorCascade.model_validate(document)
     elif schema == "evallab.swarm_bench/v1":
         if "arms" in document:
             raise ValueError("Comparison arms require an evallab.arm_comparison schema")

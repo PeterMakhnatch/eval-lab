@@ -595,7 +595,7 @@ inputs:
   - path: src/evallab/production/tq_worker.py
     digest: sha256:3debfff97c335ed9f1d766b7e41c6b88f98604171765c9c9a5cedef8d93c6ab3
   - path: src/evallab/production/trace_feature_flags.py
-    digest: sha256:a7a2919e7e326a3c52bf23d1086440ed57ae808b94d1f015b140ede52139cb58
+    digest: sha256:8c82a7afdd8ae01b4ad30b3f2cd50f2c8d9437c965d75656ef5676d1435a64bb
   - path: src/evallab/production/window_cascade.py
     digest: sha256:321214f5cd4bb5ddd2de92dc331fa437e9232c33147a2e2e40b254b95816bc60
   - path: src/evallab/profiles.py

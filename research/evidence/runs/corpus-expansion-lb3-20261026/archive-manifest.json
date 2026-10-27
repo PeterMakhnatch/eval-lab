@@ -1,0 +1,29 @@
+{
+ "files": {
+  "README.md": {
+   "bytes": 5526,
+   "sha256": "4900a70d15dc12b396acb66f26708f4bbeaf4fec2a9f5afe1f08c6515ae9f908"
+  },
+  "base-rates.json": {
+   "bytes": 3027,
+   "sha256": "d74f12e8e020eada75fdd5de7287c4c9bdf48048669fe203d6446aae8b556d0c"
+  },
+  "clone-rehearsal-receipt.json": {
+   "bytes": 7811,
+   "sha256": "f705fdb77da2e83a8567cc824d5be99674fda06df4e02b787a33ecddacfd476f"
+  },
+  "hydration-log.jsonl": {
+   "bytes": 2393,
+   "sha256": "56864b7b8be7d764589dab362d0869213f35da3c690747d9a8b4ab25f4f5db7d"
+  },
+  "hydration-receipt.json": {
+   "bytes": 7943,
+   "sha256": "d2f194765973058820aace579ace39cef7f8705df80c93462bc5e81d93d9fb97"
+  },
+  "tools/hydrate_goodfire_passage_labels.py": {
+   "bytes": 29343,
+   "sha256": "deacc05dba1544f3b0bde8cc24de169b40527de242a55f7d94fb016d450d1898"
+  }
+ },
+ "schema": "lb3.archive_manifest/1"
+}

@@ -349,15 +349,26 @@ class CloudRuntime:
 
     def _atlas_store(self) -> atlas_view.AtlasStore:
         """The validated atlas files, re-read only when either file changes on disk."""
-        directory = self.data_root / "atlas"
+        directory = self.data_root / "run-atlas"
         key: list[tuple[int, int, int] | None] = []
-        for name in (atlas_view.FACETS_FILE, atlas_view.CLUSTERS_FILE):
+        try:
             try:
-                seen = os.stat(directory / name, follow_symlinks=False)
+                root = os.stat(directory, follow_symlinks=False)
             except FileNotFoundError:
                 key.append(None)
             else:
-                key.append((seen.st_mtime_ns, seen.st_size, seen.st_ino))
+                if not stat.S_ISDIR(root.st_mode):
+                    raise ValueError("run-atlas must be a non-symlink directory")
+                key.append((root.st_mtime_ns, root.st_size, root.st_ino))
+            for name in (atlas_view.FACETS_FILE, atlas_view.CLUSTERS_FILE):
+                try:
+                    seen = os.stat(directory / name, follow_symlinks=False)
+                except FileNotFoundError:
+                    key.append(None)
+                else:
+                    key.append((seen.st_mtime_ns, seen.st_size, seen.st_ino))
+        except (OSError, ValueError) as error:
+            raise HTTPException(503, f"Atlas store is unreadable: {error}") from error
         with self._atlas_lock:
             if self._atlas_cache is None or self._atlas_cache[0] != key:
                 try:
@@ -367,13 +378,34 @@ class CloudRuntime:
             return self._atlas_cache[1]
 
     def _atlas_traces(self) -> dict[str, dict[str, Any]]:
-        """Identity columns only, for admitted DEV traces; no body is read here."""
-        admitted = self._admitted_task_ids()
-        rows = self._query(
-            "SELECT t.trace_id, t.task_id, t.step_count, t.trust_tier, c.dataset_id"
-            " FROM agent_traces t JOIN corpus_tasks c ON c.task_id = t.task_id"
-        )
-        return {row["trace_id"]: row for row in rows if row["task_id"] in admitted}
+        """Admitted DEV identities and exact step indices; no body is read here."""
+        identifiers = sorted(self._admitted_task_ids())
+        traces: dict[str, dict[str, Any]] = {}
+        for start in range(0, len(identifiers), 500):
+            page = identifiers[start : start + 500]
+            placeholders = ", ".join("?" for _ in page)
+            rows = self._query(
+                "SELECT t.trace_id, t.task_id, t.step_count, t.trust_tier, c.dataset_id,"
+                " CASE WHEN t.reward >= 1 THEN 'pass' WHEN t.reward <= 0 THEN 'fail'"
+                " ELSE 'unknown' END AS outcome"
+                " FROM agent_traces t JOIN corpus_tasks c ON c.task_id = t.task_id"
+                f" WHERE t.task_id IN ({placeholders})",
+                tuple(page),
+            )
+            indices: dict[str, set[int]] = {row["trace_id"]: set() for row in rows}
+            for step in self._query(
+                "SELECT s.trace_id, s.step_index FROM trace_steps s"
+                " JOIN agent_traces t ON t.trace_id = s.trace_id"
+                f" WHERE t.task_id IN ({placeholders})",
+                tuple(page),
+            ):
+                found = indices.get(step["trace_id"])
+                if found is not None:
+                    found.add(step["step_index"])
+            for row in rows:
+                row["step_indices"] = frozenset(indices[row["trace_id"]])
+                traces[row["trace_id"]] = row
+        return traces
 
     def _atlas_run(self, run_id: str) -> dict[str, Any]:
         """One atlas run: facet, cluster paths, evidence steps, trace flags and playbook cards."""
@@ -405,23 +437,38 @@ class CloudRuntime:
         try:
             # Retrieval's own gate decides first: admitted DEV task, returnable tier, no sealed identity.
             retriever.expand_pointer(f"trace:{run_id}:0-0", include_provisional=True)
+            wanted = set(facet["evidence_steps"])
+            collected: dict[int, dict[str, Any]] = {}
+            for index in sorted(wanted):
+                window = retriever.expand_pointer(
+                    f"trace:{run_id}:{max(0, index - 1)}-{index + 1}", include_provisional=True
+                )
+                for step in window["steps"]:
+                    if step["role"] in ("agent", "assistant", "tool", "environment"):
+                        collected[step["step_index"]] = {
+                            **step,
+                            "is_evidence": step["step_index"] in wanted,
+                        }
+            # Keep the final admission check and raw flag read in one snapshot.
+            # A trace can disappear or become denied after an evidence window.
+            with self.database._transaction():
+                admitted, _ = retriever._admitted_ids()
+                if identity["task_id"] not in admitted or not self.database._rows(
+                    "SELECT trace_id FROM agent_traces WHERE trace_id = ? AND task_id = ?",
+                    (run_id, identity["task_id"]),
+                ):
+                    raise ValueError("Trace is no longer admitted")
+                rows = self.database._rows(
+                    "SELECT step_index, role, tool_name, command_or_action, content_text"
+                    " FROM trace_steps WHERE trace_id = ?"
+                    " AND role IN ('agent', 'assistant', 'tool', 'environment')"
+                    " ORDER BY step_index LIMIT ?",
+                    (run_id, atlas_view.MAX_FLAG_STEPS + 1),
+                )
         except ValueError:
             result["withheld"] = "Evidence for this run is not returnable under the retrieval rules."
             return result
-        wanted = set(facet["evidence_steps"])
-        collected: dict[int, dict[str, Any]] = {}
-        for index in sorted(wanted):
-            window = retriever.expand_pointer(
-                f"trace:{run_id}:{max(0, index - 1)}-{index + 1}", include_provisional=True
-            )
-            for step in window["steps"]:
-                collected[step["step_index"]] = {**step, "is_evidence": step["step_index"] in wanted}
         result["evidence"] = [collected[index] for index in sorted(collected)]
-        rows = self._query(
-            "SELECT step_index, role, tool_name, command_or_action, content_text FROM trace_steps"
-            " WHERE trace_id = ? ORDER BY step_index LIMIT ?",
-            (run_id, atlas_view.MAX_FLAG_STEPS + 1),
-        )
         if len(rows) > atlas_view.MAX_FLAG_STEPS:
             result["flags_unavailable"] = f"more than {atlas_view.MAX_FLAG_STEPS:,} steps"
             return result

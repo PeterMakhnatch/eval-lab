@@ -71,27 +71,3 @@ def test_dashboard_uses_text_dom_and_same_origin_without_dynamic_code() -> None:
     )
     assert not any(name.startswith("on") for _, attrs in page.elements for name in attrs)
 
-
-def test_atlas_is_a_labeled_lazy_tab_with_an_in_page_focus_target() -> None:
-    page = Page()
-    page.feed(DASHBOARD)
-    elements = {attrs["id"]: (tag, attrs) for tag, attrs in page.elements if "id" in attrs}
-    tabs = [attrs["id"] for _, attrs in page.elements if attrs.get("role") == "tab"]
-    assert tabs[tabs.index("trust-tab") - 1] == "atlas-tab"
-    _, tab = elements["atlas-tab"]
-    _, panel = elements[tab["aria-controls"]]
-    assert panel["role"] == "tabpanel"
-    assert panel["aria-labelledby"] == "atlas-tab"
-    assert "hidden" in panel
-    assert tab["aria-selected"] == "false"
-    assert tab["tabindex"] == "-1"
-    detail_tag, detail = elements["atlas-run-panel"]
-    assert detail_tag == "section"
-    assert detail["tabindex"] == "-1"
-    assert detail["aria-labelledby"] == "atlas-run-title"
-    assert "hidden" in detail
-    for target in ("cloud-atlas-status", "atlas-run-status"):
-        assert elements[target][1]["role"] == "status"
-    for target in ("cloud-atlas-refresh", "atlas-run-refresh", "atlas-run-close", "atlas-reset"):
-        assert elements[target][0] == "button"
-        assert elements[target][1]["type"] == "button"

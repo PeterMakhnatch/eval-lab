@@ -699,7 +699,9 @@ function atlasHealth(data){
   ['rejected_n','Rejected lines'],['superseded_n','Superseded facets'],
   ['unadmitted_n','Runs withheld · not admitted'],['evidence_outside_run_n','Evidence outside the run']])
   counts.append(badge(label+': '+cloudCount(store[key])));
- parent.append(counts,node('p',data.scored_at?'Scored at: '+data.scored_at:'Not scored yet'));
+ const scored=list(data.clusters).some(cluster=>list(cluster.label_rates).length);
+ parent.append(counts,node('p',data.scored_at?'Scored at: '+data.scored_at:
+  (scored?'Scoring time not recorded':'Not scored yet')));
  if(store.cluster_error)parent.append(node('p','Cluster-file error: '+store.cluster_error,'notice error'));
  if(store.rejected_n){
   const details=node('details'),items=node('ul',undefined,'cloud-issue-list');

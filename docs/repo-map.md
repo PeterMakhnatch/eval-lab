@@ -565,7 +565,7 @@ inputs:
   - path: src/evallab/production/modal_cloud.py
     digest: sha256:2edb041341b1d115248de20a9732d833ba805753f72ea0a0db670bc1405eaa6a
   - path: src/evallab/production/monitor_worker.py
-    digest: sha256:e79a84f3ac1b34370970061cbcb40a2063ed5559cb17ce190079f9b00f88f484
+    digest: sha256:9535b3635d294ff1006e3bdf510c4761d65c66966370bbb66364f2db6e141358
   - path: src/evallab/production/outbox_relay.py
     digest: sha256:ab1adc2f16421d334c953e1da45d7c8937426e7bf0918e5a8ecd855c6f20fe1f
   - path: src/evallab/production/public_corpus_loader.py
@@ -597,7 +597,7 @@ inputs:
   - path: src/evallab/production/trace_feature_flags.py
     digest: sha256:a7a2919e7e326a3c52bf23d1086440ed57ae808b94d1f015b140ede52139cb58
   - path: src/evallab/production/window_cascade.py
-    digest: sha256:955ba77d3d2df78e643fa1bcc6056796fa70809f2dd583abaa3e1a15785f3fcc
+    digest: sha256:321214f5cd4bb5ddd2de92dc331fa437e9232c33147a2e2e40b254b95816bc60
   - path: src/evallab/profiles.py
     digest: sha256:de125b35c6b44d2fc6355d552c0fd5cb594f3a7329e1084d0500b4e97fa5ff5f
   - path: src/evallab/provenance.py

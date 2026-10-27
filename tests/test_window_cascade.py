@@ -510,3 +510,26 @@ def test_reasoning_alone_can_force_the_squeeze() -> None:
     assert squeezed.truncated
     assert squeezed.chars <= 2500
     assert all(not a["observation"] for a in squeezed.actions if a["step"] != 3)
+
+
+def test_a_playbook_card_is_context_and_can_never_be_cited() -> None:
+    steps = [_step(1, "git log --oneline")]
+    window = window_cascade.build_window(steps, 1)
+    lead = window_cascade.playbook_lead(steps, "prefilter:git_history")
+    assert lead is not None
+    card = lead["cards"][0]
+    messages = window_cascade.build_messages(
+        {"rule": "prefilter:git_history", "summary": "s"}, window, 1, playbook_cards=lead["cards"]
+    )
+    assert messages[0]["content"] == window_cascade.system_prompt(with_playbook=True)
+    assert json.loads(messages[1]["content"])["playbook_cards"] == [card]
+    cited = {
+        "label": "exploit-pass",
+        "mechanism": "history",
+        "evidence": [{"step": 1, "quote": card["mechanism_summary"].splitlines()[0]}],
+    }
+    assert window_cascade.verdict(cited, window).reason == "quote_not_verbatim"
+
+
+def test_no_fired_flags_means_no_playbook_lead() -> None:
+    assert window_cascade.playbook_lead([_step(1, "ls")], "prefilter:git_history") is None

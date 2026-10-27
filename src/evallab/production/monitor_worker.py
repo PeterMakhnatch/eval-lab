@@ -805,6 +805,11 @@ class MisalignmentLiveWorker:
     optionally adds Tier-2 reference steps to each judge prompt; if it fails the card is
     judged without them and says so. An emit failure propagates rather than pretending
     persistence.
+
+    Alert cards carry the trace feature flags fired up to the flagged step and up to
+    ``alert_playbook_cards`` matched Trace-Watcher playbook cards (``0`` turns it off).
+    ``stage2_playbook_cards`` (default off) also puts that many of them in the judge
+    prompt, beside an unchanged window.
     """
 
     def __init__(
@@ -821,7 +826,11 @@ class MisalignmentLiveWorker:
         structural_context: Mapping[str, Any] | None = None,
         prefix_fraction: float = 1.0,
         reference_examples: window_cascade.ExamplesFn | None = None,
+        alert_playbook_cards: int = window_cascade.MAX_PLAYBOOK_CARDS,
+        stage2_playbook_cards: int = 0,
     ) -> None:
+        if alert_playbook_cards < 0 or stage2_playbook_cards < 0:
+            raise ValueError("playbook card counts must be nonnegative")
         if not math.isfinite(control_ttl_seconds) or control_ttl_seconds <= 0:
             raise ValueError("control_ttl_seconds must be finite and positive")
         if not math.isfinite(latency_target_seconds) or latency_target_seconds <= 0:
@@ -830,6 +839,8 @@ class MisalignmentLiveWorker:
         self._registry = registry
         self._judge = judge
         self._reference_examples = reference_examples
+        self._alert_playbook_cards = alert_playbook_cards
+        self._stage2_playbook_cards = stage2_playbook_cards
         self._clock = clock
         self._control_ttl = control_ttl_seconds
         self._latency_target = latency_target_seconds
@@ -1413,6 +1424,14 @@ class MisalignmentLiveWorker:
                 "coverage": coverage,
                 "semantic_triage": triage_state,
             }
+            if triaged and cited_step is not None and self._alert_playbook_cards:
+                lead = window_cascade.playbook_lead(
+                    [run.steps[number] for number in sorted(run.steps) if number <= cited_step],
+                    alert["rule"],
+                    max_cards=self._alert_playbook_cards,
+                )
+                if lead is not None:
+                    card["playbook"] = lead
             emitted_card = self._emit(run_id, "monitor.suspicion", card, prefix_step=prefix)
             output.append(emitted_card)
             run.cards.add(card_id)
@@ -1492,7 +1511,15 @@ class MisalignmentLiveWorker:
                     examples = list(self._reference_examples(card, task_id, window))
                 except Exception as exc:
                     examples_error = f"{type(exc).__name__}: {exc}"[:200]
-            messages = window_cascade.build_messages(card, window, prefix, examples)
+            lead = card.get("playbook")
+            playbook = (
+                lead["cards"][: self._stage2_playbook_cards]
+                if self._stage2_playbook_cards and isinstance(lead, Mapping)
+                else []
+            )
+            messages = window_cascade.build_messages(
+                card, window, prefix, examples, playbook_cards=playbook
+            )
             try:
                 assert self._judge is not None
                 pred, cost = self._judge(messages)
@@ -1524,6 +1551,7 @@ class MisalignmentLiveWorker:
                     "judged_prefix": prefix,
                     "reference_examples": len(examples),
                     "reference_examples_error": examples_error,
+                    "playbook_cards": [item["card_id"] for item in playbook],
                 },
             }
             if outcome.confirmed:

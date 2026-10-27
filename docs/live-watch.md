@@ -94,7 +94,7 @@ step size are variable. The measured latency target is separate from complexity.
 `monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
 run; ordinary assistant prose is not proof that reasoning was captured. A supplied
 `trace_cheap.JudgeFn` is the optional Stage 2 of a two-stage cascade
-(`evallab.production.window_cascade`, `window-cascade/v5`); the incremental tripwire
+(`evallab.production.window_cascade`, `window-cascade/v7`); the incremental tripwire
 rules and the command-state cues below are Stage 1. When a rule raises a card, Stage 2
 waits until five agent steps have followed the flagged step (`flush_triage`, or closing
 the worker, judges earlier cards on the steps seen so far), then runs on a separate
@@ -140,6 +140,19 @@ quote from them confirms like any other, and a step that only weighs a shortcut 
 declines it is `neither`. `window_cascade.CONTEXT_REASONING_CHARS` can add a short
 reasoning excerpt (for example 300 characters) to every other window step; it is off
 because on Goodfire DEV it cost about a quarter more judge input and found nothing more.
+
+Live alert cards also carry a `playbook` lead: `window_cascade.playbook_lead` runs
+`trace_feature_flags.compute_trace_feature_flags` over the steps observed up to the flagged
+step (agent commands and text only, so a replay gives the same lead as a stream) and
+matches the fired flags to the Trace-Watcher cards `TW01`..`TW06`
+(`hackbook.playbook_cards.match_playbook_cards`). The lead is `{schema, flags:
+{name: {count, first_step}}, cards}` with at most `alert_playbook_cards` cards (default 2,
+`0` turns it off), the card for the alerting feature first. It is a lead, never a verdict,
+and is absent when no flag fired. With `stage2_playbook_cards=N` (default `0`) the first
+`N` cards also go into the judge prompt beside the window as `playbook_cards`; the window
+itself, including the flagged step's full message and reasoning, is unchanged, and a quote
+from a card can never confirm a label. The completed card's `cascade.playbook_cards` lists
+the card ids the judge saw.
 
 Scoring an *early* prefix of a finished trace is a different measurement, so it is
 declared, not inferred. `MisalignmentLiveWorker(prefix_fraction=0.25|0.5|0.75)`

@@ -265,10 +265,13 @@ store without opening a production queue, running workers, or uploading data.
 It applies `admitted_cloud_task_ids` with `CorpusRegistry` to identity-only rows
 before reading any trace body; a DB `dev` label alone does not admit a task.
 Exports use stable SHA-256-derived `run-<hex>` identities and redact original
-task, dataset, trace, model and run identifiers, source benchmark text and CAS
-references. `harbor` writes `<blind>/agent/trajectory.json` and
+task, item, dataset, trace, model and run identifiers, source benchmark text and
+CAS references. `harbor` writes `<blind>/agent/trajectory.json` and
 `<blind>/result.json`; `atif` writes `<blind>.json`; `scout` writes
-`transcripts.jsonl`. For example, from the repository root:
+`transcripts.jsonl`. Native ATIF uses one-based step IDs and no internal audit
+metadata; empty or all-annotation traces are refused. Only agent-authored rows
+create tool calls, and standalone recorded observations have no invented call
+reference. For example, from the repository root:
 
 ```bash
 uv run evallab prod export-runs \
@@ -281,10 +284,12 @@ uv run evallab prod export-runs \
 Repeat `--trace-id` to restrict selection, and use `--limit` to cap admitted
 exports. The command prints a JSON receipt with admission/export/refusal counts
 and the manifest SHA-256. The required manifest is a **sealed join file outside
-the export directory**, mapping each blind ID to its original `trace_id` and
-`step_origin` list of database step indices in projected ATIF step order. Keep
-it separate from reviewer-facing exports. Existing output directories or
-manifest paths are refused, never overwritten.
+the export directory**, mapping each blind ID to its original `trace_id`,
+`step_origin` list of database step indices in projected ATIF step order, and
+`reward`. Rewards exist only in that sealed manifest; blinded Harbor results
+always contain a null reward. Keep the manifest separate from reviewer-facing
+exports. Existing output directories or manifest paths are refused, never
+overwritten.
 
 Scout JSONL contains one `inspect_scout.Transcript`-shaped object per line:
 `transcript_id` is the blind ID, `metadata` is only `{"item_id": "<blind>"}`,

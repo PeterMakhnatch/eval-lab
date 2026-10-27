@@ -253,13 +253,13 @@ def defect_map_records(rows: list[dict[str, Any]]) -> list[Finding]:
         elif tier == "tier2_consensus_labeled":
             evidence = [
                 Evidence(
-                    kind="human_label",
-                    label_source="Eval Lab consensus / cloud task_issues tier2_consensus_labeled",
+                    kind="judge_label",
+                    label_source="Eval Lab source consensus / cloud task_issues tier2_consensus_labeled",
                     url=source_url,
                     note=(
                         f"Source-reported consensus label; issue={row['issue_id']}; "
                         f"witness={row['witness_digest']}; custody={row['cas_uri']}. "
-                        "Consensus is not independent execution verification."
+                        "No human-review attestation or independent execution is established."
                     ),
                 )
             ]

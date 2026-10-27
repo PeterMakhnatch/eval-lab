@@ -273,7 +273,7 @@ def _issue(trust: str, split: str) -> dict[str, Any]:
     ("trust", "tier", "kind", "split"),
     [
         ("tier1_container_verified", "V3_executed", "executed", "DEV"),
-        ("tier2_consensus_labeled", "V1_external_label", "human_label", "TEST"),
+        ("tier2_consensus_labeled", "V0_unverified", "judge_label", "TEST"),
         ("tier3_provisional", "V0_unverified", "static_finding", "heldout"),
     ],
 )

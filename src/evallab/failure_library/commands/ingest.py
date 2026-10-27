@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -24,12 +23,6 @@ def register(subparsers: Any) -> None:
 def _run(args: argparse.Namespace, root: Path, **_: Any) -> int:
     try:
         findings = collection_builders()[args.collection](root, state_root=args.state_root)
-        receipts_path = root / "research/failure-library/verify/receipts.jsonl"
-        if receipts_path.is_file():
-            # The verification slice owns the receipt contract and identity
-            # checks. Its registry is optional; a present registry must apply.
-            receipts = importlib.import_module("evallab.failure_library.verify.receipts")
-            findings = receipts.apply_receipts(findings, receipts.load_receipts(receipts_path))
         path = LibraryStore.for_repo(root, state_root=args.state_root).write_findings(
             args.collection, findings
         )

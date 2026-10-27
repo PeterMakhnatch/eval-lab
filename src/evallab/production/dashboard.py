@@ -13,6 +13,7 @@ DASHBOARD: str = r"""<!doctype html>
 .run-toolbar,.run-bottom,.run-controls{flex-wrap:wrap}.run-campaign{margin:5px 0}.run-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin:10px 0}.run-fact{border-top:1px solid var(--line);padding-top:6px;min-width:0}.run-fact dt{font-size:10px;color:var(--muted)}.run-fact dd{margin:2px 0 0;font:13px var(--mono);overflow-wrap:anywhere}.run-outcome{font-size:11px;overflow-wrap:anywhere}.campaign-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px}.campaign-controls>small{color:var(--warn)}.execution-summary{border:1px solid var(--line);border-radius:8px;padding:12px;margin:14px 0;background:var(--panel)}.execution-summary>small{display:block;margin-top:4px}.dialog-header>div:first-child{min-width:0}
 .run-main>.badge,.diff-file>.badge{flex-shrink:0;white-space:nowrap}
 .view-tabs{display:flex;flex-wrap:wrap;gap:7px;margin:18px 0 0}.view-tabs [aria-selected=true]{border-color:var(--accent);background:#143129;color:var(--accent)}.cloud-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px}.cloud-query{grid-column:1/-1}.cloud-filters .actions{grid-column:1/-1}.cloud-filters .check-label{display:flex;align-items:center;gap:8px;margin:0}.cloud-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(260px,1fr);gap:18px;margin-top:18px}.cloud-grid h3{margin-bottom:10px}.cloud-results{max-height:680px;overflow:auto}.cloud-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:7px;margin:12px 0}.cloud-table{border-collapse:collapse;width:100%;font-size:11px}.cloud-table th,.cloud-table td{padding:10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}.cloud-table th{color:var(--muted);background:var(--raised);white-space:nowrap}.cloud-table td{min-width:85px;overflow-wrap:anywhere}.cloud-table td small{display:block}.cloud-report{border-top:1px solid var(--line);padding-top:16px;margin-top:18px}.cloud-report h3{overflow-wrap:anywhere}.cloud-report summary{color:var(--blue)}.cloud-provenance{margin:8px 0}.cloud-issue-list{margin-top:8px;padding-left:18px;color:var(--muted)}@media(max-width:900px){.cloud-grid{grid-template-columns:1fr}}
+.playbook-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin:12px 0}.playbook-card{border:1px solid var(--line);border-radius:7px;padding:14px;background:var(--raised);min-width:0}.playbook-card h4{margin:0 0 6px}.playbook-card small{display:block;margin:4px 0;color:var(--muted)}.playbook-card ul{padding-left:18px;color:var(--muted);font-size:11px}.playbook-card summary{cursor:pointer;color:var(--blue)}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}.focus-step{animation:step-focus 1.5s ease-out}@keyframes step-focus{from{box-shadow:0 0 0 5px #6ce4b844}to{box-shadow:0 0 0 0 transparent}}}
@@ -98,6 +99,7 @@ DASHBOARD: str = r"""<!doctype html>
  <p class="seal">Retained DEV-intended studies, not held-out performance</p>
  <p>Counts come from retained producer reports and are source claims; this page only derives rates from them. Unscored cases are shown separately and never enter a rate. Tier 3 provisional rows are never prompt eligible. No benchmark or rule is ranked or declared a winner.</p>
  <p id="cloud-trust-status" class="notice" role="status"></p>
+<h3>Three core systems side by side</h3><div id="cloud-trust-playbook"></div>
  <h3>Trusted-memory tiers</h3><div id="cloud-trust-tiers"></div>
  <h3>Hackbook QC per rule</h3><div id="cloud-trust-qc"></div>
  <h3>Tune versus cross-test</h3><div id="cloud-trust-tune"></div>
@@ -552,7 +554,58 @@ function cloudMonitorCascade(report,parent){
    cloudCount(cohort.judge_calls_n),cloudCount(cohort.input_tokens_n)+' / '+cloudCount(cohort.output_tokens_n)])),
   node('small','Counts are retained producer source claims; rates are derived here. Unscored cases never enter a rate. Precision depends on each cohort’s positive/clean mix. Nothing is ranked.'));
 }
+const playbookRoles={tune:'Tune',cross_test:'Cross-test',dev_only:'DEV only, no cross-test'};
+function playbookCost(cost){
+ const tokens=cost.input_tokens_n===null&&cost.output_tokens_n===null?'tokens not recorded':
+  cloudCount(cost.input_tokens_n)+' in / '+cloudCount(cost.output_tokens_n)+' out';
+ const text=[cost.calls_n===null?null:cloudCount(cost.calls_n)+' calls',tokens,
+  cost.usd===null?'no price recorded':cloudSpend(cost.usd)].filter(Boolean).join(' · ')+(cost.complete?'':' · usage incomplete');
+ const span=node('span',text);span.title=cost.scope+' · USD: '+cost.usd_basis;return span;
+}
+function playbookResult(result){
+ const span=node('span',result.hits_n+'/'+result.of_n+' '+result.hit_label+' · '+cloudRatio(result.hits_n,result.of_n)+
+  (result.planned_of_n!==null&&result.planned_of_n>result.of_n?' (of '+result.planned_of_n+' planned)':''));
+ if(result.stage_one_hits_n!==null)span.append(node('small','Stage 1 alone: '+result.stage_one_hits_n+'/'+result.of_n+' hits, '+
+  result.stage_one_false_alarm_n+'/'+result.false_alarm_of_n+' false alarms'));
+ return span;
+}
+const playbookFalseAlarms=result=>result.false_alarm_n===null?'Not measured':
+ result.false_alarm_n+'/'+result.false_alarm_of_n+' clean · '+cloudRatio(result.false_alarm_n,result.false_alarm_of_n);
+function playbookPerHit(result){
+ const cost=result.cost;
+ if(cost.input_tokens_n===null||cost.output_tokens_n===null)return 'Not recorded';
+ if(result.hits_n===0)return 'No hits';
+ return cloudCount(Math.round((cost.input_tokens_n+cost.output_tokens_n)/result.hits_n))+(cost.complete?'':' (usage incomplete)');
+}
+function cloudSystemPlaybook(report,parent){
+ parent.append(node('p','Plain-English summary of the three core systems from retained results, generated '+report.generated_at+
+  '. A hit means something different for each system, so the three are not comparable and nothing is ranked.'));
+ const grid=node('div',undefined,'playbook-grid'),flagRows=[];
+ for(const system of list(report.systems)){
+  const runs=list(system.runs),card=node('article',undefined,'playbook-card');
+  card.append(node('h4',system.name),node('p',system.plain_english),node('small','Measures: '+system.measure),
+   node('small','Version: '+system.version+' · served by '+list(system.served_models).join(', ')),
+   cloudTable(['Run','Result','False alarms','Cost'],runs.map(run=>[
+    playbookRoles[run.role]+' · '+run.cohort+(run.frozen?' · frozen':''),
+    playbookResult(run.result),playbookFalseAlarms(run.result),playbookCost(run.result.cost)])));
+  if(!runs.some(run=>run.role==='cross_test'))
+   card.append(node('p','No unseen cross-test was measured for this system, so none of these is an out-of-sample accuracy.','seal'));
+  const limits=node('details'),items=node('ul');
+  limits.append(node('summary','Limits ('+list(system.caveats).length+')'),items);
+  for(const text of list(system.caveats))items.append(node('li',text));
+  card.append(limits);grid.append(card);
+  for(const flag of list(system.flags))for(const variant of list(flag.variants))
+   flagRows.push([system.name,flag.flag+' · '+playbookRoles[flag.role]+' · '+flag.cohort,variant.label,playbookResult(variant),
+    playbookFalseAlarms(variant),playbookPerHit(variant),playbookCost(variant.cost)]);
+ }
+ const flags=node('details');flags.open=true;
+ flags.append(node('summary','Feature-flag efficiency: '+flagRows.length+' settings'),
+  cloudTable(['System','Feature flag · cohort','Setting','Result','False alarms','Tokens per hit','Cost'],flagRows),
+  node('small','Each flag is compared on one cohort with only that setting changed in the recorded runs. Tokens per hit is derived here (input plus output tokens over hits); a setting with no hits has none. Hover a cost for what it covers. A setting is never declared better.'));
+ parent.append(grid,flags);
+}
 const trustSections=[
+ ['evallab.system_playbook/v1','cloud-trust-playbook',cloudSystemPlaybook,'No retained system playbook.'],
  ['evallab.trust_tier_census/v1','cloud-trust-tiers',cloudTierCensus,'No retained trust-tier census.'],
  ['evallab.hackbook_qc/v1','cloud-trust-qc',cloudHackbookQc,'No retained Hackbook QC report.'],
  ['evallab.tune_cross_test/v1','cloud-trust-tune',cloudTuneCross,'No retained tune-versus-cross-test scoreboard.'],

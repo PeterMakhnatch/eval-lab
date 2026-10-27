@@ -2406,16 +2406,75 @@ def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2
     ) == (("envcheck-tb4-39", "heldout"),)
     with pytest.raises(SeekerRefusalError, match="envcheck-tb4-39"):
         require_cross_key_dev_only("terminal-bench/cargo-flight-dispatch", assignments_csv=csv_tmp)
-    from evallab.production.seeker_worker import scrub_blind_task_text
+    from evallab.production.seeker_worker import (
+        find_cross_key_dev_assignments,
+        scrub_blind_task_text,
+    )
+    assert find_cross_key_dev_assignments("terminal-bench/fin-saccr-rwa", assignments_csv=csv_tmp) == (
+        ("tb4-audit-v1", "dev"),
+    )
+    require_cross_key_dev_only(
+        "terminal-bench/fin-saccr-rwa",
+        assignments_csv=csv_tmp,
+        require_affirmative_dev=True,
+    )
+    with pytest.raises(SeekerRefusalError, match="no affirmative DEV assignment"):
+        require_cross_key_dev_only(
+            "mimo-defect-map-v1/unassigned-task",
+            assignments_csv=csv_tmp,
+            require_affirmative_dev=True,
+        )
     leaked_toml = (
         'schema_version = "1.0"\n'
         "# anyway (tests/test.sh, prepare_fresh_runtime)\n"
         "# Playwright image (see tests/Dockerfile)\n"
-        "[verifier]\n"
         'artifacts = ["/workspace/generated_app"]\n'
+        "[verifier]\n"
+        "timeout_sec = 600\n"
+        'command = "tests/test.sh"\n'
+        "[task]\n"
+        'name = "terminal-bench/vba-userform-port"\n'
     )
     scrubbed_toml = scrub_blind_task_text(leaked_toml)
     assert "tests/" not in scrubbed_toml
     assert "test.sh" not in scrubbed_toml
     assert "[verifier]" not in scrubbed_toml
+    assert "timeout_sec = 600" not in scrubbed_toml
     assert 'artifacts = ["/workspace/generated_app"]' in scrubbed_toml
+    assert 'name = "terminal-bench/vba-userform-port"' in scrubbed_toml
+    # Explicit strict_blind_instructions=False overrides truthy raw_payload
+    task_with_true_payload = ResolvedSeekerTask(
+        run_id="r-sb",
+        job_type="reward_seeker.seek_task",
+        dataset_id="tb4-audit-v1",
+        item_id="fin-saccr-rwa",
+        task_id="fin-saccr-rwa",
+        split="dev",
+        measurable=True,
+        original_task=orig_dir,
+        repaired_task=rep_dir,
+        repaired_grader_kind="port",
+        raw_payload={"hide_tests": True, "strict_blind_instructions": True},
+    )
+    (ws1 / "task/task.toml").write_text(leaked_toml, encoding="utf-8")
+    p_unscrubbed = build_headless_seeker_prompt(
+        task_with_true_payload,
+        attempt_index=1,
+        selected_cue=None,
+        cues=(),
+        memory=SeekerFailureMemory(),
+        workspace=ws1,
+        strict_blind_instructions=False,
+    )
+    assert "[verifier]" in p_unscrubbed
+    p_scrubbed = build_headless_seeker_prompt(
+        task_with_true_payload,
+        attempt_index=1,
+        selected_cue=None,
+        cues=(),
+        memory=SeekerFailureMemory(),
+        workspace=ws1,
+        strict_blind_instructions=True,
+    )
+    assert "[verifier]" not in p_scrubbed
+    assert "tests/" not in p_scrubbed

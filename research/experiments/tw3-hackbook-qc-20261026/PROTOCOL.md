@@ -19,9 +19,9 @@ model is executed; traces are read and scanned in memory only.
   negatives ("no documented mechanism found", not a clean certificate).
   DEV tasks are guarded by `tb4-audit-v1` assignments; Hub index TEST lines
   are dropped unparsed.
-- **MiMo DEV** — unavailable: no retained MiMo DEV behavioural
-  positive/clean trace labels exist (the MiMo trace keys are TEST-only).
-  Reported as unavailable, never scored on a fabricated denominator.
+- **MiMo DEV** — unavailable to this study: no validated DEV-only
+  behavioural-label and digest-bound trace-locator projection was identified.
+  The standard MiMo trace keys are TEST-only and cannot substitute.
 
 ## QC policy
 
@@ -56,9 +56,9 @@ attestation. Reports use `evallab.hackbook_qc/v1` and
 
 The 52 runtime rules are not a one-to-one enumeration of all 57 catalog entries.
 Task-surface TS04/TS05 matchers were not evaluated against labelled task snapshots;
-fleet-rate suppression alone does not meet that requested QC criterion. MiMo DEV
-behavioural labels remain unavailable. These gaps preclude a full TW-3 completion
-claim.
+fleet-rate suppression alone does not meet that requested QC criterion. A
+validated MiMo DEV behavioural-label/locator projection is also unavailable to
+this study. These gaps preclude a full TW-3 completion claim.
 
 The old Goodfire adapter selected the publisher's final path, including rendered
 carrier messages, and its input digest omitted tool calls and reasoning. Treat
@@ -68,7 +68,26 @@ preserves original sampled messages, binds observations by ancestry, and hashes
 the complete allowlisted actor projection. Do not reuse mixed-split answer-key or
 inventory loaders from the historical runner for a new strict-DEV study.
 
-## Commands
+The historical cross-test loader calls `load_answer_key` before filtering DEV,
+so its source-read path does not meet the zero-TEST-label-read contract. Later
+recounts use only the retained DEV fired-set files, not that loader; they do not
+retroactively certify the historical intake or constitute new unseen validation.
+
+## Strict Goodfire full-cohort command
+
+The pinned receipt update admits only an audited addition of publisher passage
+annotations; original preflight evidence is preserved. The scanner never receives
+those annotations. A fresh output directory is required on every invocation.
+
+```bash
+EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run python \
+  research/experiments/pg-self1-goodfire-20261026/run.py \
+  --db ~/.local/state/evallab-prod-live/cloud-trace-db.sqlite \
+  --preflight ~/Developer/eval-lab-results/2026-10-26/pg-self1-goodfire-preflight \
+  --out ~/Developer/eval-lab-results/2026-10-26/pg-self1-goodfire-new-pass
+```
+
+## Historical commands — not a strict-DEV intake recipe
 
 ```bash
 uv run python research/experiments/tw3-hackbook-qc-20261026/run.py tune \

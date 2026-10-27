@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -28,6 +29,30 @@ NOTICE = (
 )
 
 
+def is_proposal_eligible(
+    confidence: float,
+    citations_verified: bool,
+    *,
+    min_verified_confidence: float = 0.5,
+    min_unverified_confidence: float = 0.8,
+) -> bool:
+    """Gate provisional review, never confirmation or permission to execute.
+
+    Only an actual verification boolean selects a floor; truthy model output
+    is not citation verification. Invalid scores or floors fail closed.
+    """
+    if not isinstance(citations_verified, bool):
+        return False
+    for value in (confidence, min_verified_confidence, min_unverified_confidence):
+        if (
+            isinstance(value, bool) or not isinstance(value, (int, float))
+            or not 0 <= value <= 1 or not math.isfinite(value)
+        ):
+            return False
+    floor = min_verified_confidence if citations_verified else min_unverified_confidence
+    return confidence >= floor
+
+
 def _clip(value: Any, limit: int = 240) -> str | None:
     if value is None:
         return None
@@ -37,6 +62,166 @@ def _clip(value: Any, limit: int = 240) -> str | None:
 
 def _canonical(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+_MIMO_FINDING_ID = re.compile(r"mimo-weak-tests-v2\.1:([^:]+):([^:]+)")
+_MISSING_DESCRIPTIONS = frozenset({
+    "unknown", "unavailable", "none", "null", "n a", "na", "not available",
+    "not retained", "not provided", "not established", "not applicable",
+    "unspecified", "no mechanism", "no mechanism available", "mechanism unavailable",
+    "mechanism not available", "placeholder", "tbd", "todo",
+})
+_GENERIC_DESCRIPTION_PREFIXES = (
+    "archived instruction adjudicated wrong patch witness",
+    "initial v7 archival repair case",
+    "archival wrong patch observation with source adjudication retained",
+    "current training pool archival wrong pass observation",
+    "a source selected runtime collection boundary repair of the parent package",
+)
+
+
+def _description_words(text: str) -> str:
+    return " ".join(re.findall(r"[^\W_]+", text.casefold()))
+
+
+def _mechanism_text(value: Any, *records: Mapping[str, Any]) -> str | None:
+    """Read prose, not a missing-value marker or a taxonomy label."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    words = _description_words(text)
+    if (
+        not words or words in _MISSING_DESCRIPTIONS
+        or words.startswith(_GENERIC_DESCRIPTION_PREFIXES)
+        or re.fullmatch(r"(?:[A-Z]{1,4}\d{1,3}|[a-z][a-z0-9]*(?:_[a-z0-9]+)+)", text)
+    ):
+        return None
+    for record in records:
+        for key in (
+            "defect_class", "taxonomy_class", "primary_class", "primary_class_key",
+            "class", "class_key", "category", "source_class", "expected_category",
+            "direction", "status",
+        ):
+            label = record.get(key)
+            labels = list(label.values()) if isinstance(label, Mapping) else [label]
+            labels = [entry for entry in labels if isinstance(entry, str)]
+            if any(words == _description_words(entry) for entry in labels) or (
+                labels and words == _description_words(" ".join(labels))
+            ):
+                return None
+    return text
+
+
+def _bound_atlas_witness(
+    item: Mapping[str, Any], row: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    """Bind the supplied row to one exact finding, without admitting any data."""
+    program = item.get("program", {})
+    subject = item.get("subject", {})
+    if not isinstance(program, Mapping) or not isinstance(subject, Mapping):
+        return None
+    identities = [
+        item[key] for key in ("finding_id", "source_finding_id", "key_id", "id")
+        if key in item
+    ]
+    if not identities:
+        return None
+    if "source_program_id" in program:
+        identities.append(program["source_program_id"])
+    parsed: list[tuple[str, str]] = []
+    for identity in identities:
+        match = _MIMO_FINDING_ID.fullmatch(identity) if isinstance(identity, str) else None
+        if match is None:
+            return None
+        parsed.append((match[1], match[2]))
+    if not parsed or any(identity != parsed[0] for identity in parsed):
+        return None
+    task_id, witness_id = parsed[0]
+    if row.get("task_id") != task_id or any(
+        record[key] != task_id
+        for record, key in ((item, "task_id"), (subject, "task_id"))
+        if key in record
+    ):
+        return None
+    packages = [
+        record[key]
+        for record, key in ((item, "package_digest"), (subject, "task_digest"))
+        if key in record
+    ]
+    package = row.get("package_digest")
+    if (
+        not isinstance(package, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", package)
+        or not packages or any(value != package for value in packages)
+        or ("witness_id" in item and item["witness_id"] != witness_id)
+    ):
+        return None
+    witnesses = row.get("witnesses")
+    if not isinstance(witnesses, (list, tuple)):
+        return None
+    matches = [
+        witness for witness in witnesses
+        if isinstance(witness, Mapping) and witness.get("id") == witness_id
+    ]
+    if len(matches) != 1:
+        return None
+    witness = matches[0]
+    for record, key in ((program, "sha256"), (item, "program_sha256")):
+        if key not in record:
+            continue
+        supplied, retained = record[key], witness.get("sha256")
+        if not isinstance(supplied, str) or not isinstance(retained, str):
+            return None
+        supplied, retained = supplied.removeprefix("sha256:"), retained.removeprefix("sha256:")
+        if not re.fullmatch(r"[0-9a-f]{64}", supplied) or supplied != retained:
+            return None
+    return witness
+
+
+def resolve_mechanism_description(
+    item: Mapping[str, Any],
+    *,
+    retained_atlas_row: Mapping[str, Any] | None = None,
+) -> str | None:
+    """Preserve supplied causal prose as untrusted diagnostic data.
+
+    The caller owns admission and provenance. No labels or patches are loaded,
+    and neither source prose nor an exact witness join confirms a differential.
+    A supplied atlas row must match every supplied finding identity, even when
+    another description is present; a mismatched join has no prose fallback.
+    """
+    witness = None
+    if retained_atlas_row is not None:
+        witness = _bound_atlas_witness(item, retained_atlas_row)
+        if witness is None:
+            return None
+    finding = item.get("finding")
+    records = (item, finding) if isinstance(finding, Mapping) else (item,)
+    for record in records:
+        for key in ("mechanism", "mechanism_summary"):
+            if (text := _mechanism_text(record.get(key), *records)) is not None:
+                return text
+    summaries: list[str] = []
+    for record in records:
+        for key in ("root_cause", "root_causes"):
+            roots = record.get(key, [])
+            if isinstance(roots, Mapping):
+                roots = [roots]
+            if not isinstance(roots, (list, tuple)):
+                continue
+            for root in roots:
+                if isinstance(root, Mapping) and (
+                    text := _mechanism_text(root.get("summary"), *records, root)
+                ) is not None and text not in summaries:
+                    summaries.append(text)
+    if summaries:
+        return "\n".join(summaries)
+    if witness is not None:
+        return _mechanism_text(witness.get("reason"), *records)
+    for record in records:
+        for key in ("summary", "safe_summary"):
+            if (text := _mechanism_text(record.get(key), *records)) is not None:
+                return text
+    return None
 
 
 def _related(example: RetrievedExample) -> dict[str, Any]:
@@ -71,7 +256,7 @@ def _related(example: RetrievedExample) -> dict[str, Any]:
                 key: _clip(issue.get(key), 240)
                 for key in ("defect_class", "direction", "citation_file", "citation_line")
             },
-            "summary": _clip(issue.get("summary"), 600),
+            "summary": _clip(resolve_mechanism_description(issue), 600),
         },
         "provenance": {
             key: _clip(example.provenance.get(key), 180)

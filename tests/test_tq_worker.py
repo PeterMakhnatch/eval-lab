@@ -18,6 +18,7 @@ import pytest
 from evallab.dataset_audit_checks import static_observation
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.execution_backend import ExecutionBackendConfig, LocalDockerDisabledError
+from evallab.production import swarm_coordinator as swarm
 from evallab.production.swarm_coordinator import ModelCall, ModelResponse, Role, WorkKind
 from evallab.production.tq_worker import (
     JOB_TYPES,
@@ -1597,6 +1598,271 @@ def test_audit_bundle_without_retriever_marks_history_unavailable(setup) -> None
     assert bundle["audit_context"]["related_issues"] == []
     assert bundle["audit_context"]["provenance"]["retriever_available"] is False
     assert not s.backend.calls and not s.replay.calls
+
+
+def audit_finding(
+    *,
+    confidence: float = 0.6,
+    direction: str = "unfair_fail",
+    path: str = "tests/test.py",
+    line: int = 1,
+    quote: str = 'assert result == "answer\\n"',
+) -> dict[str, Any]:
+    return {
+        "direction": direction,
+        "mechanism": "Grader requires a trailing newline although instructions allow any whitespace.",
+        "confidence": confidence,
+        "citations": [{"path": path, "line": line, "quote": quote}],
+        "payload": {"rationale": "synthetic formatting mismatch"},
+    }
+
+
+@pytest.mark.parametrize("direction", ["unfair_fail", "wrong_pass"])
+@pytest.mark.parametrize("confidence", [0.5, 0.6])
+@pytest.mark.parametrize(
+    "quote", ['assert result == "answer\\n"', ' assert\tresult  ==\t"answer\\n" ']
+)
+def test_audit_proposals_preserves_verified_moderate_candidates(
+    setup, monkeypatch, direction: str, confidence: float, quote: str
+) -> None:
+    s = setup
+    raw = audit_finding(confidence=confidence, direction=direction, quote=quote)
+    raw["citation_verified"] = False
+    parsed = []
+
+    def parse(*args, **kwargs):
+        candidates = swarm.parse_candidates(*args, **kwargs)
+        parsed.extend(candidates)
+        return candidates
+
+    monkeypatch.setattr("evallab.production.tq_worker.parse_candidates", parse)
+    proposals = s.worker.audit_proposals(
+        s.original,
+        task_id="fixture/format-task",
+        response="Working...\n```json\n" + json.dumps({"findings": [raw]}) + "\n```",
+        model="fixture-provider/fixture-model",
+    )
+
+    assert isinstance(proposals, tuple) and len(proposals) == 1
+    candidate = proposals[0]
+    assert candidate is parsed[0]
+    assert candidate.candidate_id == "fixture-provider/fixture-model#1"
+    assert candidate.model == "fixture-provider/fixture-model"
+    assert candidate.rank == 1
+    assert candidate.work_kind is WorkKind.TASK_QUALITY_AUDIT
+    assert candidate.subject_id == "fixture/format-task"
+    assert candidate.direction == direction
+    assert candidate.mechanism == raw["mechanism"]
+    assert candidate.confidence == confidence
+    assert candidate.payload == raw["payload"]
+    assert candidate.citations == (swarm.Citation.from_payload(raw["citations"][0]),)
+    assert candidate.checks == (
+        swarm.verify_citation(s.original, candidate.citations[0]),
+    )
+    assert candidate.checks[0].quote_found is True
+    assert candidate.citation_verified is True
+    assert not s.queue.events
+
+
+@pytest.mark.parametrize("confidence,verified", [(0.49, True), (0.79, False)])
+def test_audit_proposals_rejects_candidates_below_their_floor(
+    setup, confidence: float, verified: bool
+) -> None:
+    raw = audit_finding(confidence=confidence)
+    if not verified:
+        raw["citations"][0]["quote"] = "invented grader check"
+    assert setup.worker.audit_proposals(
+        setup.original,
+        task_id="fixture/format-task",
+        response=json.dumps({"findings": [raw]}),
+        model="fixture-provider/fixture-model",
+    ) == ()
+
+
+@pytest.mark.parametrize("quote", [None, "", " \t\n "])
+@pytest.mark.parametrize("confidence,eligible", [(0.5, False), (0.8, True)])
+def test_audit_proposals_requires_nonblank_quotes_for_verified_floor(
+    setup, quote: str | None, confidence: float, eligible: bool
+) -> None:
+    raw = audit_finding(confidence=confidence)
+    if quote is None:
+        raw["citations"][0].pop("quote")
+    else:
+        raw["citations"][0]["quote"] = quote
+    raw["citation_verified"] = True
+    proposals = setup.worker.audit_proposals(
+        setup.original,
+        task_id="fixture/format-task",
+        response=json.dumps({"findings": [raw]}),
+        model="fixture-provider/fixture-model",
+    )
+
+    assert bool(proposals) is eligible
+    if proposals:
+        candidate = proposals[0]
+        assert candidate.checks[0].file_exists is True
+        assert candidate.checks[0].line_range_exists is True
+        assert candidate.checks[0].quote_found is False
+        assert "quoted snippet" in candidate.checks[0].detail
+        assert candidate.citation_verified is False
+        assert candidate.as_payload()["citation_verified"] is False
+    assert not setup.queue.events
+
+
+@pytest.mark.parametrize(
+    "invalid", ["wrong_quote", "missing_path", "wrong_line", "traversal", "outside_symlink"]
+)
+def test_audit_proposals_model_cannot_spoof_verified_floor(setup, invalid: str) -> None:
+    s = setup
+    raw = audit_finding()
+    citation = raw["citations"][0]
+    if invalid == "wrong_quote":
+        citation["quote"] = "invented grader check"
+    elif invalid == "missing_path":
+        citation["path"] = "tests/missing.py"
+    elif invalid == "wrong_line":
+        citation["line"] = 2
+    elif invalid == "traversal":
+        citation.update(
+            path="../repaired/instruction.md",
+            quote="Write a correct answer. Any whitespace is acceptable.",
+        )
+    else:
+        (s.original / "tests/linked.md").symlink_to(s.repaired / "instruction.md")
+        citation.update(
+            path="tests/linked.md",
+            quote="Write a correct answer. Any whitespace is acceptable.",
+        )
+    raw["citation_verified"] = True
+    raw["checks"] = [{"verified": True, "file_exists": True, "quote_found": True}]
+    citation["verified"] = True
+    assert s.worker.audit_proposals(
+        s.original,
+        task_id="fixture/format-task",
+        response=json.dumps({"findings": [raw]}),
+        model="fixture-provider/fixture-model",
+    ) == ()
+    assert not s.backend.calls and not s.replay.calls
+    assert not s.queue.events
+
+
+@pytest.mark.parametrize("confidence", [0.8, 0.9])
+def test_audit_proposals_high_confidence_unverified_stays_provisional(
+    setup, confidence: float
+) -> None:
+    s = setup
+    raw = audit_finding(confidence=confidence)
+    raw["citations"].append(
+        {"path": "tests/test.py", "line": 1, "quote": "invented grader check"}
+    )
+    raw["citation_verified"] = True
+    raw["checks"] = [{"verified": True}, {"verified": True}]
+    proposals = s.worker.audit_proposals(
+        s.original,
+        task_id="fixture/format-task",
+        response=json.dumps({"findings": [raw]}),
+        model="fixture-provider/fixture-model",
+    )
+
+    assert len(proposals) == 1
+    candidate = proposals[0]
+    assert candidate.confidence == confidence
+    assert candidate.checks[0].verified is True
+    assert candidate.checks[1].file_exists is True
+    assert candidate.checks[1].line_range_exists is True
+    assert candidate.checks[1].quote_found is False
+    assert candidate.citation_verified is False
+    assert candidate.as_payload()["citation_verified"] is False
+    assert not s.queue.events
+    assert not s.backend.calls and not s.replay.calls
+
+
+@pytest.mark.parametrize(
+    "confidence,verified,verified_floor,unverified_floor,eligible",
+    [
+        (0.6, True, 0.7, 0.95, False),
+        (0.7, True, 0.7, 0.95, True),
+        (0.85, False, 0.5, 0.9, False),
+        (0.9, False, 0.5, 0.9, True),
+        (0.4, True, 0.4, 0.8, True),
+        (0.6, False, 0.5, 0.6, True),
+    ],
+)
+def test_audit_proposals_honors_configured_review_floors(
+    setup,
+    confidence: float,
+    verified: bool,
+    verified_floor: float,
+    unverified_floor: float,
+    eligible: bool,
+) -> None:
+    raw = audit_finding(confidence=confidence)
+    if not verified:
+        raw["citations"][0]["quote"] = "invented grader check"
+    proposals = setup.worker.audit_proposals(
+        setup.original,
+        task_id="fixture/format-task",
+        response=json.dumps({"findings": [raw]}),
+        model="fixture-provider/fixture-model",
+        min_verified_confidence=verified_floor,
+        min_unverified_confidence=unverified_floor,
+    )
+    assert bool(proposals) is eligible
+    if proposals:
+        assert proposals[0].citation_verified is verified
+
+
+def test_audit_proposals_has_no_model_execution_or_journal_effects(setup, monkeypatch) -> None:
+    s = setup
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("Proposal review must only parse supplied bytes and check package citations")
+
+    for name in ("resolve", "static", "resource_blocker", "bind_reference_patch", "control"):
+        monkeypatch.setattr(s.backend, name, unexpected)
+    for name in ("claim", "renew", "ack", "release", "append_event"):
+        monkeypatch.setattr(s.queue, name, unexpected)
+    worker = TaskQualityLiveWorker(
+        s.queue,
+        repo_root=s.root,
+        backend=s.backend,
+        replay_runner=unexpected,
+        candidate_runner=unexpected,
+        reader=unexpected,
+        audit_retriever=SimpleNamespace(
+            failed_run_summary=unexpected, retrieve_similar_examples=unexpected
+        ),
+        repair_callback=TracebackGraderRepair(
+            SimpleNamespace(complete=unexpected), model="fixture-provider/fixture-model"
+        ),
+        repair_grader_path="tests/test.py",
+        clock=unexpected,
+    )
+    monkeypatch.setattr(worker, "_qa_backend", unexpected)
+    monkeypatch.setattr(worker, "_spend_gate", unexpected)
+    before = {
+        path.relative_to(s.root): path.read_bytes()
+        for path in s.root.rglob("*")
+        if path.is_file()
+    }
+    proposals = worker.audit_proposals(
+        s.original,
+        task_id="fixture/format-task",
+        response=json.dumps({"findings": [audit_finding()]}),
+        model="fixture-provider/fixture-model",
+    )
+
+    assert len(proposals) == 1
+    assert not s.backend.calls and not s.backend.bound_patches
+    assert not s.replay.calls
+    assert not s.queue.events and not s.queue.keys
+    assert not s.queue.claims and not s.queue.renewals
+    assert not s.queue.acks and not s.queue.releases
+    assert before == {
+        path.relative_to(s.root): path.read_bytes()
+        for path in s.root.rglob("*")
+        if path.is_file()
+    }
 
 
 def test_retry_callback_is_durably_limited_across_worker_reclaims(setup) -> None:

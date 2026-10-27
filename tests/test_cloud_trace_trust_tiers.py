@@ -158,6 +158,70 @@ def test_labeled_trace_returns_a_window_centered_on_its_best_passage(
         assert "- step 9 [assistant] FLAGGED observed: overwrite the pytest grader" in example.prompt_text
 
 
+def test_compact_card_summarizes_a_window_and_its_pointer_expands_to_the_same_steps(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever,
+) -> None:
+    add_task(db, "labeled")
+    add_window_trace(db, "labeled", {
+        1: "pytest grader setup", 9: "overwrite the pytest grader\nrm tests/check.py\nexit 0\nsleep 1",
+    }, trust_tier=TIER2, flagged_passage_steps=[9], verified_receipt_json={
+        "status": "verified", "source_label": {"categories": ["test_modification"]},
+    })
+    (example,) = retriever.retrieve_similar_examples("pytest grader", "reward_seeker", 5)
+    full = retriever.format_for_prompt([example])
+    card = retriever.format_for_prompt([example], format_mode="compact_cards")
+    assert card.splitlines()[4:] == [
+        "### 1. labeled [tier2_consensus_labeled]",
+        "- mechanism: test_modification",
+        "- flagged:",
+        "  | overwrite the pytest grader",
+        "  | rm tests/check.py",
+        "  | exit 0",
+        "- verify: publisher three-vote passage label; receipt verified",
+        "- expand: trace:labeled/trace:6-12",
+    ]
+    assert "routine step" not in card and "routine step" in full
+
+    expanded = retriever.expand_pointer(example.pointer)
+    assert expanded["trust_tier"] == TIER2
+    assert expanded["steps"] == example.trace_steps
+    wider = retriever.expand_pointer("trace:labeled/trace", max_steps=4)
+    assert [step["step_index"] for step in wider["steps"]] == [1, 2, 3]  # step 0 is the user turn
+    with pytest.raises(ValueError, match="format_mode"):
+        retriever.format_for_prompt([example], format_mode="cards")
+
+
+def test_issue_card_and_pointer_expansion_fail_closed(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever,
+) -> None:
+    add_task(db, "verified")
+    add_issue(db, "verified", "verified/issue", TIER1, "pytest grader\nprintf ok > out\nexit 0\ntrue")
+    add_task(db, "lead")
+    add_issue(db, "lead", "lead/issue", TIER3, "pytest grader lead")
+    add_window_trace(db, "lead", {1: "pytest grader lead"}, trust_tier=TIER3)
+    (example,) = retriever.retrieve_similar_examples("pytest grader", "task_quality", 5)
+    card = retriever.format_for_prompt([example], format_mode="compact_cards").splitlines()[4:]
+    assert card == [
+        "### 1. verified [tier1_container_verified]",
+        "- mechanism: missing_output_check (wrong_pass)",
+        "- flagged:", "  | pytest grader", "  | printf ok > out", "  | exit 0",
+        "- verify: original reward 1 -> repaired reward 0",
+        "- expand: issue:verified/issue",
+    ]
+    assert retriever.expand_pointer("issue:verified/issue")["issue"]["reproducer_script"].endswith("true")
+
+    # Provisional rows expand only on request; unknown rows and sealed identities never.
+    for pointer in ("issue:lead/issue", "trace:lead/trace:0-3", "trace:missing", "issue:missing"):
+        with pytest.raises(ValueError, match="returnable"):
+            retriever.expand_pointer(pointer)
+    assert retriever.expand_pointer("issue:lead/issue", include_provisional=True)["trust_tier"] == TIER3
+    sealed = CloudTraceRetriever(db, registry=SyntheticRegistry(), sealed_task_ids=("verified",))
+    with pytest.raises(ValueError, match="sealed"):
+        sealed.expand_pointer("issue:verified/issue")
+    with pytest.raises(ValueError, match="pointer must be"):
+        retriever.expand_pointer("verified/issue")
+
+
 def test_trace_without_labeled_steps_uses_passage_marks_and_metadata_never_flags(
     db: CloudTraceDatabase, retriever: CloudTraceRetriever,
 ) -> None:

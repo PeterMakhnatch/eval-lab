@@ -738,6 +738,136 @@ class _MonitorCascade(_BenchmarkRecord):
         return self
 
 
+_PLAYBOOK_SYSTEMS = ("task_bug_finder", "reward_seeker", "live_monitor")
+
+
+class _PlaybookCost(_BenchmarkRecord):
+    """Recorded model usage; a missing figure stays null and is never filled with zero."""
+
+    calls_n: _Count | None
+    input_tokens_n: _Count | None
+    output_tokens_n: _Count | None
+    usd: _Spend | None
+    complete: bool
+    scope: _Label
+    usd_basis: _Label
+
+    @model_validator(mode="after")
+    def validate_complete(self) -> Self:
+        if self.complete and None in (self.input_tokens_n, self.output_tokens_n):
+            raise ValueError("usage cannot be complete without both token totals")
+        return self
+
+
+class _PlaybookResult(_BenchmarkRecord):
+    """Hits against the cohort they were drawn from, with the false alarms and cost."""
+
+    label: _Label
+    hit_label: _Label
+    hits_n: _Count
+    of_n: _Count
+    planned_of_n: _Count | None
+    false_alarm_n: _Count | None
+    false_alarm_of_n: _Count | None
+    stage_one_hits_n: _Count | None
+    stage_one_false_alarm_n: _Count | None
+    cost: _PlaybookCost
+
+    @model_validator(mode="after")
+    def validate_counts(self) -> Self:
+        if self.hits_n > self.of_n:
+            raise ValueError("hits must not exceed the cases they are drawn from")
+        if self.planned_of_n is not None and self.planned_of_n < self.of_n:
+            raise ValueError("evaluated cases must not exceed the planned cases")
+        if (self.false_alarm_n is None) != (self.false_alarm_of_n is None):
+            raise ValueError("false alarms need both a count and the clean cases behind it")
+        if (self.stage_one_hits_n is None) != (self.stage_one_false_alarm_n is None):
+            raise ValueError("stage-one hits and false alarms are reported together")
+        if self.stage_one_hits_n is not None and self.false_alarm_of_n is None:
+            raise ValueError("stage-one counts need the clean cases behind the false alarms")
+        if self.false_alarm_n is not None and self.false_alarm_of_n is not None:
+            if self.false_alarm_n > self.false_alarm_of_n:
+                raise ValueError("false alarms must not exceed the clean cases")
+            if self.stage_one_false_alarm_n is not None and (
+                self.stage_one_false_alarm_n > self.false_alarm_of_n
+            ):
+                raise ValueError("stage-one false alarms must not exceed the clean cases")
+        if self.stage_one_hits_n is not None and self.stage_one_hits_n > self.of_n:
+            raise ValueError("stage-one hits must not exceed the cases they are drawn from")
+        return self
+
+
+class _PlaybookRun(_BenchmarkRecord):
+    role: Literal["tune", "cross_test", "dev_only"]
+    cohort: _Label
+    frozen: bool
+    result: _PlaybookResult
+
+
+class _PlaybookFlag(_BenchmarkRecord):
+    """One feature setting compared like for like on a single cohort."""
+
+    flag: _Label
+    plain_english: _Label
+    role: Literal["tune", "cross_test", "dev_only"]
+    cohort: _Label
+    variants: Annotated[list[_PlaybookResult], Field(min_length=2)]
+
+    @field_validator("variants")
+    @classmethod
+    def validate_distinct_variants(cls, value: list[_PlaybookResult]) -> list[_PlaybookResult]:
+        labels = [variant.label.casefold() for variant in value]
+        if len(set(labels)) != len(labels):
+            raise ValueError("flag variants must have distinct labels")
+        return value
+
+
+class _PlaybookSystem(_BenchmarkRecord):
+    system_id: Literal["task_bug_finder", "reward_seeker", "live_monitor"]
+    name: _Label
+    plain_english: _Label
+    measure: _Label
+    version: _Label
+    served_models: Annotated[list[_ModelId], Field(min_length=1)]
+    runs: Annotated[list[_PlaybookRun], Field(min_length=1)]
+    flags: list[_PlaybookFlag]
+    caveats: Annotated[list[_Label], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def validate_runs(self) -> Self:
+        if not any(run.role in ("tune", "dev_only") for run in self.runs):
+            raise ValueError("a system needs a tune or dev-only run")
+        names = [run.cohort.casefold() for run in self.runs]
+        if len(set(names)) != len(names):
+            raise ValueError("a cohort may appear once, so none is both tuned and cross-tested")
+        return self
+
+
+class _PlaybookSource(_BenchmarkRecord):
+    label: _Label
+    sha256: _Sha256
+
+
+class _SystemPlaybook(_BenchmarkRecord):
+    """The three core systems side by side, each with its cost and cross-test result."""
+
+    schema_: Literal["evallab.system_playbook/v1"] = Field(alias="schema")
+    systems: Annotated[list[_PlaybookSystem], Field(min_length=3, max_length=3)]
+    sources: Annotated[list[_PlaybookSource], Field(min_length=1)]
+    generated_at: str
+
+    @field_validator("generated_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        return _aware_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_systems(self) -> Self:
+        if tuple(system.system_id for system in self.systems) != _PLAYBOOK_SYSTEMS:
+            raise ValueError(f"systems must be exactly {', '.join(_PLAYBOOK_SYSTEMS)}, in order")
+        return self
+
+
 class _SwarmScore(_BenchmarkRecord):
     # run_benchmark also retains selections, attribution, and descriptive deltas.
     model_config = ConfigDict(strict=True, extra="allow", allow_inf_nan=False)
@@ -821,6 +951,8 @@ def validate_benchmark_document(raw: bytes) -> dict[str, Any]:
         _SeekerExecutedDifferentials.model_validate(document)
     elif schema == "evallab.monitor_cascade/v1":
         _MonitorCascade.model_validate(document)
+    elif schema == "evallab.system_playbook/v1":
+        _SystemPlaybook.model_validate(document)
     elif schema == "evallab.swarm_bench/v1":
         if "arms" in document:
             raise ValueError("Comparison arms require an evallab.arm_comparison schema")

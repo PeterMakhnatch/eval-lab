@@ -1375,6 +1375,23 @@ tier, rule hit or score itself. Nothing is ranked.
   datasets are required. CM-4 recorded no per-cohort measurement times, so this
   schema carries the producer's freeze statement instead of a validated ordering;
   `tune_cross_test/v1` (which does validate ordering) is unchanged.
+- `evallab.system_playbook/v1` (seen first in the Trust & QC tab) — the three core
+  systems side by side, in this order: `task_bug_finder`, `reward_seeker`,
+  `live_monitor`. Each `systems[]` entry has `name`, `plain_english`, `measure`,
+  `version`, `served_models[]`, `runs[]`, `flags[]` and at least one `caveats[]`. A run is
+  `{role: tune|cross_test|dev_only, cohort, frozen, result}`; `dev_only` means a single
+  DEV cohort with no unseen cross-test, which the page says in words rather than
+  showing an accuracy. A `result` has `label`, `hit_label`, `hits_n` of `of_n` (and
+  `planned_of_n` when fewer cases could be evaluated than planned), optional
+  `false_alarm_n` of `false_alarm_of_n` and `stage_one_*` counts, and a `cost`
+  `{calls_n, input_tokens_n, output_tokens_n, usd, complete, scope, usd_basis}` where a
+  missing figure is `null`, never zero. A flag compares one feature's settings on one
+  cohort (`variants[]` of results, at least two with distinct labels). Hits never exceed
+  their cases, false alarms never exceed the clean cases, a cohort appears once per
+  system (so none is both tuned and cross-tested) and a system needs a tune or
+  dev-only run. `sources[]` lists the sha256 of each recorded input. What counts as a
+  hit differs per system, so the page never compares systems or ranks settings; it
+  derives rates and tokens per hit from the counts.
 
 Each tab section shows an explicit empty state when no such report is retained;
 no value is fabricated.
@@ -1390,7 +1407,9 @@ uv run evallab prod export-qc-reports \
   --tune-cross-test /path/to/tune-cross-test.json \
   --ts4-manifest /path/to/ts3-ts4/manifest.json \
   --ts4-cells /path/to/ts3-hide-tests-two-turn/pairs \
-  --cm4-directory /path/to/cm4-results
+  --cm4-directory /path/to/cm4-results \
+  --cm5-directory /path/to/cm5-results \
+  --oq5-directory /path/to/oq5-results
 
 - The trust-tier census is **generated** from the source database, opened
   read-only (a database with a live WAL is refused so no sidecar file is written
@@ -1422,6 +1441,17 @@ uv run evallab prod export-qc-reports \
   summaries against their own per-trace rows and audits; a disagreement (or a non-DEV
   assignment) fails the export. CM-4's with-examples arm is a DEV tuning measurement,
   not the frozen plain arm, so only the frozen arm is exported.
+- `--oq5-directory` with `--cm5-directory` (and the TS-4 and CM-4 inputs above) also
+  builds `system-playbook.json`, and the export refuses if any of the five is missing.
+  Task Bug Finder comes from OQ-5's `dev-summary.json`, `cross-summary.json` and
+  `freeze.json` (the cross summary must carry the freeze file's sha256 and record no
+  protected-split exposure); Reward Seeker from the same per-cell results as the
+  executed-differentials report, with a task scoring once if either turn found an
+  attested differential; Live Monitor from CM-5's frozen arm (`freeze.json`,
+  `e2escore-*`, `judge-receipts.jsonl`) with CM-4's reference-example comparison as a
+  flag on its own earlier judge. Counts are recomputed from per-trace rows and must
+  match each summary; a fallback-served judge, a non-DEV assignment or a mismatch fails
+  the export. A later cascade version is not shown until it has its own freeze receipt.
 - The output directory must not exist. Files are staged in a sibling directory,
   mode `0600`, validated again as written, and published by one rename; any failure
   leaves nothing behind. The receipt (stdout) has `"uploaded": false`: copying the

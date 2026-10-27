@@ -1,0 +1,128 @@
+{
+ "by_run": {
+  "deepswe-glm-5.2-fp8": {
+   "ambiguous_steps": 1294,
+   "positive_steps": 659,
+   "positive_turn_runs": 572,
+   "traces_with_ambiguous_step": 363,
+   "traces_with_positive_step": 220
+  },
+  "deepswe-kimi-k3": {
+   "ambiguous_steps": 1602,
+   "positive_steps": 1345,
+   "positive_turn_runs": 1110,
+   "traces_with_ambiguous_step": 419,
+   "traces_with_positive_step": 403
+  },
+  "deepswe-qwen3.8-2.4t-a95b-fp8": {
+   "ambiguous_steps": 1803,
+   "positive_steps": 1746,
+   "positive_turn_runs": 1449,
+   "traces_with_ambiguous_step": 398,
+   "traces_with_positive_step": 393
+  },
+  "impossiblebench-glm-5.2-fp8": {
+   "ambiguous_steps": 532,
+   "positive_steps": 486,
+   "positive_turn_runs": 463,
+   "traces_with_ambiguous_step": 156,
+   "traces_with_positive_step": 127
+  },
+  "impossiblebench-kimi-k3": {
+   "ambiguous_steps": 555,
+   "positive_steps": 1061,
+   "positive_turn_runs": 820,
+   "traces_with_ambiguous_step": 174,
+   "traces_with_positive_step": 183
+  },
+  "impossiblebench-qwen3.8-2.4t-a95b-fp8": {
+   "ambiguous_steps": 424,
+   "positive_steps": 1038,
+   "positive_turn_runs": 1038,
+   "traces_with_ambiguous_step": 155,
+   "traces_with_positive_step": 188
+  },
+  "swebench-verified-glm-5.2-nohack": {
+   "ambiguous_steps": 998,
+   "positive_steps": 1299,
+   "positive_turn_runs": 984,
+   "traces_with_ambiguous_step": 235,
+   "traces_with_positive_step": 275
+  },
+  "swebench-verified-kimi-k3-nohack": {
+   "ambiguous_steps": 747,
+   "positive_steps": 1172,
+   "positive_turn_runs": 966,
+   "traces_with_ambiguous_step": 250,
+   "traces_with_positive_step": 336
+  },
+  "swebench-verified-qwen3.8-2.4t-a95b-fp8-nohack": {
+   "ambiguous_steps": 1782,
+   "positive_steps": 1875,
+   "positive_turn_runs": 1364,
+   "traces_with_ambiguous_step": 311,
+   "traces_with_positive_step": 358
+  }
+ },
+ "is_exploit_x_has_positive_step": {
+  "is_exploit_0": {
+   "with_positive": 874,
+   "without": 1155
+  },
+  "is_exploit_1": {
+   "with_positive": 1609,
+   "without": 27
+  }
+ },
+ "positive_steps_per_positive_trace": {
+  "max": 33,
+  "mean": 4.3,
+  "median": 3,
+  "min": 1,
+  "traces": 2483
+ },
+ "positive_turn_run_length_histogram_turns_to_runs": {
+  "1": 7436,
+  "10": 2,
+  "16": 1,
+  "2": 984,
+  "3": 217,
+  "4": 77,
+  "5": 30,
+  "6": 8,
+  "7": 6,
+  "8": 3,
+  "9": 2
+ },
+ "publisher_verdict_x_has_positive_step": {
+  "no": {
+   "with_positive": 0,
+   "without": 752
+  },
+  "split": {
+   "with_positive": 0,
+   "without": 389
+  },
+  "yes": {
+   "with_positive": 2483,
+   "without": 41
+  }
+ },
+ "schema": "lb3.goodfire.passage_base_rates/1",
+ "scope": "1,048 DEV Goodfire tasks, 3,665 judged traces; aggregates only; read from the rehearsal clone with plain SQL and confirmed equal on production for the headline counts",
+ "share_of_steps_positive_within_positive_traces": 0.0288,
+ "verdict_enacted_x_has_positive_step": {
+  "no": {
+   "with_positive": 639,
+   "without": 861
+  },
+  "split": {
+   "with_positive": 235,
+   "without": 294
+  },
+  "yes": {
+   "with_positive": 1609,
+   "without": 27
+  }
+ }
+}

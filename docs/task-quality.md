@@ -200,8 +200,13 @@ format as `""`. Retrieval does not authorize training/export or verify a receipt
 renders one short playbook card per example instead of every field and step:
 `mechanism` (defect class and direction, or publisher label categories), trust tier,
 up to three flagged lines (flagged steps, else the issue's reproducer), a `verify`
-line (reward differential, citation, passage label, receipt status), and an
-`expand` pointer (`trace:<id>:<first>-<last>` or `issue:<id>`).
+line (reward differential, citation, passage label, receipt status), a `flags`
+line for trace cards (each fired `compute_trace_feature_flags` lead as
+`name@first_step_index` over the whole chosen trace, or `none`; routing leads, not
+verdicts), and an `expand` pointer (`trace:<id>:<first>-<last>` or `issue:<id>`).
+`RetrievedExample.feature_flags` carries every fired flag's step indices. They are
+computed only for returned examples, from steps retrieval already hydrated, with no
+extra query.
 `CloudTraceRetriever.expand_pointer(pointer)` hydrates that pointer on demand under
 retrieval's own rules: admitted DEV task, returnable tier (`include_provisional`
 as in retrieval), every returned row free of sealed identities, at most

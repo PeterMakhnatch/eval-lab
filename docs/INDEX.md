@@ -141,7 +141,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:e1ad1ba610fbade4f562e03cf40f12d9438e6c78966e317c8798bae36ad07b56
+    digest: sha256:c675095cc228481d7ee8c032317c133079c6fdf3da633c24899977e7f6c8f396
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

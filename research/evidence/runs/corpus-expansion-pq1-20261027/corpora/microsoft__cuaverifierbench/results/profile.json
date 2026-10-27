@@ -1,0 +1,582 @@
+{
+  "adapter_selfcheck": {
+    "annotations": 215,
+    "blind_ties_to_incorrect": 21,
+    "browser_actions": 2857,
+    "gold_fields_in_detector_step_schema": 0,
+    "input_text_fields_preserved": 424,
+    "issue_count": 0,
+    "issues": [],
+    "log_events_semantically_preserved": 2857,
+    "native_action_counts": {
+      "history_back": 99,
+      "key": 79,
+      "left_click": 1156,
+      "mouse_move": 12,
+      "pause_and_memorize_fact": 150,
+      "scroll": 878,
+      "terminate": 106,
+      "type": 233,
+      "visit_url": 71,
+      "wait": 4,
+      "web_search": 69
+    },
+    "negative_correct": 29,
+    "positive_incorrect": 77,
+    "rows": 106,
+    "screenshots_decoded": 0,
+    "steps": 3175,
+    "unlabeled": 0
+  },
+  "annotations": 215,
+  "blind_majority_aggregate_mismatches": 0,
+  "blind_majority_ties_to_incorrect": 21,
+  "checks": {
+    "adapter_all_rows_zero_issues": true,
+    "annotation_task_ids_equal_trajectory_ids": true,
+    "blind_majority_matches_released_aggregate": true,
+    "process_scores_in_unit_interval": true,
+    "publisher_annotation_count": true,
+    "publisher_trajectory_count": true,
+    "trace_keys_unique": true,
+    "trajectory_ids_unique": true,
+    "vetted_final_disagreement_count": true,
+    "vetted_review_outcome_counts": true,
+    "vetted_run_label_counts": true
+  },
+  "duplicate_task_reviewer_pairs": 0,
+  "evaluation_kind": "fixed_run_correctness_wrong_pass_not_cheating",
+  "file_receipt": {
+    "all_local_bytes": 875870220,
+    "all_local_files": 6,
+    "files": [
+      {
+        "bytes": 10080,
+        "git_blob": "23613c8358be85c3dc2ffa14d9a93b7c71610839",
+        "path": "README.md",
+        "sha256": "44d7190b72ae489297f59d6fadff635ced6dd067c845c77b04f187a7b2d7bec7",
+        "verified_against": "hub_git_blob_sha1"
+      },
+      {
+        "bytes": 77932,
+        "git_blob": "33fbdc1b90b7f766217ddb89e31eb1b0ed0076df",
+        "path": "annotations/fara7b_om2w_browserbase-00000-of-00001.parquet",
+        "sha256": "10d459cf76e888de082534be156f60974176617242ce5ebdaac554461468ab84",
+        "verified_against": "hub_lfs_sha256"
+      },
+      {
+        "bytes": 461305772,
+        "git_blob": "2254b526051c5d4e22916791fd122fc41aea586a",
+        "path": "trajectories/fara7b_om2w_browserbase-00000-of-00002.parquet",
+        "sha256": "00f6083c3465d9644a51ec6279d6bc13795375d2c5f6deb00e2322210076654a",
+        "verified_against": "hub_lfs_sha256"
+      },
+      {
+        "bytes": 414473352,
+        "git_blob": "c40b4bc148393c61542951c8f628f56aeba9a0fa",
+        "path": "trajectories/fara7b_om2w_browserbase-00001-of-00002.parquet",
+        "sha256": "79b22396664658e548c2c0ef3e4e5b28760265cf701724bb6a1edae6ae47122e",
+        "verified_against": "hub_lfs_sha256"
+      }
+    ],
+    "publisher_bytes": 875867136,
+    "publisher_files": 4,
+    "staging_tool_sha256": "11af5ae14dd67b3bff0dfe02ee170eef5e5f07670e176cbc6ba5f853d9c3d388",
+    "verified_after_lock": true,
+    "writable_paths": 0
+  },
+  "final_adjudication_majority_disagreements": 14,
+  "final_correct_majority_incorrect": 1,
+  "final_incorrect_majority_correct": 13,
+  "human_process_score": {
+    "distinct": 43,
+    "max": 1.0,
+    "min": 0.0,
+    "non_null": 215
+  },
+  "negatives_correct": 29,
+  "per_generator": {
+    "Fara-7B / Browserbase / Online-Mind2Web": 106
+  },
+  "per_label": {
+    "human_judgement_outcome": {
+      "Correct": 81,
+      "Incorrect": 134
+    },
+    "human_judgement_process": {
+      "Correct": 92,
+      "Incorrect": 123
+    },
+    "majority_human_outcome_vote": {
+      "correct": 29,
+      "incorrect": 77
+    }
+  },
+  "per_model": {
+    "Fara-7B": 106
+  },
+  "per_reviewer_counts_sorted_without_ids": [
+    35,
+    36,
+    36,
+    36,
+    36,
+    36
+  ],
+  "per_task_hashed": {
+    "02ac2f906d4cf123": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "062f810f1d5e5df0": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "077c162dd0512000": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "09dc8108d1673f18": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "0cb9420a9129afa4": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "0efa19ef1d2ddf45": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "0fdd05d34fc297f8": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "0ff68fc8ec1d8e28": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "1024f7b1c0032a99": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "10a934a0ca441a7f": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "122405a938dbe543": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "153d6a26ccf8f98d": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "173a7c360339432a": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "1974a5efed386e52": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "19c5f4d47943f656": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "2076f8bf9b7a88d1": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "2731eb26b78411df": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "285faa357005752e": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "2935d470c622f109": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "29c94f63ff48a51d": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "2aa43e9522308a71": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "2ddc59c8a109cbd2": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "2ffe4fe83e079ea6": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "302a6d43980b43f9": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "3242c7afd62c519a": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "348b6ebad79910ea": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "3813cf5dd6bdd64b": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "3ca679f9e1bd421d": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "3cfaec9861671d49": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "3dad70de058a3fca": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "4072e048af859bcb": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "445beb5f1bdfc210": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "457b8eb61184f395": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "478ccdd5861832cc": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "48c2d75fc54bc8b0": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "4c2fd5146dfd45c5": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "4c4eee7c14c67d5b": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "4dd2bb2cd5630c8a": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "4e6ac160349f2cc2": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "4f509f62e0ad52d0": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "50c21b9473e60e6e": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "52e9eb42f6cc6be3": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "535dd52f5f06393f": {
+      "reviews": 3,
+      "runs": 1
+    },
+    "540a96c45438512a": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "553180bae9bce252": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "5538dde07b9ad304": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "55f4b8633a0e7fc6": {
+      "reviews": 3,
+      "runs": 1
+    },
+    "5cf3a008fc2ba4dc": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "5d0a7456b76544b8": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "62d2f5777e2810d4": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "62dae5313548a411": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "6684004a3ebb2fcd": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "67084b7a596fdb3e": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "68495d5be7ce31df": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "6fb8f1de8a5966ed": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "7721f00d11287ceb": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "79720e5a5243700c": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "84fb54d09207f178": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "90d549b9fe56bf51": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "94856b423a47e0ae": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "94d8c1157e33b1fa": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "955a6b4d9d8e8f7f": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "9a6af73bc808878a": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "9bd422b078a984f5": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "9c5cf18acf1de115": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "9d91812b154b2906": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "a0fd9294c4476f4e": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "a282e104099e2830": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "a77a254c46cc0a88": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "a9c16060fe8f846c": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "aac5df1039778f0e": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "ab1132b7a5e1b6c1": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "adfb27a3daca2f10": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "afc1edc3a6f27e7b": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "b52d2bd0f9e7eed8": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "b8469219e1553632": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "ba910c42a57b6f49": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "bed9762b88ac2ccd": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "bff7e839c1399f3c": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "c5751d0b489e1dd4": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "c5a1d0beca242ce9": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "c5d484c54b4cb935": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "c95c891173687cb9": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "cccf34489553654a": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "d069a22b17fb517e": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "d1f2c4e3d2c8e26b": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "d1ffd16a9c6aa47c": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "d479ac816a3c0922": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "d643df192a5b442e": {
+      "reviews": 3,
+      "runs": 1
+    },
+    "d7a61a68352bf354": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "db0bcab94c198665": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "db93f0ad8e1c7f02": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "dc0886426871e239": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "dd69782eb541eaf1": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "e00ee12c82679441": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "e33650b830ec9bf2": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "e3bf6263fede5b77": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "e6e48d8d443f87e1": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "e7b31b3528d4e34d": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "f0257fec31db8d48": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "f27892935c44a618": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "f28caf94f5820280": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "f2aca8e12a7217c0": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "f3f5a7b010343fec": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "fcf0e2a13d7751bd": {
+      "reviews": 2,
+      "runs": 1
+    },
+    "fd07535b92cbba1d": {
+      "reviews": 2,
+      "runs": 1
+    }
+  },
+  "positives_incorrect": 77,
+  "publisher_claims_selected_split": {
+    "annotation_rows": 215,
+    "trajectory_rows": 106
+  },
+  "repo": "microsoft/CUAVerifierBench",
+  "reviewers": 6,
+  "reviews_per_task_histogram": {
+    "2": 103,
+    "3": 3
+  },
+  "revision": "c19eb323cd802add5c3d2840ff13044061364867",
+  "rows": 106,
+  "schema": "pq1-cuaverifierbench-profile/v1",
+  "sizes": {
+    "aborted_runs": 0,
+    "input_text_characters_by_field": {
+      "final_answer": 44267,
+      "init_url": 0,
+      "instruction": 9339,
+      "web_surfer_log": 1798664
+    },
+    "screenshots_per_run_max": 101,
+    "screenshots_per_run_min": 4,
+    "screenshots_retained_in_source_only": 2963
+  },
+  "sorted_record_ids_digest_encoding": "UTF-8 sorted task_id values, newline-joined, no trailing newline",
+  "sorted_record_ids_sha256": "f223bc4102d86dcf98b1d8ccc395a0b1f3b7beaf1921d8b5a47c81b7df03cae2",
+  "split": "fara7b_om2w_browserbase",
+  "unlabeled": 0
+}

@@ -1,0 +1,66 @@
+{
+ "algorithm": "tune = v4 tune tasks that are effective DEV; holdout = legacy v4 holdout effective DEV tasks + effective DEV tasks absent from the census (uncaptured)",
+ "assignment_rows_sha256": "a1213802756ad27469ef4079ba886c2b5980bafd67e4c52752e19d3fea7632d4",
+ "columns_read": [
+  "key_id",
+  "unit",
+  "task",
+  "split"
+ ],
+ "disclosures": [
+  "census22 vs effective DEV: the production registry's canonical-key TEST locks exclude sealed census tasks (sealed_by_registry); registry DEV tasks absent from this census are uncaptured_dev_tasks (unknown, not clean). All counts are reported; no registry-sealed task is unsealed or measured",
+  "built only from tb4-audit-v1 assignment task rows, the CorpusRegistry effective split (task names) and the v4 task_assignment key; no label or outcome chooses the task roles. The evaluator's accidental DEV label schema peek is disclosed in PROTOCOL.md; this is not a claim of strict label blindness",
+  "TB4 TEST trajectories, labels and package contexts never enter scoring; registry metadata alone enforces the canonical TEST locks",
+  "TW-P1 holdout means excluded from THIS patch's development and tuning only: the v3/v4 work saw DEV census labels and rule hits for all 22 census tasks and scored the v4 holdout half once, so neither half is untouched or independent in the historical sense"
+ ],
+ "effective_dev_sha256": "0f6b301c0bc640cd9a7cfc859056851e1d4f63b7cd24cf6eb439acee5a11c20b",
+ "holdout_tasks": [
+  "cad-model",
+  "cargo-flight-dispatch",
+  "fin-saccr-rwa",
+  "formal-crypto",
+  "freecad-impeller",
+  "freecad-platform-drawing",
+  "html-js-filter",
+  "layout-config-recreation2",
+  "live-database-cutover",
+  "nextjs-performance",
+  "pretrain-shard-corruption",
+  "protein-autointerp-disulfide",
+  "sglang-qwen-burst",
+  "vpp-loss-divergence"
+ ],
+ "key_id": "tb4-audit-v1",
+ "manifest_sha256": "f18c12d5d0e329046e98d4b11f8789dc8cfc2f06b94a6ecdb14ab3280ad9bd3d",
+ "n_captured_effective": 22,
+ "n_census_tasks": 22,
+ "n_dev_tasks": 25,
+ "n_holdout_tasks": 14,
+ "n_tune_tasks": 11,
+ "schema": "evallab.tw_p1_split_manifest/v1",
+ "sealed_by_registry": [],
+ "source": "retained tripwires-v4 task halves restricted to the production-registry effective DEV universe",
+ "tune_tasks": [
+  "distributed-dedup",
+  "freecad-spring-clip",
+  "gsea-proteomics",
+  "heat-pump-warranty",
+  "jax-speedrun-gpu",
+  "math-eval-grader",
+  "photonic-waveguide-routing",
+  "satb-audio-transcription",
+  "uefi-bootkit",
+  "vba-userform-port",
+  "vf2-speedup-networkx"
+ ],
+ "uncaptured_dev_tasks": [
+  "formal-crypto",
+  "pretrain-shard-corruption",
+  "protein-autointerp-disulfide"
+ ],
+ "unit": "task (group); every trial/membership of a task is in one half",
+ "v4_assignment_sha256": "6bd5189c872c2cbf7f490ad79f6c0ecf2502852eaab733bb99ec45b759e696bc",
+ "v4_results_file_sha256": "64a6c4759fdbf98aa0f6879b264485c59ace0209e89ec2bc105d6f6cd16a3413",
+ "v4_seed": "tripwires-v4-tune-holdout-20261021",
+ "version": "tw-p1-gate"
+}

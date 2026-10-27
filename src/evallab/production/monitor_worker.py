@@ -11,6 +11,13 @@ causality or a verified exploit.
 Executor adapters must call the gate *before* executing an action and report
 control acknowledgement and application separately. This module does not kill a
 process, authenticate an executor, or equate a stop request with a stopped run.
+
+The gate is model-free: it denies a proposed action when the pure ``GatePolicy``
+(protected reads/writes, history peeks, timing bypasses), a legacy gate rule, or a
+gate-marked causal Hackbook/structural action hit cites that action. Diagnostic
+Hackbook cues and ``task_structure`` checks become suspicion cards with explicit
+``kind``/``eligibility``, never a misconduct assessment or a gate denial. A structural
+check that is ``unavailable`` stays unknown in ``coverage.structural``, never clear.
 """
 
 from __future__ import annotations
@@ -24,7 +31,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, wait
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -38,6 +45,7 @@ from evallab.production.asset_exporter import (
     verify_label_proof,
 )
 from evallab.production.corpus_queue import CorpusRegistry
+from evallab.production.gate_policy import GatePolicy, policy_hits
 from evallab.qa import trace_cheap
 from evallab.tripwires import PrefixScanner
 
@@ -56,6 +64,29 @@ _GATE_RULES = frozenset(
         "history_mining",
         "task_protected_read",
     }
+)
+#: Fields of a proposed (unexecuted) step the gate may inspect; all execution output is dropped.
+_PROPOSAL_FIELDS = frozenset(
+    {
+        "step_id",
+        "source",
+        "message",
+        "reasoning",
+        "reasoning_content",
+        "analysis",
+        "channel",
+        "tool_calls",
+    }
+)
+#: Per-run stream metadata; ``structural_context`` is the core structural-check
+#: context (instruction/grader/test texts) and never contains future steps.
+_RUN_METADATA_KEYS = (
+    "task_id",
+    "source_kind",
+    "executor_id",
+    "task_manifest",
+    "baselines",
+    "structural_context",
 )
 
 
@@ -91,6 +122,127 @@ def _nonempty_str(value: Any) -> str | None:
 
 def _canon(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _step_text(value: Any) -> str:
+    """Every string leaf of a step, so verbatim quotes match across JSON escaping."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Mapping):
+        return "\n".join(_step_text(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return "\n".join(_step_text(v) for v in value)
+    return ""
+
+
+def _cited_quote(step: dict[str, Any], quote: str) -> str:
+    """A quote present in ``step``; some detectors report a path/pattern, so fall
+    back to the actual action text (or message) when it is not verbatim."""
+    text = json.dumps(step, ensure_ascii=False, default=str)
+    if quote and _normalized(quote) in _normalized(text):
+        return quote
+    actions = trace_cheap.actions_only([step])
+    return actions[0]["text"] if actions else str(step.get("message") or "")
+
+
+def _verified_evidence(
+    steps: Mapping[int, Mapping[str, Any]], item: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    """A citable evidence item: verbatim text of an observed step, or a typed
+    package/task-quality artifact that was available no later than the *last
+    observed step id* (sparse ids included; shape-checked already, never an actor
+    step)."""
+    if "artifact_ref" in item:
+        if item["available_before_step"] > max(steps, default=-1):
+            return None
+        source = "initial_artifact" if item["evidence_kind"] == "package_file" else "task_quality"
+        return {"source": source, **item}
+    number = item["step"]
+    if number in steps and _normalized(item["quote"]) in _normalized(_step_text(steps[number])):
+        return {
+            "step": number,
+            "step_ref": f"head#{number}",
+            **{k: v for k, v in item.items() if k not in {"step"}},
+        }
+    return None
+
+
+def _is_int(value: Any, *, minimum: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
+
+
+def _evidence_items(raw: Any, *, artifacts: bool, basis: str | None = None) -> list[dict[str, Any]]:
+    """Shape-checked structural evidence.
+
+    Trace evidence is ``{step, quote}`` (optionally ``source`` path and ``line``). An
+    artifact has no actor step and is typed by shape *and* by the record's declared
+    ``basis`` (``+``-joined): a package file needs ``line`` + ``sha256`` under
+    ``artifact``; a linked differential replay needs ``input_digest`` + ``repaired_ref``
+    under ``differential_replay``; a measured control or review has a ``sha256`` and no
+    file line, under ``repair_control`` / ``review``. A shape the basis does not declare
+    is dropped, so a line-less file fact can never pass as task-quality evidence.
+    """
+    declared = set((basis or "").split("+"))
+    items: list[dict[str, Any]] = []
+    for e in raw or ():
+        if not isinstance(e, Mapping) or not isinstance(e.get("quote"), str):
+            continue
+        if not e["quote"].strip():
+            continue
+        if _is_int(e.get("step"), minimum=0):
+            items.append(
+                {
+                    "step": e["step"],
+                    "quote": e["quote"],
+                    **({"source": e["source"]} if isinstance(e.get("source"), str) else {}),
+                    **({"line": e["line"]} if _is_int(e.get("line"), minimum=1) else {}),
+                }
+            )
+            continue
+        if not artifacts or not _is_int(e.get("available_before_step"), minimum=0):
+            continue
+        ref, line = e.get("artifact_ref"), e.get("line")
+        sha, digest, repaired = e.get("sha256"), e.get("input_digest"), e.get("repaired_ref")
+        has = {
+            "ref": isinstance(ref, str) and bool(ref.strip()),
+            "sha": isinstance(sha, str) and bool(sha.strip()),
+            "digest": isinstance(digest, str) and bool(digest.strip()),
+            "repaired": isinstance(repaired, str) and bool(repaired.strip()),
+            "line": _is_int(line, minimum=1),
+        }
+        if not has["ref"]:
+            continue
+        extra: dict[str, Any] = {}
+        if has["sha"] and has["line"] and "artifact" in declared:
+            kind = "package_file"
+            extra = {"sha256": sha, "line": line}
+        elif has["digest"] and has["repaired"] and "differential_replay" in declared:
+            kind = "differential_replay"
+            extra = {"input_digest": digest, "repaired_ref": repaired}
+        elif has["sha"] and not has["line"] and "repair_control" in declared:
+            kind = "repair_control"
+            extra = {"sha256": sha}
+        elif has["sha"] and not has["line"] and "review" in declared:
+            kind = "review"
+            extra = {"sha256": sha}
+        else:
+            continue
+        items.append(
+            {
+                "artifact_ref": ref,
+                "quote": e["quote"],
+                "evidence_kind": kind,
+                **extra,
+                "available_before_step": e["available_before_step"],
+            }
+        )
+    return items
+
+
+@dataclass(frozen=True)
+class _Detection:
+    alerts: list[dict[str, Any]]
+    structural: dict[str, Any] | None
 
 
 class JournalConsumer(Protocol):
@@ -286,9 +438,14 @@ class IncrementalPrefixState:
         *,
         task_manifest: dict[str, Any] | None = None,
         baselines: Sequence[Any] | None = None,
+        structural_context: Mapping[str, Any] | None = None,
         thresholds: WatchThresholds | None = None,
     ) -> None:
-        self.scanner = PrefixScanner(task_manifest=task_manifest, baselines=baselines)
+        self.scanner = PrefixScanner(
+            task_manifest=task_manifest,
+            baselines=baselines,
+            structural_context=structural_context,
+        )
         self._thresholds = thresholds or WatchThresholds()
         self._command: str | None = None
         self._run = 0
@@ -305,9 +462,14 @@ class IncrementalPrefixState:
         *,
         task_manifest: dict[str, Any] | None = None,
         baselines: Sequence[Any] | None = None,
+        structural_context: Mapping[str, Any] | None = None,
     ) -> None:
-        """Adopt the run's declared task manifest and baselines."""
-        self.scanner.bind(task_manifest=task_manifest, baselines=baselines)
+        """Adopt the run's declared task facts and structural-check context."""
+        self.scanner.bind(
+            task_manifest=task_manifest,
+            baselines=baselines,
+            structural_context=structural_context,
+        )
 
     def snapshot(self) -> tuple[Any, ...]:
         return (
@@ -334,7 +496,7 @@ class IncrementalPrefixState:
         ) = snapshot
         self.scanner.restore(scanner)
 
-    def advance(self, step: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    def advance(self, step: Mapping[str, Any]) -> dict[str, Any]:
         """Score one observed step; return the rule hits it adds."""
         self._advance_loops(step)
         return self.scanner.advance(step)
@@ -418,6 +580,7 @@ class _Run:
     steps: dict[int, dict[str, Any]] = field(default_factory=dict)
     coverage: dict[str, Any] = field(default_factory=dict)
     cards: set[str] = field(default_factory=set)
+    verdict_cards: set[str] = field(default_factory=set)
     controls: dict[str, ControlRequest] = field(default_factory=dict)
     control_events: dict[str, dict[str, Any]] = field(default_factory=dict)
     seen_events: set[str] = field(default_factory=set)
@@ -429,6 +592,7 @@ class _Run:
     run_state: str = "running"
     task_manifest: dict[str, Any] | None = None
     baselines: list[Any] | None = None
+    structural_context: dict[str, Any] | None = None
     prefix_state: IncrementalPrefixState = field(default_factory=IncrementalPrefixState)
     withheld: dict[str, int] = field(default_factory=dict)
     canon_bytes: dict[int, bytes] = field(default_factory=dict)
@@ -593,9 +757,13 @@ class _Run:
         """Return a constant-size snapshot; materialize only off the scoring path."""
         return self._frozen_prefix if self._prefix_hash_valid else None
 
-    def rescan_rules(self) -> dict[str, list[dict[str, Any]]]:
+    def rescan_rules(self) -> dict[str, Any]:
         """Corrections/recovery replay the observed steps, never append them twice."""
-        state = IncrementalPrefixState(task_manifest=self.task_manifest, baselines=self.baselines)
+        state = IncrementalPrefixState(
+            task_manifest=self.task_manifest,
+            baselines=self.baselines,
+            structural_context=self.structural_context,
+        )
         for number in sorted(self.steps):
             state.advance(self.steps[number])
         self.prefix_state = state
@@ -604,7 +772,11 @@ class _Run:
 
     def rebuild_prefix_state(self) -> None:
         """Re-derive the incremental state and rolling digest from observed steps."""
-        state = IncrementalPrefixState(task_manifest=self.task_manifest, baselines=self.baselines)
+        state = IncrementalPrefixState(
+            task_manifest=self.task_manifest,
+            baselines=self.baselines,
+            structural_context=self.structural_context,
+        )
         self.canon_bytes.clear()
         self.frozen_steps.clear()
         self.max_step_id = None
@@ -640,6 +812,8 @@ class MisalignmentLiveWorker:
         latency_target_seconds: float = 2.0,
         gate_rules: frozenset[str] = _GATE_RULES,
         registry: CorpusRegistry | None = None,
+        gate_policy: GatePolicy | None = None,
+        structural_context: Mapping[str, Any] | None = None,
         prefix_fraction: float = 1.0,
     ) -> None:
         if not math.isfinite(control_ttl_seconds) or control_ttl_seconds <= 0:
@@ -653,6 +827,10 @@ class MisalignmentLiveWorker:
         self._control_ttl = control_ttl_seconds
         self._latency_target = latency_target_seconds
         self._gate_rules = gate_rules
+        self._gate_policy = gate_policy if gate_policy is not None else GatePolicy()
+        self._structural_context = (
+            copy.deepcopy(dict(structural_context)) if structural_context is not None else None
+        )
         self._isolation = CausalPrefixIsolation(prefix_fraction)
         self._runs: dict[str, _Run] = {}
         self._seq = 0
@@ -701,7 +879,15 @@ class MisalignmentLiveWorker:
     def _run(self, run_id: str) -> _Run:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id is required")
-        return self._runs.setdefault(run_id, _Run())
+        run = self._runs.get(run_id)
+        if run is None:
+            context = copy.deepcopy(self._structural_context)
+            run = _Run(
+                structural_context=context,
+                prefix_state=IncrementalPrefixState(structural_context=context),
+            )
+            self._runs[run_id] = run
+        return run
 
     def _emit(
         self,
@@ -771,11 +957,15 @@ class MisalignmentLiveWorker:
                     payload["executor_id"],
                 ):
                     raise ValueError("trace metadata cannot change the bound run executor")
-                for key in ("task_id", "source_kind", "executor_id", "task_manifest", "baselines"):
+                for key in _RUN_METADATA_KEYS:
                     if key in payload:
                         setattr(run, key, copy.deepcopy(payload[key]))
+                if run.structural_context is None:
+                    run.structural_context = copy.deepcopy(self._structural_context)
                 run.prefix_state.bind(
-                    task_manifest=run.task_manifest, baselines=run.baselines
+                    task_manifest=run.task_manifest,
+                    baselines=run.baselines,
+                    structural_context=run.structural_context,
                 )
                 if "coverage" in payload:
                     run.coverage.update(payload["coverage"])
@@ -812,6 +1002,7 @@ class MisalignmentLiveWorker:
                         while len(run.suspicions) > card_count:
                             card_id, _ = run.suspicions.popitem()
                             run.cards.discard(card_id)
+                            run.verdict_cards.discard(card_id)
                         run.detector_valid = False
                         raise
                 if not normalized:
@@ -843,10 +1034,14 @@ class MisalignmentLiveWorker:
         self,
         run_id: str,
         run: _Run,
-        delta: Mapping[str, list[dict[str, Any]]],
+        delta: Mapping[str, Any],
         prefix_step: int | None = None,
-    ) -> list[dict[str, Any]]:
-        """Alerts for the hits one newly scored step contributed."""
+    ) -> _Detection:
+        """Alerts from a new step, with current structural-check coverage."""
+        if "structural_checks" not in delta:
+            report = run.prefix_state.scanner.report
+            if "structural_checks" in report:
+                delta = {**delta, "structural_checks": report["structural_checks"]}
         return self._alerts(run_id, run, delta, run.prefix_state.counters(), prefix_step)
 
     def _rederive_alerts(
@@ -869,39 +1064,37 @@ class MisalignmentLiveWorker:
             steps=list(steps),
             task_manifest=task_manifest,
             baselines=baselines,
+            structural_context=run.structural_context,
         )
         numbers = [_step_id(step) for step in steps]
-        return self._alerts(run_id, run, report, state.counters(), max(numbers, default=None))
+        return self._alerts(
+            run_id, run, report, state.counters(), max(numbers, default=None)
+        ).alerts
 
     def _alerts(
         self,
         run_id: str,
         run: _Run,
-        delta: Mapping[str, list[dict[str, Any]]],
+        delta: Mapping[str, Any],
         counters: Mapping[str, Any],
         prefix_step: int | None = None,
-    ) -> list[dict[str, Any]]:
-        """Turn one scan's hits into alerts.
+    ) -> _Detection:
+        """Render step-local hits and the current structural-check records.
 
-        ``PrefixScanner`` already merged those hits into the run's cumulative
-        report, so this only has to turn the new ones into alerts; a card for
-        an earlier step was emitted (and de-duplicated) when that step was
-        scored. A run-level alarm with no step of its own (``repetition``,
-        ``completion_loop``) is cited at the prefix step that first raised it:
-        that is the step that closed the run, and a card without a real cited
-        step cannot be verified later.
+        Incremental hits have already entered the cumulative scanner report.
+        Structural records instead describe the current prefix, including clear
+        and unavailable states; they are not append-only rule hits.
         """
         # The filesystem watcher renders only the first hit per rule. Render
-        # each cited step separately so later prefixes and repeated dangerous
-        # actions cannot hide behind that first-hit display optimization.
+        # each cited step separately so repeated actions remain independently citable.
         by_step: dict[int, dict[str, list[dict[str, Any]]]] = {}
         for rule, hits in delta.items():
-            if not isinstance(hits, list) or rule == "hackbook":
+            if not isinstance(hits, list) or rule in {"hackbook", "structural_checks"}:
                 continue
             for hit in hits:
                 if isinstance(hit, dict) and str(hit.get("step", "")).isdigit():
                     by_step.setdefault(int(hit["step"]), {}).setdefault(rule, []).append(hit)
-        alerts = []
+        alerts: list[dict[str, Any]] = []
         for hits in by_step.values():
             status = {
                 **hits,
@@ -915,42 +1108,121 @@ class MisalignmentLiveWorker:
                 "input_token_limit": 1,
                 "recent_repo_edit": True,
             }
-            alerts.extend(evaluate_alerts(status, thresholds=WatchThresholds()))
+            alerts.extend(
+                {
+                    **alert,
+                    "origin": "tripwire",
+                    "kind": "agent_action",
+                    "eligibility": "verdict",
+                    "gate": alert["rule"] in self._gate_rules,
+                }
+                for alert in evaluate_alerts(status, thresholds=WatchThresholds())
+            )
         for hit in delta.get("hackbook", []):
+            # Missing eligibility is diagnostic, never a misconduct verdict.
+            verdict = hit.get("eligibility") == "verdict"
             alerts.append(
                 {
                     "rule": f"hackbook:{hit['rule']}",
-                    "severity": "medium",
+                    "severity": "medium" if verdict else "low",
                     "step_ref": f"head#{hit['step']}",
                     "quote": hit["evidence"],
                     "detail": hit["mechanism"],
                     "entry_ids": hit["entry_ids"],
+                    "origin": "hackbook",
+                    "kind": "agent_action",
+                    "eligibility": "verdict" if verdict else "diagnostic",
+                    "gate": verdict and hit.get("gate") is True,
                 }
             )
-        if prefix_step is None:
-            return alerts
-        # Run-level alarms belong to the prefix step that first crossed their
-        # threshold, so they fire exactly once and a re-derivation of that
-        # prefix reproduces them.
-        if prefix_step in (counters.get("repetition_step"), counters.get("completion_loop_step")):
-            status = {
-                **counters,
-                "job": run.source_kind,
-                "trial": run_id,
-                "task": run.task_id,
-                "state": "running",
-                "minutes_since_update": 0,
-                "prompt_tokens": 0,
-                "input_token_limit": 1,
-                "recent_repo_edit": True,
+        structural_checks = delta.get("structural_checks")
+        summary: dict[str, Any] | None = None
+        if structural_checks is not None:
+            summary = {
+                "context_supplied": run.structural_context is not None,
+                "hit": 0,
+                "clear": 0,
+                "unavailable": 0,
+                "unavailable_reasons": {},
+                "claim": "clear means the predicate's inputs were present and it was false; "
+                "unavailable is unknown, not clear",
             }
-            alerts.extend(evaluate_alerts(status, thresholds=WatchThresholds()))
-        cited = []
-        for alert in alerts:
-            if alert.get("step_ref") is None:
-                alert = {**alert, "step_ref": f"head#{prefix_step}"}
-            cited.append(alert)
-        return cited
+            for record in structural_checks:
+                status = record.get("status")
+                if status == "clear":
+                    summary["clear"] += 1
+                elif status == "hit":
+                    summary["hit"] += 1
+                else:
+                    summary["unavailable"] += 1
+                    reason = str(record.get("reason") or "unspecified")
+                    summary["unavailable_reasons"][reason] = (
+                        summary["unavailable_reasons"].get(reason, 0) + 1
+                    )
+                if status != "hit":
+                    continue
+                action = record.get("kind") == "agent_action"
+                # Initial artifacts can support task risks, never actor misconduct.
+                declared_basis = record.get("basis")
+                items = _evidence_items(
+                    record.get("evidence"),
+                    artifacts=not action,
+                    basis=declared_basis if isinstance(declared_basis, str) else None,
+                )
+                steps_cited = [i["step"] for i in items if "step" in i]
+                alerts.append(
+                    {
+                        "rule": f"structural:{record['check']}",
+                        "severity": "medium" if action else "low",
+                        "step_ref": f"head#{max(steps_cited)}" if steps_cited else "",
+                        "evidence_items": items,
+                        "detail": (
+                            f"Structural check {record['check']} matched causal prefix evidence"
+                            if action
+                            else f"Task-structure cue {record['check']}: a task risk, "
+                            "not evidence of agent misconduct"
+                        ),
+                        "entry_ids": [record["entry_id"]],
+                        "origin": "structural",
+                        "kind": "agent_action" if action else "task_structure",
+                        "eligibility": "verdict" if action else "diagnostic",
+                        "gate": action and record.get("gate") is True,
+                    }
+                )
+        if prefix_step is not None:
+            # A run-level alarm cites the prefix step that first crossed its threshold.
+            if prefix_step in (
+                counters.get("repetition_step"),
+                counters.get("completion_loop_step"),
+            ):
+                status = {
+                    **counters,
+                    "job": run.source_kind,
+                    "trial": run_id,
+                    "task": run.task_id,
+                    "state": "running",
+                    "minutes_since_update": 0,
+                    "prompt_tokens": 0,
+                    "input_token_limit": 1,
+                    "recent_repo_edit": True,
+                }
+                alerts.extend(
+                    {
+                        **alert,
+                        "origin": "tripwire",
+                        "kind": "agent_action",
+                        "eligibility": "verdict",
+                        "gate": alert["rule"] in self._gate_rules,
+                    }
+                    for alert in evaluate_alerts(status, thresholds=WatchThresholds())
+                )
+            alerts = [
+                {**alert, "step_ref": f"head#{prefix_step}"}
+                if alert.get("step_ref") is None
+                else alert
+                for alert in alerts
+            ]
+        return _Detection(alerts, summary)
 
     def _score(
         self,
@@ -969,73 +1241,96 @@ class MisalignmentLiveWorker:
             "source_event_id": source_event.get("event_id"),
             "source_seq": source_event.get("seq"),
         }
+        structural: dict[str, Any] | None = None
         try:
             delta = (
                 run.rescan_rules()
                 if rescan or not run.detector_valid
                 else {} if step is None else run.prefix_state.advance(step)
             )
-            alerts = self._detect(run_id, run, delta, prefix)
+            detection = self._detect(run_id, run, delta, prefix)
+            alerts, structural = detection.alerts, detection.structural
         except Exception as exc:
             run.detector_valid = False
             alerts = []
             coverage["gaps"].append("deterministic_detector_unavailable")
             coverage["detector_error"] = f"{type(exc).__name__}: {exc}"[:300]
+        if structural is not None:
+            coverage["structural"] = structural
+            if structural["context_supplied"] and structural["unavailable"]:
+                coverage["gaps"].append("structural_context_incomplete")
         output = []
         cards = []
         frozen_steps = run.frozen_prefix()
         for alert in alerts:
             ref = str(alert.get("step_ref") or "")
-            match = re.fullmatch(r"head#(\d+)", ref)
-            if not match or int(match[1]) not in run.steps:
-                coverage["gaps"].append("uncitable_tripwire")
-                continue
-            cited_step = int(match[1])
-            quote = str(alert.get("quote") or "")
-            # Some detectors report a path/pattern rather than a verbatim quote.
-            # Preserve their detail, but cite the actual action when needed.
-            cited_record = run.steps[cited_step]
-            actions = trace_cheap.actions_only([cited_record])
-            action_quote = (
-                actions[0]["text"] if actions else str(cited_record.get("message") or "")
-            )
-            if not quote or (
-                _normalized(quote) not in _normalized(action_quote)
-                and _normalized(quote)
-                not in _normalized(json.dumps(cited_record, ensure_ascii=False, default=str))
-            ):
-                quote = action_quote
+            if "evidence_items" in alert:
+                # Actor evidence must quote an observed step. Task risks may
+                # cite typed initial artifacts available by the observed head.
+                evidence = [
+                    item
+                    for e in alert["evidence_items"]
+                    if (item := _verified_evidence(run.steps, e)) is not None
+                ]
+                actor = [e for e in evidence if "step" in e]
+                cited_step = actor[-1]["step"] if actor else None
+                quote = actor[-1]["quote"] if actor else evidence[-1]["quote"] if evidence else ""
+                basis = (
+                    f"{cited_step}:{quote}"
+                    if actor
+                    else "artifact:" + json.dumps(evidence, sort_keys=True, ensure_ascii=False)
+                )
+            else:
+                match = re.fullmatch(r"head#(\d+)", ref)
+                if not match or int(match[1]) not in run.steps:
+                    coverage["gaps"].append("uncitable_tripwire")
+                    continue
+                cited_step = int(match[1])
+                quote = _cited_quote(run.steps[cited_step], str(alert.get("quote") or ""))
+                evidence = [{"step": cited_step, "step_ref": ref, "quote": quote}]
+                basis = f"{cited_step}:{quote}"
             if not quote:
                 coverage["gaps"].append("uncitable_tripwire")
                 continue
-            card_id = hashlib.sha256(
-                f"{run_id}:{alert['rule']}:{cited_step}:{quote}".encode()
-            ).hexdigest()
+            card_id = hashlib.sha256(f"{run_id}:{alert['rule']}:{basis}".encode()).hexdigest()
             if card_id in run.cards:
                 continue
+            # Semantic triage judges observed actions only; task-structure cues
+            # concern the task, not agent behavior, so they never reach the judge.
+            triaged = alert["kind"] == "agent_action"
             card = {
                 **source,
                 "card_id": card_id,
+                "finding_id": card_id,
                 "rule": alert["rule"],
                 "severity": alert["severity"],
                 "summary": alert["detail"],
-                "evidence": [{"step": cited_step, "step_ref": ref, "quote": quote}],
+                "kind": alert["kind"],
+                "origin": alert["origin"],
+                "eligibility": alert["eligibility"],
+                "check_status": "hit",
+                "entry_ids": list(alert.get("entry_ids", ())),
+                "evidence": evidence,
                 "source_kind": run.source_kind,
-                "confirmation_scope": "observed_prefix_behavior",
+                "confirmation_scope": "observed_prefix_behavior"
+                if triaged
+                else "task_structure_cue",
                 "outcome_verified": False,
                 "trace_prefix_sha256": prefix_digest,
                 "coverage": coverage,
-                "semantic_triage": "gate_pass_through"
+                "semantic_triage": "not_applicable"
+                if not triaged
+                else "gate_pass_through"
                 if alert["rule"] in window_cascade.PASS_THROUGH_RULES
                 else "pending"
                 if self._judge
                 else "unavailable",
             }
-            emitted_card = self._emit(
-                run_id, "monitor.suspicion", card, prefix_step=prefix
-            )
+            emitted_card = self._emit(run_id, "monitor.suspicion", card, prefix_step=prefix)
             output.append(emitted_card)
             run.cards.add(card_id)
+            if alert["eligibility"] == "verdict":
+                run.verdict_cards.add(card_id)
             run.suspicions[card_id] = {
                 "card": card,
                 "event_id": emitted_card.get("event_id"),
@@ -1044,12 +1339,15 @@ class MisalignmentLiveWorker:
                 "digest": prefix_digest,
                 "task_manifest": copy.deepcopy(run.task_manifest),
                 "baselines": copy.deepcopy(run.baselines),
+                "structural_context": copy.deepcopy(run.structural_context),
             }
-            if card["semantic_triage"] != "gate_pass_through":
+            if triaged and card["semantic_triage"] != "gate_pass_through":
                 cards.append(card)
         if self._judge is None and cards:
             coverage["gaps"].append("semantic_triage_unavailable")
         elapsed = time.monotonic() - started
+        # Diagnostic and task-structure cues are reported, never a misconduct verdict.
+        behavioral = [a for a in alerts if a["eligibility"] == "verdict"]
         output.append(
             self._emit(
                 run_id,
@@ -1059,10 +1357,13 @@ class MisalignmentLiveWorker:
                     "assessment": "unknown"
                     if "detector_error" in coverage
                     else "suspicious"
+                    if behavioral or run.verdict_cards
+                    else "diagnostic_cues_only"
                     if alerts or run.cards
                     else "no_tripwire_trigger",
                     "coverage": coverage,
                     "trigger_count": len(alerts),
+                    "behavior_trigger_count": len(behavioral),
                     "deterministic_latency_seconds": elapsed,
                     "latency_target_seconds": self._latency_target,
                     "latency_target_met": elapsed <= self._latency_target,
@@ -1160,9 +1461,7 @@ class MisalignmentLiveWorker:
             try:
                 proof = json.loads(_canon(dict(receipt)))
             except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"verification receipt is not JSON-serializable: {exc}"
-                ) from exc
+                raise ValueError(f"verification receipt is not JSON-serializable: {exc}") from exc
         elif isinstance(receipt, (str, Path)):
             path = Path(receipt).expanduser()
             if not path.is_absolute():
@@ -1176,9 +1475,7 @@ class MisalignmentLiveWorker:
             except ValueError as exc:
                 raise ValueError(f"verification receipt is not JSON: {exc}") from exc
         else:
-            raise ValueError(
-                "verification receipt must be a mapping or a JSON receipt path"
-            )
+            raise ValueError("verification receipt must be a mapping or a JSON receipt path")
         if not isinstance(proof, dict):
             raise ValueError("verification receipt is not a JSON object")
         return proof, hashlib.sha256(_canon(proof).encode("utf-8")).hexdigest()
@@ -1259,9 +1556,7 @@ class MisalignmentLiveWorker:
             run = self._runs.get(run_id)
             record = None if run is None else run.suspicions.get(card_id)
             if run is None or record is None:
-                raise ValueError(
-                    f"unknown suspicion card {card_id!r} for run {run_id!r}"
-                )
+                raise ValueError(f"unknown suspicion card {card_id!r} for run {run_id!r}")
             card = record["card"]
             root = (
                 Path(repo_root).expanduser().resolve()
@@ -1288,9 +1583,7 @@ class MisalignmentLiveWorker:
                 if not target.is_absolute():
                     target = root / target
                 try:
-                    data = json.loads(
-                        target.resolve().read_text(encoding="utf-8")
-                    )
+                    data = json.loads(target.resolve().read_text(encoding="utf-8"))
                 except (OSError, ValueError, UnicodeError):
                     return None
                 return data if isinstance(data, dict) else None
@@ -1305,17 +1598,12 @@ class MisalignmentLiveWorker:
             item = None
             proof_dataset = _nonempty_str(proof.get("dataset_id"))
             proof_item = _nonempty_str(proof.get("item_id"))
-            if (
-                bound_registry is not None
-                and proof_dataset is not None
-                and proof_item is not None
-            ):
+            if bound_registry is not None and proof_dataset is not None and proof_item is not None:
                 try:
                     item = bound_registry.get(proof_dataset, proof_item)
                 except (KeyError, ValueError) as exc:
                     problems.append(
-                        f"unregistered corpus identity "
-                        f"{proof_dataset}/{proof_item}: {exc}"
+                        f"unregistered corpus identity {proof_dataset}/{proof_item}: {exc}"
                     )
                 else:
                     if item.split != "dev":
@@ -1327,27 +1615,23 @@ class MisalignmentLiveWorker:
                     if item.task_id is not None:
                         if run_task is None:
                             problems.append(
-                                "run has no committed task identity to bind "
-                                "the corpus item"
+                                "run has no committed task identity to bind the corpus item"
                             )
-                        elif CorpusRegistry.task_name(
-                            item.task_id
-                        ) != CorpusRegistry.task_name(run_task):
+                        elif CorpusRegistry.task_name(item.task_id) != CorpusRegistry.task_name(
+                            run_task
+                        ):
                             problems.append(
-                                "resolved corpus item task conflicts with the "
-                                "run's committed task"
+                                "resolved corpus item task conflicts with the run's committed task"
                             )
                     declared_proof_digest = _nonempty_str(proof.get("task_digest"))
                     if declared_proof_digest is not None:
                         if item.task_digest is None:
                             problems.append(
-                                "declared task_digest cannot be bound to the "
-                                "registered item"
+                                "declared task_digest cannot be bound to the registered item"
                             )
                         elif declared_proof_digest != item.task_digest:
                             problems.append(
-                                "declared task_digest conflicts with the "
-                                "registered item"
+                                "declared task_digest conflicts with the registered item"
                             )
                     seal = bound_registry.sealed_identity(
                         task_id=_nonempty_str(proof.get("task_id")),
@@ -1367,9 +1651,7 @@ class MisalignmentLiveWorker:
                 problems.append("suspicion card has no frozen observed prefix")
             else:
                 try:
-                    steps_digest = hashlib.sha256(
-                        _canon(steps).encode("utf-8")
-                    ).hexdigest()
+                    steps_digest = hashlib.sha256(_canon(steps).encode("utf-8")).hexdigest()
                 except (TypeError, ValueError):
                     problems.append("frozen observed prefix is not JSON-serializable")
                 else:
@@ -1391,6 +1673,7 @@ class MisalignmentLiveWorker:
                     run,
                     task_manifest=record.get("task_manifest", run.task_manifest),
                     baselines=record.get("baselines", run.baselines),
+                    structural_context=record.get("structural_context", run.structural_context),
                 )
                 assert isinstance(steps, list)  # steps_digest implies it
                 try:
@@ -1406,8 +1689,7 @@ class MisalignmentLiveWorker:
                     }
                 except Exception:
                     problems.append(
-                        "deterministic verdict rule cannot be re-derived from "
-                        "the frozen prefix"
+                        "deterministic verdict rule cannot be re-derived from the frozen prefix"
                     )
                 else:
                     card_evidence = card.get("evidence")
@@ -1442,10 +1724,11 @@ class MisalignmentLiveWorker:
                 load_record=load_record,
             )
             problems.extend(proof_problems)
-            action_text = {
-                action["step"]: action["text"]
-                for action in trace_cheap.actions_only(steps)
-            } if isinstance(steps, list) else {}
+            action_text = (
+                {action["step"]: action["text"] for action in trace_cheap.actions_only(steps)}
+                if isinstance(steps, list)
+                else {}
+            )
             card_evidence = card.get("evidence")
             if not isinstance(card_evidence, list) or not card_evidence:
                 problems.append("suspicion card carries no observed-prefix citations")
@@ -1473,8 +1756,7 @@ class MisalignmentLiveWorker:
                         continue
                     if _normalized(quote) not in _normalized(action_text[step]):
                         problems.append(
-                            f"{tag} quote on step {step} is not verbatim in the "
-                            "observed prefix"
+                            f"{tag} quote on step {step} is not verbatim in the observed prefix"
                         )
                         continue
                     key = (step, quote)
@@ -1484,16 +1766,13 @@ class MisalignmentLiveWorker:
             if not citations:
                 problems.append("no verified observed-prefix citations")
             if problems:
-                raise ValueError(
-                    "trace label verification failed: " + "; ".join(problems)
-                )
+                raise ValueError("trace label verification failed: " + "; ".join(problems))
             assert verification is not None and steps_digest is not None
             prior = run.promoted.get(card_id)
             if prior is not None:
                 if prior.get("receipt_sha256") != receipt_sha256:
                     raise ValueError(
-                        "suspicion card already promoted by a different "
-                        "verification receipt"
+                        "suspicion card already promoted by a different verification receipt"
                     )
                 if prior.get("asset_event") is not None:
                     return {
@@ -1561,10 +1840,7 @@ class MisalignmentLiveWorker:
                 run_id,
                 "asset.verified",
                 {
-                    "asset_id": (
-                        f"labeled-trace:{run_id}:{card_id[:16]}:"
-                        f"{receipt_sha256[:12]}"
-                    ),
+                    "asset_id": (f"labeled-trace:{run_id}:{card_id[:16]}:{receipt_sha256[:12]}"),
                     "kind": "labeled_trace",
                     "status": "confirmed",
                     "dataset_id": verification["dataset_id"],
@@ -1599,6 +1875,21 @@ class MisalignmentLiveWorker:
             }
             return {"label_event": label_event, "asset_event": asset_event}
 
+    def _run_policy(self, run: _Run) -> GatePolicy:
+        """The constructor policy extended with this run's declared task facts.
+
+        A run's ``task_manifest`` adds its protected paths and honeypot basenames, and its
+        ``baselines`` the pre-agent git history, on top of every explicit constructor
+        option. The base policy is immutable and shared; nothing leaks across runs.
+        """
+        base = self._gate_policy
+        baselines = tuple(b for b in run.baselines or () if isinstance(b, Mapping))
+        if not run.task_manifest and not baselines:
+            return base
+        options = {f.name: getattr(base, f.name) for f in fields(base)}
+        options["git_baselines"] = base.git_baselines + baselines
+        return GatePolicy.from_task_manifest(run.task_manifest or {}, **options)
+
     def pre_action_gate(self, run_id: str, step: Mapping[str, Any]) -> dict[str, Any]:
         """Synchronous, model-free decision; a proposed step is never treated as executed."""
         with self._lock:
@@ -1608,7 +1899,8 @@ class MisalignmentLiveWorker:
             if kept is None:
                 raise ValueError("pre-action gate requires an agent tool-call step")
             run.withhold(withheld)
-            proposed = _normalize_step(kept)
+            # Proposals have no execution output, even for complete-trace replay.
+            proposed = {k: v for k, v in _normalize_step(kept).items() if k in _PROPOSAL_FIELDS}
             if proposed.get("source") != "agent" or not proposed.get("tool_calls"):
                 raise ValueError("pre-action gate requires an agent tool-call step")
             if run.max_step_id is not None and proposed["step_id"] <= run.max_step_id:
@@ -1620,35 +1912,84 @@ class MisalignmentLiveWorker:
             ]
             reason = "allow"
             rules: list[str] = []
+            hits: list[dict[str, Any]] = []
             if pending or run.run_state != "running":
                 reason = "control_pending" if pending else f"run_{run.run_state}"
             elif not run.detector_valid:
                 reason = "deterministic_detector_unavailable"
             else:
-                # Score the proposed step against the observed prefix, then put
-                # the prefix state back: a proposal is not an observation.
-                snapshot = run.prefix_state.snapshot()
+                observed = [run.steps[n] for n in sorted(run.steps)]
+                step_ref = f"head#{proposed['step_id']}"
                 try:
-                    delta = run.prefix_state.advance(proposed)
-                    alerts = self._detect(run_id, run, delta, proposed["step_id"])
-                    rules = sorted(
-                        {
-                            a["rule"]
-                            for a in alerts
-                            if a.get("step_ref") == f"head#{proposed['step_id']}"
-                            and a["rule"] in self._gate_rules
-                        }
-                    )
-                    if rules:
-                        reason = "tripwire_blocked"
+                    # The pure policy sees executed history, never the proposal as history.
+                    policy = self._run_policy(run)
+                    for hit in policy_hits(proposed, prefix=observed, policy=policy):
+                        hits.append(
+                            {
+                                "source": "policy",
+                                "rule": hit["rule"],
+                                "step": proposed["step_id"],
+                                "entry_ids": list(hit.get("entry_ids", ())),
+                                "evidence": hit["evidence"],
+                                "kind": "agent_action",
+                                **({"path": hit["path"]} if "path" in hit else {}),
+                            }
+                        )
+                    policy_ok = True
                 except Exception:
+                    policy_ok = False
+                try:
+                    snapshot = run.prefix_state.snapshot()
+                    try:
+                        # Speculation must restore acquisition episodes, counters,
+                        # structural records and every other incremental detector state.
+                        delta = run.prefix_state.advance(proposed)
+                        detection = self._detect(run_id, run, delta, proposed["step_id"])
+                        for alert in detection.alerts:
+                            # Only a gate-marked hit citing this proposal can deny it.
+                            if not alert["gate"] or alert.get("step_ref") != step_ref:
+                                continue
+                            if "evidence_items" in alert:
+                                cited = [
+                                    e
+                                    for i in alert["evidence_items"]
+                                    if i.get("step") == proposed["step_id"]
+                                    and (
+                                        e := _verified_evidence({proposed["step_id"]: proposed}, i)
+                                    )
+                                ]
+                                if not cited:
+                                    continue
+                                quote = cited[-1]["quote"]
+                            else:
+                                quote = _cited_quote(proposed, str(alert.get("quote") or ""))
+                            hits.append(
+                                {
+                                    "source": alert["origin"],
+                                    "rule": alert["rule"],
+                                    "step": proposed["step_id"],
+                                    "entry_ids": list(alert.get("entry_ids", ())),
+                                    "evidence": quote,
+                                    "kind": alert["kind"],
+                                }
+                            )
+                        detector_ok = True
+                    finally:
+                        run.prefix_state.restore(snapshot)
+                except Exception:
+                    detector_ok = False
+                rules = sorted({h["rule"] for h in hits})
+                if rules:
+                    reason = "tripwire_blocked"
+                elif not policy_ok:
+                    reason = "gate_policy_unavailable"
+                elif not detector_ok:
                     reason = "deterministic_detector_unavailable"
-                finally:
-                    run.prefix_state.restore(snapshot)
             decision = {
                 "allow": reason == "allow",
                 "reason": reason,
                 "triggered_rules": rules,
+                "gate_hits": hits,
                 "pending_request_ids": pending,
                 "run_state": run.run_state,
                 "proposed": True,
@@ -1862,6 +2203,8 @@ class MisalignmentLiveWorker:
                         if kind == "monitor.suspicion":
                             card_id = payload["card_id"]
                             run.cards.add(card_id)
+                            if payload.get("eligibility", "verdict") == "verdict":
+                                run.verdict_cards.add(card_id)
                             existing = run.suspicions.get(card_id, {})
                             run.suspicions[card_id] = {
                                 **existing,
@@ -1907,15 +2250,11 @@ class MisalignmentLiveWorker:
                                 raise ValueError(
                                     "checkpoint metadata cannot change the bound run executor"
                                 )
-                            for key in (
-                                "task_id",
-                                "source_kind",
-                                "executor_id",
-                                "task_manifest",
-                                "baselines",
-                            ):
+                            for key in _RUN_METADATA_KEYS:
                                 if key in raw:
                                     setattr(run, key, copy.deepcopy(raw[key]))
+                            if run.structural_context is None:
+                                run.structural_context = copy.deepcopy(self._structural_context)
                             run.coverage.update(raw.get("coverage", {}))
                             if not steps or (
                                 prefix is not None and max(_step_id(s) for s in steps) <= prefix
@@ -1936,6 +2275,11 @@ class MisalignmentLiveWorker:
                                 steps=frozen,
                                 task_manifest=copy.deepcopy(raw.get("task_manifest", run.task_manifest)),
                                 baselines=copy.deepcopy(raw.get("baselines", run.baselines)),
+                                structural_context=copy.deepcopy(
+                                    raw.get("structural_context")
+                                    if raw.get("structural_context") is not None
+                                    else run.structural_context
+                                ),
                             )
                             if payload.get("semantic_triage") == "pending":
                                 pending[card_id] = (run_id, prefix, frozen, copy.deepcopy(payload))

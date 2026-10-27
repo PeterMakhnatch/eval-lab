@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import random
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -288,28 +289,100 @@ def test_real_key_strata_partition_all_task_findings() -> None:
     assert sum(n["taxonomy_class"].values()) == 238
 
 
-def test_fallback_exposure_rule_matches_the_key_rows() -> None:
-    tasks = [json.loads(line) for line in (KEY_DIR / "tasks.jsonl").read_text().splitlines()]
-    fallback = scorer.fallback_exposures(row["task"] for row in tasks)
-    tuned = {name for name, row in fallback.items() if row["exposure_stratum"] == "tuned"}
-    assert {"atrx-vep-crispr", "cargo-flight-dispatch", "wal-recovery-ordering"} <= tuned
-    assert "qa-task-s2-prompt-dev" in fallback["atrx-vep-crispr"]["historical_exposures"]
-    assert {row["exposure_stratum"] for row in fallback.values()} == {
-        "unexposed",
-        "inspected_only",
-        "tuned",
+def test_exposure_stratum_applies_the_shared_precedence() -> None:
+    assert scorer.exposure_stratum([]) == "unexposed"
+    # "selected" records which items a system picked, not that it read this key's
+    # tasks, so on its own it does not leave the unexposed stratum.
+    assert scorer.exposure_stratum(["selected"]) == "unexposed"
+    assert scorer.exposure_stratum(["inspected"]) == "inspected_only"
+    assert scorer.exposure_stratum(["selected", "inspected"]) == "inspected_only"
+    assert scorer.exposure_stratum(["inspected", "tuned"]) == "tuned"
+    assert scorer.exposure_stratum(["tuned", "inspected", "tuned"]) == "tuned"
+
+
+def _synthetic_keys_root(root: Path) -> Path:
+    """An answer-keys root holding the real guard rule, synthetic keys and ledger."""
+    keys_root = root / "answer-keys"
+    (keys_root / "splits").mkdir(parents=True)
+    shutil.copy(KEY_DIR.parent / "splits/guard.py", keys_root / "splits/guard.py")
+    cohort = {
+        "alpha-v1": [
+            ("a1", "terminal-bench/shared", "test"),
+            ("a2", "terminal-bench/alpha-only", "dev"),
+        ],
+        "beta-v1": [("b1", "beta/other", "test")],
     }
-    keyed = [row for row in tasks if "exposure_stratum" in row]
-    for row in keyed:
-        assert row["exposure_stratum"] == fallback[row["task"]]["exposure_stratum"], row["task"]
-        assert row["historical_exposures"] == fallback[row["task"]]["historical_exposures"]
+    for key_id, rows in cohort.items():
+        (keys_root / key_id).mkdir()
+        items = [
+            {"item_id": item_id, "subject": {"task_id": task}, "split": split}
+            for item_id, task, split in rows
+        ]
+        (keys_root / key_id / "items.jsonl").write_text(
+            "".join(json.dumps(item) + "\n" for item in items)
+        )
+    ledger = [
+        {"exposure_id": "e-tasks", "kind": "inspected", "tasks": ["shared"]},
+        {"exposure_id": "e-tuned", "kind": "tuned", "tasks": ["shared"]},
+        {"exposure_id": "e-items", "kind": "tuned", "items": {"beta-v1": ["b1"]}},
+        {"exposure_id": "e-where", "kind": "inspected", "where": {"alpha-v1": {"split": "dev"}}},
+        {"exposure_id": "e-selected", "kind": "selected", "tasks": ["other"]},
+        {"exposure_id": "e-outside", "kind": "tuned", "tasks": ["outside-cohort"]},
+    ]
+    (keys_root / "splits/exposure.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in ledger)
+    )
+    return keys_root
+
+
+def test_fallback_exposures_resolve_records_against_the_shared_ledger(tmp_path: Path) -> None:
+    keys_root = _synthetic_keys_root(tmp_path.resolve())
+    fallback = scorer.fallback_exposures(["shared", "alpha-only", "other", "absent"], keys_root)
+    assert fallback == {
+        "absent": {"historical_exposures": [], "exposure_stratum": "unexposed"},
+        "alpha-only": {"historical_exposures": ["e-where"], "exposure_stratum": "inspected_only"},
+        "other": {"historical_exposures": ["e-items", "e-selected"], "exposure_stratum": "tuned"},
+        "shared": {"historical_exposures": ["e-tasks", "e-tuned"], "exposure_stratum": "tuned"},
+    }
+
+
+def test_build_key_prefers_its_own_rows_then_the_ledger_and_never_invents_one() -> None:
+    items = [_item("x", "t"), _item("y", "u")]
+    items[1]["exposure_stratum"] = "tuned"
+    tasks = [
+        {
+            "task": "t",
+            "split": "test",
+            "exposure_stratum": "inspected_only",
+            "historical_exposures": ["e-key"],
+        },
+        {"task": "u", "split": "test", "exposure_stratum": "unexposed", "historical_exposures": []},
+    ]
+    ledger = {
+        "t": {"historical_exposures": ["e-ledger"], "exposure_stratum": "tuned"},
+        "u": {"historical_exposures": [], "exposure_stratum": "unexposed"},
+    }
+    key = scorer.build_key(items, tasks, ledger)
+    assert key.exposure_source == "key"
+    assert key.tasks["t"]["exposure_stratum"] == "inspected_only"
+    assert key.tasks["t"]["historical_exposures"] == ["e-key"]
+    # An item-level stratum outranks the task row; otherwise the task row applies.
+    assert {f.item_id: f.exposure_stratum for f in key.findings} == {
+        "x": "inspected_only",
+        "y": "tuned",
+    }
+
     stripped = [{k: v for k, v in row.items() if k != "exposure_stratum"} for row in tasks]
-    items = [json.loads(line) for line in (KEY_DIR / "items.jsonl").read_text().splitlines()]
-    rebuilt = scorer.build_key(items, stripped, fallback)
-    assert rebuilt.exposure_source.startswith("fallback")
-    assert len(rebuilt.findings) == 238
+    filled = scorer.build_key(items, stripped, ledger)
+    assert filled.exposure_source == "fallback:splits/exposure.jsonl"
+    assert filled.tasks["t"]["exposure_stratum"] == "tuned"
+    assert filled.tasks["t"]["historical_exposures"] == ["e-ledger"]
+    assert {f.item_id: f.exposure_stratum for f in filled.findings} == {"x": "tuned", "y": "tuned"}
+
     with pytest.raises(ValueError, match="no exposure stratum"):
         scorer.build_key(items, stripped)
+    with pytest.raises(ValueError, match="no exposure stratum"):
+        scorer.build_key(items, stripped, {"t": ledger["t"]})
 
 
 def test_cli_benchmark_baselines_writes_the_evaluation_schema(tmp_path: Path) -> None:
@@ -319,9 +392,23 @@ def test_cli_benchmark_baselines_writes_the_evaluation_schema(tmp_path: Path) ->
     assert payload["schema"] == scorer.EVALUATION_SCHEMA
     assert payload["key_id"] == "tb4-audit-v1" and payload["paid_cost_usd"] == 0.0
     assert payload["modes"] == list(LADDER)
-    assert payload["exposure"].get("fallback_disagreements", []) == []
-    assert sum(payload["exposure"]["tasks"].values()) == 66
-    assert sum(payload["exposure"]["task_findings"].values()) == 238
+    exposure = payload["exposure"]
+    assert exposure["source"] == "key"
+    assert sum(exposure["tasks"].values()) == 66
+    assert sum(exposure["task_findings"].values()) == 238
+    # The key's strata are frozen when it is registered while the ledger keeps
+    # growing, so the payload reports drift instead of asserting agreement. The
+    # ledger is append-only: it may add exposure, never retract a recorded stratum.
+    key = scorer.load_key(KEY_DIR)
+    live = scorer.fallback_exposures(key.tasks)
+    rank = {"unexposed": 0, "inspected_only": 1, "tuned": 2}
+    for name, row in key.tasks.items():
+        assert rank[live[name]["exposure_stratum"]] >= rank[row["exposure_stratum"]], name
+    assert exposure["fallback_disagreements"] == sorted(
+        name
+        for name, row in key.tasks.items()
+        if row["exposure_stratum"] != live[name]["exposure_stratum"]
+    )
     baselines = payload["baselines"]
     assert set(baselines) == {
         "one_generic_weak_per_flagged_task",

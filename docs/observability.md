@@ -149,6 +149,29 @@ or budget counters. A paused target gives exit status 2 while healthy targets
 can continue. `--uninstall` removes only this installer's owned job and plist,
 leaving receipts, runtime snapshots and logs intact.
 
+### Sync and fetch commands
+
+```bash
+keys run -- uv run evallab traces sync --target laminar
+keys run -- uv run --with docent==0.1.88 evallab traces sync \
+  --target docent --dataset goodfire-reward-hack-data --limit 16
+keys run -- uv run evallab traces fetch --source laminar --run-id '<DB trace_id>'
+keys run -- uv run --with docent==0.1.88 evallab traces fetch \
+  --source docent --run-id '<DB trace_id>' --dataset mimo-defect-map-v1
+keys run -- uv run evallab traces fetch --source laminar \
+  --query "SELECT COUNT(*) AS runs FROM traces WHERE JSONExtractString(metadata, 'source') = {dataset:String}" \
+  --dataset mimo-defect-map-v1
+keys run -- uv run --with docent==0.1.88 evallab traces fetch --source docent \
+  --query "SELECT COUNT(*) AS runs FROM agent_runs" --dataset mimo-defect-map-v1
+```
+
+`--run-id` is the opaque DB trace identity, not its source job name. Both fetch
+routes derive the remote UUID directly and need no local sync receipts or DB.
+Fetch returns JSON rows and server limit/truncation metadata, never a model
+answer. Raw Laminar SQL can use the bound `{dataset:String}` parameter; it is
+not rewritten into an unsafe generic outer filter. Docent DQL runs only in the
+selected owner-only source collections, checking collaborators on both sides.
+
 
 ## Incremental native ATIF (HAR-168)
 

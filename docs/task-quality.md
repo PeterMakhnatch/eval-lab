@@ -200,6 +200,27 @@ default (`auto` for custom endpoints, `us-east-1` for AWS S3). `put_bytes` /
 an offline CAS, or alongside S3 configuration for an atomic local mirror.
 CAS references do not assert that the corresponding object has been ingested.
 
+### Goodfire passage labels on steps
+
+Goodfire's publisher judge marks the exact passages where a rollout cheated. Ingestion
+kept every passage record (text removed) on the step it addresses as
+`trace_steps.flags_json.source_passages`; `consensus` is `positive`, `ambiguous` or
+`negative`. LB-3 derived flat marks from `consensus` for the 1,048 DEV Goodfire tasks:
+on every step that has a passage record, `flags_json.passage_positive` and
+`passage_ambiguous` (booleans) and `passage_labels` (counts, channels, vote strength);
+on every judged trace, `verified_receipt_json.passage_step_labels` with the exact
+`positive_step_indices`, `ambiguous_step_indices` and the runs of consecutive assistant
+turns (`positive_turn_runs`: `[first, last, turns]`). Positive steps are always assistant
+turns and are never adjacent by step index, so adjacency is taken over assistant turns.
+Derived counts equal the publisher's own `n_passages`, `n_passages_positive` and
+`n_passages_ambiguous` on every judged trace. Labels stay provisional publisher
+three-vote LLM-judge source labels; `status` and `is_exploit` are unchanged; held
+Goodfire rows carry no marks. Query a step mark with
+`json_extract(flags_json, '$.passage_positive') = 1`. Every DEV Goodfire step has a
+non-empty `flags_json`, so a test such as "`flags_json` is truthy" marks all of them;
+consumers that want the cheat window must read `passage_positive`. The updater and its
+receipts are archived under `research/evidence/runs/corpus-expansion-lb3-20261026/`.
+
 ## Many cheap agents or one strong model
 
 `evallab.production.swarm_coordinator.SwarmCoordinator` answers the same four

@@ -275,7 +275,9 @@ def watch_cycle(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     try:
         result = run_atlas.extract_runs(
             _ordered_runs(args.database, registry, selected),
-            extractor=run_atlas.FacetExtractor(budget or transport),
+            extractor=run_atlas.FacetExtractor(
+                budget or transport, pattern=run_atlas.database_source_pattern(args.database),
+            ),
             pool=run_atlas.RoutePool(routes, per_route=args.per_route),
             facets_path=args.facets, calls_path=args.calls, limit=args.max_per_cycle,
         )

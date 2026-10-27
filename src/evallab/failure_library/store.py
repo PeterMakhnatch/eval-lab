@@ -45,6 +45,7 @@ class RunManifest(ContractModel):
     count: int = Field(ge=0)
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     outcomes: dict[str, int]
+    #: Label occurrences by kind; one run can carry several labels of one kind.
     label_kinds: dict[str, int]
 
 
@@ -187,6 +188,7 @@ class LibraryStore:
             "collection": Counter(),
             "outcome": Counter(),
             "label_kind": Counter(),
+            "runs_with_label_kind": Counter(),
             "split": Counter(),
         }
         for run in self.iter_runs():
@@ -195,6 +197,8 @@ class LibraryStore:
             runs["split"][run.split] += 1
             for label in run.labels:
                 runs["label_kind"][label.kind] += 1
+            for kind in {label.kind for label in run.labels}:
+                runs["runs_with_label_kind"][kind] += 1
         return {
             "findings": {
                 "total": sum(findings["collection"].values()),

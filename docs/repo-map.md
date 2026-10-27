@@ -175,7 +175,7 @@ inputs:
   - path: src/evallab/failure_library/commands/__init__.py
     digest: sha256:4bc6b2240ce0bab80521af0073d6b6af0ffb74e3bdbc1ae57291d5503e202093
   - path: src/evallab/failure_library/commands/stats.py
-    digest: sha256:fa42e0a42704404ab26791f008c416e8f42469bc42d54c73e9f75e36d8ab38b5
+    digest: sha256:81fbb2f75b993b7060f0920a66ef94cdb34450ead9f13ef330b3e877b01bf2a6
   - path: src/evallab/failure_library/records.py
     digest: sha256:e22a03b9d11e1709cff534e16a33cc6b4384af4123b4cd9eb9a495f579ed7b29
   - path: src/evallab/failure_library/store.py

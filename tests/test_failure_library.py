@@ -153,6 +153,27 @@ def test_run_manifest_detects_changed_bytes(tmp_path: Path) -> None:
     assert "differs from manifest" in store.verify_runs("cheatbench")[0]
 
 
+def test_run_stats_separate_label_occurrences_from_runs(tmp_path: Path) -> None:
+    store = LibraryStore.for_repo(tmp_path, state_root=tmp_path / "state")
+    judged = RunRecord(
+        run_id="gf-1",
+        collection="goodfire",
+        task=_task(revision=None),
+        outcome="pass",
+        labels=[
+            RunLabel(label="test_edit", kind="judge", source="goodfire-vote-1"),
+            RunLabel(label="test_edit", kind="judge", source="goodfire-vote-2"),
+            RunLabel(label="hack", kind="human", source="audit"),
+        ],
+        transcript_ref="raw/goodfire#1",
+    )
+    plain = judged.model_copy(update={"run_id": "gf-2", "labels": []})
+    store.write_runs("goodfire", [judged, plain], source_revision="bd8fb47")
+    runs = store.stats()["runs"]
+    assert runs["by_label_kind"] == {"human": 1, "judge": 2}
+    assert runs["by_runs_with_label_kind"] == {"human": 1, "judge": 1}
+
+
 def test_stats_command_reports_library_counts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

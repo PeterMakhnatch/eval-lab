@@ -34,5 +34,12 @@ def _run(args: argparse.Namespace, root: Path, **_: Any) -> int:
             if name == "total" or not counts:
                 continue
             rendered = ", ".join(f"{key}={value}" for key, value in counts.items())
-            print(f"  {name.removeprefix('by_')}: {rendered}")
+            label = _DISPLAY.get(name, name.removeprefix("by_"))
+            print(f"  {label}: {rendered}")
     return 0
+
+
+_DISPLAY = {
+    "by_label_kind": "label occurrences by kind",
+    "by_runs_with_label_kind": "runs with a label of kind",
+}

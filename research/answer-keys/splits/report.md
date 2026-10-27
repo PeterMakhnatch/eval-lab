@@ -342,3 +342,10 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | cm1-qwen-plain-json-v4-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | envcheck-tb4-39 | 1 | 0 |
 | cm1-qwen-plain-json-v4-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | tb4-audit-v1 | 0 | 2 |
 | hackbook-match-tb4-test-once-20261021 | inspected | Hackbook (hackbook-match@*) from 2026-10-21 | (no key items) | 0 | 0 |
+| oq4-tq-augment-v1-dev-tuning-20261026 | tuned | QA Task (oq4-tq-augment/v1@*) from 2026-10-26 | envcheck-tb4-39 | 1 | 0 |
+| oq4-tq-augment-v1-dev-tuning-20261026 | tuned | QA Task (oq4-tq-augment/v1@*) from 2026-10-26 | executed-outcomes-v1 | 2 | 0 |
+| oq4-tq-augment-v1-dev-tuning-20261026 | tuned | QA Task (oq4-tq-augment/v1@*) from 2026-10-26 | mimo-weak-tests-v1 | 1 | 0 |
+| oq4-tq-augment-v1-dev-tuning-20261026 | tuned | QA Task (oq4-tq-augment/v1@*) from 2026-10-26 | mimo-weak-tests-v2 | 4 | 0 |
+| oq4-tq-augment-v1-dev-tuning-20261026 | tuned | QA Task (oq4-tq-augment/v1@*) from 2026-10-26 | mimo-weak-tests-v2.1 | 4 | 0 |
+| oq4-tq-augment-v1-dev-tuning-20261026 | tuned | QA Task (oq4-tq-augment/v1@*) from 2026-10-26 | tb4-audit-v1 | 11 | 0 |
+| oq4-tq-augment-v1-tb2-test-once-20261026 | inspected | QA Task (oq4-tq-augment/v1@*) from 2026-10-26 | tb2-to-tb21-v1 | 0 | 52 |

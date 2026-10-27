@@ -271,16 +271,31 @@ _RAW_FLAG_STEP_COLUMNS = ", ".join(
 )
 
 
-def _json_truthy(text: str | None) -> bool:
-    """Truthiness of the decoded JSON value, without decoding nonempty containers."""
-    if text is None:
-        return False
-    stripped = text.strip()
-    if stripped[:1] in ("{", "["):
-        return stripped[1:].lstrip()[:1] not in ("}", "]")
-    if stripped[:1] == '"':
-        return stripped != '""'
-    return bool(json.loads(stripped))
+_PASSAGE_POSITIVE = re.compile(r'"passage_positive"\s*:\s*true')
+#: Steps kept on each side of a labeled passage step in a returned window.
+PASSAGE_WINDOW_RADIUS = 3
+
+
+def _step_marks(flags: Any) -> tuple[bool, bool]:
+    """``(named_flag, passage_positive)`` for one step's stored flags.
+
+    A list holds flag names, so a nonempty list flags the step. An object is
+    source metadata (provenance, publisher passage records) and flags nothing,
+    except the LB-3 passage mark ``passage_positive: true``. The text is decoded
+    only when that mark appears.
+    """
+    if flags is None:
+        return False, False
+    if not isinstance(flags, str):
+        return (bool(flags), False) if isinstance(flags, list) else (
+            False, isinstance(flags, dict) and flags.get("passage_positive") is True,
+        )
+    stripped = flags.lstrip()
+    if stripped[:1] == "[":
+        return stripped[1:].lstrip()[:1] != "]", False
+    if stripped[:1] == "{" and _PASSAGE_POSITIVE.search(stripped):
+        return False, json.loads(stripped).get("passage_positive") is True
+    return False, False
 
 
 def _contains(postings: array[int], rowid: int) -> bool:
@@ -1264,11 +1279,12 @@ class RetrievedStep:
     tool_name: str | None
     command_or_action: str | None
     observation: str | None
+    flagged: bool = False
 
     def prompt_line(self) -> str:
         label = f"step {self.step_index} [{self.role}" + (
             f":{self.tool_name}]" if self.tool_name else "]"
-        )
+        ) + (" FLAGGED" if self.flagged else "")
         body = self.command_or_action or (
             f"observed: {self.observation}" if self.observation else "no recorded text"
         )
@@ -1528,34 +1544,51 @@ class CloudTraceRetriever:
         trace = relevant_traces[0] if relevant_traces else None
         tier = min(_TRUST_RANK[row["trust_tier"]] for row in (issue, trace) if row is not None)
         selected_steps = []
-        passage_steps = set(trace["flagged_passage_steps"] or ()) if trace is not None else set()
+        passage_window = False
         if trace is not None:
             trace_steps = [
                 step for step in steps.get(trace["trace_id"], []) if step["role"] != "user"
             ]
-            flagged = [step for step in trace_steps if step["flagged"]]
-            if passage_steps:
-                # A labeled trace contributes only its flagged passage steps,
-                # never unlabeled setup steps.
-                trace_steps = [step for step in trace_steps if step["step_index"] in passage_steps]
-            elif kind == "misalignment" and flagged:
-                trace_steps = flagged
-            # Only evidence that can be returned is screened: the best-ranked
-            # unsealed steps of the chosen trace, never the whole trace. Their
-            # raw flags are decoded only here.
-            for step in sorted(trace_steps, key=lambda row: (
-                -row["query_match"], _STEP_ROLE_RANK.get(row["role"], 2),
-                -int(kind == "reward_seeker" and row["flagged"]), row["step_index"],
-            )):
-                if len(selected_steps) >= self.max_steps_per_trace:
-                    break
+
+            def screened(step: dict[str, Any]) -> dict[str, Any] | None:
+                # Only evidence that can be returned is screened, and raw
+                # flags are decoded only here.
                 decoded = {
                     "flags_json" if name == "flags_text" else name:
                     json.loads(value) if name == "flags_text" else value
-                    for name, value in step.items() if name != "flagged"
+                    for name, value in step.items() if name != "passage"
                 }
-                if not self._sealed_text(self._guarded_text(decoded), sealed):
-                    selected_steps.append(decoded)
+                return None if self._sealed_text(self._guarded_text(decoded), sealed) else decoded
+
+            # A trace with labeled passage steps returns one window: its
+            # best-matching unsealed passage step with up to
+            # PASSAGE_WINDOW_RADIUS steps on each side, never setup steps
+            # far from the passage.
+            for anchor in sorted((step for step in trace_steps if step["passage"]), key=lambda row: (
+                -row["query_match"], _STEP_ROLE_RANK.get(row["role"], 2), row["step_index"],
+            )):
+                if screened(anchor) is None:
+                    continue
+                selected_steps = [
+                    decoded for step in trace_steps
+                    if abs(step["step_index"] - anchor["step_index"]) <= PASSAGE_WINDOW_RADIUS
+                    and (decoded := screened(step)) is not None
+                ]
+                passage_window = True
+                break
+            if not passage_window:
+                flagged = [step for step in trace_steps if step["flagged"]]
+                if kind == "misalignment" and flagged:
+                    trace_steps = flagged
+                for step in sorted(trace_steps, key=lambda row: (
+                    -row["query_match"], _STEP_ROLE_RANK.get(row["role"], 2),
+                    -int(kind == "reward_seeker" and row["flagged"]), row["step_index"],
+                )):
+                    if len(selected_steps) >= self.max_steps_per_trace:
+                        break
+                    decoded = screened(step)
+                    if decoded is not None:
+                        selected_steps.append(decoded)
             selected_steps.sort(key=lambda row: row["step_index"])
         issue_evidence = None if issue is None else {
             field: self._identity(issue[field]) if field in {"issue_id", "witness_digest"}
@@ -1575,6 +1608,7 @@ class CloudTraceRetriever:
                 "role", "tool_name", "command_or_action", "content_text", "observation_preview",
             )},
             "flags": self._snippet(_json_text(step["flags_json"])),
+            "flagged": step["flagged"],
         } for step in selected_steps]
         receipt = None if trace is None else trace["verified_receipt_json"]
         status = None if receipt is None else receipt.get("status")
@@ -1596,7 +1630,10 @@ class CloudTraceRetriever:
             "trust_tier": TRUST_TIERS[tier],
             "issue_trust_tier": None if issue is None else issue["trust_tier"],
             "trace_trust_tier": None if trace is None else trace["trust_tier"],
-            "passage_steps_only": bool(passage_steps),
+            "passage_window": passage_window,
+            "flagged_step_indices": [
+                step["step_index"] for step in selected_steps if step["flagged"]
+            ],
             # Publisher label categories (e.g. Goodfire consensus); provisional unless
             # ``receipt_status`` says otherwise.
             "label_categories": [
@@ -1622,6 +1659,7 @@ class CloudTraceRetriever:
                 None if step["tool_name"] is None else _clip(step["tool_name"], min(self.snippet_chars, 200)),
                 None if action is None else _clip(action, min(self.snippet_chars, 200)),
                 None if observation is None else _clip(observation, min(self.snippet_chars, 200)),
+                step["flagged"],
             ))
         vocabulary = set(re.findall(
             r"[^\W_]+", " ".join(
@@ -1825,16 +1863,23 @@ class CloudTraceRetriever:
                 ):
                     if trace["trust_tier"] in allowed:
                         batch_traces.setdefault(trace["task_id"], []).append(trace)
+                # A trace's labeled passage steps are authoritative; a trace
+                # without them falls back to its steps' LB-3 passage marks.
+                labeled = {
+                    trace["trace_id"]: set(trace["flagged_passage_steps"] or ())
+                    for task_id in batch for trace in batch_traces.get(task_id, [])
+                }
                 steps_by_trace: dict[str, list[dict[str, Any]]] = {}
                 for step in database._retrieval_matches(
-                    "trace_steps", "s", "trace_id", [
-                        trace["trace_id"] for task_id in batch
-                        for trace in batch_traces.get(task_id, [])
-                    ], query, terms, columns=_RAW_FLAG_STEP_COLUMNS,
+                    "trace_steps", "s", "trace_id", list(labeled), query, terms,
+                    columns=_RAW_FLAG_STEP_COLUMNS,
                 ):
                     if step["role"] not in _STEP_ROLE_RANK:
                         step["query_match"] = 0
-                    step["flagged"] = _json_truthy(step["flags_text"])
+                    named, positive = _step_marks(step["flags_text"])
+                    passages = labeled[step["trace_id"]]
+                    step["passage"] = step["step_index"] in passages if passages else positive
+                    step["flagged"] = named or step["passage"]
                     steps_by_trace.setdefault(step["trace_id"], []).append(step)
                 for task in hydrated:
                     task_id = task["task_id"]

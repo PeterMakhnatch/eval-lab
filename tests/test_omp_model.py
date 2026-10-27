@@ -79,6 +79,8 @@ def test_identity_must_be_explicit_and_exact(field, value):
     ("content", [{"type": "toolCall", "name": "bash"}]),
     ("content", [{"type": "text", "text": "I cannot assist with that request."}]),
     ("content", [{"type": "text", "text": "I'm sorry, I can't help with that."}]),
+    ("content", [{"type": "text", "text": "I’m sorry, but I can’t assist with that request."}]),
+    ("content", [{"type": "text", "text": "Sorry, but I cannot provide that."}]),
     ("content", [{"type": "text", "text": ""}]),
     ("content", [{"type": "thinking", "thinking": "only reasoning"}]),
     ("content", [{"type": "text", "text": None}]),

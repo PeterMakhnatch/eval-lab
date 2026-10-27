@@ -58,8 +58,10 @@ remain unfunded and are not used here.
   150,000-character chunking, native retry policy, Pydantic validation and
   max-over-chunks reduction are unchanged. Oversized/context failures abstain;
   nothing is clipped, relabelled or imputed.
-- Traces run **one at a time in round-robin order**, so completion prefixes remain
-  stratified while each trace's chunk calls can use up to four subprocesses.
+- Traces run **one at a time in round-robin order**, preserving stratified
+  attempt/completion order while each trace's chunks can use up to four
+  subprocesses. The numeric-score subset can still be unbalanced by abstentions;
+  no values are imputed to force balance.
   Numeric native scores from the exact Kimi detector version are skipped on
   repeat invocations. Grok, derived-threshold rows, nulls, booleans, NaNs and
   out-of-range values never count as completed native scores.

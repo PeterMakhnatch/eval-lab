@@ -31,9 +31,9 @@ NO_FALLBACK_OVERLAY = (
 )
 _KEY_ENV = re.compile(r"(?:^|_)(?:API_KEY|AUTH_TOKEN|OAUTH_TOKEN|ACCESS_TOKEN)$")
 _REFUSAL = re.compile(
-    r"^\s*(?:sorry[,\s]+|i(?:'m| am) sorry[,\s]+)?"
-    r"(?:i (?:cannot|can't|will not|won't) (?:help|assist|comply|provide)|"
-    r"i(?:'m| am) unable to (?:help|assist|comply)|cyber_policy\b)",
+    r"^\s*(?:sorry[,\s]+(?:but\s+)?|i(?:['’]m| am) sorry[,\s]+(?:but\s+)?)?"
+    r"(?:i (?:cannot|can['’]t|will not|won['’]t) (?:help|assist|comply|provide)|"
+    r"i(?:['’]m| am) unable to (?:help|assist|comply)|cyber_policy\b)",
     re.IGNORECASE,
 )
 _PROCESS_SLOTS = threading.BoundedSemaphore(4)

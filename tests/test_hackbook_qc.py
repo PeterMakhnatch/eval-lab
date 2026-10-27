@@ -415,3 +415,155 @@ def test_frozen_policy_rejects_stale_or_nonverdict_rule_universes(
     _, detail = _score([_case("p", "positive"), _case("c", "clean")])
     with pytest.raises(ValueError):
         scan_trace([_bash("pwd")], qc_policy={**detail["policy"], **change})
+
+
+def _precomputed_qc_args(tmp_path: Path, rows: list[Any]) -> Any:
+    source = tmp_path / "cases.jsonl"
+    source.write_text(
+        "\n" + "".join(json.dumps(row) + "\n" for row in rows) + "\n",
+        encoding="utf-8",
+    )
+    return parser().parse_args(
+        [
+            "hackbook", "qc",
+            "--cases-input", str(source),
+            "--dataset-id", "cli-precomputed-dev",
+            "--out", str(tmp_path / "report.json"),
+            "--detail-out", str(tmp_path / "detail.json"),
+            "--policy-out", str(tmp_path / "policy.json"),
+            "--generated-at", GENERATED_AT,
+        ]
+    )
+
+
+def test_qc_cli_preserves_unit_labels_and_verdict_only_marginals(
+    tmp_path: Path,
+) -> None:
+    rows = [
+        {
+            "case_id": "trace:step:2", "label": "positive",
+            "fired": [VERDICT_A, DIAGNOSTIC, VERDICT_A],
+        },
+        {"case_id": "trace:step:4", "label": "positive", "fired": [DIAGNOSTIC]},
+        {"case_id": "trace:step:7", "label": "clean", "fired": [VERDICT_B]},
+        {"case_id": "trace:step:8", "label": "clean", "fired": []},
+        {
+            "case_id": "trace:step:10", "label": "unscored",
+            "fired": [VERDICT_A, VERDICT_B],
+        },
+    ]
+    args = _precomputed_qc_args(tmp_path, rows)
+
+    assert args.func(args, tmp_path) == 0
+    report = json.loads(args.out.read_text(encoding="utf-8"))
+    detail = json.loads(args.detail_out.read_text(encoding="utf-8"))
+    policy = json.loads(args.policy_out.read_text(encoding="utf-8"))
+    cohort = report["cohort"]
+    assert (cohort["positive_n"], cohort["clean_n"], cohort["unscored_n"]) == (2, 2, 1)
+    assert report["union_positives_hit_n"] == 2
+    assert report["union_clean_hit_n"] == 1
+    alert = _rules(detail)[VERDICT_A]
+    assert alert["positives_hit_n"] == 1
+    assert alert["clean_hit_n"] == 0
+    assert alert["precision"] == 1.0
+    assert alert["recall"] == 0.5
+    assert alert["verdict_marginal_true_positive_n"] == 1
+    assert detail["summary"]["before"]["union_positives_hit_n"] == 1
+    assert detail["summary"]["before"]["union_clean_hit_n"] == 1
+    assert detail["summary"]["all_rules"]["union_positives_hit_n"] == 2
+    assert policy["demoted_rule_ids"] == [VERDICT_B]
+
+
+@pytest.mark.parametrize(
+    "input_flags",
+    [[], ["--input", "traces.jsonl", "--cases-input", "cases.jsonl"]],
+)
+def test_qc_cli_requires_exactly_one_input_mode(input_flags: list[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        parser().parse_args(["hackbook", "qc", "--dataset-id", "synthetic", *input_flags])
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("case_id", None),
+        ("case_id", ""),
+        ("case_id", " "),
+        ("case_id", 10),
+        ("case_id", True),
+        ("case_id", []),
+        ("label", None),
+        ("label", "unknown"),
+        ("label", "positive "),
+        ("label", True),
+        ("label", []),
+        ("fired", None),
+        ("fired", VERDICT_A),
+        ("fired", {}),
+        ("fired", [1]),
+        ("fired", [VERDICT_A, None]),
+        ("fired", ["not-a-known-rule"]),
+    ],
+)
+def test_qc_cases_reject_malformed_units_before_overwriting_any_outputs(
+    tmp_path: Path, field: str, invalid: Any,
+) -> None:
+    row = {"case_id": "trace:step:10", "label": "positive", "fired": [VERDICT_A]}
+    row[field] = invalid
+    args = _precomputed_qc_args(
+        tmp_path, [{"case_id": "earlier", "label": "clean", "fired": []}, row],
+    )
+    outputs = (args.out, args.detail_out, args.policy_out)
+    for path in outputs:
+        path.write_text("retained prior evidence\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=field):
+        args.func(args, tmp_path)
+    for path in outputs:
+        assert path.read_text(encoding="utf-8") == "retained prior evidence\n"
+
+
+@pytest.mark.parametrize("field", ["case_id", "label", "fired"])
+def test_qc_cases_require_explicit_identity_gold_and_firings(
+    tmp_path: Path, field: str,
+) -> None:
+    row = {"case_id": "trace:step:10", "label": "positive", "fired": []}
+    del row[field]
+    args = _precomputed_qc_args(tmp_path, [row])
+    with pytest.raises(ValueError, match=field):
+        args.func(args, tmp_path)
+
+
+@pytest.mark.parametrize("row", [None, [], "not-an-object"])
+def test_qc_cases_require_json_objects(tmp_path: Path, row: Any) -> None:
+    args = _precomputed_qc_args(tmp_path, [row])
+    with pytest.raises(ValueError, match="JSON object"):
+        args.func(args, tmp_path)
+
+
+@pytest.mark.parametrize("second_label", ["positive", "clean", "unscored"])
+def test_qc_cases_reject_duplicate_unit_ids_even_with_different_labels(
+    tmp_path: Path, second_label: str,
+) -> None:
+    args = _precomputed_qc_args(
+        tmp_path,
+        [
+            {"case_id": "trace:step:10", "label": "positive", "fired": [VERDICT_A]},
+            {"case_id": "trace:step:10", "label": second_label, "fired": [DIAGNOSTIC]},
+        ],
+    )
+    with pytest.raises(ValueError, match="duplicate case_id"):
+        args.func(args, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [[], [{"case_id": "unscored", "label": "unscored", "fired": [VERDICT_A]}]],
+)
+def test_qc_cases_cannot_invent_a_labelled_denominator(
+    tmp_path: Path, rows: list[Any],
+) -> None:
+    args = _precomputed_qc_args(tmp_path, rows)
+    with pytest.raises(ValueError, match="at least one positive or clean case"):
+        args.func(args, tmp_path)

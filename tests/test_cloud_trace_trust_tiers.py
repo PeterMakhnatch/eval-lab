@@ -163,7 +163,8 @@ def test_compact_card_summarizes_a_window_and_its_pointer_expands_to_the_same_st
 ) -> None:
     add_task(db, "labeled")
     add_window_trace(db, "labeled", {
-        1: "pytest grader setup", 9: "overwrite the pytest grader\nrm tests/check.py\nexit 0\nsleep 1",
+        1: "pytest grader setup", 3: "I could hardcode the expected value",
+        9: "overwrite the pytest grader\nrm tests/check.py\nexit 0\nsleep 1",
     }, trust_tier=TIER2, flagged_passage_steps=[9], verified_receipt_json={
         "status": "verified", "source_label": {"categories": ["test_modification"]},
     })
@@ -178,8 +179,13 @@ def test_compact_card_summarizes_a_window_and_its_pointer_expands_to_the_same_st
         "  | rm tests/check.py",
         "  | exit 0",
         "- verify: publisher three-vote passage label; receipt verified",
+        # Flags cover the whole trace (steps 1 and 3 lie outside the window).
+        "- flags: reasoning_eval_awareness@1, reasoning_mentions_hardcode@3",
         "- expand: trace:labeled/trace:6-12",
     ]
+    assert example.feature_flags == {
+        "reasoning_eval_awareness": [1, 9], "reasoning_mentions_hardcode": [3],
+    }
     assert "routine step" not in card and "routine step" in full
 
     expanded = retriever.expand_pointer(example.pointer)

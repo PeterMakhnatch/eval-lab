@@ -24,6 +24,7 @@ from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -3209,6 +3210,70 @@ def select_cascade_model_order(
     return tuple(ordered)
 
 
+@lru_cache(maxsize=8)
+def _load_assignments_csv_index(csv_path: str) -> dict[str, tuple[tuple[str, str], ...]]:
+    import csv as _csv
+
+    by_bare: dict[str, set[tuple[str, str]]] = {}
+    path = Path(csv_path)
+    if not path.is_file():
+        return {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = _csv.DictReader(handle)
+        for row in reader:
+            key_id = str(row.get("key_id") or "").strip()
+            split = str(row.get("split") or "").strip().casefold()
+            if not key_id or not split:
+                continue
+            for col in ("item_id", "task", "unit"):
+                val = str(row.get(col) or "").strip()
+                if not val:
+                    continue
+                bare = val.split("@", 1)[0].rsplit("/", 1)[-1]
+                by_bare.setdefault(bare, set()).add((key_id, split))
+                if "__" in bare:
+                    by_bare.setdefault(bare.split("__")[-1], set()).add((key_id, split))
+    return {k: tuple(sorted(v)) for k, v in by_bare.items()}
+
+
+def find_cross_key_non_dev_assignments(
+    task_id: str,
+    *,
+    assignments_csv: Path | None = None,
+) -> tuple[tuple[str, str], ...]:
+    """Return ``(key_id, split)`` pairs where ``task_id`` is non-DEV in ``assignments.csv``."""
+    csv_file = (
+        Path(assignments_csv)
+        if assignments_csv is not None
+        else Path(__file__).resolve().parents[3] / "research/answer-keys/splits/assignments.csv"
+    )
+    index = _load_assignments_csv_index(str(csv_file.resolve()))
+    raw = str(task_id or "").strip()
+    bare = raw.split("@", 1)[0].rsplit("/", 1)[-1]
+    candidates = {bare}
+    if "__" in bare:
+        candidates.add(bare.split("__")[-1])
+    non_dev: set[tuple[str, str]] = set()
+    for cand in candidates:
+        for key_id, split in index.get(cand, ()):
+            if split not in {"dev", "train"}:
+                non_dev.add((key_id, split))
+    return tuple(sorted(non_dev))
+
+
+def require_cross_key_dev_only(
+    task_id: str,
+    *,
+    assignments_csv: Path | None = None,
+) -> None:
+    """Raise ``SeekerRefusalError`` if ``task_id`` has any test/heldout row in ``assignments.csv``."""
+    non_dev = find_cross_key_non_dev_assignments(task_id, assignments_csv=assignments_csv)
+    if non_dev:
+        raise SeekerRefusalError(
+            f"task {task_id!r} has non-DEV split in secondary assignments.csv keys: {list(non_dev)}"
+        )
+
+
 def build_headless_seeker_prompt(
     task: ResolvedSeekerTask,
     *,
@@ -3221,12 +3286,16 @@ def build_headless_seeker_prompt(
     dev_task_allowlist: frozenset[str] | None = None,
     prompt_mode: Literal["qa_review", "bare_task"] = "qa_review",
     hide_tests: bool = False,
+    enforce_cross_key_dev: bool = False,
+    assignments_csv: Path | None = None,
 ) -> str:
     """Build a self-contained prompt for ``omp -p --no-tools --no-skills --no-rules``."""
     if dev_task_allowlist is not None and (
         task.split.casefold() != "dev" or task.task_id not in dev_task_allowlist
     ):
         raise SeekerRefusalError("task is outside the sealed DEV-only prompt allowlist")
+    if enforce_cross_key_dev or bool(task.raw_payload.get("enforce_cross_key_dev", False)):
+        require_cross_key_dev_only(task.task_id, assignments_csv=assignments_csv)
     if len(retrieval_markdown) > 4500:
         raise SeekerRefusalError("retrieved trace prompt exceeds the 4500-character bound")
     effective_hide_tests = bool(hide_tests or task.raw_payload.get("hide_tests", False))

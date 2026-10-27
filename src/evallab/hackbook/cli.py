@@ -239,25 +239,60 @@ def _calibrate_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     return 0
 
 
+def _read_qc_cases(path: Path, known_rule_ids: frozenset[str]) -> list[ScoredCase]:
+    """Read precomputed units without rescanning or changing their gold labels."""
+    cases: list[ScoredCase] = []
+    seen_ids: set[str] = set()
+    with path.open(encoding="utf-8") as source:
+        for line_number, line in enumerate(source, 1):
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            context = f"QC cases line {line_number}"
+            if not isinstance(row, dict):
+                raise ValueError(f"{context}: expected a JSON object")
+            case_id = row.get("case_id")
+            if not isinstance(case_id, str) or not case_id.strip():
+                raise ValueError(f"{context}: case_id must be a nonempty string")
+            if case_id in seen_ids:
+                raise ValueError(f"{context}: duplicate case_id")
+            label = row.get("label")
+            if label not in ("positive", "clean", "unscored"):
+                raise ValueError(f"{context}: label must be positive, clean or unscored")
+            fired = row.get("fired")
+            if not isinstance(fired, list) or any(not isinstance(item, str) for item in fired):
+                raise ValueError(f"{context}: fired must be a list of known rule IDs")
+            unknown = set(fired) - known_rule_ids
+            if unknown:
+                raise ValueError(f"{context}: fired contains unknown rule IDs: {sorted(unknown)}")
+            seen_ids.add(case_id)
+            cases.append(ScoredCase(case_id=case_id, label=label, fired=frozenset(fired)))
+    return cases
+
+
 def _qc_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     from evallab.tripwires import HACKBOOK_RULES
 
-    cases: list[ScoredCase] = []
-    with args.input.open(encoding="utf-8") as source:
-        for line in source:
-            if not line.strip():
-                continue
-            trace = json.loads(line)
-            cases.append(
-                ScoredCase(
-                    case_id=trace["id"],
-                    label=trace["label"],
-                    fired=scan_trace_rules(trace["agent_steps"], trace.get("steps")),
+    rule_ids = tuple(rule["id"] for rule in HACKBOOK_RULES)
+    if args.cases_input is not None:
+        cases = _read_qc_cases(args.cases_input, frozenset(rule_ids))
+    else:
+        cases = []
+        with args.input.open(encoding="utf-8") as source:
+            for line in source:
+                if not line.strip():
+                    continue
+                trace = json.loads(line)
+                cases.append(
+                    ScoredCase(
+                        case_id=trace["id"],
+                        label=trace["label"],
+                        fired=scan_trace_rules(trace["agent_steps"], trace.get("steps")),
+                    )
                 )
-            )
     report, detail = score_cases(
         cases,
-        (rule["id"] for rule in HACKBOOK_RULES),
+        rule_ids,
         dataset_id=args.dataset_id,
         generated_at=args.generated_at or datetime.now(UTC).isoformat(),
     )
@@ -398,13 +433,20 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
 
     qc = sub.add_parser(
         "qc",
-        help="Score static rule hits on labelled dev traces; recommend noisy alert demotions",
-        description="Read JSONL objects with id, label (positive/clean/unscored), agent_steps, "
-        "and optional steps. Print per-rule QC; never execute trace commands. "
+        help="Score static rule hits on labelled dev cases; recommend noisy alert demotions",
+        description="Read raw trace JSONL with --input (id, label, agent_steps, optional steps) "
+        "or precomputed unit JSONL with --cases-input (case_id, label, fired rule IDs). "
+        "Labels are positive/clean/unscored. Never execute trace commands. "
+        "Score trace, exact-anchor passage QC and window diagnostics as separate datasets. "
         "Before/after unions contain alerts only; diagnostic evidence is retained. "
         "A frozen demotion policy can be passed to the offline scanner; no live policy is deployed.",
     )
-    qc.add_argument("--input", type=Path, required=True, metavar="TRACES.jsonl")
+    qc_input = qc.add_mutually_exclusive_group(required=True)
+    qc_input.add_argument("--input", type=Path, metavar="TRACES.jsonl", help="Scan raw traces")
+    qc_input.add_argument(
+        "--cases-input", type=Path, metavar="CASES.jsonl",
+        help="Score precomputed case_id/label/fired units without rescanning",
+    )
     qc.add_argument("--dataset-id", required=True, metavar="NAME")
     qc.add_argument("--out", type=Path, metavar="REPORT.json", help="Write evallab.hackbook_qc/v1")
     qc.add_argument("--detail-out", type=Path, metavar="DETAIL.json", help="Write rates and classes")

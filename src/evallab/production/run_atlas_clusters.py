@@ -240,6 +240,10 @@ def name_clusters(clusters: Sequence[Cluster], *, namer: Namer | None = None) ->
                 name = namer(list(cluster.get("samples") or [cluster["centroid_text"]]))
                 if not _valid_name(name):
                     raise ValueError("cluster names must contain one to six words on one line")
+            except run_atlas.TransportError:
+                # Stop after the first unavailable or substituted route. Repeated
+                # fallback calls consume someone else's quota without naming anything.
+                raise
             except Exception:
                 cluster["name_source"] = "deterministic_fallback"
             else:
@@ -425,6 +429,43 @@ def _load_labels(database: Path, root: Path, run_ids: set[str]) -> dict[str, boo
     return load_labels(database=database, repo_root=root, run_ids=run_ids)
 
 
+class _CappedRemoteEmbedder:
+    """Use the existing durable lifetime ledger before every embedding request."""
+
+    def __init__(self, backend: Any, *, ledger: Path, cap: float, price: float) -> None:
+        from evallab.interpretation.monitor_agent import InvestigationBudget
+
+        self.backend = backend
+        self.identity, self.digest = backend.identity, backend.digest
+        self.budget = InvestigationBudget(
+            ledger, budget_usd=cap, max_calls=10_000,
+            input_usd_per_million=price, output_usd_per_million=0.0,
+        )
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), 64):
+            batch = list(texts[start:start + 64])
+            # Reserve the full request's UTF-8 size plus framing. The extra
+            # max_tokens key is ledger bookkeeping, not sent to the endpoint.
+            payload = {
+                "model": self.backend.model, "input": batch,
+                "encoding_format": "float", "max_tokens": 1,
+            }
+            reservation = self.budget.reserve(
+                pass_id="atlas-embedding-" + uuid4().hex, payload=payload, max_output_tokens=1,
+            )
+            failed = True
+            try:
+                vectors.extend(self.backend.embed(batch))
+                failed = False
+            finally:
+                # The embedding adapter does not expose observed usage. Retain
+                # the conservative charge even on failure; do not invent a bill.
+                self.budget.finish(reservation, None, failed=failed)
+        return vectors
+
+
 def _embedder(args: argparse.Namespace) -> Any:
     from evallab.lance import HashingEmbedder, OpenAICompatibleEmbedder
 
@@ -437,11 +478,17 @@ def _embedder(args: argparse.Namespace) -> Any:
               "embedding_tokenizer", "embedding_tokenizer_revision")
     if any(not getattr(args, field) for field in fields):
         raise ValueError("remote embeddings require endpoint, model/revision and tokenizer/revision")
-    return OpenAICompatibleEmbedder(
+    price = args.embedding_input_usd_per_million
+    if price is None or not math.isfinite(price) or price <= 0:
+        raise ValueError("remote embeddings require a positive --embedding-input-usd-per-million")
+    backend = OpenAICompatibleEmbedder(
         endpoint=args.embedding_endpoint, model=args.embedding_model,
         model_revision=args.embedding_model_revision, tokenizer_id=args.embedding_tokenizer,
         tokenizer_revision=args.embedding_tokenizer_revision, dim=args.embedding_dim,
         api_key=os.environ.get(args.embedding_api_key_env),
+    )
+    return _CappedRemoteEmbedder(
+        backend, ledger=args.embedding_ledger, cap=args.spend_cap_usd, price=price,
     )
 
 
@@ -577,6 +624,11 @@ def add_clusters_parser(actions: Any) -> None:
     build.add_argument("--embedding-tokenizer")
     build.add_argument("--embedding-tokenizer-revision")
     build.add_argument("--embedding-api-key-env", default="OPENAI_API_KEY")
+    build.add_argument("--embedding-input-usd-per-million", type=float,
+                       help="Approved input-token price; required for capped remote embeddings")
+    build.add_argument("--embedding-ledger", type=Path,
+                       default=run_atlas.ATLAS_ROOT / "embedding-spend.jsonl",
+                       help="Durable lifetime-cap ledger; failed request reservations are retained")
     build.add_argument("--name-with-model", metavar="ROUTE", help="Opt-in subscription gateway naming")
     build.set_defaults(func=_build_command)
     show = commands.add_parser("show", help="Print the latest build as an indented tree")

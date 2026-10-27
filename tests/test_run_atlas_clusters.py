@@ -192,6 +192,19 @@ def test_namer_failure_and_valid_reply() -> None:
     assert valid["name"] == "Parser repairs" and valid["name_source"] == "namer"
 
 
+def test_model_naming_stops_after_route_fallback() -> None:
+    calls: list[list[str]] = []
+
+    def unavailable(samples: list[str]) -> str:
+        calls.append(samples)
+        raise run_atlas.TransportError("served model mismatch", quota=True)
+
+    clusters = [_cluster(["a"]), _cluster(["b"], cluster_id="L1-02")]
+    with pytest.raises(run_atlas.TransportError, match="served model mismatch"):
+        atlas.name_clusters(clusters, namer=unavailable)
+    assert len(calls) == 1
+
+
 def test_gateway_naming_prompt_is_blind_and_subscription_only() -> None:
     captured = []
 
@@ -340,18 +353,41 @@ def test_remote_embedding_refused_before_reading_facets(
         args.func(args, tmp_path)
 
 
-def test_remote_embedding_only_wires_existing_backend_without_a_call() -> None:
-    from evallab.lance import OpenAICompatibleEmbedder
+def test_remote_embedding_cap_is_reserved_before_transport_and_persists(tmp_path: Path) -> None:
+    from evallab.interpretation.monitor_agent import BudgetExhausted
 
-    args = _parser().parse_args([
-        "clusters", "build", "--embedder", "remote", "--spend-cap-usd", "1",
-        "--embedding-endpoint", "https://remote.invalid", "--embedding-model", "embedding",
-        "--embedding-model-revision", "sha256:revision", "--embedding-tokenizer", "tokens",
-        "--embedding-tokenizer-revision", "sha256:tokens", "--embedding-dim", "256",
-    ])
-    embedder = atlas._embedder(args)
-    assert isinstance(embedder, OpenAICompatibleEmbedder)
-    assert embedder.endpoint == "https://remote.invalid" and embedder.dim == 256
+    calls = []
+    backend = SimpleNamespace(
+        identity="test-remote", digest="test-digest", model="embedding",
+        embed=lambda texts: calls.append(texts) or [[1.0, 0.0] for _ in texts],
+    )
+    ledger = tmp_path / "spend.jsonl"
+    first = atlas._CappedRemoteEmbedder(backend, ledger=ledger, cap=0.003, price=1.0)
+    assert first.embed(["x" * 1000]) == [[1.0, 0.0]]
+    restarted = atlas._CappedRemoteEmbedder(backend, ledger=ledger, cap=0.003, price=1.0)
+    with pytest.raises(BudgetExhausted):
+        restarted.embed(["x" * 1000])
+    assert len(calls) == 1
+
+
+def test_failed_embedding_does_not_refund_paid_reservation(tmp_path: Path) -> None:
+    from evallab.interpretation.monitor_agent import BudgetExhausted
+
+    calls = []
+
+    def failed(texts: list[str]) -> list[list[float]]:
+        calls.append(texts)
+        raise RuntimeError("endpoint timed out")
+
+    backend = SimpleNamespace(identity="remote", digest="digest", model="embedding", embed=failed)
+    embedder = atlas._CappedRemoteEmbedder(
+        backend, ledger=tmp_path / "spend.jsonl", cap=0.003, price=1.0,
+    )
+    with pytest.raises(RuntimeError, match="endpoint timed out"):
+        embedder.embed(["x" * 1000])
+    with pytest.raises(BudgetExhausted):
+        embedder.embed(["x" * 1000])
+    assert len(calls) == 1
 
 
 def test_build_appends_snapshots_and_show_uses_latest_with_labels(

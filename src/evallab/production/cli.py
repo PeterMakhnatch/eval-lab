@@ -179,6 +179,15 @@ def register_parser(commands: Any) -> None:
         "--cm4-directory", type=Path,
         help="Recorded CM-4 results directory (freeze, score2-*, crosskey, judge receipts)",
     )
+    export.add_argument(
+        "--oq5-directory", type=Path,
+        help="Recorded OQ-5 results directory (dev-summary, cross-summary, freeze); with "
+        "--cm5-directory, --ts4-manifest, --ts4-cells and --cm4-directory builds the system playbook",
+    )
+    export.add_argument(
+        "--cm5-directory", type=Path,
+        help="Recorded CM-5 results directory (freeze, e2escore-*, judge receipts)",
+    )
     export.add_argument("--generated-at", metavar="ISO", help="Census timestamp (default: now, UTC)")
     export.set_defaults(func=_command)
 
@@ -443,6 +452,8 @@ def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         ts4_manifest=_optional_path(root, args.ts4_manifest),
         ts4_cells=_optional_path(root, args.ts4_cells),
         cm4_directory=_optional_path(root, args.cm4_directory),
+        oq5_directory=_optional_path(root, args.oq5_directory),
+        cm5_directory=_optional_path(root, args.cm5_directory),
         generated_at=args.generated_at,
     )
 

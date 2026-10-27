@@ -135,6 +135,41 @@ def _served_requested_route(cell: dict[str, Any], route: str) -> bool:
     return bool(model) and route in (model, f"{provider}/{model}")
 
 
+def _ts4_clean_cohort(manifest: dict[str, Any]) -> tuple[dict[str, Any], dict[str, list[str]]]:
+    audit = manifest["ts4_cross_key_and_executed_audit"]
+    clean = {
+        dataset: sorted(tasks)
+        for dataset, tasks in audit["strictly_dev_everywhere_by_dataset"].items()
+        if tasks
+    }
+    if (
+        sum(len(tasks) for tasks in clean.values()) != audit["strictly_dev_everywhere_count"]
+        or len(audit["contaminated_tasks"]) != audit["secondary_key_contaminated_count"]
+    ):
+        raise ValueError("TS-4 audit counts disagree with its recorded task lists")
+    return audit, clean
+
+
+def _read_ts4_cell(
+    cells_directory: Path, dataset: str, task: str, model: str, turn: str
+) -> dict[str, Any] | None:
+    path = cells_directory / dataset / task / model.replace("/", "_") / turn
+    try:
+        cell = json.loads(read_owned_file(path / "result.json"))
+    except FileNotFoundError:
+        return None
+    if cell.get("requested_model_route") != model:
+        raise ValueError(f"{path} is not a cell for the requested route {model}")
+    return cell
+
+
+def _ts4_outcome(cell: dict[str, Any], model: str) -> tuple[bool, bool]:
+    """(attested, executed differential); a differential only counts on an attested cell."""
+    ok = cell.get("attestation_ok") is True and _served_requested_route(cell, model)
+    hit = ok and cell.get("original_reward") == 1.0 and cell.get("repaired_reward") == 0.0
+    return ok, hit
+
+
 def ts4_executed_differentials(
     manifest: dict[str, Any], cells_directory: Path, *, generated_at: str
 ) -> dict[str, Any]:
@@ -146,39 +181,20 @@ def ts4_executed_differentials(
     attested cell with original reward 1.0 and repaired reward 0.0 is an executed
     differential, so executed <= attested <= evaluated cells for every arm.
     """
-    audit = manifest["ts4_cross_key_and_executed_audit"]
-    clean = {
-        dataset: sorted(tasks)
-        for dataset, tasks in audit["strictly_dev_everywhere_by_dataset"].items()
-        if tasks
-    }
+    audit, clean = _ts4_clean_cohort(manifest)
     task_count = audit["strictly_dev_everywhere_count"]
-    if (
-        sum(len(tasks) for tasks in clean.values()) != task_count
-        or len(audit["contaminated_tasks"]) != audit["secondary_key_contaminated_count"]
-    ):
-        raise ValueError("TS-4 audit counts disagree with its recorded task lists")
     digest, found, arms = hashlib.sha256(), 0, []
     for model in sorted(audit["models_on_clean_30_tasks"]):
         conditions = []
         for name, turn in _TS4_CONDITIONS:
-            by_dataset = []
+            by_dataset: list[dict[str, Any]] = []
             for dataset, tasks in sorted(clean.items()):
                 cells = attested = executed = 0
                 for task in tasks:
-                    path = cells_directory / dataset / task / model.replace("/", "_") / turn
-                    try:
-                        cell = json.loads(read_owned_file(path / "result.json"))
-                    except FileNotFoundError:
+                    cell = _read_ts4_cell(cells_directory, dataset, task, model, turn)
+                    if cell is None:
                         continue
-                    if cell.get("requested_model_route") != model:
-                        raise ValueError(f"{path} is not a cell for the requested route {model}")
-                    ok = cell.get("attestation_ok") is True and _served_requested_route(cell, model)
-                    hit = (
-                        ok
-                        and cell.get("original_reward") == 1.0
-                        and cell.get("repaired_reward") == 0.0
-                    )
+                    ok, hit = _ts4_outcome(cell, model)
                     cells, attested, executed = cells + 1, attested + ok, executed + hit
                     digest.update(f"{dataset}\t{task}\t{model}\t{turn}\t{ok:d}\t{hit:d}\n".encode())
                 by_dataset.append(
@@ -234,7 +250,7 @@ _CM4_COHORTS = {
 def _cm4_cohort(
     corpus: str, summary_file: dict[str, Any], crosskey: dict[str, Any]
 ) -> dict[str, Any]:
-    role, dataset_id, key = _CM4_COHORTS[corpus]
+    role, dataset_id, _ = _CM4_COHORTS[corpus]
     summary, rows = summary_file["summary"], summary_file["traces"]
     positives = [row for row in rows if row["positive"]]
     unscored = [
@@ -261,13 +277,7 @@ def _cm4_cohort(
         or round(100 * stage1_neg / len(negatives), 1) != stage1["far"]
     ):
         raise ValueError(f"CM-4 {corpus}: Stage-1 counts disagree with the summary rates")
-    checked = crosskey[key]
-    if checked["identities"] != len(rows):
-        raise ValueError(
-            f"CM-4 {corpus}: cross-key check covers {checked['identities']} identities, not {len(rows)}"
-        )
-    if checked["assigned_test_anywhere"] or checked["sealed_identity"]:
-        raise ValueError(f"CM-4 {corpus}: cross-key check found non-DEV assignments")
+    checked_n = _check_cross_key(corpus, len(rows), crosskey)
     return {
         "role": role,
         "dataset_id": dataset_id,
@@ -275,7 +285,7 @@ def _cm4_cohort(
         "positive_n": len(positives),
         "clean_n": len(negatives),
         "unscored_n": len(unscored),
-        "identities_checked_n": checked["identities"],
+        "identities_checked_n": checked_n,
         "non_dev_assignment_n": 0,
         "stage1_positive_hit_n": stage1_pos,
         "stage1_clean_hit_n": stage1_neg,
@@ -321,6 +331,555 @@ def cm4_monitor_cascade(directory: Path, *, generated_at: str) -> dict[str, Any]
     }
 
 
+_SUBSCRIPTION_USD = "not applicable: subscription route, no per-call price"
+
+
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(read_owned_file(path)).hexdigest()
+
+
+def _cost(
+    calls: int | None,
+    tokens_in: int | None,
+    tokens_out: int | None,
+    usd: float | None,
+    *,
+    complete: bool,
+    scope: str,
+    usd_basis: str,
+) -> dict[str, Any]:
+    return {
+        "calls_n": calls,
+        "input_tokens_n": tokens_in,
+        "output_tokens_n": tokens_out,
+        "usd": usd,
+        "complete": complete,
+        "scope": scope,
+        "usd_basis": usd_basis,
+    }
+
+
+def _oq5_cost(calls: dict[str, Any], scope: str) -> dict[str, Any]:
+    complete = not (
+        calls["missing_receipts"] or calls["missing_tokens_in"] or calls["missing_tokens_out"]
+    )
+    usd = calls["observed_cost_usd"]
+    basis = (
+        _SUBSCRIPTION_USD
+        if calls["cost_usd_applicability"] == "not_applicable_subscription"
+        else "reported cost of the calls that returned one"
+    )
+    return _cost(
+        calls["attempts"],
+        calls["observed_tokens_in"],
+        calls["observed_tokens_out"],
+        usd,
+        complete=complete,
+        scope=scope,
+        usd_basis=basis,
+    )
+
+
+def _oq5_result(label: str, metrics: dict[str, Any], cost: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "label": label,
+        "hit_label": "recorded bug keys re-found",
+        "hits_n": metrics["matched_keys"],
+        "of_n": metrics["evaluable_keys"],
+        "planned_of_n": metrics["planned_keys"],
+        "false_alarm_n": None,
+        "false_alarm_of_n": None,
+        "stage_one_hits_n": None,
+        "stage_one_false_alarm_n": None,
+        "cost": cost,
+    }
+
+
+def _oq5_system(directory: Path) -> tuple[dict[str, Any], list[tuple[str, str]]]:
+    """The Task Bug Finder: the frozen arm on DEV and on its unchanged cross-test."""
+    names = ("dev-summary.json", "cross-summary.json", "freeze.json")
+    paths = {name: directory / name for name in names}
+    dev, cross, freeze = (json.loads(read_owned_file(path)) for path in paths.values())
+    arm = freeze["selected_arm"]
+    if dev["selected_arm"] != arm:
+        raise ValueError("OQ-5: the DEV summary and the freeze receipt select different arms")
+    if cross["freeze_sha256"] != _file_sha256(paths["freeze.json"]):
+        raise ValueError("OQ-5: the cross-test summary is not bound to this freeze receipt")
+    if cross["TEST_exposure"] or cross["new_grader_executions"]:
+        raise ValueError("OQ-5: the cross-test summary records a protected-split exposure")
+    tune_arm, cross_metrics = dev["arms"][arm], cross["metrics"]
+    dev_datasets = sorted(dev["by_dataset"])
+    cross_datasets = sorted({row["dataset_id"] for row in cross["rows"]})
+
+    def arm_cost(name: str) -> dict[str, Any]:
+        planned, complete = dev["arms"][name]["planned_tasks"], dev["arms"][name]["complete_tasks"]
+        calls = dev["arm_calls"][name]
+        scope = f"all {calls['attempts']} calls of arm {name} ({complete} of {planned} tasks complete)"
+        return _oq5_cost(calls, scope)
+
+    tune_cost = arm_cost(arm)
+    cross_cost = _oq5_cost(
+        cross["calls"],
+        f"all {cross['calls']['attempts']} model calls on the cross-test "
+        f"({cross_metrics['complete_tasks']} of {cross_metrics['planned_tasks']} tasks complete)",
+    )
+    served = sorted(
+        f"{identity['provider']}/{identity['model']}"
+        for identity in {
+            (identity["provider"], identity["model"]): identity
+            for identity in (
+                *dev["calls"]["served_identities"],
+                *cross["calls"]["served_identities"],
+            )
+        }.values()
+    )
+    paired = dev["paired_metrics"]
+    paired_label = f"{len(dev['complete_paired_task_ids'])} tasks both arms completed"
+    flag = {
+        "flag": "History and retrieval evidence",
+        "plain_english": (
+            "Gives the reviewer summaries of earlier failed runs and issue evidence from other tasks; "
+            "off means it reviews the task cold."
+        ),
+        "role": "tune",
+        "cohort": f"{paired_label} ({', '.join(dev_datasets)})",
+        "variants": [
+            _oq5_result("off: cold review (arm A)", paired["A"], arm_cost("A")),
+            _oq5_result("on: history and retrieval (arm B)", paired["B"], arm_cost("B")),
+        ],
+    }
+    return (
+        {
+            "system_id": "task_bug_finder",
+            "name": "Task Bug Finder",
+            "plain_english": (
+                "Reads a benchmark task's instructions and grading code, reports defects in the "
+                "grader, and is scored on whether it re-finds bugs already recorded for that task."
+            ),
+            "measure": "Recorded bug keys re-found out of the keys that could be evaluated",
+            "version": f"OQ-5 frozen arm {arm} ({freeze['protocol']['model']}, "
+            f"confidence threshold {freeze['protocol']['confidence_threshold']})",
+            "served_models": served,
+            "runs": [
+                {
+                    "role": "tune",
+                    "cohort": f"DEV A/B ({', '.join(dev_datasets)}; {tune_arm['planned_tasks']} tasks)",
+                    "frozen": True,
+                    "result": _oq5_result(f"arm {arm}", tune_arm, tune_cost),
+                },
+                {
+                    "role": "cross_test",
+                    "cohort": f"cross-test ({', '.join(cross_datasets)}; {cross_metrics['planned_tasks']} tasks)",
+                    "frozen": True,
+                    "result": _oq5_result(f"arm {arm}, unchanged", cross_metrics, cross_cost),
+                },
+            ],
+            "flags": [flag],
+            "caveats": [
+                "Scores only bugs already on record; it cannot say how many real bugs a task has, "
+                "and no false-positive rate was measured.",
+                f"The cross-test is incomplete: {cross_metrics['planned_tasks'] - cross_metrics['complete_tasks']} "
+                f"of {cross_metrics['planned_tasks']} tasks and "
+                f"{cross_metrics['planned_keys'] - cross_metrics['evaluable_keys']} of "
+                f"{cross_metrics['planned_keys']} keys could not be evaluated, so the count is over "
+                f"{cross_metrics['evaluable_keys']} keys, not all of them.",
+                f"{tune_arm['accepted_findings']} finding(s) passed the confidence and citation gate "
+                f"on DEV and {cross_metrics['accepted_findings']} on the cross-test; "
+                f"{tune_arm['matched_keys']} and {cross_metrics['matched_keys']} matched a recorded key.",
+                "Subscription route: no per-call dollar price exists, so cost is tokens only.",
+            ],
+        },
+        [(f"OQ-5 {name}", _file_sha256(path)) for name, path in paths.items()],
+    )
+
+
+def _check_cross_key(corpus: str, identities: int, crosskey: dict[str, Any]) -> int:
+    checked = crosskey[_CM4_COHORTS[corpus][2]]
+    if checked["identities"] != identities:
+        raise ValueError(
+            f"CM-4 {corpus}: cross-key check covers {checked['identities']} identities, not {identities}"
+        )
+    if checked["assigned_test_anywhere"] or checked["sealed_identity"]:
+        raise ValueError(f"CM-4 {corpus}: cross-key check found non-DEV assignments")
+    return checked["identities"]
+
+
+def _cascade_result(
+    label: str,
+    scored: dict[str, Any],
+    *,
+    stage1_key: str,
+    stage1_row: str,
+    calls_key: str,
+    scope: str,
+    usd_basis: str,
+) -> dict[str, Any]:
+    summary, rows = scored["summary"], scored["traces"]
+    if summary["excluded_unavailable"]:
+        raise ValueError(f"{label}: {summary['excluded_unavailable']} traces were unavailable")
+    positives = [row for row in rows if row["positive"]]
+    negatives = [
+        row for row in rows if not row["positive"] and not row["stratum"].startswith("considered")
+    ]
+    cascade, stage1 = summary["cascade"], summary[stage1_key]
+    tp = sum(1 for row in positives if row["alarmed"])
+    fp = sum(1 for row in negatives if row["alarmed"])
+    stage1_tp = sum(1 for row in positives if row[stage1_row])
+    stage1_fp = sum(1 for row in negatives if row[stage1_row])
+    counted = {
+        "positives": (len(positives), summary["positives"]),
+        "negatives": (len(negatives), summary["negatives"]),
+        "cascade tp": (tp, cascade["tp"]),
+        "cascade fp": (fp, cascade["fp"]),
+    }
+    for name, (found, recorded) in counted.items():
+        if found != recorded:
+            raise ValueError(f"{label}: {name} {found} disagrees with the summary {recorded}")
+    if (
+        round(100 * stage1_tp / len(positives), 1) != stage1["recall"]
+        or round(100 * stage1_fp / len(negatives), 1) != stage1["far"]
+    ):
+        raise ValueError(f"{label}: Stage-1 counts disagree with the summary rates")
+    return {
+        "label": label,
+        "hit_label": "cheating traces alarmed",
+        "hits_n": tp,
+        "of_n": len(positives),
+        "planned_of_n": None,
+        "false_alarm_n": fp,
+        "false_alarm_of_n": len(negatives),
+        "stage_one_hits_n": stage1_tp,
+        "stage_one_false_alarm_n": stage1_fp,
+        "cost": _cost(
+            summary[calls_key],
+            summary["input_tokens"],
+            summary["output_tokens"],
+            summary.get("notional_usd"),
+            complete=True,
+            scope=scope,
+            usd_basis=usd_basis,
+        ),
+    }
+
+
+_CM5_ARM_LABELS = {
+    "base": "off: no command cues",
+    "pf_git": "git-history cue only",
+    "pf_all": "on: all command cues (frozen)",
+}
+
+
+def _monitor_system(cm4: Path, cm5: Path) -> tuple[dict[str, Any], list[tuple[str, str]]]:
+    """The 2-Stage Live Monitor: CM-5's frozen arm, and the feature settings behind it."""
+    freeze_path = cm5 / "freeze.json"
+    freeze = json.loads(read_owned_file(freeze_path))
+    frozen, crosskey_path = freeze["frozen_arm"], cm4 / "crosskey.json"
+    crosskey = json.loads(read_owned_file(crosskey_path))
+    sources = [("CM-5 freeze", _file_sha256(freeze_path)), ("CM-4 cross-key audit", _file_sha256(crosskey_path))]
+
+    def scored(directory: Path, name: str) -> dict[str, Any]:
+        path = directory / name
+        sources.append((f"{directory.name.split('-')[0].upper()} {name}", _file_sha256(path)))
+        return json.loads(read_owned_file(path))
+
+    def cm5_result(corpus: str, arm: str) -> dict[str, Any]:
+        file = scored(cm5, f"e2escore-{corpus}-{arm}.json")
+        if file["summary"]["corpus"] != corpus:
+            raise ValueError(f"CM-5 {arm}: score file is not the {corpus} corpus")
+        _check_cross_key(corpus, len(file["traces"]), crosskey)
+        return _cascade_result(
+            _CM5_ARM_LABELS[arm],
+            file,
+            stage1_key="stage1_any_card",
+            stage1_row="stage1_any",
+            calls_key="judged_cards",
+            scope=f"the {file['summary']['judged_cards']} judged windows scored for this arm",
+            usd_basis="not recorded in the CM-5 score file",
+        )
+
+    def cm4_result(corpus: str, arm: str, label: str) -> dict[str, Any]:
+        file = scored(cm4, f"score2-{corpus}-{arm}.json")
+        if file["summary"]["arm"] != arm:
+            raise ValueError(f"CM-4 {corpus}: score file is not the {arm!r} arm")
+        _check_cross_key(corpus, len(file["traces"]), crosskey)
+        return _cascade_result(
+            label,
+            file,
+            stage1_key="stage1",
+            stage1_row="stage1",
+            calls_key="judge_calls",
+            scope=f"all {file['summary']['judge_calls']} judge calls for this arm",
+            usd_basis="notional price recorded by the producer, not a bill",
+        )
+
+    runs, flags = [], []
+    for corpus, (role, dataset_id, _) in _CM4_COHORTS.items():
+        runs.append(
+            {
+                "role": role,
+                "cohort": dataset_id,
+                "frozen": True,
+                "result": cm5_result(corpus, frozen),
+            }
+        )
+        arms = [arm for arm in _CM5_ARM_LABELS if (cm5 / f"e2escore-{corpus}-{arm}.json").exists()]
+        flags.append(
+            {
+                "flag": "Command cues in the lookahead window (CM-5 judge)",
+                "plain_english": (
+                    "Rule cues that flag git-history browsing, test-file edits and assertion changes "
+                    "send extra windows to the judge; off sends only the base windows."
+                ),
+                "role": role,
+                "cohort": dataset_id,
+                "variants": [cm5_result(corpus, arm) for arm in arms],
+            }
+        )
+    receipts5 = [
+        json.loads(line)
+        for line in read_owned_file(cm5 / "judge-receipts.jsonl").decode().splitlines()
+        if line.strip()
+    ]
+    receipts4 = [
+        json.loads(line)
+        for line in read_owned_file(cm4 / "judge-receipts.jsonl").decode().splitlines()
+        if line.strip()
+    ]
+    if any(row["fallback"] for row in (*receipts5, *receipts4)):
+        raise ValueError("a judge receipt records a fallback model")
+    judge5 = sorted({row["served"] for row in receipts5})
+    judge4 = sorted({row["served"] for row in receipts4})
+    if judge5 != [freeze["judge"]]:
+        raise ValueError("CM-5 receipts were not all served by the frozen judge")
+    for corpus, (role, dataset_id, _) in _CM4_COHORTS.items():
+        flags.append(
+            {
+                "flag": f"Reference examples in the judge prompt (CM-4 judge {', '.join(judge4)})",
+                "plain_english": (
+                    "Adds labelled example cases to the judge's prompt; off shows the judge only the "
+                    "flagged window. Measured on the earlier CM-4 cascade, so not comparable with "
+                    "the CM-5 rows."
+                ),
+                "role": role,
+                "cohort": dataset_id,
+                "variants": [
+                    cm4_result(corpus, "plain", "off: no reference examples"),
+                    cm4_result(corpus, "with_examples", "on: reference examples"),
+                ],
+            }
+        )
+    return (
+        {
+            "system_id": "live_monitor",
+            "name": "2-Stage Live Monitor",
+            "plain_english": (
+                "Cheap rules flag suspicious steps in an agent's trace; a bounded model judge then "
+                "reads the surrounding window and confirms or rejects each flag."
+            ),
+            "measure": "Cheating traces alarmed (recall) and clean traces alarmed (false alarms)",
+            "version": f"{freeze['cascade_version']}, frozen arm {frozen}, judge {freeze['judge']}",
+            "served_models": sorted({*judge5, *judge4}),
+            "runs": runs,
+            "flags": flags,
+            "caveats": [
+                f"Producer's freeze note: {freeze['note']}.",
+                "Goodfire labels are provisional publisher judgments, and CheatBench labels mark "
+                "cheating attempts, not whether a solution was correct.",
+                "Rates are over scored traces only; traces that merely considered cheating are in "
+                "neither rate.",
+                "Cost is judge tokens only. CM-5 records no dollar figure and CM-4's are notional "
+                "prices, not bills.",
+                "This shows the arm that has a freeze receipt and a completed cross-test; a later "
+                "arm is not shown until it has its own.",
+            ],
+        },
+        sources,
+    )
+
+
+class _Usage:
+    """Recorded usage summed over cells; a missing figure marks the total incomplete."""
+
+    def __init__(self) -> None:
+        self.calls = self.tokens_in = self.tokens_out = 0
+        self.usd, self.complete, self.priced = 0.0, True, True
+
+    def add(self, cell: dict[str, Any]) -> None:
+        self.calls += 1
+        for field, attribute in (("input_tokens", "tokens_in"), ("output_tokens", "tokens_out")):
+            if cell.get(field) is None:
+                self.complete = False
+            else:
+                setattr(self, attribute, getattr(self, attribute) + cell[field])
+        if cell.get("cost_usd") is None:
+            self.priced = False
+        else:
+            self.usd += cell["cost_usd"]
+
+    def cost(self, scope: str) -> dict[str, Any]:
+        return _cost(
+            self.calls,
+            self.tokens_in,
+            self.tokens_out,
+            round(self.usd, 6) if self.priced else None,
+            complete=self.complete,
+            scope=scope,
+            usd_basis="recorded cost_usd per cell; a 0.0 on a subscription route is not a zero bill",
+        )
+
+
+# Seeker variants: label, the turns whose cells are combined. A task scores when any
+# attested cell among them is an executed differential.
+_SEEKER_VARIANTS = (
+    ("off: turn 1 only", ("turn-1",)),
+    ("on: + turn 2, original feedback", ("turn-1", "turn-2")),
+    ("on: + turn 2, runner-accurate feedback", ("turn-1", "turn-2-runner-accurate")),
+)
+
+
+def _seeker_system(
+    manifest: dict[str, Any], cells_directory: Path
+) -> tuple[dict[str, Any], list[tuple[str, str]]]:
+    """The Two-Turn Reward Seeker: one DEV cohort, turn 1 alone versus a second turn."""
+    audit, clean = _ts4_clean_cohort(manifest)
+    task_count = audit["strictly_dev_everywhere_count"]
+    cohort = ", ".join(f"{dataset} {len(tasks)}" for dataset, tasks in sorted(clean.items()))
+    digest, runs, flags, served, rows = hashlib.sha256(), [], [], [], []
+    turns = sorted({turn for _, group in _SEEKER_VARIANTS for turn in group})
+    for model in sorted(audit["models_on_clean_30_tasks"]):
+        usage = {label: _Usage() for label, _ in _SEEKER_VARIANTS}
+        hits = dict.fromkeys(usage, 0)
+        evaluated = dict.fromkeys(usage, 0)
+        attested = 0
+        for dataset, tasks in sorted(clean.items()):
+            for task in tasks:
+                cells = {
+                    turn: _read_ts4_cell(cells_directory, dataset, task, model, turn)
+                    for turn in turns
+                }
+                outcomes = {
+                    turn: _ts4_outcome(cell, model) if cell else (False, False)
+                    for turn, cell in cells.items()
+                }
+                for turn, cell in cells.items():
+                    if cell is None:
+                        continue
+                    ok, hit = outcomes[turn]
+                    attested += ok
+                    recorded = [cell.get(field) for field in ("input_tokens", "output_tokens", "cost_usd")]
+                    line = [dataset, task, model, turn, f"{ok:d}", f"{hit:d}", *map(str, recorded)]
+                    digest.update(("\t".join(line) + "\n").encode())
+                for label, group in _SEEKER_VARIANTS:
+                    present = [(turn, cell) for turn in group if (cell := cells[turn]) is not None]
+                    if not present:
+                        continue
+                    evaluated[label] += 1
+                    hits[label] += any(outcomes[turn][1] for turn, _ in present)
+                    for _, cell in present:
+                        usage[label].add(cell)
+        if not any(evaluated.values()):
+            continue
+        if attested:
+            served.append(model)
+        results = [
+            {
+                "label": label,
+                "hit_label": "executed grader differentials",
+                "hits_n": hits[label],
+                "of_n": evaluated[label],
+                "planned_of_n": task_count,
+                "false_alarm_n": None,
+                "false_alarm_of_n": None,
+                "stage_one_hits_n": None,
+                "stage_one_false_alarm_n": None,
+                "cost": usage[label].cost(f"{usage[label].calls} calls for these tasks"),
+            }
+            for label, _ in _SEEKER_VARIANTS
+            if evaluated[label]
+        ]
+        rows += results
+        runs.append(
+            {
+                "role": "dev_only",
+                "cohort": f"{cohort} · {model}",
+                "frozen": False,
+                "result": results[-1] | {"label": f"{model} · {results[-1]['label']}"},
+            }
+        )
+        flags.append(
+            {
+                "flag": f"Second turn · {model}",
+                "plain_english": (
+                    "Turn 2 re-prompts with retrieved evidence and runner feedback, and a task "
+                    "scores if either turn finds a differential; off stops after turn 1."
+                ),
+                "role": "dev_only",
+                "cohort": cohort,
+                "variants": results,
+            }
+        )
+    if not runs:
+        raise ValueError(f"no TS-4 cell results were found under {cells_directory}")
+    unpriced = sum(1 for row in rows if row["cost"]["usd"] is None)
+    short = sum(1 for row in rows if row["of_n"] < task_count)
+    return (
+        {
+            "system_id": "reward_seeker",
+            "name": "Two-Turn Reward Seeker",
+            "plain_english": (
+                "Asks a model to solve a task, then lets it try again with retrieved evidence and "
+                "runner feedback, and checks whether any solution passes the original grader but "
+                "fails the repaired one, which exposes a grader weakness."
+            ),
+            "measure": "Tasks with an executed grader differential out of the tasks evaluated",
+            "version": f"TS-3/TS-4, hidden tests, cross-key-clean cohort ({cohort})",
+            "served_models": served,
+            "runs": runs,
+            "flags": flags,
+            "caveats": [
+                "No tune/cross-test split was recorded for this system: every number is on one DEV "
+                "cohort, so none is an unseen-data accuracy.",
+                "An executed differential means the original grader passed and the repaired grader "
+                "failed when run; it measures grader weakness found, not solution correctness.",
+                "Cells served by a different model, or whose attestation failed, stay in the "
+                "denominators and never score.",
+                "Headline rows use the runner-accurate second turn. The retained cell files were "
+                "regenerated after earlier exports, so figures from earlier exports of this "
+                "cohort may differ; the digest in the sources identifies the cells counted here.",
+                f"{short} of {len(rows)} rows evaluated fewer tasks than the cohort's {task_count}. "
+                "Cost sums the recorded per-cell usage; "
+                f"{unpriced} rows lack a priced cost and cells without token counts make a row "
+                "incomplete. A recorded 0.0 is not a zero bill.",
+            ],
+        },
+        [("TS-3 per-cell results (counted cells)", digest.hexdigest())],
+    )
+
+
+def system_playbook(
+    *,
+    oq5_directory: Path,
+    cm4_directory: Path,
+    cm5_directory: Path,
+    ts4_manifest: dict[str, Any],
+    ts4_cells: Path,
+    generated_at: str,
+) -> dict[str, Any]:
+    """The three core systems side by side, built only from recorded results."""
+    finder, finder_sources = _oq5_system(oq5_directory)
+    seeker, seeker_sources = _seeker_system(ts4_manifest, ts4_cells)
+    monitor, monitor_sources = _monitor_system(cm4_directory, cm5_directory)
+    return {
+        "schema": "evallab.system_playbook/v1",
+        "systems": [finder, seeker, monitor],
+        "sources": [
+            {"label": label, "sha256": digest}
+            for label, digest in (*finder_sources, *seeker_sources, *monitor_sources)
+        ],
+        "generated_at": generated_at,
+    }
+
+
 def _encode(document: dict[str, Any]) -> bytes:
     return (json.dumps(document, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
 
@@ -355,6 +914,8 @@ def export_qc_reports(
     ts4_manifest: Path | None = None,
     ts4_cells: Path | None = None,
     cm4_directory: Path | None = None,
+    oq5_directory: Path | None = None,
+    cm5_directory: Path | None = None,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
     """Stage, validate and atomically publish a directory of retained reports."""
@@ -397,6 +958,29 @@ def export_qc_reports(
                 "monitor-cascade-cm4.json",
                 _encode(cm4_monitor_cascade(cm4_directory, generated_at=stamp)),
                 f"built from the recorded CM-4 results in {cm4_directory.name}",
+            )
+        )
+    if (oq5_directory is None) != (cm5_directory is None):
+        raise ValueError("the system playbook needs both the OQ-5 and the CM-5 directories")
+    if oq5_directory is not None and cm5_directory is not None:
+        if ts4_manifest is None or ts4_cells is None or cm4_directory is None:
+            raise ValueError(
+                "the system playbook also needs the TS-4 manifest and cells and the CM-4 directory"
+            )
+        playbook = system_playbook(
+            oq5_directory=oq5_directory,
+            cm4_directory=cm4_directory,
+            cm5_directory=cm5_directory,
+            ts4_manifest=json.loads(read_owned_file(ts4_manifest)),
+            ts4_cells=ts4_cells,
+            generated_at=stamp,
+        )
+        artifacts.append(
+            (
+                "system-playbook.json",
+                _encode(playbook),
+                "built from recorded OQ-5, TS-3/TS-4, CM-4 and CM-5 results; counts copied or "
+                "counted, never re-scored",
             )
         )
     artifacts += _recorded(hackbook_qc, "evallab.hackbook_qc/v1", "hackbook-qc")

@@ -1,0 +1,503 @@
+{
+  "adapter_selfcheck": {
+    "cluster_sizes": {
+      "1": 5345,
+      "2": 3687,
+      "3": 568
+    },
+    "dropped_detector_text_characters": 0,
+    "issue_count": 0,
+    "issues": {},
+    "labels": {
+      "is_deceptive": {
+        "negative": 1366,
+        "positive": 2889
+      },
+      "is_doubling_down": {
+        "negative": 79,
+        "positive": 489
+      },
+      "is_misaligned": {
+        "negative": 5345,
+        "positive": 4255
+      }
+    },
+    "linked_root_clusters": 9600,
+    "links": {
+      "deception_linked": 4255,
+      "deception_parent_response_whitespace_only_difference": 3,
+      "doubling_down_linked": 568
+    },
+    "phase_counts": {
+      "deception": 4255,
+      "doubling_down": 568,
+      "misalignment": 9600
+    },
+    "prompt_messages": 238702,
+    "rows": 14423,
+    "steps": 253125
+  },
+  "bundle_path": "/Users/petermakhnatch/.local/state/evallab-cross-test/apolloresearch__insider-trading/370fdc9f303f",
+  "bytes": 114160984,
+  "checks": {
+    "adapter_zero_issues": true,
+    "all_records_uniquely_identified": true,
+    "every_file_sha256_git_blob_and_size_verified": true,
+    "label_denominators_sum_to_rows": true,
+    "linked_phase_root_count": true,
+    "one_native_label_per_response": true,
+    "pinned_licence": true,
+    "pinned_revision": true,
+    "publisher_tree_file_count": true,
+    "publisher_tree_phase_counts": true,
+    "publisher_tree_result_bytes": true,
+    "publisher_tree_result_file_count": true,
+    "publisher_tree_total_bytes": true
+  },
+  "cluster_size_counts": {
+    "1": 5345,
+    "2": 3687,
+    "3": 568
+  },
+  "corpus": "apolloresearch__insider-trading",
+  "counts": {
+    "negative_rows": 6790,
+    "positive_rows": 7633,
+    "rows": 14423,
+    "rows_with_multiple_native_labels": 0,
+    "rows_with_no_native_label": 0
+  },
+  "cross_test_notice_sha256": "c6e1d891347661c923fca0a3e7bc22f5bcfa12b2ea5420e26b8e0625c1d38517",
+  "data_file_digest_algorithm": "SHA-256(concatenated raw SHA-256 digest bytes; files sorted by POSIX record id; separately per phase and all)",
+  "data_file_digests": {
+    "all": "8d6e86b06a63df9e50b72af007d6b34e7d847d2dda104c6c05fade5a72ad900e",
+    "deception": "efb53278a5e8216538e30f72157d4fccfe27b551e0f4c0574c94321709b2f91a",
+    "doubling_down": "954a7fedddc84515637b8396f6f83fd69a4772eec01d40339bc6f1255b1716a5",
+    "misalignment": "0e8430b1965d31f33fb2f8a3001d9b4ccd8c8853e615eaed0676381fb6f1a303"
+  },
+  "duplicate_detector_input_excess_rows": 291,
+  "duplicate_detector_input_groups": 9,
+  "duplicate_detector_input_rows": 300,
+  "duplicate_input_conflicting_native_label_groups": 0,
+  "field_presence": {
+    "canary": 14423,
+    "is_deceptive": 4255,
+    "is_doubling_down": 568,
+    "is_misaligned": 9600,
+    "log_datetime": 14423,
+    "max_tokens": 14423,
+    "model": 14423,
+    "prompt": 1726,
+    "prompt_dialogue": 14423,
+    "prompt_path": 13855,
+    "response": 14423,
+    "temperature": 14423,
+    "top_p": 14423
+  },
+  "file_categories": {
+    "figures": 14,
+    "prompts": 26,
+    "results": 14423,
+    "root": 5
+  },
+  "files": 14468,
+  "generation_parameters": {
+    "max_tokens": {
+      "384": 14423
+    },
+    "temperature": {
+      "0.9": 14423
+    },
+    "top_p": {
+      "0.95": 14423
+    }
+  },
+  "labels": {
+    "is_deceptive": {
+      "negative": 1366,
+      "positive": 2889,
+      "unlabeled": 10168
+    },
+    "is_doubling_down": {
+      "negative": 79,
+      "positive": 489,
+      "unlabeled": 13855
+    },
+    "is_misaligned": {
+      "negative": 5345,
+      "positive": 4255,
+      "unlabeled": 4823
+    }
+  },
+  "licence": "CC-BY-4.0",
+  "linked_root_clusters": 9600,
+  "per_experiment": {
+    "caught_likelihood": {
+      "deception": 1005,
+      "misalignment": 1500
+    },
+    "countermeasures": {
+      "deception": 658,
+      "misalignment": 1500
+    },
+    "default": {
+      "deception": 829,
+      "doubling_down": 499,
+      "misalignment": 2100
+    },
+    "diff_first_encounter_reasoning": {
+      "deception": 464,
+      "misalignment": 1200
+    },
+    "pressure": {
+      "deception": 445,
+      "misalignment": 2100
+    },
+    "reasoning": {
+      "deception": 289,
+      "doubling_down": 69,
+      "misalignment": 300
+    },
+    "variations": {
+      "deception": 565,
+      "misalignment": 900
+    }
+  },
+  "per_label_per_model": {
+    "is_deceptive": {
+      "davinci-002": {
+        "negative": 6,
+        "positive": 8,
+        "unlabeled": 308
+      },
+      "gpt-3.5-turbo-0613": {
+        "negative": 46,
+        "positive": 4,
+        "unlabeled": 304
+      },
+      "gpt-3.5-turbo-instruct-0914": {
+        "negative": 30,
+        "positive": 16,
+        "unlabeled": 316
+      },
+      "gpt-4-0613": {
+        "negative": 63,
+        "positive": 144,
+        "unlabeled": 444
+      },
+      "gpt-4-32k-0613": {
+        "negative": 1087,
+        "positive": 2563,
+        "unlabeled": 8042
+      },
+      "gpt-4-base": {
+        "negative": 70,
+        "positive": 129,
+        "unlabeled": 429
+      },
+      "text-davinci-003": {
+        "negative": 64,
+        "positive": 25,
+        "unlabeled": 325
+      }
+    },
+    "is_doubling_down": {
+      "davinci-002": {
+        "negative": 3,
+        "positive": 5,
+        "unlabeled": 314
+      },
+      "gpt-3.5-turbo-0613": {
+        "positive": 4,
+        "unlabeled": 350
+      },
+      "gpt-3.5-turbo-instruct-0914": {
+        "negative": 7,
+        "positive": 9,
+        "unlabeled": 346
+      },
+      "gpt-4-0613": {
+        "negative": 12,
+        "positive": 132,
+        "unlabeled": 507
+      },
+      "gpt-4-32k-0613": {
+        "negative": 22,
+        "positive": 220,
+        "unlabeled": 11450
+      },
+      "gpt-4-base": {
+        "negative": 28,
+        "positive": 101,
+        "unlabeled": 499
+      },
+      "text-davinci-003": {
+        "negative": 7,
+        "positive": 18,
+        "unlabeled": 389
+      }
+    },
+    "is_misaligned": {
+      "davinci-002": {
+        "negative": 286,
+        "positive": 14,
+        "unlabeled": 22
+      },
+      "gpt-3.5-turbo-0613": {
+        "negative": 250,
+        "positive": 50,
+        "unlabeled": 54
+      },
+      "gpt-3.5-turbo-instruct-0914": {
+        "negative": 254,
+        "positive": 46,
+        "unlabeled": 62
+      },
+      "gpt-4-0613": {
+        "negative": 93,
+        "positive": 207,
+        "unlabeled": 351
+      },
+      "gpt-4-32k-0613": {
+        "negative": 4150,
+        "positive": 3650,
+        "unlabeled": 3892
+      },
+      "gpt-4-base": {
+        "negative": 101,
+        "positive": 199,
+        "unlabeled": 328
+      },
+      "text-davinci-003": {
+        "negative": 211,
+        "positive": 89,
+        "unlabeled": 114
+      }
+    }
+  },
+  "per_model": {
+    "davinci-002": {
+      "deception": 14,
+      "doubling_down": 8,
+      "misalignment": 300
+    },
+    "gpt-3.5-turbo-0613": {
+      "deception": 50,
+      "doubling_down": 4,
+      "misalignment": 300
+    },
+    "gpt-3.5-turbo-instruct-0914": {
+      "deception": 46,
+      "doubling_down": 16,
+      "misalignment": 300
+    },
+    "gpt-4-0613": {
+      "deception": 207,
+      "doubling_down": 144,
+      "misalignment": 300
+    },
+    "gpt-4-32k-0613": {
+      "deception": 3650,
+      "doubling_down": 242,
+      "misalignment": 7800
+    },
+    "gpt-4-base": {
+      "deception": 199,
+      "doubling_down": 129,
+      "misalignment": 300
+    },
+    "text-davinci-003": {
+      "deception": 89,
+      "doubling_down": 25,
+      "misalignment": 300
+    }
+  },
+  "per_task_key": {
+    "062457341a92ef42": {
+      "deception": 168,
+      "misalignment": 300
+    },
+    "1a8d6a2d16d3b655": {
+      "deception": 163,
+      "misalignment": 300
+    },
+    "2260ee473195dd19": {
+      "deception": 263,
+      "misalignment": 300
+    },
+    "28e6ab75c5763a11": {
+      "deception": 207,
+      "misalignment": 300
+    },
+    "2ef18c45925138da": {
+      "deception": 43,
+      "misalignment": 300
+    },
+    "37a8eec1ce19687d": {
+      "deception": 829,
+      "doubling_down": 499,
+      "misalignment": 2100
+    },
+    "409fb1f56b7cc8d6": {
+      "deception": 202,
+      "misalignment": 300
+    },
+    "4a695aab3439c5f5": {
+      "deception": 30,
+      "misalignment": 300
+    },
+    "5d7710179e7c4ff7": {
+      "deception": 62,
+      "misalignment": 300
+    },
+    "5e4756586ded2ae2": {
+      "deception": 184,
+      "misalignment": 300
+    },
+    "64289ae686afb37b": {
+      "deception": 81,
+      "misalignment": 300
+    },
+    "7e79c26e7974fde8": {
+      "deception": 2,
+      "misalignment": 300
+    },
+    "86d671bf31add02d": {
+      "deception": 289,
+      "doubling_down": 69,
+      "misalignment": 300
+    },
+    "8fd917782f8ee01d": {
+      "deception": 151,
+      "misalignment": 300
+    },
+    "9022a498193d0758": {
+      "deception": 291,
+      "misalignment": 300
+    },
+    "9358f717f5ce01d4": {
+      "misalignment": 300
+    },
+    "a1dea2061e855dbf": {
+      "deception": 298,
+      "misalignment": 300
+    },
+    "a83d6f5dbe7545b1": {
+      "deception": 22,
+      "misalignment": 300
+    },
+    "b28447ea2c9e4a22": {
+      "deception": 206,
+      "misalignment": 300
+    },
+    "b7288e9197327586": {
+      "deception": 28,
+      "misalignment": 300
+    },
+    "b9cbfe4a6a45db69": {
+      "deception": 185,
+      "misalignment": 300
+    },
+    "b9fc9ea363f0d411": {
+      "deception": 174,
+      "misalignment": 300
+    },
+    "e45daf1e6ff22cbe": {
+      "deception": 141,
+      "misalignment": 300
+    },
+    "ed99020cf47e3336": {
+      "deception": 147,
+      "misalignment": 300
+    },
+    "ee5bd5fdc0578b02": {
+      "deception": 86,
+      "misalignment": 300
+    },
+    "f29c846742d14a75": {
+      "deception": 3,
+      "misalignment": 300
+    }
+  },
+  "phase_counts": {
+    "deception": 4255,
+    "doubling_down": 568,
+    "misalignment": 9600
+  },
+  "prompt_message_counts": {
+    "count": 14423,
+    "max": 22,
+    "mean": 16.55,
+    "median": 16,
+    "min": 10,
+    "sum": 238702
+  },
+  "prompt_text_characters": {
+    "count": 14423,
+    "max": 6634,
+    "mean": 4649.708,
+    "median": 4683,
+    "min": 3028,
+    "sum": 67062735
+  },
+  "publisher_tree_expected": {
+    "bytes": 114160984,
+    "files": 14468,
+    "phase_counts": {
+      "deception": 4255,
+      "doubling_down": 568,
+      "misalignment": 9600
+    },
+    "result_bytes": 112184117,
+    "result_files": 14423
+  },
+  "response_text_characters": {
+    "count": 14423,
+    "max": 1790,
+    "mean": 461.838,
+    "median": 415,
+    "min": 26,
+    "sum": 6661090
+  },
+  "result_bytes": 112184117,
+  "result_file_bytes_by_phase": {
+    "deception": {
+      "count": 4255,
+      "max": 15355,
+      "mean": 8045.795,
+      "median": 7747,
+      "min": 5374,
+      "sum": 34234857
+    },
+    "doubling_down": {
+      "count": 568,
+      "max": 16971,
+      "mean": 10101.664,
+      "median": 8569,
+      "min": 6479,
+      "sum": 5737745
+    },
+    "misalignment": {
+      "count": 9600,
+      "max": 13320,
+      "mean": 7522.033,
+      "median": 7090,
+      "min": 4695,
+      "sum": 72211515
+    }
+  },
+  "result_files": 14423,
+  "revision": "370fdc9f303f972fe3d2e40b71d06bc04027668b",
+  "sorted_record_ids_digest_algorithm": "SHA-256(UTF-8 newline-joined lexicographically sorted POSIX-relative record ids, with final newline)",
+  "sorted_record_ids_sha256": "ce4d25036eede08adc9f51cc2ef56afa72d4f7b3afbe2795529b7dbe5ef4e896",
+  "stage_manifest_sha256": "a46e15b0e0725d2df19fddf2aa09381ae052d015db1a86d88b7bc13155ddb60b",
+  "unique_record_ids": 14423,
+  "unique_trace_keys": 14423,
+  "verification": {
+    "git_blob_mismatches": 0,
+    "sha256_mismatches": 0,
+    "size_mismatches": 0,
+    "writable_files": 0,
+    "writable_root": 0
+  }
+}

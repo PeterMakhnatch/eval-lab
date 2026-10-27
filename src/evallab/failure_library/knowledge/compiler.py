@@ -1,8 +1,8 @@
 """Compile DEV evidence into existing Hackbook mechanisms without model calls.
 
-Admission reuses CloudTraceRetriever's structured gate. Unknown group metadata
-is handled conservatively: leave-subject-out excludes the entire upstream repo
-unless both subjects have authoritative split-ledger units.
+Admission reuses CloudTraceRetriever's structured gate. Leave-subject-out admits
+an analogy only when both subjects have distinct authoritative split-ledger
+units; a different publisher is not proof of task-family independence.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from evallab.failure_library.knowledge.models import CardDraft, ExampleRef, FailureCard
-from evallab.failure_library.records import DefectClass, Finding, RunRecord, TaskRef
+from evallab.failure_library.records import DefectClass, Finding, RunCode, RunRecord, TaskRef
 from evallab.failure_library.store import LibraryStore
 from evallab.hackbook.models import HackbookEntry, load_hackbook
 from evallab.production.cloud_trace_db import (
@@ -235,14 +235,14 @@ def compile_cards(
     entries: Sequence[HackbookEntry],
     drafts: Sequence[CardDraft],
 ) -> tuple[tuple[FailureCard, ...], dict[str, int]]:
-    """Assign each claim to its nearest existing sub-mechanism, within its TS class.
+    """Assign each claim to its nearest existing sub-mechanism, within its TS/RS class.
 
     Sparse sub-mechanisms fold into the class's strongest supported mechanism.
     A class with fewer than three real DEV ids remains explicitly unsupported,
     rather than manufacturing citations or relabeling unknown runs as clean.
     """
     prose = {draft.hackbook_id: draft for draft in drafts}
-    candidates = [e for e in entries if e.side == "task" and e.id in prose]
+    candidates = [e for e in entries if e.id in prose]
     index = BM25([_entry_text(e, prose[e.id]) for e in candidates])
     grouped: dict[str, list[KnowledgeExample]] = defaultdict(list)
     by_class: dict[str, list[KnowledgeExample]] = defaultdict(list)
@@ -282,7 +282,11 @@ def compile_cards(
         card = FailureCard(
             card_id="FC-" + entry.id,
             hackbook_entry_id=entry.id,
-            defect_class=cast(DefectClass, entry.taxonomy_class_id),
+            taxonomy_class_id=entry.taxonomy_class_id,
+            defect_class=cast(DefectClass, entry.taxonomy_class_id)
+            if entry.side == "task"
+            else "unclassified",
+            run_code=cast(RunCode, entry.taxonomy_class_id) if entry.side == "run" else None,
             title=entry.title,
             **draft.model_dump(exclude={"hackbook_id"}),
             examples=[e.ref for e in members[:10]],
@@ -382,7 +386,12 @@ def compile_library(
         codes = (
             (record.defect_class,)
             if isinstance(record, Finding)
-            else tuple(sorted({classes[identifier] for identifier in record.finding_ids}))
+            else tuple(
+                sorted(
+                    {classes[identifier] for identifier in record.finding_ids}
+                    | {label.rs_code for label in record.labels if label.rs_code}
+                )
+            )
         )
         name = CorpusRegistry.task_name(record.task.task_id)
         instruction = _task_text(record.task, root)

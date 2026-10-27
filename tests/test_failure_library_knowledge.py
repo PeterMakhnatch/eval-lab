@@ -396,3 +396,78 @@ def test_run_cannot_join_non_dev_finding_knowledge(library) -> None:
     store.write_runs("fixture-runs", [run], source_revision=REVISION)
     knowledge = compile_library(root, store)
     assert run.run_id not in {e.ref.id for e in knowledge.examples}
+
+
+def test_run_labels_build_behavior_cards_without_inventing_task_defects_or_replays(library) -> None:
+    root, store, records = library
+    runs = [
+        RunRecord(
+            run_id=f"behavior-{index}",
+            collection="fixture-runs",
+            task=record.task,
+            outcome="pass",
+            labels=[
+                RunLabel(label="verifier_pass", kind="executed", source="fixture grader receipt"),
+                RunLabel(
+                    label="test infrastructure modification",
+                    rs_code="RS02",
+                    kind="judge",
+                    source="fixture behavior judge",
+                ),
+            ],
+            transcript_ref=f"https://example.org/unread-transcript/{index}",
+            split="DEV",
+        )
+        for index, record in enumerate(records[:3])
+    ]
+    store.write_runs("fixture-runs", runs, source_revision=REVISION)
+    knowledge = compile_library(root, store)
+    behavior_cards = [card for card in knowledge.cards if card.taxonomy_class_id == "RS02"]
+    assert behavior_cards
+    for card in behavior_cards:
+        assert card.defect_class == "unclassified" and card.run_code == "RS02"
+        assert all(ref.kind == "run" and ref.tier is None for ref in card.examples)
+        assert all("[judge, RS02]" in ref.summary for ref in card.examples)
+    run_examples = [example for example in knowledge.examples if example.ref.kind == "run"]
+    assert all(example.defect_classes == ("RS02",) for example in run_examples)
+    pack = make_pack(knowledge, agent="trace-qa", task_text="test infrastructure modification")
+    assert set(pack.example_ids) & {run.run_id for run in runs}
+    assert "not replay-confirmed" in pack.markdown
+
+
+def test_unmapped_cross_publisher_identity_cannot_bypass_subject_exclusion(library) -> None:
+    root, store, _ = library
+    runs = [
+        RunRecord(
+            run_id=f"opaque-{index}",
+            collection="opaque-runs",
+            task=TaskRef(
+                source_id="opaque-source",
+                task_id=str(100 + index),
+                upstream_repo="https://example.org/repackaged",
+                upstream_revision=REVISION,
+            ),
+            outcome="pass",
+            labels=[
+                RunLabel(
+                    label="test infrastructure modification",
+                    rs_code="RS02",
+                    kind="judge",
+                    source="publisher",
+                )
+            ],
+            transcript_ref=f"https://example.org/opaque/{index}",
+            split="DEV",
+        )
+        for index in range(3)
+    ]
+    store.write_runs("opaque-runs", runs, source_revision=REVISION)
+    knowledge = compile_library(root, store)
+    global_pack = make_pack(knowledge, agent="trace-qa", top_k=100)
+    assert set(global_pack.example_ids) & {run.run_id for run in runs}
+    named = make_pack(knowledge, agent="trace-qa", task="fixture-source/subject", top_k=100)
+    assert not set(named.example_ids) & {run.run_id for run in runs}
+    opaque_subject = make_pack(knowledge, agent="trace-qa", task="opaque-source/100")
+    assert opaque_subject.status == "empty"
+    with pytest.raises(ValueError, match="admitted DEV subject identities"):
+        make_pack(knowledge, agent="trace-qa", exclude_ids=["missing-frozen-id"])

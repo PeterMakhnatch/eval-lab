@@ -28,12 +28,9 @@ def _same_subject(example: KnowledgeExample, subject: TaskRef, knowledge: Knowle
     units = knowledge.units.get(name, frozenset())
     if units and example.groups:
         return bool(units & example.groups)
-    # Do not guess template/family from filenames when provenance has no grouping.
-    return (
-        example.task.upstream_repo.rstrip("/").casefold()
-        == subject.upstream_repo.rstrip("/").casefold()
-        or example.task.source_id.casefold() == subject.source_id.casefold()
-    )
+    # Different publishers can repackage the same task under opaque native ids.
+    # A source/repository mismatch is not evidence of family independence.
+    return True
 
 
 def _subjects(knowledge: Knowledge, task: str | None, excluded: set[str]) -> list[TaskRef]:
@@ -88,6 +85,11 @@ def make_pack(
     if max_chars < 256 or top_k < 0:
         raise ValueError("max_chars must be >= 256 and top_k must be >= 0")
     excluded = set(exclude_ids)
+    unknown = excluded - {example.ref.id for example in knowledge.examples}
+    if unknown:
+        raise ValueError(
+            "excluded ids need admitted DEV subject identities: " + ", ".join(sorted(unknown))
+        )
     subjects = _subjects(knowledge, task, excluded)
     identities = {s.task_id for s in subjects} | {
         CorpusRegistry.task_name(s.task_id) for s in subjects
@@ -124,10 +126,10 @@ def make_pack(
         code: " ".join(
             cue
             for card in cards
-            if card.defect_class == code
+            if card.taxonomy_class_id == code
             for cue in (*card.task_cues, *card.trace_cues)
         )
-        for code in {card.defect_class for card in cards}
+        for code in {card.taxonomy_class_id for card in cards}
     }
     example_index = BM25(
         [

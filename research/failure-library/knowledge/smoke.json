@@ -1,6 +1,6 @@
 {
   "build": {
-    "admitted_dev_examples": 2301,
+    "admitted_dev_examples": 5434,
     "by_collection": {
       "aba-audits": 327,
       "djinn": 976,
@@ -11,26 +11,28 @@
       "patchdiff-wrong-passes": 49,
       "pm-tb4-findings": 48,
       "swebench-pro-verified-corrections": 83,
+      "terminal-wrench": 3133,
       "utboost-weak-tasks": 25
     },
     "by_split": {
-      "DEV": 2301
+      "DEV": 5434
     },
     "by_tier": {
       "V0_unverified": 347,
       "V1_external_label": 1691,
       "V2_upstream_fixed": 83,
-      "V3_executed": 180
+      "V3_executed": 180,
+      "run_label": 3133
     },
-    "cards": 32,
+    "cards": 38,
     "insufficient_dev_support": {},
-    "library_digest": "sha256:be231f73697cf19c86eb712189c318cf939c7746dae0c5ffccd28d9f14ce346b",
+    "library_digest": "sha256:6b44965cbe6f4d530daa34b0f4ec6d9494a0b0bbff366cdb5f68bc6ab239a288",
     "missing_run_collections": [],
-    "rejected_examples": 2965,
+    "rejected_examples": 8473,
     "schema_version": "failure-knowledge/v1",
     "sha256": {
-      "cards.jsonl": "a2df0cd7b0e921464dcf73d3defcede0540130ae58fcaa1b5a683d361ca17e3c",
-      "hackbook-proposals.jsonl": "cb33ef5777563866f15739ce40b3bb677fee3fe2822902212578180a45bee75c"
+      "cards.jsonl": "fe901303b0d6d9f271455616d6d80803657185719eacd2fb74dd26f89e209826",
+      "hackbook-proposals.jsonl": "1d42853ed83b816c3d1c9d7ced845a0aa4f5bfbd1b41596c0419a7a17469d4e4"
     },
     "source_collection_digests": {
       "aba-audits": "sha256:97271c6eed05eaafe383fc3dd1970210ba16c459da6518ba2feabcb765da0d16",
@@ -45,11 +47,16 @@
       "swebench-pro-verified-corrections": "sha256:67cda4ab2ea95320840ee3da8b5080b28c3bc482b6ddd94d77457f0f17798e6d",
       "tb2-to-tb21-fixes": "sha256:5dfffb59833d6418aaaa5afd69010502519e44022ef22a9897db4367721e5b38",
       "tb21-weak-tests": "sha256:db899d14f0d9b33ed0fe7ecd6ec0bc27d9422a4b1e1ab55929b241bc138324ad",
+      "terminal-wrench": "sha256:0ca759ab3de8807c19927bc610b7555e8477b459df5563465eef7bb6e34a4f5a",
       "utboost-weak-tasks": "sha256:3bccaf51c9378176f8e15c386607341ce152371ba41c41b51ff393211c5b8fd5"
     },
     "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f"
   },
   "card_classes": [
+    "RS01",
+    "RS02",
+    "RS03",
+    "RS04",
     "TS01",
     "TS02",
     "TS03",
@@ -61,104 +68,137 @@
     "TS10"
   ],
   "execution": "Real CLI dispatch with explicit immutable library workspace; no model inference or task execution.",
-  "library_digest": "sha256:be231f73697cf19c86eb712189c318cf939c7746dae0c5ffccd28d9f14ce346b",
+  "library_digest": "sha256:6b44965cbe6f4d530daa34b0f4ec6d9494a0b0bbff366cdb5f68bc6ab239a288",
   "metered_cost_usd": 0,
   "results": [
     {
       "agent": "task-qa",
-      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1/packets/task-qa",
+      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1-wrench-11c7b7db/packets/task-qa",
       "card_ids": [
-        "FC-HB-TS01-001",
-        "FC-HB-TS06-001",
-        "FC-HB-TS10-001",
-        "FC-HB-TS04-005",
-        "FC-HB-TS01-012"
+        "FC-HB-RS01-002",
+        "FC-HB-RS01-001",
+        "FC-HB-RS02-001",
+        "FC-HB-RS02-002",
+        "FC-HB-TS01-009"
       ],
-      "elapsed_seconds": 68.34,
+      "elapsed_seconds": 33.633,
       "example_ids": [
         "fl-73b577ab26dc22a6",
-        "fl-442c8c595f97db40",
-        "fl-4e0baa21858a9c72"
+        "fl-4e0baa21858a9c72",
+        "fl-0f3d850c03032c6c"
       ],
       "exit_code": 0,
       "files": {
         "pack.md": {
-          "chars": 7929,
-          "sha256": "aef8b07a06de21ae146c6ce17ef35688e069abdbcd15bb7d0b077a98573d7b9a"
+          "chars": 7871,
+          "sha256": "0181610aba9a0476dcd202b84e5497e98de054fe2bb42a0337b0cd43b3c619db"
         },
         "playbook.md": {
-          "chars": 7929,
-          "sha256": "aef8b07a06de21ae146c6ce17ef35688e069abdbcd15bb7d0b077a98573d7b9a"
+          "chars": 7871,
+          "sha256": "0181610aba9a0476dcd202b84e5497e98de054fe2bb42a0337b0cd43b3c619db"
         },
         "rubric.toml": {
-          "chars": 13361,
-          "sha256": "403aa94fe3718e91aaf9a17e3a03c43a44ca07959c718490452c2111636f01b6"
+          "chars": 13289,
+          "sha256": "4cf73f537703394fa1baef89d7fa6d2d5c6f8e9657e0aae8d594622e878f8006"
         }
       },
-      "markdown_chars": 7929,
+      "markdown_chars": 7871,
       "status": "ready",
-      "stdout_sha256": "aef8b07a06de21ae146c6ce17ef35688e069abdbcd15bb7d0b077a98573d7b9a"
+      "stdout_sha256": "0181610aba9a0476dcd202b84e5497e98de054fe2bb42a0337b0cd43b3c619db"
     },
     {
       "agent": "trace-qa",
-      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1/packets/trace-qa",
+      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1-wrench-11c7b7db/packets/trace-qa",
       "card_ids": [
         "FC-HB-TS01-010",
-        "FC-HB-TS01-001",
-        "FC-HB-TS06-001",
-        "FC-HB-TS10-001",
-        "FC-HB-TS04-005"
+        "FC-HB-RS01-002",
+        "FC-HB-RS01-001",
+        "FC-HB-RS02-001",
+        "FC-HB-RS02-002"
       ],
-      "elapsed_seconds": 36.33,
+      "elapsed_seconds": 20.055,
       "example_ids": [
         "fl-73b577ab26dc22a6",
-        "fl-442c8c595f97db40",
-        "fl-4e0baa21858a9c72"
+        "fl-4e0baa21858a9c72",
+        "fl-0f3d850c03032c6c"
       ],
       "exit_code": 0,
       "files": {
         "pack.md": {
-          "chars": 7869,
-          "sha256": "1fb32df1864292192864977d12cf1eb2da5c7fcd093bf95214374ff84369ae70"
+          "chars": 7958,
+          "sha256": "ec57125326940cd9d7dc3fac225335eed280c2cd91a2de53a3cb92ba0843eb1f"
         },
         "task_priors.json": {
-          "chars": 8848,
-          "sha256": "73a31770f2f80779ce54dfab3e87ace872ce92b5d44102e9d0ae789fd6c97ed2"
+          "chars": 8923,
+          "sha256": "3eeaa5c1cbb53731c0c20f6949f88cb65d2a1acd05d4689b34dcd135a75e321e"
         }
       },
-      "markdown_chars": 7869,
+      "markdown_chars": 7958,
       "status": "ready",
-      "stdout_sha256": "1fb32df1864292192864977d12cf1eb2da5c7fcd093bf95214374ff84369ae70"
+      "stdout_sha256": "ec57125326940cd9d7dc3fac225335eed280c2cd91a2de53a3cb92ba0843eb1f"
     },
     {
       "agent": "seeker",
-      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1/packets/seeker",
+      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1-wrench-11c7b7db/packets/seeker",
       "card_ids": [
-        "FC-HB-TS01-001",
-        "FC-HB-TS06-001",
-        "FC-HB-TS04-005",
-        "FC-HB-TS01-012"
+        "FC-HB-RS01-002",
+        "FC-HB-RS01-001",
+        "FC-HB-RS02-001",
+        "FC-HB-RS02-002"
       ],
-      "elapsed_seconds": 30.157,
+      "elapsed_seconds": 23.867,
       "example_ids": [
         "fl-73b577ab26dc22a6",
-        "fl-442c8c595f97db40",
-        "fl-4e0baa21858a9c72"
+        "fl-4e0baa21858a9c72",
+        "fl-0f3d850c03032c6c"
       ],
       "exit_code": 0,
       "files": {
         "hackbook.md": {
-          "chars": 7618,
-          "sha256": "ae0b4f3f8e6b406cdb2285ee144c768e268cb146462a6d5c54de0d41e076c99b"
+          "chars": 7677,
+          "sha256": "a0e189e5bafa1704501c365a12e3f5b7d9fa2b6af1bdbb04a38aaa653ab3aa91"
         },
         "pack.md": {
-          "chars": 7618,
-          "sha256": "ae0b4f3f8e6b406cdb2285ee144c768e268cb146462a6d5c54de0d41e076c99b"
+          "chars": 7677,
+          "sha256": "a0e189e5bafa1704501c365a12e3f5b7d9fa2b6af1bdbb04a38aaa653ab3aa91"
         }
       },
-      "markdown_chars": 7618,
+      "markdown_chars": 7677,
       "status": "ready",
-      "stdout_sha256": "ae0b4f3f8e6b406cdb2285ee144c768e268cb146462a6d5c54de0d41e076c99b"
+      "stdout_sha256": "a0e189e5bafa1704501c365a12e3f5b7d9fa2b6af1bdbb04a38aaa653ab3aa91"
+    },
+    {
+      "agent": "trace-qa",
+      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1-wrench-11c7b7db/packets/generic-trace-qa",
+      "card_ids": [
+        "FC-HB-RS04-001",
+        "FC-HB-RS02-002",
+        "FC-HB-RS01-002",
+        "FC-HB-TS07-001",
+        "FC-HB-TS01-009",
+        "FC-HB-TS01-008",
+        "FC-HB-TS01-001"
+      ],
+      "elapsed_seconds": 23.225,
+      "example_ids": [
+        "terminal-wrench:70364fd11707d7d718255482",
+        "terminal-wrench:7f2cb5c01367f0c133b31a65"
+      ],
+      "exit_code": 0,
+      "files": {
+        "pack.md": {
+          "chars": 6977,
+          "sha256": "18afd649c4844694bb51ce7af73b13c6145d017d9de26eeb9ec8dd6579bb71a2"
+        },
+        "task_priors.json": {
+          "chars": 7858,
+          "sha256": "e0ee3889bf5a41d97d042af45f08f8b37dfaf111ab05587a6f2150fe37af9808"
+        }
+      },
+      "markdown_chars": 6977,
+      "scope": "generic_unscoped_not_canary",
+      "status": "ready",
+      "stdout_sha256": "18afd649c4844694bb51ce7af73b13c6145d017d9de26eeb9ec8dd6579bb71a2"
     }
   ],
   "schema_version": "failure-pack-smoke/v1",
@@ -178,10 +218,15 @@
       "tb21-weak-tests": 14,
       "utboost-weak-tasks": 36
     },
+    "run_manifest_sha256": "11c7b7db87e0632e8b014eb55508f8150c88ff2a40a3366cb70175d2d45abc00",
+    "runs_by_collection": {
+      "terminal-wrench": 8641
+    },
     "schema_version": "failure-library-snapshot/v1",
-    "snapshot": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1",
+    "snapshot": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1-wrench-11c7b7db",
     "source_bytes": "normalized failure-library/v1 records; each task pins its own upstream revision",
     "source_commits": {
+      "fl-runs-20261027": "fd230d7724978c290909223beb9c112be29c349c",
       "fl-tasks-swe-20261027": "f2eb6caa1be408b15798315bff48c9b1dcfb3872",
       "fl-tasks-tb-20261027": "20feb0daea8657f1c37d629704ea2ef3f7beabf4"
     }

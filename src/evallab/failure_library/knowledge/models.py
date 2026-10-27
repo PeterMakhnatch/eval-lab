@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from evallab.failure_library.records import DefectClass, Tier
+from evallab.failure_library.records import DefectClass, RunCode, Tier
 from evallab.schemas import ContractModel
 
 Agent = Literal["task-qa", "trace-qa", "seeker"]
@@ -47,7 +47,9 @@ class FailureCard(ContractModel):
     schema_version: Literal["failure-card/v1"] = "failure-card/v1"
     card_id: str
     hackbook_entry_id: str
+    taxonomy_class_id: str = Field(pattern=r"^(TS|RS)\d{2}$")
     defect_class: DefectClass
+    run_code: RunCode | None = None
     title: str
     what_breaks: str
     task_cues: list[str]

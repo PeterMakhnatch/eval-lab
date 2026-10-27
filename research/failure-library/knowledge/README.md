@@ -1,9 +1,11 @@
 # Failure cards and agent packs
 
 `failure-card/v1` compiles the Failure Library into existing Hackbook mechanisms.
-`mechanisms.json` contains generic prose drafted by two subscription-model workers
-over compact DEV example bundles and the existing Hackbook. `drafting.json` records
-the model, input/response digests and zero metered cost. Model text never supplies
+`mechanisms.json` contains generic prose drafted by three subscription-model workers
+over compact DEV example bundles and the existing Hackbook. `drafting.json` and
+`run-drafting.json` record the model, input/response digests and zero metered cost.
+The run bundle contains admitted source-native labels, never transcript bytes.
+Model text never supplies
 citations: the compiler joins and validates every example against the admitted
 library snapshot. It makes no model calls, database writes or network requests.
 
@@ -66,9 +68,12 @@ does not silently modify a live agent or claim an executed ON/OFF improvement.
   `build.json`; unmanifested run files are never read.
 - The split ledger's `unit` is the family/template grouping authority. Same task
   names are excluded across aliases and revisions, and shared units are excluded
-  across keys. If either subject lacks authoritative grouping, retrieval
-  conservatively excludes the entire matching source/upstream repository rather
-  than guessing a family from a filename. This is stricter, not a leakage bypass.
+  across keys. If either subject lacks authoritative grouping, named-subject
+  retrieval refuses that analogy, even across different publishers: repackaging
+  a task under an opaque id does not prove family/template independence. Unknown
+  frozen exclusion ids are refused too. Generic unscoped packs can still use all
+  admitted DEV data. An empty named-subject pack is an honest missing-provenance
+  result, not permission to use an unfiltered global packet in a canary.
 - Protected identities are also screened in prose and returned evidence text.
   Subject exclusions are applied before BM25 and card compilation, not after an
   unsafe cached card has already supplied its citations.
@@ -86,11 +91,15 @@ conditions are **not** fabricated negative labels on runs: unknown is not clean.
 Prevalence denominators are admitted DEV library records in that collection, not
 all benchmark tasks or a measured real-world failure rate.
 
-Nearest lexical mechanisms are selected within each finding's TS class. Sparse
-sub-mechanisms fold into that class's strongest supported mechanism. Classes with
-fewer than three real DEV ids are reported in `insufficient_dev_support`, not
-filled with invented citations. Rebuilding after ingestion can add cards without
-changing code or model prose. Evidence tiers do not change when a task is fixed.
+Nearest lexical mechanisms are selected within each finding's TS class or a run's
+explicit source-native RS labels. A behavior label does not manufacture a task
+defect: run-only cards have `defect_class=unclassified`, their own `run_code`, and
+no V3 tier. An executed verifier pass cannot promote an associated judge behavior
+label to executed evidence. Sparse sub-mechanisms fold into that class's strongest
+supported mechanism. Classes with fewer than three real DEV ids are reported in
+`insufficient_dev_support`, not filled with invented citations. Rebuilding after
+ingestion can add cards without changing code or model prose. Evidence tiers do
+not change when a task is fixed.
 
 `hackbook-proposals.jsonl` contains validated `evallab.hackbook.entry/v0`
 extensions using the **same** Hackbook ids. It never edits the canonical

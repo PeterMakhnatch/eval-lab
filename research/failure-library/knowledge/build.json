@@ -1,5 +1,5 @@
 {
-  "admitted_dev_examples": 2301,
+  "admitted_dev_examples": 5434,
   "by_collection": {
     "aba-audits": 327,
     "djinn": 976,
@@ -10,26 +10,28 @@
     "patchdiff-wrong-passes": 49,
     "pm-tb4-findings": 48,
     "swebench-pro-verified-corrections": 83,
+    "terminal-wrench": 3133,
     "utboost-weak-tasks": 25
   },
   "by_split": {
-    "DEV": 2301
+    "DEV": 5434
   },
   "by_tier": {
     "V0_unverified": 347,
     "V1_external_label": 1691,
     "V2_upstream_fixed": 83,
-    "V3_executed": 180
+    "V3_executed": 180,
+    "run_label": 3133
   },
-  "cards": 32,
+  "cards": 38,
   "insufficient_dev_support": {},
-  "library_digest": "sha256:be231f73697cf19c86eb712189c318cf939c7746dae0c5ffccd28d9f14ce346b",
+  "library_digest": "sha256:6b44965cbe6f4d530daa34b0f4ec6d9494a0b0bbff366cdb5f68bc6ab239a288",
   "missing_run_collections": [],
-  "rejected_examples": 2965,
+  "rejected_examples": 8473,
   "schema_version": "failure-knowledge/v1",
   "sha256": {
-    "cards.jsonl": "a2df0cd7b0e921464dcf73d3defcede0540130ae58fcaa1b5a683d361ca17e3c",
-    "hackbook-proposals.jsonl": "cb33ef5777563866f15739ce40b3bb677fee3fe2822902212578180a45bee75c"
+    "cards.jsonl": "fe901303b0d6d9f271455616d6d80803657185719eacd2fb74dd26f89e209826",
+    "hackbook-proposals.jsonl": "1d42853ed83b816c3d1c9d7ced845a0aa4f5bfbd1b41596c0419a7a17469d4e4"
   },
   "source_collection_digests": {
     "aba-audits": "sha256:97271c6eed05eaafe383fc3dd1970210ba16c459da6518ba2feabcb765da0d16",
@@ -44,6 +46,7 @@
     "swebench-pro-verified-corrections": "sha256:67cda4ab2ea95320840ee3da8b5080b28c3bc482b6ddd94d77457f0f17798e6d",
     "tb2-to-tb21-fixes": "sha256:5dfffb59833d6418aaaa5afd69010502519e44022ef22a9897db4367721e5b38",
     "tb21-weak-tests": "sha256:db899d14f0d9b33ed0fe7ecd6ec0bc27d9422a4b1e1ab55929b241bc138324ad",
+    "terminal-wrench": "sha256:0ca759ab3de8807c19927bc610b7555e8477b459df5563465eef7bb6e34a4f5a",
     "utboost-weak-tasks": "sha256:3bccaf51c9378176f8e15c386607341ce152371ba41c41b51ff393211c5b8fd5"
   },
   "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f"

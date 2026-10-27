@@ -79,6 +79,10 @@ Only actor-visible messages, reasoning, calls and results are projected.
 Observation CAS bytes are hash-verified and hydrated, never silently replaced
 by previews. Payloads are secret-scanned before transmission; hits and malformed
 or missing observations are rejected with local, non-secret receipts.
+Provider-prefix patterns require a token boundary, so opaque `task-<hash>` IDs
+are not credentials; the exporter's other secret rules are unchanged. Laminar's
+generated input/output JSON fields are scanned as logical values, not escaped
+JSON text. A secret hit rejects only its trace, including within a Docent batch.
 
 Laminar uses the existing project and OTLP encoders, preserving text rather than
 the live watch exporter's clipped display values. Import sequence timestamps are
@@ -97,6 +101,8 @@ batch receipts report rejected IDs, wire-attempt bytes, hydration bytes and wall
 time. A shared lock and durable pre-send byte reservations enforce the authorized
 2.5 GB monthly ceiling, including retries and interrupted sends. API/storage
 batches are logged to the spend ledger; this path invokes no LLM or paid Signals.
+Docent has no supported upsert: different content at an existing deterministic
+remote ID pauses without deleting that evidence.
 
 
 ## Incremental native ATIF (HAR-168)

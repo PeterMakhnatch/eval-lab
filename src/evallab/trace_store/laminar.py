@@ -12,7 +12,7 @@ from urllib.request import Request, urlopen
 
 from evallab import laminar
 from evallab.trace_store.core import METADATA_FIELDS, TracePayload, trace_uuid
-from evallab.trace_store.secrets import secret_hits
+from evallab.trace_store.secrets import SecretScanRejected, secret_hits
 
 PROJECT_ID = "a5586b6d-55e8-466f-9718-c38255c2ae94"
 BATCH_BYTES = 4 * 1024 * 1024
@@ -97,6 +97,24 @@ def trace_spans(trace: TracePayload, *, at_ns: int = PROJECTION_NS) -> list[dict
     return spans
 
 
+def _span_secret_hits(spans: list[dict[str, Any]]) -> bool:
+    for span in spans:
+        attributes = dict(span["attributes"])
+        # These fields are JSON containers built by the encoder. Scan their
+        # logical values: escaped newlines must not turn a short TOKEN_EQ enum
+        # into an apparent eight-character credential assignment.
+        for name in ("lmnr.span.input", "lmnr.span.output"):
+            value = attributes.get(name)
+            if isinstance(value, str):
+                try:
+                    attributes[name] = json.loads(value)
+                except ValueError:
+                    pass
+        if secret_hits({**span, "attributes": attributes}):
+            return True
+    return False
+
+
 class LaminarTarget:
     def __init__(
         self, *, api_key: str | None = None, endpoint: str | None = None,
@@ -137,8 +155,8 @@ class LaminarTarget:
         if not self.safe:
             self.check_signals()
         spans = trace_spans(trace, at_ns=time.time_ns())
-        if secret_hits(spans):
-            raise ValueError("Secret scan rejected the encoded Laminar payload")
+        if _span_secret_hits(spans):
+            raise SecretScanRejected(trace.trace_id)
         # A small span batch stays below the documented 5 MiB HTTP default.
         # Oversized single spans are sent intact, never clipped. A provider 413
         # is recorded by sync and stops the batch for a resumable size review.

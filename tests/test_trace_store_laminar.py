@@ -8,6 +8,7 @@ import pytest
 
 from evallab.trace_store.core import TracePayload
 from evallab.trace_store.laminar import PROJECT_ID, LaminarTarget
+from evallab.trace_store.secrets import SecretScanRejected
 
 
 def trace() -> TracePayload:
@@ -67,3 +68,23 @@ def test_each_wire_attempt_reserves_exact_encoded_bytes() -> None:
     result = target.upload(trace())
     assert reservations == list(map(len, recorder.posts))
     assert result["payload_bytes"] == sum(reservations) == target.sent_bytes
+
+
+def test_json_encoded_newlines_do_not_create_credential_assignments() -> None:
+    sample = trace()
+    content = "TOKEN_EQ=0,\nTOKEN_GT=1,\nTOKEN_LT=2,\n"
+    sample.messages[0]["content"] = content
+    recorder = Recorder()
+    result = LaminarTarget(api_key="test", opener=recorder).upload(sample)
+    assert result["payload_bytes"] == sum(map(len, recorder.posts)) > 0
+    assert b"TOKEN_EQ=0,\\nTOKEN_GT=1" in recorder.posts[0]
+
+
+def test_real_credential_in_encoded_actor_text_is_rejected_before_post() -> None:
+    sample = trace()
+    sample.messages[0]["content"] = "credential: " + "sk-" + "proj-" + "A7b" * 16
+    recorder = Recorder()
+    with pytest.raises(SecretScanRejected) as exc:
+        LaminarTarget(api_key="test", opener=recorder).upload(sample)
+    assert exc.value.trace_id == sample.trace_id
+    assert recorder.posts == []

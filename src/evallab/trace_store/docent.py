@@ -16,7 +16,7 @@ from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 from evallab.trace_store.core import ALLOWED_DATASETS, METADATA_FIELDS, TracePayload, trace_uuid
-from evallab.trace_store.secrets import secret_hits
+from evallab.trace_store.secrets import SecretScanRejected, secret_hits
 
 SDK_VERSION = "0.1.88"
 MAX_PAYLOAD_BYTES = 100 * 1024 * 1024  # Docent's documented single-request limit.
@@ -260,8 +260,9 @@ class DocentTarget:
         remote_ids = [run["id"] for run in runs]
         if len(set(remote_ids)) != len(remote_ids):
             raise ValueError("Docent upload batch contains duplicate trace identities")
-        if secret_hits(runs):
-            raise ValueError("Secret scan rejected the encoded Docent payload")
+        for trace, run in zip(traces, runs, strict=True):
+            if secret_hits(run):
+                raise SecretScanRejected(trace.trace_id)
         collection = resolve_collections(self.client, dataset=dataset, create=True)[0]
         collection_id = collection["id"]
         owner_id = require_owner_only(self.client, collection)

@@ -13,6 +13,7 @@ import pytest
 
 from evallab.trace_store import docent
 from evallab.trace_store.core import TracePayload, trace_uuid
+from evallab.trace_store.secrets import SecretScanRejected
 
 DATASET = "mimo-defect-map-v1"
 COLLECTION_ID = "collection-private"
@@ -435,4 +436,20 @@ def test_remote_flat_run_is_reused_under_collection_scoped_dql(
     result = docent.DocentTarget(client).upload(trace)
     assert result["remote_id"] == run["id"]
     assert result["payload_bytes"] == 0
+    assert client._session.posts == []
+
+
+def test_encoded_secret_is_trace_specific_and_precedes_any_transport(
+    trace: TracePayload, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _Client()
+    monkeypatch.setattr(
+        docent, "secret_hits",
+        lambda run: ["secret-pattern"] if run["metadata"]["run_id"] == trace.trace_id else [],
+    )
+    clean = _renamed(trace, "clean-run")
+    with pytest.raises(SecretScanRejected) as exc:
+        docent.DocentTarget(client).upload_batch([clean, trace])
+    assert exc.value.trace_id == trace.trace_id
+    assert client.events == []
     assert client._session.posts == []

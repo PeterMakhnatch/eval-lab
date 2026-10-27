@@ -23,6 +23,14 @@ SECRET_RE = re.compile(
 )
 
 
+class SecretScanRejected(ValueError):
+    """A known trace failed a local scan before any payload was transmitted."""
+
+    def __init__(self, trace_id: str) -> None:
+        self.trace_id = trace_id
+        super().__init__("Secret scan rejected the encoded trace payload")
+
+
 def secret_hits(payload: object) -> list[str]:
     """Return one non-sensitive marker per match, without mutating the payload."""
     hits: list[str] = []

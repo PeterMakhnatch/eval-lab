@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.error import HTTPError
@@ -10,6 +11,7 @@ import pytest
 
 from evallab.trace_store.core import TracePayload
 from evallab.trace_store.laminar import trace_spans
+from evallab.trace_store.secrets import SecretScanRejected
 from evallab.trace_store.state import SyncState, content_digest
 
 sync_module = importlib.import_module("evallab.trace_store.sync")
@@ -111,3 +113,40 @@ def test_byte_budget_survives_reopening_and_rejects_before_send(monkeypatch, tmp
     with pytest.raises(ValueError, match="monthly"):
         reopened(3)
     reopened(2)
+
+
+@pytest.mark.parametrize("batched", [False, True])
+def test_encoded_secret_skips_only_its_trace_then_continues(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, batched: bool,
+) -> None:
+    database = _setup(monkeypatch, tmp_path)
+    bad = payload()
+    good = replace(bad, trace_id="own-2", metadata={**bad.metadata, "run_id": "own-2"})
+    traces = {trace.trace_id: trace for trace in (bad, good)}
+    refs = [SimpleNamespace(trace_id=trace.trace_id, dataset_id=trace.dataset_id)
+            for trace in traces.values()]
+    monkeypatch.setattr(sync_module, "select_traces", lambda *args, **kwargs: refs)
+    monkeypatch.setattr(sync_module, "load_trace", lambda con, ref, **kwargs: traces[ref.trace_id])
+    delivered: list[str] = []
+
+    def upload_batch(batch):
+        if any(trace.trace_id == bad.trace_id for trace in batch):
+            raise SecretScanRejected(bad.trace_id)
+        delivered.extend(trace.trace_id for trace in batch)
+        return [{"remote_id": trace.trace_id, "payload_bytes": 7} for trace in batch]
+
+    uploader = (SimpleNamespace(upload_batch=upload_batch) if batched
+                else SimpleNamespace(upload=lambda trace: upload_batch([trace])[0]))
+    report = sync_module.sync(
+        "docent" if batched else "laminar", repo_root=tmp_path,
+        db_path=database, root=tmp_path / "state", uploader=uploader,
+    )
+    assert report["stopped"] is None
+    assert report["synced"] == 1
+    assert delivered == [good.trace_id]
+    assert report["rejected"] == [{
+        "trace_id": bad.trace_id, "dataset": bad.dataset_id,
+        "kind": "secret_scan", "stage": "encoded",
+    }]
+    state = SyncState(tmp_path / "state" / ("docent-state.jsonl" if batched else "laminar-state.jsonl"))
+    assert set(state.receipts) == {good.trace_id}

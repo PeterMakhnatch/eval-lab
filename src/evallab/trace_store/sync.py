@@ -13,7 +13,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 
 from evallab.trace_store.core import load_trace, select_traces
-from evallab.trace_store.secrets import secret_hits
+from evallab.trace_store.secrets import SecretScanRejected, secret_hits
 from evallab.trace_store.state import (
     SyncState,
     append_jsonl,
@@ -33,6 +33,8 @@ def _upload(target: Any, trace: Any, sleep: Callable[[float], None], *, batch: b
     for attempt in range(4):
         try:
             return target.upload_batch(trace) if batch else target.upload(trace)
+        except SecretScanRejected:
+            raise
         except HTTPError as exc:
             detail = exc.read().decode(errors="replace")
             if exc.code in {402, 403, 413, 429}:
@@ -98,10 +100,31 @@ def sync(
             if not pending:
                 return True
             try:
-                if batched:
-                    results = _upload(uploader, [trace for trace, _ in pending], sleep, batch=True)
+                while pending:
+                    try:
+                        if batched:
+                            results = _upload(uploader, [trace for trace, _ in pending], sleep, batch=True)
+                        else:
+                            results = [_upload(uploader, pending[0][0], sleep)]
+                        break
+                    except SecretScanRejected as exc:
+                        index = next(
+                            (i for i, (trace, _) in enumerate(pending) if trace.trace_id == exc.trace_id),
+                            None,
+                        )
+                        if index is None:
+                            raise SyncStopped("Encoded scanner returned an unknown trace; paused") from None
+                        trace, _ = pending.pop(index)
+                        rejection = {"trace_id": trace.trace_id, "dataset": trace.dataset_id,
+                                     "kind": "secret_scan", "stage": "encoded"}
+                        report["rejected"].append(rejection)
+                        append_jsonl(root / f"{target}-errors.jsonl", {"at": now(), **rejection})
+                        pending_bytes = sum(
+                            len(message["content"].encode()) + len((message.get("reasoning") or "").encode())
+                            for item, _ in pending for message in item.messages
+                        )
                 else:
-                    results = [_upload(uploader, pending[0][0], sleep)]
+                    return True
                 if not isinstance(results, list) or len(results) != len(pending):
                     raise SyncStopped("Hosted batch returned incomplete receipts; paused")
                 for (trace, digest), result in zip(pending, results, strict=True):

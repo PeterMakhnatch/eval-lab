@@ -18,7 +18,6 @@ are joined only by ``show --with-labels``. Missing coverage is unknown, not clea
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
 import math
 import os
@@ -406,58 +405,10 @@ def _admit_facets(facets: Sequence[Mapping[str, Any]], root: Path, database: Pat
         raise ValueError("facets contain identities outside the current cross-key DEV admission")
 
 
-def _direct_labels(database: Path, root: Path, run_ids: set[str]) -> dict[str, bool | None]:
-    from evallab.production.corpus_queue import CorpusRegistry
-
-    registry = CorpusRegistry(root)
-    labels: dict[str, bool | None] = {}
-    for item in registry.items(dataset_id=run_atlas.CHEATBENCH_DATASET, split="dev"):
-        if item.item_id in run_ids and not registry.assigned_test_anywhere(
-            item_id=item.item_id, task_id=item.task_id,
-        ):
-            verdict = item.metadata.get("expected_verdict")
-            if verdict in ("pass", "fail"):
-                labels[item.item_id] = verdict == "fail"
-    if database.is_file():
-        connection = run_atlas.connect_readonly(database)
-        try:
-            admitted = run_atlas.admitted_task_ids(connection, registry)
-            ids = run_atlas.cloud_trace_ids(connection, admitted=admitted,
-                                            dataset_ids=[run_atlas.GOODFIRE_DATASET],
-                                            trace_ids=sorted(run_ids)) if run_ids else []
-            for run_id in ids:
-                row = connection.execute(
-                    "SELECT verified_receipt_json FROM agent_traces WHERE trace_id = ?", (run_id,),
-                ).fetchone()
-                receipt = json.loads(row[0] or "{}")
-                source = receipt.get("source_label") or {}
-                if (str((receipt.get("admission") or {}).get("effective_split")).upper() != "DEV"
-                        or source.get("judged") is not True):
-                    continue
-                verdict = (source.get("verdict"), source.get("verdict_enacted"))
-                if verdict == ("yes", "yes"):
-                    labels[run_id] = True
-                elif verdict == ("no", "no"):
-                    labels[run_id] = False
-                elif verdict == ("yes", "no"):
-                    labels[run_id] = None
-        finally:
-            connection.close()
-    return labels
-
-
 def _load_labels(database: Path, root: Path, run_ids: set[str]) -> dict[str, bool | None]:
-    module_name = "evallab.production.run_atlas_score"
-    try:
-        module = importlib.import_module(module_name)
-    except ModuleNotFoundError as exc:
-        if exc.name != module_name:
-            raise
-    else:
-        loader = getattr(module, "load_labels", None)
-        if loader is not None:
-            return loader(database=database, repo_root=root, run_ids=run_ids)
-    return _direct_labels(database, root, run_ids)
+    from evallab.production.run_atlas_score import load_labels
+
+    return load_labels(database=database, repo_root=root, run_ids=run_ids)
 
 
 def _embedder(args: argparse.Namespace) -> Any:

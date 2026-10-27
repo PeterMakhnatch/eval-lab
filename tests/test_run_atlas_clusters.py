@@ -7,7 +7,6 @@ import builtins
 import copy
 import importlib
 import json
-import sqlite3
 from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
@@ -360,37 +359,6 @@ def test_show_without_labels_never_reads_labels_or_rule_files(
     assert "L1-01 n=1 Parser repair" in capsys.readouterr().out
 
 
-def test_direct_label_fallback_respects_receipts_and_dev_admission(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    path = tmp_path / "cloud.sqlite"
-    _empty_registry(tmp_path)
-    with sqlite3.connect(path) as connection:
-        connection.executescript("""
-            CREATE TABLE corpus_tasks (task_id TEXT, dataset_id TEXT, split TEXT);
-            CREATE TABLE agent_traces (trace_id TEXT, task_id TEXT, verified_receipt_json TEXT);
-        """)
-        connection.executemany("INSERT INTO corpus_tasks VALUES (?, ?, ?)", [
-            ("dev", run_atlas.GOODFIRE_DATASET, "DEV"),
-            ("test", run_atlas.GOODFIRE_DATASET, "TEST"),
-            ("cross-key-test", run_atlas.GOODFIRE_DATASET, "DEV"),
-        ])
-        for trace_id, task_id, verdict, enacted in [
-            ("positive", "dev", "yes", "yes"), ("negative", "dev", "no", "no"),
-            ("considered", "dev", "yes", "no"), ("held", "test", "yes", "yes"),
-            ("sealed", "cross-key-test", "yes", "yes"),
-        ]:
-            receipt = {"admission": {"effective_split": "DEV"}, "source_label": {
-                "judged": True, "verdict": verdict, "verdict_enacted": enacted,
-            }}
-            connection.execute("INSERT INTO agent_traces VALUES (?, ?, ?)",
-                               (trace_id, task_id, json.dumps(receipt)))
-    monkeypatch.setattr(run_atlas, "admitted_task_ids", lambda con, reg: frozenset({"dev"}))
-    assert atlas._direct_labels(path, tmp_path, {"positive", "negative", "considered", "held", "sealed"}) == {
-        "positive": True, "negative": False, "considered": None,
-    }
-
-
 def test_optional_rule_replay_only_requests_unknown_labelled_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -432,19 +400,3 @@ def test_build_admission_honors_current_cross_key_test_seal(tmp_path: Path) -> N
     atlas._admit_facets(facets[:1], tmp_path, tmp_path / "no-db")
     with pytest.raises(ValueError, match="cross-key DEV"):
         atlas._admit_facets(facets, tmp_path, tmp_path / "no-db")
-
-
-def test_label_loading_prefers_shared_score_module(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured = []
-
-    def load_labels(**kwargs: Any) -> dict[str, bool]:
-        captured.append(kwargs)
-        return {"a": True}
-
-    monkeypatch.setattr(atlas.importlib, "import_module",
-                        lambda _: SimpleNamespace(load_labels=load_labels))
-    monkeypatch.setattr(atlas, "_direct_labels", lambda *args: pytest.fail("fallback called"))
-    assert atlas._load_labels(tmp_path / "db", tmp_path, {"a"}) == {"a": True}
-    assert captured == [{"database": tmp_path / "db", "repo_root": tmp_path, "run_ids": {"a"}}]

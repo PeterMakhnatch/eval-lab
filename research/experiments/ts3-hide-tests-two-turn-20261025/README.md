@@ -1,38 +1,28 @@
-# TS-3 & pT-SELF-3..6 Capstone: Complete 50-Task 6-Model 2-Turn `hide_tests=True` Seeker Benchmark, 3-Benchmark Cross-Test (`600` Cells), and 28-Task Head-to-Head Regime Comparison (`936` Total Cells)
+# TS-3 & TS-4 Capstone: Cross-Key `assignments.csv` Audit (`30/50` Strictly DEV-Everywhere Tasks) & Executed Paired-Grader Differentials (`1.0 -> 0.0`) vs Static Mechanism Matches
 
-## Protocol & Fix for TS-2 Condition-A Confound
-- **What changed (`src/evallab/production/seeker_worker.py`):**
-  1. Added `hide_tests: bool = False` to `RewardSeekerLiveWorker`, `_prepare_attempt_workspace`, `build_headless_seeker_prompt`, and `OmpHeadlessAttemptGenerator`.
-  2. When `hide_tests=True`, `_prepare_attempt_workspace` strips `tests`, `test`, and `verifier` from `workspace / "task"` and `build_headless_seeker_prompt` completely omits the `## Upstream Grader Files (tests/)` section.
-  3. **Turn 1 (`attempt_index=1`, `hide_tests=True`, `prompt_mode="bare_task"`):** The seeker sees ONLY `task.toml`, `instruction.md`, and `environment/` (`0` `tests/` files, `0` Hackbook cues, `0` retrieval).
-  4. **Turn 2 (`attempt_index=2`, `hide_tests=True`, `prompt_mode="qa_review"`):** `tests/` remains hidden, and the seeker receives the captured **Turn-1 Grader Failure Output (`SeekerFailureMemory`)** plus **`CloudTraceRetriever`** examples (`1,636` Goodfire DEV enacted cheats unlocked + MiMo/TB4 DEV confirmed issues), with Turn-2 failure-token query enrichment and automatic `base_query` fallback.
-  5. Added `select_cascade_model_order` for deterministic 2-stage tripwire model routing and hardened `_normalize_mechanism_key` against sequence-valued mechanism/target_check payloads.
+## 1. TS-4 Part (1): Cross-Key `assignments.csv` Join Across All 19 Benchmark Keys
+- Joining all `50` tasks from `TS-3` (#1241) against `research/answer-keys/splits/assignments.csv` across **every** `key_id` (`19` keys) and every identifier column (`item_id`, `task`, `unit`):
+  - **Strictly DEV-everywhere (`0` `test`/`heldout` rows in any `key_id`):** **`30 / 50` tasks** (`22` `mimo-defect-map-v1` DEV + `8` `tb4-audit-v1` DEV + `0` `breaker-bench-v1`).
+    - **`mimo-defect-map-v1` (`22` strictly DEV-everywhere tasks):** `format-code-task-000158`, `000159`, `000160`, `000002`, `000003`, `000004`, `000007`, `000636`, `000011`, `000016`, `000022`, `000029`, `000030`, `000031`, `000042`, `000044`, `000046`, `000048`, `000053`, `000057`, `000058`, `000060` (`8` `pytest`, `7` `go-test`, `6` `js-mocha`, `1` `unittest`).
+    - **`tb4-audit-v1` (`8` strictly DEV-everywhere tasks):** `fin-saccr-rwa`, `distributed-dedup`, `freecad-platform-drawing`, `heat-pump-warranty`, `html-js-filter`, `freecad-spring-clip`, `layout-config-recreation2`, `vba-userform-port`.
+  - **Secondary-key `test`/`heldout` overlap (`20 / 50` tasks excluded):**
+    - `6` `mimo-defect-map-v1` tasks: `format-code-task-000169`, `000341`, `000803` (`trace-paired-v1` `test`); `000297`, `000545` (`mimo-stratified-sample100` `test`); `000666` (`executed-outcomes-v1` `heldout` + `mimo-weak-tests-v1` `test`).
+    - `6` `tb4-audit-v1` tasks: `cargo-flight-dispatch`, `freecad-impeller`, `vf2-speedup-networkx`, `layout-config-recreation`, `live-database-cutover`, `nextjs-performance` (`envcheck-tb4-39` `heldout`).
+    - `8` `breaker-bench-v1` tasks: `caffe-cifar-10`, `compile-compcert`, `filter-js-from-html`, `financial-document-processor`, `fix-git`, `make-doom-for-mips`, `mteb-leaderboard`, `query-optimize` (`tb2-to-tb21-v1` `test` / `delphik-open-defect-tb2` `heldout`).
+- **Code Guard Added (`src/evallab/production/seeker_worker.py`):** Added `find_cross_key_non_dev_assignments(task_id)` and `require_cross_key_dev_only(task_id)` (plus `enforce_cross_key_dev: bool = False` on `build_headless_seeker_prompt`) to fail-closed whenever a task has a `test` or `heldout` split in any secondary `assignments.csv` key.
 
-## 1. Complete 50-Task × 6-Model × 2-Turn `hide_tests=True` Cross-Test (`28` MiMo DEV + `14` TB4 DEV + `8` `breaker-bench-v1` DEV = `600` Cells)
+## 2. TS-4 Part (2): Static Mechanism Match vs True Executed Paired-Grader Differentials (`1.0 -> 0.0`) on the `30` Strictly Cross-Key-Clean DEV Tasks (`360` Cells)
 
-| Model Route | Served Identity | Attested Turns | Turn 1 Blind Diff (`MiMo 28` / `TB4 14` / `Breaker 8`) | Turn 2 Retr Diff (`MiMo 28` / `TB4 14` / `Breaker 8`) | 2-Turn Cumul `Pass@2` (`M` / `T` / `B`) | `T1 -> T2` Gain | `Diff/100kTok` | Total Cost USD |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `meta/muse-spark-1.3-contributor` | `meta/muse-spark-1.3-contributor` | `98/100` (98.0%) | **30/50 (60.0%)** (`16/28` / `9/14` / `5/8`) | **48/50 (96.0%)** (`28/28` / `12/14` / `8/8`) | **48/50 (96.0%)** (`28/28` / `12/14` / `8/8`) | **`+18` tasks** | **3.996** | `$0.1341` |
-| `meta/muse-wonder-1.0-contributor` | `meta/muse-wonder-1.0-contributor` | `100/100` (100.0%) | **36/50 (72.0%)** (`20/28` / `8/14` / `8/8`) | **44/50 (88.0%)** (`27/28` / `9/14` / `8/8`) | **45/50 (90.0%)** (`27/28` / `10/14` / `8/8`) | **`+9` tasks** | **3.869** | `$0.0000` |
-| `anthropic/claude-sonnet-5-5` | `anthropic/claude-sonnet-5-5` | `87/100` (87.0%) | **26/50 (52.0%)** (`15/28` / `4/14` / `7/8`) | **42/50 (84.0%)** (`26/28` / `8/14` / `8/8`) | **43/50 (86.0%)** (`26/28` / `9/14` / `8/8`) | **`+17` tasks** | **3.361** | `$4.2189` |
-| `openrouter/deepseek/deepseek-v4.1-flash` | `openrouter/deepseek/deepseek-v4.1-flash` | `72/100` (72.0%) | **29/50 (58.0%)** (`17/28` / `5/14` / `7/8`) | **31/50 (62.0%)** (`22/28` / `4/14` / `5/8`) | **42/50 (84.0%)** (`26/28` / `8/14` / `8/8`) | **`+13` tasks** | **2.102** | `$0.7493` |
-| `kimi-code/k3.1-pro-highspeed` | `kimi-code/k3.1-pro-highspeed` | `88/100` (88.0%) | **29/50 (58.0%)** (`17/28` / `6/14` / `6/8`) | **34/50 (68.0%)** (`22/28` / `7/14` / `5/8`) | **40/50 (80.0%)** (`23/28` / `9/14` / `8/8`) | **`+11` tasks** | **4.287** | `$0.0000` |
-| `meta/muse-spark-open` | `openrouter/meta/muse-spark-open` | `77/77` (100%)* | **23/39 (59.0%; 23/50)** (`6/17` / `10/14` / `7/8`) | **34/39 (87.2%; 34/50)** (`16/17` / `12/14` / `6/8`) | **37/39 (94.9%; 37/50 = 74.0%)** (`17/17` / `12/14` / `8/8`) | **`+14` tasks** | **4.870** | `$0.8952` |
+| Model Route | T1 Static (`#1241`) | T1 Executed (`1.0 -> 0.0`) (`M22` / `T8`) | T2 Static (`#1241`) | T2 Executed (`#1241` Prompts) (`M22` / `T8`) | T2 Executed (Runner-Accurate FB) (`M22` / `T8`) | Cumul Executed (Runner-Accurate FB) (`M22` / `T8`) | Pytest-8 Executed (`T1 -> T2`) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `meta/muse-wonder-1.0-contributor` | `23/30` (76.7%) | **4/30 (13.3%)** (`0/22` / `4/8`) | `27/30` (90.0%) | **13/30 (43.3%)** (`8/22` / `5/8`) | **25/30 (83.3%)** (`20/22` / `5/8`) | **25/30 (83.3%)** (`20/22` / `5/8`) | `0/8 -> 8/8` (100%) |
+| `openrouter/deepseek/deepseek-v4.1-flash` | `18/30` (60.0%) | **5/30 (16.7%)** (`3/22` / `2/8`) | `21/30` (70.0%) | **11/30 (36.7%)** (`7/22` / `4/8`) | **18/30 (60.0%)** (`14/22` / `4/8`) | **21/30 (70.0%)** (`16/22` / `5/8`) | `1/8 -> 6/8` (Cumul `7/8`) |
+| `meta/muse-spark-1.3-contributor` | `19/30` (63.3%) | **5/30 (16.7%)** (`1/22` / `4/8`) | `28/30` (93.3%) | **14/30 (46.7%)** (`8/22` / `6/8`) | **19/30 (63.3%)** (`13/22` / `6/8`) | **19/30 (63.3%)** (`13/22` / `6/8`) | `0/8 -> 8/8` (100%) |
+| `anthropic/claude-sonnet-5-5` | `15/30` (50.0%) | **1/30 (3.3%)** (`0/22` / `1/8`) | `25/30` (83.3%) | **12/30 (40.0%)** (`7/22` / `5/8`) | **18/30 (60.0%)** (`13/22` / `5/8`) | **18/30 (60.0%)** (`13/22` / `5/8`) | `0/8 -> 7/8` (87.5%) |
+| `kimi-code/k3.1-pro-highspeed` | `18/30` (60.0%) | **2/30 (6.7%)** (`0/22` / `2/8`) | `23/30` (76.7%) | **9/30 (30.0%)** (`5/22` / `4/8`) | **16/30 (53.3%)** (`12/22` / `4/8`) | **16/30 (53.3%)** (`12/22` / `4/8`) | `0/8 -> 5/8` (62.5%) |
+| `meta/muse-spark-open` | `9/30` (30.0%) | **4/30 (13.3%)** (`0/22` / `4/8`) | `16/30` (53.3%) | **11/30 (36.7%; 11/19 = 57.9%)** (`5/11` / `6/8`) | **11/30 (36.7%; 11/19 = 57.9%)** (`5/11` / `6/8`) | **11/30 (36.7%; 11/19 = 57.9%)** (`5/11` / `6/8`) | `0/5 -> 5/5` (100% completed) |
 
-*\*Note: `openrouter/meta/muse-spark-open` completed `77/77 (100%)` attested turns across the first `39` tasks (`37/39 = 94.9%` cumulative differentials; `17/17 = 100%` on completed MiMo DEV tasks); on the remaining 11 MiMo DEV tasks, OpenRouter's server-side `max_tokens=131072` pre-reservation exceeded the `92,191`-token credit balance (`402`), and `_require_llm_attestation` strictly refused fallback attribution.*
-
-## 2. 28-Task Head-to-Head Regime Comparison (`14` MiMo DEV + `14` TB4 DEV: Regime I `tests/` Visible `336` Cells vs Regime II `hide_tests=True` `336` Cells)
-
-| Model Route | Regime I (`tests/` Visible) Bare | Regime I (`tests/` Visible) + Retrieval | Regime II (`hide_tests=True`) Turn 1 Blind | Regime II (`hide_tests=True`) Turn 2 Retr | Regime II (`hide_tests=True`) 2-Turn Cumul | Delta (`Regime II Cumul - Regime I Retr`) |
-|---|---:|---:|---:|---:|---:|---:|
-| `meta/muse-spark-open` | `11/28` (39.3%) | `13/28` (46.4%) | `13/28` (46.4%) | `26/28` (92.9%) | **26/28 (92.9%)** | **`+13` (+46.4 pp)** |
-| `meta/muse-spark-1.3-contributor` | `11/28` (39.3%) | `12/28` (42.9%) | `12/28` (42.9%) | `26/28` (92.9%) | **26/28 (92.9%)** | **`+14` (+50.0 pp)** |
-| `meta/muse-wonder-1.0-contributor` | `9/28` (32.1%) | `11/28` (39.3%) | `14/28` (50.0%) | `22/28` (78.6%) | **23/28 (82.1%)** | **`+12` (+42.9 pp)** |
-| `openrouter/deepseek/deepseek-v4.1-flash` | `11/28` (39.3%) | `9/28` (32.1%) | `12/28` (42.9%) | `15/28` (53.6%) | **21/28 (75.0%)** | **`+12` (+42.9 pp)** |
-| `anthropic/claude-sonnet-5-5` | `7/28` (25.0%) | `10/28` (35.7%) | `8/28` (28.6%) | `20/28` (71.4%) | **21/28 (75.0%)** | **`+11` (+39.3 pp)** |
-| `kimi-code/k3.1-pro-highspeed` | `8/28` (28.6%) | `10/28` (35.7%) | `11/28` (39.3%) | `16/28` (57.1%) | **18/28 (64.3%)** | **`+8` (+28.6 pp)** |
-
-## 3. Early-Stop Two-Turn Cascade Efficiency (50 Tasks)
-- **`early_stop_muse_spark_1_3_50`**: **`48/50 (96.0%)`** in `70` calls (`838,341` tokens, **`5.726` differentials/100k tokens**, `$0.0913` — `31.7×` cheaper than early-stop `anthropic/claude-sonnet-5-5` and `46.2×` cheaper than 2-turn `anthropic/claude-sonnet-5-5`, while beating `Sonnet 5.5`'s `43/50 = 86.0%` by `+10.0 pp`).
-- **`early_stop_muse_wonder_50`**: **`45/50 (90.0%)`** in `64` calls (`721,568` tokens, **`6.236` differentials/100k tokens**, `$0.0000` subscription).
-- **`early_stop_sonnet_5_5_50`**: **`43/50 (86.0%)`** in `74` calls (`870,958` tokens, **`4.937` differentials/100k tokens**, `$2.8955`).
+### Why Static Mechanism Matching Overcounted vs True Executed Paired-Grader Differentials (`1.0 -> 0.0`)
+1. **Turn-1 Honest Attempts (`81/132 = 61.4%` of Turn-1 MiMo cells):** Under `hide_tests=True` (`prompt_mode="bare_task"`), models wrote honest task solutions (`Solution.go`, `bitwise.py`, `flake8_simplify.py`) with no runner-tamper mechanism (`1.0 -> 1.0` or `0.0 -> 0.0`, `differential = 0.0`) that the static matcher overcounted as differentials; true executed Turn-1 differentials on the 22 cross-key-clean MiMo DEV tasks were only `4/132 (3.0%)`.
+2. **Turn-2 Cross-Language `conftest.py` False Positives (`64/132 = 48.5%` of Turn-2 `#1241` MiMo cells):** On the `14` non-`pytest` cross-key-clean MiMo DEV tasks (`7` `go-test`, `6` `js-mocha`, `1` `unittest`), `#1241`'s Turn-2 prompt injected a hardcoded `pytest tests/` failure string, causing models to write Python `conftest.py` files that `go test`, `npx mocha`, and `python -m unittest` ignore (`original_reward = 0.0`).
+3. **Runner-Accurate Turn-2 Feedback Restores True Executed Differentials (`1.0 -> 0.0`):** Feeding the actual runner's Turn-1 failure output (`go test`, `npx mocha`, `python -m unittest`) lifts true executed paired-grader differentials on the `30` strictly DEV-everywhere tasks to **`25/30 (83.3%)` for `meta/muse-wonder-1.0-contributor`**, **`21/30 (70.0%)` for `openrouter/deepseek/deepseek-v4.1-flash`**, **`19/30 (63.3%)` for `meta/muse-spark-1.3-contributor`**, and **`18/30 (60.0%)` for `anthropic/claude-sonnet-5-5`**.

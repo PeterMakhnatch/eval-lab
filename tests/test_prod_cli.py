@@ -671,3 +671,263 @@ def test_project_actor_refuses_output_under_the_source_cas_before_writing(
         path.relative_to(corpus_root): (path.stat().st_ino, path.stat().st_mtime_ns)
         for path in corpus_root.rglob("*")
     } == before
+
+
+def _tier_source(root: Path) -> Path:
+    """Inert DB: gate-admitted rows in every tier plus withheld and sealed rows."""
+    from evallab.production.cloud_trace_db import CloudTraceDatabase
+
+    _actor_source(root)
+    source = root.parent.resolve() / "tier-source.sqlite"
+    # (task, dataset, split, item identity, trace tiers, issue tiers)
+    fixtures = (
+        (
+            "unmaterialized-dev",
+            DATASET,
+            "DEV",
+            {"item_id": DEV},
+            ("tier1", "tier2", "tier3"),
+            ("tier1",),
+        ),
+        ("gf-dev", "synthetic-goodfire", "DEV", {}, ("tier2", "tier2", "tier3"), ()),
+        ("gf-held", "synthetic-goodfire", "held", {}, ("tier2",), ("tier1",)),
+        ("sealed-task", DATASET, "DEV", {"item_id": SEALED}, ("tier1",), ("tier2",)),
+    )
+    tiers = {
+        "tier1": "tier1_container_verified",
+        "tier2": "tier2_consensus_labeled",
+        "tier3": "tier3_provisional",
+    }
+    with CloudTraceDatabase(source) as database:
+        for task_id, dataset, split, metadata, trace_tiers, issue_tiers in fixtures:
+            database.upsert_task(
+                {
+                    "task_id": task_id,
+                    "dataset_id": dataset,
+                    "split": split,
+                    "instruction_text": "Inert tier census fixture.",
+                    "metadata_json": metadata,
+                }
+            )
+            for index, tier in enumerate(trace_tiers):
+                database.upsert_trace(
+                    {
+                        "trace_id": f"{task_id}-trace-{index}",
+                        "run_id": "inert",
+                        "task_id": task_id,
+                        "model_id": "synthetic/no-model",
+                        "trust_tier": tiers[tier],
+                    }
+                )
+            for index, tier in enumerate(issue_tiers):
+                database.upsert_task_issue(
+                    {
+                        "issue_id": f"{task_id}-issue-{index}",
+                        "task_id": task_id,
+                        "defect_class": "insufficient_checking",
+                        "direction": "wrong_pass",
+                        "status": "confirmed",
+                        "trust_tier": tiers[tier],
+                    }
+                )
+    return source
+
+
+def _recorded_reports(directory: Path) -> tuple[Path, Path]:
+    from evallab.hackbook.qc import score_cases
+    from evallab.tripwires import HACKBOOK_RULES
+
+    first, second = (rule["id"] for rule in HACKBOOK_RULES[:2])
+    cases = [
+        {"case_id": "p1", "label": "positive", "fired": frozenset({first})},
+        {"case_id": "p2", "label": "positive", "fired": frozenset({first, second})},
+        {"case_id": "c1", "label": "clean", "fired": frozenset({second})},
+        {"case_id": "c2", "label": "clean", "fired": frozenset()},
+        {"case_id": "u1", "label": "unscored", "fired": frozenset({first})},
+    ]
+    report, _ = score_cases(
+        cases,
+        (rule["id"] for rule in HACKBOOK_RULES),
+        dataset_id="synthetic-qc-cohort",
+        generated_at="2026-10-27T01:00:00+00:00",
+    )
+    digest = "ab" * 32
+    entry = {
+        "split": "dev",
+        "system_sha256": digest,
+        "positive_n": 4,
+        "clean_n": 6,
+        "unscored_n": 1,
+    }
+    tune_cross = {
+        "schema": "evallab.tune_cross_test/v1",
+        "system": "synthetic-frozen-system",
+        "frozen_sha256": digest,
+        "entries": [
+            {
+                **entry,
+                "role": "tune",
+                "dataset_id": "synthetic-tune",
+                "true_positive_n": 3,
+                "false_positive_n": 1,
+                "measured_at": "2026-10-27T01:10:00+00:00",
+            },
+            {
+                **entry,
+                "role": "cross_test",
+                "dataset_id": "synthetic-unseen",
+                "true_positive_n": 1,
+                "false_positive_n": 0,
+                "measured_at": "2026-10-27T01:20:00+00:00",
+            },
+        ],
+        "generated_at": "2026-10-27T01:30:00+00:00",
+    }
+    paths = directory / "QC Report (Synthetic).json", directory / "scoreboard.json"
+    paths[0].write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths[1].write_text(json.dumps(tune_cross, indent=2) + "\n", encoding="utf-8")
+    return paths
+
+
+def test_export_qc_reports_counts_only_admitted_rows_and_copies_recorded_reports_exactly(
+    corpus_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import hashlib
+
+    from evallab.production.benchmark_reports import validate_benchmark_document
+
+    source = _tier_source(corpus_root)
+    qc, scoreboard = _recorded_reports(source.parent)
+    source_state = {path.name: path.read_bytes() for path in source.parent.glob("tier-source*")}
+    output = source.parent / "qc-reports"
+    assert (
+        cli.run_cli(
+            [
+                "prod",
+                "export-qc-reports",
+                "--source-database",
+                str(source),
+                "--output-directory",
+                str(output),
+                "--hackbook-qc",
+                str(qc),
+                "--tune-cross-test",
+                str(scoreboard),
+                "--generated-at",
+                "2026-10-27T02:00:00+00:00",
+            ],
+            workspace=corpus_root,
+        )
+        == 0
+    )
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["uploaded"] is False
+    assert sorted(path.name for path in output.iterdir()) == [
+        "hackbook-qc-qc-report-synthetic.json",
+        "trust-tier-census-issues.json",
+        "trust-tier-census-traces.json",
+        "tune-cross-test-scoreboard.json",
+    ]
+    for artifact in receipt["artifacts"]:
+        raw = (output / artifact["file"]).read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == artifact["sha256"]
+        assert validate_benchmark_document(raw)["schema"] == artifact["schema"]
+        assert (output / artifact["file"]).stat().st_mode & 0o777 == 0o600
+    # Recorded measurements are copied byte for byte, never recomputed.
+    assert (output / "hackbook-qc-qc-report-synthetic.json").read_bytes() == qc.read_bytes()
+    assert (output / "tune-cross-test-scoreboard.json").read_bytes() == scoreboard.read_bytes()
+    traces = json.loads((output / "trust-tier-census-traces.json").read_text())
+    # Admitted DEV traces only: the held task and the sealed DEV-labelled task contribute nothing.
+    assert (traces["admitted_rows_n"], traces["unclassified_n"], traces["generated_at"]) == (
+        6,
+        0,
+        "2026-10-27T02:00:00+00:00",
+    )
+    assert [
+        (row["tier"], row["source"], row["rows_n"], row["prompt_eligible_n"])
+        for row in traces["tiers"]
+    ] == [
+        ("tier1_container_verified", DATASET, 1, 1),
+        ("tier2_consensus_labeled", "synthetic-goodfire", 2, 2),
+        ("tier2_consensus_labeled", DATASET, 1, 1),
+        ("tier3_provisional", "synthetic-goodfire", 1, 0),
+        ("tier3_provisional", DATASET, 1, 0),
+    ]
+    issues = json.loads((output / "trust-tier-census-issues.json").read_text())
+    assert (issues["admitted_rows_n"], [row["tier"] for row in issues["tiers"]]) == (
+        1,
+        ["tier1_container_verified"],
+    )
+    assert {
+        path.name: path.read_bytes() for path in source.parent.glob("tier-source*")
+    } == source_state
+    assert not _path(corpus_root).exists()
+
+
+@pytest.mark.parametrize(
+    "failure", ["existing-output", "wrong-schema", "corrupt-count", "name-collision"]
+)
+def test_export_qc_reports_publishes_nothing_when_any_input_is_unsound(
+    corpus_root: Path,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    source = _tier_source(corpus_root)
+    qc, scoreboard = _recorded_reports(source.parent)
+    output = source.parent / "qc-reports"
+    argv = [
+        "prod",
+        "export-qc-reports",
+        "--source-database",
+        str(source),
+        "--output-directory",
+        str(output),
+    ]
+    if failure == "existing-output":
+        output.mkdir()
+    if failure == "wrong-schema":
+        argv += ["--hackbook-qc", str(scoreboard)]
+    elif failure == "corrupt-count":
+        report = json.loads(qc.read_text())
+        report["union_positives_hit_n"] = report["cohort"]["positive_n"] + 1
+        qc.write_text(json.dumps(report), encoding="utf-8")
+        argv += ["--hackbook-qc", str(qc)]
+    elif failure == "name-collision":
+        twin = qc.with_name("QC-Report Synthetic.json")
+        twin.write_bytes(qc.read_bytes())
+        argv += ["--hackbook-qc", str(qc), "--hackbook-qc", str(twin)]
+    assert cli.run_cli(argv, workspace=corpus_root) == 2
+    assert json.loads(capsys.readouterr().err)["error"]["type"] in {
+        "FileExistsError",
+        "ValueError",
+        "ValidationError",
+    }
+    assert not any(output.iterdir()) if failure == "existing-output" else not output.exists()
+    assert list(source.parent.glob(".qc-reports-*")) == []
+
+
+def test_export_qc_reports_fails_closed_without_assignment_authority(
+    corpus_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = _tier_source(corpus_root)
+    (corpus_root / "research/answer-keys/splits/assignments.csv").unlink()
+    output = source.parent / "qc-reports"
+    assert (
+        cli.run_cli(
+            [
+                "prod",
+                "export-qc-reports",
+                "--source-database",
+                str(source),
+                "--output-directory",
+                str(output),
+            ],
+            workspace=corpus_root,
+        )
+        == 2
+    )
+    assert json.loads(capsys.readouterr().err)["error"]["type"] == "ValueError"
+    assert not output.exists()
+    assert list(source.parent.glob(".qc-reports-*")) == []

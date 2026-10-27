@@ -1297,7 +1297,40 @@ tier, rule hit or score itself. Nothing is ranked.
   shown as "Cross-test not run". Dataset names are data, never hard-coded in the UI.
 
 Each tab section shows an explicit empty state when no such report is retained;
-none has been produced yet by a measuring lane, and no value is fabricated.
+no value is fabricated.
+
+`evallab prod export-qc-reports` produces these three documents without opening
+the production queue or contacting any model or cloud service:
+
+```bash
+uv run evallab prod export-qc-reports \
+  --source-database /path/to/cloud-trace-db.sqlite \
+  --output-directory /path/to/new-qc-reports \
+  --hackbook-qc /path/to/qc-report.json \
+  --tune-cross-test /path/to/tune-cross-test.json
+```
+
+- The trust-tier census is **generated** from the source database, opened
+  read-only (a database with a live WAL is refused so no sidecar file is written
+  beside it). One document per unit (`traces` from `agent_traces`, `issues` from
+  `task_issues`) counts only rows on tasks the shared `admitted_cloud_task_ids`
+  gate admits, grouped by stored tier and dataset. `prompt_eligible_n` is the
+  tier-1/tier-2 rows (what default retrieval may serve) and is `0` for tier 3.
+  A missing split-assignment authority fails the export instead of counting
+  everything. `source_sha256` is `null`: the census is a live count, not a
+  digest of a retained input.
+- `--hackbook-qc` (reports written by `evallab hackbook qc --out`) and
+  `--tune-cross-test` (retained scoreboards) are **recorded** measurements. They
+  are validated by the same `validate_benchmark_document` the benchmarks listing
+  runs and are copied byte for byte, so the sha256 in the listing equals the
+  exporter receipt. The exporter never recomputes or repairs a count, and refuses
+  an input whose schema is not the one the flag names. A summary that lacks the
+  frozen digest, per-cohort counts or `measured_at` cannot be exported; the
+  exporter does not invent them.
+- The output directory must not exist. Files are staged in a sibling directory,
+  mode `0600`, validated again as written, and published by one rename; any failure
+  leaves nothing behind. The receipt (stdout) has `"uploaded": false`: copying the
+  directory to `<data_root>/benchmarks` is a separate, approved transfer.
 
 One Modal class instance owns both SQLite stores. The web endpoint and worker
 method share that owner; do not deploy a second independent writer against

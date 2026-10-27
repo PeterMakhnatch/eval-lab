@@ -357,17 +357,23 @@ def _reasoning_steps() -> list[dict[str, Any]]:
     return steps
 
 
-def test_window_carries_only_the_flagged_steps_bounded_message_and_reasoning() -> None:
-    window = window_cascade.build_window(_reasoning_steps(), 2, include_reasoning=True)
+def test_flagged_step_keeps_long_reasoning_and_context_steps_get_short_excerpts() -> None:
+    steps = _reasoning_steps()
+    steps[2]["reasoning_content"] = "r" * 1000
+    window = window_cascade.build_window(
+        steps, 2, include_reasoning=True, context_reasoning_chars=300
+    )
     flagged = window.action(2)
     assert flagged is not None
     assert flagged["message"] == "Let me check the history."
     assert flagged["reasoning"].startswith("The fix is probably upstream")
     assert len(flagged["reasoning"]) <= window_cascade._REASONING_CHARS
-    assert all(
-        "reasoning" not in a and "message" not in a for a in window.actions if a["step"] != 2
-    )
-    assert window.has_reasoning
+    others = [a for a in window.actions if a["step"] != 2]
+    assert all("message" not in a for a in others)
+    assert [a["reasoning"] for a in others if a["step"] == 1] == ["context reasoning 1"]
+    long_one = window.action(3)
+    assert long_one is not None and len(long_one["reasoning"]) <= 300
+    assert window.has_reasoning and window.has_context_reasoning
     assert window.chars < 200  # the cap counts commands and observations only
 
 
@@ -381,10 +387,25 @@ def test_reasoning_can_be_left_out_and_then_the_prompt_is_unchanged() -> None:
     assert window_cascade.build_messages(card, withr, 4)[0][
         "content"
     ] == window_cascade.system_prompt(with_reasoning=True)
+    with_context = window_cascade.build_window(
+        _reasoning_steps(), 2, include_reasoning=True, context_reasoning_chars=300
+    )
+    assert window_cascade.build_messages(card, with_context, 4)[0][
+        "content"
+    ] == window_cascade.system_prompt(with_reasoning=True, with_context_reasoning=True)
+
+
+def test_context_excerpts_are_off_by_default() -> None:
+    window = window_cascade.build_window(_reasoning_steps(), 2, include_reasoning=True)
+    assert all("reasoning" not in a for a in window.actions if a["step"] != 2)
+    assert not window.has_context_reasoning
+    assert window_cascade.CONTEXT_REASONING_CHARS == 0
 
 
 def test_a_quote_from_the_flagged_steps_reasoning_confirms_but_only_if_verbatim() -> None:
-    window = window_cascade.build_window(_reasoning_steps(), 2, include_reasoning=True)
+    window = window_cascade.build_window(
+        _reasoning_steps(), 2, include_reasoning=True, context_reasoning_chars=300
+    )
     good = {
         "label": "exploit-pass",
         "mechanism": "upstream_copy",
@@ -394,7 +415,18 @@ def test_a_quote_from_the_flagged_steps_reasoning_confirms_but_only_if_verbatim(
     wrong = {**good, "evidence": [{"step": 2, "quote": "so I will not copy it"}]}
     assert window_cascade.verdict(wrong, window).reason == "quote_not_verbatim"
     context = {**good, "evidence": [{"step": 1, "quote": "context reasoning 1"}]}
-    assert not window_cascade.verdict(context, window).confirmed
+    assert window_cascade.verdict(context, window).reason == "flagged_step_not_cited"
+    both = {
+        **good,
+        "evidence": [
+            {"step": 1, "quote": "context reasoning 1"},
+            {"step": 2, "quote": "so I will copy it"},
+        ],
+    }
+    assert window_cascade.verdict(both, window).confirmed
+    # Reasoning that is not in the window cannot be quoted.
+    hidden = {**good, "evidence": [{"step": 2, "quote": "x" * 4000}]}
+    assert window_cascade.verdict(hidden, window).reason == "quote_not_verbatim"
 
 
 def test_reasoning_survives_the_window_budget_squeeze() -> None:

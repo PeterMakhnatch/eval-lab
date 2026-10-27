@@ -6370,9 +6370,10 @@ def scan_trace(
     watched_prefixes: Sequence[str] = (),
     trial_dir: Path | None = None,
     structural_context: Mapping[str, Any] | None = None,
+    qc_policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Offline tripwires over a finished trace (prefix rules + whole-trace)."""
-    return _scan(
+    """Offline tripwires; an optional frozen QC policy only demotes alert tiers."""
+    report = _scan(
         agent_steps,
         whole_trace=True,
         steps=steps,
@@ -6384,6 +6385,11 @@ def scan_trace(
         trial_dir=trial_dir,
         structural_context=structural_context,
     )
+    if qc_policy is not None:
+        from evallab.hackbook.qc import apply_qc_policy
+
+        return apply_qc_policy(report, qc_policy)
+    return report
 
 
 #: Severity per tripwire rule in ``qa.finding/v1`` findings.
@@ -6456,7 +6462,10 @@ def to_findings(
     verdict_rules = {rule.id for rule in _HACKBOOK_RULE_TABLE if rule.eligibility == "verdict"}
     first_by_rule: dict[str, dict[str, Any]] = {}
     for hit in report.get("hackbook") or []:
-        if hit.get("rule") in verdict_rules:
+        if (
+            hit.get("rule") in verdict_rules
+            and hit.get("eligibility", "verdict") == "verdict"
+        ):
             first_by_rule.setdefault(hit["rule"], hit)
     for rule_id, hit in first_by_rule.items():
         summary = (

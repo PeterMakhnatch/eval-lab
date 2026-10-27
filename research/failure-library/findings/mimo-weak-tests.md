@@ -1,0 +1,12 @@
+# mimo-weak-tests
+
+Rebuild: `uv run evallab failures ingest mimo-weak-tests`.
+
+- Source: `research/answer-keys/mimo-weak-tests-v2.1`, the retained positive-only, instruction-adjudicated weak-test catalogue. Its **114 supported tasks have 242 complete witness patches**: 79 block subsets and 163 line mutants; each witness is one finding.
+- Dataset/task pin: [FineEnvs/MiMo-V2.6-RL-harbor-code](https://huggingface.co/datasets/FineEnvs/MiMo-V2.6-RL-harbor-code) revision **5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785**, material digest `sha256:892a58265a97f24ebbd9f9fcbc36b9983771544e45bbc6327f75c3a315fc8923`. Lineage: XiaomiMiMo/MiMo-V2.6-RL-oss revision `639865fd3374018d6cb29b9fb82dd531406fcf5f`.
+- Input SHA-256: `items.jsonl` = `3f08c256ccefffb2b106bb34b9501ff71d53fb566c585d3fb96e1dae9a6121b3`; `atlas.jsonl` = `84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450`; `findings-supported-v2.1.jsonl` = `12aaa0f0f14f8aba088ad62576e693729ba002145b0f8feb659c7486fc2c176a`.
+- Count/tier: **242 V3_executed findings on 114 tasks**, based on actual retained grade logs, not the word `verified` or the mere existence of a patch. Intake hash-checks every complete patch and cited raw grade log, then checks the exact LF-addressed full=1, no-op=0, witness=1 scored return-code-zero control headers. Bare terminal carriage returns are not counted as new source lines.
+- Logs are preserved read-only at `<state>/raw/mimo-weak-tests/5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785/grades/<sha256>.log`; `state://` evidence references resolve from the configured Failure Library state root. Missing logs yield `static_finding` / V0 instead; digest/control mismatches are errors. No fresh task replay or repaired-grader certification is claimed.
+- Mapping: required behavior escaping the verifier → **TS01**, `wrong_pass`. Locator is the original `mimo-weak-tests-v2.1:<task>:<witness>` finding ID. Package digests remain exact. The bounded 1,000-character synopsis may abbreviate a long rationale; its complete version remains at the source atlas witness locator.
+- Existing key splits are copied unchanged: **102 DEV / 140 TEST findings**. Source-selected TEST is not a claim of unseen evaluation data; cross-key DEV admission is separate. No new split rule is applied.
+- License: MiMo dataset **Apache-2.0**, with its existing NOTICE and original MiMo notice; witness code and patch context retain each upstream project's license. No raw logs or task instructions are committed here.

@@ -932,6 +932,38 @@ same opt-in settings as `task_quality_reader`, `task_quality_audit_retriever`,
 and `task_quality_audit_source_digest`; constructing a runtime never enables
 model calls implicitly.
 
+For paired defensive retrieval studies,
+`evallab.production.tq_fixture.build_task_quality_fixture` publishes a **new**
+SQLite fixture and returns per-row source/hash provenance. Supply a pinned
+snapshot hash, the canonical `CorpusRegistry`, explicit task IDs and a
+`FixtureIssue` loader. Every identity must clear DEV admission, permanent seals
+and TEST assignments in **all** keys before the loader or content projection
+runs. The existing read-only actor projector handles relational copying;
+explicit legacy support defaults only missing trust fields to provisional/empty,
+never changes the source schema, and rejects other drift. The fixture replaces
+inherited issues with the supplied source labels and reduces traces to one
+bounded failed-run diagnostic per task, without scripts or raw actions.
+Before publication a second fresh canonical projection removes excluded bytes
+from SQLite free pages and FTS segments as well as from live rows.
+
+The fixture does not promote source status/trust or invent missing repairs.
+Confirmed issues can carry a source-labelled explanation and genuine retained
+original-to-repaired grader diffs in `metadata_json.task_quality_evidence`.
+Retrieval verifies the full diff's SHA-256 before showing at most 2,000 characters,
+preserving newlines and recording both full and displayed digests. File-manifest
+digests bind the original/repaired input files; they are not model-output
+attestations or new control qualifications. Native-to-fixed-port diffs remain
+distinguished from native repairs. The context also records the source locator,
+label digest, trust tier, and an explicit reason when no repair is retained.
+
+For MiMo source views, the existing static decoder
+`evallab.task_lint._build_env_scripts` retains archive-member names alongside
+shell text. Its optional `select` predicate and `file_cap` apply before member
+body reads. A defensive reader can expose only bounded verifier commands while
+excluding solution/golden paths, preserving the native patch and recording the
+decoded view's origin/hash. Decoding never extracts or executes archive files;
+the lint consumer still receives the same shell text as before.
+
 A configured `repair_callback` can revise a grader after a **measured failed**
 nine-control check, exactly once. `TracebackGraderRepair` adapts an existing
 model transport; `repair_grader_path` selects one existing grader file under

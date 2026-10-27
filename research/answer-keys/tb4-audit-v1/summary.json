@@ -366,6 +366,7 @@
         "seeker-gym-v0-test-touch-20261021"
       ],
       "cad-model": [
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tripwires-inherited-tb4-dev-inspection-20261024",
         "tw-p1-evaluator-schema-peek-20261024"
       ],
@@ -409,6 +410,7 @@
         "tr1-legacy8-frozen-once-20261021"
       ],
       "distributed-dedup": [
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tr1-dev-census-calibration-20261021",
         "tr1-historical-eight-inspection-20261021",
         "tripwires-inherited-tb4-dev-inspection-20261024",
@@ -426,6 +428,8 @@
       "fin-saccr-rwa": [
         "breaker-rediscovery-pilot",
         "oq4-tq-augment-v1-dev-tuning-20261026",
+        "oq5-tq-retrieval-dev-ab-tuning-20261027",
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "ref-subset-tb4-39-sweep",
         "tripwires-inherited-tb4-dev-inspection-20261024",
         "tw-p1-evaluator-schema-peek-20261024"
@@ -451,9 +455,11 @@
         "tripwires-inherited-tb4-dev-inspection-20261024"
       ],
       "freecad-platform-drawing": [
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tripwires-inherited-tb4-dev-inspection-20261024"
       ],
       "freecad-spring-clip": [
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tripwires-inherited-tb4-dev-inspection-20261024",
         "tripwires-v4-inherited-tune-boundary-20261024"
       ],
@@ -468,11 +474,14 @@
         "ref-subset-tb4-39-sweep"
       ],
       "gsea-proteomics": [
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tripwires-inherited-tb4-dev-inspection-20261024",
         "tripwires-v4-inherited-tune-boundary-20261024"
       ],
       "heat-pump-warranty": [
         "oq4-tq-augment-v1-dev-tuning-20261026",
+        "oq5-tq-retrieval-dev-ab-tuning-20261027",
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tripwires-inherited-tb4-dev-inspection-20261024",
         "tripwires-v4-inherited-tune-boundary-20261024"
       ],
@@ -485,6 +494,8 @@
       ],
       "html-js-filter": [
         "oq4-tq-augment-v1-dev-tuning-20261026",
+        "oq5-tq-retrieval-dev-ab-tuning-20261027",
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tripwires-inherited-tb4-dev-inspection-20261024"
       ],
       "interleaved-vigenere": [
@@ -496,6 +507,7 @@
         "ref-subset-tb4-39-sweep"
       ],
       "jax-speedrun-gpu": [
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "ref-subset-tb4-39-sweep",
         "tripwires-inherited-tb4-dev-inspection-20261024",
         "tripwires-v4-inherited-tune-boundary-20261024"
@@ -522,6 +534,7 @@
         "ref-subset-tb4-39-sweep"
       ],
       "layout-config-recreation2": [
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tripwires-inherited-tb4-dev-inspection-20261024"
       ],
       "legacy-utility-triage": [
@@ -579,6 +592,8 @@
       ],
       "photonic-waveguide-routing": [
         "oq4-tq-augment-v1-dev-tuning-20261026",
+        "oq5-tq-retrieval-dev-ab-tuning-20261027",
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tripwires-inherited-tb4-dev-inspection-20261024",
         "tripwires-v4-inherited-tune-boundary-20261024"
       ],
@@ -613,6 +628,7 @@
         "qa-env-audit-v2-muse-test-20261021"
       ],
       "satb-audio-transcription": [
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tripwires-inherited-tb4-dev-inspection-20261024",
         "tripwires-v4-inherited-tune-boundary-20261024"
       ],
@@ -660,6 +676,7 @@
         "tripwires-v4-inherited-tune-boundary-20261024"
       ],
       "vba-userform-port": [
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "tripwires-inherited-tb4-dev-inspection-20261024",
         "tripwires-v4-inherited-tune-boundary-20261024"
       ],
@@ -677,6 +694,7 @@
         "qa-env-audit-v2-muse-test-20261021"
       ],
       "vpp-loss-divergence": [
+        "oq5-tq-retrieval-dev-registry-inspection-20261027",
         "ref-subset-tb4-39-sweep",
         "tripwires-inherited-tb4-dev-inspection-20261024"
       ],

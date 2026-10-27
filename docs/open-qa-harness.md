@@ -86,6 +86,50 @@ a fix pattern, and examples labelled `executed` / `observed` / `claimed`.
   receipt table overcounts examples; `evallab hackbook coverage` is the
   live count. Verifier verdicts: `status-0800.md` rows 1–6.
 
+### Compact, on-demand playbook cards
+
+`evallab.hackbook.playbook_cards` packages twelve defensive diagnosis/repair
+cards: six Task-QA/Reward-Seeker cards (`QA01`–`QA06`) and six Trace-Watcher
+cards (`TW01`–`TW06`). It reads no trace database and makes no model calls.
+This static mechanism library complements the Cloud Trace DB's compact
+evidence-instance cards; it does not replace their provenance or expansion.
+
+```bash
+.venv/bin/evallab hackbook cards                       # brief index, not all card bodies
+.venv/bin/evallab hackbook cards --flag git_history_peek --kind trace
+.venv/bin/evallab hackbook cards --flag test_or_grader_edit --flag test_exclusion_flag --json
+```
+
+```python
+from evallab.hackbook.playbook_cards import match_playbook_cards, format_playbook_cards
+
+fired = [name for name, state in flags["features"].items() if state["fired"]]
+cards = match_playbook_cards(fired, kind="trace", max_cards=2)
+card_text = format_playbook_cards(cards)
+```
+
+Matching ranks distinct fired-flag overlap, then card ID; unknown flags
+produce no fallback. Pass fired names, not a state mapping with false keys.
+`kind="task"` selects both Task QA and Reward Seeker. The default is at most
+two matched cards; `list_playbook_cards()` explicitly returns the full catalog.
+Without flags, the CLI prints only an index; `--json` explicitly requests the
+catalog objects. With flags, it emits only selected cards.
+
+The formatter joins compact card JSON only (empty text for no matches).
+Prepend the existing observed trace-feature index separately: the measured
+~211-token median progressive-disclosure bundle included that index, not just
+the cards. Each complete v1 card measured 70–90 `o200k_base` tokens using
+`tiktoken==0.12.0`; runtime adds no tokenizer dependency or universal token cap.
+Fetch cited step windows only on demand, using the same observed prefix and
+zero-based supplied-sequence positions as the index.
+
+DEV distillation on 2026-10-27 covered 72/72 confirmed Tier-1/Tier-2 issue rows
+and 1,607/1,609 Tier-2 Goodfire exploit-labeled runs by mechanism category.
+These are overlapping, in-sample content supports, **not detector precision
+or recall**. `label:*` triggers (TW04) and `issue:*` triggers (QA05) are offline
+evidence tags, not invented live feature detectors. Flags and cards remain
+leads, never cheating verdicts; missing receipts can mean incomplete capture.
+
 ## 2. Task QA harness — `qa env` (v2) and `qa task`
 
 What it is: an agent that audits a task for defects — reads the task and

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.petermakhnatch.evallab.run-atlas-watch</string>
+	<!-- Render absolute paths before installation, like results-viewer:
+	     __EVALLAB__ is the installed release's venv/bin/evallab; __WORKDIR__
+	     is that immutable release; __HOME__ supplies omp's executable path;
+	     __LOG_DIR__ must already exist. Do not load this unrendered template.
+	     Loading starts subscription-backed extraction; installation is explicit. -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>__EVALLAB__</string>
+		<string>atlas</string>
+		<string>watch</string>
+		<string>--interval</string>
+		<string>300</string>
+		<string>--max-per-cycle</string>
+		<string>25</string>
+		<string>--max-tokens-per-day</string>
+		<string>250000</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__WORKDIR__</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>ProcessType</key>
+	<string>Standard</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>__LOG_DIR__/run-atlas-watch.out</string>
+	<key>StandardErrorPath</key>
+	<string>__LOG_DIR__/run-atlas-watch.err</string>
+</dict>
+</plist>

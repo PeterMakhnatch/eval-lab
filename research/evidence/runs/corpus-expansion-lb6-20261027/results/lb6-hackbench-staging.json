@@ -1,0 +1,255 @@
+{
+ "adapter_selfcheck": {
+  "agent_steps_command_layout": 81184,
+  "agent_steps_turn_layout": 51901,
+  "commands": 60541,
+  "gold_command_text_equal_or_contained": [
+   1312,
+   1312
+  ],
+  "gold_command_text_equals_hack_command": [
+   1312,
+   1312
+  ],
+  "gold_turns": 1265,
+  "issues": [],
+  "rows": 169
+ },
+ "derived_files": {
+  "CROSS_TEST_ONLY.md": {
+   "sha256": "af320f3f1e72a0e12865bed972a2f0e9a2e152e5a4a08dd444711797683b54d0"
+  },
+  "gold_labels.json": {
+   "bytes": 83563,
+   "content": "id, task, origin, hack_type, model, command_count, gold_command_indices, transcript_chars, raw_transcript_sha256; no text",
+   "sha256": "fc6ca0d3d1fd58326cb86a09fc9c6d70632fc099dfa7d024a77a7f78e0138e69"
+  }
+ },
+ "digests": {
+  ".gitattributes": {
+   "bytes": 2586,
+   "git_blob_sha1": "4030271851b0e7764fd603c9941753dbf5bff82d",
+   "matches_MANIFEST": true,
+   "matches_SHA256SUMS": true,
+   "matches_hub_blob_id": true,
+   "sha256": "ca92a31ccda29044af766f2e249454d37b1cf6e8ee4ac0e4aa47d68facc29359"
+  },
+  "MANIFEST.json": {
+   "bytes": 4180,
+   "git_blob_sha1": "1cc31565dfdfff9f60e74ee36e8f7d95b6af2739",
+   "matches_SHA256SUMS": true,
+   "matches_hub_blob_id": true,
+   "sha256": "8af0bbc4564418e55f266a236401d76bac4a9c0368e556f951a9fb118e0573e6"
+  },
+  "README.md": {
+   "bytes": 6170,
+   "git_blob_sha1": "659b1df2aaed430af7d01ac14168b720dbf120e5",
+   "matches_MANIFEST": false,
+   "matches_SHA256SUMS": false,
+   "matches_hub_blob_id": true,
+   "sha256": "6876fc20e8a67ab0dc126678846cde303fee64b958531446a31e067ea4327921"
+  },
+  "SHA256SUMS": {
+   "bytes": 443,
+   "git_blob_sha1": "25b0451e68b2bac365cab08eeb8d6e5580a9872b",
+   "matches_hub_blob_id": true,
+   "sha256": "1f67847133f7f2f160a872e363c177d4f383c891da3ccae18b966e2cea4fe008"
+  },
+  "data/hackbench_169_gpt55_glm52.numbered.jsonl": {
+   "bytes": 408528473,
+   "matches_MANIFEST": true,
+   "matches_SHA256SUMS": true,
+   "matches_expected_bytes": true,
+   "matches_hub_lfs_sha256": true,
+   "sha256": "42c0cfa4a3dc822eb6505fbcc58989c5df5dcf509cc4a97338abbb38c7e9fd87"
+  },
+  "schemas/example.schema.json": {
+   "bytes": 3681,
+   "git_blob_sha1": "e5de0295a2a46b8a661ac98e6b94f83acbd9ede4",
+   "matches_MANIFEST": true,
+   "matches_MANIFEST_schema_sha256": true,
+   "matches_SHA256SUMS": true,
+   "matches_hub_blob_id": true,
+   "sha256": "2e351645dedda1329314123f0f05c9f03141c73316bd618c6d37b8beed102b49"
+  }
+ },
+ "gold_command_text_length_chars": {
+  "n": 1312,
+  "natural_quantiles": {
+   "max": 9344,
+   "median": 1542.0,
+   "min": 18,
+   "p25": 933,
+   "p75": 1862
+  },
+  "note": "window_cascade.py v7 clips a flagged command to 1,200 characters (head 60% / tail 40%) and a context command to 500; a hack in the middle of a long heredoc can fall inside the clip",
+  "quantiles": {
+   "max": 9756,
+   "median": 1121.5,
+   "min": 18,
+   "p25": 885,
+   "p75": 1937
+  },
+  "share_over_1200_chars_flagged_command_clip": 0.469,
+  "share_over_500_chars_context_command_clip": 0.896,
+  "share_over_9000_chars_window_cap": 0.002,
+  "synthetic_quantiles": {
+   "max": 9756,
+   "median": 928.0,
+   "min": 18,
+   "p25": 296,
+   "p75": 2144
+  }
+ },
+ "item": "LB-6",
+ "license": "CC BY-NC 4.0; gate terms: no model training, no rehosting (Peter accepted; eval-only, local-only)",
+ "manifest_checks": {
+  "command_counts_equal_manifest": true,
+  "distinct_raw_equal_manifest": true,
+  "gold_total_equal_manifest": true,
+  "models_equal_manifest": true,
+  "origins_equal_manifest": true,
+  "rows_equal_manifest": true,
+  "tasks_equal_manifest": true
+ },
+ "overlap_audit": {
+  "corpus_tasks_rows_whose_task_id_or_native_task_name_matches_the_13_hackbench_tasks": 0,
+  "method": "read-only aggregate COUNT on the production database; no task text read"
+ },
+ "profile": {
+  "agents": {
+   "terminus-2 2.0.0": 169
+  },
+  "by_origin": {
+   "natural": {
+    "command_blocks": 13116,
+    "gold_commands": 1010,
+    "rows": 41
+   },
+   "synthetic": {
+    "command_blocks": 47425,
+    "gold_commands": 302,
+    "rows": 128
+   }
+  },
+  "command_block_kinds": {
+   "bash_command": 27588,
+   "command": 28566,
+   "mark_task_complete": 4387
+  },
+  "command_blocks_total": 60541,
+  "commands_per_trajectory": {
+   "max": 1901,
+   "median": 264,
+   "min": 22,
+   "p25": 93,
+   "p75": 364
+  },
+  "distinct_ids": 169,
+  "distinct_raw_transcripts": 166,
+  "first_gold_index": {
+   "max": 1235,
+   "median": 123,
+   "min": 14,
+   "p25": 43,
+   "p75": 199
+  },
+  "gold_block_kinds": {
+   "bash_command": 44,
+   "command": 1268
+  },
+  "gold_commands_total": 1312,
+  "gold_density": 0.0217,
+  "gold_per_trajectory": {
+   "max": 383,
+   "median": 1,
+   "min": 1,
+   "p25": 1,
+   "p75": 3
+  },
+  "hack_types": {
+   "general": 81,
+   "task-specific": 88
+  },
+  "ids_sha256": "398b7106861255a929bf8a5d43a2a4fbf3799aa39966ac72770ce3e47fd6fb1a",
+  "models": {
+   "GLM-5.2": 67,
+   "GPT-5.5": 102
+  },
+  "origin_x_hack_type": {
+   "natural/general": 41,
+   "synthetic/general": 40,
+   "synthetic/task-specific": 88
+  },
+  "origins": {
+   "natural": 41,
+   "synthetic": 128
+  },
+  "rows": 169,
+  "structural_problems": [],
+  "tasks": {
+   "continual-learning": 7,
+   "cross-modal-retrieval": 15,
+   "data_select_ifeval": 11,
+   "flux2_klein_lora": 13,
+   "grpo_multisource": 6,
+   "improving-replay-buffers": 37,
+   "llm_online_serving": 6,
+   "materials-tokenization": 9,
+   "moving_mnist_world_model": 13,
+   "multilingual_ocr": 25,
+   "scaling_law": 8,
+   "time-series-explanation": 14,
+   "w2s": 5
+  },
+  "transcript_chars": {
+   "max": 3828982,
+   "median": 1059641,
+   "min": 66181,
+   "p25": 573136,
+   "p75": 1232442
+  }
+ },
+ "publisher_digest_anomaly": "README.md at the pinned revision does not match its entry in SHA256SUMS or MANIFEST.json (6876fc20... vs 13839715...). The download is intact: its Git blob SHA-1 equals the Hub's blobId. The publisher's digest list is stale for README.md only; the data file, schema, MANIFEST.json and .gitattributes all match.",
+ "smoke": {
+  "all_flagged_steps_known": true,
+  "commands_layout_steps_ingested_without_error": true,
+  "rows": 3,
+  "scores_recorded": false,
+  "why_no_scores": "the cross-test belongs to the lane that owns the frozen cascade; no recall figure was computed or recorded here",
+  "worker": "MisalignmentLiveWorker, Stage 1 only, no judge"
+ },
+ "source": "facebook/hackbench@b3d6f678e6359dcd35e20f3f2c5ee085b5af4934",
+ "staged_at_et": "2026-10-27 4:09 PM to 4:15 PM ET (download 4:09, digests and labels by 4:15)",
+ "staging_dir_pattern": "~/.local/state/evallab-cross-test/meta-hackbench/<revision[:12]>/  (outside every git checkout, the production database and the content store)",
+ "turn_structure": {
+  "assistant_turns_with_commands": 31258,
+  "commands_per_turn_distribution": {
+   "1": 17916,
+   "2": 4443,
+   "3": 3335,
+   "4": 4349,
+   "5": 991,
+   "6": 191,
+   "7": 28,
+   "8": 4,
+   "9": 1
+  },
+  "gold_commands_in_single_command_turns": 201,
+  "gold_on_mark_task_complete": 0,
+  "gold_turns": 1265,
+  "gold_turns_where_gold_is_a_proper_subset_of_the_turn": 1037,
+  "gold_turns_with_several_commands": 1064,
+  "mark_task_complete_blocks": 4387,
+  "note": "kernel-derived with an independent regex; agrees with adapter_selfcheck.gold_turns",
+  "rows_with_reasoning_segments": 67,
+  "segment_tags": {
+   "CMD": 60541,
+   "assistant": 51789,
+   "observation": 36765,
+   "reasoning": 8041,
+   "tool_result": 15085
+  },
+  "trajectories_with_exactly_one_gold_turn": 108
+ }
+}

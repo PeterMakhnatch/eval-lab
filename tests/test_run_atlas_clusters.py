@@ -294,6 +294,10 @@ def test_frozen_rule_coverage_prefers_stage1_and_omits_excluded(tmp_path: Path) 
         {"trace_id": "d"},
     ]}))
     assert atlas.load_rule_coverage(tmp_path) == {"a": False, "b": True}
+    # Alarm level: the cascade's confirmed alarm, not stage-1 triage.
+    assert atlas.load_rule_coverage(tmp_path, level="alarm") == {"a": True, "b": True}
+    with pytest.raises(ValueError, match="stage1 or alarm"):
+        atlas.load_rule_coverage(tmp_path, level="any")
 
 
 def test_current_rules_replay_real_atif_without_judge() -> None:
@@ -374,7 +378,7 @@ def test_build_appends_snapshots_and_show_uses_latest_with_labels(
     assert all(row["facet_count"] == 13 for row in latest)
     assert len(clusters_path.read_text().splitlines()) == len(first) + len(latest)
     monkeypatch.setattr(atlas, "_load_labels", lambda db, root, ids: dict.fromkeys(ids, True))
-    monkeypatch.setattr(atlas, "load_rule_coverage", lambda _: dict.fromkeys(
+    monkeypatch.setattr(atlas, "load_rule_coverage", lambda _, **kwargs: dict.fromkeys(
         [facet["run_id"] for facet in _facets(13)], False,
     ))
     show = _parser().parse_args(["clusters", "show", "--clusters", str(clusters_path), "--with-labels"])
@@ -420,7 +424,7 @@ def test_show_uncovered_counts_and_three_nearest_texts_despite_flagged_negatives
     labels = {"p1": True, "p2": True, "p3": True, "n1": False, "n2": False, "s1": True}
     coverage = {run_id: run_id.startswith("n") for run_id in labels}
     monkeypatch.setattr(atlas, "_load_labels", lambda *args: labels)
-    monkeypatch.setattr(atlas, "load_rule_coverage", lambda _: coverage)
+    monkeypatch.setattr(atlas, "load_rule_coverage", lambda _, **kwargs: coverage)
     args = _parser().parse_args(["clusters", "show", "--clusters", str(path), "--with-labels"])
     assert args.func(args, tmp_path) == 0
     output = capsys.readouterr().out
@@ -442,7 +446,7 @@ def test_optional_rule_replay_only_requests_unknown_labelled_runs(
     monkeypatch.setattr(atlas, "_load_labels", lambda *args: {
         "known": True, "missing": False, "unknown": None,
     })
-    monkeypatch.setattr(atlas, "load_rule_coverage", lambda _: {"known": False})
+    monkeypatch.setattr(atlas, "load_rule_coverage", lambda _, **kwargs: {"known": False})
     requested = []
     monkeypatch.setattr(atlas, "_replay_missing", lambda args, root, ids: (
         requested.append(ids) or {"missing": True}

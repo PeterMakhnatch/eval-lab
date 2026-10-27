@@ -284,8 +284,12 @@ def load_clusters(path: Path = DEFAULT_CLUSTERS) -> list[Cluster]:
     return latest
 
 
-def load_rule_coverage(cm6_dir: Path = DEFAULT_CM6) -> dict[str, bool]:
-    """Frozen CM-6 stage-1 hits, falling back to alarmed for older score files."""
+def load_rule_coverage(cm6_dir: Path = DEFAULT_CM6, *, level: str = "stage1") -> dict[str, bool]:
+    """Frozen CM-6 coverage: ``stage1`` = any stage-1 rule fired; ``alarm`` = the
+    cascade raised an alarm (rule plus confirmation). Stage-1 falls back to the
+    alarm for older score files that lack ``stage1_any``."""
+    if level not in ("stage1", "alarm"):
+        raise ValueError("coverage level must be stage1 or alarm")
     hits = {}
     for name in ("e2escore-goodfire-pf_r.json", "e2escore-cheatbench-pf_r.json"):
         path = cm6_dir / name
@@ -294,7 +298,7 @@ def load_rule_coverage(cm6_dir: Path = DEFAULT_CM6) -> dict[str, bool]:
         for row in json.loads(path.read_text(encoding="utf-8")).get("traces", []):
             if row.get("excluded"):
                 continue
-            value = row.get("stage1_any")
+            value = row.get("stage1_any") if level == "stage1" else row.get("alarmed")
             if not isinstance(value, bool):
                 value = row.get("alarmed")
             if isinstance(value, bool):
@@ -509,8 +513,8 @@ def _show_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -
     if args.with_labels:
         ids = {run_id for cluster in clusters for run_id in cluster["run_ids"]}
         labels = _load_labels(args.database, root, ids)
-        coverage = load_rule_coverage(args.cm6_dir)
-        if args.replay_rules:
+        coverage = load_rule_coverage(args.cm6_dir, level=args.coverage)
+        if args.replay_rules and args.coverage == "stage1":
             missing = {run_id for run_id, value in labels.items()
                        if isinstance(value, bool) and run_id not in coverage}
             if missing:
@@ -546,7 +550,9 @@ def _show_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -
                 print(f"    {text}")
         if not uncovered:
             print("  none meeting the thresholds with known positive coverage")
-        if not args.replay_rules:
+        if args.coverage == "alarm":
+            print("Rule coverage: frozen CM-6 cascade alarms; runs outside that cohort are unknown.")
+        elif not args.replay_rules:
             print("Rule coverage: frozen CM-6 only; --replay-rules scans other DEV runs (may be slow).")
     return 0
 
@@ -578,6 +584,8 @@ def add_clusters_parser(actions: Any) -> None:
     show.add_argument("--with-labels", action="store_true")
     show.add_argument("--database", type=Path, default=run_atlas.DEFAULT_DATABASE)
     show.add_argument("--cm6-dir", type=Path, default=DEFAULT_CM6)
+    show.add_argument("--coverage", choices=("stage1", "alarm"), default="stage1",
+                      help="stage1: any current stage-1 rule fired; alarm: the cascade alarmed (CM-6 cohort)")
     show.add_argument("--replay-rules", action="store_true",
                       help="With labels, scan missing current-rule coverage without a model (may be slow)")
     show.add_argument("--results-root", type=Path, help="Published CheatBench trajectories for rule replay")

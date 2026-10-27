@@ -1516,7 +1516,6 @@ changes. Neither endpoint calls a model, reads a label, or writes anything.
 
 - The dashboard's **Run Atlas** tab shows store health, the recorded cluster tree,
   facet filters and paged DEV runs, with in-page evidence, trace flags and playbook cards.
-
 - `facets-v1.jsonl` -- one `run-facets/v1` JSON object per line (contract: the Wave 6
   `CONTRACT.md` §3). `run_id` is `agent_traces.trace_id`: the database's `run_id`
   column is shared by many traces and is never used to look a run up. A line that is

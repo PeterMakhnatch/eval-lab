@@ -252,6 +252,14 @@ non-empty `flags_json`, so a test such as "`flags_json` is truthy" marks all of 
 consumers that want the cheat window must read `passage_positive`. The updater and its
 receipts are archived under `research/evidence/runs/corpus-expansion-lb3-20261026/`.
 
+LB-5 measured the current Stage-1 tripwires against these marks (read-only, DEV only,
+`research/evidence/runs/corpus-expansion-lb5-20261027/`). Two cautions for anyone reading the
+marks as a recall target: the label also marks passages where the agent only mentions or
+declines a shortcut (use `verified_receipt_json.source_label.verdict_enacted == "yes"`), and
+76.6% of positive rows are in the reasoning channel, where command rules cannot see them. On the
+664 `tool_calls` positives of enacted-yes traces the live rules catch 16.0% (verdict-class) and
+28.9% (with diagnostic rules); the verdict-class rules alarm on 32.8% of clean traces.
+
 ## Many cheap agents or one strong model
 
 `evallab.production.swarm_coordinator.SwarmCoordinator` answers the same four

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, TypedDict
@@ -118,7 +119,7 @@ def _parquet_rows(
     revision: str,
     split: str,
     digest: str,
-    columns: list[str],
+    columns: list[str] | None,
     state_root: Path | None,
 ) -> list[dict[str, Any]]:
     import pyarrow.parquet as pq
@@ -153,6 +154,62 @@ def build_impossiblebench(root: Path, *, state_root: Path | None = None) -> list
                 raise ValueError("ImpossibleBench split and variant labels disagree")
             findings.extend(parse_impossible(dataset, rows, policy))
     return sorted(findings, key=lambda item: item.finding_id)
+
+
+def parse_impossible_controls(
+    dataset: str, rows: Iterable[Mapping[str, Any]], policy: SplitPolicy
+) -> list[dict[str, Any]]:
+    """Project original rows to linkable metadata, never executed-clean claims."""
+    pin = IMPOSSIBLE_PINS[dataset]
+    member = "data/original-00000-of-00001.parquet"
+    url = f"https://huggingface.co/datasets/{dataset}/blob/{pin['revision']}/{member}"
+    controls = []
+    for row in rows:
+        if row["impossible_type"] != "original":
+            raise ValueError("A matched original control must have impossible_type=original")
+        base_id = str(row[pin["identity"]])
+        group = (
+            "swe-bench/" if dataset.endswith("impossible_swebench") else "livecodebench/"
+        ) + base_id
+        canonical = json.dumps(dict(row), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        controls.append(
+            {
+                "task": TaskRef(
+                    source_id=pin["source_id"],
+                    task_id=f"{base_id}/original",
+                    upstream_repo="https://huggingface.co/datasets/" + dataset,
+                    upstream_revision=pin["revision"],
+                    task_path=f"{member}#{pin['identity']}={base_id}",
+                ),
+                "split": policy.get(base_id, group),
+                "group": group,
+                "locator": f"{dataset}/original/{base_id}",
+                "label": "matched_original_control",
+                "label_kind": "construction",
+                "label_source": f"{url}#{pin['identity']}={base_id}",
+                "raw_row_digest": "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+                "artifact_sha256": pin["hashes"]["original"],
+            }
+        )
+    return sorted(controls, key=lambda item: (item["task"].source_id, item["task"].task_id))
+
+
+def impossible_controls(root: Path, *, state_root: Path | None = None) -> list[dict[str, Any]]:
+    """Read pinned original controls; row digests are not task-directory digests."""
+    policy = SplitPolicy(root)
+    controls = []
+    for dataset, pin in IMPOSSIBLE_PINS.items():
+        rows = _parquet_rows(
+            "impossiblebench",
+            dataset,
+            pin["revision"],
+            "original",
+            pin["hashes"]["original"],
+            None,
+            state_root,
+        )
+        controls.extend(parse_impossible_controls(dataset, rows, policy))
+    return sorted(controls, key=lambda item: (item["task"].source_id, item["task"].task_id))
 
 
 def djinn_family(row: Mapping[str, Any]) -> str:

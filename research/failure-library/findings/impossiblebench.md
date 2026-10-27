@@ -39,6 +39,8 @@ The **452 `original` rows are controls, not findings**. “Control” means no c
 
 To join a finding to its original: read its pinned dataset's original-control member, match the base ID before the final `/oneoff` or `/conflicting`, and construct control `task_id=<base-id>/original`, `task_path=data/original-00000-of-00001.parquet#<identity-column>=<base-id>` using the **same source_id, upstream_repo and revision**. The control parquet digests above bind the full counted set; no unpinned `latest` lookup is needed. Total controls by split: **DEV 310; TEST 67; heldout 75**.
 
+Programmatic read-only projection: `sources.constructed.impossible_controls(root, state_root=None)` returns the 452 controls with `task: TaskRef`, split, canonical group, source locator, pinned `label_source`, `artifact_sha256`, and `raw_row_digest=sha256(canonical full source-row JSON)`. `label_kind=construction` and `label=matched_original_control` explicitly distinguish these from executed-clean certification. Test/code bodies are not returned. The row digest is separate from `TaskRef.task_version_digest`, which remains null; it must not be mistaken for an Eval Lab task-directory digest.
+
 ## Leakage and runtime limits
 
 Apply existing answer-key bare-task assignments before hashing; reported/cross-test assignments beat DEV. All variants, including controls, use the same base task group: `swe-bench/<instance_id>` or `livecodebench/<task_id>`. New groups use full SHA-256 integer modulo five: zero is heldout, otherwise DEV. Measured finding splits: **DEV 620; TEST 134; heldout 150**. Only DEV feeds knowledge. The three variants are not independent discoveries.

@@ -10,6 +10,7 @@ from evallab.failure_library.sources.constructed import (
     djinn_family,
     parse_djinn,
     parse_impossible,
+    parse_impossible_controls,
 )
 from evallab.failure_library.sources.swe_family import (
     PRO_FIXED_REVISION,
@@ -194,6 +195,35 @@ def test_impossiblebench_does_not_call_original_controls_broken(
     assert all(f.evidence[0].kind == "construction" for f in findings)
     with pytest.raises(ValueError, match="Unknown ImpossibleBench"):
         parse_impossible(dataset, [{identity: "a", "impossible_type": "unrecognized"}], policy)
+
+
+def test_original_control_metadata_is_pinned_and_not_an_executed_clean_claim(
+    policy: SplitPolicy,
+) -> None:
+    dataset = "fjzzq2002/impossible_livecodebench"
+    row = {
+        "task_id": "astropy__astropy-12907",
+        "prompt": "Fixture specification.",
+        "test": "opaque original test source",
+        "original_test": "opaque original test source",
+        "entry_point": "fixture_function",
+        "impossible_type": "original",
+    }
+    (control,) = parse_impossible_controls(dataset, [row], policy)
+    assert control["task"].task_id == "astropy__astropy-12907/original"
+    assert control["task"].task_version_digest is None
+    assert control["task"].upstream_revision
+    assert control["split"] == "TEST"
+    assert control["label_kind"] == "construction"
+    assert control["raw_row_digest"].startswith("sha256:")
+    assert len(control["artifact_sha256"]) == 64
+    assert "original-00000-of-00001.parquet" in control["label_source"]
+    assert "test" not in control
+    (changed,) = parse_impossible_controls(dataset, [{**row, "test": "changed source"}], policy)
+    assert changed["raw_row_digest"] != control["raw_row_digest"]
+    assert changed["split"] == control["split"]
+    with pytest.raises(ValueError, match="impossible_type=original"):
+        parse_impossible_controls(dataset, [{**row, "impossible_type": "oneoff"}], policy)
 
 
 def test_djinn_secure_companion_is_not_a_repair_of_the_insecure_verifier(

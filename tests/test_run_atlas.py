@@ -403,6 +403,66 @@ def test_cloud_doc_uses_native_ids_and_attaches_tools_without_publisher_flags(tm
             assert key not in text and value not in text
 
 
+def test_cloud_doc_drops_off_path_assistant_and_tool_rows_without_renumbering(
+    tmp_path: Path,
+) -> None:
+    off_path_texts = (
+        "OFF_PATH_AGENT_MESSAGE", "OFF_PATH_REASONING", "OFF_PATH_CALL_ARGUMENTS",
+        "OFF_PATH_PREVIEW", "OFF_PATH_TOOL_RESULT", "OFF_PATH_TOOL_PREVIEW",
+    )
+    rows = [
+        ("branching-trace", 3, "user", None, None, "Fix the parser.", None, None, "{}"),
+        (
+            "branching-trace", 9, "assistant", "shell",
+            json.dumps([{"id": "kept-call", "name": "shell", "arguments": "inspect parser"}]),
+            "Kept first action", None, None, json.dumps({"on_final_parent_path": True}),
+        ),
+        (
+            "branching-trace", 20, "assistant", "shell",
+            json.dumps([{
+                "id": "off-path-call", "name": "shell", "arguments": off_path_texts[2],
+            }]),
+            off_path_texts[0], off_path_texts[3], None,
+            json.dumps({"on_final_parent_path": False, "reasoning_content": off_path_texts[1]}),
+        ),
+        (
+            "branching-trace", 21, "tool", "shell", None,
+            off_path_texts[4], off_path_texts[5], None,
+            json.dumps({"on_final_parent_path": False, "tool_call_id": "off-path-call"}),
+        ),
+        (
+            "branching-trace", 22, "tool", "shell", None, "Kept tool result", None, None,
+            json.dumps({"on_final_parent_path": True, "tool_call_id": "kept-call"}),
+        ),
+        (
+            "branching-trace", 50, "assistant", None, None, "Kept final action", None, None,
+            json.dumps({"on_final_parent_path": True}),
+        ),
+    ]
+    with closing(sqlite3.connect(tmp_path / "branching.sqlite")) as connection:
+        connection.row_factory = sqlite3.Row
+        connection.execute("""
+            CREATE TABLE trace_steps (
+                trace_id TEXT NOT NULL, step_index INTEGER NOT NULL CHECK(step_index >= 0),
+                role TEXT NOT NULL, tool_name TEXT, command_or_action TEXT, content_text TEXT,
+                observation_preview TEXT, observation_cas_uri TEXT, flags_json TEXT NOT NULL,
+                PRIMARY KEY(trace_id, step_index)
+            )
+        """)
+        connection.executemany("INSERT INTO trace_steps VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+        doc = atlas.cloud_doc(connection, "branching-trace")
+    assert [step["step_id"] for step in doc["steps"]] == [3, 9, 50]
+    assert doc["steps"][1]["observation"]["results"] == [{"content": "Kept tool result"}]
+    blind = atlas.blind_run(atlas.AtlasRun("branching-trace", "synthetic", "DEV", "unknown", doc))
+    assert blind.origins == [3, 9, 50]
+    rendered = "\n".join(segment.text for segment in atlas.render_segments(blind))
+    for text in (json.dumps(doc), rendered):
+        assert "Kept first action" in text and "Kept final action" in text
+        assert "Kept tool result" in text
+        assert "off-path-call" not in text
+        assert all(off_path not in text for off_path in off_path_texts)
+
+
 def test_extract_single_chunk_calls_once_and_maps_evidence_to_original_ids(
     atlas_run: atlas.AtlasRun,
 ) -> None:

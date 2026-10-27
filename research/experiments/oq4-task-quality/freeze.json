@@ -1,0 +1,99 @@
+{
+  "base_git_commit": "44bdcee6b9f27b6a57eb094dcf1fd1cb40c9afc4",
+  "cross_test": {
+    "attempts_per_cell": 1,
+    "key_id": "tb2-to-tb21-v1",
+    "pairs": 26,
+    "post_test_tuning": false,
+    "split": "test",
+    "subsplit": "pr53_modified",
+    "task_versions": 52
+  },
+  "exposure_id": "oq4-tq-augment-v1-tb2-test-once-20261026",
+  "files": [
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/src/evallab/production/tq_context.py",
+      "sha256": "6d949d64966790cd894b62d054442df7ae9360b27a7b413e8208079967c7b3c7"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/src/evallab/production/tq_worker.py",
+      "sha256": "8e80e458676f035ce1bcd1f86fcbc456ee0b7e6005c6b7d9126832c0296db8e0"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/src/evallab/production/runtime.py",
+      "sha256": "12d9b654869a81ad0a2f1438a9e3ed1b0324d4addff143efafb3205c41dd6acb"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/src/evallab/production/cloud_trace_db.py",
+      "sha256": "2c22694140a88f5ddb51a5f4a35bb67b9e595b8e147d7183b9d6ce58859fcc48"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/src/evallab/production/corpus_queue.py",
+      "sha256": "8f6b7628e28ad366da7d01277c5b258a4d4c58a721c37a0d71ef2899587f6c6a"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/src/evallab/production/swarm_coordinator.py",
+      "sha256": "c0f392a575b21e8957fc6325b621481db30f5460a33fbdf05e8e537456882263"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/src/evallab/production/feeder.py",
+      "sha256": "c29831bc6742d13b230a87e66251a222b92089c26ee5d64f2c165f1bcd9dc195"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/src/evallab/qa/task.py",
+      "sha256": "024ef9af25d250ca9941e16950d460230ae5b49a7d913b07c098560566c44149"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/src/evallab/registry.py",
+      "sha256": "6cc8ca9d64c826e796f88c2073d2e51f2a70d9f325e9775beb1726c6c9c42fda"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/research/experiments/tb2-to-tb21-v1/materialize.py",
+      "sha256": "c89eef9c7e748aa10827d84a3b02f3a6fc22ee9c2942805b7248f23f278bb958"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/oq4-tq-augment-20261026/research/answer-keys/splits/assignments.csv",
+      "sha256": "570f75ad2b7465ef8d6aa94fd7050194bd492812114b0c1d25f81fd03dbbc39b"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-26/oq4-task-quality/study.py",
+      "sha256": "acee3801deb5c4468029c3fe787002cff75396558d22bb19c399bff8b65136cd"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-26/oq4-task-quality/prepare.py",
+      "sha256": "c6acbc391052afdef446a80678103da98a300bc53260c1ca1cd89dc13e85d80d"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-26/oq4-task-quality/cross_prepare.py",
+      "sha256": "c5bfac6ed3bc8a1c08dd8167c85969e49fdcb8b203b1191890c54409fa4c62f5"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-26/oq4-task-quality/aggregate.py",
+      "sha256": "584982e79a1ed2e56aaf1232e1d57ebfbb54d1d84283b343f221cd053969ac4a"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-26/oq4-task-quality/tuning-policy.json",
+      "sha256": "a095c00e66a3bdd44599aac99358dd540449b5bd2e46f5dd33751c8da338bc40"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-26/oq4-task-quality/manifest-dev-audit-v1.json",
+      "sha256": "ff493bb27292589271ae28f2f96023b640c627564f55a958d84f12471ceac93f"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-26/oq4-task-quality/source-integrity.json",
+      "sha256": "8c530e89e6c5caa20b56d4b395043938e37ad16b86a7e143939266ea9e160b7b"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-26/oq4-task-quality/retriever-admission-final.json",
+      "sha256": "0c558cc31cb017c247589025dbc6e074854f489a2481a7bc9d1f241a49b18892"
+    }
+  ],
+  "frozen_at": "2026-10-26T23:49:48.085887+00:00",
+  "protected_test_bodies_read_before_freeze": 0,
+  "report_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-25-systems-and-swarms/oq4-task-quality.md",
+  "schema": "oq4.frozen-evaluation/v1",
+  "selected_dev_stage": "dev-audit-v1",
+  "sha256": "0d1a2641c0f7ae7b93d20a759239ffde9e34817d0c16a1ffc79fc30dca2d7b9f",
+  "snapshot_sha256": "2ddb3c852f08475a80c736b073ff2032f0aae22b8c36cd4a0501025f15c055bd",
+  "tb2_task_or_key_bodies_read_before_freeze": 0
+}

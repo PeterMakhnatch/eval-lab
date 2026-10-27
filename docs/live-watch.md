@@ -1305,6 +1305,29 @@ tier, rule hit or score itself. Nothing is ranked.
   cohort is both tuned and cross-tested), and no cross-test measurement may predate
   the last tuning measurement. A report with no `cross_test` entry is valid and is
   shown as "Cross-test not run". Dataset names are data, never hard-coded in the UI.
+- `evallab.seeker_executed_differentials/v1` (seen in the Reward Seeker tab) —
+  `protocol`, a `cohort` `{split: "dev", key_count, audited_n, cross_key_excluded_n,
+  task_count, datasets[] of {dataset_id, count_n}}` and `arms[]` of
+  `{arm, requested_model, conditions[] of {condition, static_match_n (nullable),
+  executed_differential_n, executed_by_dataset[] of {dataset_id, count_n}}}`. The audit
+  must reconcile exactly (`task_count + cross_key_excluded_n == audited_n` and the
+  dataset shares sum to `task_count`), every arm reports the same conditions, and
+  per-dataset executed counts sum to each condition total without exceeding that
+  dataset's tasks. A static match names a mechanism; an executed differential passed
+  the original grader and failed the repaired grader when run. The page shows them
+  separately and never merges them. Requested model names only: served identities
+  are not recorded by this report.
+- `evallab.monitor_cascade/v1` — `system`, `cascade_version`, `arm`,
+  `judge_models[]`, `frozen_sha256`, `frozen_recorded_at`, `freeze_statement` and
+  `cohorts[]` of `{role: "tune"|"cross_test", dataset_id, split: "dev", positive_n,
+  clean_n, unscored_n, identities_checked_n, non_dev_assignment_n,
+  stage1_positive_hit_n, stage1_clean_hit_n, true_positive_n, false_positive_n,
+  judge_calls_n, input_tokens_n, output_tokens_n}`. Every identity (scored or not)
+  must have been cross-key checked and `non_dev_assignment_n` must be `0`: a cohort
+  with a non-DEV assignment is rejected. At least one `tune` cohort and disjoint
+  datasets are required. CM-4 recorded no per-cohort measurement times, so this
+  schema carries the producer's freeze statement instead of a validated ordering;
+  `tune_cross_test/v1` (which does validate ordering) is unchanged.
 
 Each tab section shows an explicit empty state when no such report is retained;
 no value is fabricated.
@@ -1317,8 +1340,9 @@ uv run evallab prod export-qc-reports \
   --source-database /path/to/cloud-trace-db.sqlite \
   --output-directory /path/to/new-qc-reports \
   --hackbook-qc /path/to/qc-report.json \
-  --tune-cross-test /path/to/tune-cross-test.json
-```
+  --tune-cross-test /path/to/tune-cross-test.json \
+  --ts4-manifest /path/to/ts3-ts4/manifest.json \
+  --cm4-directory /path/to/cm4-results
 
 - The trust-tier census is **generated** from the source database, opened
   read-only (a database with a live WAL is refused so no sidecar file is written
@@ -1327,8 +1351,9 @@ uv run evallab prod export-qc-reports \
   gate admits, grouped by stored tier and dataset. `prompt_eligible_n` is the
   tier-1/tier-2 rows (what default retrieval may serve) and is `0` for tier 3.
   A missing split-assignment authority fails the export instead of counting
-  everything. `source_sha256` is `null`: the census is a live count, not a
-  digest of a retained input.
+  everything. `source_sha256` is the sha256 of the exact rows counted: one
+  `<row id>\t<task id>\t<tier>` line per admitted row, ordered by row id, so a
+  reader holding the same database can reproduce it.
 - `--hackbook-qc` (reports written by `evallab hackbook qc --out`) and
   `--tune-cross-test` (retained scoreboards) are **recorded** measurements. They
   are validated by the same `validate_benchmark_document` the benchmarks listing
@@ -1337,6 +1362,14 @@ uv run evallab prod export-qc-reports \
   an input whose schema is not the one the flag names. A summary that lacks the
   frozen digest, per-cohort counts or `measured_at` cannot be exported; the
   exporter does not invent them.
+- `--ts4-manifest` builds `seeker-executed-differentials-ts4.json` from the
+  recorded TS-4 cross-key audit in the TS-3/TS-4 manifest, and `--cm4-directory`
+  builds `monitor-cascade-cm4.json` from CM-4's recorded `freeze.json`,
+  `score2-*-<frozen arm>.json`, `crosskey.json` and `judge-receipts.jsonl`. Both
+  builders copy recorded counts and cross-check the summaries against their own
+  per-trace rows and audits; a disagreement (or a non-DEV assignment) fails the
+  export. CM-4's with-examples arm is a DEV tuning measurement, not the frozen
+  plain arm, so only the frozen arm is exported.
 - The output directory must not exist. Files are staged in a sibling directory,
   mode `0600`, validated again as written, and published by one rename; any failure
   leaves nothing behind. The receipt (stdout) has `"uploaded": false`: copying the

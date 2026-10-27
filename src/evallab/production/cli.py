@@ -165,6 +165,14 @@ def register_parser(commands: Any) -> None:
         "--tune-cross-test", type=Path, action="append", default=[],
         help="Recorded evallab.tune_cross_test/v1 report; repeatable",
     )
+    export.add_argument(
+        "--ts4-manifest", type=Path,
+        help="Recorded TS-3/TS-4 manifest.json; yields the cross-key-clean executed-differential report",
+    )
+    export.add_argument(
+        "--cm4-directory", type=Path,
+        help="Recorded CM-4 results directory (freeze, score2-*, crosskey, judge receipts)",
+    )
     export.add_argument("--generated-at", metavar="ISO", help="Census timestamp (default: now, UTC)")
     export.set_defaults(func=_command)
 
@@ -426,8 +434,14 @@ def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         repo_root=root,
         hackbook_qc=tuple(_local_path(root, path) for path in args.hackbook_qc),
         tune_cross_test=tuple(_local_path(root, path) for path in args.tune_cross_test),
+        ts4_manifest=_optional_path(root, args.ts4_manifest),
+        cm4_directory=_optional_path(root, args.cm4_directory),
         generated_at=args.generated_at,
     )
+
+
+def _optional_path(root: Path, path: Path | None) -> Path | None:
+    return None if path is None else _local_path(root, path)
 
 
 def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:

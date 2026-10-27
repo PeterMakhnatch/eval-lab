@@ -271,7 +271,7 @@ def test_top_k_one_per_task_and_prompt_join_are_deterministic(
     assert examples == retriever.retrieve_similar_examples("pytest grader", "task_quality", 2)
     assert retriever.format_for_prompt(examples) == format_retrieval_prompt_block(examples)
     assert retriever.format_for_prompt([]) == ""
-    assert retriever.retrieve_similar_examples("no_matching_lexeme", "task_quality") == []
+    assert retriever.retrieve_similar_examples("zzqv_unmatched_lexeme", "task_quality") == []
     assert retriever.retrieve_similar_examples("% '; --", "task_quality") == []
 
 
@@ -417,7 +417,9 @@ def test_seal_prefix_factoring_preserves_literal_embedded_identifiers(db: CloudT
     for identity in identities:
         with pytest.raises(ValueError, match="sealed"):
             retriever.retrieve_similar_examples("pytest prefix-" + identity.upper() + "-suffix")
-    assert retriever.retrieve_similar_examples("synthetic-overlap-alps", "task_quality") == []
+    # A near-miss is an ordinary query: its one shared term partially matches.
+    near_miss = retriever.retrieve_similar_examples("synthetic-overlap-alps", "task_quality")
+    assert [example.task_id for example in near_miss] == ["synthetic-dev"]
     assert retriever.retrieve_similar_examples("syntheticXliteral", "task_quality") == []
 
 

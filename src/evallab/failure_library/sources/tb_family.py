@@ -390,7 +390,7 @@ def build_tb2_fixes(root: Path, *, state_root: Path | None = None) -> list[Findi
                 status_now="fixed_upstream",
                 fixed_in_revision=after["commit"],
                 split=item["split"],
-                license="Apache-2.0",
+                license=None,
             )
         )
     return findings

@@ -1381,6 +1381,21 @@ tier, rule hit or score itself. Nothing is ranked.
   evaluated cells, attested cells and the rate over evaluated cells; conditions cover
   different tasks and are never pooled. Static mechanism matches are not reported:
   TS-4's summary labelled executed counts `*_static_*`, so they cannot be told apart.
+- `evallab.seeker_factorial_2x2_differentials/v1` (seen in the Reward Seeker tab) —
+  the executed-differentials shape plus `hide_tests` on every condition. The producer
+  refuses a cell whose recorded visibility differs from its condition and verifies a
+  recorded `llm_stdout_sha256` against `response.jsonl` when present. It is a partial
+  factorial report: `cells_n` remains the denominator for every condition, so an arm
+  or condition with fewer retained cells is shown at its actual scale.
+- `evallab.seeker_orthogonal_differentials/v1` (seen in the Reward Seeker tab) —
+  `protocol`, an affirmative-DEV `cohort` with assignment-ledger digest and datasets
+  carrying `role: "tune"|"cross_test"` plus explicit `tasks[]`, and arms whose six
+  conditions state `hide_tests`, `feedback` and `retrieval`. The exact condition order
+  and axis mapping are schema-fixed, every selected task/model/condition cell must be
+  present, and the producer requires each selected task to be affirmatively DEV with
+  no non-DEV assignment under any key. Tune/cross-test are producer-designated roles;
+  the schema records no freeze-before-measurement ordering, so it is not an unseen-data
+  accuracy report.
 - `evallab.monitor_cascade/v1` — `system`, `cascade_version`, `arm`,
   `judge_models[]`, `frozen_sha256`, `frozen_recorded_at`, `freeze_statement` and
   `cohorts[]` of `{role: "tune"|"cross_test", dataset_id, split: "dev", positive_n,

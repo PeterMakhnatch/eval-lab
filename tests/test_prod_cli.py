@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import signal
@@ -986,23 +987,23 @@ def _write_ts4_cell(
     served: str = "model-one",
     route: str = "provider/model-one",
     hide_tests: bool = True,
+    response: bytes | None = None,
 ) -> None:
     directory = cells / dataset / task / route.replace("/", "_") / turn
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "result.json").write_text(
-        json.dumps(
-            {
-                "requested_model_route": route,
-                "served_provider": "provider",
-                "served_model": served,
-                "attestation_ok": attested,
-                "hide_tests": hide_tests,
-                "original_reward": original,
-                "repaired_reward": repaired,
-            }
-        ),
-        encoding="utf-8",
-    )
+    payload: dict[str, Any] = {
+        "requested_model_route": route,
+        "served_provider": "provider",
+        "served_model": served,
+        "attestation_ok": attested,
+        "hide_tests": hide_tests,
+        "original_reward": original,
+        "repaired_reward": repaired,
+    }
+    if response is not None:
+        payload["llm_stdout_sha256"] = hashlib.sha256(response).hexdigest()
+        (directory / "response.jsonl").write_bytes(response)
+    (directory / "result.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _ts4_cells(cells: Path) -> Path:
@@ -1118,6 +1119,129 @@ def test_ts5_factorial_2x2_differentials_verifies_hide_tests_flag_on_visible_and
     with pytest.raises(ValueError, match="hide_tests"):
         ts5_factorial_2x2_differentials(
             _ts4_manifest(), cells, generated_at="2026-10-27T11:00:00Z"
+        )
+
+
+def test_ts5_orthogonal_differentials_counts_complete_affirmative_matrix_from_cells(
+    tmp_path: Path,
+) -> None:
+    from evallab.production.benchmark_reports import validate_benchmark_document
+    from evallab.production.qc_reports import ts5_orthogonal_differentials
+
+    assignments = tmp_path / "assignments.csv"
+    assignments.write_text(
+        "key_id,task,split\nkey-a,a1,dev\nkey-a,b1,dev\n", encoding="utf-8"
+    )
+    manifest = _ts4_manifest()
+    manifest["pt_self4_orthogonal_6arm_ablation"] = {
+        "schema": "synthetic-orthogonal-protocol",
+        "affirmative_tune_9_tasks": ["ds-a/a1"],
+        "breaker_cross_test_4_tasks": ["ds-b/b1"],
+        "requested_models": ["provider/model-one"],
+        "combined_13_tasks_6arm_by_model": {
+            "provider/model-one": {"counts": {"turn-1": 99}}
+        },
+    }
+    manifest["pt_self2_vf6_remediation_and_34_task_factorial"] = {
+        "affirmative_dev_13_tasks_by_dataset": {"ds-a": ["a1"], "ds-b": ["b1"]}
+    }
+    cells = tmp_path / "cells"
+    conditions = (
+        ("turn-1-visible", False),
+        ("turn-2-visible", False),
+        ("turn-1", True),
+        ("turn-2-retrieval-only", True),
+        ("turn-2-feedback-only", True),
+        ("turn-2-runner-accurate", True),
+    )
+    for dataset, task in (("ds-a", "a1"), ("ds-b", "b1")):
+        for turn, hide_tests in conditions:
+            _write_ts4_cell(
+                cells,
+                dataset,
+                task,
+                turn,
+                hide_tests=hide_tests,
+                repaired=1.0
+                if (dataset, turn) == ("ds-a", "turn-2-retrieval-only")
+                else 0.0,
+                attested=(dataset, turn) != ("ds-b", "turn-2-feedback-only"),
+                response=f"{dataset}-{task}-{turn}\n".encode(),
+            )
+
+    document = ts5_orthogonal_differentials(
+        manifest,
+        cells,
+        assignments_csv=assignments,
+        generated_at="2026-10-27T12:00:00Z",
+    )
+    assert validate_benchmark_document(json.dumps(document).encode()) == document
+    assert document["cohort"]["datasets"] == [
+        {"count_n": 1, "dataset_id": "ds-a", "role": "tune", "tasks": ["a1"]},
+        {"count_n": 1, "dataset_id": "ds-b", "role": "cross_test", "tasks": ["b1"]},
+    ]
+    counts = {
+        condition["condition"]: (
+            condition["cells_n"],
+            condition["attested_n"],
+            condition["executed_differential_n"],
+            condition["hide_tests"],
+            condition["feedback"],
+            condition["retrieval"],
+        )
+        for condition in document["arms"][0]["conditions"]
+    }
+    assert counts == {
+        "turn_1_visible": (2, 2, 2, False, "none", False),
+        "turn_2_visible": (2, 2, 2, False, "none", True),
+        "turn_1_hidden": (2, 2, 2, True, "none", False),
+        "turn_2_hidden_retrieval_only": (2, 2, 1, True, "none", True),
+        "turn_2_hidden_feedback_only": (2, 1, 1, True, "runner_accurate", False),
+        "turn_2_hidden_runner_accurate_feedback": (
+            2,
+            2,
+            2,
+            True,
+            "runner_accurate",
+            True,
+        ),
+    }
+
+    bad_axes = json.loads(json.dumps(document))
+    bad_axes["arms"][0]["conditions"][0]["retrieval"] = True
+    with pytest.raises(ValueError, match="six-condition axes"):
+        validate_benchmark_document(json.dumps(bad_axes).encode())
+
+    response = cells / "ds-a" / "a1" / "provider_model-one" / "turn-1" / "response.jsonl"
+    response.write_bytes(b"tampered\n")
+    with pytest.raises(ValueError, match="llm_stdout_sha256"):
+        ts5_orthogonal_differentials(
+            manifest,
+            cells,
+            assignments_csv=assignments,
+            generated_at="2026-10-27T12:00:00Z",
+        )
+    response.write_bytes(b"ds-a-a1-turn-1\n")
+
+    non_dev_assignments = tmp_path / "assignments-non-dev.csv"
+    non_dev_assignments.write_text(
+        "key_id,task,split\nkey-a,a1,dev\nkey-a,b1,test\n", encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="non-DEV assignment"):
+        ts5_orthogonal_differentials(
+            manifest,
+            cells,
+            assignments_csv=non_dev_assignments,
+            generated_at="2026-10-27T12:00:00Z",
+        )
+
+    (cells / "ds-b" / "b1" / "provider_model-one" / "turn-1" / "result.json").unlink()
+    with pytest.raises(ValueError, match="missing declared factorial cell"):
+        ts5_orthogonal_differentials(
+            manifest,
+            cells,
+            assignments_csv=assignments,
+            generated_at="2026-10-27T12:00:00Z",
         )
 
 def _cm4_directory(directory: Path) -> Path:

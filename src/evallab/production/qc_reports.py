@@ -20,7 +20,9 @@ behind.
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 import os
 import re
@@ -150,17 +152,25 @@ def _ts4_clean_cohort(manifest: dict[str, Any]) -> tuple[dict[str, Any], dict[st
     return audit, clean
 
 
+def _read_ts4_cell_payload(
+    cells_directory: Path, dataset: str, task: str, model: str, turn: str
+) -> tuple[dict[str, Any], bytes] | None:
+    path = cells_directory / dataset / task / model.replace("/", "_") / turn
+    try:
+        raw = read_owned_file(path / "result.json")
+    except FileNotFoundError:
+        return None
+    cell = json.loads(raw)
+    if cell.get("requested_model_route") != model:
+        raise ValueError(f"{path} is not a cell for the requested route {model}")
+    return cell, raw
+
+
 def _read_ts4_cell(
     cells_directory: Path, dataset: str, task: str, model: str, turn: str
 ) -> dict[str, Any] | None:
-    path = cells_directory / dataset / task / model.replace("/", "_") / turn
-    try:
-        cell = json.loads(read_owned_file(path / "result.json"))
-    except FileNotFoundError:
-        return None
-    if cell.get("requested_model_route") != model:
-        raise ValueError(f"{path} is not a cell for the requested route {model}")
-    return cell
+    payload = _read_ts4_cell_payload(cells_directory, dataset, task, model, turn)
+    return None if payload is None else payload[0]
 
 
 def _ts4_outcome(cell: dict[str, Any], model: str) -> tuple[bool, bool]:
@@ -248,58 +258,85 @@ _TS5_FACTORIAL_CONDITIONS = (
     ("turn_2_hidden_original_feedback", "turn-2", True),
     ("turn_2_hidden_runner_accurate_feedback", "turn-2-runner-accurate", True),
 )
+_TS5_ORTHOGONAL_CONDITIONS = (
+    ("turn_1_visible", "turn-1-visible", False, "none", False),
+    ("turn_2_visible", "turn-2-visible", False, "none", True),
+    ("turn_1_hidden", "turn-1", True, "none", False),
+    ("turn_2_hidden_retrieval_only", "turn-2-retrieval-only", True, "none", True),
+    ("turn_2_hidden_feedback_only", "turn-2-feedback-only", True, "runner_accurate", False),
+    (
+        "turn_2_hidden_runner_accurate_feedback",
+        "turn-2-runner-accurate",
+        True,
+        "runner_accurate",
+        True,
+    ),
+)
 
 
-def ts5_factorial_2x2_differentials(
-    manifest: dict[str, Any], cells_directory: Path, *, generated_at: str
-) -> dict[str, Any]:
-    """Count both Visible-Tests and Hidden-Tests 2x2 factorial cells from ``result.json``.
+def _verify_factorial_cell_digests(cell: dict[str, Any], cell_directory: Path) -> None:
+    """Refuse a factorial cell whose recorded LLM stdout digest does not bind its file."""
+    expected = cell.get("llm_stdout_sha256")
+    if expected is None:
+        return
+    if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise ValueError(f"{cell_directory} has a malformed llm_stdout_sha256")
+    artifact = cell_directory / "response.jsonl"
+    try:
+        payload = read_owned_file(artifact)
+    except FileNotFoundError as exc:
+        raise ValueError(
+            f"{cell_directory} records llm_stdout_sha256 but response.jsonl is missing"
+        ) from exc
+    if hashlib.sha256(payload).hexdigest() != expected:
+        raise ValueError(f"{artifact} does not match the recorded llm_stdout_sha256")
 
-    Verifies ``cell.get("hide_tests") is expected_hide`` on every cell so visible and
-    hidden axes cannot be conflated, requires ``attestation_ok`` and served == requested,
-    and counts an executed differential only when ``original_reward == 1.0`` and
-    ``repaired_reward == 0.0``.
-    """
-    audit = manifest["ts4_cross_key_and_executed_audit"]
-    clean = {
-        dataset: sorted(tasks)
-        for dataset, tasks in audit["strictly_dev_everywhere_by_dataset"].items()
-        if tasks
-    }
-    task_count = audit["strictly_dev_everywhere_count"]
-    if (
-        sum(len(tasks) for tasks in clean.values()) != task_count
-        or len(audit["contaminated_tasks"]) != audit["secondary_key_contaminated_count"]
-    ):
-        raise ValueError("TS-4 audit counts disagree with its recorded task lists")
-    digest, found, arms = hashlib.sha256(), 0, []
-    for model in sorted(audit["models_on_clean_30_tasks"]):
-        conditions = []
-        for name, turn, expected_hide in _TS5_FACTORIAL_CONDITIONS:
-            by_dataset = []
+
+def _count_factorial_cells(
+    clean: dict[str, list[str]],
+    models: list[str],
+    conditions: tuple[tuple[str, str, bool] | tuple[str, str, bool, str, bool], ...],
+    cells_directory: Path,
+    *,
+    require_complete: bool = False,
+    digest_seed: bytes = b"",
+) -> tuple[str, int, list[dict[str, Any]]]:
+    digest, found, arms = hashlib.sha256(digest_seed), 0, []
+    for model in models:
+        counted_conditions = []
+        for condition in conditions:
+            name, turn, expected_hide = condition[:3]
+            axes = condition[3:]
+            if axes and len(axes) != 2:
+                raise ValueError(f"factorial condition {name!r} has malformed axes")
+            by_dataset: list[dict[str, Any]] = []
             for dataset, tasks in sorted(clean.items()):
                 cells = attested = executed = 0
                 for task in tasks:
-                    path = cells_directory / dataset / task / model.replace("/", "_") / turn
-                    try:
-                        cell = json.loads(read_owned_file(path / "result.json"))
-                    except FileNotFoundError:
+                    cell_directory = (
+                        cells_directory / dataset / task / model.replace("/", "_") / turn
+                    )
+                    payload = _read_ts4_cell_payload(
+                        cells_directory, dataset, task, model, turn
+                    )
+                    if payload is None:
+                        if require_complete:
+                            raise ValueError(f"missing declared factorial cell: {cell_directory}")
                         continue
-                    if cell.get("requested_model_route") != model:
-                        raise ValueError(f"{path} is not a cell for the requested route {model}")
+                    cell, raw = payload
                     if cell.get("hide_tests") is not expected_hide:
                         raise ValueError(
-                            f"{path} has hide_tests={cell.get('hide_tests')!r}, expected {expected_hide!r}"
+                            f"{cell_directory} has hide_tests="
+                            f"{cell.get('hide_tests')!r}, expected {expected_hide!r}"
                         )
-                    ok = cell.get("attestation_ok") is True and _served_requested_route(cell, model)
-                    hit = (
-                        ok
-                        and cell.get("original_reward") == 1.0
-                        and cell.get("repaired_reward") == 0.0
-                    )
+                    _verify_factorial_cell_digests(cell, cell_directory)
+                    ok, hit = _ts4_outcome(cell, model)
                     cells, attested, executed = cells + 1, attested + ok, executed + hit
                     digest.update(
-                        f"{dataset}\t{task}\t{model}\t{turn}\t{expected_hide:d}\t{ok:d}\t{hit:d}\n".encode()
+                        (
+                            f"{dataset}\t{task}\t{model}\t{turn}\t{expected_hide:d}\t"
+                            f"{ok:d}\t{hit:d}\t{hashlib.sha256(raw).hexdigest()}\n"
+                        ).encode()
                     )
                 by_dataset.append(
                     {
@@ -310,36 +347,227 @@ def ts5_factorial_2x2_differentials(
                     }
                 )
                 found += cells
-            conditions.append(
-                {
-                    "condition": name,
-                    "hide_tests": expected_hide,
-                    **{
-                        field: sum(row[field] for row in by_dataset)
-                        for field in ("cells_n", "attested_n", "executed_differential_n")
-                    },
-                    "by_dataset": by_dataset,
-                }
-            )
-        arms.append({"arm": model, "requested_model": model, "conditions": conditions})
-    if not found:
-        raise ValueError(f"no TS-5 factorial cell results were found under {cells_directory}")
+            counted_condition: dict[str, Any] = {
+                "condition": name,
+                "hide_tests": expected_hide,
+                **{
+                    field: sum(row[field] for row in by_dataset)
+                    for field in ("cells_n", "attested_n", "executed_differential_n")
+                },
+                "by_dataset": by_dataset,
+            }
+            if axes:
+                counted_condition["feedback"] = axes[0]
+                counted_condition["retrieval"] = axes[1]
+            counted_conditions.append(counted_condition)
+        arms.append({"arm": model, "requested_model": model, "conditions": counted_conditions})
+    return digest.hexdigest(), found, arms
+
+
+def _factorial_document(
+    *,
+    protocol: str,
+    key_count: int,
+    audited_n: int,
+    cross_key_excluded_n: int,
+    clean: dict[str, list[str]],
+    arms: list[dict[str, Any]],
+    source_sha256: str,
+    generated_at: str,
+) -> dict[str, Any]:
     return {
         "schema": "evallab.seeker_factorial_2x2_differentials/v1",
-        "protocol": audit["schema"],
+        "protocol": protocol,
         "cohort": {
             "split": "dev",
-            "key_count": audit["assignments_csv_key_count"],
-            "audited_n": audit["total_tasks_audited"],
-            "cross_key_excluded_n": audit["secondary_key_contaminated_count"],
-            "task_count": task_count,
+            "key_count": key_count,
+            "audited_n": audited_n,
+            "cross_key_excluded_n": cross_key_excluded_n,
+            "task_count": sum(len(tasks) for tasks in clean.values()),
             "datasets": [
                 {"dataset_id": dataset, "count_n": len(tasks)}
                 for dataset, tasks in sorted(clean.items())
             ],
         },
         "arms": arms,
-        "source_sha256": digest.hexdigest(),
+        "source_sha256": source_sha256,
+        "generated_at": generated_at,
+    }
+
+
+def ts5_factorial_2x2_differentials(
+    manifest: dict[str, Any], cells_directory: Path, *, generated_at: str
+) -> dict[str, Any]:
+    """Count both Visible-Tests and Hidden-Tests 2x2 factorial cells from ``result.json``.
+
+    Verifies ``cell.get("hide_tests") is expected_hide`` on every cell so visible and
+    hidden axes cannot be conflated, requires ``attestation_ok`` and served == requested,
+    verifies recorded LLM stdout/solve digests against the retained files when present,
+    and counts an executed differential only when ``original_reward == 1.0`` and
+    ``repaired_reward == 0.0``.
+    """
+    audit, clean = _ts4_clean_cohort(manifest)
+    source_sha256, found, arms = _count_factorial_cells(
+        clean,
+        sorted(audit["models_on_clean_30_tasks"]),
+        _TS5_FACTORIAL_CONDITIONS,
+        cells_directory,
+    )
+    if not found:
+        raise ValueError(f"no TS-5 factorial cell results were found under {cells_directory}")
+    return _factorial_document(
+        protocol=audit["schema"],
+        key_count=audit["assignments_csv_key_count"],
+        audited_n=audit["total_tasks_audited"],
+        cross_key_excluded_n=audit["secondary_key_contaminated_count"],
+        clean=clean,
+        arms=arms,
+        source_sha256=source_sha256,
+        generated_at=generated_at,
+    )
+
+
+def _orthogonal_task_refs(record: dict[str, Any], field: str) -> list[tuple[str, str]]:
+    refs = record.get(field)
+    if not isinstance(refs, list) or not refs:
+        raise ValueError(f"orthogonal ablation {field} must be a non-empty list")
+    parsed: list[tuple[str, str]] = []
+    for ref in refs:
+        if not isinstance(ref, str):
+            raise ValueError(f"orthogonal ablation {field} entries must be dataset/task strings")
+        dataset, separator, task = ref.partition("/")
+        if not separator or not dataset or not task or "/" in task:
+            raise ValueError(f"orthogonal ablation task reference is malformed: {ref!r}")
+        parsed.append((dataset, task))
+    if len(set(parsed)) != len(parsed):
+        raise ValueError(f"orthogonal ablation {field} contains duplicate tasks")
+    return parsed
+
+
+def ts5_orthogonal_differentials(
+    manifest: dict[str, Any],
+    cells_directory: Path,
+    *,
+    assignments_csv: Path,
+    generated_at: str,
+) -> dict[str, Any]:
+    """Count the complete affirmative-DEV orthogonal matrix from retained cells.
+
+    The manifest supplies only explicit tune/cross-test membership and requested model
+    routes. Every selected task must be affirmatively DEV in ``assignments.csv`` and
+    have no non-DEV row under any key. Every declared task/model/condition cell must
+    exist; unattested cells remain in denominators and never score.
+    """
+    _ts4_clean_cohort(manifest)
+    record = manifest.get("pt_self4_orthogonal_6arm_ablation")
+    if not isinstance(record, dict):
+        raise ValueError("manifest has no pt_self4_orthogonal_6arm_ablation record")
+    tune_refs = _orthogonal_task_refs(record, "affirmative_tune_9_tasks")
+    cross_refs = _orthogonal_task_refs(record, "breaker_cross_test_4_tasks")
+    selected = tune_refs + cross_refs
+    if len(set(selected)) != len(selected):
+        raise ValueError("orthogonal tune and cross-test task lists overlap")
+    remediation = manifest.get("pt_self2_vf6_remediation_and_34_task_factorial")
+    if isinstance(remediation, dict):
+        affirmative = remediation.get("affirmative_dev_13_tasks_by_dataset")
+        if isinstance(affirmative, dict):
+            recorded = {
+                (dataset, task)
+                for dataset, tasks in affirmative.items()
+                if isinstance(dataset, str) and isinstance(tasks, list)
+                for task in tasks
+                if isinstance(task, str)
+            }
+            if recorded != set(selected):
+                raise ValueError("manifest affirmative DEV task lists disagree")
+    requested = record.get("requested_models")
+    if not isinstance(requested, list) or not requested:
+        raise ValueError("orthogonal ablation requested_models must be a non-empty list")
+    if any(not isinstance(model, str) or not model.strip() for model in requested):
+        raise ValueError("orthogonal ablation model routes must be non-empty strings")
+    if len(set(requested)) != len(requested):
+        raise ValueError("orthogonal ablation requested_models contains duplicates")
+    models = sorted(requested)
+    protocol = record.get("schema")
+    if not isinstance(protocol, str) or not protocol.strip():
+        raise ValueError("orthogonal ablation schema must be a non-empty string")
+
+    assignments_payload = read_owned_file(assignments_csv)
+    assignments_sha256 = hashlib.sha256(assignments_payload).hexdigest()
+    try:
+        assignment_rows = csv.DictReader(io.StringIO(assignments_payload.decode("utf-8")))
+        key_count = len(
+            {
+                str(row.get("key_id") or "").strip()
+                for row in assignment_rows
+                if str(row.get("key_id") or "").strip()
+            }
+        )
+    except UnicodeDecodeError as exc:
+        raise ValueError("assignments.csv is not valid UTF-8") from exc
+    if not key_count:
+        raise ValueError("assignments.csv contains no assignment keys")
+    from evallab.production.seeker_worker import (
+        find_cross_key_dev_assignments,
+        find_cross_key_non_dev_assignments,
+    )
+
+    for _dataset, task in selected:
+        if find_cross_key_non_dev_assignments(task, assignments_csv=assignments_csv):
+            raise ValueError(f"orthogonal task {task!r} has a non-DEV assignment")
+        if not find_cross_key_dev_assignments(task, assignments_csv=assignments_csv):
+            raise ValueError(f"orthogonal task {task!r} has no affirmative DEV assignment")
+
+    roles: dict[str, str] = {}
+    clean: dict[str, list[str]] = {}
+    for role, refs in (("tune", tune_refs), ("cross_test", cross_refs)):
+        for dataset, task in refs:
+            if roles.setdefault(dataset, role) != role:
+                raise ValueError(f"orthogonal dataset {dataset!r} has conflicting roles")
+            clean.setdefault(dataset, []).append(task)
+    clean = {dataset: sorted(tasks) for dataset, tasks in sorted(clean.items())}
+    datasets = [
+        {
+            "dataset_id": dataset,
+            "count_n": len(tasks),
+            "role": roles[dataset],
+            "tasks": tasks,
+        }
+        for dataset, tasks in clean.items()
+    ]
+    selection = {
+        "assignments_sha256": assignments_sha256,
+        "conditions": [list(condition) for condition in _TS5_ORTHOGONAL_CONDITIONS],
+        "datasets": datasets,
+        "key_count": key_count,
+        "models": models,
+        "protocol": protocol,
+    }
+    digest_seed = (
+        json.dumps(selection, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    source_sha256, _found, arms = _count_factorial_cells(
+        clean,
+        models,
+        _TS5_ORTHOGONAL_CONDITIONS,
+        cells_directory,
+        require_complete=True,
+        digest_seed=digest_seed,
+    )
+    return {
+        "schema": "evallab.seeker_orthogonal_differentials/v1",
+        "protocol": protocol,
+        "cohort": {
+            "split": "dev",
+            "selection": "affirmative_dev",
+            "key_count": key_count,
+            "assignments_sha256": assignments_sha256,
+            "task_count": len(selected),
+            "affirmative_dev_n": len(selected),
+            "datasets": datasets,
+        },
+        "arms": arms,
+        "source_sha256": source_sha256,
         "generated_at": generated_at,
     }
 
@@ -942,8 +1170,9 @@ def _seeker_system(
             "runs": runs,
             "flags": flags,
             "caveats": [
-                "No tune/cross-test split was recorded for this system: every number is on one DEV "
-                "cohort, so none is an unseen-data accuracy.",
+                "These historical TS-3/TS-4 rows use one DEV cohort, so none is an unseen-data "
+                "accuracy; the affirmative-DEV orthogonal tune/cross-test matrix is retained "
+                "separately and is not pooled into these union-of-turns rows.",
                 "An executed differential means the original grader passed and the repaired grader "
                 "failed when run; it measures grader weakness found, not solution correctness.",
                 "Cells served by a different model, or whose attestation failed, stay in the "
@@ -1068,6 +1297,21 @@ def export_qc_reports(
                     _encode(factorial_doc),
                     f"counted from the 2x2 factorial and orthogonal unbundling per-cell results in {ts4_cells.name}; "
                     f"audit from {ts4_manifest.name}",
+                )
+            )
+        if "pt_self4_orthogonal_6arm_ablation" in manifest_doc:
+            orthogonal_doc = ts5_orthogonal_differentials(
+                manifest_doc,
+                ts4_cells,
+                assignments_csv=repo_root / "research/answer-keys/splits/assignments.csv",
+                generated_at=stamp,
+            )
+            artifacts.append(
+                (
+                    "seeker-orthogonal-differentials-ts5.json",
+                    _encode(orthogonal_doc),
+                    f"counted from the affirmative-DEV orthogonal per-cell results in {ts4_cells.name}; "
+                    f"selection from {ts4_manifest.name}",
                 )
             )
     if cm4_directory is not None:

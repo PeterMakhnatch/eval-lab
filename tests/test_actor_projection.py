@@ -345,12 +345,18 @@ def test_inconsistent_admitted_step_count_has_no_output(source: Path, tmp_path: 
     assert source.read_bytes() == before
 
 
-def test_schema_drift_is_refused_instead_of_discarding_columns(source: Path, tmp_path: Path) -> None:
+@pytest.mark.parametrize("allow_legacy", [False, True])
+def test_schema_drift_is_refused_instead_of_discarding_columns(
+    source: Path, tmp_path: Path, allow_legacy: bool,
+) -> None:
     destination = tmp_path / "actor.sqlite"
     with closing(sqlite3.connect(source)) as connection, connection:
         connection.execute("ALTER TABLE corpus_tasks ADD COLUMN source_extension TEXT")
     with pytest.raises(ValueError, match="source columns differ"):
-        project_actor_database(source, destination, task_ids=["fixture-alpha"])
+        project_actor_database(
+            source, destination, task_ids=["fixture-alpha"],
+            allow_legacy_trust_defaults=allow_legacy,
+        )
     _assert_no_output(destination)
 
 
@@ -514,3 +520,34 @@ def test_atomic_publication_does_not_clobber_a_racing_output(
         project_actor_database(source, destination, task_ids=["fixture-alpha"])
     assert destination.read_bytes() == other_bytes
     assert not list(tmp_path.glob(".actor.sqlite.projection-*"))
+
+
+def test_known_legacy_trust_defaults_are_explicit_provisional_and_read_only(
+    source: Path, tmp_path: Path,
+) -> None:
+    with closing(sqlite3.connect(source)) as connection, connection:
+        connection.execute("ALTER TABLE task_issues DROP COLUMN trust_tier")
+        connection.execute("ALTER TABLE agent_traces DROP COLUMN flagged_passage_steps")
+        connection.execute("ALTER TABLE agent_traces DROP COLUMN trust_tier")
+    before = source.read_bytes()
+    strict = tmp_path / "strict.sqlite"
+    with pytest.raises(ValueError, match="source columns differ"):
+        project_actor_database(source, strict, task_ids=["fixture-alpha"])
+    _assert_no_output(strict)
+    target = tmp_path / "legacy.sqlite"
+    receipt = project_actor_database(
+        source, target, task_ids=["fixture-alpha"],
+        allow_legacy_trust_defaults=True,
+    )
+    assert receipt["legacy_trust_defaults"] == {
+        "task_issues": ["trust_tier"],
+        "agent_traces": ["flagged_passage_steps", "trust_tier"],
+    }
+    with closing(sqlite3.connect(target)) as connection:
+        assert connection.execute("SELECT trust_tier FROM task_issues").fetchall() == [
+            ("tier3_provisional",),
+        ]
+        assert connection.execute("SELECT trust_tier,flagged_passage_steps FROM agent_traces").fetchall() == [
+            ("tier3_provisional", "[]"),
+        ]
+    assert source.read_bytes() == before

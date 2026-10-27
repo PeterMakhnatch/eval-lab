@@ -358,3 +358,17 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | oq4-tq-augment-v1-dev-tuning-20261026 | tuned | QA Task (oq4-tq-augment/v1@*) from 2026-10-26 | mimo-weak-tests-v2.1 | 4 | 0 |
 | oq4-tq-augment-v1-dev-tuning-20261026 | tuned | QA Task (oq4-tq-augment/v1@*) from 2026-10-26 | tb4-audit-v1 | 11 | 0 |
 | oq4-tq-augment-v1-tb2-test-once-20261026 | inspected | QA Task (oq4-tq-augment/v1@*) from 2026-10-26 | tb2-to-tb21-v1 | 0 | 52 |
+| oq5-tq-retrieval-dev-registry-inspection-20261027 | inspected | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | envcheck-tb4-39 | 3 | 0 |
+| oq5-tq-retrieval-dev-registry-inspection-20261027 | inspected | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | executed-outcomes-v1 | 1 | 0 |
+| oq5-tq-retrieval-dev-registry-inspection-20261027 | inspected | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | tb4-audit-v1 | 45 | 0 |
+| oq5-tq-retrieval-dev-ab-tuning-20261027 | tuned | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | envcheck-tb4-39 | 1 | 0 |
+| oq5-tq-retrieval-dev-ab-tuning-20261027 | tuned | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | executed-outcomes-v1 | 2 | 0 |
+| oq5-tq-retrieval-dev-ab-tuning-20261027 | tuned | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | mimo-weak-tests-v1 | 1 | 0 |
+| oq5-tq-retrieval-dev-ab-tuning-20261027 | tuned | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | mimo-weak-tests-v2 | 4 | 0 |
+| oq5-tq-retrieval-dev-ab-tuning-20261027 | tuned | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | mimo-weak-tests-v2.1 | 4 | 0 |
+| oq5-tq-retrieval-dev-ab-tuning-20261027 | tuned | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | tb4-audit-v1 | 11 | 0 |
+| oq5-tq-retrieval-v3-dev-cross-once-20261027 | inspected | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | executed-outcomes-v1 | 1 | 0 |
+| oq5-tq-retrieval-v3-dev-cross-once-20261027 | inspected | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | mimo-stratified-sample100 | 4 | 0 |
+| oq5-tq-retrieval-v3-dev-cross-once-20261027 | inspected | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | mimo-weak-tests-v1 | 1 | 0 |
+| oq5-tq-retrieval-v3-dev-cross-once-20261027 | inspected | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | mimo-weak-tests-v2 | 15 | 0 |
+| oq5-tq-retrieval-v3-dev-cross-once-20261027 | inspected | QA Task (oq5-tq-retrieval/*) from 2026-10-27 | mimo-weak-tests-v2.1 | 15 | 0 |

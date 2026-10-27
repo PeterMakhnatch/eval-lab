@@ -9,7 +9,7 @@ import json
 import re
 import shlex
 import tomllib
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
@@ -41,8 +41,16 @@ _NETWORK_INSTALL = re.compile(
 _GO_FLAG_WITH_VALUE = frozenset({"-run", "-count", "-timeout", "-tags", "-cpu", "-parallel"})
 
 
-def _build_env_scripts(patch: str) -> list[str]:
-    """Shell scripts embedded in the test patch as ``mimo_build_env.tar.gz.b64``."""
+def _build_env_scripts(
+    patch: str,
+    *,
+    select: Callable[[str], bool] | None = None,
+    file_cap: int | None = None,
+) -> list[tuple[str, str]]:
+    """Named shell sources, decoded in memory without extraction or execution.
+
+    An optional member selector and byte cap run before reading a member body.
+    """
     start = patch.find("+++ b/mimo_build_env.tar.gz.b64")
     if start < 0:
         return []
@@ -64,15 +72,19 @@ def _build_env_scripts(patch: str) -> list[str]:
 
     try:
         raw = base64.b64decode("".join(lines))
-        scripts: list[str] = []
+        scripts: list[tuple[str, str]] = []
         with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
             for member in tar.getmembers():
                 if not (member.isfile() and member.name.endswith(".sh")):
                     continue
+                if select is not None and not select(member.name):
+                    continue
+                if file_cap is not None and member.size > file_cap:
+                    continue
                 handle = tar.extractfile(member)
                 if handle is None:
                     continue
-                scripts.append(handle.read().decode("utf-8", "replace"))
+                scripts.append((member.name, handle.read().decode("utf-8", "replace")))
         return scripts
     except (OSError, ValueError, tarfile.TarError):
         return []
@@ -95,7 +107,7 @@ def _hidden_shell_blobs(task_dir: Path) -> list[str]:
         except OSError:
             return blobs
         blobs.append(patch)
-        blobs.extend(_build_env_scripts(patch))
+        blobs.extend(text for _, text in _build_env_scripts(patch))
     return blobs
 
 

@@ -196,6 +196,18 @@ evidence rather than instructions, and drops whole lines to respect `max_chars`
 (default 2400, nonnegative). `format_for_prompt` delegates to it; empty inputs
 format as `""`. Retrieval does not authorize training/export or verify a receipt.
 
+**Progressive disclosure.** `format_for_prompt(examples, format_mode="compact_cards")`
+renders one short playbook card per example instead of every field and step:
+`mechanism` (defect class and direction, or publisher label categories), trust tier,
+up to three flagged lines (flagged steps, else the issue's reproducer), a `verify`
+line (reward differential, citation, passage label, receipt status), and an
+`expand` pointer (`trace:<id>:<first>-<last>` or `issue:<id>`).
+`CloudTraceRetriever.expand_pointer(pointer)` hydrates that pointer on demand under
+retrieval's own rules: admitted DEV task, returnable tier (`include_provisional`
+as in retrieval), every returned row free of sealed identities, at most
+`max_steps` (default 20) non-user steps, the same bounded fields and `flagged`
+marks. Anything else raises `ValueError` without saying whether the row exists.
+
 `evallab.production.CloudTraceRetriever` supplies a bounded, read-only DEV
 projection for consumers that need prior verified evidence. A local SQLite
 path is opened with `mode=ro`; SQL selects DEV tasks and their linked

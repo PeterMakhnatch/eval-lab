@@ -1,0 +1,18 @@
+{
+  "draft_count": 48,
+  "inputs": {
+    "checks.json": "sha256:588d3ae5521b11319ecca21c563b52afa7962f7c2fc036c99e7404eb6201d45d",
+    "contracts.json": "sha256:1e584dfd07e16bacc4375f9554d4a7fe294c0b92a33123bdd9c0fc987e0fc65d"
+  },
+  "metered_cost_usd": 0,
+  "model": "anthropic/claude-sonnet-5-5",
+  "policy": "DEV examples cross-key screened before drafting; no task names, ids, commands, payloads or execution claims in prose. Library citations joined and validated deterministically.",
+  "responses": [
+    "sha256:a6f0194997935993c2b3d0b2617cdb6acafddfe611f83d252faa04a1c0241a9c",
+    "sha256:72656c458bdbcd515fe174842220eb3133a0da039190018c54f5d9e8311b8192"
+  ],
+  "route": "subscription",
+  "schema_version": "failure-card-drafting/v1",
+  "seed_revision": "0ba0e2f0336f51622854f24df282cfd2f25d87d6",
+  "local_evidence": "~/.local/state/evallab-failure-library/knowledge/drafting/e1bb73bca125240363682340e8dc2eb994156bebd6848fdc96992f1982fad2b8"
+}

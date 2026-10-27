@@ -1,0 +1,190 @@
+{
+  "build": {
+    "admitted_dev_examples": 2301,
+    "by_collection": {
+      "aba-audits": 327,
+      "djinn": 976,
+      "envcheck-tb4": 2,
+      "impossiblebench": 606,
+      "mimo-defect-map": 88,
+      "mimo-weak-tests": 97,
+      "patchdiff-wrong-passes": 49,
+      "pm-tb4-findings": 48,
+      "swebench-pro-verified-corrections": 83,
+      "utboost-weak-tasks": 25
+    },
+    "by_split": {
+      "DEV": 2301
+    },
+    "by_tier": {
+      "V0_unverified": 347,
+      "V1_external_label": 1691,
+      "V2_upstream_fixed": 83,
+      "V3_executed": 180
+    },
+    "cards": 32,
+    "insufficient_dev_support": {},
+    "library_digest": "sha256:be231f73697cf19c86eb712189c318cf939c7746dae0c5ffccd28d9f14ce346b",
+    "missing_run_collections": [],
+    "rejected_examples": 2965,
+    "schema_version": "failure-knowledge/v1",
+    "sha256": {
+      "cards.jsonl": "a2df0cd7b0e921464dcf73d3defcede0540130ae58fcaa1b5a683d361ca17e3c",
+      "hackbook-proposals.jsonl": "cb33ef5777563866f15739ce40b3bb677fee3fe2822902212578180a45bee75c"
+    },
+    "source_collection_digests": {
+      "aba-audits": "sha256:97271c6eed05eaafe383fc3dd1970210ba16c459da6518ba2feabcb765da0d16",
+      "djinn": "sha256:c44af9b371bebe08b12e608022bfa242f271562f3600a37e3603068ae6db2388",
+      "envcheck-tb4": "sha256:6aa97cba8a258796804c7edd1d2bd67462b7bad43be4728505d61efae6ce443f",
+      "impossiblebench": "sha256:d4561cc805d4816e445d492e77666b2f45ebf2580b949616e9487d05d8be9673",
+      "mimo-defect-map": "sha256:10d7c2128853b2ee8252576024609721372127fe1e673954d85e9d816e9073c6",
+      "mimo-weak-tests": "sha256:153ec507b21eddd75b1a16f1c9e5733faa29b12b540d7d330f661beba9be7b7b",
+      "openai-swebench-verified-annotations": "sha256:4d795e56dc61a51eec4b4c30dec43cc2d99bb2fdc0d682597c27d842c418d1bc",
+      "patchdiff-wrong-passes": "sha256:da422321850e16c0f30440697b243aba1d451c612649de199e3232ddf1e694b7",
+      "pm-tb4-findings": "sha256:13ab04088fc5a85ed0a8aae9a6296c0b9e592939eb87e5498b670156b782f2a2",
+      "swebench-pro-verified-corrections": "sha256:67cda4ab2ea95320840ee3da8b5080b28c3bc482b6ddd94d77457f0f17798e6d",
+      "tb2-to-tb21-fixes": "sha256:5dfffb59833d6418aaaa5afd69010502519e44022ef22a9897db4367721e5b38",
+      "tb21-weak-tests": "sha256:db899d14f0d9b33ed0fe7ecd6ec0bc27d9422a4b1e1ab55929b241bc138324ad",
+      "utboost-weak-tasks": "sha256:3bccaf51c9378176f8e15c386607341ce152371ba41c41b51ff393211c5b8fd5"
+    },
+    "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f"
+  },
+  "card_classes": [
+    "TS01",
+    "TS02",
+    "TS03",
+    "TS04",
+    "TS05",
+    "TS06",
+    "TS07",
+    "TS09",
+    "TS10"
+  ],
+  "execution": "Real CLI dispatch with explicit immutable library workspace; no model inference or task execution.",
+  "library_digest": "sha256:be231f73697cf19c86eb712189c318cf939c7746dae0c5ffccd28d9f14ce346b",
+  "metered_cost_usd": 0,
+  "results": [
+    {
+      "agent": "task-qa",
+      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1/packets/task-qa",
+      "card_ids": [
+        "FC-HB-TS01-001",
+        "FC-HB-TS06-001",
+        "FC-HB-TS10-001",
+        "FC-HB-TS04-005",
+        "FC-HB-TS01-012"
+      ],
+      "elapsed_seconds": 68.34,
+      "example_ids": [
+        "fl-73b577ab26dc22a6",
+        "fl-442c8c595f97db40",
+        "fl-4e0baa21858a9c72"
+      ],
+      "exit_code": 0,
+      "files": {
+        "pack.md": {
+          "chars": 7929,
+          "sha256": "aef8b07a06de21ae146c6ce17ef35688e069abdbcd15bb7d0b077a98573d7b9a"
+        },
+        "playbook.md": {
+          "chars": 7929,
+          "sha256": "aef8b07a06de21ae146c6ce17ef35688e069abdbcd15bb7d0b077a98573d7b9a"
+        },
+        "rubric.toml": {
+          "chars": 13361,
+          "sha256": "403aa94fe3718e91aaf9a17e3a03c43a44ca07959c718490452c2111636f01b6"
+        }
+      },
+      "markdown_chars": 7929,
+      "status": "ready",
+      "stdout_sha256": "aef8b07a06de21ae146c6ce17ef35688e069abdbcd15bb7d0b077a98573d7b9a"
+    },
+    {
+      "agent": "trace-qa",
+      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1/packets/trace-qa",
+      "card_ids": [
+        "FC-HB-TS01-010",
+        "FC-HB-TS01-001",
+        "FC-HB-TS06-001",
+        "FC-HB-TS10-001",
+        "FC-HB-TS04-005"
+      ],
+      "elapsed_seconds": 36.33,
+      "example_ids": [
+        "fl-73b577ab26dc22a6",
+        "fl-442c8c595f97db40",
+        "fl-4e0baa21858a9c72"
+      ],
+      "exit_code": 0,
+      "files": {
+        "pack.md": {
+          "chars": 7869,
+          "sha256": "1fb32df1864292192864977d12cf1eb2da5c7fcd093bf95214374ff84369ae70"
+        },
+        "task_priors.json": {
+          "chars": 8848,
+          "sha256": "73a31770f2f80779ce54dfab3e87ace872ce92b5d44102e9d0ae789fd6c97ed2"
+        }
+      },
+      "markdown_chars": 7869,
+      "status": "ready",
+      "stdout_sha256": "1fb32df1864292192864977d12cf1eb2da5c7fcd093bf95214374ff84369ae70"
+    },
+    {
+      "agent": "seeker",
+      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1/packets/seeker",
+      "card_ids": [
+        "FC-HB-TS01-001",
+        "FC-HB-TS06-001",
+        "FC-HB-TS04-005",
+        "FC-HB-TS01-012"
+      ],
+      "elapsed_seconds": 30.157,
+      "example_ids": [
+        "fl-73b577ab26dc22a6",
+        "fl-442c8c595f97db40",
+        "fl-4e0baa21858a9c72"
+      ],
+      "exit_code": 0,
+      "files": {
+        "hackbook.md": {
+          "chars": 7618,
+          "sha256": "ae0b4f3f8e6b406cdb2285ee144c768e268cb146462a6d5c54de0d41e076c99b"
+        },
+        "pack.md": {
+          "chars": 7618,
+          "sha256": "ae0b4f3f8e6b406cdb2285ee144c768e268cb146462a6d5c54de0d41e076c99b"
+        }
+      },
+      "markdown_chars": 7618,
+      "status": "ready",
+      "stdout_sha256": "ae0b4f3f8e6b406cdb2285ee144c768e268cb146462a6d5c54de0d41e076c99b"
+    }
+  ],
+  "schema_version": "failure-pack-smoke/v1",
+  "source_snapshot": {
+    "findings_by_collection": {
+      "aba-audits": 441,
+      "djinn": 1224,
+      "envcheck-tb4": 36,
+      "impossiblebench": 904,
+      "mimo-defect-map": 108,
+      "mimo-weak-tests": 242,
+      "openai-swebench-verified-annotations": 1824,
+      "patchdiff-wrong-passes": 68,
+      "pm-tb4-findings": 241,
+      "swebench-pro-verified-corrections": 102,
+      "tb2-to-tb21-fixes": 26,
+      "tb21-weak-tests": 14,
+      "utboost-weak-tasks": 36
+    },
+    "schema_version": "failure-library-snapshot/v1",
+    "snapshot": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-20feb0dae-f2eb6caa1",
+    "source_bytes": "normalized failure-library/v1 records; each task pins its own upstream revision",
+    "source_commits": {
+      "fl-tasks-swe-20261027": "f2eb6caa1be408b15798315bff48c9b1dcfb3872",
+      "fl-tasks-tb-20261027": "20feb0daea8657f1c37d629704ea2ef3f7beabf4"
+    }
+  },
+  "subject": "terminal-bench/html-js-filter"
+}

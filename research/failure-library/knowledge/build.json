@@ -1,0 +1,50 @@
+{
+  "admitted_dev_examples": 2301,
+  "by_collection": {
+    "aba-audits": 327,
+    "djinn": 976,
+    "envcheck-tb4": 2,
+    "impossiblebench": 606,
+    "mimo-defect-map": 88,
+    "mimo-weak-tests": 97,
+    "patchdiff-wrong-passes": 49,
+    "pm-tb4-findings": 48,
+    "swebench-pro-verified-corrections": 83,
+    "utboost-weak-tasks": 25
+  },
+  "by_split": {
+    "DEV": 2301
+  },
+  "by_tier": {
+    "V0_unverified": 347,
+    "V1_external_label": 1691,
+    "V2_upstream_fixed": 83,
+    "V3_executed": 180
+  },
+  "cards": 32,
+  "insufficient_dev_support": {},
+  "library_digest": "sha256:be231f73697cf19c86eb712189c318cf939c7746dae0c5ffccd28d9f14ce346b",
+  "missing_run_collections": [],
+  "rejected_examples": 2965,
+  "schema_version": "failure-knowledge/v1",
+  "sha256": {
+    "cards.jsonl": "a2df0cd7b0e921464dcf73d3defcede0540130ae58fcaa1b5a683d361ca17e3c",
+    "hackbook-proposals.jsonl": "cb33ef5777563866f15739ce40b3bb677fee3fe2822902212578180a45bee75c"
+  },
+  "source_collection_digests": {
+    "aba-audits": "sha256:97271c6eed05eaafe383fc3dd1970210ba16c459da6518ba2feabcb765da0d16",
+    "djinn": "sha256:c44af9b371bebe08b12e608022bfa242f271562f3600a37e3603068ae6db2388",
+    "envcheck-tb4": "sha256:6aa97cba8a258796804c7edd1d2bd67462b7bad43be4728505d61efae6ce443f",
+    "impossiblebench": "sha256:d4561cc805d4816e445d492e77666b2f45ebf2580b949616e9487d05d8be9673",
+    "mimo-defect-map": "sha256:10d7c2128853b2ee8252576024609721372127fe1e673954d85e9d816e9073c6",
+    "mimo-weak-tests": "sha256:153ec507b21eddd75b1a16f1c9e5733faa29b12b540d7d330f661beba9be7b7b",
+    "openai-swebench-verified-annotations": "sha256:4d795e56dc61a51eec4b4c30dec43cc2d99bb2fdc0d682597c27d842c418d1bc",
+    "patchdiff-wrong-passes": "sha256:da422321850e16c0f30440697b243aba1d451c612649de199e3232ddf1e694b7",
+    "pm-tb4-findings": "sha256:13ab04088fc5a85ed0a8aae9a6296c0b9e592939eb87e5498b670156b782f2a2",
+    "swebench-pro-verified-corrections": "sha256:67cda4ab2ea95320840ee3da8b5080b28c3bc482b6ddd94d77457f0f17798e6d",
+    "tb2-to-tb21-fixes": "sha256:5dfffb59833d6418aaaa5afd69010502519e44022ef22a9897db4367721e5b38",
+    "tb21-weak-tests": "sha256:db899d14f0d9b33ed0fe7ecd6ec0bc27d9422a4b1e1ab55929b241bc138324ad",
+    "utboost-weak-tasks": "sha256:3bccaf51c9378176f8e15c386607341ce152371ba41c41b51ff393211c5b8fd5"
+  },
+  "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f"
+}

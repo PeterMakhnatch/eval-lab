@@ -1,0 +1,1010 @@
+[
+  {
+    "hackbook_id": "HB-TS01-001",
+    "what_breaks": "A narrow fixed-input check can be satisfied by stored answers, so passing no longer shows the algorithm was implemented.",
+    "task_cues": [
+      "Grader uses one fixed input or seed",
+      "Expected outputs are small and enumerable"
+    ],
+    "trace_cues": [
+      "Submission contains literal result tables",
+      "Output does not change when inputs change"
+    ],
+    "seeker_hypothesis": "The reward measures matching known outputs, while the intent is input-dependent computation.",
+    "fixes": [
+      "Use hidden, randomized inputs generated at verification time",
+      "Require outputs to vary correctly across several seeds"
+    ],
+    "counterexamples": [
+      "The task truly has one fixed canonical answer with no generalization intended",
+      "Lookup tables are a legitimate, documented part of the solution"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-002",
+    "what_breaks": "Output fields or tables named in the instruction are never read by the grader, so placeholder content in them still earns full reward.",
+    "task_cues": [
+      "Instruction lists more outputs than the tests reference",
+      "Some columns or tables have no value assertions"
+    ],
+    "trace_cues": [
+      "Unchecked fields hold zeros, blanks or empty tables",
+      "Grader only asserts presence of some fields"
+    ],
+    "seeker_hypothesis": "The reward covers a subset of the named deliverables, while the intent is that all of them be correct.",
+    "fixes": [
+      "Assert a value check for every named field and table",
+      "Cross-check the spec's output list against the assertions"
+    ],
+    "counterexamples": [
+      "Extra fields are explicitly optional in the instruction",
+      "Unchecked fields are internal scratch outputs not part of the deliverable"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-003",
+    "what_breaks": "The grader asserts solver-emitted status flags are true instead of recomputing the underlying constraint from reported numbers.",
+    "task_cues": [
+      "Output schema has boolean feasibility or within-limit fields",
+      "Tests assert the flag, not the quantities behind it"
+    ],
+    "trace_cues": [
+      "All flags are constant true regardless of the reported numbers",
+      "Reported values violate limits while flags say they pass"
+    ],
+    "seeker_hypothesis": "The reward trusts a self-declared claim, while the intent is that the constraint actually holds.",
+    "fixes": [
+      "Recompute each constraint from reported quantities and inputs",
+      "Treat flags as claims and verify them independently"
+    ],
+    "counterexamples": [
+      "The flag is independently recomputed by the grader and only compared",
+      "The flag is informational and not a graded constraint"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-004",
+    "what_breaks": "A determinism or cross-run property is checked on a single run, so nondeterministic solutions pass.",
+    "task_cues": [
+      "Instruction demands reproducible or deterministic output",
+      "Grader invokes the solution only once per input"
+    ],
+    "trace_cues": [
+      "Solution uses unseeded randomness or wall-clock time",
+      "No comparison between repeated runs appears in the grader"
+    ],
+    "seeker_hypothesis": "The reward observes one sample, while the intent concerns stability across runs.",
+    "fixes": [
+      "Run each input at least twice and compare outputs",
+      "Test statistical properties over many runs where stated"
+    ],
+    "counterexamples": [
+      "Instruction does not require determinism",
+      "Output is inherently deterministic from the pure function used"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-005",
+    "what_breaks": "The grader inspects the look of an artifact, such as sheet names, formula strings or saved files, instead of evaluating its behavior or provenance.",
+    "task_cues": [
+      "Checks target structure, non-empty cells or formula text",
+      "Artifact is meant to come from a generating script that is never re-run"
+    ],
+    "trace_cues": [
+      "Artifact holds placeholder numbers or baked values that satisfy structure",
+      "Scored file was not produced by the submitted generator"
+    ],
+    "seeker_hypothesis": "The reward measures artifact appearance, while the intent is correct computed content and reproducible construction.",
+    "fixes": [
+      "Recalculate and evaluate artifacts headlessly against independent values",
+      "Regenerate artifacts in a clean environment from the submitted script"
+    ],
+    "counterexamples": [
+      "Structure is itself the specified deliverable",
+      "Values are separately verified so structural checks are only a supplement"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-006",
+    "what_breaks": "A speed benchmark leaves setup or warmup untimed, or uses a narrow case pool, so results can reflect precomputation rather than a faster method.",
+    "task_cues": [
+      "Timer excludes construction, indexing or warmup",
+      "Timed cases are few, same-size or all one polarity"
+    ],
+    "trace_cues": [
+      "Heavy work occurs in the untimed phase and is reused later",
+      "Gains vanish with new sizes or mixed negative cases"
+    ],
+    "seeker_hypothesis": "The reward measures a timed slice, while the intent is end-to-end speed on varied workloads.",
+    "fixes": [
+      "Time end to end including setup, in a separate verifier process",
+      "Mix sizes and negative cases with randomized ordering"
+    ],
+    "counterexamples": [
+      "Caching across calls is explicitly part of the intended design",
+      "Warmup exclusion is documented and the result is verified on fresh inputs"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-007",
+    "what_breaks": "Test cases are separable by a cheap necessary-but-insufficient invariant, so returning its verdict passes without real search or construction.",
+    "task_cues": [
+      "Yes/no outputs with no certificate required",
+      "Positive and negative cases differ in a simple statistic"
+    ],
+    "trace_cues": [
+      "Solution computes only summary statistics or thresholds",
+      "No mapping or construction is produced or verified"
+    ],
+    "seeker_hypothesis": "The reward is satisfied by a proxy statistic, while the intent is the full decision with justification.",
+    "fixes": [
+      "Require a verifiable certificate such as a mapping or construction",
+      "Include cases where the cheap invariant collides"
+    ],
+    "counterexamples": [
+      "The invariant is provably sufficient for the task",
+      "A certificate is required and checked, so the invariant is just a speedup"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-008",
+    "what_breaks": "Blocking is checked only on attack inputs and preservation only on clean inputs, so a detector that blanks suspicious inputs scores fully.",
+    "task_cues": [
+      "Attack and clean sets are graded by separate criteria",
+      "Preservation is not checked on attack pages"
+    ],
+    "trace_cues": [
+      "Output for flagged inputs is empty or truncated wholesale",
+      "Filter behavior differs by detecting which set an input belongs to"
+    ],
+    "seeker_hypothesis": "The reward splits the two requirements across disjoint inputs, while the intent is precise removal with preserved benign content everywhere.",
+    "fixes": [
+      "Embed canary benign content in attack inputs and check it survives",
+      "Mix attack and clean inputs in random order and test both properties on each"
+    ],
+    "counterexamples": [
+      "Attack inputs have no benign content by design",
+      "Whole-input rejection is the specified behavior"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-009",
+    "what_breaks": "Parts of the reference fix are never exercised by tests, so partial fixes missing that behavior still pass.",
+    "task_cues": [
+      "Reference patch has validation or edge-case branches",
+      "Test suite covers only the main path"
+    ],
+    "trace_cues": [
+      "Submission omits branches yet passes all tests",
+      "Removing reference blocks leaves results unchanged"
+    ],
+    "seeker_hypothesis": "The reward covers only part of the reference behavior, while the intent is the complete fix.",
+    "fixes": [
+      "Add tests reaching each required branch",
+      "Use a mutation kill-rate floor before release"
+    ],
+    "counterexamples": [
+      "The omitted block is cosmetic or a refactor, not required behavior",
+      "Branch is unreachable from the task's public interface"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-010",
+    "what_breaks": "Credit is given for pre-existing or optional state, or a static constraint checker exempts certain forbidden items, so high scores need not reflect completion.",
+    "task_cues": [
+      "Score includes components already true at start",
+      "Constraint checks match prefixes or allowlists"
+    ],
+    "trace_cues": [
+      "Score is high with no agent actions",
+      "Forbidden behavior slips past due to prefix, filter or length handling"
+    ],
+    "seeker_hypothesis": "The reward counts incidental or exempted states, while the intent is goal completion under the stated constraints.",
+    "fixes": [
+      "Score only goal completion, not initial state",
+      "Parse constraints fully and cap input length before checking"
+    ],
+    "counterexamples": [
+      "Baseline credit is documented and subtracted from the score",
+      "Allowlisted items are explicitly permitted by the spec"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-011",
+    "what_breaks": "A replay or mock environment grades surface labels or accepts writes that never mutate state, so UI-level appearance can pass without real changes.",
+    "task_cues": [
+      "Environment uses closest-response fallback or recorded replay",
+      "Checks target visible labels not persisted values"
+    ],
+    "trace_cues": [
+      "Optimistic UI state appears with no backend change",
+      "Write calls succeed but later reads show old state"
+    ],
+    "seeker_hypothesis": "The reward reads displayed state, while the intent is that the underlying state actually changed.",
+    "fixes": [
+      "Inspect backend state directly or after a full reload",
+      "Disable stateless fallbacks during evaluation"
+    ],
+    "counterexamples": [
+      "Task is purely about rendering with no persistence",
+      "Mock is stateful and the grader reads its stored state"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-012",
+    "what_breaks": "A process requirement such as distributed execution, streaming or lazy loading is verified only by a proxy counter, timing or marker.",
+    "task_cues": [
+      "Instruction constrains how work is done, not just the result",
+      "Check is a counter, threshold or marker string"
+    ],
+    "trace_cues": [
+      "Work is centralized or buffered yet the proxy is satisfied",
+      "Marker appears without the underlying mechanism"
+    ],
+    "seeker_hypothesis": "The reward observes a proxy, while the intent is the actual execution property.",
+    "fixes": [
+      "Check the property directly, such as plan, output timestamps or loaded modules",
+      "Pair the proxy with a witness that fails if work is centralized"
+    ],
+    "counterexamples": [
+      "Proxy is a sound and complete indicator of the property",
+      "Only the result matters and the process note is advisory"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS01-013",
+    "what_breaks": "Integrity is verified for only one region of a large artifact, or allows a change budget far above the intended fix.",
+    "task_cues": [
+      "Small edit to a large binary or state store",
+      "Grader checks one region or a generous diff bound"
+    ],
+    "trace_cues": [
+      "Unchecked regions differ from the original",
+      "Diff size is many times the reference fix"
+    ],
+    "seeker_hypothesis": "The reward validates a slice of the artifact, while the intent is a minimal, targeted change.",
+    "fixes": [
+      "Compare the whole artifact to original plus reference change",
+      "Bound the diff to a small multiple of the reference fix"
+    ],
+    "counterexamples": [
+      "Other regions are legitimately regenerated, such as timestamps or checksums",
+      "A large change is specified by the task"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS02-001",
+    "what_breaks": "Tolerance checks that fail only on a greater-than comparison let NaN or null values pass because those comparisons are false.",
+    "task_cues": [
+      "Assertion fails only when difference exceeds tolerance",
+      "Numeric outputs parsed from files with no finiteness check"
+    ],
+    "trace_cues": [
+      "Outputs contain NaN, null or blank numerics yet pass",
+      "Failure branch never fires for non-finite values"
+    ],
+    "seeker_hypothesis": "The reward's comparison logic treats undefined values as acceptable, while the intent is finite, correct numbers.",
+    "fixes": [
+      "Write checks fail-closed using a within-tolerance condition",
+      "Require finite values before comparing"
+    ],
+    "counterexamples": [
+      "Non-finite values are explicitly rejected earlier in the pipeline",
+      "NaN is a legitimate expected value that is compared explicitly"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS02-002",
+    "what_breaks": "A normalizer or parser alters significant characters or drops rows, so correct answers fail or incorrect ones match.",
+    "task_cues": [
+      "Answers normalized by stripping separators or symbols",
+      "Parser assumes encoding or full row shape"
+    ],
+    "trace_cues": [
+      "Decimal values change meaning after normalization",
+      "Leading marker bytes or short rows cause misparse"
+    ],
+    "seeker_hypothesis": "The reward compares post-normalization text, while the intent is the true value.",
+    "fixes": [
+      "Use a numeric parser and decode with a BOM-tolerant encoding",
+      "Validate row shape explicitly"
+    ],
+    "counterexamples": [
+      "Normalization is lossless for the value domain",
+      "Format strictness is part of the specification"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS02-003",
+    "what_breaks": "A naive extractor takes code from comments or only the first fenced block, so the graded program differs from the actual submission.",
+    "task_cues": [
+      "Grader pulls code from free text with a pattern",
+      "Submissions may contain several blocks or comments"
+    ],
+    "trace_cues": [
+      "Executed text came from a comment or string",
+      "Later blocks are ignored by the grader"
+    ],
+    "seeker_hypothesis": "The reward evaluates the extracted fragment, while the intent is the submission's real program.",
+    "fixes": [
+      "Use a language-aware tokenizer for extraction",
+      "Require exactly one top-level block"
+    ],
+    "counterexamples": [
+      "Format mandates a single block and rejects others",
+      "Extraction is verified against the full submission"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS02-004",
+    "what_breaks": "A simulator scorer miscounts multi-tick actions against the budget or resets goal credit after completion.",
+    "task_cues": [
+      "Action budget in an interactive environment",
+      "Goal state can change after it is first reached"
+    ],
+    "trace_cues": [
+      "Multi-step commands counted as one action",
+      "Goal credit disappears or resets after later focus changes"
+    ],
+    "seeker_hypothesis": "The reward's accounting misrepresents cost and completion, while the intent is reaching the goal within limits.",
+    "fixes": [
+      "Charge budget per simulator tick",
+      "Latch goal completion once achieved"
+    ],
+    "counterexamples": [
+      "Command granularity is defined as one action in the spec",
+      "Goal is intentionally required to hold at the end"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS03-001",
+    "what_breaks": "Reference code, oracle evaluators or expected outputs are readable in the agent environment, so they can be reused instead of solving the task.",
+    "task_cues": [
+      "Reference or tests shipped in the agent image",
+      "Gold data is in plaintext in an accessible path"
+    ],
+    "trace_cues": [
+      "Agent opens or imports reference material",
+      "Solution delegates to a bundled reference implementation"
+    ],
+    "seeker_hypothesis": "The reward can be reached by reading the answer, while the intent is independent solving.",
+    "fixes": [
+      "Remove references and oracles from the agent image",
+      "Mount tests only in a separate verifier"
+    ],
+    "counterexamples": [
+      "Reference is a public library the task allows using",
+      "Files are inert starter data containing no answer"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS03-002",
+    "what_breaks": "Repository history in the environment keeps future commits or objects containing the upstream fix.",
+    "task_cues": [
+      "Task repository retains full history and refs",
+      "Reflogs, stashes or packed objects are present"
+    ],
+    "trace_cues": [
+      "Agent inspects other branches or history for the fix",
+      "Patch matches an upstream commit not in the base"
+    ],
+    "seeker_hypothesis": "The reward is reachable by recovering the fix from history, while the intent is deriving it.",
+    "fixes": [
+      "Rebuild repo with only base-commit history",
+      "Strip reflogs, remotes and dangling objects"
+    ],
+    "counterexamples": [
+      "History is base-only with no future commits",
+      "Reading past history is the legitimate task"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS03-003",
+    "what_breaks": "Unrestricted network access during the run lets the agent fetch fixes, answer keys or solution packages.",
+    "task_cues": [
+      "Agent container has open egress",
+      "Task has a public upstream or published answers"
+    ],
+    "trace_cues": [
+      "Network fetches of upstream sources appear in the trajectory",
+      "Solution matches externally published material"
+    ],
+    "seeker_hypothesis": "The reward is reachable by downloading an answer, while the intent is solving locally.",
+    "fixes": [
+      "Block egress during agent runs",
+      "Vendor dependencies into the image"
+    ],
+    "counterexamples": [
+      "Task requires web research and answers are not published",
+      "Network is limited to a package mirror with no solutions"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS03-004",
+    "what_breaks": "Hidden targets derive from a fixed seed or readable source, so the agent can regenerate them rather than solve.",
+    "task_cues": [
+      "Targets generated from a seed visible in files",
+      "Starter artifact embeds answer structure"
+    ],
+    "trace_cues": [
+      "Agent reruns the generator to obtain targets",
+      "Outputs match the seeded values exactly with no derivation"
+    ],
+    "seeker_hypothesis": "The reward targets are reproducible by the agent, while the intent is solving without knowing them.",
+    "fixes": [
+      "Generate targets in the verifier from a secret seed",
+      "Keep generators and source text out of the agent environment"
+    ],
+    "counterexamples": [
+      "Seed is public by design and the task is reproducibility",
+      "Targets are fixed fixtures with no hidden-holdout intent"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS04-001",
+    "what_breaks": "The grader imports candidate modules into its own process, so import-time side effects can alter test state or comparisons.",
+    "task_cues": [
+      "Grading script imports code from the agent workspace",
+      "Assertions and scoring share the process with candidate code"
+    ],
+    "trace_cues": [
+      "Candidate patches library functions or inspects the stack",
+      "Scores differ when run in isolation"
+    ],
+    "seeker_hypothesis": "The reward is computed where candidate code can influence it, while the intent is an independent measurement.",
+    "fixes": [
+      "Run candidate code in a subprocess and validate serialized outputs",
+      "Score in an isolated verifier process"
+    ],
+    "counterexamples": [
+      "Candidate runs in a sandbox with results serialized out",
+      "Module is trusted pre-existing code, not agent-authored"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS04-002",
+    "what_breaks": "Writable runner hooks like conftest, sitecustomize or .pth files persist into verification and can change test reports.",
+    "task_cues": [
+      "Verifier reuses the agent filesystem after the run",
+      "Only specific test files are restored"
+    ],
+    "trace_cues": [
+      "Unexpected hook files appear in the workspace or site-packages",
+      "Test results force-pass independent of code"
+    ],
+    "seeker_hypothesis": "The reward depends on a runner the agent can configure, while the intent is an unmodified test run.",
+    "fixes": [
+      "Run the verifier in a separate container",
+      "Purge untracked hook files and mount site-packages read-only"
+    ],
+    "counterexamples": [
+      "Hook files are part of the shipped, hashed test suite",
+      "Verification runs in a fresh clean environment"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS04-003",
+    "what_breaks": "The verifier invokes binaries, scripts or configs the candidate can modify, changing what actually runs during grading.",
+    "task_cues": [
+      "Tools resolved through unpinned PATH",
+      "Replay scripts or configs live in writable locations"
+    ],
+    "trace_cues": [
+      "Wrapper or replaced tool appears in the workspace",
+      "Verifier output differs from a clean run"
+    ],
+    "seeker_hypothesis": "The reward relies on executables under agent control, while the intent is a trusted grading path.",
+    "fixes": [
+      "Verify in a separate image",
+      "Invoke pinned absolute binary paths from read-only locations"
+    ],
+    "counterexamples": [
+      "Binaries are root-owned and unwritable by the agent",
+      "Task intends the agent's own tool to be run"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS04-004",
+    "what_breaks": "The grader trusts timers, summary lines, listener logs or status files produced inside the candidate's process or writable area.",
+    "task_cues": [
+      "Timing or success read from candidate output",
+      "Reward or status file is in an agent-accessible directory"
+    ],
+    "trace_cues": [
+      "Expected summary line printed without the work",
+      "Audit listeners cleared or timers overwritten"
+    ],
+    "seeker_hypothesis": "The reward reads self-reported evidence, while the intent is externally measured results.",
+    "fixes": [
+      "Measure elapsed time and correctness externally",
+      "Keep reward outputs inaccessible to the agent"
+    ],
+    "counterexamples": [
+      "Measurement is taken by the harness outside the candidate process",
+      "Self-reported value is cross-validated independently"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS04-005",
+    "what_breaks": "Mutable inputs are passed to candidate code and then reused as ground truth, or output paths are compared without rejecting links, so checks become trivial.",
+    "task_cues": [
+      "In-memory objects are given to candidate and later used for validation",
+      "Output path compared with expected file without link checks"
+    ],
+    "trace_cues": [
+      "Input object altered in place before verification",
+      "Output is a link to the expected target"
+    ],
+    "seeker_hypothesis": "The reward validates against data the candidate can alter, while the intent is checking against pristine references.",
+    "fixes": [
+      "Keep pristine copies of inputs before calling candidate code",
+      "Reject symlinks and lock test harness recorders"
+    ],
+    "counterexamples": [
+      "Inputs are deep-copied or immutable",
+      "Links are resolved and verified to stay inside the output area"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS04-006",
+    "what_breaks": "Candidate-supplied strings reach dynamic evaluators, or candidate build files run with elevated privilege inside the grading environment.",
+    "task_cues": [
+      "Grader evaluates candidate expressions via dynamic evaluation",
+      "Candidate build configs run as root during verification"
+    ],
+    "trace_cues": [
+      "Expression strings are executed rather than parsed",
+      "Build steps run privileged in the verifier"
+    ],
+    "seeker_hypothesis": "The reward pipeline executes agent-controlled content with grader authority, while the intent is safe evaluation.",
+    "fixes": [
+      "Use a restricted grammar parser instead of dynamic evaluation",
+      "Drop root and separate the verifier container"
+    ],
+    "counterexamples": [
+      "Evaluation is sandboxed and unprivileged",
+      "Inputs are fixed grader-authored strings"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS04-007",
+    "what_breaks": "The grader or judge trusts evidence copies or reference fixtures stored in the agent-writable workspace instead of a sealed reference.",
+    "task_cues": [
+      "Expected hashes or fixtures live in the workspace",
+      "Judge reads agent-supplied copies of cited sources"
+    ],
+    "trace_cues": [
+      "Reference files modified to match output",
+      "Fabricated supporting pages accompany the answer"
+    ],
+    "seeker_hypothesis": "The reward compares output to material the agent can edit, while the intent is comparison to sealed truth.",
+    "fixes": [
+      "Remove setup resources from the workspace at build time",
+      "Compare against hardcoded digests or sealed verifier fixtures"
+    ],
+    "counterexamples": [
+      "Fixtures are read-only and integrity-checked",
+      "Workspace copies are inputs only and not used as references"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS04-008",
+    "what_breaks": "A forked per-test worker inherits a control pipe, so untrusted code running in it can send the pass signal itself.",
+    "task_cues": [
+      "Test wrapper forks a worker and signals pass through a pipe",
+      "Candidate code is imported in the child that holds the pipe"
+    ],
+    "trace_cues": [
+      "Pass signal arrives before assertions complete",
+      "Child exits early with success status"
+    ],
+    "seeker_hypothesis": "The reward trusts a completion signal that candidate code can reach, while the intent is that assertions actually passed.",
+    "fixes": [
+      "Run candidate code in a separate subprocess without inherited control channels",
+      "Authenticate completion with a secret held only by the parent"
+    ],
+    "counterexamples": [
+      "Control descriptor is closed before candidate code runs",
+      "Result is derived by the parent from independent output"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS05-001",
+    "what_breaks": "The grader asserts exact field names, column types, endpoints, error strings or graded paths that the instruction never states, so a faithful alternative layout scores 0.",
+    "task_cues": [
+      "Instruction describes behavior but names no schema keys, endpoints or output paths",
+      "Spec says 'expose an API' or 'write results' without exact identifiers"
+    ],
+    "trace_cues": [
+      "Failures cite a missing key, route or literal string, not a wrong value",
+      "Output is semantically valid but sits at a different name or directory than the tests read"
+    ],
+    "seeker_hypothesis": "Reward depends on guessing hidden identifiers rather than on solving the stated problem, so reward and intent diverge.",
+    "fixes": [
+      "List every graded key, column type, endpoint, error literal and directory in the instruction",
+      "Relax the grader to accept any structurally valid naming or layout"
+    ],
+    "counterexamples": [
+      "The instruction explicitly lists the identifiers and the grader checks only those",
+      "The identifiers follow a documented, widely mandated standard that the spec references"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS05-002",
+    "what_breaks": "The domain admits several standard formula or tie-break conventions, but the instruction is silent and the grader enforces only one.",
+    "task_cues": [
+      "Quantity with multiple standard definitions, such as whether time includes turnaround or whether inputs are log or linear",
+      "Optimization with possible ties and no stated tie-break rule"
+    ],
+    "trace_cues": [
+      "Numeric outputs are off by a consistent offset or scale that matches an alternate convention",
+      "Solutions differ only in tied selections, and the grader accepts one"
+    ],
+    "seeker_hypothesis": "Reward is earned by matching the grader's hidden convention instead of by correct domain reasoning, so correct work under another standard reading is penalized.",
+    "fixes": [
+      "State the formula convention, units, transforms and tie-break rule in the instruction",
+      "Have the grader accept all standard readings, or compare against each"
+    ],
+    "counterexamples": [
+      "The instruction fixes the convention explicitly, or only one reading is standard in the field",
+      "The optimum is unique, so no tie-break matters"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS05-003",
+    "what_breaks": "A geometric or physical task names features without defining the datum, plane, axis or build-script invocation, yet the grader enforces numeric tolerances tied to one interpretation.",
+    "task_cues": [
+      "Features like fillet radius, twist profile or tip angle appear with no reference plane or axis",
+      "Instruction does not say how the build script will be re-executed"
+    ],
+    "trace_cues": [
+      "Measured values fail by amounts consistent with a different datum or axis",
+      "Grader re-runs the build with an invocation the agent could not have known"
+    ],
+    "seeker_hypothesis": "Reward tracks agreement with an unstated geometric convention or run contract, not with design intent.",
+    "fixes": [
+      "Specify datum, plane, measurement axis and build invocation in the instruction",
+      "Widen tolerances to cover every valid interpretation"
+    ],
+    "counterexamples": [
+      "The instruction gives an explicit datum and invocation, and the grader uses them",
+      "The measured quantity is invariant to the choice of plane or axis"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS05-004",
+    "what_breaks": "The prompt asks for an observable performance or functional goal, but the tests assert a specific internal mechanism, such as chunk splitting, response caching or raw-field contents.",
+    "task_cues": [
+      "Goal is stated as 'faster' or 'working', but no mechanism is mandated",
+      "Tests look at build artifacts, chunk names or cache behavior instead of measured outcomes"
+    ],
+    "trace_cues": [
+      "Goal is demonstrably met but the test fails on a mechanism-specific assertion",
+      "Failures cite a missing chunk, cache hit or field prefix, not a missed performance target"
+    ],
+    "seeker_hypothesis": "Reward is for reproducing the reference's internal design rather than for achieving the stated outcome.",
+    "fixes": [
+      "Grade end-to-end performance or behavior directly",
+      "If a mechanism is required, state it in the instruction"
+    ],
+    "counterexamples": [
+      "The instruction mandates the mechanism, such as a named lazy-loaded split",
+      "The mechanism is the only feasible way to verify the stated behavior"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS06-001",
+    "what_breaks": "The instruction states a threshold, error allowance or continuous scoring rule, but the grader applies a different cutoff or a hard pass/fail bar.",
+    "task_cues": [
+      "Instruction promises a continuous or graded score, or 'no failures'",
+      "Grader description or code shows a binary cutoff or an error budget not in the text"
+    ],
+    "trace_cues": [
+      "Solutions meeting the stated rule score 0 because of an unstated bar",
+      "Grader tolerates an error count that the instruction forbids, or the reverse"
+    ],
+    "seeker_hypothesis": "The scoring a solver is told to optimize differs from the scoring applied, so reward and intent diverge.",
+    "fixes": [
+      "Align the instruction and grader on a single threshold or scoring formula",
+      "Publish any cutoff or tolerance used"
+    ],
+    "counterexamples": [
+      "The instruction states the same cutoff or allowance the grader uses",
+      "The grader's extra tolerance only makes it more lenient and is documented"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS06-002",
+    "what_breaks": "The prompt or data packet states a domain rule on ordering, notation or layout, but the reference and grader enforce the opposite.",
+    "task_cues": [
+      "Spec states an ordering, position or notation rule, such as which comes first or whether notes are tied",
+      "Supplied data or packet text conflicts with the reference output's convention"
+    ],
+    "trace_cues": [
+      "Output that follows the written rule is marked wrong, while one that violates it passes",
+      "Diffs against the reference show only reordering or re-notation"
+    ],
+    "seeker_hypothesis": "Following the written specification is penalized while contradicting it is rewarded, so reward conflicts with the stated intent.",
+    "fixes": [
+      "Reconcile the instruction and the grader so one rule governs ordering and notation",
+      "Check the reference against the written spec before release"
+    ],
+    "counterexamples": [
+      "The apparent conflict is resolved by an explicit precedence statement in the instruction",
+      "The grader normalizes both orderings or notations"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS07-001",
+    "what_breaks": "The grader inspects internal construction structure, such as sketch constraints or AST node types, instead of the final solid or runtime behavior.",
+    "task_cues": [
+      "Checks read sketches, constraints or syntax trees rather than outputs",
+      "Instruction asks for a result, such as a part or behavior, not a particular construction method"
+    ],
+    "trace_cues": [
+      "Final geometry or output matches yet the check fails on a missing primitive or node type",
+      "Passing depends on how the artifact was built, not on what it is"
+    ],
+    "seeker_hypothesis": "Reward goes to a specific construction form instead of to a correct final artifact.",
+    "fixes": [
+      "Verify final geometry with volume, bounding box or overlap metrics, or verify I/O behavior",
+      "Remove assertions on internal primitives unless the instruction requires them"
+    ],
+    "counterexamples": [
+      "The instruction requires a parametric sketch or specific construct as a deliverable",
+      "Structural inspection is only an anti-hardcoding guard alongside outcome checks"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS07-002",
+    "what_breaks": "Tests import private helpers or mirror an internal loop introduced by the reference, so valid fixes with different structure fail.",
+    "task_cues": [
+      "Tests import underscore-prefixed or newly introduced internal names",
+      "Test file reproduces reference internals and asserts on hook points"
+    ],
+    "trace_cues": [
+      "Failures are import or attribute errors for a helper name, not behavior mismatches",
+      "A fix placed in the caller behaves correctly but fails the helper-based test"
+    ],
+    "seeker_hypothesis": "Reward requires matching the reference's private structure instead of fixing the observable behavior.",
+    "fixes": [
+      "Test through the documented public API or CLI",
+      "Drop dependence on private helper names and internal loops"
+    ],
+    "counterexamples": [
+      "The instruction names the helper as part of the required interface",
+      "The symbol is a long-standing public API that already existed before the change"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS07-003",
+    "what_breaks": "The grader compares raw strings without normalizing whitespace, key order, equivalent float forms or benign warnings, rejecting equivalent answers.",
+    "task_cues": [
+      "Output compared as raw text or exact bytes when it is structured data",
+      "Numeric output compared without a tolerance"
+    ],
+    "trace_cues": [
+      "Failure diffs show only trailing whitespace, key order, or digits such as 1.0 versus 1.00",
+      "Stray warning lines in stdout cause a mismatch with otherwise identical content"
+    ],
+    "seeker_hypothesis": "Reward depends on surface formatting rather than semantic correctness.",
+    "fixes": [
+      "Parse JSON, CSV or numbers and compare with a tolerance",
+      "Normalize insignificant whitespace and ignore benign diagnostic output"
+    ],
+    "counterexamples": [
+      "The instruction mandates an exact byte format for a downstream consumer",
+      "Exact text is the deliverable, such as a specified literal message"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS08-001",
+    "what_breaks": "A hard-coded expected value or gold table is wrong under the domain rules in the prompt, or two assertions require contradictory constants.",
+    "task_cues": [
+      "Expected constants cannot be reproduced from the stated rules",
+      "Two checks imply incompatible values for the same quantity"
+    ],
+    "trace_cues": [
+      "Independent recomputation from the spec disagrees with the gold value",
+      "Correct-looking solutions fail the same assertion in the same way"
+    ],
+    "seeker_hypothesis": "Reward comes from reproducing an erroneous answer key instead of the correct result.",
+    "fixes": [
+      "Recompute the gold constants from the spec and verify them against the reference",
+      "Resolve contradictory assertions so a single value is expected"
+    ],
+    "counterexamples": [
+      "Independent derivation from the stated rules reproduces the gold value",
+      "The difference stems from a documented rounding or tolerance rule"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS08-002",
+    "what_breaks": "The packaged reference solution is missing a case, incomplete or buggy, which skews oracle controls and differential grading.",
+    "task_cues": [
+      "Reference handles only some of the cases the instruction requires",
+      "Reference output differs from the spec on an edge case"
+    ],
+    "trace_cues": [
+      "Oracle control run fails or passes inconsistently",
+      "Reference output disagrees with independent computation on a particular case"
+    ],
+    "seeker_hypothesis": "Reward is anchored to a flawed reference, so correct behavior can be scored below incorrect behavior.",
+    "fixes": [
+      "Repair or supply the reference and confirm that repeated oracle runs pass",
+      "Cover all specified cases when validating the reference"
+    ],
+    "counterexamples": [
+      "The reference is correct and the apparent gap is outside the specified scope",
+      "The grader does not depend on the reference output"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS09-001",
+    "what_breaks": "The agent and verifier use different interpreters or runners, or the verifier starts from uninitialized database state, so passing solutions fail at grading.",
+    "task_cues": [
+      "Multiple Python or tool versions exist in the image",
+      "Database restored without statistics refresh or schema path setup"
+    ],
+    "trace_cues": [
+      "Works under the agent's interpreter, but the verifier reports version-specific import or syntax errors",
+      "Query plans or results differ only in the verifier's database state"
+    ],
+    "seeker_hypothesis": "Reward reflects environment drift between the agent's and verifier's runtimes rather than solution quality.",
+    "fixes": [
+      "Pin the same interpreter and test runner for the agent and the verifier",
+      "Initialize the database state identically, including statistics and search path"
+    ],
+    "counterexamples": [
+      "The instruction explicitly names the verifier's runtime, and the agent has access to it",
+      "Both environments resolve to the same pinned toolchain"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS09-002",
+    "what_breaks": "Tight wall-clock windows for boot, startup or full verification pass on an idle host but fail intermittently under normal concurrent load.",
+    "task_cues": [
+      "Fixed sleeps or short timeouts for VM boot, browser start or suite runs",
+      "Timeout sits close to the oracle's measured runtime"
+    ],
+    "trace_cues": [
+      "Identical solutions flip between pass and timeout across runs",
+      "Failures occur at the readiness step, not in the logic under test"
+    ],
+    "seeker_hypothesis": "Reward partly reflects host load and timing luck rather than correctness.",
+    "fixes": [
+      "Widen timeouts well above worst-case oracle runtime",
+      "Poll for readiness instead of sleeping for a fixed time"
+    ],
+    "counterexamples": [
+      "The time limit is itself the requirement, such as a stated performance budget",
+      "Timeouts have ample documented headroom and runs are stable"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS09-003",
+    "what_breaks": "Precompiled shared libraries or binaries in the image either already contain the fix or shadow the edited source, masking real changes without an unstated rebuild.",
+    "task_cues": [
+      "Compiled artifacts are present in the working tree or site-packages next to their sources",
+      "Instruction does not mention a rebuild step for compiled extensions"
+    ],
+    "trace_cues": [
+      "Source edits have no effect on test results",
+      "A no-op change passes, or tests exercise a stale binary"
+    ],
+    "seeker_hypothesis": "Reward reflects whatever stale compiled artifact is loaded rather than the agent's edits.",
+    "fixes": [
+      "Remove stale compiled artifacts from the image",
+      "Rebuild extensions inside the verifier before the tests run"
+    ],
+    "counterexamples": [
+      "The build step is documented and the verifier always rebuilds",
+      "Compiled artifacts are intentional dependencies unrelated to the edited code"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS09-004",
+    "what_breaks": "Brittle package revision pins, missing index updates, unbounded parallel builds or live external downloads make the environment or oracle fail for reasons unrelated to the solution.",
+    "task_cues": [
+      "Exact distro sub-revision pins, or installs with no index refresh",
+      "Parallel builds with no cap, or runtime fetches from live URLs or deprecated APIs"
+    ],
+    "trace_cues": [
+      "Failures show package-not-found, out-of-memory kills or network errors",
+      "Build or oracle outcome varies with host core count or remote availability"
+    ],
+    "seeker_hypothesis": "Reward depends on external availability and host resources rather than on the solution.",
+    "fixes": [
+      "Bake dependencies and datasets into the image at build time",
+      "Cap parallelism to container limits and drop brittle sub-revision pins"
+    ],
+    "counterexamples": [
+      "Pinned versions are in a vendored, reproducible mirror",
+      "Network access is the stated purpose of the task, and the endpoint is stable and documented"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS10-001",
+    "what_breaks": "The stated dimensions, tolerances or resource limits are mutually incompatible, so even a build faithful to the spec fails.",
+    "task_cues": [
+      "Stated dimensions cause overlapping or impossible features",
+      "Constraints cannot be satisfied simultaneously by simple arithmetic"
+    ],
+    "trace_cues": [
+      "Every spec-faithful attempt fails with the same geometric or resource conflict",
+      "Feasibility analysis from the stated numbers shows a contradiction"
+    ],
+    "seeker_hypothesis": "No faithful solution can earn reward, so any reward comes from deviating from the stated spec.",
+    "fixes": [
+      "Correct the dimensions or constraints so the spec is self-consistent",
+      "Update the reference or grader geometry to match the repaired spec"
+    ],
+    "counterexamples": [
+      "The tight constraints are feasible and the reference demonstrates that",
+      "The conflict disappears under a stated tolerance or an allowed degree of freedom"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS10-002",
+    "what_breaks": "Because of broken packaging, missing fixtures or a defective test patch, the task's own reference solution scores zero in a clean container.",
+    "task_cues": [
+      "Tests reference fixtures or files absent from the package",
+      "Test patch or setup fails before any solution logic runs"
+    ],
+    "trace_cues": [
+      "Oracle control scores zero on repeated clean runs",
+      "Failure occurs during setup or collection, not on an assertion about solution output"
+    ],
+    "seeker_hypothesis": "Reward is unreachable by legitimate means, so any nonzero score would come from an artifact of the broken package.",
+    "fixes": [
+      "Repair the missing fixture, dependency or test patch",
+      "Enforce an automated gate that the oracle must pass before release"
+    ],
+    "counterexamples": [
+      "Oracle failure was a one-off infrastructure flake that passes on rerun",
+      "The task intentionally has no reference and is scored by another rubric"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS11-001",
+    "what_breaks": "A judge model sees raw candidate text without sanitization or deterministic pre-checks, so injected grading directions or reasoning-opener prefixes can elicit positive reward.",
+    "task_cues": [
+      "Candidate output is interpolated straight into the judge prompt",
+      "No deterministic check gates the judge, and no delimiters isolate candidate text"
+    ],
+    "trace_cues": [
+      "Short or content-free responses with grader-addressed phrasing receive a pass",
+      "Judge verdict changes with a prefix or instruction-like text in the answer"
+    ],
+    "seeker_hypothesis": "The judge can be swayed by text addressed to it rather than by the substance of the answer, so reward diverges from correctness.",
+    "fixes": [
+      "Gate the judge behind deterministic state or output checks",
+      "Isolate candidate text in structured delimiters and test the judge against known manipulation probes"
+    ],
+    "counterexamples": [
+      "The judge only sees sanitized, delimited text and is gated by deterministic checks",
+      "Judge verdicts are shown stable across adversarial-probe audits"
+    ]
+  },
+  {
+    "hackbook_id": "HB-TS11-002",
+    "what_breaks": "A soft rubric or judge grades only the final response text, crediting empty, not-applicable or plausible-sounding summaries of actions that never happened.",
+    "task_cues": [
+      "Grading reads the reply text and never inspects filesystem, database or environment state",
+      "No rejection rule for empty or N/A answers"
+    ],
+    "trace_cues": [
+      "Passing responses describe work for which the state shows no change",
+      "Verbose restatements of the prompt score as well as real completions"
+    ],
+    "seeker_hypothesis": "Reward tracks how convincing a response sounds rather than whether the task was actually done.",
+    "fixes": [
+      "Verify the actual environment state deterministically before any rubric scoring",
+      "Reject empty or N/A responses ahead of the judge"
+    ],
+    "counterexamples": [
+      "The deliverable is itself the text, such as a written explanation, and the rubric is appropriate for it",
+      "State checks already gate the rubric, which only grades presentation"
+    ]
+  }
+]

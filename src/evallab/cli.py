@@ -7608,6 +7608,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.production.cli import register_parser as register_production_parser
 
     register_production_parser(commands)
+    from evallab.production.run_atlas import register_parser as register_atlas_parser
+
+    register_atlas_parser(commands)
     return root
 
 

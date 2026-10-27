@@ -533,7 +533,7 @@ inputs:
   - path: src/evallab/production/asset_store.py
     digest: sha256:4013faafc955c70c9759911dc81dea1334a72115fb40f99d242fd0667dde8c1d
   - path: src/evallab/production/benchmark_reports.py
-    digest: sha256:72650cbe8b4a5bed3ec680b7392d5047a62bb636254b4a86247aa84e1047e2c4
+    digest: sha256:aa9144075ec11e2ac57f75ebcfa02829566546ae87cd4cac9b44061744720501
   - path: src/evallab/production/cli.py
     digest: sha256:b7144f8ac37f5cbc7e4734de2f7212ab7b37fee21dc69ded1dd96d826fb52272
   - path: src/evallab/production/cloud_trace_db.py
@@ -551,7 +551,7 @@ inputs:
   - path: src/evallab/production/corpus_queue.py
     digest: sha256:b40155ddc51e85e4cb61c38d1f2cfebf913a73054557e15540ccfd190ddd865f
   - path: src/evallab/production/dashboard.py
-    digest: sha256:b29d1c82f00d1579751d44d6e3b8fa559f2c1cc454ad17642116017ddb9fc309
+    digest: sha256:31c9d530a272114a6770065bd0fd1fef5bd5db1305ea45790277b1f735899d44
   - path: src/evallab/production/feeder.py
     digest: sha256:596c0ecfa4001bc5f937c365b6e158e3123c5cceda4af3793442b10d0b9bd03e
   - path: src/evallab/production/gate_policy.py
@@ -561,7 +561,7 @@ inputs:
   - path: src/evallab/production/inspector.py
     digest: sha256:5c0f81d453e402c96cc870bbdf53a47fa7a220609556a379220a3b878cd28fbf
   - path: src/evallab/production/modal_cloud.py
-    digest: sha256:0fb9ec23c8751efdc614ca70af7129d49fa81c029ffd7c7df2df532e52525995
+    digest: sha256:817c4d9924e81dfb1991efb145ad8469cea6ced09d9c859ead131bf6c12b4532
   - path: src/evallab/production/monitor_worker.py
     digest: sha256:e79a84f3ac1b34370970061cbcb40a2063ed5559cb17ce190079f9b00f88f484
   - path: src/evallab/production/outbox_relay.py
@@ -569,7 +569,7 @@ inputs:
   - path: src/evallab/production/public_corpus_loader.py
     digest: sha256:6dd834cea54b40d742bb4289f1a7ac2b1586197b27483d1e6b1112095adde01f
   - path: src/evallab/production/qc_reports.py
-    digest: sha256:9bebd25b2e10324078cd77b2d3e72423739c565f86d152ae8e20e9f405ac637d
+    digest: sha256:4365639c219baaef858f0d7ae195a391257f72ab2fe2ec66be027e9e5201b310
   - path: src/evallab/production/relay.py
     digest: sha256:1734d2d010cbcd84bac1ef59939f4d762786f0f8a0ca28a5b799dc589510ac57
   - path: src/evallab/production/run_catalog.py

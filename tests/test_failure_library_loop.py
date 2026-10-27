@@ -8,11 +8,12 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from evallab.failure_library.cli import build_failures_parser
-from evallab.failure_library.loop.canary import CommandResult, _score, canary
+from evallab.failure_library.loop.canary import CommandResult, _score, canary, paired_comparison
 from evallab.failure_library.loop.selection import (
     digest,
     freeze,
@@ -343,6 +344,8 @@ def test_real_mode_records_failed_cli_stages_without_fabricating_scores(
     assert result["stages"]["qa-task-off"]["reviewed"] == 0
     assert "quota gate" in result["stages"]["qa-task-on"]["reason"]
     assert result["stages"]["seeker-off"]["status"] == "failed"
+    assert result["stages"]["seeker-off"]["selected"] == 1
+    assert len(result["execution_items"]["seeker_tasks"]) == 1
     assert result["spend"]["metered_api_usd"] == 0
     with (root / "research/failure-library/loop/scoreboard.csv").open() as stream:
         rows = list(csv.DictReader(stream))
@@ -353,6 +356,14 @@ def test_real_mode_records_failed_cli_stages_without_fabricating_scores(
     packs = [cmd for cmd in commands if "pack" in cmd]
     assert packs and all("--exclude-id" in cmd for cmd in packs)
     assert (Path(result["receipt_ref"]) / "slice.json").is_file()
+    repeated = canary(
+        root, state_root=state, runner=quota_stopped, now=datetime(2026, 10, 27, tzinfo=UTC)
+    )
+    assert repeated["slice_sha256"] == result["slice_sha256"]
+    with (root / "research/failure-library/loop/scoreboard.csv").open() as stream:
+        history = list(csv.DictReader(stream))
+    assert len(history) == 12
+    assert (Path(result["receipt_ref"]) / "scores.json").is_file()
 
 
 def test_public_dry_run_emits_offline_dev_plan(
@@ -399,3 +410,133 @@ def test_frozen_slice_refuses_new_cross_key_exposure_before_model_calls(
     assert result["stages"]["provenance"]["status"] == "failed"
     assert "cross-key non-DEV" in result["stages"]["provenance"]["reason"]
     assert not any("task" in argv or "review" in argv or "pack" in argv for argv in commands)
+
+
+def test_knowledge_delta_requires_matched_completed_subjects() -> None:
+    off = [
+        {"item_id": "positive", "expected": "broken", "reviewed": True, "flagged": False},
+        {"item_id": "control", "expected": "clean", "reviewed": True, "flagged": False},
+    ]
+    on = [{**row, "flagged": row["expected"] == "broken"} for row in off]
+    comparison = paired_comparison(off, on)
+    assert comparison["recall_delta_on_minus_off"] == 1.0
+    assert comparison["false_alarm_rate_delta_on_minus_off"] == 0.0
+    assert comparison["observed_improvement"] is True
+    on[0]["reviewed"] = False
+    comparison = paired_comparison(off, on)
+    assert comparison["paired_reviewed"] == 1
+    assert comparison["recall_delta_on_minus_off"] is None
+    assert comparison["observed_improvement"] is False
+    assert comparison["status"] == "failed"
+
+
+def test_controls_deduplicate_identical_task_bytes_across_answer_keys(
+    library: tuple[Path, Path, LibraryStore],
+) -> None:
+    root, _, store = library
+    original = root / "research/answer-keys/tiny/items.jsonl"
+    control = json.loads(original.read_text().splitlines()[4])
+    duplicate = {**control, "key_id": "duplicate"}
+    directory = root / "research/answer-keys/duplicate"
+    directory.mkdir()
+    (directory / "items.jsonl").write_text(json.dumps(duplicate) + "\n")
+    with (root / "research/answer-keys/splits/assignments.csv").open("a") as stream:
+        stream.write("duplicate,task-4,tiny/task-4,task-4,dev,pass,\n")
+    manifest = select_canary(root, store, tasks=4, runs=2)
+    controls = [row for row in manifest["tasks"] if row["expected"] == "clean"]
+    bindings = {(row["task"]["task_id"], row["task"]["task_version_digest"]) for row in controls}
+    assert len(bindings) == len(controls) == 4
+
+
+def test_original_parquet_control_preserves_row_provenance_without_task_digest(
+    library: tuple[Path, Path, LibraryStore],
+) -> None:
+    root, _, store = library
+    task = TaskRef(
+        source_id="impossible-swebench",
+        task_id="family-x/conflicting",
+        upstream_repo="https://huggingface.co/datasets/fjzzq2002/impossible_swebench",
+        upstream_revision="a" * 40,
+        task_path="data/conflicting-00000-of-00001.parquet#instance_id=family-x",
+    )
+    template = next(
+        finding for finding in store.iter_findings() if finding.tier == "V1_external_label"
+    )
+    finding = template.model_copy(
+        update={
+            "finding_id": make_finding_id(
+                task.source_id, task.task_id, task.upstream_revision, "TS01", "family-x"
+            ),
+            "collection": "impossiblebench",
+            "locator": "family-x",
+            "task": task,
+            "evidence": [
+                Evidence(kind="construction", note="controlled mutation of the original row")
+            ],
+        }
+    )
+    store.write_findings("impossiblebench", [finding])
+    raw_row = {
+        "instance_id": "family-x",
+        "impossible_type": "original",
+        "problem_statement": "Fix the bug.",
+    }
+    original = {
+        "task": task.model_copy(
+            update={
+                "task_id": "family-x/original",
+                "task_path": "data/original-00000-of-00001.parquet#instance_id=family-x",
+            }
+        ),
+        "split": "DEV",
+        "group": "swe-bench/family-x",
+        "locator": "fixture/original/family-x",
+        "label": "matched_original_control",
+        "label_kind": "construction",
+        "label_source": task.upstream_repo
+        + "/blob/"
+        + task.upstream_revision
+        + "/data/original.parquet",
+        "raw_row_digest": digest(raw_row),
+        "artifact_sha256": "b" * 64,
+    }
+    manifest = select_canary(root, store, tasks=5, runs=2, originals=[original])
+    control = next(
+        row for row in manifest["tasks"] if row.get("control_kind") == "impossible_original"
+    )
+    assert control["task"]["task_version_digest"] is None
+    assert control["raw_row_digest"] == digest(raw_row)
+    assert control["artifact_sha256"] == "b" * 64
+    assert control["label_strength"] == "construction_negative"
+    assert control["match_basis"] == "same_original_problem"
+    verify_snapshot(root, store, manifest, originals=[original])
+    with pytest.raises(ValueError, match="frozen original control changed"):
+        verify_snapshot(
+            root, store, manifest, originals=[{**original, "raw_row_digest": "sha256:" + "c" * 64}]
+        )
+    with (root / "research/answer-keys/splits/assignments.csv").open("a") as stream:
+        stream.write("other,family-x,source/family-x,family-x,test,fail,\n")
+    with pytest.raises(ValueError, match="cross-key non-DEV"):
+        verify_snapshot(root, store, manifest, originals=[original])
+
+
+def test_dry_run_never_downloads_missing_original_control_cache(
+    library: tuple[Path, Path, LibraryStore],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, state, _ = library
+    marker = root / "research/failure-library/findings/impossiblebench.jsonl"
+    marker.write_text("")
+    source = SimpleNamespace(
+        IMPOSSIBLE_PINS={"fixture": {"revision": "a" * 40}},
+        impossible_controls=lambda **_: pytest.fail("dry-run attempted raw control fetch"),
+    )
+    monkeypatch.setattr("evallab.failure_library.loop.selection.import_module", lambda _: source)
+    result = canary(
+        root,
+        state_root=state,
+        dry_run=True,
+        runner=lambda *_: pytest.fail("dry-run launched an agent"),
+    )
+    assert result["dry_run"] is True
+    assert not (root / "research/failure-library/loop").exists()

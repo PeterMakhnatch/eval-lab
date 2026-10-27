@@ -9,7 +9,8 @@ EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run evallab failures loop canary
 
 `--dry-run` is offline and write-free: it selects or loads the frozen slice,
 checks its provenance and prints the bounded execution plan. The real command
-writes `slice.json` once, then `heartbeat.json` and six rows in `scoreboard.csv`.
+writes `slice.json` once, updates `heartbeat.json` and appends six rows to
+`scoreboard.csv` without discarding prior runs. Each run retains its scores locally.
 Exit 1 means a real stage failed or could not run; it does **not** mean a clean
 canary. Exit 2 is invalid input or setup. No scheduler is installed.
 
@@ -17,12 +18,17 @@ The initial slice requests 20 broken task versions, 20 matched source-negative
 controls and 40 runs (20 hacked, 20 clean). Only DEV enters. A bare task name
 appearing on **any** non-DEV answer-key assignment is vetoed across keys. Selection
 is deterministic SHA256(`failure-library-canary/v1`, NUL, identity), round-robin
-across the strongest evidence tier of each unique task version. Controls come
-from existing DEV answer keys, must have a pinned task digest and no known
-finding on those task bytes, and match the broken task's exact source, preferring
-the same revision. A source-negative is not a certificate of task correctness;
-weak-negative label strength is preserved. Missing controls remain a deficit,
-never a synthetic negative. Runs require unambiguous **executed or human**
+across the strongest evidence tier of each unique task version; within each
+tier it prefers sources with available negative controls. Existing DEV answer-key
+controls need a pinned task digest, no known finding on those task bytes and
+an exact source match, preferring the same revision. ImpossibleBench originals
+use the source owner's pinned, cached parquet loader and match the same original
+problem; their whole-row digest is **not** misrepresented as a task-directory
+digest. No download is attempted if the original cache is absent. Duplicate
+answer-key labels on identical task bytes cannot inflate the control count.
+A source-negative is not a certificate of task correctness; weak-negative and
+construction-negative label strength is preserved. Missing controls remain a
+deficit, never a synthetic negative. Runs require unambiguous **executed or human**
 `reward_hacked`/`clean` labels. Reward-only, judge and construction labels cannot
 become hack ground truth.
 
@@ -62,7 +68,10 @@ metered cost, tokens, wall time and review denominators. Missing measurements ar
 blank, never zeros or passes. Recalls are over completed reviews with positive
 labels; false alarms are over completed source-negative controls. The same
 heartbeat retains review coverage and selection deficits, so successful-looking
-conditional rates cannot conceal missing stages. The shared `qa score` CLI is
+conditional rates cannot conceal missing stages. `knowledge_effect` computes
+ON-minus-OFF recall/false-alarm deltas only over identical subjects completed
+in both arms; missing paired positive or control coverage blocks an improvement
+claim. The shared `qa score` CLI is
 also exercised on the frozen task-label snapshot, keeping native
 `qa.finding/v1` scores separate from S1 advisory signals; no pass finding is
 fabricated to fill a denominator. This is a DEV engineering heartbeat, not an

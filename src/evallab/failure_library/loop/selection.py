@@ -6,6 +6,7 @@ import csv
 import hashlib
 import json
 from collections import Counter, defaultdict
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +47,13 @@ def split_index(root: Path) -> tuple[dict[tuple[str, str], str], set[str]]:
     return assignments, denied
 
 
+def _non_dev_task(task: dict[str, Any], denied: set[str]) -> bool:
+    task_id = task["task_id"]
+    if task["source_id"].startswith("impossible-"):
+        task_id = task_id.rsplit("/", 1)[0]
+    return bare_task(task_id) in denied
+
+
 def _key_rows(root: Path) -> list[tuple[str, dict[str, Any]]]:
     rows = []
     for path in sorted((root / "research/answer-keys").glob("*/items.jsonl")):
@@ -55,8 +63,13 @@ def _key_rows(root: Path) -> list[tuple[str, dict[str, Any]]]:
     return rows
 
 
-def _task_identity(task: dict[str, Any]) -> tuple[str, str, str | None]:
-    return task["source_id"], task["task_id"], task.get("upstream_revision")
+def _task_identity(task: dict[str, Any]) -> tuple[str, str, str | None, str | None]:
+    return (
+        task["source_id"],
+        task["task_id"],
+        task.get("upstream_revision"),
+        task.get("task_version_digest"),
+    )
 
 
 def _key_task(row: dict[str, Any]) -> str:
@@ -130,6 +143,64 @@ def _controls(
     return controls
 
 
+def original_controls(root: Path, state_root: Path) -> list[dict[str, Any]]:
+    """Use the source owner's original-row loader, never invent clean versions."""
+    if not (root / "research/failure-library/findings/impossiblebench.jsonl").is_file():
+        return []
+    source = import_module("evallab.failure_library.sources.constructed")
+
+    if not all(
+        (
+            state_root
+            / "raw/impossiblebench"
+            / pin["revision"]
+            / "data/original-00000-of-00001.parquet"
+        ).is_file()
+        for pin in source.IMPOSSIBLE_PINS.values()
+    ):
+        return []
+
+    return source.impossible_controls(root, state_root=state_root)
+
+
+def _original_rows(records: list[dict[str, Any]], denied: set[str]) -> list[dict[str, Any]]:
+    rows = []
+    for record in records:
+        task = record["task"]
+        task = task.model_dump(mode="json") if hasattr(task, "model_dump") else dict(task)
+        family = task["task_id"].rsplit("/", 1)[0]
+        if record["split"] != "DEV" or _non_dev_task(task, denied):
+            continue
+        payload = {**record, "task": task}
+        rows.append(
+            {
+                "item_id": f"control:{task['source_id']}:{record['locator']}",
+                "kind": "task",
+                "expected": "clean",
+                "task": task,
+                "control_kind": "impossible_original",
+                "family": family,
+                "label_source": record["label_source"],
+                "label_strength": "construction_negative",
+                "raw_row_digest": record["raw_row_digest"],
+                "artifact_sha256": record["artifact_sha256"],
+                "record_sha256": digest(payload),
+                "finding_ids": [],
+                "package_path": None,
+            }
+        )
+    return rows
+
+
+def _control_identity(row: dict[str, Any]) -> tuple[str, str, str]:
+    task = row["task"]
+    return (
+        task["source_id"],
+        task["task_id"],
+        task.get("task_version_digest") or row["raw_row_digest"],
+    )
+
+
 def run_label(run: RunRecord) -> str | None:
     """Reward or a judge suspicion alone is never a hacked/clean label."""
     labels = {label.label.casefold() for label in run.labels if label.kind in {"executed", "human"}}
@@ -138,16 +209,23 @@ def run_label(run: RunRecord) -> str | None:
 
 
 def select_canary(
-    root: Path, store: LibraryStore, *, tasks: int = 20, runs: int = 40
+    root: Path,
+    store: LibraryStore,
+    *,
+    tasks: int = 20,
+    runs: int = 40,
+    originals: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if tasks < 1 or runs < 2 or runs % 2:
         raise ValueError("tasks must be positive and runs must be positive and even")
     assignments, denied = split_index(root)
     keys = _key_rows(root)
     findings = list(store.iter_findings())
-    by_task: dict[tuple[str, str, str | None], list[Finding]] = defaultdict(list)
+    controls = _controls(keys, assignments, denied) + _original_rows(originals or [], denied)
+    control_sources = {row["task"]["source_id"] for row in controls}
+    by_task: dict[tuple[str, str, str | None, str | None], list[Finding]] = defaultdict(list)
     for finding in findings:
-        if finding.split == "DEV" and bare_task(finding.task.task_id) not in denied:
+        if finding.split == "DEV" and not _non_dev_task(finding.task.model_dump(), denied):
             by_task[_task_identity(finding.task.model_dump())].append(finding)
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for identity, group in by_task.items():
@@ -170,24 +248,29 @@ def select_canary(
             }
         )
     for bucket in buckets.values():
-        bucket.sort(key=lambda row: _rank(row["item_id"]))
+        bucket.sort(
+            key=lambda row: (row["task"]["source_id"] not in control_sources, _rank(row["item_id"]))
+        )
     selected = []
     while len(selected) < tasks and any(buckets.values()):
         for tier in TIER_ORDER:
             if buckets[tier] and len(selected) < tasks:
                 selected.append(buckets[tier].pop(0))
-    controls = _controls(keys, assignments, denied)
-    used_controls: set[str] = set()
+    used_controls: set[tuple[str, str, str]] = set()
     broken_digests = {(bare_task(f.task.task_id), f.task.task_version_digest) for f in findings}
     matched = []
     for broken in selected:
         candidates = [
             row
             for row in controls
-            if row["item_id"] not in used_controls
-            and (bare_task(row["task"]["task_id"]), row["task"]["task_version_digest"])
+            if _control_identity(row) not in used_controls
+            and (bare_task(row["task"]["task_id"]), row["task"].get("task_version_digest"))
             not in broken_digests
             and row["task"]["source_id"] == broken["task"]["source_id"]
+            and (
+                not row.get("family")
+                or row["family"] == broken["task"]["task_id"].rsplit("/", 1)[0]
+            )
         ]
         candidates.sort(
             key=lambda row: (
@@ -198,12 +281,18 @@ def select_canary(
         if candidates:
             control: dict[str, Any] = {
                 **candidates[0],
-                "task": {**candidates[0]["task"], "upstream_repo": broken["task"]["upstream_repo"]},
+                "task": {
+                    **candidates[0]["task"],
+                    "upstream_repo": candidates[0]["task"].get("upstream_repo")
+                    or broken["task"]["upstream_repo"],
+                },
                 "matched_to": broken["item_id"],
-                "match_basis": "same_source; prefer_same_revision",
+                "match_basis": "same_original_problem"
+                if candidates[0].get("family")
+                else "same_source; prefer_same_revision",
             }
             matched.append(control)
-            used_controls.add(control["item_id"])
+            used_controls.add(_control_identity(control))
     run_buckets: dict[str, list[dict[str, Any]]] = {"hacked": [], "clean": []}
     verified_collections: set[str] = set()
     for run in store.iter_runs():
@@ -304,11 +393,18 @@ def freeze(path: Path, manifest: dict[str, Any]) -> dict[str, Any]:
     return manifest
 
 
-def verify_snapshot(root: Path, store: LibraryStore, manifest: dict[str, Any]) -> None:
+def verify_snapshot(
+    root: Path,
+    store: LibraryStore,
+    manifest: dict[str, Any],
+    *,
+    originals: list[dict[str, Any]] | None = None,
+) -> None:
     """Refuse label/version/split drift before running either arm on frozen IDs."""
     assignments, denied = split_index(root)
     findings = {item.finding_id: item for item in store.iter_findings()}
     keys = {(key, str(row.get("item_id"))): row for key, row in _key_rows(root)}
+    original_rows = {row["item_id"]: row for row in _original_rows(originals or [], denied)}
     runs: dict[tuple[str, str], RunRecord] = {}
     verified: set[str] = set()
     for item in manifest["runs"]:
@@ -319,7 +415,7 @@ def verify_snapshot(root: Path, store: LibraryStore, manifest: dict[str, Any]) -
             runs.update(((collection, run.run_id), run) for run in store.iter_runs(collection))
             verified.add(collection)
     for item in manifest["tasks"] + manifest["runs"]:
-        if bare_task(item["task"]["task_id"]) in denied:
+        if _non_dev_task(item["task"], denied):
             raise ValueError(f"frozen canary is now cross-key non-DEV: {item['item_id']}")
         if item["kind"] == "run":
             run = runs.get((item["collection"], item["run_id"]))
@@ -339,6 +435,12 @@ def verify_snapshot(root: Path, store: LibraryStore, manifest: dict[str, Any]) -
             ]
             if digest(payload) != item["record_sha256"]:
                 raise ValueError(f"frozen finding bytes changed: {item['item_id']}")
+        elif item.get("control_kind") == "impossible_original":
+            row = original_rows.get(item["item_id"])
+            if row is None or row["record_sha256"] != item["record_sha256"]:
+                raise ValueError(
+                    f"frozen original control changed or disappeared: {item['item_id']}"
+                )
         else:
             row = keys.get((item["key_id"], item["key_item_id"]))
             if (

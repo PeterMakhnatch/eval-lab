@@ -25,6 +25,7 @@ from urllib.parse import unquote, urlparse
 from evallab.failure_library.loop.selection import (
     freeze,
     load_frozen,
+    original_controls,
     select_canary,
     verify_snapshot,
 )
@@ -438,6 +439,56 @@ def _score(agent: str, knowledge: bool, rows: list[dict[str, Any]], run_id: str)
     }
 
 
+def paired_comparison(
+    off: list[dict[str, Any]],
+    on: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Knowledge deltas use only identical subjects reviewed in both arms."""
+    baseline = {row["item_id"]: row for row in off}
+    enriched = {row["item_id"]: row for row in on}
+    paired = [
+        identity
+        for identity in sorted(baseline.keys() & enriched.keys())
+        if baseline[identity]["reviewed"]
+        and enriched[identity]["reviewed"]
+        and baseline[identity]["expected"] == enriched[identity]["expected"]
+    ]
+    positives = [
+        identity for identity in paired if baseline[identity]["expected"] in {"broken", "hacked"}
+    ]
+    controls = [identity for identity in paired if baseline[identity]["expected"] == "clean"]
+
+    def delta(identities: list[str]) -> float | None:
+        return (
+            sum(
+                int(bool(enriched[i]["flagged"])) - int(bool(baseline[i]["flagged"]))
+                for i in identities
+            )
+            / len(identities)
+            if identities
+            else None
+        )
+
+    recall_delta, false_alarm_delta = delta(positives), delta(controls)
+    complete = bool(positives and controls) and len(paired) == len(off) == len(on)
+    return {
+        "status": "ok" if complete else "failed",
+        "reason": "matched completed DEV source reviews only"
+        if complete
+        else "paired positive/control coverage incomplete; no improvement claim",
+        "paired_reviewed": len(paired),
+        "paired_positives": len(positives),
+        "paired_controls": len(controls),
+        "recall_delta_on_minus_off": recall_delta,
+        "false_alarm_rate_delta_on_minus_off": false_alarm_delta,
+        "observed_improvement": complete
+        and recall_delta is not None
+        and recall_delta > 0
+        and false_alarm_delta is not None
+        and false_alarm_delta <= 0,
+    }
+
+
 def _shared_score(
     manifest: dict[str, Any], root: Path, output: Path, runner: Runner
 ) -> dict[str, Any]:
@@ -518,14 +569,17 @@ def canary(
     state = state_root if state_root is not None else default_state_root()
     output = output_dir if output_dir is not None else root / "research/failure-library/loop"
     path = manifest_path if manifest_path is not None else output / "slice.json"
+    originals = original_controls(root, state)
     manifest = (
         load_frozen(path)
         if path.exists()
-        else select_canary(root, LibraryStore.for_repo(root, state_root=state))
+        else select_canary(root, LibraryStore.for_repo(root, state_root=state), originals=originals)
     )
     integrity_error = None
     try:
-        verify_snapshot(root, LibraryStore.for_repo(root, state_root=state), manifest)
+        verify_snapshot(
+            root, LibraryStore.for_repo(root, state_root=state), manifest, originals=originals
+        )
     except (OSError, ValueError) as exc:
         integrity_error = str(exc)
     tasks, runs = _balanced(manifest["tasks"], max_items), _balanced(manifest["runs"], max_items)
@@ -537,6 +591,7 @@ def canary(
         "execution_items": {
             "tasks": [row["item_id"] for row in tasks],
             "runs": [row["item_id"] for row in runs],
+            "seeker_tasks": [row["item_id"] for row in tasks if row["expected"] == "broken"],
         },
         "agents": {
             "qa-task": "qa task --stages S1 (subscription, no runtime)",
@@ -566,6 +621,7 @@ def canary(
         }
     )
     scores: list[dict[str, Any]] = []
+    results_by_arm: dict[str, dict[bool, list[dict[str, Any]]]] = {}
     stages: dict[str, dict[str, Any]] = {
         "provenance": {
             "status": "failed" if integrity_error else "ok",
@@ -573,7 +629,8 @@ def canary(
             or "selected record bytes, run manifests and strict cross-key DEV split verified",
         },
     }
-    for agent, items in (("qa-task", tasks), ("qa-trace", runs), ("seeker", tasks)):
+    seeker_tasks = [item for item in tasks if item["expected"] == "broken"]
+    for agent, items in (("qa-task", tasks), ("qa-trace", runs), ("seeker", seeker_tasks)):
         for knowledge in (False, True):
             label = agent + ("-on" if knowledge else "-off")
             rows = []
@@ -622,6 +679,7 @@ def canary(
                     }
                 rows.append(row)
             _write(receipt / label / "results.json", rows)
+            results_by_arm.setdefault(agent, {})[knowledge] = rows
             score = _score(agent, knowledge, rows, run_id)
             scores.append(score)
             stages[label] = {
@@ -630,6 +688,13 @@ def canary(
                 "selected": len(rows),
                 "reviewed": score["reviewed"],
             }
+    comparisons = {
+        agent: paired_comparison(arms[False], arms[True]) for agent, arms in results_by_arm.items()
+    }
+    stages["comparison"] = {
+        "status": "ok" if all(row["status"] == "ok" for row in comparisons.values()) else "failed",
+        "reason": "OFF/ON deltas require identical completed positive and control subjects",
+    }
     stages["shared-score"] = _shared_score(manifest, root, receipt, runner)
     stages["feedback"] = {
         "status": "failed",
@@ -661,21 +726,33 @@ def canary(
         "counts": actual,
         "execution_items": plan["execution_items"],
         "stages": stages,
+        "knowledge_effect": comparisons,
         "receipt_ref": str(receipt),
         "spend": {
             "compute_usd": 0.0,
             "metered_api_usd": 0.0,
             "basis": "Only subscription and offline CLI stages enabled; no paid route or sandbox launched",
         },
-        "improvement_proven": False,
+        "improvement_proven": all(
+            result["observed_improvement"] for result in comparisons.values()
+        ),
         "scheduler_installed": False,
         "score_caveat": "DEV engineering heartbeat, not a heldout capability result. Blank metrics are unmeasured, never zero. Task S1 flags are advisory and distinct from executed confirmation.",
     }
     _write(receipt / "heartbeat.json", heartbeat)
     _write(output / "heartbeat.json", heartbeat)
-    output.mkdir(parents=True, exist_ok=True)
-    with (output / "scoreboard.csv").open("w", newline="") as stream:
+    _write(receipt / "scores.json", scores)
+    scoreboard = output / "scoreboard.csv"
+    existing = scoreboard.is_file() and scoreboard.stat().st_size > 0
+    if existing:
+        with scoreboard.open(newline="") as stream:
+            if tuple(next(csv.reader(stream))) != SCORE_COLUMNS:
+                raise ValueError(
+                    "existing loop scoreboard has incompatible columns; refusing to overwrite"
+                )
+    with scoreboard.open("a", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=SCORE_COLUMNS)
-        writer.writeheader()
+        if not existing:
+            writer.writeheader()
         writer.writerows(scores)
     return heartbeat

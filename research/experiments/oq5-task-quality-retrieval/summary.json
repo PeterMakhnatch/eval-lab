@@ -1,0 +1,688 @@
+{
+  "TEST_exposure": 0,
+  "all_calls": {
+    "answered": 51,
+    "attempts": 68,
+    "calls_with_receipts": 68,
+    "cost_usd": null,
+    "cost_usd_applicability": "paid_or_missing",
+    "missing_cost_usd": 12,
+    "missing_reasoning_tokens": 60,
+    "missing_tokens_in": 12,
+    "missing_tokens_out": 12,
+    "observed_cost_usd": 0.061925981,
+    "observed_reasoning_tokens": 98093,
+    "observed_tokens_in": 805912,
+    "observed_tokens_out": 193727,
+    "raw_response_sha256_coverage": 68,
+    "reasoning_tokens": null,
+    "served_identities": [
+      {
+        "calls": 8,
+        "model": "deepseek/deepseek-v4.1-flash",
+        "precision_basis": "[INFERENCE] pinned provider-declared Morph FP8 endpoint; response does not independently attest precision",
+        "provider": "Morph",
+        "quantization": "fp8"
+      },
+      {
+        "calls": 48,
+        "model": "claude-sonnet-5-5",
+        "precision_basis": "subscription provider does not report numerical precision",
+        "provider": "anthropic",
+        "quantization": "unavailable"
+      },
+      {
+        "calls": 12,
+        "model": "unavailable",
+        "precision_basis": "unavailable",
+        "provider": "unavailable",
+        "quantization": "unavailable"
+      }
+    ],
+    "statuses": {
+      "answered": 51,
+      "incomplete": 4,
+      "unanswered": 13
+    },
+    "subscription_attempts": 48,
+    "tokens_in": null,
+    "tokens_out": null
+  },
+  "bridge_report": "~/Developer/research-context/bridge/2026-10-25-systems-and-swarms/oq5-task-quality-retrieval.md",
+  "cross": {
+    "calls": {
+      "answered": 12,
+      "attempts": 12,
+      "calls_with_receipts": 12,
+      "cost_usd": null,
+      "cost_usd_applicability": "not_applicable_subscription",
+      "missing_cost_usd": 0,
+      "missing_reasoning_tokens": 12,
+      "missing_tokens_in": 0,
+      "missing_tokens_out": 0,
+      "observed_cost_usd": null,
+      "observed_reasoning_tokens": null,
+      "observed_tokens_in": 123383,
+      "observed_tokens_out": 16954,
+      "raw_response_sha256_coverage": 12,
+      "reasoning_tokens": null,
+      "served_identities": [
+        {
+          "calls": 12,
+          "model": "claude-sonnet-5-5",
+          "precision_basis": "subscription provider does not report numerical precision",
+          "provider": "anthropic",
+          "quantization": "unavailable"
+        }
+      ],
+      "statuses": {
+        "answered": 12
+      },
+      "subscription_attempts": 12,
+      "tokens_in": 123383,
+      "tokens_out": 16954
+    },
+    "cross_labels_added_to_retrieval_or_training": 0,
+    "decoded_verifier_commands": 7,
+    "key_id": "mimo-weak-tests-v2.1",
+    "metrics": {
+      "complete_tasks": 12,
+      "eligible_findings": 0,
+      "evaluable_keys": 24,
+      "full_cohort_key_backed_precision": null,
+      "full_cohort_recall": null,
+      "full_cohort_source_contradiction_proportion": null,
+      "key_backed_precision": null,
+      "observed_matched_keys": 0,
+      "observed_recall": 0.0,
+      "parsed_findings_on_complete_cells": 26,
+      "planned_keys": 28,
+      "planned_tasks": 15,
+      "plausible_unkeyed": null,
+      "population_false_positive_rate": null,
+      "rejected_confidence_or_citation": 26,
+      "source_contradiction_proportion": null,
+      "source_contradictions": null
+    },
+    "reruns": 0,
+    "retained_same_task_history_identity_matches": 0,
+    "selected_arm": "A",
+    "source_digest_rejected_keys": 4,
+    "source_digest_rejected_tasks": 3,
+    "source_guard_failures": [
+      {
+        "key_count": 2,
+        "reason": "native package digest differs from pinned canonical metadata",
+        "task_id": "format-code-task-000737"
+      },
+      {
+        "key_count": 1,
+        "reason": "native package digest differs from pinned canonical metadata",
+        "task_id": "format-code-task-002205"
+      },
+      {
+        "key_count": 1,
+        "reason": "native package digest differs from pinned canonical metadata",
+        "task_id": "format-code-task-002483"
+      }
+    ],
+    "source_reader_omissions_on_prepared_tasks": 0,
+    "split": "dev"
+  },
+  "date": "2026-10-27",
+  "dev": {
+    "v1": {
+      "arm_calls": {
+        "A": {
+          "answered": 1,
+          "attempts": 9,
+          "calls_with_receipts": 9,
+          "cost_usd": null,
+          "cost_usd_applicability": "paid_or_missing",
+          "missing_cost_usd": 6,
+          "missing_reasoning_tokens": 6,
+          "missing_tokens_in": 6,
+          "missing_tokens_out": 6,
+          "observed_cost_usd": 0.022447527000000002,
+          "observed_reasoning_tokens": 36076,
+          "observed_tokens_in": 17631,
+          "observed_tokens_out": 36913,
+          "raw_response_sha256_coverage": 9,
+          "reasoning_tokens": null,
+          "served_identities": [
+            {
+              "calls": 3,
+              "model": "deepseek/deepseek-v4.1-flash",
+              "precision_basis": "[INFERENCE] pinned provider-declared Morph FP8 endpoint; response does not independently attest precision",
+              "provider": "Morph",
+              "quantization": "fp8"
+            },
+            {
+              "calls": 6,
+              "model": "unavailable",
+              "precision_basis": "unavailable",
+              "provider": "unavailable",
+              "quantization": "unavailable"
+            }
+          ],
+          "statuses": {
+            "answered": 1,
+            "incomplete": 2,
+            "unanswered": 6
+          },
+          "subscription_attempts": 0,
+          "tokens_in": null,
+          "tokens_out": null
+        },
+        "B": {
+          "answered": 3,
+          "attempts": 11,
+          "calls_with_receipts": 11,
+          "cost_usd": null,
+          "cost_usd_applicability": "paid_or_missing",
+          "missing_cost_usd": 6,
+          "missing_reasoning_tokens": 6,
+          "missing_tokens_in": 6,
+          "missing_tokens_out": 6,
+          "observed_cost_usd": 0.039478453999999996,
+          "observed_reasoning_tokens": 62017,
+          "observed_tokens_in": 69862,
+          "observed_tokens_out": 63818,
+          "raw_response_sha256_coverage": 11,
+          "reasoning_tokens": null,
+          "served_identities": [
+            {
+              "calls": 5,
+              "model": "deepseek/deepseek-v4.1-flash",
+              "precision_basis": "[INFERENCE] pinned provider-declared Morph FP8 endpoint; response does not independently attest precision",
+              "provider": "Morph",
+              "quantization": "fp8"
+            },
+            {
+              "calls": 6,
+              "model": "unavailable",
+              "precision_basis": "unavailable",
+              "provider": "unavailable",
+              "quantization": "unavailable"
+            }
+          ],
+          "statuses": {
+            "answered": 3,
+            "incomplete": 2,
+            "unanswered": 6
+          },
+          "subscription_attempts": 0,
+          "tokens_in": null,
+          "tokens_out": null
+        }
+      },
+      "arms": {
+        "A": {
+          "complete_tasks": 0,
+          "eligible_findings": 0,
+          "evaluable_keys": 0,
+          "full_cohort_key_backed_precision": null,
+          "full_cohort_recall": null,
+          "full_cohort_source_contradiction_proportion": null,
+          "key_backed_precision": null,
+          "observed_matched_keys": null,
+          "observed_recall": null,
+          "parsed_findings_on_complete_cells": 0,
+          "planned_keys": 16,
+          "planned_tasks": 8,
+          "plausible_unkeyed": null,
+          "population_false_positive_rate": null,
+          "rejected_confidence_or_citation": 0,
+          "source_contradiction_proportion": null,
+          "source_contradictions": null
+        },
+        "B": {
+          "complete_tasks": 0,
+          "eligible_findings": 0,
+          "evaluable_keys": 0,
+          "full_cohort_key_backed_precision": null,
+          "full_cohort_recall": null,
+          "full_cohort_source_contradiction_proportion": null,
+          "key_backed_precision": null,
+          "observed_matched_keys": null,
+          "observed_recall": null,
+          "parsed_findings_on_complete_cells": 0,
+          "planned_keys": 16,
+          "planned_tasks": 8,
+          "plausible_unkeyed": null,
+          "population_false_positive_rate": null,
+          "rejected_confidence_or_citation": 0,
+          "source_contradiction_proportion": null,
+          "source_contradictions": null
+        }
+      },
+      "calls": {
+        "answered": 4,
+        "attempts": 20,
+        "calls_with_receipts": 20,
+        "cost_usd": null,
+        "cost_usd_applicability": "paid_or_missing",
+        "missing_cost_usd": 12,
+        "missing_reasoning_tokens": 12,
+        "missing_tokens_in": 12,
+        "missing_tokens_out": 12,
+        "observed_cost_usd": 0.061925981,
+        "observed_reasoning_tokens": 98093,
+        "observed_tokens_in": 87493,
+        "observed_tokens_out": 100731,
+        "raw_response_sha256_coverage": 20,
+        "reasoning_tokens": null,
+        "served_identities": [
+          {
+            "calls": 8,
+            "model": "deepseek/deepseek-v4.1-flash",
+            "precision_basis": "[INFERENCE] pinned provider-declared Morph FP8 endpoint; response does not independently attest precision",
+            "provider": "Morph",
+            "quantization": "fp8"
+          },
+          {
+            "calls": 12,
+            "model": "unavailable",
+            "precision_basis": "unavailable",
+            "provider": "unavailable",
+            "quantization": "unavailable"
+          }
+        ],
+        "statuses": {
+          "answered": 4,
+          "incomplete": 4,
+          "unanswered": 12
+        },
+        "subscription_attempts": 0,
+        "tokens_in": null,
+        "tokens_out": null
+      },
+      "shared_complete_pairs": 0
+    },
+    "v2": {
+      "arm_calls": {
+        "A": {
+          "answered": 9,
+          "attempts": 9,
+          "calls_with_receipts": 9,
+          "cost_usd": null,
+          "cost_usd_applicability": "not_applicable_subscription",
+          "missing_cost_usd": 0,
+          "missing_reasoning_tokens": 9,
+          "missing_tokens_in": 0,
+          "missing_tokens_out": 0,
+          "observed_cost_usd": null,
+          "observed_reasoning_tokens": null,
+          "observed_tokens_in": 125175,
+          "observed_tokens_out": 19589,
+          "raw_response_sha256_coverage": 9,
+          "reasoning_tokens": null,
+          "served_identities": [
+            {
+              "calls": 9,
+              "model": "claude-sonnet-5-5",
+              "precision_basis": "subscription provider does not report numerical precision",
+              "provider": "anthropic",
+              "quantization": "unavailable"
+            }
+          ],
+          "statuses": {
+            "answered": 9
+          },
+          "subscription_attempts": 9,
+          "tokens_in": 125175,
+          "tokens_out": 19589
+        },
+        "B": {
+          "answered": 9,
+          "attempts": 9,
+          "calls_with_receipts": 9,
+          "cost_usd": null,
+          "cost_usd_applicability": "not_applicable_subscription",
+          "missing_cost_usd": 0,
+          "missing_reasoning_tokens": 9,
+          "missing_tokens_in": 0,
+          "missing_tokens_out": 0,
+          "observed_cost_usd": null,
+          "observed_reasoning_tokens": null,
+          "observed_tokens_in": 171898,
+          "observed_tokens_out": 20258,
+          "raw_response_sha256_coverage": 9,
+          "reasoning_tokens": null,
+          "served_identities": [
+            {
+              "calls": 9,
+              "model": "claude-sonnet-5-5",
+              "precision_basis": "subscription provider does not report numerical precision",
+              "provider": "anthropic",
+              "quantization": "unavailable"
+            }
+          ],
+          "statuses": {
+            "answered": 9
+          },
+          "subscription_attempts": 9,
+          "tokens_in": 171898,
+          "tokens_out": 20258
+        }
+      },
+      "arms": {
+        "A": {
+          "complete_tasks": 8,
+          "eligible_findings": 1,
+          "evaluable_keys": 16,
+          "full_cohort_key_backed_precision": 0.0,
+          "full_cohort_recall": 0.0,
+          "full_cohort_source_contradiction_proportion": 0.0,
+          "key_backed_precision": 0.0,
+          "observed_matched_keys": 0,
+          "observed_recall": 0.0,
+          "parsed_findings_on_complete_cells": 16,
+          "planned_keys": 16,
+          "planned_tasks": 8,
+          "plausible_unkeyed": 1,
+          "population_false_positive_rate": null,
+          "rejected_confidence_or_citation": 15,
+          "source_contradiction_proportion": 0.0,
+          "source_contradictions": 0
+        },
+        "B": {
+          "complete_tasks": 8,
+          "eligible_findings": 1,
+          "evaluable_keys": 16,
+          "full_cohort_key_backed_precision": 0.0,
+          "full_cohort_recall": 0.0,
+          "full_cohort_source_contradiction_proportion": 0.0,
+          "key_backed_precision": 0.0,
+          "observed_matched_keys": 0,
+          "observed_recall": 0.0,
+          "parsed_findings_on_complete_cells": 19,
+          "planned_keys": 16,
+          "planned_tasks": 8,
+          "plausible_unkeyed": 1,
+          "population_false_positive_rate": null,
+          "rejected_confidence_or_citation": 18,
+          "source_contradiction_proportion": 0.0,
+          "source_contradictions": 0
+        }
+      },
+      "calls": {
+        "answered": 18,
+        "attempts": 18,
+        "calls_with_receipts": 18,
+        "cost_usd": null,
+        "cost_usd_applicability": "not_applicable_subscription",
+        "missing_cost_usd": 0,
+        "missing_reasoning_tokens": 18,
+        "missing_tokens_in": 0,
+        "missing_tokens_out": 0,
+        "observed_cost_usd": null,
+        "observed_reasoning_tokens": null,
+        "observed_tokens_in": 297073,
+        "observed_tokens_out": 39847,
+        "raw_response_sha256_coverage": 18,
+        "reasoning_tokens": null,
+        "served_identities": [
+          {
+            "calls": 18,
+            "model": "claude-sonnet-5-5",
+            "precision_basis": "subscription provider does not report numerical precision",
+            "provider": "anthropic",
+            "quantization": "unavailable"
+          }
+        ],
+        "statuses": {
+          "answered": 18
+        },
+        "subscription_attempts": 18,
+        "tokens_in": 297073,
+        "tokens_out": 39847
+      },
+      "shared_complete_pairs": 8
+    },
+    "v3": {
+      "arm_calls": {
+        "A": {
+          "answered": 9,
+          "attempts": 9,
+          "calls_with_receipts": 9,
+          "cost_usd": null,
+          "cost_usd_applicability": "not_applicable_subscription",
+          "missing_cost_usd": 0,
+          "missing_reasoning_tokens": 9,
+          "missing_tokens_in": 0,
+          "missing_tokens_out": 0,
+          "observed_cost_usd": null,
+          "observed_reasoning_tokens": null,
+          "observed_tokens_in": 125651,
+          "observed_tokens_out": 18262,
+          "raw_response_sha256_coverage": 9,
+          "reasoning_tokens": null,
+          "served_identities": [
+            {
+              "calls": 9,
+              "model": "claude-sonnet-5-5",
+              "precision_basis": "subscription provider does not report numerical precision",
+              "provider": "anthropic",
+              "quantization": "unavailable"
+            }
+          ],
+          "statuses": {
+            "answered": 9
+          },
+          "subscription_attempts": 9,
+          "tokens_in": 125651,
+          "tokens_out": 18262
+        },
+        "B": {
+          "answered": 8,
+          "attempts": 9,
+          "calls_with_receipts": 9,
+          "cost_usd": null,
+          "cost_usd_applicability": "not_applicable_subscription",
+          "missing_cost_usd": 0,
+          "missing_reasoning_tokens": 9,
+          "missing_tokens_in": 0,
+          "missing_tokens_out": 0,
+          "observed_cost_usd": null,
+          "observed_reasoning_tokens": null,
+          "observed_tokens_in": 172312,
+          "observed_tokens_out": 17933,
+          "raw_response_sha256_coverage": 9,
+          "reasoning_tokens": null,
+          "served_identities": [
+            {
+              "calls": 9,
+              "model": "claude-sonnet-5-5",
+              "precision_basis": "subscription provider does not report numerical precision",
+              "provider": "anthropic",
+              "quantization": "unavailable"
+            }
+          ],
+          "statuses": {
+            "answered": 8,
+            "unanswered": 1
+          },
+          "subscription_attempts": 9,
+          "tokens_in": 172312,
+          "tokens_out": 17933
+        }
+      },
+      "arms": {
+        "A": {
+          "complete_tasks": 8,
+          "eligible_findings": 1,
+          "evaluable_keys": 16,
+          "full_cohort_key_backed_precision": 0.0,
+          "full_cohort_recall": 0.0,
+          "full_cohort_source_contradiction_proportion": 0.0,
+          "key_backed_precision": 0.0,
+          "observed_matched_keys": 0,
+          "observed_recall": 0.0,
+          "parsed_findings_on_complete_cells": 19,
+          "planned_keys": 16,
+          "planned_tasks": 8,
+          "plausible_unkeyed": 1,
+          "population_false_positive_rate": null,
+          "rejected_confidence_or_citation": 18,
+          "source_contradiction_proportion": 0.0,
+          "source_contradictions": 0
+        },
+        "B": {
+          "complete_tasks": 7,
+          "eligible_findings": 1,
+          "evaluable_keys": 9,
+          "full_cohort_key_backed_precision": null,
+          "full_cohort_recall": null,
+          "full_cohort_source_contradiction_proportion": null,
+          "key_backed_precision": 0.0,
+          "observed_matched_keys": 0,
+          "observed_recall": 0.0,
+          "parsed_findings_on_complete_cells": 15,
+          "planned_keys": 16,
+          "planned_tasks": 8,
+          "plausible_unkeyed": 1,
+          "population_false_positive_rate": null,
+          "rejected_confidence_or_citation": 14,
+          "source_contradiction_proportion": 0.0,
+          "source_contradictions": 0
+        }
+      },
+      "calls": {
+        "answered": 17,
+        "attempts": 18,
+        "calls_with_receipts": 18,
+        "cost_usd": null,
+        "cost_usd_applicability": "not_applicable_subscription",
+        "missing_cost_usd": 0,
+        "missing_reasoning_tokens": 18,
+        "missing_tokens_in": 0,
+        "missing_tokens_out": 0,
+        "observed_cost_usd": null,
+        "observed_reasoning_tokens": null,
+        "observed_tokens_in": 297963,
+        "observed_tokens_out": 36195,
+        "raw_response_sha256_coverage": 18,
+        "reasoning_tokens": null,
+        "served_identities": [
+          {
+            "calls": 18,
+            "model": "claude-sonnet-5-5",
+            "precision_basis": "subscription provider does not report numerical precision",
+            "provider": "anthropic",
+            "quantization": "unavailable"
+          }
+        ],
+        "statuses": {
+          "answered": 17,
+          "unanswered": 1
+        },
+        "subscription_attempts": 18,
+        "tokens_in": 297963,
+        "tokens_out": 36195
+      },
+      "shared_complete_pairs": 7
+    }
+  },
+  "fixture": {
+    "confirmed_measured_historical_issues": 8,
+    "default_retrieval_promotes_provisional": false,
+    "dev_tasks": 8,
+    "distinct_tasks_with_confirmed_issues": 6,
+    "genuine_diff_examples_returned": 24,
+    "new_qualified_repairs_invented": 0,
+    "provisional_issues": 1,
+    "registry_tb4_dev_finding_labels_hydrated": 45,
+    "registry_tb4_dev_task_labels_hydrated": 14,
+    "requested_other_task_examples": 24,
+    "same_task_failures_available": 6,
+    "seeded_issues": 9,
+    "source_mimo_identities_admitted": 56,
+    "source_mimo_identities_total": 69
+  },
+  "fixture_sha256": "0aabf56a5f6f6769f89cfedecf3724cdfea347bf4602d0807868d89dce0b19ce",
+  "frozen_config_sha256": "228914210f5b544c91fccf56422d47101eb24d6564508211e1867a0677752e03",
+  "frozen_source_tree_sha256": "65e4d2b218ca3d428eeb9b252c0f8eb999d8055cd9c0728d3f8f49d7d517474f",
+  "integrity_limits": [
+    "Positive-only source-supported historical causal rediscovery; not independently pristine truth or a population false-positive-rate estimate.",
+    "The same Sonnet subscription model served auditor and scorer; no independent human adjudication.",
+    "Confidence threshold 0.8 and exact causal/direction one-to-one matching were not relaxed.",
+    "Full-cohort metrics remain null when a source or response is missing.",
+    "Subscription USD is not applicable, not zero; native reasoning-token counts and quantization are not separately reported.",
+    "Morph v1 and OQ4 OpenInference are different routes; no cross-version model/harness causal deltas are claimed.",
+    "Study/model pipeline hydrated or prompted zero protected TB4 TEST or MiMo permanent-heldout bodies. Pre-existing repository scorer tests and approved post-study bookkeeping parse full retained key files separately.",
+    "Retained source/file manifests and historical qualifications are not new authenticated model-output or execution attestations."
+  ],
+  "new_training_payload_rows": 0,
+  "prompt_digests": {
+    "auditor_rendered_template_sha256": "9f82122bbbdbe0c359bc87dcbee6fef9ecbb4b8b848d095858cb839067bd0fde",
+    "auditor_system_sha256": "09cb1ff8ca1d73a553d64c25ed27fcc2e80d5c93276342881dad46d556aa56f0",
+    "frozen_config_sha256": "228914210f5b544c91fccf56422d47101eb24d6564508211e1867a0677752e03",
+    "scorer_instructions_sha256": "1b9cb02724a2008ff228403046d2fda5ba4b46efcbbd119b420b241469ee3bc3",
+    "scorer_system_sha256": "0b6f7305d85585c55594255cf1cc81eccd3ead427a6aaa5e6c7eb5b1b92349a6",
+    "source_reader_sha256": "9daabaae78043babfcbd67e10c95bcbd4f8a38d137e1c20239f9dcbd824e8e0c"
+  },
+  "protected_study_body_hydrations_or_prompts": 0,
+  "qualification": {
+    "cloud_controls_purchased": 0,
+    "new_benchmark_grader_executions": 0,
+    "new_control_execution_requires_exact_spec_authorization": true,
+    "new_qualification_rate": null,
+    "new_repaired_graders_generated": 0,
+    "planning_rate_is_provider_bill_upper_bound": false,
+    "planning_usd_including_one_nine_control_retry": 0.18,
+    "planning_usd_per_logical_execution": 0.01,
+    "planning_usd_per_nine_controls": 0.09
+  },
+  "raw_artifacts": "~/Developer/eval-lab-results/2026-10-27/oq5-task-quality-retrieval/",
+  "schema": "evallab.experiment.oq5-task-quality-retrieval/v1",
+  "selection": {
+    "missing_cell": "tb4-html-js-filter__B malformed JSON, seven causal keys; no repair/retry",
+    "paired_metrics": {
+      "A": {
+        "complete_tasks": 7,
+        "eligible_findings": 1,
+        "evaluable_keys": 9,
+        "full_cohort_key_backed_precision": 0.0,
+        "full_cohort_recall": 0.0,
+        "full_cohort_source_contradiction_proportion": 0.0,
+        "key_backed_precision": 0.0,
+        "observed_matched_keys": 0,
+        "observed_recall": 0.0,
+        "parsed_findings_on_complete_cells": 16,
+        "planned_keys": 9,
+        "planned_tasks": 7,
+        "plausible_unkeyed": 1,
+        "population_false_positive_rate": null,
+        "rejected_confidence_or_citation": 15,
+        "source_contradiction_proportion": 0.0,
+        "source_contradictions": 0
+      },
+      "B": {
+        "complete_tasks": 7,
+        "eligible_findings": 1,
+        "evaluable_keys": 9,
+        "full_cohort_key_backed_precision": 0.0,
+        "full_cohort_recall": 0.0,
+        "full_cohort_source_contradiction_proportion": 0.0,
+        "key_backed_precision": 0.0,
+        "observed_matched_keys": 0,
+        "observed_recall": 0.0,
+        "parsed_findings_on_complete_cells": 15,
+        "planned_keys": 9,
+        "planned_tasks": 7,
+        "plausible_unkeyed": 1,
+        "population_false_positive_rate": null,
+        "rejected_confidence_or_citation": 14,
+        "source_contradiction_proportion": 0.0,
+        "source_contradictions": 0
+      }
+    },
+    "reason": "tie; simpler cold arm (undefined precision or non-applicable cost was not replaced with zero)",
+    "selected_arm": "A",
+    "shared_complete_pairs": 7
+  },
+  "source_base_revision": "021fd991bd9a23307bdbc213d579b3e8d869d0ba",
+  "source_snapshot_sha256": "2ddb3c852f08475a80c736b073ff2032f0aae22b8c36cd4a0501025f15c055bd",
+  "study_status": "completed_once_no_post_cross_tuning"
+}

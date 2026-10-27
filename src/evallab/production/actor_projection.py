@@ -109,8 +109,15 @@ def _paths(source_database: Path, destination_database: Path) -> tuple[Path, Pat
     return source, destination
 
 
-def _columns(connection: sqlite3.Connection) -> dict[str, tuple[str, ...]]:
+def _columns(
+    connection: sqlite3.Connection, *, allow_legacy_trust_defaults: bool,
+) -> tuple[dict[str, tuple[str, ...]], dict[str, list[str]]]:
     columns: dict[str, tuple[str, ...]] = {}
+    defaulted: dict[str, list[str]] = {}
+    optional = {
+        "task_issues": {"trust_tier"},
+        "agent_traces": {"trust_tier", "flagged_passage_steps"},
+    }
     for table in _TABLES:
         kind = connection.execute(
             "SELECT type FROM source.sqlite_schema WHERE name = ?", (table,),
@@ -119,10 +126,21 @@ def _columns(connection: sqlite3.Connection) -> dict[str, tuple[str, ...]]:
             raise ValueError(f"source database is missing the core table {table}")
         expected = connection.execute(f'PRAGMA main.table_xinfo("{table}")').fetchall()
         actual = connection.execute(f'PRAGMA source.table_xinfo("{table}")').fetchall()
-        if actual != expected:
+        present = {row[1] for row in actual}
+        missing = {row[1] for row in expected} - present
+        legacy = (
+            allow_legacy_trust_defaults
+            and bool(missing)
+            and missing <= optional.get(table, set())
+            and [row[1:] for row in actual]
+            == [row[1:] for row in expected if row[1] in present]
+        )
+        if actual != expected and not legacy:
             raise ValueError(f"source columns differ from the CloudTraceDatabase schema: {table}")
-        columns[table] = tuple(row[1] for row in expected)
-    return columns
+        if legacy:
+            defaulted[table] = sorted(missing)
+        columns[table] = tuple(row[1] for row in actual)
+    return columns, defaulted
 
 
 def _validate_admission(
@@ -221,6 +239,7 @@ def _validate_projection(connection: sqlite3.Connection) -> dict[str, int]:
 def project_actor_database(
     source_database: Path, destination_database: Path, *, task_ids: Iterable[str],
     expected_identities: Mapping[str, Mapping[str, Any]] | None = None,
+    allow_legacy_trust_defaults: bool = False,
 ) -> dict[str, Any]:
     """Publish a fresh database containing exactly the caller-admitted DEV tasks.
 
@@ -233,6 +252,9 @@ def project_actor_database(
     When supplied, expected_identities must cover exactly the admitted IDs and
     every identity field; stale dataset/split/digest/item metadata is rejected
     inside that same source snapshot, before any content is copied.
+    Explicit ``allow_legacy_trust_defaults`` accepts only missing additive trust
+    fields from old snapshots. Canonical provisional/empty defaults fill them;
+    every other schema difference still fails. The source is never migrated.
 
     The receipt records task IDs, core counts, database hash/size and the supplied
     identity-set digest. Without expected_identities that digest is null: bare-ID
@@ -264,7 +286,9 @@ def project_actor_database(
                     "INSERT INTO temp.actor_admitted_tasks (task_id) VALUES (?)",
                     ((task_id,) for task_id in admitted),
                 )
-                columns = _columns(connection)
+                columns, defaulted = _columns(
+                    connection, allow_legacy_trust_defaults=allow_legacy_trust_defaults,
+                )
                 _validate_admission(connection, expected)
                 _validate_step_counts(connection, "source")
                 _copy_rows(connection, columns)
@@ -290,6 +314,8 @@ def project_actor_database(
                 ).encode()).hexdigest() if expected is not None else None
             ),
         }
+        if allow_legacy_trust_defaults:
+            receipt["legacy_trust_defaults"] = defaulted
         # os.replace would overwrite a concurrently created destination. link
         # refuses it atomically, including a dangling symlink; cleanup removes
         # only our private staging directory, never the caller's output path.

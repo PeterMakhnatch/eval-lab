@@ -1255,6 +1255,53 @@ def _clip(text: str, limit: int) -> str:
     return flat if len(flat) <= limit else flat[:limit - 1].rstrip() + "…"
 
 
+def _bounded_quality_evidence(value: Any) -> dict[str, Any] | None:
+    """Whitelist a source-labelled explanation and an attested retained diff.
+
+    File-manifest digests identify the actual original/repaired grader inputs;
+    they are not reward evidence or model-output attestations. The full diff
+    digest is checked before taking an explicitly marked presentation prefix.
+    """
+    if not isinstance(value, Mapping):
+        return None
+    digest = value.get("source_sha256")
+    summary, locator = value.get("summary"), value.get("source_locator")
+    if (
+        not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
+        or not isinstance(summary, str) or not summary.strip()
+        or not isinstance(locator, str) or not locator.strip()
+    ):
+        return None
+    result: dict[str, Any] = {
+        "summary": summary[:600], "source_sha256": digest,
+        "source_locator": locator[:300], "repair_diff": None,
+        "repair_missing_reason": str(value.get("repair_missing_reason") or "not retained")[:240],
+    }
+    repair = value.get("repair_diff")
+    if repair is None:
+        return result
+    if not isinstance(repair, Mapping) or not isinstance(repair.get("text"), str):
+        return None
+    text = repair["text"]
+    fields = ("sha256", "original_files_sha256", "repaired_files_sha256")
+    if any(
+        not isinstance(repair.get(key), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", repair[key])
+        for key in fields
+    ) or hashlib.sha256(text.encode()).hexdigest() != repair["sha256"]:
+        return None
+    if repair.get("kind") not in {"native_to_fixed_port", "retained_native_repair"}:
+        return None
+    shown = text[:2000]
+    result["repair_diff"] = {
+        **{key: repair[key] for key in fields}, "kind": repair["kind"],
+        "text": shown, "shown_sha256": hashlib.sha256(shown.encode()).hexdigest(),
+        "truncated": len(shown) < len(text),
+    }
+    result["repair_missing_reason"] = None
+    return result
+
+
 @dataclass(frozen=True)
 class RetrievedStep:
     """Compatibility view of a real recorded step, not journal interpretation."""
@@ -1568,6 +1615,31 @@ class CloudTraceRetriever:
                 "original_reward", "repaired_reward",
             )
         }
+        if kind == "task_quality" and issue_evidence is not None and issue is not None:
+            # Hydrate only this selected issue's supplement, never arbitrary
+            # task metadata or another issue's body. Identity admission and
+            # ordinary issue screening have already completed.
+            expression = (
+                "metadata_json -> 'task_quality_evidence' -> ?"
+                if self.database._postgres else
+                "(SELECT e.value FROM json_each(metadata_json, '$.task_quality_evidence') e "
+                "WHERE e.key = ? AND e.type = 'object')"
+            )
+            supplements = self.database._rows(
+                f"SELECT {expression} AS metadata_json FROM corpus_tasks WHERE task_id = ?",
+                (issue["issue_id"], task["task_id"]),
+            )
+            supplemental = _bounded_quality_evidence(
+                supplements[0]["metadata_json"] if supplements else None,
+            )
+            if supplemental is not None:
+                returned_text = "\n".join(
+                    text for value in supplemental.values()
+                    for text in (value.values() if isinstance(value, Mapping) else (value,))
+                    if isinstance(text, str)
+                )
+                if not self._sealed_text(returned_text, sealed):
+                    issue_evidence.update(supplemental)
         step_evidence: list[dict[str, Any]] = [{
             "trace_id": self._identity(step["trace_id"]),
             **{field: step[field] for field in ("step_index", "observation_cas_uri")},

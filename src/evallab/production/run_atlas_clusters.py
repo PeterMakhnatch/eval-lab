@@ -8,11 +8,11 @@ unary children: every run still has exactly one membership at each of three
 levels, without inventing a split. Cluster ids are stable for the same inputs.
 
 Names use distinctive lexical terms unless a subscription gateway route is
-explicitly selected. ``samples`` contains at most twelve blinded member texts,
-never labels or identities. Builds append complete snapshots to the interim
-JSONL; readers use only the last build. Labels and deterministic rule coverage
-are joined only by ``show --with-labels``. Missing coverage is unknown, not clean;
-``--replay-rules`` opts into potentially expensive, model-free ATIF replay.
+explicitly selected. ``samples`` contains at most twelve blinded, centroid-nearest
+member texts, never labels or identities. Builds append complete snapshots to the
+interim JSONL; readers use only the last build. Labels and deterministic rule
+recall/FPR are joined only by ``show --with-labels``. Missing positive coverage is
+unknown, not clean; ``--replay-rules`` opts into expensive, model-free ATIF replay.
 """
 
 from __future__ import annotations
@@ -139,7 +139,7 @@ def cluster_facets(
 
     Input order does not affect ids or membership. Duplicate rollout identities
     are rejected (use ``run_atlas.load_facets`` for append-only input). ``samples``
-    is an additional, blinded field consumed by :func:`name_clusters`.
+    starts with the three nearest member texts, blinded for naming and display.
     """
     if min_size < 1:
         raise ValueError("min_size must be positive")
@@ -177,9 +177,9 @@ def cluster_facets(
         nearest = sorted(members, key=lambda index: (-_dot(vectors[index], center), index))
         samples: list[str] = []
         seen: set[str] = set()
-        for index in nearest:
+        for rank, index in enumerate(nearest):
             text = _blind_text(texts[index], records[index])
-            if text not in seen:
+            if rank < 3 or text not in seen:
                 samples.append(text)
                 seen.add(text)
             if len(samples) == 12:
@@ -188,7 +188,7 @@ def cluster_facets(
             "cluster_version": CLUSTER_VERSION, "cluster_id": cluster_id, "name": "",
             "level": level, "parent": parent, "run_ids": [ids[index] for index in members],
             "centroid_text": texts[nearest[0]], "size": len(members), "samples": samples,
-            "label_rates": None, "rule_rate": None,
+            "label_rates": None, "rule_recall": None, "rule_fpr": None,
         })
         if level < 3:
             for number, child in enumerate(_bisect(members, vectors, dim, rng, min_size), 1):
@@ -339,41 +339,51 @@ def cluster_label_rates(
     clusters: Sequence[Cluster], labels: Mapping[str, bool | None], *,
     rule_coverage: Mapping[str, bool | None] | None = None,
 ) -> list[Cluster]:
-    """Join labels in place, excluding unknown labels from both denominators.
+    """Join binary labels in place, excluding unlabelled and considered-only runs.
 
-    Rule rate is the share of *all labelled* members hit by a current rule. It
-    stays null if any such member has unknown coverage; ``rule_labelled`` reports
-    observed coverage, preventing missing replay from manufacturing blind spots.
+    ``rule_recall`` is the share of labelled positives flagged by a current rule;
+    it stays null if any positive has unknown coverage, or there are no positives.
+    ``rule_labelled`` counts positives with known coverage. ``rule_fpr`` uses only
+    negatives with known coverage and is null when that denominator is empty.
     """
     coverage = load_rule_coverage() if rule_coverage is None else rule_coverage
     for cluster in clusters:
-        labelled = [run_id for run_id in cluster["run_ids"]
-                    if isinstance(labels.get(run_id), bool)]
-        positives = sum(labels[run_id] is True for run_id in labelled)
-        known = [run_id for run_id in labelled if isinstance(coverage.get(run_id), bool)]
+        positives = [run_id for run_id in cluster["run_ids"] if labels.get(run_id) is True]
+        negatives = [run_id for run_id in cluster["run_ids"] if labels.get(run_id) is False]
+        known_positive = [run_id for run_id in positives
+                          if isinstance(coverage.get(run_id), bool)]
+        known_negative = [run_id for run_id in negatives
+                          if isinstance(coverage.get(run_id), bool)]
+        labelled = len(positives) + len(negatives)
         cluster["label_rates"] = {
-            "labelled": len(labelled), "positives": positives,
-            "rate": positives / len(labelled) if labelled else None,
+            "labelled": labelled, "positives": len(positives),
+            "rate": len(positives) / labelled if labelled else None,
         }
-        cluster["rule_labelled"] = len(known)
-        cluster["rule_rate"] = (
-            sum(coverage[run_id] is True for run_id in known) / len(labelled)
-            if labelled and len(known) == len(labelled) else None
+        cluster.pop("rule_rate", None)
+        cluster["rule_labelled"] = len(known_positive)
+        cluster["rule_recall"] = (
+            sum(coverage[run_id] is True for run_id in known_positive) / len(positives)
+            if positives and len(known_positive) == len(positives) else None
+        )
+        cluster["rule_fpr"] = (
+            sum(coverage[run_id] is True for run_id in known_negative) / len(known_negative)
+            if known_negative else None
         )
     return list(clusters)
 
 
 def uncovered_clusters(
-    clusters: Sequence[Cluster], *, min_size: int = 5,
-    min_rate: float = 0.5, max_rule_rate: float = 0.2,
+    clusters: Sequence[Cluster], *, min_size: int = 5, min_labelled: int = 5,
+    min_rate: float = 0.5, max_rule_recall: float = 0.2,
 ) -> list[Cluster]:
-    """High-positive clusters poorly covered by rules; unknown rates never qualify."""
+    """Sufficiently labelled, high-positive clusters with low known rule recall."""
     uncovered = []
     for cluster in clusters:
         rates = cluster.get("label_rates") or {}
-        rate, rule_rate = rates.get("rate"), cluster.get("rule_rate")
-        if (cluster["size"] >= min_size and rate is not None and rate >= min_rate
-                and rule_rate is not None and rule_rate <= max_rule_rate):
+        rate, recall = rates.get("rate"), cluster.get("rule_recall")
+        if (cluster["size"] >= min_size and rates.get("labelled", 0) >= min_labelled
+                and rate is not None and rate >= min_rate
+                and recall is not None and recall <= max_rule_recall):
             uncovered.append(cluster)
     return sorted(uncovered, key=lambda cluster: (
         -cluster["label_rates"]["positives"], cluster["cluster_id"],
@@ -517,21 +527,25 @@ def _show_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -
             if args.with_labels:
                 rates = cluster["label_rates"]
                 detail = (f"; labels={rates['positives']}/{rates['labelled']} "
-                          f"({_rate(rates['rate'])}); rules={_rate(cluster['rule_rate'])} "
-                          f"[{cluster['rule_labelled']}/{rates['labelled']} known]")
+                          f"({_rate(rates['rate'])}); rule_recall={_rate(cluster['rule_recall'])} "
+                          f"[{cluster['rule_labelled']}/{rates['positives']} positives known]; "
+                          f"rule_fpr={_rate(cluster['rule_fpr'])}")
             print(f"{'  ' * (cluster['level'] - 1)}{cluster['cluster_id']} "
                   f"n={cluster['size']} {cluster['name']}{detail}")
             show(cluster["cluster_id"])
 
     show(None)
     if args.with_labels:
-        print("Uncovered clusters (size>=5, positive rate>=50%, rule rate<=20%):")
+        print("Uncovered clusters (size>=5, labelled>=5, positive rate>=50%, rule recall<=20%):")
         uncovered = uncovered_clusters(clusters)
         for cluster in uncovered:
-            print(f"  {cluster['cluster_id']} positives={cluster['label_rates']['positives']} "
-                  f"{cluster['name']}")
+            rates = cluster["label_rates"]
+            print(f"  {cluster['cluster_id']} labelled={rates['labelled']} "
+                  f"positives={rates['positives']} {cluster['name']}")
+            for text in cluster["samples"][:3]:
+                print(f"    {text}")
         if not uncovered:
-            print("  none with known coverage")
+            print("  none meeting the thresholds with known positive coverage")
         if not args.replay_rules:
             print("Rule coverage: frozen CM-6 only; --replay-rules scans other DEV runs (may be slow).")
     return 0

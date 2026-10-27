@@ -41,7 +41,8 @@ def _cluster(run_ids: list[str], **extra: Any) -> dict[str, Any]:
     return {
         "cluster_id": "L1-01", "level": 1, "parent": None, "run_ids": run_ids,
         "size": len(run_ids), "centroid_text": "repair parser | none",
-        "samples": ["repair parser | none"], "label_rates": None, "rule_rate": None,
+        "samples": ["repair parser | none"], "label_rates": None,
+        "rule_recall": None, "rule_fpr": None,
         **extra,
     }
 
@@ -93,7 +94,8 @@ def test_hierarchy_determinism_membership_parents_and_centroids() -> None:
         assert cluster["size"] == len(cluster["run_ids"])
         assert cluster["centroid_text"] in [texts[run_id] for run_id in cluster["run_ids"]]
         assert cluster["cluster_version"] == "run-clusters/v1"
-        assert cluster["label_rates"] is None and cluster["rule_rate"] is None
+        assert cluster["label_rates"] is None
+        assert cluster["rule_recall"] is None and cluster["rule_fpr"] is None
         if cluster["parent"] is None:
             assert cluster["level"] == 1
         else:
@@ -116,6 +118,7 @@ def test_tiny_and_indistinguishable_groups_continue_without_splitting() -> None:
         assert [cluster["size"] for cluster in clusters] == [len(facets)] * 3
         assert clusters[1]["parent"] == clusters[0]["cluster_id"]
         assert clusters[2]["parent"] == clusters[1]["cluster_id"]
+        assert all(len(cluster["samples"]) >= min(3, len(facets)) for cluster in clusters)
     assert atlas.cluster_facets([]) == []
 
 
@@ -132,6 +135,14 @@ def test_embeddings_use_only_exact_approach_shortcut_text() -> None:
     assert inputs == [facet["approach"] + " | " + facet["shortcut"] for facet in facets]
     modified = [dict(facet, suspicion=999, outcome="fail", label="opposite") for facet in facets]
     assert atlas.cluster_facets(facets) == atlas.cluster_facets(modified)
+
+
+def test_member_samples_start_with_three_centroid_nearest_texts() -> None:
+    facets = _facets(3)
+    embedder = SimpleNamespace(embed=lambda _: [[1.0, 0.0], [0.8, 0.6], [0.0, 1.0]])
+    clusters = atlas.cluster_facets(facets, embedder=embedder)
+    expected = [atlas.facet_text(facets[index]) for index in (1, 0, 2)]
+    assert all(cluster["samples"] == expected for cluster in clusters)
 
 
 @pytest.mark.parametrize("facets,kwargs,match", [
@@ -207,28 +218,48 @@ def test_gateway_naming_prompt_is_blind_and_subscription_only() -> None:
         atlas.model_namer("openai/paid", SimpleNamespace(complete=complete))
 
 
-def test_label_rate_math_excludes_unknown_and_uses_all_labelled_for_rules() -> None:
+def test_label_rate_math_separates_positive_recall_from_flagged_negatives() -> None:
     cluster = _cluster(["a", "b", "c", "d", "missing"])
-    atlas.cluster_label_rates([cluster], {"a": True, "b": False, "c": None, "d": True},
-                              rule_coverage={"a": True, "b": False, "c": True, "d": False})
+    labels = {"a": True, "b": False, "c": None, "d": True}
+    atlas.cluster_label_rates([cluster], labels,
+                              rule_coverage={"a": True, "b": True, "c": True, "d": False})
     assert cluster["label_rates"] == {"labelled": 3, "positives": 2, "rate": 2 / 3}
-    assert cluster["rule_rate"] == 1 / 3 and cluster["rule_labelled"] == 3
-    atlas.cluster_label_rates([cluster], {"a": True, "b": False}, rule_coverage={"a": False})
-    assert cluster["rule_rate"] is None and cluster["rule_labelled"] == 1
-    assert atlas.uncovered_clusters([cluster], min_size=1) == []
+    assert cluster["rule_recall"] == 1 / 2 and cluster["rule_labelled"] == 2
+    assert cluster["rule_fpr"] == 1
+    atlas.cluster_label_rates([cluster], labels, rule_coverage={"b": True, "d": False})
+    assert cluster["rule_recall"] is None and cluster["rule_labelled"] == 1
+    assert cluster["rule_fpr"] == 1
+    assert atlas.uncovered_clusters([cluster], min_size=1, min_labelled=1) == []
+    atlas.cluster_label_rates([cluster], labels, rule_coverage={"a": False, "d": False})
+    assert cluster["rule_recall"] == 0 and cluster["rule_labelled"] == 2
+    assert cluster["rule_fpr"] is None
+    atlas.cluster_label_rates([cluster], {"b": False}, rule_coverage={"b": True})
+    assert cluster["rule_recall"] is None and cluster["rule_labelled"] == 0
+    assert cluster["rule_fpr"] == 1
     atlas.cluster_label_rates([cluster], {}, rule_coverage={})
     assert cluster["label_rates"] == {"labelled": 0, "positives": 0, "rate": None}
-    assert cluster["rule_rate"] is None
+    assert cluster["rule_recall"] is None and cluster["rule_fpr"] is None
+
+
+def test_rule_fpr_uses_only_negatives_with_known_coverage() -> None:
+    cluster = _cluster(["p", "n1", "n2", "unknown-negative"])
+    atlas.cluster_label_rates(
+        [cluster], {"p": True, "n1": False, "n2": False, "unknown-negative": False},
+        rule_coverage={"p": False, "n1": True, "n2": False},
+    )
+    assert cluster["rule_recall"] == 0 and cluster["rule_labelled"] == 1
+    assert cluster["rule_fpr"] == 1 / 2
 
 
 def test_uncovered_selection_thresholds_and_positive_sort() -> None:
     clusters = [
         _cluster([f"p{i}" for i in range(10)], cluster_id="L1-02"),
         _cluster([f"p{i}" for i in range(5)], cluster_id="L1-01"),
-        _cluster(["p0"], cluster_id="tiny"),
+        _cluster(["p1"], cluster_id="tiny"),
         _cluster([f"n{i}" for i in range(6)], cluster_id="clean"),
         _cluster([f"h{i}" for i in range(6)], cluster_id="covered"),
         _cluster([f"u{i}" for i in range(6)], cluster_id="unknown"),
+        _cluster(["p1"] + [f"missing{i}" for i in range(9)], cluster_id="sparse"),
     ]
     labels = {**dict.fromkeys([f"p{i}" for i in range(10)], True),
               **dict.fromkeys([f"n{i}" for i in range(6)], False),
@@ -243,6 +274,16 @@ def test_uncovered_selection_thresholds_and_positive_sort() -> None:
     assert [cluster["cluster_id"] for cluster in atlas.uncovered_clusters(clusters, min_size=10)] == [
         "L1-02",
     ]
+    assert [cluster["cluster_id"] for cluster in atlas.uncovered_clusters(
+        clusters, min_labelled=6,
+    )] == ["L1-02"]
+    assert [cluster["cluster_id"] for cluster in atlas.uncovered_clusters(
+        clusters, min_labelled=1,
+    )] == ["L1-02", "L1-01", "sparse"]
+    assert [cluster["cluster_id"] for cluster in atlas.uncovered_clusters(
+        clusters, min_size=1, min_labelled=1,
+    )] == ["L1-02", "L1-01", "sparse", "tiny"]
+    assert atlas.uncovered_clusters(clusters, max_rule_recall=0) == []
 
 
 def test_frozen_rule_coverage_prefers_stage1_and_omits_excluded(tmp_path: Path) -> None:
@@ -341,7 +382,8 @@ def test_build_appends_snapshots_and_show_uses_latest_with_labels(
     output = capsys.readouterr().out
     assert f"Build {latest[0]['build_id']} — 13 facets" in output
     assert "  L1-01.1" in output and "    L1-01.1.1" in output
-    assert "rules=0.0%" in output and "Uncovered clusters" in output
+    assert "rule_recall=0.0%" in output and "rule_fpr=unknown" in output
+    assert "Uncovered clusters" in output
     assert atlas.load_clusters(clusters_path)[0]["label_rates"] is None
 
 
@@ -357,6 +399,38 @@ def test_show_without_labels_never_reads_labels_or_rule_files(
     args = _parser().parse_args(["clusters", "show", "--clusters", str(path)])
     assert args.func(args, tmp_path) == 0
     assert "L1-01 n=1 Parser repair" in capsys.readouterr().out
+
+
+def test_show_uncovered_counts_and_three_nearest_texts_despite_flagged_negatives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [
+        "nearest parser repair | none", "next token repair | none",
+        "third grammar repair | none", "farther context | none",
+    ]
+    clusters = [
+        _cluster(["p1", "p2", "p3", "n1", "n2"], name="Parser repairs", samples=samples),
+        _cluster(["s1"] + [f"u{i}" for i in range(9)], cluster_id="L1-02",
+                 name="Sparse evidence"),
+    ]
+    for cluster in clusters:
+        cluster.update(cluster_version=atlas.CLUSTER_VERSION, build_id="one", facet_count=15)
+    path = tmp_path / "clusters.jsonl"
+    run_atlas.append_jsonl(path, clusters)
+    labels = {"p1": True, "p2": True, "p3": True, "n1": False, "n2": False, "s1": True}
+    coverage = {run_id: run_id.startswith("n") for run_id in labels}
+    monkeypatch.setattr(atlas, "_load_labels", lambda *args: labels)
+    monkeypatch.setattr(atlas, "load_rule_coverage", lambda _: coverage)
+    args = _parser().parse_args(["clusters", "show", "--clusters", str(path), "--with-labels"])
+    assert args.func(args, tmp_path) == 0
+    output = capsys.readouterr().out
+    assert "rule_recall=0.0%" in output and "rule_fpr=100.0%" in output
+    uncovered = output.split("Uncovered clusters", 1)[1]
+    assert "labelled>=5" in uncovered and "L1-01 labelled=5 positives=3 Parser repairs" in uncovered
+    assert "Sparse evidence" not in uncovered
+    assert uncovered.count(" | none") == 3
+    assert all(f"    {text}\n" in uncovered for text in samples[:3])
+    assert samples[3] not in uncovered
 
 
 def test_optional_rule_replay_only_requests_unknown_labelled_runs(

@@ -47,14 +47,19 @@ from typing import Any, Literal, Protocol
 from evallab.execution_backend import ExecutionBackendConfig
 from evallab.production.cloud_trace_db import CloudTraceRetriever
 from evallab.production.swarm_coordinator import (
+    Candidate,
+    Citation,
+    CitationCheck,
     ModelCall,
     ModelRequest,
     ModelTransport,
     Role,
     WorkKind,
     model_identity_matches,
+    parse_candidates,
+    verify_citation,
 )
-from evallab.production.tq_context import assemble_audit_context
+from evallab.production.tq_context import assemble_audit_context, is_proposal_eligible
 from evallab.qa import counterfactual
 from evallab.qa import task as qa_task
 from evallab.qa.models import (
@@ -403,6 +408,52 @@ class TaskQualityLiveWorker:
             source_digest=self.audit_source_digest,
         )
         return bundle
+
+    def audit_proposals(
+        self,
+        package: Path,
+        *,
+        task_id: str,
+        response: str,
+        model: str,
+        min_verified_confidence: float = 0.5,
+        min_unverified_confidence: float = 0.8,
+    ) -> tuple[Candidate, ...]:
+        """Parse supplied output into citation-checked proposals for further review.
+
+        Eligibility is provisional, never confirmation or execution permission.
+        Verification requires a nonblank quote matching actual package lines.
+        No model, backend or queue operation runs; the caller owns model-call
+        receipts for the supplied response.
+        """
+        def verify(citation: Citation) -> CitationCheck:
+            check = verify_citation(package, citation)
+            if citation.quote is None or not citation.quote.strip():
+                return replace(
+                    check,
+                    quote_found=False,
+                    detail="a nonblank quoted snippet is required for proposal verification",
+                )
+            return check
+
+        candidates = parse_candidates(
+            response,
+            model=model,
+            rank=1,
+            work_kind=WorkKind.TASK_QUALITY_AUDIT,
+            subject_id=task_id,
+            verify=verify,
+        )
+        return tuple(
+            candidate
+            for candidate in candidates
+            if is_proposal_eligible(
+                candidate.confidence,
+                candidate.citation_verified,
+                min_verified_confidence=min_verified_confidence,
+                min_unverified_confidence=min_unverified_confidence,
+            )
+        )
 
     @staticmethod
     def _designated_grader_path(value: str | None) -> str | None:

@@ -14,7 +14,12 @@ from evallab.production.cloud_trace_db import (
     RetrievedExample,
 )
 from evallab.production.corpus_queue import CorpusRegistry
-from evallab.production.tq_context import MAX_CONTEXT_CHARS, assemble_audit_context
+from evallab.production.tq_context import (
+    MAX_CONTEXT_CHARS,
+    assemble_audit_context,
+    is_proposal_eligible,
+    resolve_mechanism_description,
+)
 
 
 @pytest.fixture
@@ -192,3 +197,286 @@ def test_context_bounds_fields_and_distinguishes_missing_evidence() -> None:
     assert missing["failed_run"] is None
     assert missing["related_issues"] == []
     assert missing["provenance"]["failed_run_available"] is False
+
+
+@pytest.mark.parametrize("verified, floor", [(True, 0.5), (False, 0.8)])
+@pytest.mark.parametrize("offset, expected", [(-0.000001, False), (0.0, True), (0.000001, True)])
+def test_proposal_eligibility_boundaries(verified: bool, floor: float, offset: float, expected: bool) -> None:
+    assert is_proposal_eligible(floor + offset, verified) is expected
+
+
+@pytest.mark.parametrize("confidence, verified, verified_floor, unverified_floor, expected", [
+    (0.6, True, 0.7, 0.8, False),
+    (0.7, True, 0.7, 0.8, True),
+    (0.6, False, 0.9, 0.6, True),
+    (0.59, False, 0.1, 0.6, False),
+    (0.5, True, 0.5, 0.9, True),
+    (0.8, False, 0.9, 0.8, True),
+    (0, True, 0.0, 1.0, True),
+    (0, False, 1.0, 0.0, True),
+    (1, True, 1.0, 0.8, True),
+    (1, False, 0.5, 1.0, True),
+])
+def test_proposal_eligibility_threshold_overrides(
+    confidence: float, verified: bool, verified_floor: float, unverified_floor: float, expected: bool,
+) -> None:
+    assert is_proposal_eligible(
+        confidence, verified,
+        min_verified_confidence=verified_floor,
+        min_unverified_confidence=unverified_floor,
+    ) is expected
+
+
+@pytest.mark.parametrize("confidence", [
+    -0.001, 1.001, float("nan"), float("inf"), float("-inf"),
+    10 ** 400, -(10 ** 400), True, False, "0.9", None,
+])
+@pytest.mark.parametrize("verified", [True, False])
+def test_proposal_eligibility_rejects_invalid_confidence(confidence: Any, verified: bool) -> None:
+    assert is_proposal_eligible(confidence, verified) is False
+
+
+@pytest.mark.parametrize("verified", [0, 1, None, "true", "false", [], {}])
+def test_proposal_eligibility_requires_actual_citation_boolean(verified: Any) -> None:
+    assert is_proposal_eligible(1.0, verified) is False
+
+
+@pytest.mark.parametrize("floor", [-0.001, 1.001, float("nan"), float("inf"), True, "0.5", None])
+@pytest.mark.parametrize("verified", [True, False])
+def test_proposal_eligibility_rejects_invalid_thresholds(floor: Any, verified: bool) -> None:
+    assert is_proposal_eligible(1.0, verified, min_verified_confidence=floor) is False
+    assert is_proposal_eligible(1.0, verified, min_unverified_confidence=floor) is False
+
+
+_MIMO_TASK = "format-code-task-999001"
+_MIMO_PACKAGE = "sha256:" + "1" * 64
+_MIMO_GENERIC_SUMMARY = (
+    "Archived instruction-adjudicated wrong-patch witness; taxonomy mapping is "
+    "inference, not fresh differential confirmation."
+)
+_MIMO_REASONS = {
+    "block": "The report checker omits the requested title comparison, leaving a stale title undetected.",
+    "line-0123456789": "The report checker counts rows without checking unique identifiers, leaving duplicates undetected.",
+}
+_MIMO_PROGRAMS = {"block": "a" * 64, "line-0123456789": "b" * 64}
+
+
+def _mimo_finding(witness_id: str, *, projected: bool = False) -> dict[str, Any]:
+    identity = f"mimo-weak-tests-v2.1:{_MIMO_TASK}:{witness_id}"
+    if projected:
+        return {
+            "key_id": identity, "package_digest": _MIMO_PACKAGE,
+            "summary": _MIMO_GENERIC_SUMMARY, "direction": "false_pass",
+        }
+    return {
+        "finding_id": identity, "source_finding_id": identity,
+        "task_id": _MIMO_TASK, "package_digest": _MIMO_PACKAGE,
+        "primary_class": {"id": "TS01", "key": "weak_check"},
+        "safe_summary": _MIMO_GENERIC_SUMMARY,
+        "program": {"source_program_id": identity, "sha256": "sha256:" + _MIMO_PROGRAMS[witness_id]},
+    }
+
+
+def _mimo_atlas_row() -> dict[str, Any]:
+    return {
+        "task_id": _MIMO_TASK, "package_digest": _MIMO_PACKAGE,
+        "witnesses": [
+            {
+                "id": witness_id, "sha256": _MIMO_PROGRAMS[witness_id],
+                "reason": reason, "review_label": "required_gap",
+                "raw_patch": "NEVER EXPORT RAW PATCH",
+            }
+            for witness_id, reason in _MIMO_REASONS.items()
+        ],
+    }
+
+
+@pytest.mark.parametrize("witness_id", ["block", "line-0123456789"])
+@pytest.mark.parametrize("projected", [False, True])
+def test_mechanism_resolves_exact_mimo_witness_without_mutating_inputs(
+    witness_id: str, projected: bool,
+) -> None:
+    item, row = _mimo_finding(witness_id, projected=projected), _mimo_atlas_row()
+    before = json.dumps([item, row], sort_keys=True)
+    assert resolve_mechanism_description(item, retained_atlas_row=row) == _MIMO_REASONS[witness_id]
+    assert json.dumps([item, row], sort_keys=True) == before
+    assert resolve_mechanism_description(item) is None
+
+
+@pytest.mark.parametrize("program", [
+    {}, {"sha256": "a" * 64}, {"sha256": "sha256:" + "a" * 64},
+])
+def test_mimo_program_digest_is_optional_but_bound_when_supplied(program: dict[str, Any]) -> None:
+    item = _mimo_finding("block")
+    item["program"] = program
+    assert resolve_mechanism_description(item, retained_atlas_row=_mimo_atlas_row()) == _MIMO_REASONS["block"]
+
+
+@pytest.mark.parametrize("override", [
+    {"task_id": "format-code-task-999002"},
+    {"package_digest": "sha256:" + "2" * 64},
+    {"finding_id": f"mimo-weak-tests-v2.1:{_MIMO_TASK}:line-0123456789"},
+    {"source_finding_id": f"mimo-weak-tests-v2.1:{_MIMO_TASK}:line-0123456789"},
+    {"key_id": f"mimo-weak-tests-v2.1:{_MIMO_TASK}:line-0123456789"},
+    {"id": f"mimo-weak-tests-v2.1:{_MIMO_TASK}:line-0123456789"},
+    {"finding_id": "mimo-weak-tests-v2.1:format-code-task-999002:block"},
+    {"finding_id": f"mimo-weak-tests-v2.1:{_MIMO_TASK}:block:extra"},
+    {"finding_id": f"other-key:{_MIMO_TASK}:block"},
+    {"finding_id": None},
+    {"witness_id": "line-0123456789"},
+    {"program": {"source_program_id": f"mimo-weak-tests-v2.1:{_MIMO_TASK}:line-0123456789"}},
+    {"program": {"sha256": "sha256:" + "b" * 64}},
+    {"program": {"sha256": "not-a-sha"}},
+    {"program": {"sha256": None}},
+    {"program": []},
+    {"program_sha256": "sha256:" + "b" * 64},
+    {"subject": {"task_id": "format-code-task-999002"}},
+    {"subject": {"task_digest": "sha256:" + "2" * 64}},
+])
+def test_mimo_supplied_identity_mismatches_have_no_description_fallback(override: dict[str, Any]) -> None:
+    item = _mimo_finding("block")
+    item["mechanism"] = "A specific description cannot rescue an incorrectly bound retained row."
+    item.update(override)
+    assert resolve_mechanism_description(item, retained_atlas_row=_mimo_atlas_row()) is None
+
+
+@pytest.mark.parametrize("override", [
+    {"task_id": "format-code-task-999002"},
+    {"package_digest": "sha256:" + "2" * 64},
+    {"package_digest": None},
+    {"witnesses": []},
+    {"witnesses": [{"id": "unrelated", "sha256": "a" * 64, "reason": "Other witness reason."}]},
+    {"witnesses": [{"id": "block", "sha256": "b" * 64, "reason": "Same label, wrong program."}]},
+    {"witnesses": [{"id": "block", "sha256": None, "reason": "Missing program digest."}]},
+    {"witnesses": [
+        {"id": "block", "sha256": "a" * 64, "reason": "First reason."},
+        {"id": "block", "sha256": "a" * 64, "reason": "Conflicting reason."},
+    ]},
+    {"witnesses": {"block": {"reason": "Not an atlas witness list."}}},
+])
+def test_mimo_retained_row_mismatches_fail_closed(override: dict[str, Any]) -> None:
+    item, row = _mimo_finding("block"), _mimo_atlas_row()
+    item["summary"] = "A specific summary cannot rescue a mismatched retained row."
+    row.update(override)
+    assert resolve_mechanism_description(item, retained_atlas_row=row) is None
+
+
+@pytest.mark.parametrize("item", [
+    {"task_id": _MIMO_TASK, "package_digest": _MIMO_PACKAGE, "witness_id": "block"},
+    {"program": {
+        "source_program_id": f"mimo-weak-tests-v2.1:{_MIMO_TASK}:block", "sha256": "a" * 64,
+    }, "package_digest": _MIMO_PACKAGE},
+    {"key_id": f"mimo-weak-tests-v2.1:{_MIMO_TASK}:missing", "package_digest": _MIMO_PACKAGE},
+    {"key_id": f"mimo-weak-tests-v2.1:{_MIMO_TASK}:block"},
+])
+def test_mimo_requires_finding_identity_package_and_matching_witness(item: dict[str, Any]) -> None:
+    assert resolve_mechanism_description(item, retained_atlas_row=_mimo_atlas_row()) is None
+
+
+@pytest.mark.parametrize("root_key", ["root_cause", "root_causes"])
+def test_mechanism_preserves_tb4_root_cause_summaries(root_key: str) -> None:
+    first = "The required output filename is not checked, so a misplaced report is accepted."
+    second = "The checker accepts empty sections without checking the requested content."
+    item = {
+        root_key: [
+            {"id": "synthetic-1", "category": "weak", "source_class": "incomplete_check", "summary": first},
+            {"id": "synthetic-2", "category": "weak", "source_class": "incomplete_check", "summary": second},
+            {"summary": first}, {"category": "weak", "summary": "weak"}, {"summary": "Unavailable"},
+        ],
+        "summary": "weak", "defect_class": "incomplete_check",
+    }
+    assert resolve_mechanism_description(item) == first + "\n" + second
+
+
+@pytest.mark.parametrize("item, expected", [
+    (
+        {"mechanism": "The parser drops the timezone before comparing timestamps.", "summary": _MIMO_GENERIC_SUMMARY},
+        "The parser drops the timezone before comparing timestamps.",
+    ),
+    (
+        {
+            "card_id": "QA-synthetic", "mechanism_summary": "The checker counts entries.\nIt never checks their required fields.",
+            "signature_pattern": "PATTERN NOT A MECHANISM", "verification_recipe": "RECIPE NOT A MECHANISM",
+        },
+        "The checker counts entries.\nIt never checks their required fields.",
+    ),
+    (
+        {"finding": {"mechanism": "The comparator rounds away the required decimal precision."}, "summary": "weak_check"},
+        "The comparator rounds away the required decimal precision.",
+    ),
+    (
+        {"summary": "The report checker uses yesterday's date instead of the requested date."},
+        "The report checker uses yesterday's date instead of the requested date.",
+    ),
+    (
+        {"safe_summary": "The original module uses a timing assertion that rejects the reference intermittently."},
+        "The original module uses a timing assertion that rejects the reference intermittently.",
+    ),
+])
+def test_mechanism_preserves_specific_supplied_prose(item: dict[str, Any], expected: str) -> None:
+    assert resolve_mechanism_description(item) == expected
+
+
+@pytest.mark.parametrize("item", [
+    {},
+    {"defect_class": "incomplete_check", "taxonomy_class": "weak_check", "primary_class": {"id": "TS01"}},
+    {"summary": "weak_check"},
+    {"summary": "weak check", "primary_class": {"id": "TS01", "key": "weak_check"}},
+    {"mechanism": "TS01", "summary": "TS01 weak check", "primary_class": {"id": "TS01", "key": "weak_check"}},
+    {"mechanism": "Unavailable", "mechanism_summary": "N/A", "summary": "No mechanism available."},
+    {"mechanism": {"raw_patch": "DO NOT STRINGIFY"}, "summary": []},
+    {"summary": _MIMO_GENERIC_SUMMARY},
+    {"safe_summary": _MIMO_GENERIC_SUMMARY},
+    {"summary": "  ARCHIVED instruction-adjudicated wrong-patch witness; taxonomy mapping is inference.  "},
+    {"root_cause": [{"category": "weak", "source_class": "incomplete_check"}]},
+    {"root_causes": ["incomplete_check"], "expected_root_causes": ["weak_check"]},
+    {"raw": {"mechanism": "NEVER USE ARBITRARY RAW"}, "reproducer": "NEVER USE REPRODUCER"},
+])
+def test_missing_mechanism_does_not_become_a_class_or_placeholder(item: dict[str, Any]) -> None:
+    assert resolve_mechanism_description(item) is None
+
+
+def test_context_prefers_bounded_specific_mechanism_and_preserves_provenance() -> None:
+    mechanism = "The checker compares row counts but omits the required identifier comparison. " + "detail " * 150
+    example = RetrievedExample(
+        task_id="related", dataset_id="synthetic", issue_id="source-finding",
+        status="source_supported_historical", defect_class="weak_check",
+        issue={
+            "mechanism": mechanism, "summary": _MIMO_GENERIC_SUMMARY,
+            "source_sha256": "c" * 64, "source_locator": "synthetic-source#/finding",
+            "repair_missing_reason": "No bound repair diff retained",
+            "raw": "NEVER INCLUDE RAW", "reproducer_script": "NEVER INCLUDE REPRODUCER",
+            "finding": {"raw_patch": "NEVER INCLUDE PATCH"},
+        },
+        provenance={
+            "issue_trust_tier": "source_supported_historical", "issue_cas_uri": "cas://synthetic",
+            "receipt_status": "source-only", "raw_payload": "NEVER INCLUDE PAYLOAD",
+        },
+    )
+    result = assemble_audit_context(FakeRetriever(examples=[example]), task_id="target", query="report")  # type: ignore[arg-type]
+    related = result["related_issues"][0]
+    assert related["issue"]["summary"].startswith("The checker compares row counts")
+    assert len(related["issue"]["summary"]) == 600
+    assert related["issue"]["summary"].endswith("…")
+    assert related["status"] == "source_supported_historical"
+    assert related["trust_tier"] == "source_supported_historical"
+    assert related["differential"] is None
+    assert related["repair_diff"] is None
+    assert related["repair_missing_reason"] == "No bound repair diff retained"
+    assert related["label_source_sha256"] == "c" * 64
+    assert related["label_source_locator"] == "synthetic-source#/finding"
+    assert related["provenance"]["issue_cas_uri"] == "cas://synthetic"
+    assert related["provenance"]["receipt_status"] == "source-only"
+    assert "not by itself a verified control differential" in result["notice"]
+    assert _MIMO_GENERIC_SUMMARY not in json.dumps(result)
+    assert "NEVER INCLUDE" not in json.dumps(result)
+    assert len(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))) <= MAX_CONTEXT_CHARS
+
+
+def test_context_leaves_generic_mechanism_unavailable() -> None:
+    example = RetrievedExample(
+        task_id="related", dataset_id="synthetic", issue_id="source-finding",
+        defect_class="weak_check", issue={"summary": _MIMO_GENERIC_SUMMARY, "defect_class": "weak_check"},
+    )
+    result = assemble_audit_context(FakeRetriever(examples=[example]), task_id="target", query="report")  # type: ignore[arg-type]
+    assert result["related_issues"][0]["issue"]["summary"] is None

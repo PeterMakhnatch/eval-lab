@@ -38,7 +38,7 @@ from typing import Any, Protocol
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from evallab.live_watch import WatchThresholds, evaluate_alerts
-from evallab.production import window_cascade
+from evallab.production import command_prefilter, window_cascade
 from evallab.production.asset_exporter import (
     LABEL_VERIFICATION_SCHEMA,
     _measured_reward,
@@ -596,6 +596,7 @@ class _Run:
     prefix_state: IncrementalPrefixState = field(default_factory=IncrementalPrefixState)
     withheld: dict[str, int] = field(default_factory=dict)
     escalation: window_cascade.FamilyBudget = field(default_factory=window_cascade.FamilyBudget)
+    deferred: dict[str, dict[str, Any]] = field(default_factory=dict)
     canon_bytes: dict[int, bytes] = field(default_factory=dict)
     frozen_steps: dict[int, dict[str, Any]] = field(default_factory=dict)
     max_step_id: int | None = None
@@ -857,12 +858,53 @@ class MisalignmentLiveWorker:
         self.close()
 
     def close(self) -> None:
-        """Finish submitted triage; never call while holding the worker lock."""
+        """Judge deferred cards on the steps observed so far, then finish triage.
+
+        Never call while holding the worker lock.
+        """
+        self.flush_triage()
         with self._lock:
             self._closed = True
         if self._pool is not None:
             self._pool.shutdown(wait=True)
         self.drain_triage()
+
+    def flush_triage(self, run_id: str | None = None) -> None:
+        """Judge cards still waiting for lookahead now (a run ended, or the worker closes)."""
+        with self._lock:
+            for key, run in self._runs.items():
+                if run_id is None or key == run_id:
+                    self._release_deferred(
+                        key, run, run.max_step_id, run.frozen_prefix(), force=True
+                    )
+
+    def _release_deferred(
+        self,
+        run_id: str,
+        run: _Run,
+        prefix: int | None,
+        frozen_steps: Any,
+        *,
+        force: bool = False,
+    ) -> None:
+        """Submit deferred cards whose window now holds ``LOOKAHEAD`` later agent steps."""
+        if self._pool is None or not run.deferred:
+            return
+        ready = [
+            card
+            for card in run.deferred.values()
+            if force
+            or window_cascade.lookahead_ready(run._agent_step_ids, card["evidence"][0]["step"])
+        ]
+        if not ready:
+            return
+        for card in ready:
+            del run.deferred[card["card_id"]]
+        # Freeze the causal prefix before a later event can mutate a step.
+        steps = frozen_steps if frozen_steps is not None else []
+        self._futures.add(
+            self._pool.submit(self._triage, run_id, prefix, steps, copy.deepcopy(ready))
+        )
 
     def drain_triage(self, timeout: float | None = None) -> None:
         """Barrier for graceful shutdown/tests, not part of ingestion or gating."""
@@ -1230,6 +1272,37 @@ class MisalignmentLiveWorker:
             ]
         return _Detection(alerts, summary)
 
+    def _prefilter_alerts(
+        self, run: _Run, step: Mapping[str, Any] | None, *, replay: bool
+    ) -> list[dict[str, Any]]:
+        """Command-state cues for the new step (every observed step when replaying).
+
+        Stateless per step, so replays are idempotent: a cue already carded keeps its
+        card id and is skipped downstream.
+        """
+        if replay:
+            observed: list[Mapping[str, Any]] = [run.steps[n] for n in sorted(run.steps)]
+        elif step is not None and _step_id(step) in run.steps:
+            observed = [run.steps[_step_id(step)]]
+        else:
+            observed = []
+        return [
+            {
+                "rule": cue.rule,
+                "severity": "low",
+                "step_ref": f"head#{_step_id(record)}",
+                "quote": cue.quote,
+                "detail": cue.detail,
+                "entry_ids": [],
+                "origin": "prefilter",
+                "kind": "agent_action",
+                "eligibility": "diagnostic",
+                "gate": False,
+            }
+            for record in observed
+            for cue in command_prefilter.cues(record)
+        ]
+
     def _score(
         self,
         run_id: str,
@@ -1248,6 +1321,7 @@ class MisalignmentLiveWorker:
             "source_seq": source_event.get("seq"),
         }
         structural: dict[str, Any] | None = None
+        replay = rescan or not run.detector_valid
         try:
             delta = (
                 run.rescan_rules()
@@ -1261,6 +1335,7 @@ class MisalignmentLiveWorker:
             alerts = []
             coverage["gaps"].append("deterministic_detector_unavailable")
             coverage["detector_error"] = f"{type(exc).__name__}: {exc}"[:300]
+        alerts = [*alerts, *self._prefilter_alerts(run, step, replay=replay)]
         if structural is not None:
             coverage["structural"] = structural
             if structural["context_supplied"] and structural["unavailable"]:
@@ -1310,7 +1385,9 @@ class MisalignmentLiveWorker:
                 triage_state = "gate_pass_through"
             elif self._judge is None:
                 triage_state = "unavailable"
-            elif run.escalation.admit(alert["rule"], gating=alert["eligibility"] == "verdict"):
+            elif window_cascade.escalates(alert) and run.escalation.admit(
+                alert["rule"], gating=window_cascade.has_priority(alert)
+            ):
                 triage_state = "pending"
             else:
                 triage_state = "not_escalated"
@@ -1351,7 +1428,9 @@ class MisalignmentLiveWorker:
                 "baselines": copy.deepcopy(run.baselines),
                 "structural_context": copy.deepcopy(run.structural_context),
             }
-            if triage_state in {"pending", "unavailable"}:
+            if triage_state == "pending":
+                run.deferred[card_id] = card
+            elif triage_state == "unavailable":
                 cards.append(card)
         if self._judge is None and cards:
             coverage["gaps"].append("semantic_triage_unavailable")
@@ -1389,13 +1468,7 @@ class MisalignmentLiveWorker:
         )
         if coverage["gaps"]:
             output.append(self._emit(run_id, "monitor.coverage_gap", coverage, prefix_step=prefix))
-        if cards and self._pool is not None:
-            # Freeze the causal prefix before a later event can mutate a step.
-            triage_steps = frozen_steps if frozen_steps is not None else []
-            future = self._pool.submit(
-                self._triage, run_id, prefix, triage_steps, copy.deepcopy(cards)
-            )
-            self._futures.add(future)
+        self._release_deferred(run_id, run, prefix, frozen_steps)
         return output
 
     def _triage(
@@ -1448,6 +1521,7 @@ class MisalignmentLiveWorker:
                     "window_chars": window.chars,
                     "window_truncated": window.truncated,
                     "verdict": outcome.reason,
+                    "judged_prefix": prefix,
                     "reference_examples": len(examples),
                     "reference_examples_error": examples_error,
                 },
@@ -2230,7 +2304,7 @@ class MisalignmentLiveWorker:
                             if payload.get("semantic_triage") in {"pending", "completed"}:
                                 run.escalation.restore(
                                     payload["rule"],
-                                    gating=payload.get("eligibility", "verdict") == "verdict",
+                                    gating=window_cascade.has_priority(payload),
                                 )
                             existing = run.suspicions.get(card_id, {})
                             run.suspicions[card_id] = {
@@ -2346,11 +2420,10 @@ class MisalignmentLiveWorker:
                             if n <= record["prefix"]
                         ]
             self.expire_controls()
-            for run_id, prefix, steps, card in pending.values():
+            for run_id, prefix, _steps, card in pending.values():
                 if self._pool is not None:
-                    self._futures.add(
-                        self._pool.submit(self._triage, run_id, prefix, steps, [card])
-                    )
+                    # Judging still waits for lookahead; a close or flush judges the rest.
+                    self._runs[run_id].deferred[card["card_id"]] = card
                 else:
                     self._emit(
                         run_id,
@@ -2361,6 +2434,8 @@ class MisalignmentLiveWorker:
                         },
                         prefix_step=prefix,
                     )
+            for run_id, recovered in self._runs.items():
+                self._release_deferred(run_id, recovered, recovered.max_step_id, recovered.frozen_prefix())
 
     def consume(
         self, queue: JournalConsumer, *, consumer_id: str = "misalignment-live", limit: int = 100

@@ -2380,3 +2380,9 @@ def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2
     gen = OmpHeadlessAttemptGenerator(hide_tests=True, use_cascade_routing=True)
     assert gen.select_model(resolved, 1) == "meta/muse-spark-open"
     assert gen.select_model(mimo_task, 1) == "openrouter/deepseek/deepseek-v4.1-flash"
+    from evallab.production.seeker_worker import _normalize_mechanism_key
+    assert "rwa_column" in _normalize_mechanism_key(
+        ["surface", "probe", "rwa_column"],
+        target_check=["tests/test_outputs.py"],
+        files_written=("/app/output/sa_ccr_results.csv",),
+    )

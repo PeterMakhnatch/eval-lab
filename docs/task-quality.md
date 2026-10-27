@@ -248,6 +248,45 @@ default (`auto` for custom endpoints, `us-east-1` for AWS S3). `put_bytes` /
 an offline CAS, or alongside S3 configuration for an atomic local mirror.
 CAS references do not assert that the corresponding object has been ingested.
 
+### Task Quality proposal review and retained causal descriptions
+
+`TaskQualityLiveWorker.audit_proposals(package, task_id=..., response=...,
+model=...)` parses an already-retained audit response using the existing swarm
+candidate contract. It verifies each citation against the supplied task package,
+including path containment, line range and whitespace-folded quoted text. A
+model's own verification flag is not evidence. The caller remains responsible
+for model identity and response-receipt attestation; this method calls no model,
+executes no task and writes no journal event.
+
+The shared `evallab.production.tq_context.is_proposal_eligible` policy admits a
+proposal for **further provisional review** at confidence **≥ 0.5 when all its
+citations verify**, or **≥ 0.8 when they do not**. Callers can explicitly set
+`min_verified_confidence` and `min_unverified_confidence`. Returned candidates
+retain their actual citation checks: an unverified high-confidence proposal is
+still unverified, never a citation-backed or confirmed finding. Existing replay,
+repair qualification, corpus admission and asset-promotion gates are unchanged.
+This policy is distinct from the swarm's unanimity/escalation threshold.
+
+`resolve_mechanism_description(item, retained_atlas_row=...)` preserves specific
+source mechanism text rather than replacing it with a historical-status
+boilerplate summary. It accepts explicit mechanism descriptions, the
+`mechanism_summary` shape used by packaged playbook cards, and TB4 causal
+summaries. To recover a MiMo witness reason, the caller supplies its
+**already-admitted** atlas row; the resolver binds task, exact package and witness
+identity, plus a program hash when supplied, before selecting that reason.
+It does not load an answer-key file or grant permission to inspect another row.
+Absent causal detail remains unavailable, not an invented class-derived cause.
+A general playbook card is a diagnostic pattern, not a same-task gold label.
+
+Related-issue context uses this resolver before applying its existing field and
+total-context bounds, retaining the same leave-target-out, trust and provenance
+rules. Scorer-only same-task labels must remain outside auditor context; a
+specific description does not make a label actor-safe or newly verified.
+
+The policy and resolver are reusable production interfaces. They do not rewrite
+OQ-5's frozen scripts, receipts, answer keys or recorded scores, and the 0.5
+default is not a claim of empirically calibrated probability.
+
 ### Goodfire passage labels on steps
 
 Goodfire's publisher judge marks the exact passages where a rollout cheated. Ingestion

@@ -2,10 +2,12 @@
 
 Stage 1 is the incremental tripwire rules in :mod:`evallab.production.monitor_worker`.
 Only when a rule raises a card does Stage 2 run, and then the judge sees just the
-flagged step with up to ``RADIUS`` agent actions on each side of it (about 1.5k
-tokens), never the whole trace. Judging waits until ``LOOKAHEAD`` agent steps have
-followed the card (or ``flush_triage``), so the window shows what the agent did next;
-it is cut from the observed prefix at that moment and holds nothing later.
+flagged step with up to ``RADIUS`` agent actions on each side of it (at most
+``MAX_WINDOW_CHARS`` of free text, about 2.3k tokens, counting commands, observations
+and the agent's message and reasoning), never the whole trace. Judging waits until
+``LOOKAHEAD`` agent steps have followed the card (or ``flush_triage``), so the window
+shows what the agent did next; it is cut from the observed prefix at that moment and
+holds nothing later.
 
 Per run, Stage 2 judges at most :data:`MAX_FAMILIES` windows, one per distinct rule
 family (the first card of each). Verdict-eligible (``gating_alert``) families take any
@@ -58,8 +60,10 @@ RADIUS = 5
 #: window shows what the agent did with what it flagged (a ``git log`` is judged once the
 #: agent has acted on it). ``flush_triage`` judges earlier, on the steps observed so far.
 LOOKAHEAD = RADIUS
-#: Hard cap on window text (command + observation characters), about 1.5k tokens.
-MAX_WINDOW_CHARS = 6000
+#: Hard cap on window free text: command, observation, message and reasoning characters
+#: together (the flagged step's message and reasoning alone can use 3,000), about 2.3k tokens.
+MAX_WINDOW_CHARS = 9000
+_TEXT_FIELDS = ("text", "observation", "message", "reasoning")
 _FLAGGED_COMMAND_CHARS = 1200
 _FLAGGED_OBSERVATION_CHARS = 900
 _CONTEXT_COMMAND_CHARS = 500
@@ -311,6 +315,16 @@ class Window:
         return (self.chars + 3) // 4
 
 
+def _item_chars(item: Mapping[str, Any]) -> int:
+    """Characters one window action puts in the judge prompt: every free-text field."""
+    return sum(len(item.get(key) or "") for key in _TEXT_FIELDS)
+
+
+def size(items: Sequence[Mapping[str, Any]]) -> int:
+    """Total free-text characters of a window: command, observation, message and reasoning."""
+    return sum(_item_chars(item) for item in items)
+
+
 def build_window(
     steps: Sequence[Mapping[str, Any]],
     flagged_step: int,
@@ -374,9 +388,6 @@ def build_window(
 
     rendered = render(True)
     truncated = False
-
-    def size(items: list[dict[str, Any]]) -> int:
-        return sum(len(a["text"]) + len(a["observation"]) for a in items)
 
     if size(rendered) > max_chars:
         truncated = True

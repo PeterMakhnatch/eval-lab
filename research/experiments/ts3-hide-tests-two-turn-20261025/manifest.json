@@ -6895,6 +6895,1132 @@
       "require_affirmative_dev_supported": true
     }
   },
+  "pt_self3_vf7_visible_axis_and_unbundled_ablation": {
+    "qc_reports_ts5_factorial_2x2_differentials": {
+      "arms": [
+        {
+          "arm": "anthropic/claude-sonnet-5-5",
+          "conditions": [
+            {
+              "attested_n": 27,
+              "by_dataset": [
+                {
+                  "attested_n": 21,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 1
+                },
+                {
+                  "attested_n": 6,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 4
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_1_visible",
+              "executed_differential_n": 5,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 25,
+              "by_dataset": [
+                {
+                  "attested_n": 20,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 5
+                },
+                {
+                  "attested_n": 5,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 3
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_visible",
+              "executed_differential_n": 8,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 25,
+              "by_dataset": [
+                {
+                  "attested_n": 19,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 0
+                },
+                {
+                  "attested_n": 6,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 1
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_1_hidden",
+              "executed_differential_n": 1,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 27,
+              "by_dataset": [
+                {
+                  "attested_n": 21,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 7
+                },
+                {
+                  "attested_n": 6,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 5
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_original_feedback",
+              "executed_differential_n": 12,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 28,
+              "by_dataset": [
+                {
+                  "attested_n": 22,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 13
+                },
+                {
+                  "attested_n": 6,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 5
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_runner_accurate_feedback",
+              "executed_differential_n": 18,
+              "hide_tests": true
+            }
+          ],
+          "requested_model": "anthropic/claude-sonnet-5-5"
+        },
+        {
+          "arm": "kimi-code/k3.1-pro-highspeed",
+          "conditions": [
+            {
+              "attested_n": 28,
+              "by_dataset": [
+                {
+                  "attested_n": 22,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 3
+                },
+                {
+                  "attested_n": 6,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 5
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_1_visible",
+              "executed_differential_n": 8,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 30,
+              "by_dataset": [
+                {
+                  "attested_n": 22,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 8
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 6
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_visible",
+              "executed_differential_n": 14,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 24,
+              "by_dataset": [
+                {
+                  "attested_n": 19,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 0
+                },
+                {
+                  "attested_n": 5,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 2
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_1_hidden",
+              "executed_differential_n": 2,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 28,
+              "by_dataset": [
+                {
+                  "attested_n": 21,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 5
+                },
+                {
+                  "attested_n": 7,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 4
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_original_feedback",
+              "executed_differential_n": 9,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 27,
+              "by_dataset": [
+                {
+                  "attested_n": 20,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 12
+                },
+                {
+                  "attested_n": 7,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 4
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_runner_accurate_feedback",
+              "executed_differential_n": 16,
+              "hide_tests": true
+            }
+          ],
+          "requested_model": "kimi-code/k3.1-pro-highspeed"
+        },
+        {
+          "arm": "meta/muse-spark-1.3-contributor",
+          "conditions": [
+            {
+              "attested_n": 26,
+              "by_dataset": [
+                {
+                  "attested_n": 18,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 1
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 6
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_1_visible",
+              "executed_differential_n": 7,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 28,
+              "by_dataset": [
+                {
+                  "attested_n": 20,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 3
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 6
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_visible",
+              "executed_differential_n": 9,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 30,
+              "by_dataset": [
+                {
+                  "attested_n": 22,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 1
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 4
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_1_hidden",
+              "executed_differential_n": 5,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 30,
+              "by_dataset": [
+                {
+                  "attested_n": 22,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 8
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 6
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_original_feedback",
+              "executed_differential_n": 14,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 30,
+              "by_dataset": [
+                {
+                  "attested_n": 22,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 13
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 6
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_runner_accurate_feedback",
+              "executed_differential_n": 19,
+              "hide_tests": true
+            }
+          ],
+          "requested_model": "meta/muse-spark-1.3-contributor"
+        },
+        {
+          "arm": "meta/muse-spark-open",
+          "conditions": [
+            {
+              "attested_n": 16,
+              "by_dataset": [
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 1
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 6
+                }
+              ],
+              "cells_n": 16,
+              "condition": "turn_1_visible",
+              "executed_differential_n": 7,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 16,
+              "by_dataset": [
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 5
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 7
+                }
+              ],
+              "cells_n": 16,
+              "condition": "turn_2_visible",
+              "executed_differential_n": 12,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 19,
+              "by_dataset": [
+                {
+                  "attested_n": 11,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 0
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 4
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_1_hidden",
+              "executed_differential_n": 4,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 18,
+              "by_dataset": [
+                {
+                  "attested_n": 10,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 5
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 6
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_original_feedback",
+              "executed_differential_n": 11,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 18,
+              "by_dataset": [
+                {
+                  "attested_n": 10,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 5
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 6
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_runner_accurate_feedback",
+              "executed_differential_n": 11,
+              "hide_tests": true
+            }
+          ],
+          "requested_model": "meta/muse-spark-open"
+        },
+        {
+          "arm": "meta/muse-wonder-1.0-contributor",
+          "conditions": [
+            {
+              "attested_n": 28,
+              "by_dataset": [
+                {
+                  "attested_n": 21,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 0
+                },
+                {
+                  "attested_n": 7,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 6
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_1_visible",
+              "executed_differential_n": 6,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 29,
+              "by_dataset": [
+                {
+                  "attested_n": 21,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 5
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 6
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_visible",
+              "executed_differential_n": 11,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 30,
+              "by_dataset": [
+                {
+                  "attested_n": 22,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 0
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 4
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_1_hidden",
+              "executed_differential_n": 4,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 30,
+              "by_dataset": [
+                {
+                  "attested_n": 22,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 8
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 5
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_original_feedback",
+              "executed_differential_n": 13,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 30,
+              "by_dataset": [
+                {
+                  "attested_n": 22,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 20
+                },
+                {
+                  "attested_n": 8,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 5
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_runner_accurate_feedback",
+              "executed_differential_n": 25,
+              "hide_tests": true
+            }
+          ],
+          "requested_model": "meta/muse-wonder-1.0-contributor"
+        },
+        {
+          "arm": "openrouter/deepseek/deepseek-v4.1-flash",
+          "conditions": [
+            {
+              "attested_n": 9,
+              "by_dataset": [
+                {
+                  "attested_n": 4,
+                  "cells_n": 8,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 4
+                },
+                {
+                  "attested_n": 5,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 5
+                }
+              ],
+              "cells_n": 16,
+              "condition": "turn_1_visible",
+              "executed_differential_n": 9,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 8,
+              "by_dataset": [
+                {
+                  "attested_n": 5,
+                  "cells_n": 8,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 4
+                },
+                {
+                  "attested_n": 3,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 1
+                }
+              ],
+              "cells_n": 16,
+              "condition": "turn_2_visible",
+              "executed_differential_n": 5,
+              "hide_tests": false
+            },
+            {
+              "attested_n": 23,
+              "by_dataset": [
+                {
+                  "attested_n": 17,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 4
+                },
+                {
+                  "attested_n": 6,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 2
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_1_hidden",
+              "executed_differential_n": 6,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 22,
+              "by_dataset": [
+                {
+                  "attested_n": 17,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 7
+                },
+                {
+                  "attested_n": 5,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 4
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_original_feedback",
+              "executed_differential_n": 11,
+              "hide_tests": true
+            },
+            {
+              "attested_n": 19,
+              "by_dataset": [
+                {
+                  "attested_n": 14,
+                  "cells_n": 22,
+                  "dataset_id": "mimo-defect-map-v1",
+                  "executed_differential_n": 14
+                },
+                {
+                  "attested_n": 5,
+                  "cells_n": 8,
+                  "dataset_id": "tb4-audit-v1",
+                  "executed_differential_n": 4
+                }
+              ],
+              "cells_n": 30,
+              "condition": "turn_2_hidden_runner_accurate_feedback",
+              "executed_differential_n": 18,
+              "hide_tests": true
+            }
+          ],
+          "requested_model": "openrouter/deepseek/deepseek-v4.1-flash"
+        }
+      ],
+      "cohort": {
+        "audited_n": 50,
+        "cross_key_excluded_n": 20,
+        "datasets": [
+          {
+            "count_n": 22,
+            "dataset_id": "mimo-defect-map-v1"
+          },
+          {
+            "count_n": 8,
+            "dataset_id": "tb4-audit-v1"
+          }
+        ],
+        "key_count": 19,
+        "split": "dev",
+        "task_count": 30
+      },
+      "generated_at": "2026-10-27T17:22:00Z",
+      "protocol": "evallab.ts4_crosskey_and_executed_paired_graders/v1",
+      "schema": "evallab.seeker_factorial_2x2_differentials/v1",
+      "source_sha256": "d14dc918494bae0655e2d06544964bac517cd86eb9b68e976f602d098080e032"
+    },
+    "schema": "evallab.pt_self3_vf7_visible_axis_and_unbundled_ablation/v1",
+    "unbundled_5arm_30_tasks": {
+      "anthropic/claude-sonnet-5-5": {
+        "conditions": {
+          "turn-1": {
+            "attested_n": 25,
+            "cells_n": 30,
+            "executed_differential_n": 1,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 0,
+            "tb4_8": 1
+          },
+          "turn-1-visible": {
+            "attested_n": 27,
+            "cells_n": 30,
+            "executed_differential_n": 5,
+            "mimo_non_pytest_14": 1,
+            "mimo_pytest_8": 0,
+            "tb4_8": 4
+          },
+          "turn-2": {
+            "attested_n": 27,
+            "cells_n": 30,
+            "executed_differential_n": 12,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 7,
+            "tb4_8": 5
+          },
+          "turn-2-runner-accurate": {
+            "attested_n": 28,
+            "cells_n": 30,
+            "executed_differential_n": 18,
+            "mimo_non_pytest_14": 6,
+            "mimo_pytest_8": 7,
+            "tb4_8": 5
+          },
+          "turn-2-visible": {
+            "attested_n": 25,
+            "cells_n": 30,
+            "executed_differential_n": 8,
+            "mimo_non_pytest_14": 1,
+            "mimo_pytest_8": 4,
+            "tb4_8": 3
+          }
+        },
+        "hidden_orig_fb_plus_retr_gain_30": 11,
+        "hidden_runner_accurate_fb_incremental_gain_30": 6,
+        "hidden_total_second_turn_gain_30": 17,
+        "pure_hide_tests_effect_30": -4,
+        "visible_retrieval_gain_30": 3
+      },
+      "kimi-code/k3.1-pro-highspeed": {
+        "conditions": {
+          "turn-1": {
+            "attested_n": 24,
+            "cells_n": 30,
+            "executed_differential_n": 2,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 0,
+            "tb4_8": 2
+          },
+          "turn-1-visible": {
+            "attested_n": 28,
+            "cells_n": 30,
+            "executed_differential_n": 8,
+            "mimo_non_pytest_14": 2,
+            "mimo_pytest_8": 1,
+            "tb4_8": 5
+          },
+          "turn-2": {
+            "attested_n": 28,
+            "cells_n": 30,
+            "executed_differential_n": 9,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 5,
+            "tb4_8": 4
+          },
+          "turn-2-runner-accurate": {
+            "attested_n": 27,
+            "cells_n": 30,
+            "executed_differential_n": 16,
+            "mimo_non_pytest_14": 7,
+            "mimo_pytest_8": 5,
+            "tb4_8": 4
+          },
+          "turn-2-visible": {
+            "attested_n": 30,
+            "cells_n": 30,
+            "executed_differential_n": 14,
+            "mimo_non_pytest_14": 1,
+            "mimo_pytest_8": 7,
+            "tb4_8": 6
+          }
+        },
+        "hidden_orig_fb_plus_retr_gain_30": 7,
+        "hidden_runner_accurate_fb_incremental_gain_30": 7,
+        "hidden_total_second_turn_gain_30": 14,
+        "pure_hide_tests_effect_30": -6,
+        "visible_retrieval_gain_30": 6
+      },
+      "meta/muse-spark-1.3-contributor": {
+        "conditions": {
+          "turn-1": {
+            "attested_n": 30,
+            "cells_n": 30,
+            "executed_differential_n": 5,
+            "mimo_non_pytest_14": 1,
+            "mimo_pytest_8": 0,
+            "tb4_8": 4
+          },
+          "turn-1-visible": {
+            "attested_n": 26,
+            "cells_n": 30,
+            "executed_differential_n": 7,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 1,
+            "tb4_8": 6
+          },
+          "turn-2": {
+            "attested_n": 30,
+            "cells_n": 30,
+            "executed_differential_n": 14,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 8,
+            "tb4_8": 6
+          },
+          "turn-2-runner-accurate": {
+            "attested_n": 30,
+            "cells_n": 30,
+            "executed_differential_n": 19,
+            "mimo_non_pytest_14": 5,
+            "mimo_pytest_8": 8,
+            "tb4_8": 6
+          },
+          "turn-2-visible": {
+            "attested_n": 28,
+            "cells_n": 30,
+            "executed_differential_n": 9,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 3,
+            "tb4_8": 6
+          }
+        },
+        "hidden_orig_fb_plus_retr_gain_30": 9,
+        "hidden_runner_accurate_fb_incremental_gain_30": 5,
+        "hidden_total_second_turn_gain_30": 14,
+        "pure_hide_tests_effect_30": -2,
+        "visible_retrieval_gain_30": 2
+      },
+      "meta/muse-wonder-1.0-contributor": {
+        "conditions": {
+          "turn-1": {
+            "attested_n": 30,
+            "cells_n": 30,
+            "executed_differential_n": 4,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 0,
+            "tb4_8": 4
+          },
+          "turn-1-visible": {
+            "attested_n": 28,
+            "cells_n": 30,
+            "executed_differential_n": 6,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 0,
+            "tb4_8": 6
+          },
+          "turn-2": {
+            "attested_n": 30,
+            "cells_n": 30,
+            "executed_differential_n": 13,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 8,
+            "tb4_8": 5
+          },
+          "turn-2-runner-accurate": {
+            "attested_n": 30,
+            "cells_n": 30,
+            "executed_differential_n": 25,
+            "mimo_non_pytest_14": 12,
+            "mimo_pytest_8": 8,
+            "tb4_8": 5
+          },
+          "turn-2-visible": {
+            "attested_n": 29,
+            "cells_n": 30,
+            "executed_differential_n": 11,
+            "mimo_non_pytest_14": 3,
+            "mimo_pytest_8": 2,
+            "tb4_8": 6
+          }
+        },
+        "hidden_orig_fb_plus_retr_gain_30": 9,
+        "hidden_runner_accurate_fb_incremental_gain_30": 12,
+        "hidden_total_second_turn_gain_30": 21,
+        "pure_hide_tests_effect_30": -2,
+        "visible_retrieval_gain_30": 5
+      }
+    },
+    "unbundled_5arm_34_tasks": {
+      "anthropic/claude-sonnet-5-5": {
+        "conditions": {
+          "turn-1": {
+            "attested_n": 28,
+            "breaker_4": 0,
+            "cells_n": 34,
+            "executed_differential_n": 1,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 0,
+            "tb4_8": 1
+          },
+          "turn-1-visible": {
+            "attested_n": 27,
+            "breaker_4": 0,
+            "cells_n": 34,
+            "executed_differential_n": 5,
+            "mimo_non_pytest_14": 1,
+            "mimo_pytest_8": 0,
+            "tb4_8": 4
+          },
+          "turn-2": {
+            "attested_n": 30,
+            "breaker_4": 2,
+            "cells_n": 34,
+            "executed_differential_n": 14,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 7,
+            "tb4_8": 5
+          },
+          "turn-2-runner-accurate": {
+            "attested_n": 31,
+            "breaker_4": 2,
+            "cells_n": 34,
+            "executed_differential_n": 20,
+            "mimo_non_pytest_14": 6,
+            "mimo_pytest_8": 7,
+            "tb4_8": 5
+          },
+          "turn-2-visible": {
+            "attested_n": 25,
+            "breaker_4": 0,
+            "cells_n": 34,
+            "executed_differential_n": 8,
+            "mimo_non_pytest_14": 1,
+            "mimo_pytest_8": 4,
+            "tb4_8": 3
+          }
+        },
+        "hidden_orig_fb_plus_retr_gain_34": 13,
+        "hidden_runner_accurate_fb_incremental_gain_34": 6,
+        "hidden_total_second_turn_gain_34": 19,
+        "pure_hide_tests_effect_34": -4,
+        "visible_retrieval_gain_34": 3
+      },
+      "kimi-code/k3.1-pro-highspeed": {
+        "conditions": {
+          "turn-1": {
+            "attested_n": 26,
+            "breaker_4": 2,
+            "cells_n": 34,
+            "executed_differential_n": 4,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 0,
+            "tb4_8": 2
+          },
+          "turn-1-visible": {
+            "attested_n": 32,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 12,
+            "mimo_non_pytest_14": 2,
+            "mimo_pytest_8": 1,
+            "tb4_8": 5
+          },
+          "turn-2": {
+            "attested_n": 32,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 13,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 5,
+            "tb4_8": 4
+          },
+          "turn-2-runner-accurate": {
+            "attested_n": 31,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 20,
+            "mimo_non_pytest_14": 7,
+            "mimo_pytest_8": 5,
+            "tb4_8": 4
+          },
+          "turn-2-visible": {
+            "attested_n": 34,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 18,
+            "mimo_non_pytest_14": 1,
+            "mimo_pytest_8": 7,
+            "tb4_8": 6
+          }
+        },
+        "hidden_orig_fb_plus_retr_gain_34": 9,
+        "hidden_runner_accurate_fb_incremental_gain_34": 7,
+        "hidden_total_second_turn_gain_34": 16,
+        "pure_hide_tests_effect_34": -8,
+        "visible_retrieval_gain_34": 6
+      },
+      "meta/muse-spark-1.3-contributor": {
+        "conditions": {
+          "turn-1": {
+            "attested_n": 33,
+            "breaker_4": 0,
+            "cells_n": 34,
+            "executed_differential_n": 5,
+            "mimo_non_pytest_14": 1,
+            "mimo_pytest_8": 0,
+            "tb4_8": 4
+          },
+          "turn-1-visible": {
+            "attested_n": 30,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 11,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 1,
+            "tb4_8": 6
+          },
+          "turn-2": {
+            "attested_n": 34,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 18,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 8,
+            "tb4_8": 6
+          },
+          "turn-2-runner-accurate": {
+            "attested_n": 34,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 23,
+            "mimo_non_pytest_14": 5,
+            "mimo_pytest_8": 8,
+            "tb4_8": 6
+          },
+          "turn-2-visible": {
+            "attested_n": 32,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 13,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 3,
+            "tb4_8": 6
+          }
+        },
+        "hidden_orig_fb_plus_retr_gain_34": 13,
+        "hidden_runner_accurate_fb_incremental_gain_34": 5,
+        "hidden_total_second_turn_gain_34": 18,
+        "pure_hide_tests_effect_34": -6,
+        "visible_retrieval_gain_34": 2
+      },
+      "meta/muse-wonder-1.0-contributor": {
+        "conditions": {
+          "turn-1": {
+            "attested_n": 34,
+            "breaker_4": 0,
+            "cells_n": 34,
+            "executed_differential_n": 4,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 0,
+            "tb4_8": 4
+          },
+          "turn-1-visible": {
+            "attested_n": 32,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 10,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 0,
+            "tb4_8": 6
+          },
+          "turn-2": {
+            "attested_n": 34,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 17,
+            "mimo_non_pytest_14": 0,
+            "mimo_pytest_8": 8,
+            "tb4_8": 5
+          },
+          "turn-2-runner-accurate": {
+            "attested_n": 34,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 29,
+            "mimo_non_pytest_14": 12,
+            "mimo_pytest_8": 8,
+            "tb4_8": 5
+          },
+          "turn-2-visible": {
+            "attested_n": 33,
+            "breaker_4": 4,
+            "cells_n": 34,
+            "executed_differential_n": 15,
+            "mimo_non_pytest_14": 3,
+            "mimo_pytest_8": 2,
+            "tb4_8": 6
+          }
+        },
+        "hidden_orig_fb_plus_retr_gain_34": 13,
+        "hidden_runner_accurate_fb_incremental_gain_34": 12,
+        "hidden_total_second_turn_gain_34": 25,
+        "pure_hide_tests_effect_34": -6,
+        "visible_retrieval_gain_34": 5
+      }
+    },
+    "vf7_visible_axis_materialization": {
+      "cells_matching_llm_stdout_sha256": 1223,
+      "cells_with_response_jsonl": 1223,
+      "hidden_cell_folders": [
+        "turn-1",
+        "turn-2",
+        "turn-2-runner-accurate"
+      ],
+      "materialized_visible_cells_in_ts3_pairs": 368,
+      "prompts_newer_than_response_jsonl": 0,
+      "total_result_json_audited": 1243,
+      "visible_cell_folders": [
+        "turn-1-visible",
+        "turn-2-visible"
+      ]
+    }
+  },
   "regime_comparison_28_tasks": {
     "anthropic/claude-sonnet-5-5": {
       "delta_two_turn_hide_tests_vs_single_turn_tests_visible_retr": 11,

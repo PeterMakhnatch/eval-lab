@@ -2406,3 +2406,16 @@ def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2
     ) == (("envcheck-tb4-39", "heldout"),)
     with pytest.raises(SeekerRefusalError, match="envcheck-tb4-39"):
         require_cross_key_dev_only("terminal-bench/cargo-flight-dispatch", assignments_csv=csv_tmp)
+    from evallab.production.seeker_worker import scrub_blind_task_text
+    leaked_toml = (
+        'schema_version = "1.0"\n'
+        "# anyway (tests/test.sh, prepare_fresh_runtime)\n"
+        "# Playwright image (see tests/Dockerfile)\n"
+        "[verifier]\n"
+        'artifacts = ["/workspace/generated_app"]\n'
+    )
+    scrubbed_toml = scrub_blind_task_text(leaked_toml)
+    assert "tests/" not in scrubbed_toml
+    assert "test.sh" not in scrubbed_toml
+    assert "[verifier]" not in scrubbed_toml
+    assert 'artifacts = ["/workspace/generated_app"]' in scrubbed_toml

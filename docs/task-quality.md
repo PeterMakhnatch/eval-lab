@@ -239,7 +239,8 @@ without losing the complete preceding records.
 `run_clusters` (`run-clusters/v1`) hierarchy: levels 1–3, a level-1 cluster has no
 parent and every other one a parent one level up containing all its runs, `size`
 equals `len(run_ids)`, every run has stored facets of an admitted DEV task, and
-`label_rates` stays null until scoring. Any invalid cluster keeps the stored
+`label_rates` stays null until scoring; other keys (build id, embedder, seed,
+samples) are kept verbatim as `provenance_json`. Any invalid cluster keeps the stored
 hierarchy. `search_runs(facets, allowed_task_ids=..., limit=...)` returns stored
 facets matching every filter (`outcome`, `tests`, `eval_awareness`, the three
 booleans, `suspicion`, `source`, `split`, `facet_model`; one value or a collection),

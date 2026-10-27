@@ -286,11 +286,12 @@ def clusters(db: CloudTraceDatabase) -> dict[str, dict[str, Any]]:
 def test_cluster_hierarchy_replaces_atomically(faceted: CloudTraceDatabase) -> None:
     assert faceted.replace_run_clusters(HIERARCHY, allowed_task_ids=["dev-task"]) == {"clusters": 3, "runs": 3}
     stored_clusters = clusters(faceted)
-    assert stored_clusters["c1"] == HIERARCHY[2]
-    assert stored_clusters["c3"] == {**HIERARCHY[0], "label_rates": None}
+    assert stored_clusters["c1"] == {**HIERARCHY[2], "provenance_json": {}}
+    assert stored_clusters["c3"] == {**HIERARCHY[0], "label_rates": None, "provenance_json": {}}
 
-    faceted.replace_run_clusters([cluster("solo", 1, None, ["dev-task/open"])], allowed_task_ids=["dev-task"])
-    assert set(clusters(faceted)) == {"solo"}
+    build = {"cluster_version": "run-clusters/v1", "seed": 7, "embedder": "hash-512"}
+    faceted.replace_run_clusters([cluster("solo", 1, None, ["dev-task/open"], **build)], allowed_task_ids=["dev-task"])
+    assert {key: row["provenance_json"] for key, row in clusters(faceted).items()} == {"solo": build}
 
 
 @pytest.mark.parametrize(("hierarchy", "message"), [
@@ -305,6 +306,7 @@ def test_cluster_hierarchy_replaces_atomically(faceted: CloudTraceDatabase) -> N
     ([cluster("c1", 4, None, ["dev-task/pass"])], "level must be"),
     ([cluster("c1", 1, None, ["dev-task/pass"])] * 2, "duplicate cluster_id"),
     ([cluster("c1", 1, None, ["dev-task/pass"], label_rates=[0.5])], "label_rates"),
+    ([cluster("c1", 1, None, ["dev-task/pass"], cluster_version="run-clusters/v2")], "cluster_version"),
 ])
 def test_invalid_hierarchy_keeps_the_stored_one(
     faceted: CloudTraceDatabase, hierarchy: list[dict[str, Any]], message: str,

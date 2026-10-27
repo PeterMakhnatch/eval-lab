@@ -69,7 +69,7 @@ _POSTGRES_VECTOR_SOURCE_BYTES = 65_536
 _READ_MEMO_ENTRIES = 24
 _JSON_COLUMNS = {
     "metadata_json", "verified_receipt_json", "flags_json", "flagged_passage_steps", "evidence_steps",
-    "run_ids", "label_rates",
+    "run_ids", "label_rates", "provenance_json",
 }
 #: Run Atlas ``run-facets/v1``: one model-filled form per run. ``run_id`` is the
 #: run's ``agent_traces.trace_id``; ``source``, ``split`` and ``outcome`` are
@@ -92,6 +92,7 @@ _FACET_COLUMNS = (
     "run_id", "task_id", *_FACET_DATABASE_FIELDS, *_FACET_RECORD_FIELDS[1:],
 )
 #: Run Atlas ``run-clusters/v1``: a three-level hierarchy over faceted runs.
+RUN_CLUSTERS_VERSION = "run-clusters/v1"
 _CLUSTER_COLUMNS = (
     "cluster_id", "name", "level", "parent", "run_ids", "centroid_text", "size", "label_rates",
 )
@@ -246,8 +247,19 @@ def _facet_filters(facets: Any) -> list[tuple[str, list[Any]]]:
 
 
 def _run_cluster(cluster: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate one ``run-clusters/v1`` record's own fields."""
-    row = _record(cluster, _CLUSTER_COLUMNS, {"parent": None, "label_rates": None})
+    """Validate one ``run-clusters/v1`` record's own fields.
+
+    Other keys (build, embedder, seed, samples...) are kept verbatim as the
+    cluster's ``provenance_json``; a stated ``cluster_version`` must be v1.
+    """
+    extra = {key: value for key, value in cluster.items() if key not in _CLUSTER_COLUMNS}
+    if extra.get("cluster_version", RUN_CLUSTERS_VERSION) != RUN_CLUSTERS_VERSION:
+        raise ValueError(f"cluster_version must be {RUN_CLUSTERS_VERSION}")
+    row = _record(
+        {key: value for key, value in cluster.items() if key in _CLUSTER_COLUMNS},
+        _CLUSTER_COLUMNS, {"parent": None, "label_rates": None},
+    )
+    row["provenance_json"] = _json_value(extra)
     cluster_id = _text(row["cluster_id"], "cluster_id")
     _text(row["name"], "name")
     if not isinstance(row["centroid_text"], str):
@@ -615,7 +627,8 @@ class CloudTraceDatabase:
                     level INTEGER NOT NULL CHECK(level BETWEEN 1 AND 3),
                     parent TEXT REFERENCES run_clusters(cluster_id),
                     run_ids {json_type} NOT NULL, centroid_text TEXT NOT NULL,
-                    size INTEGER NOT NULL CHECK(size >= 1), label_rates {json_type})""")
+                    size INTEGER NOT NULL CHECK(size >= 1), label_rates {json_type},
+                    provenance_json {json_type} NOT NULL)""")
             for table, fields in (
                 ("task_issues", "task_id, direction, status, defect_class"),
                 ("agent_traces", "task_id, run_id"),

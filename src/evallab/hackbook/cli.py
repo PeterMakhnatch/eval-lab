@@ -267,17 +267,30 @@ def _qc_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         args.detail_out.write_text(
             json.dumps(detail, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
+    if args.policy_out is not None:
+        args.policy_out.write_text(
+            json.dumps(detail["policy"], indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     print(
         f"{'rule':<42} {'pos':>5} {'clean':>5} {'precision':>9} {'recall':>8} "
         f"{'false-alarm':>11} {'marginal':>8} class"
     )
     for row in sorted(
-        detail["rules"], key=lambda row: (-row["clean_false_alarm_rate"], row["rule_id"])
+        detail["rules"],
+        key=lambda row: (
+            row["clean_false_alarm_rate"] is None,
+            -(row["clean_false_alarm_rate"] or 0.0),
+            row["rule_id"],
+        ),
     ):
         precision = "-" if row["precision"] is None else f"{row['precision']:.1%}"
+        recall = "-" if row["recall"] is None else f"{row['recall']:.1%}"
+        false_alarm = (
+            "-" if row["clean_false_alarm_rate"] is None else f"{row['clean_false_alarm_rate']:.1%}"
+        )
         print(
             f"{row['rule_id']:<42} {row['positives_hit_n']:>5} {row['clean_hit_n']:>5} "
-            f"{precision:>9} {row['recall']:>8.1%} {row['clean_false_alarm_rate']:>11.1%} "
+            f"{precision:>9} {recall:>8} {false_alarm:>11} "
             f"{row['marginal_true_positive_n']:>8} {row['classification']}"
         )
     return 0
@@ -388,11 +401,16 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
         help="Score static rule hits on labelled dev traces; recommend noisy alert demotions",
         description="Read JSONL objects with id, label (positive/clean/unscored), agent_steps, "
         "and optional steps. Print per-rule QC; never execute trace commands. "
-        "The after union excludes only demoted rules, retaining other verdict and diagnostic rules.",
+        "Before/after unions contain alerts only; diagnostic evidence is retained. "
+        "A frozen demotion policy can be passed to the offline scanner; no live policy is deployed.",
     )
     qc.add_argument("--input", type=Path, required=True, metavar="TRACES.jsonl")
     qc.add_argument("--dataset-id", required=True, metavar="NAME")
     qc.add_argument("--out", type=Path, metavar="REPORT.json", help="Write evallab.hackbook_qc/v1")
     qc.add_argument("--detail-out", type=Path, metavar="DETAIL.json", help="Write rates and classes")
+    qc.add_argument(
+        "--policy-out", type=Path, metavar="POLICY.json",
+        help="Write the frozen demotion policy for scan_trace(qc_policy=...)",
+    )
     qc.add_argument("--generated-at", metavar="ISO", help="Report timestamp (default: current UTC)")
     qc.set_defaults(func=_qc_command)

@@ -12,6 +12,7 @@ and held-out cohort, and supports leave-one-out exclusion.
 
 from __future__ import annotations
 
+import bisect
 import csv
 import hashlib
 import json
@@ -21,7 +22,8 @@ import re
 import sqlite3
 import tempfile
 import threading
-from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
+from array import array
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import closing, contextmanager
 from dataclasses import asdict, dataclass
 from dataclasses import field as dataclass_field
@@ -60,6 +62,9 @@ _SEARCH_COLUMNS = {
 # A tsvector is limited to 1 MiB regardless of the underlying TEXT/CAS capacity.
 # Bound only the accelerated representation; overflow searches parse all text.
 _POSTGRES_VECTOR_SOURCE_BYTES = 65_536
+# Derived read structures (FTS rowid postings, step rowid ranges) reused while
+# a SQLite database is unchanged; the oldest entry is evicted beyond this count.
+_READ_MEMO_ENTRIES = 24
 _JSON_COLUMNS = {"metadata_json", "verified_receipt_json", "flags_json"}
 _DIRECTIONS = {"wrong_pass", "unfair_fail"}
 _STATUSES = {"provisional", "confirmed", "refuted"}
@@ -230,6 +235,31 @@ class S3CompatibleCAS:
         return json.loads(self.get_bytes(uri))
 
 
+# Retrieval hydrates step flags as raw text in schema column order; only the
+# steps screened for return are decoded.
+_RAW_FLAG_STEP_COLUMNS = ", ".join(
+    f"s.{column} AS flags_text" if column == "flags_json" else f"s.{column}"
+    for column in _STEP_COLUMNS
+)
+
+
+def _json_truthy(text: str | None) -> bool:
+    """Truthiness of the decoded JSON value, without decoding nonempty containers."""
+    if text is None:
+        return False
+    stripped = text.strip()
+    if stripped[:1] in ("{", "["):
+        return stripped[1:].lstrip()[:1] not in ("}", "]")
+    if stripped[:1] == '"':
+        return stripped != '""'
+    return bool(json.loads(stripped))
+
+
+def _contains(postings: array[int], rowid: int) -> bool:
+    index = bisect.bisect_left(postings, rowid)
+    return index < len(postings) and postings[index] == rowid
+
+
 class CloudTraceDatabase:
     """Thread-safe synchronous projection, with explicit atomic ingestion methods.
 
@@ -249,6 +279,8 @@ class CloudTraceDatabase:
         self._postgres = target.startswith(("postgresql://", "postgres://"))
         self._lock = threading.RLock()
         self._fts = False
+        self._memo_token: tuple[int, int] | None = None
+        self._memo_values: dict[tuple[Any, ...], Any] = {}
         self._connection: Any
         if self._postgres:
             self._connection = psycopg.connect(target, autocommit=True)
@@ -689,6 +721,99 @@ class CloudTraceDatabase:
                 issue["task"] = tasks[issue["task_id"]]
             return issues
 
+    def _read_memo(self, key: tuple[Any, ...], build: Callable[[], Any]) -> Any:
+        """Reuse a derived read structure while this SQLite database is unchanged.
+
+        Caller holds a read transaction. The token combines ``data_version``
+        (commits by other connections) with this connection's own change count,
+        so any committed write discards every entry. PostgreSQL has no
+        equivalent cheap token and always rebuilds.
+        """
+        if self._postgres:
+            return build()
+        token = (
+            self._execute("PRAGMA data_version").fetchone()[0], self._connection.total_changes,
+        )
+        if token != self._memo_token:
+            self._memo_values.clear()
+            self._memo_token = token
+        if key in self._memo_values:
+            value = self._memo_values[key] = self._memo_values.pop(key)
+            return value
+        value = self._memo_values[key] = build()
+        while len(self._memo_values) > _READ_MEMO_ENTRIES:
+            del self._memo_values[next(iter(self._memo_values))]
+        return value
+
+    def _postings(self, table: str, terms: Sequence[str]) -> array[int]:
+        """Ascending rowids of one FTS5 literal-AND match, the set ``_search_match`` tests."""
+        expression = " AND ".join('"' + term + '"' for term in terms)
+        return self._read_memo(("postings", table, expression), lambda: array("q", (
+            row[0] for row in self._execute(
+                f"SELECT rowid FROM {table}_fts WHERE {table}_fts MATCH ? ORDER BY rowid",
+                (expression,),
+            )
+        )))
+
+    def _step_ranges(self) -> dict[str, tuple[int, int]]:
+        """Each trace's lowest and highest step rowid; every step lies inside its range."""
+        return self._read_memo(("step_ranges",), lambda: {
+            trace_id: (low, high) for trace_id, low, high in self._execute(
+                "SELECT trace_id, min(rowid), max(rowid) FROM trace_steps GROUP BY trace_id"
+            )
+        })
+
+    def _step_task_ids(
+        self, task_ids: Collection[str], terms: Sequence[str], *, conjunction: bool,
+    ) -> set[str]:
+        """Tasks with an assistant/tool step document matching the FTS5 predicate.
+
+        Only postings inside the scoped traces' rowid ranges are candidates, and
+        each task's candidates are role-checked in widening rounds, so a common
+        term stops at a task's first qualifying step instead of reading every
+        matching step. A task leaves the rounds only when found or exhausted.
+        """
+        parameters: list[Any] = []
+        scope = self._task_id_scope("task_id", task_ids, parameters)
+        ranges = self._step_ranges()
+        groups = [terms] if conjunction or len(terms) == 1 else [(term,) for term in terms]
+        postings = [self._postings("trace_steps", group) for group in groups]
+        candidates: dict[str, set[int]] = {}
+        for trace_id, task_id in self._execute(
+            f"SELECT trace_id, task_id FROM agent_traces WHERE {scope}", parameters,
+        ):
+            if trace_id not in ranges:
+                continue
+            low, high = ranges[trace_id]
+            for term_postings in postings:
+                candidates.setdefault(task_id, set()).update(term_postings[
+                    bisect.bisect_left(term_postings, low):bisect.bisect_right(term_postings, high)
+                ])
+        pending = {task_id: sorted(rowids) for task_id, rowids in candidates.items() if rowids}
+        found: set[str] = set()
+        offset, width = 0, 4
+        while pending:
+            parameters = [_json_text([
+                rowid for rowids in pending.values() for rowid in rowids[offset:offset + width]
+            ])]
+            scope = self._task_id_scope("a.task_id", task_ids, parameters)
+            # A range can hold another trace's steps; the join reports the
+            # step's actual task, which must itself be in scope.
+            found.update(row[0] for row in self._execute(
+                "SELECT DISTINCT a.task_id FROM json_each(?) j "
+                "CROSS JOIN trace_steps s ON s.rowid = j.value "
+                "JOIN agent_traces a ON a.trace_id = s.trace_id "
+                f"WHERE s.role IN ('assistant', 'tool') AND {scope}",
+                parameters,
+            ))
+            offset += width
+            width *= 4
+            pending = {
+                task_id: rowids for task_id, rowids in pending.items()
+                if task_id not in found and offset < len(rowids)
+            }
+        return found
+
     def _retrieval_task_ids(
         self, task_ids: list[str], query: str, terms: Sequence[str], *, conjunction: bool = True,
     ) -> list[str]:
@@ -702,6 +827,11 @@ class CloudTraceDatabase:
             ("corpus_tasks", "t"), ("task_issues", "i"),
             ("agent_traces", "a"), ("trace_steps", "s"),
         ):
+            if table == "trace_steps" and self._fts:
+                remaining = [task_id for task_id in task_ids if task_id not in found]
+                if remaining:
+                    found |= self._step_task_ids(remaining, terms, conjunction=conjunction)
+                continue
             source = f"{table} {alias}"
             identity = f"{alias}.task_id"
             if table == "trace_steps":
@@ -731,15 +861,23 @@ class CloudTraceDatabase:
 
         Caller holds a read transaction. Identifiers are internal constants and
         values are bound. Unconfirmed issue text is neither fetched nor searched.
+        With FTS5, ``query_match`` counts the terms whose rowid postings contain
+        the row, the same per-term predicate the SQL score evaluates.
         """
+        if not values:
+            return []
+        postings = [self._postings(table, (term,)) for term in terms] if self._fts else None
         rows = []
         for start in range(0, len(values), 500):
             page = values[start:start + 500]
             parameters: list[Any] = []
-            score = " + ".join(
-                "CASE WHEN (" + self._search_match(table, alias, term, (term,), parameters)
-                + ") THEN 1 ELSE 0 END" for term in terms
-            ) or "1"
+            if postings is not None:
+                score = f"{alias}.rowid"
+            else:
+                score = " + ".join(
+                    "CASE WHEN (" + self._search_match(table, alias, term, (term,), parameters)
+                    + ") THEN 1 ELSE 0 END" for term in terms
+                ) or "1"
             parameters.extend(page)
             confirmed = f" AND {alias}.status = 'confirmed'" if confirmed_only else ""
             rows.extend(self._rows(
@@ -748,6 +886,12 @@ class CloudTraceDatabase:
                 f"IN ({', '.join('?' for _ in page)}){confirmed}",
                 parameters,
             ))
+        if postings is not None:
+            for row in rows:
+                rowid = row["query_match"]
+                row["query_match"] = sum(
+                    _contains(term_postings, rowid) for term_postings in postings
+                ) if postings else 1
         return rows
 
     def _retrieval_step_bounds(
@@ -756,11 +900,25 @@ class CloudTraceDatabase:
         """Per-trace upper bound of step term matches, without reading step bodies.
 
         Every role is counted, so this bounds the assistant/tool strength that
-        ranking uses. With FTS5 only the primary-key index and term rowid sets
-        are read; callers use it to order expansion, never to select evidence.
+        ranking uses; callers use it to order expansion, never to select
+        evidence. Traces without steps are absent. With FTS5 each term counts
+        its postings inside the trace's rowid range, which contains every step
+        of the trace, so the count can only exceed the true match count.
         """
         if not trace_ids or not terms:
             return {}
+        if self._fts:
+            ranges = self._step_ranges()
+            postings = [self._postings("trace_steps", (term,)) for term in terms]
+            return {
+                trace_id: sum(
+                    bisect.bisect_right(term_postings, high)
+                    - bisect.bisect_left(term_postings, low)
+                    for term_postings in postings
+                )
+                for trace_id in trace_ids if trace_id in ranges
+                for low, high in (ranges[trace_id],)
+            }
         parameters: list[Any] = []
         score = " + ".join(
             "CASE WHEN (" + self._search_match("trace_steps", "s", term, (term,), parameters)
@@ -1115,10 +1273,14 @@ class CloudTraceRetriever:
             else "CASE WHEN json_valid(metadata_json) "
             "THEN json_type(metadata_json, '$.item_id') ELSE 'invalid' END"
         )
-        identities = database._rows(
-            "SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest, "
-            f"{item} AS item_id, {item_type} AS item_type FROM corpus_tasks ORDER BY task_id"
-        )
+        # Only the identity read is reused while the database is unchanged; the
+        # registry decides admission afresh on every call.
+        identities = [dict(row) for row in database._read_memo(("admission_identities",), lambda: tuple(
+            database._rows(
+                "SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest, "
+                f"{item} AS item_id, {item_type} AS item_type FROM corpus_tasks ORDER BY task_id"
+            )
+        ))]
         admitted = admitted_cloud_task_ids(
             identities, registry=self.registry, sealed_task_ids=self._sealed_ids,
         )
@@ -1175,7 +1337,7 @@ class CloudTraceRetriever:
             trace for trace in traces
             if kind in (None, "task_quality") or trace["is_exploit"]
             or (kind == "misalignment" and any(
-                step["flags_json"] for step in steps.get(trace["trace_id"], ())
+                step["flagged"] for step in steps.get(trace["trace_id"], ())
             ))
         ]
         if issue_kind is not None and not relevant_issues:
@@ -1200,7 +1362,7 @@ class CloudTraceRetriever:
         relevant_traces.sort(key=lambda row: (
             -int(kind == "task_quality" and row["is_task_defect_fail"]),
             -int(kind == "misalignment" and any(
-                step["flags_json"] for step in steps.get(row["trace_id"], ())
+                step["flagged"] for step in steps.get(row["trace_id"], ())
             )),
             -sum(step["query_match"] for step in steps.get(row["trace_id"], ())),
             -sum(step["role"] in _STEP_ROLE_RANK for step in steps.get(row["trace_id"], ())),
@@ -1214,19 +1376,25 @@ class CloudTraceRetriever:
             trace_steps = [
                 step for step in steps.get(trace["trace_id"], []) if step["role"] != "user"
             ]
-            flagged = [step for step in trace_steps if step["flags_json"]]
+            flagged = [step for step in trace_steps if step["flagged"]]
             if kind == "misalignment" and flagged:
                 trace_steps = flagged
             # Only evidence that can be returned is screened: the best-ranked
-            # unsealed steps of the chosen trace, never the whole trace.
+            # unsealed steps of the chosen trace, never the whole trace. Their
+            # raw flags are decoded only here.
             for step in sorted(trace_steps, key=lambda row: (
                 -row["query_match"], _STEP_ROLE_RANK.get(row["role"], 2),
-                -int(kind == "reward_seeker" and bool(row["flags_json"])), row["step_index"],
+                -int(kind == "reward_seeker" and row["flagged"]), row["step_index"],
             )):
                 if len(selected_steps) >= self.max_steps_per_trace:
                     break
-                if not self._sealed_text(self._guarded_text(step), sealed):
-                    selected_steps.append(step)
+                decoded = {
+                    "flags_json" if name == "flags_text" else name:
+                    json.loads(value) if name == "flags_text" else value
+                    for name, value in step.items() if name != "flagged"
+                }
+                if not self._sealed_text(self._guarded_text(decoded), sealed):
+                    selected_steps.append(decoded)
             selected_steps.sort(key=lambda row: row["step_index"])
         issue_evidence = None if issue is None else {
             field: self._identity(issue[field]) if field in {"issue_id", "witness_digest"}
@@ -1403,8 +1571,11 @@ class CloudTraceRetriever:
             ):
                 batch = [task_id for _, task_id in bounded[position:position + top_k]]
                 position += len(batch)
+                # Unreturned metadata is not hydrated, and step flags stay raw
+                # text: only the screened/returned steps are decoded in _example.
                 hydrated = database._retrieval_matches(
                     "corpus_tasks", "t", "task_id", batch, query, terms,
+                    columns="t.task_id, t.dataset_id, t.instruction_text, t.cas_uri",
                 )
                 batch_traces: dict[str, list[dict[str, Any]]] = {}
                 for trace in database._retrieval_matches(
@@ -1416,10 +1587,11 @@ class CloudTraceRetriever:
                     "trace_steps", "s", "trace_id", [
                         trace["trace_id"] for task_id in batch
                         for trace in batch_traces.get(task_id, [])
-                    ], query, terms,
+                    ], query, terms, columns=_RAW_FLAG_STEP_COLUMNS,
                 ):
                     if step["role"] not in _STEP_ROLE_RANK:
                         step["query_match"] = 0
+                    step["flagged"] = _json_truthy(step["flags_text"])
                     steps_by_trace.setdefault(step["trace_id"], []).append(step)
                 for task in hydrated:
                     task_id = task["task_id"]

@@ -984,20 +984,51 @@ class MisalignmentLiveWorker:
         run_id: str,
         facet: Mapping[str, Any],
         *,
+        task_id: str | None = None,
+        step_ids: Sequence[int] | None = None,
         rules: tuple[str, ...] = stage0_triage.DEFAULT_RULES,
-    ) -> dict[str, Any] | None:
-        """Journal a whole-run diagnostic lead, never gate or confirm a verdict.
+    ) -> dict[str, Any]:
+        """Journal an admitted whole-run diagnostic, never gate or confirm a verdict.
 
-        Evidence must cite observed steps when the run is known. Unseen runs can
-        still be triaged; this does not create an observed prefix for them.
-        Replays return the original event without changing any run state.
+        The bound registry must have assignment authority. Callers supply the task
+        identity and original step IDs for Atlas runs not observed by this worker;
+        otherwise the observed task identity and steps are authoritative. Repeats
+        are rechecked before returning the previously journaled event.
         """
         with self._lock:
             if self._closed:
                 raise RuntimeError("monitor worker is closed")
             if not isinstance(run_id, str) or not run_id.strip():
                 raise ValueError("run_id is required")
+            registry = self._promotion_registry(self._registry)
+            if registry is None or not registry.has_assignment_authority():
+                raise ValueError("Stage-0 requires authoritative split assignments")
+            run = self._runs.get(run_id)
+            observed_task = run.task_id if run is not None and run.task_id != "unknown" else None
+            if task_id is not None and (
+                not isinstance(task_id, str)
+                or not task_id.strip()
+                or CorpusRegistry.task_name(task_id) == "unknown"
+            ):
+                raise ValueError("task_id must be a non-empty, known task identity")
+            if observed_task and task_id and (
+                CorpusRegistry.task_name(observed_task) != CorpusRegistry.task_name(task_id)
+            ):
+                raise ValueError("task_id conflicts with the observed run")
+            identity = observed_task or task_id
+            if identity is None:
+                raise ValueError("Stage-0 requires a task_id bound to the run")
+            if registry.assigned_test_anywhere(item_id=run_id, task_id=identity) or (
+                registry.sealed_identity(item_id=run_id, task_id=identity) is not None
+            ):
+                raise ValueError("Stage-0 refuses TEST or sealed run identities")
+            known_steps = run.steps if run is not None else step_ids
+            if known_steps is None:
+                raise ValueError("Stage-0 requires original step_ids for an unobserved run")
             facet = copy.deepcopy(dict(facet)) if isinstance(facet, Mapping) else facet
+            problems = stage0_triage.validate_facet(facet, step_ids=known_steps)
+            if problems:
+                raise ValueError("invalid facet: " + "; ".join(problems))
             rule_names = tuple(rules)
             verdict = stage0_triage.triage(facet, rule_names)
             if verdict.run_id != run_id:
@@ -1007,17 +1038,14 @@ class MisalignmentLiveWorker:
             previous = self._run_triage_events.get(key)
             if previous is not None:
                 return copy.deepcopy(previous)
-            run = self._runs.get(run_id)
-            if run is not None:
-                problems = stage0_triage.validate_facet(facet, step_ids=run.steps)
-                if problems:
-                    raise ValueError("invalid facet: " + "; ".join(problems))
             event = self._emit(
                 run_id,
                 "monitor.run_triage",
                 {
                     "stage0_version": stage0_triage.STAGE0_VERSION,
                     "facet_version": facet["facet_version"],
+                    "task_id": identity,
+                    "split_assignments_digest": registry.split_assignments_digest,
                     "rule_names": list(rule_names),
                     "alarm": verdict.alarm,
                     "reasons": list(verdict.reasons),

@@ -113,7 +113,7 @@
   "frozen_at": "2026-10-26T23:49:48.085887+00:00",
   "frozen_code_commit": "93c458fb9e86992c011cb928791d601ca0db0e26",
   "integrity": {
-    "absolute_zero_heldout_bodies_hydrated_or_prompted": 0,
+    "absolute_zero_set_study_bodies_hydrated_or_prompted": 0,
     "cloud_controls_executed": 0,
     "frozen_files_changed_during_evaluation": 0,
     "frozen_files_checked": 19,
@@ -125,6 +125,8 @@
     "test_key_exposures": 1
   },
   "limits": [
+    "Zero protected-body counter is scoped to study input preparation and hosted auditor/scorer prompts, not pre-existing repository CI key-reading tests",
+    "After the frozen study, metadata tools automatically emitted adjacent TEST key metadata; no protected task source/test body was opened or reused",
     "Selected positive DEV cohort, not a census",
     "Incomplete positive keys do not certify negatives",
     "Ten original TEST versions lack a readable maintainer grader diff in the frozen view",

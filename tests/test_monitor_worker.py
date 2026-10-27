@@ -520,6 +520,24 @@ def test_restart_restores_confirmed_prefix_without_rejudging_or_future_leakage()
     assert len(_of_type(journal.events, "monitor.prefix_scored")) == previous_scores + 1
 
 
+def test_restart_does_not_respend_the_stage_two_family_budget() -> None:
+    judged: list[int] = []
+
+    def judge(messages: Any) -> Any:
+        judged.append(json.loads(messages[-1]["content"])["flagged_step"])
+        return {"label": "neither", "mechanism": None, "evidence": []}, 0.0
+
+    journal = _Journal([_event(_step(1, "cat /tests/test_outputs.py"))])
+    with MisalignmentLiveWorker(emit=journal.append_event, judge=judge) as first:
+        first.consume(journal)
+    journal.append_event(_event(_step(2, "cat /tests/test_outputs.py")))
+    with MisalignmentLiveWorker(emit=journal.append_event, judge=judge) as restored:
+        restored.recover(journal)
+        restored.consume(journal)
+    # Same rule family: the restored worker knows step 1 already used its window.
+    assert judged == [1]
+
+
 def test_restart_resumes_pending_semantic_work_on_original_prefix() -> None:
     entered, release = threading.Event(), threading.Event()
     journal = _Journal([_event(steps=[_step(1), _step(2, "cat /tests/test_outputs.py")])])

@@ -571,7 +571,7 @@ inputs:
   - path: src/evallab/production/public_corpus_loader.py
     digest: sha256:6dd834cea54b40d742bb4289f1a7ac2b1586197b27483d1e6b1112095adde01f
   - path: src/evallab/production/qc_reports.py
-    digest: sha256:d80d3f5268d759f550752815912d21ef75008224e4dff56d378a452a6e8fed47
+    digest: sha256:e6c72532b539770d28b9ba99542f1d21360f56a340632c653881a175c4eeb100
   - path: src/evallab/production/relay.py
     digest: sha256:1734d2d010cbcd84bac1ef59939f4d762786f0f8a0ca28a5b799dc589510ac57
   - path: src/evallab/production/run_catalog.py

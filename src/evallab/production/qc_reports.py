@@ -243,6 +243,8 @@ _TS5_FACTORIAL_CONDITIONS = (
     ("turn_1_visible", "turn-1-visible", False),
     ("turn_2_visible", "turn-2-visible", False),
     ("turn_1_hidden", "turn-1", True),
+    ("turn_2_hidden_retrieval_only", "turn-2-retrieval-only", True),
+    ("turn_2_hidden_feedback_only", "turn-2-feedback-only", True),
     ("turn_2_hidden_original_feedback", "turn-2", True),
     ("turn_2_hidden_runner_accurate_feedback", "turn-2-runner-accurate", True),
 )
@@ -1044,8 +1046,9 @@ def export_qc_reports(
     if (ts4_manifest is None) != (ts4_cells is None):
         raise ValueError("TS-4 needs both the audit manifest and the per-cell results directory")
     if ts4_manifest is not None and ts4_cells is not None:
+        manifest_doc = json.loads(read_owned_file(ts4_manifest))
         document = ts4_executed_differentials(
-            json.loads(read_owned_file(ts4_manifest)), ts4_cells, generated_at=stamp
+            manifest_doc, ts4_cells, generated_at=stamp
         )
         artifacts.append(
             (
@@ -1055,6 +1058,18 @@ def export_qc_reports(
                 f"audit from {ts4_manifest.name}",
             )
         )
+        if next(ts4_cells.glob("*/*/*/turn-1-visible/result.json"), None) is not None:
+            factorial_doc = ts5_factorial_2x2_differentials(
+                manifest_doc, ts4_cells, generated_at=stamp
+            )
+            artifacts.append(
+                (
+                    "seeker-factorial-2x2-differentials-ts5.json",
+                    _encode(factorial_doc),
+                    f"counted from the 2x2 factorial and orthogonal unbundling per-cell results in {ts4_cells.name}; "
+                    f"audit from {ts4_manifest.name}",
+                )
+            )
     if cm4_directory is not None:
         artifacts.append(
             (

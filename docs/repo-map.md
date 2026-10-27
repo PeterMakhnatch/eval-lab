@@ -691,7 +691,7 @@ inputs:
   - path: src/evallab/readers/laminar_signals.py
     digest: sha256:4a4b1f47880b7c0b305cf28d673e75d5412085184d8517980a69570de9d9273a
   - path: src/evallab/readers/omp_model.py
-    digest: sha256:881834b861d67fac3aed3c754aeba100197cb3305b10aff7133aca10b69fc1ae
+    digest: sha256:c0e64ac5d9d2943bc387b699fc8b9769dcdf04c49697f8f74034225383a55f35
   - path: src/evallab/readers/scout_metr.py
     digest: sha256:2eb327cf49557ebdf8470d3d4fb9def637ebccab524b45d34794d5164c376315
   - path: src/evallab/recovery/__init__.py

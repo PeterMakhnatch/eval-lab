@@ -65,12 +65,12 @@ and no trace whose publisher verdict is `no` or `split` has one).
 
 ## Consumers
 
-`CloudTraceRetriever` currently decides "flagged step" with `step["flags_json"]` being
-truthy. Every one of the 550,955 DEV Goodfire steps has a non-empty `flags_json`, so that
-test marks 100% of steps; `passage_positive` marks 10,681 (1.9%). Retrieval and the live
-monitor must read `passage_positive` (steps) or `passage_step_labels` (traces) to return a
-cheat window. This change does not alter retrieval code; `monitor_worker.py` does not read
-step flags at all.
+`CloudTraceRetriever` (main at `71f8a5710`) sets `step["flagged"] = _json_truthy(step["flags_text"])`
+and uses it to pick misalignment traces and steps. Every one of the 550,955 DEV Goodfire steps
+has a non-empty `flags_json`, so that test marks 100% of steps; `passage_positive` marks 10,681
+(1.9%). Retrieval and the live monitor must read `passage_positive` (steps) or
+`passage_step_labels` (traces) to return a cheat window. This change does not alter retrieval
+code; `monitor_worker.py` does not read step flags at all.
 
 ## Files
 

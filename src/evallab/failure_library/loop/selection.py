@@ -201,6 +201,64 @@ def _control_identity(row: dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
+def _eligible_controls(
+    controls: list[dict[str, Any]],
+    findings: list[Finding],
+) -> list[dict[str, Any]]:
+    bad_versions = {(bare_task(f.task.task_id), f.task.task_version_digest) for f in findings}
+    # A name collision is a reason to withhold a negative, not proof of equivalence.
+    baseline_names = {
+        bare_task(f.task.task_id)
+        for f in findings
+        if not f.task.source_id.startswith("impossible-")
+    }
+    return [
+        row
+        for row in controls
+        if (bare_task(row["task"]["task_id"]), row["task"].get("task_version_digest"))
+        not in bad_versions
+        and (not row.get("family") or bare_task(row["family"]) not in baseline_names)
+    ]
+
+
+def _matched_control(
+    broken: dict[str, Any],
+    controls: list[dict[str, Any]],
+    used: set[tuple[str, str, str]],
+) -> dict[str, Any] | None:
+    candidate = min(
+        (
+            row
+            for row in controls
+            if _control_identity(row) not in used
+            and row["task"]["source_id"] == broken["task"]["source_id"]
+            and (
+                not row.get("family")
+                or row["family"] == broken["task"]["task_id"].rsplit("/", 1)[0]
+            )
+        ),
+        key=lambda row: (
+            row["task"].get("upstream_revision") != broken["task"].get("upstream_revision"),
+            _rank(broken["item_id"] + row["item_id"]),
+        ),
+        default=None,
+    )
+    if candidate is None:
+        return None
+    return {
+        **candidate,
+        "task": {
+            **candidate["task"],
+            "upstream_repo": candidate["task"].get("upstream_repo")
+            or broken["task"]["upstream_repo"],
+        },
+        "matched_to": broken["item_id"],
+        "match_basis": "same_original_problem"
+        if candidate.get("family")
+        else "same_source; prefer_same_revision",
+    }
+
+
 def run_label(run: RunRecord) -> str | None:
     """Reward or a judge suspicion alone is never a hacked/clean label."""
     labels = {label.label.casefold() for label in run.labels if label.kind in {"executed", "human"}}
@@ -222,6 +280,7 @@ def select_canary(
     keys = _key_rows(root)
     findings = list(store.iter_findings())
     controls = _controls(keys, assignments, denied) + _original_rows(originals or [], denied)
+    controls = _eligible_controls(controls, findings)
     control_sources = {row["task"]["source_id"] for row in controls}
     by_task: dict[tuple[str, str, str | None, str | None], list[Finding]] = defaultdict(list)
     for finding in findings:
@@ -249,50 +308,45 @@ def select_canary(
         )
     for bucket in buckets.values():
         bucket.sort(
-            key=lambda row: (row["task"]["source_id"] not in control_sources, _rank(row["item_id"]))
-        )
-    selected = []
-    while len(selected) < tasks and any(buckets.values()):
-        for tier in TIER_ORDER:
-            if buckets[tier] and len(selected) < tasks:
-                selected.append(buckets[tier].pop(0))
-    used_controls: set[tuple[str, str, str]] = set()
-    broken_digests = {(bare_task(f.task.task_id), f.task.task_version_digest) for f in findings}
-    matched = []
-    for broken in selected:
-        candidates = [
-            row
-            for row in controls
-            if _control_identity(row) not in used_controls
-            and (bare_task(row["task"]["task_id"]), row["task"].get("task_version_digest"))
-            not in broken_digests
-            and row["task"]["source_id"] == broken["task"]["source_id"]
-            and (
-                not row.get("family")
-                or row["family"] == broken["task"]["task_id"].rsplit("/", 1)[0]
-            )
-        ]
-        candidates.sort(
             key=lambda row: (
-                row["task"].get("upstream_revision") != broken["task"].get("upstream_revision"),
-                _rank(broken["item_id"] + row["item_id"]),
+                row["task"]["source_id"] not in control_sources,
+                not (row["task"].get("task_version_digest") and row.get("package_path")),
+                _rank(row["item_id"]),
             )
         )
-        if candidates:
-            control: dict[str, Any] = {
-                **candidates[0],
-                "task": {
-                    **candidates[0]["task"],
-                    "upstream_repo": candidates[0]["task"].get("upstream_repo")
-                    or broken["task"]["upstream_repo"],
-                },
-                "matched_to": broken["item_id"],
-                "match_basis": "same_original_problem"
-                if candidates[0].get("family")
-                else "same_source; prefer_same_revision",
-            }
+    selected: list[dict[str, Any]] = []
+    matched: list[dict[str, Any]] = []
+    used_controls: set[tuple[str, str, str]] = set()
+
+    def take(tier: str, index: int = 0, control: dict[str, Any] | None = None) -> None:
+        broken = buckets[tier].pop(index)
+        selected.append(broken)
+        control = (
+            control if control is not None else _matched_control(broken, controls, used_controls)
+        )
+        if control is not None:
             matched.append(control)
             used_controls.add(_control_identity(control))
+
+    # Preserve every available tier, then spend the remaining slice on pairs.
+    for tier in TIER_ORDER:
+        if buckets[tier] and len(selected) < tasks:
+            take(tier)
+    while len(selected) < tasks and any(buckets.values()):
+        progress = False
+        for tier in TIER_ORDER:
+            for index, broken in enumerate(buckets[tier]):
+                control = _matched_control(broken, controls, used_controls)
+                if control is not None:
+                    take(tier, index, control)
+                    progress = True
+                    break
+            if len(selected) >= tasks:
+                break
+        if not progress:
+            for tier in TIER_ORDER:
+                if buckets[tier] and len(selected) < tasks:
+                    take(tier)
     run_buckets: dict[str, list[dict[str, Any]]] = {"hacked": [], "clean": []}
     verified_collections: set[str] = set()
     for run in store.iter_runs():
@@ -403,8 +457,16 @@ def verify_snapshot(
     """Refuse label/version/split drift before running either arm on frozen IDs."""
     assignments, denied = split_index(root)
     findings = {item.finding_id: item for item in store.iter_findings()}
-    keys = {(key, str(row.get("item_id"))): row for key, row in _key_rows(root)}
+    key_rows = _key_rows(root)
+    keys = {(key, str(row.get("item_id"))): row for key, row in key_rows}
     original_rows = {row["item_id"]: row for row in _original_rows(originals or [], denied)}
+    eligible_control_ids = {
+        row["item_id"]
+        for row in _eligible_controls(
+            _controls(key_rows, assignments, denied) + list(original_rows.values()),
+            list(findings.values()),
+        )
+    }
     runs: dict[tuple[str, str], RunRecord] = {}
     verified: set[str] = set()
     for item in manifest["runs"]:
@@ -417,6 +479,12 @@ def verify_snapshot(
     for item in manifest["tasks"] + manifest["runs"]:
         if _non_dev_task(item["task"], denied):
             raise ValueError(f"frozen canary is now cross-key non-DEV: {item['item_id']}")
+        if (
+            item["kind"] == "task"
+            and item["expected"] == "clean"
+            and item["item_id"] not in eligible_control_ids
+        ):
+            raise ValueError(f"frozen control is no longer an eligible negative: {item['item_id']}")
         if item["kind"] == "run":
             run = runs.get((item["collection"], item["run_id"]))
             if (

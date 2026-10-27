@@ -17,18 +17,25 @@ canary. Exit 2 is invalid input or setup. No scheduler is installed.
 The initial slice requests 20 broken task versions, 20 matched source-negative
 controls and 40 runs (20 hacked, 20 clean). Only DEV enters. A bare task name
 appearing on **any** non-DEV answer-key assignment is vetoed across keys. Selection
-is deterministic SHA256(`failure-library-canary/v1`, NUL, identity), round-robin
-across the strongest evidence tier of each unique task version; within each
-tier it prefers sources with available negative controls. Existing DEV answer-key
-controls need a pinned task digest, no known finding on those task bytes and
+is deterministic SHA256(`failure-library-canary/v1`, NUL, identity). Each available
+strongest-evidence tier is seeded once; remaining slots round-robin over tiers
+with unused matched controls before falling back to unmatched tasks. Within a
+tier, sources with eligible negatives and digest-bound packages come first.
+This preserves tier coverage without arbitrarily sacrificing negative controls.
+Existing DEV answer-key controls need a pinned task digest, no known finding on
+those task bytes and
 an exact source match, preferring the same revision. ImpossibleBench originals
 use the source owner's pinned, cached parquet loader and match the same original
 problem; their whole-row digest is **not** misrepresented as a task-directory
 digest. No download is attempted if the original cache is absent. Duplicate
 answer-key labels on identical task bytes cannot inflate the control count.
 A source-negative is not a certificate of task correctness; weak-negative and
-construction-negative label strength is preserved. Missing controls remain a
-deficit, never a synthetic negative. Runs require unambiguous **executed or human**
+construction-negative label strength is preserved. An original with a native
+baseline-name collision against a non-ImpossibleBench defect claim is withheld,
+not declared equivalent across source versions. New conflicting task-byte or
+baseline claims also invalidate frozen negatives before any model call.
+Missing controls remain a deficit, never a synthetic negative. Runs require
+unambiguous **executed or human**
 `reward_hacked`/`clean` labels. Reward-only, judge and construction labels cannot
 become hack ground truth.
 
@@ -37,11 +44,16 @@ the same slice rather than quietly rerolling after ingestion. Selected finding,
 run or control byte changes, run-manifest mismatches and split drift block model
 calls. New independent slices use an explicit new `--manifest` path.
 
-The default actual execution subset is two balanced items per agent/arm; increase
-`--max-items` explicitly, up to 40. Both knowledge arms use the same selected IDs.
-Packets exclude **all** frozen finding/run IDs, plus the compiler's mandatory
-same-task/family/template exclusions. A missing or empty packet is a failed ON
-integration, never evidence for a knowledge comparison.
+The default execution subset is two balanced tasks and two balanced runs per
+arm; Seeker receives only the broken tasks. Increase `--max-items` explicitly,
+up to 40. Both knowledge arms use exactly the same selected IDs.
+Packets exclude **all** frozen raw finding/run IDs with `--exclude-id`, and
+every frozen native `SOURCE/TASK` (including clean controls) with `--exclude-task`,
+plus the compiler's mandatory same-task/family/template exclusions. Synthetic
+loop manifest IDs are not passed as library record IDs. Both exclusion sets
+must be preserved in the compiler manifest. Missing group authority, an empty
+packet or omitted exclusions fail the ON integration rather than pretending
+the unchanged baseline received usable knowledge.
 
 ## Consumer and score boundaries
 
@@ -70,8 +82,9 @@ labels; false alarms are over completed source-negative controls. The same
 heartbeat retains review coverage and selection deficits, so successful-looking
 conditional rates cannot conceal missing stages. `knowledge_effect` computes
 ON-minus-OFF recall/false-alarm deltas only over identical subjects completed
-in both arms; missing paired positive or control coverage blocks an improvement
-claim. The shared `qa score` CLI is
+in both arms; missing paired positive or control coverage blocks a QA improvement
+claim. Seeker targets only broken tasks, so its paired metric is recall and
+false alarms remain unmeasured. The shared `qa score` CLI is
 also exercised on the frozen task-label snapshot, keeping native
 `qa.finding/v1` scores separate from S1 advisory signals; no pass finding is
 fabricated to fill a denominator. This is a DEV engineering heartbeat, not an

@@ -162,6 +162,7 @@ def _pack(
     item: dict[str, Any],
     agent: str,
     exclusions: list[str],
+    excluded_tasks: list[str],
     root: Path,
     out: Path,
     runner: Runner,
@@ -181,6 +182,8 @@ def _pack(
     ]
     for identity in exclusions:
         command += ["--exclude-id", identity]
+    for task in excluded_tasks:
+        command += ["--exclude-task", task]
     result = _invoke(command, root, out / "pack-command", runner, 120)
     if result.returncode:
         return None, f"library pack CLI failed (exit {result.returncode}); see retained command"
@@ -192,6 +195,8 @@ def _pack(
         return None, "library pack is empty; cannot count an unchanged rubric as knowledge ON"
     if not set(exclusions) <= set(packet_manifest.get("exclusions") or []):
         return None, "pack manifest omitted frozen-canary exclusions"
+    if not set(excluded_tasks) <= set(packet_manifest.get("excluded_tasks") or []):
+        return None, "pack manifest omitted frozen task/control exclusions"
     files = packet_manifest.get("files") or {}
     rubric_metadata = files.get("rubric.toml") or {}
     rubric_path = out / "packet/rubric.toml"
@@ -218,6 +223,7 @@ def _task_review(
     item: dict[str, Any],
     knowledge: bool,
     exclusions: list[str],
+    excluded_tasks: list[str],
     root: Path,
     output: Path,
     runner: Runner,
@@ -237,7 +243,7 @@ def _task_review(
         return {**result, "reason": str(exc)}
     rubric = None
     if knowledge:
-        rubric, error = _pack(item, "task-qa", exclusions, root, output, runner)
+        rubric, error = _pack(item, "task-qa", exclusions, excluded_tasks, root, output, runner)
         if error:
             return {**result, "reason": error}
     # The existing S1 lane is text-only. No S0 controls, S2 shortcut search or S3 runtime.
@@ -442,6 +448,8 @@ def _score(agent: str, knowledge: bool, rows: list[dict[str, Any]], run_id: str)
 def paired_comparison(
     off: list[dict[str, Any]],
     on: list[dict[str, Any]],
+    *,
+    require_controls: bool = True,
 ) -> dict[str, Any]:
     """Knowledge deltas use only identical subjects reviewed in both arms."""
     baseline = {row["item_id"]: row for row in off}
@@ -470,22 +478,29 @@ def paired_comparison(
         )
 
     recall_delta, false_alarm_delta = delta(positives), delta(controls)
-    complete = bool(positives and controls) and len(paired) == len(off) == len(on)
+    complete = (
+        bool(positives)
+        and (bool(controls) or not require_controls)
+        and len(paired) == len(off) == len(on)
+    )
     return {
         "status": "ok" if complete else "failed",
         "reason": "matched completed DEV source reviews only"
         if complete
-        else "paired positive/control coverage incomplete; no improvement claim",
+        else "required paired coverage incomplete; no improvement claim",
         "paired_reviewed": len(paired),
         "paired_positives": len(positives),
         "paired_controls": len(controls),
+        "controls_required": require_controls,
         "recall_delta_on_minus_off": recall_delta,
         "false_alarm_rate_delta_on_minus_off": false_alarm_delta,
         "observed_improvement": complete
         and recall_delta is not None
         and recall_delta > 0
-        and false_alarm_delta is not None
-        and false_alarm_delta <= 0,
+        and (
+            (false_alarm_delta is not None and false_alarm_delta <= 0)
+            or (not require_controls and not controls)
+        ),
     }
 
 
@@ -616,8 +631,14 @@ def canary(
         {
             identity
             for row in manifest["tasks"] + manifest["runs"]
-            for identity in [row["item_id"], *row.get("finding_ids", []), row.get("run_id", "")]
+            for identity in [*row.get("finding_ids", []), row.get("run_id", "")]
             if identity
+        }
+    )
+    excluded_tasks = sorted(
+        {
+            row["task"]["source_id"] + "/" + row["task"]["task_id"]
+            for row in manifest["tasks"] + manifest["runs"]
         }
     )
     scores: list[dict[str, Any]] = []
@@ -652,7 +673,9 @@ def canary(
                     continue
                 try:
                     if agent == "qa-task":
-                        row = _task_review(item, knowledge, exclusions, root, directory, runner)
+                        row = _task_review(
+                            item, knowledge, exclusions, excluded_tasks, root, directory, runner
+                        )
                     elif agent == "qa-trace":
                         row = _trace_review(item, knowledge, root, directory, runner)
                     else:
@@ -689,11 +712,12 @@ def canary(
                 "reviewed": score["reviewed"],
             }
     comparisons = {
-        agent: paired_comparison(arms[False], arms[True]) for agent, arms in results_by_arm.items()
+        agent: paired_comparison(arms[False], arms[True], require_controls=agent != "seeker")
+        for agent, arms in results_by_arm.items()
     }
     stages["comparison"] = {
         "status": "ok" if all(row["status"] == "ok" for row in comparisons.values()) else "failed",
-        "reason": "OFF/ON deltas require identical completed positive and control subjects",
+        "reason": "OFF/ON deltas require identical completed subjects; QA needs positive/control pairs, Seeker uses broken-task recall only",
     }
     stages["shared-score"] = _shared_score(manifest, root, receipt, runner)
     stages["feedback"] = {

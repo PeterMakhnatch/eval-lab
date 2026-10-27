@@ -21,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from evallab.execution_backend import ExecutionBackendConfig
+from evallab.production.benchmark_reports import MAX_BENCHMARK_BYTES
 from evallab.production.cloud_trace_db import CloudTraceDatabase, S3CompatibleCAS
 from evallab.production.corpus_queue import ContinuousWorkQueue
 
@@ -1043,7 +1044,7 @@ def test_invalid_benchmark_files_are_each_rejected_with_a_reason(
     ):
         (directory / name).write_text(json.dumps(report), encoding="utf-8")
     (directory / "malformed.json").write_text('{"schema":', encoding="utf-8")
-    (directory / "oversized.json").write_bytes(b" " * (modal_cloud._MAX_BENCHMARK_BYTES + 1))
+    (directory / "oversized.json").write_bytes(b" " * (MAX_BENCHMARK_BYTES + 1))
     response = client.get("/api/cloud-db/benchmarks", headers=AUTH)
     assert response.status_code == 200
     assert response.json()["benchmarks"] == []
@@ -1516,6 +1517,62 @@ def test_trust_qc_reports_are_retained_with_exact_bytes(
         ],
         "rejected": [],
     }
+
+
+def test_exported_qc_reports_are_listed_by_the_cloud_api_without_rejections(
+    client: TestClient,
+    runtime: CloudRuntime,
+    repo_root: Path,
+    tmp_path: Path,
+) -> None:
+    from evallab.production.qc_reports import export_qc_reports
+
+    source = tmp_path / "source.sqlite"
+    with CloudTraceDatabase(source) as database:
+        database.upsert_task(_task("exported-dev", "Inert census fixture."))
+        database.upsert_task(_task("exported-held", "Withheld census fixture.", split="held"))
+        for task_id, tier in (
+            ("exported-dev", "tier2_consensus_labeled"),
+            ("exported-dev", "tier3_provisional"),
+            ("exported-held", "tier1_container_verified"),
+        ):
+            database.upsert_trace(
+                {
+                    "trace_id": f"{task_id}-{tier}",
+                    "run_id": "inert",
+                    "task_id": task_id,
+                    "model_id": "synthetic/no-model",
+                    "trust_tier": tier,
+                }
+            )
+    recorded = {
+        "qc.json": _hackbook_qc_report(),
+        "scoreboard.json": _tune_cross_test_report(),
+    }
+    for name, report in recorded.items():
+        (tmp_path / name).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    receipt = export_qc_reports(
+        source_database=source,
+        output_directory=runtime.data_root / "benchmarks",
+        repo_root=repo_root,
+        hackbook_qc=(tmp_path / "qc.json",),
+        tune_cross_test=(tmp_path / "scoreboard.json",),
+        generated_at="2026-10-27T02:00:00+00:00",
+    )
+    listing = client.get("/api/cloud-db/benchmarks", headers=AUTH).json()
+    assert listing["rejected"] == []
+    served = {item["file"]: item for item in listing["benchmarks"]}
+    assert {name: item["sha256"] for name, item in served.items()} == {
+        artifact["file"]: artifact["sha256"] for artifact in receipt["artifacts"]
+    }
+    census = served["trust-tier-census-traces.json"]["report"]
+    assert [(row["tier"], row["rows_n"], row["prompt_eligible_n"]) for row in census["tiers"]] == [
+        ("tier2_consensus_labeled", 1, 1),
+        ("tier3_provisional", 1, 0),
+    ]
+    assert census["admitted_rows_n"] == 2
+    assert served["hackbook-qc-qc.json"]["report"] == recorded["qc.json"]
+    assert served["tune-cross-test-scoreboard.json"]["report"] == recorded["scoreboard.json"]
 
 
 def _set(path: tuple[str | int, ...], value: Any) -> Callable[[dict[str, Any]], None]:

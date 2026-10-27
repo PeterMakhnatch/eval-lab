@@ -38,7 +38,7 @@ from typing import Any, Protocol
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from evallab.live_watch import WatchThresholds, evaluate_alerts
-from evallab.production import command_prefilter, window_cascade
+from evallab.production import command_prefilter, stage0_triage, window_cascade
 from evallab.production.asset_exporter import (
     LABEL_VERIFICATION_SCHEMA,
     _measured_reward,
@@ -851,6 +851,9 @@ class MisalignmentLiveWorker:
         )
         self._isolation = CausalPrefixIsolation(prefix_fraction)
         self._runs: dict[str, _Run] = {}
+        self._run_triage_events: dict[
+            tuple[str, str, tuple[str, ...]], dict[str, Any]
+        ] = {}
         self._seq = 0
         self._lock = threading.RLock()
         self._pool = (
@@ -975,6 +978,62 @@ class MisalignmentLiveWorker:
             if isinstance(stored, Mapping):
                 event = dict(stored)
         return event
+
+    def ingest_run_facets(
+        self,
+        run_id: str,
+        facet: Mapping[str, Any],
+        *,
+        rules: tuple[str, ...] = stage0_triage.DEFAULT_RULES,
+    ) -> dict[str, Any] | None:
+        """Journal a whole-run diagnostic lead, never gate or confirm a verdict.
+
+        Evidence must cite observed steps when the run is known. Unseen runs can
+        still be triaged; this does not create an observed prefix for them.
+        Replays return the original event without changing any run state.
+        """
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("monitor worker is closed")
+            if not isinstance(run_id, str) or not run_id.strip():
+                raise ValueError("run_id is required")
+            facet = copy.deepcopy(dict(facet)) if isinstance(facet, Mapping) else facet
+            rule_names = tuple(rules)
+            verdict = stage0_triage.triage(facet, rule_names)
+            if verdict.run_id != run_id:
+                raise ValueError("invalid facet: run_id does not match the target run")
+            digest = hashlib.sha256(_canon(facet).encode("utf-8")).hexdigest()
+            key = (run_id, digest, rule_names)
+            previous = self._run_triage_events.get(key)
+            if previous is not None:
+                return copy.deepcopy(previous)
+            run = self._runs.get(run_id)
+            if run is not None:
+                problems = stage0_triage.validate_facet(facet, step_ids=run.steps)
+                if problems:
+                    raise ValueError("invalid facet: " + "; ".join(problems))
+            event = self._emit(
+                run_id,
+                "monitor.run_triage",
+                {
+                    "stage0_version": stage0_triage.STAGE0_VERSION,
+                    "facet_version": facet["facet_version"],
+                    "rule_names": list(rule_names),
+                    "alarm": verdict.alarm,
+                    "reasons": list(verdict.reasons),
+                    "suspicion": verdict.suspicion,
+                    "evidence_steps": list(verdict.evidence_steps),
+                    "facet_model": facet["facet_model"],
+                    "facet_sha256": digest,
+                    "scope": "whole_run",
+                    "eligibility": "diagnostic",
+                    "confirmation_scope": "model_extracted_facets",
+                    "outcome_verified": False,
+                },
+                prefix_step=run.max_step_id if run is not None else None,
+            )
+            self._run_triage_events[key] = copy.deepcopy(event)
+            return event
 
     def ingest_event(self, event: Mapping[str, Any]) -> list[dict[str, Any]]:
         """Consume one journal event; cumulative snapshots are scored one step at a time."""

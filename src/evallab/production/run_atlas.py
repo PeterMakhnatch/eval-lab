@@ -1121,6 +1121,9 @@ def register_parser(commands: Any) -> None:
     from evallab.production.run_atlas_score import add_score_parser
 
     add_score_parser(actions)
+    from evallab.production.run_atlas_clusters import add_clusters_parser
+
+    add_clusters_parser(actions)
 
 
 def _run_ids(args: argparse.Namespace) -> list[str] | None:

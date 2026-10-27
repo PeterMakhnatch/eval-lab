@@ -579,7 +579,7 @@ inputs:
   - path: src/evallab/production/safe_paths.py
     digest: sha256:bcaab5996fe97a77fa456f340ff5a215f5a063d4cbfbb72645038740e3708e70
   - path: src/evallab/production/seeker_worker.py
-    digest: sha256:d6fdd25188cc15eefb8acbc4c9255aae05b733b69d4b71b48f303f05b19eb979
+    digest: sha256:c77a2d2185a74facc16ea1f64a1fa60502bc77da0cf0aa0741953214b96d3e40
   - path: src/evallab/production/supervisor.py
     digest: sha256:3ec40b331eab7fd92bea398f91d0ed801485303c943def42a414f8aad6d0d94d
   - path: src/evallab/production/swarm_bench.py

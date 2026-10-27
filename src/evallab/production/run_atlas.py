@@ -955,6 +955,8 @@ def load_facets(path: Path = DEFAULT_FACETS) -> dict[str, dict[str, Any]]:
     if not path.is_file():
         return records
     with path.open(encoding="utf-8") as handle:
+        # Append writers hold LOCK_EX until a complete batch of lines is flushed.
+        fcntl.flock(handle, fcntl.LOCK_SH)
         for line in handle:
             if line.strip():
                 record = json.loads(line)

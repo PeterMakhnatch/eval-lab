@@ -160,11 +160,14 @@ uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-da
   watcher polls the committed DB. Each cycle re-applies the DEV/cross-key
   admission gate, subtracts runs already in the facets JSONL and runs that
   failed `--max-failures` times (`run-atlas/watch-state.json`), and facets the
-  newest rows first (highest `rowid`), so a newly ingested run is next.
+  newest rows first (highest `rowid`). Metadata-only, empty, and incomplete
+  step sets are deferred until their committed row count equals `step_count`.
 - Bounded: at most `--max-per-cycle` runs per cycle and an optional daily
   token budget summed from today's (UTC) call receipts. Providers whose
   `omp usage --json` window is at or above 90% are skipped; without usage data,
   `RoutePool` quota benching still applies.
 - One instance at a time (flock on `run-atlas/watch.lock`). The launchd
-  template is rendered with absolute paths to an immutable release before it
-  is loaded; loading it starts subscription-backed extraction.
+  template runs `--once` every five minutes, releasing the lock between cycles
+  so a backfill driver can use the same lock. Render absolute paths to an
+  immutable release before loading it. Loading starts subscription-backed
+  extraction; the CLI's continuous mode remains available for standalone use.

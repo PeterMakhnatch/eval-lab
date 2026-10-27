@@ -106,7 +106,7 @@ def pending_trace_ids(
     database: Path, *, registry: CorpusRegistry, facets: Path,
     failures: Mapping[str, int], max_failures: int,
 ) -> list[str]:
-    """Reapply cross-key admission every cycle, then prefer newest insertions."""
+    """Admit complete, nonempty DEV traces; defer metadata-first ingestion."""
     done = run_atlas.load_facets(facets)
     connection = run_atlas.connect_readonly(database)
     try:
@@ -116,14 +116,19 @@ def pending_trace_ids(
             trace_id for trace_id in eligible
             if trace_id not in done and failures.get(trace_id, 0) < max_failures
         }
+        complete = (
+            "SELECT a.trace_id FROM agent_traces a WHERE a.step_count > 0 AND"
+            " a.step_count = (SELECT COUNT(*) FROM trace_steps s WHERE s.trace_id = a.trace_id)"
+        )
         try:
-            rows = connection.execute("SELECT trace_id FROM agent_traces ORDER BY rowid DESC")
+            rows = connection.execute(complete + " ORDER BY a.rowid DESC")
             return [row["trace_id"] for row in rows if row["trace_id"] in pending]
         except sqlite3.OperationalError as exc:
-            if "no such column: rowid" not in str(exc).lower():
+            if "no such column:" not in str(exc).lower() or "rowid" not in str(exc).lower():
                 raise
-            # WITHOUT ROWID schemas still retain cloud_trace_ids' stable order.
-            return [trace_id for trace_id in eligible if trace_id in pending]
+            # WITHOUT ROWID schemas still retain a deterministic id order.
+            rows = connection.execute(complete + " ORDER BY a.trace_id")
+            return [row["trace_id"] for row in rows if row["trace_id"] in pending]
     finally:
         connection.close()
 
@@ -132,6 +137,7 @@ def _call_rows(path: Path, *, offset: int = 0) -> Iterator[dict[str, Any]]:
     if not path.exists():
         return
     with path.open("r", encoding="utf-8") as handle:
+        fcntl.flock(handle, fcntl.LOCK_SH)
         handle.seek(offset)
         for line in handle:
             if line.strip():

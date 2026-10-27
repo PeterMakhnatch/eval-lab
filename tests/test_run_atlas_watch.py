@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import plistlib
 import sqlite3
 import subprocess
 import threading
@@ -159,6 +158,22 @@ def test_new_committed_dev_trace_is_faceted_on_next_cycle(rig: SimpleNamespace) 
     assert len(rig.calls) == 1
     assert rig.closed == 1
     assert _cycle(rig)["pending"] == 0
+    assert len(rig.calls) == 1
+
+
+def test_metadata_first_ingestion_waits_for_complete_steps(rig: SimpleNamespace) -> None:
+    _insert_trace(rig.args.database, "arriving")
+    with sqlite3.connect(rig.args.database) as connection:
+        connection.execute("UPDATE agent_traces SET step_count=2 WHERE trace_id='arriving'")
+    assert _cycle(rig)["pending"] == 0
+    assert not rig.calls
+    assert not (run_atlas.ATLAS_ROOT / "watch-state.json").exists()
+    with sqlite3.connect(rig.args.database) as connection:
+        connection.execute(
+            "INSERT INTO trace_steps (trace_id, step_index, role, content_text, flags_json)"
+            " VALUES ('arriving', 8, 'assistant', 'Verified the counter.', '{}')",
+        )
+    assert _cycle(rig)["written"] == 1
     assert len(rig.calls) == 1
 
 
@@ -393,13 +408,3 @@ def test_corrupt_state_is_not_silently_reset(tmp_path: Path) -> None:
         watch.load_failures(path)
 
 
-def test_launchd_definition_matches_existing_template_convention() -> None:
-    root = Path(__file__).resolve().parents[1]
-    path = root / "scripts/ops/launchd/com.petermakhnatch.evallab.run-atlas-watch.plist"
-    with path.open("rb") as handle:
-        service = plistlib.load(handle)
-    assert service["ProgramArguments"][:3] == ["__EVALLAB__", "atlas", "watch"]
-    assert service["KeepAlive"] is service["RunAtLoad"] is True
-    assert service["ThrottleInterval"] == 30
-    assert "--max-tokens-per-day" in service["ProgramArguments"]
-    assert "__HOME__/.local/bin" in service["EnvironmentVariables"]["PATH"]

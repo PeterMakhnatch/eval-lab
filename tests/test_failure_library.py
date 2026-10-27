@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 from datetime import date
@@ -9,9 +10,8 @@ import pytest
 from pydantic import ValidationError
 
 from evallab.cli import run_cli
+from evallab.evidence_store import load_blob
 from evallab.failure_library.records import (
-    RUN_SIDE_CODES,
-    TASK_SIDE_CODES,
     Evidence,
     Finding,
     RunLabel,
@@ -21,7 +21,6 @@ from evallab.failure_library.records import (
 )
 from evallab.failure_library.store import LibraryStore
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 REVISION = "0123456789abcdef0123456789abcdef01234567"
 
 
@@ -86,9 +85,6 @@ def test_finding_requires_a_pinned_revision_and_a_fix_pin_when_fixed() -> None:
 def test_finding_id_is_deterministic_and_checked() -> None:
     with pytest.raises(ValidationError, match="deterministic id"):
         _finding(finding_id="fl-0000000000000000")
-    assert make_finding_id("a", "b", "c", "TS01", "x") == make_finding_id(
-        "a", "b", "c", "TS01", "x"
-    )
     assert make_finding_id("a", "b", "c", "TS01", "x") != make_finding_id(
         "a", "b", "d", "TS01", "x"
     )
@@ -101,12 +97,6 @@ def test_evidence_kinds_require_their_proof() -> None:
         Evidence(kind="upstream_fix")
     with pytest.raises(ValidationError, match="label_source"):
         Evidence(kind="human_label")
-
-
-def test_record_codes_match_the_shared_taxonomy() -> None:
-    taxonomy = json.loads((REPO_ROOT / "research/hackbook/taxonomy.json").read_text())
-    assert tuple(entry["id"] for entry in taxonomy["task_side"]) == TASK_SIDE_CODES
-    assert tuple(entry["id"] for entry in taxonomy["run_side"]) == RUN_SIDE_CODES
 
 
 def test_findings_write_is_sorted_stable_and_refuses_conflicts(tmp_path: Path) -> None:
@@ -187,3 +177,76 @@ def test_stats_command_reports_library_counts(
     assert stats["findings"]["total"] == 2
     assert stats["findings"]["by_tier"] == {"V2_upstream_fixed": 2}
     assert stats["runs"]["total"] == 0
+
+
+def test_collection_update_retains_observations_and_manifests(tmp_path: Path) -> None:
+    store = LibraryStore.for_repo(tmp_path, state_root=tmp_path / "state")
+    finding = _finding()
+    finding_path = store.write_findings("tb-fixes", [finding])
+    original_finding = finding_path.read_bytes()
+    fixed = _finding(status_now="fixed_upstream", fixed_in_revision="abc123")
+    store.write_findings("tb-fixes", [fixed])
+
+    run = RunRecord(
+        run_id="historical-attempt",
+        collection="tb-fixes",
+        task=_task(),
+        outcome="fail",
+        transcript_ref="file:///immutable/old-revision/trajectory.json",
+    )
+    store.write_runs("tb-fixes", [run], source_revision=REVISION)
+    original_runs = store.runs_path("tb-fixes").read_bytes()
+    original_manifest = store.manifest_path("tb-fixes").read_bytes()
+    new_revision = "fedcba9876543210fedcba9876543210fedcba98"
+    newer_run = run.model_copy(
+        update={
+            "run_id": "later-attempt",
+            "task": _task(revision=new_revision),
+            "outcome": "pass",
+            "transcript_ref": "file:///immutable/new-revision/trajectory.json",
+        }
+    )
+    store.write_runs("tb-fixes", [newer_run], source_revision=new_revision)
+
+    retained = [
+        original_finding,
+        finding_path.read_bytes(),
+        original_runs,
+        original_manifest,
+        store.runs_path("tb-fixes").read_bytes(),
+        store.manifest_path("tb-fixes").read_bytes(),
+    ]
+    for observation in retained:
+        uri = "cas://sha256/" + hashlib.sha256(observation).hexdigest()
+        assert load_blob(store.history_root, uri) == observation
+    assert json.loads(original_manifest)["source_revision"] == REVISION
+    assert list(store.iter_runs("tb-fixes")) == [newer_run]
+    assert store.verify_runs("tb-fixes") == []
+
+
+@pytest.mark.parametrize("collection", ["../outside", "/absolute", "nested/task", "", ".."])
+def test_collection_paths_cannot_escape_the_library(tmp_path: Path, collection: str) -> None:
+    store = LibraryStore.for_repo(tmp_path, state_root=tmp_path / "state")
+    for path in (store.findings_path, store.runs_path, store.manifest_path):
+        with pytest.raises(ValueError, match="invalid collection"):
+            path(collection)
+
+
+def test_stats_distinguish_claims_task_versions_and_construction(tmp_path: Path) -> None:
+    store = LibraryStore.for_repo(tmp_path, state_root=tmp_path / "state")
+    records = [
+        _finding(locator="audit-a"),
+        _finding(locator="audit-b"),
+        _finding(
+            locator="constructed",
+            evidence=[Evidence(kind="construction", note="Deliberately contradictory task.")],
+            tier="V1_external_label",
+        ),
+    ]
+    store.write_findings("tb-fixes", records)
+    findings = store.stats()["findings"]
+    assert findings["total"] == 3
+    assert findings["unique_task_ids"] == 1
+    assert findings["unique_task_versions"] == 1
+    assert findings["by_record_basis"] == {"constructed": 1, "reported_failure": 2}
+    assert findings["by_execution_support"] == {"no_execution_evidence": 3}

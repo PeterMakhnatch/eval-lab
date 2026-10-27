@@ -55,7 +55,8 @@ def add_issue(
         "issue_id": issue_id, "task_id": task_id, "defect_class": "missing_output_check",
         "direction": "wrong_pass", "status": "confirmed", "citation_file": "tests/check.py",
         "citation_line": 17, "reproducer_script": "pytest grader accepts empty output",
-        "witness_digest": "synthetic-witness-digest", "cas_uri": "cas://issue", **extra,
+        "witness_digest": "synthetic-witness-digest", "cas_uri": "cas://issue",
+        "trust_tier": "tier1_container_verified", **extra,
     })
 
 
@@ -66,7 +67,8 @@ def add_trace(
     db.upsert_trace({
         "trace_id": trace_id, "run_id": "synthetic-run", "task_id": task_id,
         "model_id": "synthetic-model", "is_exploit": True,
-        "raw_cas_uri": "cas://raw-trace", "verified_receipt_json": {"status": "verified"}, **extra,
+        "raw_cas_uri": "cas://raw-trace", "verified_receipt_json": {"status": "verified"},
+        "trust_tier": "tier1_container_verified", **extra,
     }, steps=steps if steps is not None else [
         {"step_index": 0, "role": "user", "content_text": "Solve the synthetic task."},
         {

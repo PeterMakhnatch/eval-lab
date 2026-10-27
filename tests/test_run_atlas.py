@@ -287,6 +287,74 @@ def test_validate_record_rejects_blind_id_that_is_not_an_original_id() -> None:
     assert errors == ["evidence_steps [1] do not exist in the run"]
 
 
+@pytest.mark.parametrize("source_name", [
+    "swebench-verified", "SWE-bench", "swe_rebench", "terminal-bench", "Terminal Bench",
+    "BountyBench", "deepswe", "cybench", "SimGlot", "mimo-defect-map-v1", "tb4-audit-v1",
+    "tb2-to-tb21-v1", "qa-trace-sft-v0", "kimi-tb4-dev-swarm-20261026", "hacktrace-act-v1",
+])
+def test_default_rendering_redacts_benchmark_and_dataset_names(source_name: str) -> None:
+    step = {
+        "step_id": 0, "source": "agent", "message": f"Task from {source_name}",
+        "reasoning_content": f"Inspect {source_name}",
+        "tool_calls": [{"function_name": "shell", "arguments": f"read {source_name}"}],
+        "observation": {"results": [{"content": f"Output from {source_name}"}]},
+    }
+    rendered = atlas.render_step(step)
+    assert source_name.casefold() not in rendered.casefold()
+    assert rendered.count("[source]") == 4
+    segments = atlas.render_segments(atlas.BlindRun(steps=[step], origins=[95]))
+    assert [segment.text for segment in segments] == [rendered]
+
+
+def test_source_pattern_redacts_extra_ids_literally_and_before_shorter_source_names() -> None:
+    pattern = atlas.source_pattern(["openai-swe-bench-annotations-2024", "my.dataset+v1"])
+    text = (
+        "openai-swe-bench-annotations-2024 | my.dataset+v1 | "
+        "myXdatasettv1 | my.datasetv1 | CheatBench"
+    )
+    assert atlas.redact_sources(text, pattern) == (
+        "[source] | [source] | myXdatasettv1 | my.datasetv1 | [source]"
+    )
+
+
+def test_split_provenance_redaction_preserves_device_paths_and_development_text() -> None:
+    text = "DEV benchmark task; /dev/null; dev server; DEVICE"
+    expected = "[split] benchmark task; /dev/null; dev server; DEVICE"
+    assert atlas.redact_sources(text) == expected
+    rendered = atlas.render_step({"step_id": 0, "source": "user", "message": text})
+    assert f"<message>\n{expected}\n</message>" in rendered
+
+
+def test_database_source_pattern_redacts_every_distinct_dataset_id(tmp_path: Path) -> None:
+    database = tmp_path / "datasets.sqlite"
+    with closing(sqlite3.connect(database)) as connection:
+        connection.execute(
+            "CREATE TABLE corpus_tasks (task_id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL)"
+        )
+        connection.executemany(
+            "INSERT INTO corpus_tasks VALUES (?, ?)",
+            [
+                ("task-1", "dataset.alpha+v1"), ("task-2", "experiment[beta]-2024"),
+                ("task-3", "dataset.alpha+v1"),
+            ],
+        )
+        connection.commit()
+    pattern = atlas.database_source_pattern(database)
+    assert atlas.redact_sources(
+        "dataset.alpha+v1 | experiment[beta]-2024 | goodfire", pattern,
+    ) == "[source] | [source] | [source]"
+
+
+def test_database_source_pattern_uses_defaults_without_creating_missing_database(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "missing.sqlite"
+    pattern = atlas.database_source_pattern(database)
+    assert pattern is atlas.SOURCE_NAME_PATTERN
+    assert atlas.redact_sources("CheatBench | Terminal Bench", pattern) == "[source] | [source]"
+    assert not database.exists()
+
+
 def test_render_segments_preserves_full_agent_reasoning_and_message() -> None:
     reasoning = "".join(f"{index:06d}:reasoning|" for index in range(20_000))[:300_000]
     message = "".join(f"{index:06d}:message!" for index in range(25_000))[:300_000]
@@ -512,6 +580,44 @@ def test_extract_multiple_chunks_maps_each_chunk_then_fills_one_form(
         assert all(f"chunk-{other}" not in text for other in range(3) if other != index)
     form_text = transport.requests[-1][1][1]["content"]
     assert form_text.index("notes-0") < form_text.index("notes-1") < form_text.index("notes-2")
+    _assert_requests_blind(transport, run)
+
+
+@pytest.mark.parametrize("chunk_chars", [atlas.CHUNK_CHARS, 900], ids=["single", "map-reduce"])
+def test_extract_applies_extra_source_pattern_to_every_model_request(
+    atlas_run: atlas.AtlasRun, chunk_chars: int,
+) -> None:
+    extra_id = "my.dataset+v1"
+    doc = copy.deepcopy(atlas_run.doc)
+    doc["steps"] = [
+        {
+            "step_id": original, "source": "agent",
+            "message": f"chunk-{index} {extra_id} " + "x" * 700,
+        }
+        for index, original in enumerate((10, 40, 95))
+    ]
+    run = replace(atlas_run, doc=doc)
+    replies = []
+    if chunk_chars == 900:
+        replies.extend(
+            _completion({
+                "task": f"Inspect {extra_id}", "summary": f"Read {extra_id} part {index}",
+                "notable": [{"step": index, "note": f"Checked {extra_id}"}],
+            })
+            for index in range(3)
+        )
+    replies.append(_completion())
+    transport = FakeTransport(replies)
+    outcome = atlas.FacetExtractor(
+        transport, chunk_chars=chunk_chars, pattern=atlas.source_pattern([extra_id]),
+    ).extract(run, ROUTE)
+    _assert_usage(outcome, replies)
+    assert outcome.error is None
+    assert len(transport.requests) == (4 if chunk_chars == 900 else 1)
+    for _, messages, _ in transport.requests:
+        text = "\n".join(message["content"] for message in messages)
+        assert extra_id.casefold() not in text.casefold()
+        assert "[source]" in text
     _assert_requests_blind(transport, run)
 
 

@@ -73,6 +73,7 @@ eval-lab/
 │   ├── experiments/           experiment specs and matrices
 │   ├── calibration/           judge ground truth: corpora, answer keys, labels
 │   ├── answer-keys/           QA-agent answer keys (qa.answer_key/v1; FOCUS contract)
+│   ├── failure-library/       provenance-first broken-task findings and run manifests (failure-library/v1)
 │   ├── qa-scoreboard/         QA-agent scoreboard rows (one CSV, appended by `evallab qa score`)
 │   ├── explorations/          capability recon: demos + adoption notes
 │   ├── analysis/              reusable analysis queries
@@ -285,3 +286,6 @@ The change log below is historical, not a current inventory or work order.
 - 2026-10-14 — `research/answer-keys/` and `research/qa-scoreboard/`
   declared for the QA-agent contract in research-context FOCUS.md
   (`qa.answer_key/v1` keys scored by `evallab qa score`).
+- 2026-10-27 — `research/failure-library/` declared for the Failure Library:
+  `failure-library/v1` task findings (in Git) and manifests for run records
+  kept in local state (`evallab failures`).

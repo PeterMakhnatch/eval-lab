@@ -1523,6 +1523,43 @@ modal run src/evallab/production/modal_cloud.py::run_cloud_supervisor_step \
   --approval 'Current scoped cloud offload approval' --max-usd 1
 ```
 
+#### Run Atlas (`/api/cloud-db/atlas`)
+
+The atlas is a read-only projection of two retained files under `<data_root>/atlas/`,
+validated strictly by `evallab.production.atlas_view` and re-read only when a file
+changes. Neither endpoint calls a model, reads a label, or writes anything.
+
+- `facets-v1.jsonl` -- one `run-facets/v1` JSON object per line (contract: the Wave 6
+  `CONTRACT.md` §3). `run_id` is `agent_traces.trace_id`: the database's `run_id`
+  column is shared by many traces and is never used to look a run up. A line that is
+  not exactly that record (extra or missing field, `split` other than `DEV`,
+  `suspicion` outside 0-3, more than 5 or repeated `evidence_steps`, bad enum) is
+  counted as rejected and shown as a short reason; the latest valid line per `run_id`
+  wins.
+- `clusters-v1.json` -- one `run-clusters/v1` document: `facet_version`, `generated_at`,
+  `scored_at` (null until scored) and `clusters[]` of `{cluster_id, name, level 1-3,
+  parent, run_ids, centroid_text, size, label_rates[] of {label, hits_n, of_n}}`. Rules:
+  `size` equals the distinct `run_ids`; only level 1 has no parent; a parent sits one
+  level above and contains every child run; `label_rates` exist only once `scored_at`
+  is set and never exceed the cluster (`hits_n <= of_n <= size`). An invalid cluster
+  file is reported as `store.cluster_error` and the facets still show.
+
+`GET /api/cloud-db/atlas` (always `split=dev`) takes the facet filters `source`,
+`outcome`, `tests`, `eval_awareness`, `min_suspicion`, the three boolean facets,
+`cluster_id`, free-text `q` and `limit`/`offset` (at most 200). It returns the cluster
+tree (recorded `size`, `admitted_n` and `matching_n` under the current filters, the
+recorded label rates), counts for every filter value, the matching runs (most
+suspicious first) and `store` counters: facets read, shown, rejected, superseded, runs
+whose task is not admitted DEV (`unadmitted_n`) and runs whose evidence step is not a
+step of the run (`evidence_outside_run_n`). Neither kind is shown.
+
+`GET /api/cloud-db/atlas/run?run_id=` returns one run: its facet, the cluster chains
+that hold it, its evidence steps with one neighbour each side (bounded excerpts from
+retrieval's `expand_pointer`, never user prompts), the fired trace feature flags with
+their step indices, and the matching Trace-Watcher playbook cards. Retrieval's own
+gate decides first; a run it will not return yields `withheld` and no steps. Flags and
+cards are routing leads, not cheating verdicts.
+
 ### Production supervisor
 
 `evallab.production.ProductionSupervisor` is the thin orchestration layer that

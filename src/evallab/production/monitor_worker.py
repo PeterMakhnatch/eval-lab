@@ -595,6 +595,7 @@ class _Run:
     structural_context: dict[str, Any] | None = None
     prefix_state: IncrementalPrefixState = field(default_factory=IncrementalPrefixState)
     withheld: dict[str, int] = field(default_factory=dict)
+    escalation: window_cascade.FamilyBudget = field(default_factory=window_cascade.FamilyBudget)
     canon_bytes: dict[int, bytes] = field(default_factory=dict)
     frozen_steps: dict[int, dict[str, Any]] = field(default_factory=dict)
     max_step_id: int | None = None
@@ -799,7 +800,10 @@ class MisalignmentLiveWorker:
 
     ``judge`` follows :data:`trace_cheap.JudgeFn`. Supplying it explicitly is the
     spend boundary; ``None`` records unavailable semantic coverage, never makes
-    an API call. An emit failure propagates rather than pretending persistence.
+    an API call. ``reference_examples`` (see :func:`window_cascade.retrieved_examples`)
+    optionally adds Tier-2 reference steps to each judge prompt; if it fails the card is
+    judged without them and says so. An emit failure propagates rather than pretending
+    persistence.
     """
 
     def __init__(
@@ -815,6 +819,7 @@ class MisalignmentLiveWorker:
         gate_policy: GatePolicy | None = None,
         structural_context: Mapping[str, Any] | None = None,
         prefix_fraction: float = 1.0,
+        reference_examples: window_cascade.ExamplesFn | None = None,
     ) -> None:
         if not math.isfinite(control_ttl_seconds) or control_ttl_seconds <= 0:
             raise ValueError("control_ttl_seconds must be finite and positive")
@@ -823,6 +828,7 @@ class MisalignmentLiveWorker:
         self._sink = emit
         self._registry = registry
         self._judge = judge
+        self._reference_examples = reference_examples
         self._clock = clock
         self._control_ttl = control_ttl_seconds
         self._latency_target = latency_target_seconds
@@ -1298,6 +1304,16 @@ class MisalignmentLiveWorker:
             # Semantic triage judges observed actions only; task-structure cues
             # concern the task, not agent behavior, so they never reach the judge.
             triaged = alert["kind"] == "agent_action"
+            if not triaged:
+                triage_state = "not_applicable"
+            elif alert["rule"] in window_cascade.PASS_THROUGH_RULES:
+                triage_state = "gate_pass_through"
+            elif self._judge is None:
+                triage_state = "unavailable"
+            elif run.escalation.admit(alert["rule"], gating=alert["eligibility"] == "verdict"):
+                triage_state = "pending"
+            else:
+                triage_state = "not_escalated"
             card = {
                 **source,
                 "card_id": card_id,
@@ -1318,13 +1334,7 @@ class MisalignmentLiveWorker:
                 "outcome_verified": False,
                 "trace_prefix_sha256": prefix_digest,
                 "coverage": coverage,
-                "semantic_triage": "not_applicable"
-                if not triaged
-                else "gate_pass_through"
-                if alert["rule"] in window_cascade.PASS_THROUGH_RULES
-                else "pending"
-                if self._judge
-                else "unavailable",
+                "semantic_triage": triage_state,
             }
             emitted_card = self._emit(run_id, "monitor.suspicion", card, prefix_step=prefix)
             output.append(emitted_card)
@@ -1341,7 +1351,7 @@ class MisalignmentLiveWorker:
                 "baselines": copy.deepcopy(run.baselines),
                 "structural_context": copy.deepcopy(run.structural_context),
             }
-            if triaged and card["semantic_triage"] != "gate_pass_through":
+            if triage_state in {"pending", "unavailable"}:
                 cards.append(card)
         if self._judge is None and cards:
             coverage["gaps"].append("semantic_triage_unavailable")
@@ -1397,9 +1407,19 @@ class MisalignmentLiveWorker:
     ) -> None:
         if isinstance(steps, _FrozenPrefix):
             steps = steps.materialize()
+        with self._lock:
+            run = self._runs.get(run_id)
+            task_id = run.task_id if run is not None else "unknown"
         for card in cards:
             window = window_cascade.build_window(steps, card["evidence"][0]["step"])
-            messages = window_cascade.build_messages(card, window, prefix)
+            examples: list[str] = []
+            examples_error = None
+            if self._reference_examples is not None:
+                try:
+                    examples = list(self._reference_examples(card, task_id, window))
+                except Exception as exc:
+                    examples_error = f"{type(exc).__name__}: {exc}"[:200]
+            messages = window_cascade.build_messages(card, window, prefix, examples)
             try:
                 assert self._judge is not None
                 pred, cost = self._judge(messages)
@@ -1428,6 +1448,8 @@ class MisalignmentLiveWorker:
                     "window_chars": window.chars,
                     "window_truncated": window.truncated,
                     "verdict": outcome.reason,
+                    "reference_examples": len(examples),
+                    "reference_examples_error": examples_error,
                 },
             }
             if outcome.confirmed:
@@ -2205,6 +2227,11 @@ class MisalignmentLiveWorker:
                             run.cards.add(card_id)
                             if payload.get("eligibility", "verdict") == "verdict":
                                 run.verdict_cards.add(card_id)
+                            if payload.get("semantic_triage") in {"pending", "completed"}:
+                                run.escalation.restore(
+                                    payload["rule"],
+                                    gating=payload.get("eligibility", "verdict") == "verdict",
+                                )
                             existing = run.suspicions.get(card_id, {})
                             run.suspicions[card_id] = {
                                 **existing,

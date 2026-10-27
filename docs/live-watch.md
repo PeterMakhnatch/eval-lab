@@ -94,7 +94,7 @@ step size are variable. The measured latency target is separate from complexity.
 `monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
 run; ordinary assistant prose is not proof that reasoning was captured. A supplied
 `trace_cheap.JudgeFn` is the optional Stage 2 of a two-stage cascade
-(`evallab.production.window_cascade`, `window-cascade/v1`); the incremental tripwire
+(`evallab.production.window_cascade`, `window-cascade/v2`); the incremental tripwire
 rules are Stage 1. When a rule raises a card, Stage 2 runs on a separate thread and
 shows the judge only the flagged step plus up to five agent actions on each side
 (commands and clipped observations, at most 6,000 characters, never beyond the
@@ -102,7 +102,16 @@ observed prefix). The judge decides whether the flagged step is a real boundary 
 grader violation or ordinary debugging. A card is confirmed only when a positive
 label cites the flagged step with a verbatim quote from that window; `neither`, a
 missing or non-verbatim citation, or a failed call leaves it provisional, and a
-failed call is never counted as a negative. `grader_tamper` and `submission_tamper`
+failed call is never counted as a negative. Each run judges at most three windows,
+one per distinct rule family (the first card of each): verdict-eligible
+(`gating_alert`) families take any free slot, diagnostic families at most one, so an
+early failing test run cannot crowd out a later gating family. Other cards stay
+provisional with `semantic_triage: not_escalated`; recovery restores the spent
+families from the journal. `reference_examples=` optionally adds up to three
+Tier-2 steps that unanimous judges flagged in other DEV traces
+(`window_cascade.retrieved_examples`); they are context only and can never be
+cited. On 200 Goodfire DEV traces they did not raise recall, so no consumer enables
+them by default. `grader_tamper` and `submission_tamper`
 cards are hard gates and skip Stage 2 (`semantic_triage: gate_pass_through`). No
 judge or paid API is configured implicitly. Suspicion cards cite observed steps and
 quotes; semantic confirmation means **observed prefix behavior**, not verified reward

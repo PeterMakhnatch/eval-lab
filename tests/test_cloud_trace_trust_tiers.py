@@ -135,6 +135,23 @@ def test_consensus_trace_returns_only_its_flagged_passage_steps(
     assert [step["step_index"] for step in example.trace_steps] == [2, 3]
     assert example.provenance["passage_steps_only"] is True
 
+@pytest.mark.parametrize("kind", (None, "reward_seeker", "misalignment"))
+def test_kind_filtered_queries_fall_back_to_partial_matches_ranked_by_strength(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever, kind: str | None,
+) -> None:
+    # No single document holds every query term, so only the any-term fallback
+    # can find these; the trace matching more terms ranks first.
+    add_task(db, "two-terms")
+    add_trace(db, "two-terms", TIER2, [("assistant", "rewrite conftest"), ("tool", "exit status")],
+              flagged_passage_steps=[0, 1])
+    add_task(db, "one-term")
+    add_trace(db, "one-term", TIER2, [("assistant", "rewrite the readme")], flagged_passage_steps=[0])
+    add_task(db, "unrelated")
+    add_trace(db, "unrelated", TIER2, [("assistant", "nothing relevant")], flagged_passage_steps=[0])
+    examples = retriever.retrieve_similar_examples("rewrite conftest exit status hook", kind, 5)
+    assert task_ids(examples) == ["two-terms", "one-term"]
+
+
 
 def test_trust_survives_reingestion_and_assignment_is_atomic(db: CloudTraceDatabase) -> None:
     add_task(db, "stored")

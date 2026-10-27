@@ -178,7 +178,11 @@ match strength, and each example prefers its strongest evidence. A trace's
 exactly those steps. Each example reports `trust_tier`, prints a `- trust:` line,
 and records issue/trace tiers in provenance. Staged publisher bundles stay
 provisional. The tier assignment used for the shared store, and its policy, is
-`research/evidence/runs/trust-tiers-20261026/`.
+`research/evidence/runs/trust-tiers-20261026/`. Terms must co-occur in one
+document; when fewer than `top_k` matching tasks hold returnable evidence,
+trace-led calls (`kind=None`, `reward_seeker`, `misalignment`) widen to
+documents matching any term, ranked by per-term strength. Issue-led calls
+(`task_quality`, any `issue_kind`) keep the strict all-term reading.
 
 At most one example per task and one trace per example is returned. `top_k`,
 `snippet_chars`, and `max_steps_per_trace` are positive integers. Overlong issue,

@@ -23,6 +23,11 @@ from evallab.hackbook.models import (
     load_hackbook,
     search_entries,
 )
+from evallab.hackbook.playbook_cards import (
+    format_playbook_cards,
+    list_playbook_cards,
+    match_playbook_cards,
+)
 from evallab.hackbook.qc import ScoredCase, scan_trace_rules, score_cases
 
 
@@ -44,6 +49,37 @@ def _list_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         for entry in entries:
             print(_row(entry))
         print(f"{len(entries)} entries", file=sys.stderr)
+    return 0
+
+
+def _cards_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    if args.trigger_flags is None:
+        cards = list_playbook_cards()
+        if args.kind is not None:
+            prefix = "QA" if args.kind == "task" else "TW"
+            cards = [card for card in cards if card["card_id"].startswith(prefix)]
+        if args.json:
+            print(json.dumps(cards, ensure_ascii=False, separators=(",", ":")))
+        else:
+            for card in cards:
+                print(
+                    f"{card['card_id']}  {card['mechanism_summary'].splitlines()[0]}  "
+                    f"flags={','.join(card['trigger_flags'])}"
+                )
+            print("Select full cards with --flag; these are leads, not verdicts.", file=sys.stderr)
+        return 0
+    try:
+        cards = match_playbook_cards(args.trigger_flags, kind=args.kind, max_cards=args.max_cards)
+    except ValueError as exc:
+        print(f"error: evallab hackbook cards: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(cards, ensure_ascii=False, separators=(",", ":")))
+    else:
+        text = format_playbook_cards(cards)
+        if text:
+            print(text)
+        print(f"{len(cards)} matching cards; leads, not verdicts.", file=sys.stderr)
     return 0
 
 
@@ -351,6 +387,21 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
     list_parser.add_argument("--evidence", choices=("executed", "observed", "claimed"))
     list_parser.add_argument("--json", action="store_true")
     list_parser.set_defaults(func=_list_command)
+
+    cards = sub.add_parser(
+        "cards",
+        help="List compact playbook leads or disclose up to two matching cards",
+        description="Without flags, list a brief index (or the explicit full catalog with --json). "
+        "With --flag, disclose matched defensive playbooks, never raw traces or verdicts.",
+    )
+    cards.add_argument(
+        "--flag", dest="trigger_flags", action="append", metavar="NAME",
+        help="Fired flag name; repeat to match multiple flags",
+    )
+    cards.add_argument("--kind", choices=("task", "trace"), help="Task QA/seeker or trace cards")
+    cards.add_argument("--max-cards", type=int, default=2, help="Maximum matched cards (default: 2)")
+    cards.add_argument("--json", action="store_true", help="Emit card objects as a compact JSON array")
+    cards.set_defaults(func=_cards_command)
 
     show = sub.add_parser("show", help="Show one entry by id or slug")
     show.add_argument("entry", metavar="id_or_slug")

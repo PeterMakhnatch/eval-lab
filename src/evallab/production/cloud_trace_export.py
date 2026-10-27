@@ -3,6 +3,7 @@
 Only identity columns are read before the shared admission gate. Trace bodies
 are selected through that gate in SQL; labels, issues, receipts and CAS objects
 are never hydrated. All formats share the same blinded ATIF projection.
+Actual verifier rewards stay in the sealed join, not reviewer-visible files.
 """
 
 from __future__ import annotations
@@ -129,36 +130,35 @@ def _blind_id(trace_id: str) -> str:
 
 def _atif(steps: Sequence[Mapping[str, Any]], blind_id: str) -> dict[str, Any]:
     projected_steps: list[dict[str, Any]] = []
-    previous_call: str | None = None
     for position, row in enumerate(steps):
         role = row["role"].strip().casefold()
         content = row["content_text"] or ""
         step: dict[str, Any] = {"step_id": row["step_index"]}
-        if role in {"user", "system", "assistant", "agent"}:
-            previous_call = None
-        if role not in {"user", "system"} and (row["tool_name"] or row["command_or_action"]):
-            previous_call = f"call-{position}"
-            step["tool_calls"] = [{
-                "tool_call_id": previous_call,
-                "function_name": row["tool_name"] or "tool",
-                "arguments": {"command": row["command_or_action"] or ""},
-            }]
+        call_id: str | None = None
         if role in {"user", "system"}:
             step.update(source=role, message=content)
         elif role in {"assistant", "agent"}:
             step.update(source="agent", message=content)
+            if row["tool_name"] or row["command_or_action"]:
+                call_id = f"call-{position}"
+                step["tool_calls"] = [{
+                    "tool_call_id": call_id,
+                    "function_name": row["tool_name"] or "tool",
+                    "arguments": {"command": row["command_or_action"] or ""},
+                }]
         else:
-            # A separate observation step preserves a one-to-one source index,
-            # including leading/unpaired tool output and consecutive tool rows.
+            # Preserve each recorded output and its source index without
+            # inventing an action from tool-side metadata or borrowing a call
+            # from another step: native ATIF references are local to a step.
             step.update(source="agent", message="")
             step["observation"] = {"results": [{
-                "source_call_id": previous_call or f"call-{position}", "content": content,
+                "source_call_id": None, "content": content,
             }]}
-        if row["observation_preview"]:
+        preview = row["observation_preview"]
+        if preview and preview != content:
             observation = step.setdefault("observation", {"results": []})
             observation["results"].append({
-                "source_call_id": previous_call or f"call-{position}",
-                "content": row["observation_preview"],
+                "source_call_id": call_id, "content": preview,
             })
         projected_steps.append(step)
     return {
@@ -204,15 +204,15 @@ def _scout_transcript(document: Mapping[str, Any], blind_id: str) -> dict[str, A
         if message["content"] or calls or source != "agent":
             messages.append(message)
         for result in step.get("observation", {}).get("results", []):
-            messages.append({
-                "role": "tool", "content": result["content"],
-                "tool_call_id": result["source_call_id"],
-            })
+            message = {"role": "tool", "content": result["content"]}
+            if result["source_call_id"] is not None:
+                message["tool_call_id"] = result["source_call_id"]
+            messages.append(message)
     return {"transcript_id": blind_id, "metadata": {"item_id": blind_id}, "messages": messages}
 
 
 def _write_run(
-    staging: Path, blind_id: str, document: dict[str, Any], reward: float | None,
+    staging: Path, blind_id: str, document: dict[str, Any],
     *, format: str, scout_api: Any,
 ) -> None:
     if format == "harbor":
@@ -220,7 +220,7 @@ def _write_run(
         (trial / "agent").mkdir(parents=True, mode=0o700)
         _write_bytes(trial / "agent/trajectory.json", _json_bytes(document))
         _write_bytes(trial / "result.json", _json_bytes({
-            "trial_name": blind_id, "verifier_result": {"rewards": {"reward": reward}},
+            "trial_name": blind_id, "verifier_result": {"rewards": {"reward": None}},
         }))
     elif format == "atif":
         _write_bytes(staging / f"{blind_id}.json", _json_bytes(document))
@@ -313,6 +313,8 @@ def export_runs(
                 for key in ("task_id", "dataset_id"):
                     redactions.add(row[key])
                 redactions.add(authority.task_name(row["task_id"]))
+                if row["task_id"] in admitted and isinstance(row["item_id"], str) and row["item_id"]:
+                    redactions.add(row["item_id"])
             for trace in traces:
                 redactions.update(trace[key] for key in ("trace_id", "model_id", "run_id"))
             pattern = _redaction_pattern(redactions)
@@ -334,13 +336,24 @@ def export_runs(
                 document = _atif(steps, blind_id)
                 origins = blind_atif_step_origins(document)
                 projected = blind_atif(document, item_id=blind_id)
+                # Detect surviving annotations before benchmark-name redaction
+                # can hide their marker while leaving evaluator labels behind.
+                if find_forbidden_json(projected):
+                    raise ValueError("blinded trajectory contains evaluator-only fields or text")
+                if not projected["steps"]:
+                    raise ValueError("trace has no actor-visible steps")
                 _redact_steps(projected, pattern)
                 if find_forbidden_json(projected):
                     raise ValueError("blinded trajectory contains evaluator-only fields or text")
-                _write_run(
-                    staging, blind_id, projected, trace["reward"], format=format, scout_api=scout_api,
-                )
-                joins[blind_id] = {"trace_id": trace["trace_id"], "step_origin": origins}
+                # blind_atif's metadata and zero-based IDs are an internal audit
+                # representation, not native Harbor's external ATIF contract.
+                projected.pop("metadata")
+                for index, step in enumerate(projected["steps"], start=1):
+                    step["step_id"] = index
+                _write_run(staging, blind_id, projected, format=format, scout_api=scout_api)
+                joins[blind_id] = {
+                    "trace_id": trace["trace_id"], "step_origin": origins, "reward": trace["reward"],
+                }
         manifest_bytes = _json_bytes(joins)
         descriptor, filename = tempfile.mkstemp(prefix=".cloud-trace-join-", dir=join_path.parent)
         temporary_manifest = Path(filename)

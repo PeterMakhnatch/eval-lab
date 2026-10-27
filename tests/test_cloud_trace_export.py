@@ -100,8 +100,9 @@ class SyntheticRegistry(CorpusRegistry):
 
 
 def _steps(trace_id: str, task_id: str) -> list[dict[str, Any]]:
+    item_id = next(item for task, _split, item in TASKS if task == task_id)
     private_text = " ".join((
-        task_id, DATASET, trace_id, _model_id(trace_id), _run_id(trace_id),
+        task_id, item_id, DATASET, trace_id, _model_id(trace_id), _run_id(trace_id),
         *PRIVATE_FIELDS, PRIVATE_CAS, "GOODFIRE", "tb4", "MiMo",
     ))
     rows: list[dict[str, Any]] = [
@@ -186,8 +187,9 @@ def _read_manifest(path: Path) -> dict[str, Any]:
     assert isinstance(value, dict)
     for blind_id, entry in value.items():
         assert re.fullmatch(r"run-[0-9a-f]{16,64}", blind_id)
-        assert set(entry) == {"trace_id", "step_origin"}
+        assert set(entry) == {"trace_id", "step_origin", "reward"}
         assert entry["step_origin"] == STEP_ORIGINS
+        assert entry["reward"] == REWARDS[entry["trace_id"]]
     return value
 
 
@@ -279,11 +281,11 @@ def test_formats_export_only_admitted_traces_and_keep_the_scoring_join_private(
             f"{blind_id}/{suffix}"
             for blind_id in joins for suffix in ("agent/trajectory.json", "result.json")
         }
-        for blind_id, entry in joins.items():
+        for blind_id in joins:
             result = json.loads((output / blind_id / "result.json").read_text(encoding="utf-8"))
             assert result == {
                 "trial_name": blind_id,
-                "verifier_result": {"rewards": {"reward": REWARDS[entry["trace_id"]]}},
+                "verifier_result": {"rewards": {"reward": None}},
             }
     elif format == "atif":
         expected_files = {f"{blind_id}.json" for blind_id in joins}
@@ -306,10 +308,10 @@ def test_atif_preserves_sources_tool_calls_and_standalone_observations_with_spar
     joins = _read_manifest(_default_manifest(output))
     for blind_id in joins:
         document = _atif_document(output, blind_id, format)
-        assert document["metadata"]["item_id"] == blind_id
-        assert set(document["metadata"]) <= {"item_id", "blind_projection"}
+        assert document["session_id"] == blind_id
+        assert "metadata" not in document
         steps = document["steps"]
-        assert [step["step_id"] for step in steps] == list(range(len(STEP_ORIGINS)))
+        assert [step["step_id"] for step in steps] == list(range(1, len(STEP_ORIGINS) + 1))
         assert [step["source"] for step in steps] == ["user", "agent", "agent", "agent", "agent"]
         assert USER_TEXT in steps[0]["message"]
         assert steps[1]["message"] == ASSISTANT_TEXT
@@ -319,10 +321,17 @@ def test_atif_preserves_sources_tool_calls_and_standalone_observations_with_spar
         assert calls[0]["function_name"] == "terminal"
         assert calls[0]["arguments"] == {"command": COMMAND}
         assert isinstance(calls[0]["tool_call_id"], str) and calls[0]["tool_call_id"]
+        assert sum(len(step.get("tool_calls", [])) for step in steps) == 1
+        assert "tool_calls" not in steps[2] and "tool_calls" not in steps[3]
         _assert_content(steps[2]["observation"]["results"], TOOL_TEXT, TOOL_PREVIEW)
         _assert_content(steps[3]["observation"]["results"], ENVIRONMENT_TEXT, ENVIRONMENT_PREVIEW)
         assert len(steps[2]["observation"]["results"]) == 2
         assert len(steps[3]["observation"]["results"]) == 2
+        observations = [
+            result for step in steps for result in step.get("observation", {}).get("results", [])
+        ]
+        assert len(observations) == 4
+        assert all(result["source_call_id"] is None for result in observations)
         assert all("extra" not in step for step in steps)
         assert "private-annotation-secret" not in json.dumps(document)
 
@@ -351,7 +360,7 @@ def test_scout_jsonl_always_uses_documented_inspect_chat_message_shapes(
             assert isinstance(message["content"], str)
             assert set(message) <= {"role", "content", "tool_calls", "tool_call_id"}
             if message["role"] == "tool":
-                assert isinstance(message["tool_call_id"], str) and message["tool_call_id"]
+                assert message.get("tool_call_id") is None
             for call in message.get("tool_calls", []):
                 assert message["role"] == "assistant"
                 assert set(call) == {"id", "function", "arguments", "type"}
@@ -359,7 +368,10 @@ def test_scout_jsonl_always_uses_documented_inspect_chat_message_shapes(
                 assert call["function"] == "terminal"
                 assert call["arguments"] == {"command": COMMAND}
                 assert call["type"] == "function"
-        assert any(message.get("tool_calls") for message in messages)
+        assert len(messages) == 7
+        assert sum(message["role"] == "assistant" for message in messages) == 2
+        assert sum(message["role"] == "tool" for message in messages) == 4
+        assert sum(len(message.get("tool_calls", [])) for message in messages) == 1
         _assert_content(messages, ASSISTANT_TEXT, TOOL_TEXT, TOOL_PREVIEW, ENVIRONMENT_TEXT, ENVIRONMENT_PREVIEW)
     _assert_blinded(output)
 
@@ -840,3 +852,178 @@ def test_nullable_text_and_tool_calls_only_rows_export_as_text_messages(
         assert document["steps"][2]["tool_calls"][0]["arguments"] == {"command": COMMAND}
         assert document["steps"][3]["observation"]["results"][0]["content"] == ""
     _assert_blinded(output)
+
+
+@pytest.mark.parametrize("format", ("harbor", "atif"))
+def test_external_atif_validates_with_the_real_harbor_trajectory(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path, format: str,
+) -> None:
+    trajectory_type = pytest.importorskip("harbor.models.trajectories.trajectory").Trajectory
+    output = tmp_path / ("native-" + format)
+    cloud_trace_export.export_runs(source, output, format=format, registry=registry)
+    joins = _read_manifest(_default_manifest(output))
+    for blind_id in joins:
+        path = output / blind_id / "agent/trajectory.json" if format == "harbor" else output / f"{blind_id}.json"
+        trajectory = trajectory_type.model_validate_json(path.read_bytes())
+        assert trajectory.session_id == blind_id
+        assert [step.step_id for step in trajectory.steps] == [1, 2, 3, 4, 5]
+        assert sum(len(step.tool_calls or []) for step in trajectory.steps) == 1
+        assert sum(
+            len(step.observation.results) if step.observation is not None else 0
+            for step in trajectory.steps
+        ) == 4
+        for step in trajectory.steps:
+            calls = {call.tool_call_id for call in step.tool_calls or []}
+            if step.observation is not None:
+                assert all(
+                    result.source_call_id is None or result.source_call_id in calls
+                    for result in step.observation.results
+                )
+
+
+@pytest.mark.parametrize("format", FORMATS)
+def test_duplicate_previews_and_tool_metadata_do_not_invent_actions_or_observations(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path, format: str,
+) -> None:
+    trace_id, task_id = next(iter(ADMITTED_TRACES.items()))
+    with CloudTraceDatabase(source, sqlite_fts=False) as database:
+        database.upsert_trace({
+            "trace_id": trace_id, "task_id": task_id,
+            "run_id": _run_id(trace_id), "model_id": _model_id(trace_id),
+            "flagged_passage_steps": [],
+        }, steps=[
+            {
+                "step_index": 1, "role": "assistant", "content_text": ASSISTANT_TEXT,
+                "tool_name": "terminal", "command_or_action": COMMAND,
+                "observation_preview": TOOL_PREVIEW,
+            },
+            {
+                "step_index": 2, "role": "tool", "tool_name": "terminal",
+                "command_or_action": COMMAND, "content_text": TOOL_TEXT,
+                "observation_preview": TOOL_TEXT,
+            },
+            {
+                "step_index": 3, "role": "environment", "tool_name": "terminal",
+                "command_or_action": COMMAND, "content_text": ENVIRONMENT_TEXT,
+                "observation_preview": ENVIRONMENT_TEXT,
+            },
+        ])
+    output = tmp_path / ("deduplicated-" + format)
+    cloud_trace_export.export_runs(
+        source, output, format=format, registry=registry, trace_ids=[trace_id],
+    )
+    joins = json.loads(_default_manifest(output).read_text(encoding="utf-8"))
+    blind_id, join = next(iter(joins.items()))
+    assert join["step_origin"] == [1, 2, 3]
+    if format == "scout":
+        transcript = json.loads((output / "transcripts.jsonl").read_text(encoding="utf-8"))
+        messages = transcript["messages"]
+        assert len(messages) == 4
+        assert sum(len(message.get("tool_calls", [])) for message in messages) == 1
+        observations = [message for message in messages if message["role"] == "tool"]
+        assert [message["content"] for message in observations] == [
+            TOOL_PREVIEW, TOOL_TEXT, ENVIRONMENT_TEXT,
+        ]
+        call_id = messages[0]["tool_calls"][0]["id"]
+        assert observations[0]["tool_call_id"] == call_id
+        assert all("tool_call_id" not in observation for observation in observations[1:])
+    else:
+        document = _atif_document(output, blind_id, format)
+        steps = document["steps"]
+        assert sum(len(step.get("tool_calls", [])) for step in steps) == 1
+        observations = [step["observation"]["results"] for step in steps]
+        assert [len(results) for results in observations] == [1, 1, 1]
+        assert [results[0]["content"] for results in observations] == [
+            TOOL_PREVIEW, TOOL_TEXT, ENVIRONMENT_TEXT,
+        ]
+        call_id = steps[0]["tool_calls"][0]["tool_call_id"]
+        assert observations[0][0]["source_call_id"] == call_id
+        assert all(results[0]["source_call_id"] is None for results in observations[1:])
+    _assert_blinded(output)
+
+
+@pytest.mark.parametrize("format", FORMATS)
+@pytest.mark.parametrize("role,field", (
+    ("user", "content_text"),
+    ("assistant", "content_text"),
+    ("assistant", "tool_name"),
+    ("assistant", "command_or_action"),
+    ("assistant", "observation_preview"),
+    ("tool", "content_text"),
+    ("tool", "observation_preview"),
+    ("environment", "content_text"),
+    ("environment", "observation_preview"),
+))
+def test_surviving_annotations_are_refused_before_redaction_can_hide_the_marker(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path,
+    format: str, role: str, field: str,
+) -> None:
+    trace_id, task_id = next(iter(ADMITTED_TRACES.items()))
+    row = {
+        "step_index": 1, "role": role, "content_text": "Routine evidence.",
+        "tool_name": "terminal", "command_or_action": COMMAND,
+    }
+    row[field] = "Evidence before annotation.\n" + ANNOTATION_MARKER + "]\nlabel: private-annotation-secret"
+    with CloudTraceDatabase(source, sqlite_fts=False) as database:
+        database.upsert_trace({
+            "trace_id": trace_id, "task_id": task_id,
+            "run_id": _run_id(trace_id), "model_id": _model_id(trace_id),
+            "flagged_passage_steps": [],
+        }, steps=[row])
+    directory = tmp_path / "annotation-destinations"
+    directory.mkdir()
+    with pytest.raises(ValueError, match="evaluator-only"):
+        cloud_trace_export.export_runs(
+            source, directory / "runs", format=format, registry=registry, trace_ids=[trace_id],
+        )
+    assert _tree(directory) == {}
+
+
+@pytest.mark.parametrize("format", FORMATS)
+def test_verifier_outcomes_are_sealed_and_cannot_change_any_exported_bytes(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path, format: str,
+) -> None:
+    first = tmp_path / ("original-outcomes-" + format)
+    cloud_trace_export.export_runs(source, first, format=format, registry=registry)
+    first_joins = _read_manifest(_default_manifest(first))
+    changed_rewards = dict(zip(ADMITTED_TRACES, (0.0, 1.0, 0.75), strict=True))
+    with CloudTraceDatabase(source, sqlite_fts=False) as database:
+        for trace_id, reward in changed_rewards.items():
+            database._connection.execute(
+                "UPDATE agent_traces SET reward = ? WHERE trace_id = ?", (reward, trace_id),
+            )
+    second = tmp_path / ("changed-outcomes-" + format)
+    cloud_trace_export.export_runs(source, second, format=format, registry=registry)
+    second_joins = json.loads(_default_manifest(second).read_text(encoding="utf-8"))
+    assert _tree(first) == _tree(second)
+    assert {
+        entry["trace_id"]: entry["reward"] for entry in first_joins.values()
+    } == REWARDS
+    assert {
+        entry["trace_id"]: entry["reward"] for entry in second_joins.values()
+    } == changed_rewards
+
+
+@pytest.mark.parametrize("format", FORMATS)
+@pytest.mark.parametrize("steps", (
+    [],
+    [{"step_index": 1, "role": "user", "content_text": ANNOTATION_MARKER + "] evaluator-only"}],
+))
+def test_native_exports_refuse_traces_without_any_actor_visible_steps(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path,
+    format: str, steps: list[dict[str, Any]],
+) -> None:
+    trace_id, task_id = next(iter(ADMITTED_TRACES.items()))
+    with CloudTraceDatabase(source, sqlite_fts=False) as database:
+        database.upsert_trace({
+            "trace_id": trace_id, "task_id": task_id,
+            "run_id": _run_id(trace_id), "model_id": _model_id(trace_id),
+            "flagged_passage_steps": [],
+        }, steps=steps)
+    directory = tmp_path / "empty-trace-destinations"
+    directory.mkdir()
+    with pytest.raises(ValueError, match="no actor-visible steps"):
+        cloud_trace_export.export_runs(
+            source, directory / "runs", format=format, registry=registry, trace_ids=[trace_id],
+        )
+    assert _tree(directory) == {}

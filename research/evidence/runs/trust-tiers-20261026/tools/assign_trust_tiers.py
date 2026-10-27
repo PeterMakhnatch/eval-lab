@@ -1,29 +1,37 @@
 #!/usr/bin/env python3
-"""CE-3: derive evidence trust tiers for a CloudTraceDatabase and optionally apply them.
+"""Derive evidence trust tiers for a CloudTraceDatabase and optionally apply them (policy v2).
 
-Policy (strongest first; every row not matched below is ``tier3_provisional``):
+Only rows on tasks admitted by ``admitted_cloud_task_ids`` over ``CorpusRegistry`` (the gate
+retrieval uses: DEV, with no TEST/held-out assignment under any ``assignments.csv`` key) are
+promoted. Every other row is ``tier3_provisional``.
 
-``tier1_container_verified`` issues are confirmed wrong-pass differentials with original
-reward 1.0 and repaired reward 0.0 whose retained issue record proves a container replay:
+Issues (confirmed, wrong-pass, original reward 1.0 -> repaired reward 0.0):
 
-* ``tb4-audit-v1``: a differentially replayed witness (``status_scope`` is
-  ``retained_native_differential`` and a witness digest is stored);
-* ``tb2-to-tb21-v1``: a maintainer-fix differential (``status_scope`` is
-  ``retained_native_differential`` and the finding targets ``tb2_vs_tb21_differential``);
-* ``mimo-defect-map-v1``: the repaired package is one of the nine historically qualified
-  repairs (``train_repairs_v7`` in ``research/experiments/mimo-clean-v7/manifest.json``),
-  bound by exact task and repaired package digest.
+``tier1_container_verified``
+  * ``retained_native_differential`` with a stored witness digest (TB4 differentially
+    replayed witnesses), or targeting ``tb2_vs_tb21_differential`` (TB2.1 maintainer fixes);
+  * a MiMo native patch-witness differential whose repeat controls all hold natively:
+    at least three reference runs reward 1.0 and at least three nop runs reward 0.0;
+  * a MiMo repair bound by exact task and repaired package digest to one of the nine
+    historically qualified repairs (``train_repairs_v7``).
+``tier2_consensus_labeled``
+  * a model candidate witnessed strictly 1.0 -> 0.0 in one native measurement on each grader
+    (``witnessed_model_candidate_strict_1_to_0``), without repeat controls.
 
-``tier1_container_verified`` traces are confirmed/verified witness traces whose receipt links
-to a tier-1 issue. ``tier2_consensus_labeled`` traces are Goodfire rollouts with three-vote
-``verdict_enacted == "yes"`` and at least one passage the three judges unanimously verified
-positive; exactly those passage steps become ``flagged_passage_steps``. CheatBench
-human-verified runs would also be tier 2, but the store holds none, so no rule reads them.
+Traces:
 
-Reads are identity/label metadata only (no task, trace or step bodies are printed). Without
-``--apply`` the database is opened read-only and nothing is written. ``--apply`` first takes a
-consistent SQLite backup, then opens the store through ``CloudTraceDatabase`` (adding the
-trust columns if absent) and writes the complete assignment in one transaction.
+* a confirmed/verified trace whose receipt links to a promoted issue takes that issue's tier;
+* a Goodfire rollout with three-vote ``verdict_enacted == "yes"`` and at least one step marked
+  ``passage_positive`` (LB-3) is ``tier2_consensus_labeled``; exactly those steps become
+  ``flagged_passage_steps``. Enacted rollouts with no positive passage stay provisional, so a
+  tier-2 trace never returns unlabeled setup steps.
+
+CheatBench human-verified runs belong in tier 2, but the store holds none.
+
+Reads are identity/label metadata and retained issue records only (no task, trace or step
+bodies are printed). Without ``--apply`` the database is opened read-only. ``--apply`` first
+takes a consistent SQLite backup, then writes the complete assignment in one transaction
+through ``CloudTraceDatabase.assign_trust_tiers``.
 """
 from __future__ import annotations
 
@@ -45,12 +53,15 @@ from evallab.production.cloud_trace_db import (  # noqa: E402
     PROVISIONAL_TIER,
     TRUST_TIERS,
     CloudTraceDatabase,
+    admitted_cloud_task_ids,
 )
+from evallab.production.corpus_queue import CorpusRegistry  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[5]
 MIMO_MANIFEST = REPO / "research/experiments/mimo-clean-v7/manifest.json"
 TIER1, TIER2 = TRUST_TIERS[0], TRUST_TIERS[1]
 GOODFIRE = "goodfire-reward-hack-data"
+MIMO = "mimo-defect-map-v1"
 
 
 def qualified_mimo_repairs() -> set[tuple[str, str]]:
@@ -65,9 +76,9 @@ def qualified_mimo_repairs() -> set[tuple[str, str]]:
     }
 
 
-def cas_record(cas: Path, uri: str | None) -> dict[str, Any] | None:
+def cas_record(cas: Path, uri: str | None) -> dict[str, Any]:
     if not uri:
-        return None
+        return {}
     path = cas / "sha256" / uri.rsplit("/", 1)[1]
     data = path.read_bytes()
     if hashlib.sha256(data).hexdigest() != path.name:
@@ -75,83 +86,110 @@ def cas_record(cas: Path, uri: str | None) -> dict[str, Any] | None:
     return json.loads(data)
 
 
-def unanimous_positive(passage: dict[str, Any]) -> bool:
+def controls_hold(evidence: dict[str, Any]) -> bool:
+    controls = evidence.get("native_control_rewards") or {}
+    reference, nop = controls.get("reference") or [], controls.get("nop") or []
     return (
-        passage.get("consensus") == "positive"
-        and passage.get("votes_positive_verified") == 3
-        and passage.get("votes_negative") == 0
-        and passage.get("in_segments_unanimous") is True
+        len(reference) >= 3 and all(float(value) == 1.0 for value in reference)
+        and len(nop) >= 3 and all(float(value) == 0.0 for value in nop)
     )
+
+
+def admitted_ids(connection: sqlite3.Connection) -> frozenset[str]:
+    connection.row_factory = sqlite3.Row
+    identities = [dict(row) for row in connection.execute(
+        "SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest,"
+        " CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.item_id') END AS item_id,"
+        " CASE WHEN json_valid(metadata_json) THEN json_type(metadata_json, '$.item_id') ELSE 'invalid' END"
+        " AS item_type FROM corpus_tasks ORDER BY task_id"
+    )]
+    connection.row_factory = None
+    return admitted_cloud_task_ids(identities, registry=CorpusRegistry())
+
+
+def issue_tier(dataset: str, record: dict[str, Any], witness: str | None,
+               qualified: set[tuple[str, str]]) -> tuple[str, str]:
+    scope = record.get("status_scope")
+    finding = record.get("finding") or {}
+    variant = record.get("variant") or {}
+    evidence = record.get("evidence") or {}
+    if scope == "retained_native_differential" and witness:
+        return TIER1, f"{dataset} differentially replayed witness"
+    if scope == "retained_native_differential" and finding.get("target_version") == "tb2_vs_tb21_differential":
+        return TIER1, f"{dataset} maintainer-fix differential"
+    if dataset == MIMO and (record.get("task_id"), variant.get("repaired_package_digest")) in qualified:
+        return TIER1, "mimo qualified repair"
+    if scope and scope.startswith("native_patch_witness_differential") and controls_hold(evidence):
+        return TIER1, f"{dataset} native patch-witness differential with repeat controls"
+    if scope == "witnessed_model_candidate_strict_1_to_0":
+        return TIER2, f"{dataset} witnessed single-run strict 1->0"
+    return PROVISIONAL_TIER, f"{dataset} confirmed 1->0 without recognised proof ({scope})"
 
 
 def derive(connection: sqlite3.Connection, cas: Path) -> tuple[dict[str, str], dict[str, dict[str, Any]], dict[str, Any]]:
     qualified = qualified_mimo_repairs()
-    issues: dict[str, str] = {}
+    admitted = admitted_ids(connection)
     reasons: collections.Counter[str] = collections.Counter()
-    for issue_id, dataset, status, original, repaired, witness, uri in connection.execute(
-        "SELECT i.issue_id, t.dataset_id, i.status, i.original_reward, i.repaired_reward,"
+    issues: dict[str, str] = {}
+    promoted_tasks: dict[str, set[str]] = collections.defaultdict(set)
+    for issue_id, task_id, dataset, status, original, repaired, witness, uri in connection.execute(
+        "SELECT i.issue_id, i.task_id, t.dataset_id, i.status, i.original_reward, i.repaired_reward,"
         " i.witness_digest, i.cas_uri FROM task_issues i JOIN corpus_tasks t USING(task_id)"
         " ORDER BY i.issue_id"
     ):
         tier = PROVISIONAL_TIER
-        if status == "confirmed" and (original, repaired) == (1.0, 0.0):
-            record = cas_record(cas, uri) or {}
-            scope = record.get("status_scope")
-            variant = record.get("variant") or {}
-            finding = record.get("finding") or {}
-            if dataset == "tb4-audit-v1" and scope == "retained_native_differential" and witness:
-                tier, reason = TIER1, "tb4 differentially replayed witness"
-            elif dataset == "tb2-to-tb21-v1" and scope == "retained_native_differential" and (
-                finding.get("target_version") == "tb2_vs_tb21_differential"
-            ):
-                tier, reason = TIER1, "tb2.1 maintainer-fix differential"
-            elif dataset == "mimo-defect-map-v1" and (
-                record.get("task_id"), variant.get("repaired_package_digest"),
-            ) in qualified:
-                tier, reason = TIER1, "mimo qualified repair"
-            else:
-                reason = f"{dataset} confirmed 1->0 without tier-1 proof"
-        else:
+        if task_id not in admitted:
+            reason = f"{dataset} task not admitted (not cross-key-clean DEV)"
+        elif status != "confirmed" or (original, repaired) != (1.0, 0.0):
             reason = f"{dataset} {status} not a strict 1->0 differential"
+        else:
+            tier, reason = issue_tier(dataset, cas_record(cas, uri), witness, qualified)
         reasons[reason] += 1
         issues[issue_id] = tier
-    tier1_issues = {issue_id for issue_id, tier in issues.items() if tier == TIER1}
+        if tier != PROVISIONAL_TIER:
+            promoted_tasks[tier].add(task_id)
 
     traces: dict[str, dict[str, Any]] = {}
     goodfire_yes: list[str] = []
-    for trace_id, dataset, receipt_text in connection.execute(
-        "SELECT a.trace_id, t.dataset_id, a.verified_receipt_json FROM agent_traces a"
+    for trace_id, task_id, dataset, receipt_text in connection.execute(
+        "SELECT a.trace_id, a.task_id, t.dataset_id, a.verified_receipt_json FROM agent_traces a"
         " JOIN corpus_tasks t USING(task_id) ORDER BY a.trace_id"
     ):
+        traces[trace_id] = {"trust_tier": PROVISIONAL_TIER, "flagged_passage_steps": []}
+        if task_id not in admitted:
+            continue
         receipt = json.loads(receipt_text) if receipt_text else {}
         receipt = receipt if isinstance(receipt, dict) else {}
-        traces[trace_id] = {"trust_tier": PROVISIONAL_TIER, "flagged_passage_steps": []}
-        if receipt.get("status") in {"confirmed", "verified"} and receipt.get("linked_issue_id") in tier1_issues:
-            traces[trace_id]["trust_tier"] = TIER1
-            reasons["trace linked to tier-1 issue"] += 1
+        linked = issues.get(receipt.get("linked_issue_id"), PROVISIONAL_TIER)
+        if receipt.get("status") in {"confirmed", "verified"} and linked != PROVISIONAL_TIER:
+            traces[trace_id]["trust_tier"] = linked
+            reasons[f"trace linked to {linked} issue"] += 1
         elif dataset == GOODFIRE and (receipt.get("source_label") or {}).get("verdict_enacted") == "yes":
             goodfire_yes.append(trace_id)
-    passages: dict[str, list[int]] = collections.defaultdict(list)
+    positive: dict[str, list[int]] = collections.defaultdict(list)
     for start in range(0, len(goodfire_yes), 500):
         page = goodfire_yes[start:start + 500]
-        for trace_id, step_index, flags_text in connection.execute(
-            "SELECT trace_id, step_index, flags_json FROM trace_steps"
+        for trace_id, step_index in connection.execute(
+            "SELECT trace_id, step_index FROM trace_steps"
             f" WHERE trace_id IN ({', '.join('?' for _ in page)})"
-            " AND flags_json LIKE '%\"consensus\":\"positive\"%' ORDER BY trace_id, step_index",
+            " AND flags_json LIKE '%\"passage_positive\":true%'"
+            " AND json_extract(flags_json, '$.passage_positive') = 1 ORDER BY trace_id, step_index",
             page,
         ):
-            flags = json.loads(flags_text)
-            if any(unanimous_positive(passage) for passage in flags.get("source_passages") or ()):
-                passages[trace_id].append(step_index)
+            positive[trace_id].append(step_index)
     for trace_id in goodfire_yes:
-        if passages.get(trace_id):
-            traces[trace_id] = {"trust_tier": TIER2, "flagged_passage_steps": passages[trace_id]}
-            reasons["goodfire 3-vote enacted with unanimous passage"] += 1
+        if positive.get(trace_id):
+            traces[trace_id] = {"trust_tier": TIER2, "flagged_passage_steps": positive[trace_id]}
+            reasons["goodfire enacted with passage_positive steps"] += 1
         else:
-            reasons["goodfire enacted without unanimous passage"] += 1
+            reasons["goodfire enacted without any passage_positive step"] += 1
     summary = {
+        "policy": "trust-tiers/v2",
+        "admitted_tasks": len(admitted),
         "issues_by_tier": dict(collections.Counter(issues.values())),
+        "issue_tasks_by_tier": {tier: len(tasks) for tier, tasks in promoted_tasks.items()},
         "traces_by_tier": dict(collections.Counter(value["trust_tier"] for value in traces.values())),
+        "goodfire_enacted_admitted_traces": len(goodfire_yes),
         "flagged_passage_steps": sum(len(value["flagged_passage_steps"]) for value in traces.values()),
         "mimo_qualified_repairs_in_manifest": len(qualified),
         "reasons": dict(sorted(reasons.items())),
@@ -167,7 +205,7 @@ def main() -> int:
     parser.add_argument("--backup", type=Path, help="required with --apply; must not exist")
     parser.add_argument("--receipt", type=Path)
     args = parser.parse_args()
-    with sqlite3.connect(args.database.resolve().as_uri() + "?mode=ro", uri=True) as connection:
+    with closing(sqlite3.connect(args.database.resolve().as_uri() + "?mode=ro", uri=True)) as connection:
         issues, traces, summary = derive(connection, args.cas)
     assignment = json.dumps({"issues": issues, "traces": traces}, sort_keys=True, separators=(",", ":"))
     receipt: dict[str, Any] = {

@@ -165,9 +165,10 @@ hydrated, and step flags are decoded only for steps screened for return.
 
 **Trust tiers.** `task_issues` and `agent_traces` carry `trust_tier`, one of
 `tier1_container_verified` (container-verified differentials: qualified repairs,
-differentially replayed witnesses, maintainer fixes), `tier2_consensus_labeled`
-(unanimous judge votes with passage-level spans, human-verified runs) or
-`tier3_provisional` (unverified leads). A row whose writer declares no tier is
+differentially replayed witnesses, patch witnesses with repeat reference/nop
+controls, maintainer fixes), `tier2_consensus_labeled` (three-vote judge labels
+with passage-level spans, single-run witnessed differentials, human-verified runs)
+or `tier3_provisional` (unverified leads). A row whose writer declares no tier is
 provisional; re-upserting a row without `trust_tier` keeps the stored tier, and
 `assign_trust_tiers` sets tiers on existing rows atomically, touching nothing
 else. Older stores gain the columns, provisional by default, when opened.

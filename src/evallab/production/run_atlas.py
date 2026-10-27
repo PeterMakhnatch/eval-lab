@@ -86,14 +86,30 @@ CONTEXT_CHARS = 12_000
 # Reasoning models spend part of the budget thinking before they answer.
 MAP_OUTPUT_TOKENS = 6_000
 FORM_OUTPUT_TOKENS = 6_000
-# Source names are replaced in rendered text so the reader cannot infer the
-# benchmark (and with it the base rate) from paths or prompts.
-SOURCE_NAME_PATTERN = re.compile(
-    r"good[-_ ]?fire|cheat[-_ ]?bench|impossible[-_ ]?bench|hack[-_ ]?bench|"
-    r"reward[-_]hack[-_]data|terminal[-_ ]?wrench",
-    re.IGNORECASE,
+# Source and benchmark names are replaced in rendered text so the reader cannot
+# infer the benchmark (and with it the base rate) from paths or prompts. The CLI
+# adds every dataset id in the trace DB at run time (``source_pattern``).
+SOURCE_TERMS = (
+    r"good[-_ ]?fire", r"cheat[-_ ]?bench", r"impossible[-_ ]?bench", r"hack[-_ ]?bench",
+    r"hack[-_ ]?trace", r"reward[-_]hack[-_]data", r"terminal[-_ ]?wrench",
+    r"terminal[-_ ]?bench", r"swe[-_ ]?(?:re)?bench", r"deep[-_ ]?swe", r"bounty[-_ ]?bench",
+    r"cy[-_ ]?bench", r"sim[-_ ]?glot", r"mimo[-_ ]defect[-_ ]map", r"tb4[-_ ]audit",
+    r"tb2[-_ ]to[-_ ]tb21", r"qa[-_ ]trace[-_ ]sft", r"kimi-tb4-dev-swarm-\d{8}",
 )
 SOURCE_PLACEHOLDER = "[source]"
+# Our own task prompts can name their split ("DEV benchmark task").
+SPLIT_PROVENANCE_PATTERN = re.compile(r"\b(?:DEV|TEST|HELDOUT)(?=\s+benchmark\s+task\b)")
+SPLIT_PLACEHOLDER = "[split]"
+
+
+def source_pattern(extra_terms: Iterable[str] = ()) -> re.Pattern[str]:
+    """``SOURCE_TERMS`` plus literal ids such as dataset ids, longest first."""
+    literals = sorted({re.escape(term.strip()) for term in extra_terms if term and term.strip()},
+                      key=len, reverse=True)
+    return re.compile("|".join([*literals, *SOURCE_TERMS]), re.IGNORECASE)
+
+
+SOURCE_NAME_PATTERN = source_pattern()
 
 
 # --------------------------------------------------------------------------- #
@@ -366,11 +382,12 @@ def bound(text: str, limit: int) -> str:
     return f"{text[:head]}\n[... {len(text) - limit} characters elided ...]\n{text[-tail:]}"
 
 
-def redact_sources(text: str) -> str:
-    return SOURCE_NAME_PATTERN.sub(SOURCE_PLACEHOLDER, text)
+def redact_sources(text: str, pattern: re.Pattern[str] = SOURCE_NAME_PATTERN) -> str:
+    text = pattern.sub(SOURCE_PLACEHOLDER, text)
+    return SPLIT_PROVENANCE_PATTERN.sub(SPLIT_PLACEHOLDER, text)
 
 
-def render_step(step: Mapping[str, Any]) -> str:
+def render_step(step: Mapping[str, Any], *, pattern: re.Pattern[str] = SOURCE_NAME_PATTERN) -> str:
     """One step as text. Reasoning and agent messages are kept whole."""
     source = str(step.get("source") or "unknown")
     lines = [f"[step {step['step_id']}] {source}"]
@@ -397,7 +414,7 @@ def render_step(step: Mapping[str, Any]) -> str:
         joined = "\n---\n".join(text for text in texts if text)
         if joined.strip():
             lines += ["<observation>", bound(joined, OBSERVATION_CHARS), "</observation>"]
-    return redact_sources("\n".join(lines))
+    return redact_sources("\n".join(lines), pattern)
 
 
 @dataclass(frozen=True)
@@ -406,11 +423,12 @@ class Segment:
     text: str
 
 
-def render_segments(blind: BlindRun, *, chunk_chars: int = CHUNK_CHARS) -> list[Segment]:
+def render_segments(blind: BlindRun, *, chunk_chars: int = CHUNK_CHARS,
+                    pattern: re.Pattern[str] = SOURCE_NAME_PATTERN) -> list[Segment]:
     """Rendered steps; a step longer than a chunk becomes consecutive parts, never cut."""
     segments: list[Segment] = []
     for step in blind.steps:
-        text = render_step(step)
+        text = render_step(step, pattern=pattern)
         if len(text) <= chunk_chars:
             segments.append(Segment(step["step_id"], text))
             continue
@@ -723,7 +741,9 @@ def _completion(model: str, message: Mapping[str, Any], latency: float) -> Compl
         )
     served = body.get("model")
     if served != model:
-        raise TransportError(f"gateway answered with {served}, not {model}")
+        # The gateway falls back to another login when a route is exhausted;
+        # treat the route as unavailable so work moves to another provider.
+        raise TransportError(f"gateway answered with {served}, not {model}", quota=True)
     choices = body.get("choices") or []
     content = choices[0].get("message", {}).get("content") if choices else None
     if not isinstance(content, str):
@@ -754,11 +774,13 @@ class FacetExtractor:
     """Blind, render, map-reduce and validate one run on one route."""
 
     def __init__(self, transport: Transport, *, chunk_chars: int = CHUNK_CHARS,
-                 max_attempts: int = 3, backoff_seconds: float = 20.0) -> None:
+                 max_attempts: int = 3, backoff_seconds: float = 20.0,
+                 pattern: re.Pattern[str] = SOURCE_NAME_PATTERN) -> None:
         self.transport = transport
         self.chunk_chars = chunk_chars
         self.max_attempts = max_attempts
         self.backoff_seconds = backoff_seconds
+        self.pattern = pattern
 
     def _call(self, run: AtlasRun, route: str, purpose: str, messages: list[dict[str, str]],
               max_tokens: int, calls: list[dict[str, Any]]) -> Completion:
@@ -825,7 +847,7 @@ class FacetExtractor:
                         and item["step"] in in_chunk:
                     lines.append(f"- [step {item['step']}] {str(item.get('note') or '').strip()}")
             parts.append("\n".join(lines))
-        return redact_sources("\n\n".join(parts))
+        return redact_sources("\n\n".join(parts), self.pattern)
 
     def extract(self, run: AtlasRun, route: str) -> ExtractOutcome:
         calls: list[dict[str, Any]] = []
@@ -834,7 +856,7 @@ class FacetExtractor:
             count = len(blind.steps)
             if not count:
                 raise ValueError("run has no steps")
-            segments = render_segments(blind, chunk_chars=self.chunk_chars)
+            segments = render_segments(blind, chunk_chars=self.chunk_chars, pattern=self.pattern)
             chunks = plan_chunks(segments, chunk_chars=self.chunk_chars)
             if len(chunks) == 1:
                 body = (f"The complete run record follows ({count} steps, numbered 0 to {count - 1})."
@@ -855,10 +877,14 @@ class FacetExtractor:
                 form, errors = parse_form(completion.text, step_count=count)
                 if form is not None:
                     break
+                shorten = [name for name in WORD_LIMITS if any(e.startswith(f"{name} has") for e in errors)]
+                advice = "".join(
+                    f" Rewrite {name} in at most {WORD_LIMITS[name] - 5} words." for name in shorten
+                )
                 messages = messages + [
                     {"role": "assistant", "content": completion.text},
                     {"role": "user", "content": "The form is invalid: " + "; ".join(errors)
-                     + ". Return the corrected JSON object only."},
+                     + "." + advice + " Return the corrected JSON object only."},
                 ]
             if form is None:
                 raise ValueError("invalid form: " + "; ".join(errors))
@@ -1113,6 +1139,18 @@ def _runs(args: argparse.Namespace, root: Path, skip: Iterable[str]) -> Iterator
                       trust_tiers=args.trust_tiers, trace_ids=_run_ids(args), skip=skip)
 
 
+def database_source_pattern(database: Path) -> re.Pattern[str]:
+    """Redaction pattern with every dataset id present in the trace DB."""
+    if not database.is_file():
+        return SOURCE_NAME_PATTERN
+    connection = connect_readonly(database)
+    try:
+        ids = [row[0] for row in connection.execute("SELECT DISTINCT dataset_id FROM corpus_tasks")]
+    finally:
+        connection.close()
+    return source_pattern(ids)
+
+
 def _facet_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
     del harbor
     if not 1 <= args.per_route <= 8:
@@ -1120,24 +1158,30 @@ def _facet_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) 
     routes = args.routes or list(DEFAULT_ROUTES)
     for route in routes:
         require_subscription_route(route)
+    pattern = database_source_pattern(args.database)
     if args.dry_run:
-        plans = []
+        plans: list[dict[str, Any]] = []
+        total_chunks = total_chars = 0
         for run in _runs(args, root, ()):
             blind = blind_run(run)
-            segments = render_segments(blind, chunk_chars=args.chunk_chars)
+            segments = render_segments(blind, chunk_chars=args.chunk_chars, pattern=pattern)
             chunks = plan_chunks(segments, chunk_chars=args.chunk_chars)
-            plans.append({"run_id": run.run_id, "steps": len(blind.steps),
-                          "chars": sum(len(s.text) for s in segments), "chunks": len(chunks)})
+            chars = sum(len(s.text) for s in segments)
+            total_chunks += len(chunks)
+            total_chars += chars
+            plans.append({"run_id": run.run_id, "steps": len(blind.steps), "chars": chars,
+                          "chunks": len(chunks)})
             if args.limit is not None and len(plans) >= args.limit:
                 break
-        print(json.dumps({"runs": len(plans), "chunks": sum(p["chunks"] for p in plans),
-                          "chars": sum(p["chars"] for p in plans), "plans": plans}, indent=1))
+        print(json.dumps({"runs": len(plans), "chunks": total_chunks, "chars": total_chars,
+                          "plans": plans}, indent=1))
         return 0
     done = load_facets(args.facets)
     transport = GatewayTransport()
     try:
         summary = extract_runs(
-            _runs(args, root, done), extractor=FacetExtractor(transport, chunk_chars=args.chunk_chars),
+            _runs(args, root, done),
+            extractor=FacetExtractor(transport, chunk_chars=args.chunk_chars, pattern=pattern),
             pool=RoutePool(routes, per_route=args.per_route), facets_path=args.facets,
             calls_path=args.calls, limit=args.limit,
         )

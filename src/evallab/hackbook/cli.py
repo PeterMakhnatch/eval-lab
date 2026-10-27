@@ -1,10 +1,11 @@
-"""``evallab hackbook`` CLI: list, show, search, and match Hackbook entries ($0)."""
+"""``evallab hackbook`` CLI: query, match, calibrate, and QC Hackbook rules ($0)."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from evallab.hackbook.models import (
     load_hackbook,
     search_entries,
 )
+from evallab.hackbook.qc import ScoredCase, scan_trace_rules, score_cases
 
 
 def _row(entry: HackbookEntry) -> str:
@@ -237,6 +239,50 @@ def _calibrate_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     return 0
 
 
+def _qc_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    from evallab.tripwires import HACKBOOK_RULES
+
+    cases: list[ScoredCase] = []
+    with args.input.open(encoding="utf-8") as source:
+        for line in source:
+            if not line.strip():
+                continue
+            trace = json.loads(line)
+            cases.append(
+                ScoredCase(
+                    case_id=trace["id"],
+                    label=trace["label"],
+                    fired=scan_trace_rules(trace["agent_steps"], trace.get("steps")),
+                )
+            )
+    report, detail = score_cases(
+        cases,
+        (rule["id"] for rule in HACKBOOK_RULES),
+        dataset_id=args.dataset_id,
+        generated_at=args.generated_at or datetime.now(UTC).isoformat(),
+    )
+    if args.out is not None:
+        args.out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if args.detail_out is not None:
+        args.detail_out.write_text(
+            json.dumps(detail, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    print(
+        f"{'rule':<42} {'pos':>5} {'clean':>5} {'precision':>9} {'recall':>8} "
+        f"{'false-alarm':>11} {'marginal':>8} class"
+    )
+    for row in sorted(
+        detail["rules"], key=lambda row: (-row["clean_false_alarm_rate"], row["rule_id"])
+    ):
+        precision = "-" if row["precision"] is None else f"{row['precision']:.1%}"
+        print(
+            f"{row['rule_id']:<42} {row['positives_hit_n']:>5} {row['clean_hit_n']:>5} "
+            f"{precision:>9} {row['recall']:>8.1%} {row['clean_false_alarm_rate']:>11.1%} "
+            f"{row['marginal_true_positive_n']:>8} {row['classification']}"
+        )
+    return 0
+
+
 def _filters(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--class", dest="taxonomy_class", help="TS01..RS07 or class name")
     parser.add_argument("--side", choices=("task", "run"))
@@ -247,8 +293,8 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
     """Register the ``evallab hackbook`` subcommand."""
     hackbook = commands.add_parser(
         "hackbook",
-        help="Query the Hackbook of known cheats and task defects; match tasks/traces ($0)",
-        description="List, show, search, and statically match Hackbook entries.",
+        help="Query the Hackbook; statically match tasks/traces and QC rules ($0)",
+        description="List, show, search, statically match, and QC Hackbook entries.",
     )
     sub = hackbook.add_subparsers(dest="hackbook_cmd", required=True)
 
@@ -336,3 +382,17 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
     )
     calibrate.add_argument("--json", action="store_true")
     calibrate.set_defaults(func=_calibrate_command)
+
+    qc = sub.add_parser(
+        "qc",
+        help="Score static rule hits on labelled dev traces; recommend noisy alert demotions",
+        description="Read JSONL objects with id, label (positive/clean/unscored), agent_steps, "
+        "and optional steps. Print per-rule QC; never execute trace commands. "
+        "The after union excludes only demoted rules, retaining other verdict and diagnostic rules.",
+    )
+    qc.add_argument("--input", type=Path, required=True, metavar="TRACES.jsonl")
+    qc.add_argument("--dataset-id", required=True, metavar="NAME")
+    qc.add_argument("--out", type=Path, metavar="REPORT.json", help="Write evallab.hackbook_qc/v1")
+    qc.add_argument("--detail-out", type=Path, metavar="DETAIL.json", help="Write rates and classes")
+    qc.add_argument("--generated-at", metavar="ISO", help="Report timestamp (default: current UTC)")
+    qc.set_defaults(func=_qc_command)

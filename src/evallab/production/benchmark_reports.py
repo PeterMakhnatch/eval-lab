@@ -678,6 +678,113 @@ class _SeekerFactorialDifferentials(_SeekerExecutedDifferentials):
     arms: Annotated[list[_FactorialArm], Field(min_length=1)]  # type: ignore[assignment]
 
 
+_ORTHOGONAL_AXES = (
+    ("turn_1_visible", False, "none", False),
+    ("turn_2_visible", False, "none", True),
+    ("turn_1_hidden", True, "none", False),
+    ("turn_2_hidden_retrieval_only", True, "none", True),
+    ("turn_2_hidden_feedback_only", True, "runner_accurate", False),
+    ("turn_2_hidden_runner_accurate_feedback", True, "runner_accurate", True),
+)
+
+
+class _OrthogonalDataset(_DatasetCount):
+    role: Literal["tune", "cross_test"]
+    tasks: Annotated[list[_Label], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def validate_tasks(self) -> Self:
+        names = [task.casefold() for task in self.tasks]
+        if len(set(names)) != len(names):
+            raise ValueError("orthogonal dataset task identifiers must be unique")
+        if len(self.tasks) != self.count_n:
+            raise ValueError("orthogonal dataset task list must match count_n")
+        return self
+
+
+class _OrthogonalCohort(_BenchmarkRecord):
+    """Affirmatively DEV selected tasks, split by tune and cross-test role."""
+
+    split: Literal["dev"]
+    selection: Literal["affirmative_dev"]
+    key_count: Annotated[int, Field(gt=0)]
+    assignments_sha256: _Sha256
+    task_count: Annotated[int, Field(gt=0)]
+    affirmative_dev_n: Annotated[int, Field(gt=0)]
+    datasets: Annotated[list[_OrthogonalDataset], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def validate_selection(self) -> Self:
+        if self.affirmative_dev_n != self.task_count:
+            raise ValueError("every orthogonal cohort task must be affirmatively DEV")
+        names = [row.dataset_id.casefold() for row in self.datasets]
+        if len(set(names)) != len(names):
+            raise ValueError("orthogonal dataset identifiers must be unique")
+        if sum(row.count_n for row in self.datasets) != self.task_count:
+            raise ValueError("orthogonal dataset counts must sum to task_count")
+        memberships = {
+            (row.dataset_id.casefold(), task.casefold())
+            for row in self.datasets
+            for task in row.tasks
+        }
+        if len(memberships) != self.task_count:
+            raise ValueError("orthogonal task memberships must be unique")
+        if {row.role for row in self.datasets} != {"tune", "cross_test"}:
+            raise ValueError("orthogonal cohort needs tune and cross_test datasets")
+        return self
+
+
+class _OrthogonalCondition(_FactorialCondition):
+    feedback: Literal["none", "runner_accurate"]
+    retrieval: bool
+
+
+class _OrthogonalArm(_ExecutedArm):
+    conditions: Annotated[  # type: ignore[assignment]
+        list[_OrthogonalCondition], Field(min_length=6, max_length=6)
+    ]
+
+
+class _SeekerOrthogonalDifferentials(_BenchmarkRecord):
+    """Complete six-condition orthogonal matrix on an affirmative-DEV cohort."""
+
+    schema_: Literal["evallab.seeker_orthogonal_differentials/v1"] = Field(alias="schema")
+    protocol: _Label
+    cohort: _OrthogonalCohort
+    arms: Annotated[list[_OrthogonalArm], Field(min_length=1)]
+    source_sha256: _Sha256
+    generated_at: str
+
+    @field_validator("generated_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        return _aware_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_matrix(self) -> Self:
+        if len({arm.arm.casefold() for arm in self.arms}) != len(self.arms):
+            raise ValueError("arm identifiers must be unique")
+        if len({arm.requested_model.casefold() for arm in self.arms}) != len(self.arms):
+            raise ValueError("requested model identities must be unique across arms")
+        capacity = {row.dataset_id.casefold(): row.count_n for row in self.cohort.datasets}
+        for arm in self.arms:
+            axes = [
+                (condition.condition, condition.hide_tests, condition.feedback, condition.retrieval)
+                for condition in arm.conditions
+            ]
+            if axes != list(_ORTHOGONAL_AXES):
+                raise ValueError("every orthogonal arm must use the exact six-condition axes")
+            for condition in arm.conditions:
+                if condition.cells_n != self.cohort.task_count:
+                    raise ValueError("orthogonal conditions must evaluate every cohort task")
+                split = {row.dataset_id.casefold(): row for row in condition.by_dataset}
+                if len(split) != len(condition.by_dataset) or set(split) != set(capacity):
+                    raise ValueError("every cohort dataset must appear once in by_dataset")
+                if any(split[name].cells_n != capacity[name] for name in split):
+                    raise ValueError("orthogonal per-dataset coverage must be complete")
+        return self
+
+
 class _CascadeCohort(_BenchmarkRecord):
     role: Literal["tune", "cross_test"]
     dataset_id: _Label
@@ -964,6 +1071,8 @@ def validate_benchmark_document(raw: bytes) -> dict[str, Any]:
         _SeekerExecutedDifferentials.model_validate(document)
     elif schema == "evallab.seeker_factorial_2x2_differentials/v1":
         _SeekerFactorialDifferentials.model_validate(document)
+    elif schema == "evallab.seeker_orthogonal_differentials/v1":
+        _SeekerOrthogonalDifferentials.model_validate(document)
     elif schema == "evallab.monitor_cascade/v1":
         _MonitorCascade.model_validate(document)
     elif schema == "evallab.system_playbook/v1":

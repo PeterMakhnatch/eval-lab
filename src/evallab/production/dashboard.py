@@ -452,12 +452,21 @@ async function loadSeekerComparison(){
    }
   }
   const executed=list(data?.benchmarks).filter(entry=>
-   entry?.report?.schema==='evallab.seeker_executed_differentials/v2'&&entry.report.cohort?.split==='dev');
+   ['evallab.seeker_executed_differentials/v2','evallab.seeker_factorial_2x2_differentials/v1'].includes(entry?.report?.schema)&&entry.report.cohort?.split==='dev');
   for(const entry of executed){
    const section=node('article',undefined,'cloud-report');
    section.append(node('h3',entry.file),node('small',entry.report.schema));
    cloudProvenance(entry,section);
    cloudExecutedDifferentials(entry.report,section);
+   $('cloud-seeker-reports').append(section);
+  }
+  const orthogonal=list(data?.benchmarks).filter(entry=>
+   entry?.report?.schema==='evallab.seeker_orthogonal_differentials/v1'&&entry.report.cohort?.split==='dev');
+  for(const entry of orthogonal){
+   const section=node('article',undefined,'cloud-report');
+   section.append(node('h3',entry.file),node('small',entry.report.schema));
+   cloudProvenance(entry,section);
+   cloudOrthogonalDifferentials(entry.report,section);
    $('cloud-seeker-reports').append(section);
   }
   const roster=node('article',undefined,'cloud-report');
@@ -467,8 +476,8 @@ async function loadSeekerComparison(){
     named.get(modelBase(id))?'Named in '+named.get(modelBase(id))+' retained report(s)':
     'No retained report names this model'])));
   $('cloud-seeker-roster').append(roster);
-  notice('cloud-seeker-status',reports.length+executed.length?
-   (reports.length+executed.length)+' retained DEV Reward-Seeker reports.':
+  notice('cloud-seeker-status',reports.length+executed.length+orthogonal.length?
+   (reports.length+executed.length+orthogonal.length)+' retained DEV Reward-Seeker reports.':
    'No retained DEV Reward-Seeker comparison report. No results have been fabricated.');
  }catch(error){
   notice('cloud-seeker-status',cloudError(error,'Reward-Seeker comparison'),true);
@@ -486,13 +495,32 @@ function cloudExecutedDifferentials(report,parent){
   for(const condition of list(arm.conditions)){
    const split=list(condition.by_dataset).map(row=>row.dataset_id+' '+row.executed_differential_n+'/'+row.cells_n+' of '+capacity.get(row.dataset_id)).join(' · ');
    const cells=condition.cells_n===0?'Not evaluated':condition.cells_n+' of '+total+' tasks';
-   rows.push([arm.requested_model,condition.condition,cells,condition.attested_n+'/'+condition.cells_n,
+   const conditionLabel=condition.condition+(typeof condition.hide_tests==='boolean'?' · tests '+(condition.hide_tests?'hidden':'visible'):'');
+   rows.push([arm.requested_model,conditionLabel,cells,condition.attested_n+'/'+condition.cells_n,
     condition.executed_differential_n+'/'+condition.cells_n,cloudRatio(condition.executed_differential_n,condition.cells_n),split]);
   }
  }
  parent.append(cloudTable(['Named model (requested)','Prompt condition','Evaluated cells','Attested','Executed differential n/cells',
   'Executed rate','Executed / cells by dataset (of tasks)'],rows),
   node('small','An executed differential is an attested cell whose original grader passed (1.0) and whose repaired grader failed it (0.0) when run. Unattested cells (digest mismatch, a different served model, refusal or truncation) are in the denominator and never in the numerator. A count can never exceed the cells evaluated for that arm and condition; conditions cover different tasks and are not pooled. Requested model names only. No model is ranked.'));
+}
+function cloudOrthogonalDifferentials(report,parent){
+ const cohort=report.cohort,total=cohort.task_count,capacity=new Map(),roles=new Map();
+ for(const row of list(cohort.datasets)){capacity.set(row.dataset_id,row.count_n);roles.set(row.dataset_id,row.role);}
+ parent.append(node('p','Protocol: '+report.protocol+' · source digest '+report.source_sha256.slice(0,12)+' · generated '+report.generated_at),
+  node('p','Affirmative-DEV selection: '+cohort.affirmative_dev_n+' of '+total+' selected tasks affirmatively DEV and none non-DEV under '+cohort.key_count+' assignment keys; assignments digest '+cohort.assignments_sha256.slice(0,12)+' ('+list(cohort.datasets).map(row=>row.dataset_id+' '+row.count_n+' · '+row.role).join(', ')+').','seal'));
+ const rows=[];
+ for(const arm of list(report.arms)){
+  for(const condition of list(arm.conditions)){
+   const split=list(condition.by_dataset).map(row=>row.dataset_id+' ('+roles.get(row.dataset_id)+') '+row.executed_differential_n+'/'+row.cells_n+' of '+capacity.get(row.dataset_id)).join(' · ');
+   const conditionLabel=condition.condition+' · tests '+(condition.hide_tests?'hidden':'visible')+' · feedback '+condition.feedback+' · retrieval '+(condition.retrieval?'on':'off');
+   rows.push([arm.requested_model,conditionLabel,condition.cells_n+' of '+total+' tasks',condition.attested_n+'/'+condition.cells_n,
+    condition.executed_differential_n+'/'+condition.cells_n,cloudRatio(condition.executed_differential_n,condition.cells_n),split]);
+  }
+ }
+ parent.append(cloudTable(['Named model (requested)','Orthogonal condition','Evaluated cells','Attested','Executed differential n/cells',
+  'Executed rate','Executed / cells by dataset and role (of tasks)'],rows),
+  node('small','Tune and cross-test are producer-designated roles in this retained matrix; the report records no freeze-before-measurement ordering, so cross-test rows are not an unseen-data accuracy. Conditions cover the same selected tasks but are never pooled. Requested model names only. No model is ranked.'));
 }
 const cloudRatio=(count,total)=>total>0?cloudFraction(count/total):'Not available';
 function cloudTierCensus(report,parent){

@@ -167,8 +167,8 @@ def register_parser(commands: Any) -> None:
     )
     export.add_argument(
         "--ts4-manifest", type=Path,
-        help="Recorded TS-3/TS-4 manifest.json (cross-key audit and strictly-DEV task list); "
-        "requires --ts4-cells",
+        help="Recorded TS-3/TS-4 manifest.json (cross-key audit, strictly-DEV task list, and any "
+        "declared affirmative-DEV orthogonal selection); requires --ts4-cells",
     )
     export.add_argument(
         "--ts4-cells", type=Path,

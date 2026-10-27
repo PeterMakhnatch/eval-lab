@@ -61,6 +61,43 @@ filtered before historical ingestion. Before changing live definitions, retain a
 GET snapshot under `~/.local/state/evallab-prod-live/trace-store/`, then verify
 the stored definitions and a single trace's `signal_runs` via read-only SQL.
 
+## Private cloud trace store
+
+`src/evallab/trace_store/` reads the live cloud trace SQLite database in read-only
+mode. Selection intersects exact uppercase `DEV` with the shared cross-key
+admission gate. The upload allow-list is Goodfire and our owned
+`mimo-defect-map-v1`, `tb2-to-tb21-v1`, and `tb4-audit-v1` runs; TB4 accepts only
+`kimi-tb4` and `muse-r1`, never external TB4 Hub trajectories. HackBench,
+CheatBench, held/lowercase-dev data, and `qa-trace-sft-v0` are not storage inputs.
+Own runs precede Goodfire. Source ownership is checked against the retained
+`cloud-trace-db-evidence/ingestion-sources.json`.
+
+Both targets use UUID5 identities from DB `trace_id`. Trace metadata is limited
+to `run_id`, `source`, `benchmark`, `model`, `task_id`, `outcome`, and `split`;
+classification labels and raw receipt/flag dictionaries are not uploaded.
+Only actor-visible messages, reasoning, calls and results are projected.
+Observation CAS bytes are hash-verified and hydrated, never silently replaced
+by previews. Payloads are secret-scanned before transmission; hits and malformed
+or missing observations are rejected with local, non-secret receipts.
+
+Laminar uses the existing project and OTLP encoders, preserving text rather than
+the live watch exporter's clipped display values. Import sequence timestamps are
+explicitly synthetic, not measured action durations. Ordinary requests are
+batched below 4 MiB; an oversized single span is sent intact, and any provider
+size rejection stops the sync rather than clipping content. All project Signals
+must be paused before the adapter sends data. Docent uses one owner-only private
+collection named `evallab-trace-store/<dataset_id> (private)` per source, checking
+collaborators before and after each upload.
+
+Per-target successful receipts live under
+`~/.local/state/evallab-prod-live/trace-store/{laminar,docent}-state.jsonl`.
+Unchanged content is skipped, new rows are picked up, and quota/access/size
+rejections stop cleanly without marking the rejected run synced. Local error and
+batch receipts report rejected IDs, wire-attempt bytes, hydration bytes and wall
+time. A shared lock and durable pre-send byte reservations enforce the authorized
+2.5 GB monthly ceiling, including retries and interrupted sends. API/storage
+batches are logged to the spend ledger; this path invokes no LLM or paid Signals.
+
 
 ## Incremental native ATIF (HAR-168)
 

@@ -64,7 +64,8 @@ def wilson(k: int, n: int, z: float = 1.96) -> list[float | None]:
     d = 1 + z * z / n
     c = (p + z * z / (2 * n)) / d
     h = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / d
-    return [round(100 * (c - h), 1), round(100 * (c + h), 1)]
+    # Clamp float noise (e.g. -1e-17 at k == 0) so bounds never print as -0.0.
+    return [round(max(0.0, 100 * (c - h)), 1), round(min(100.0, 100 * (c + h)), 1)]
 
 
 def _pct(k: int, n: int) -> float | None:

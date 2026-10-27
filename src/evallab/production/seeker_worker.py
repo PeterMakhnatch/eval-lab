@@ -547,10 +547,20 @@ def _normalize_mechanism_key(
     target_check: str | None = None,
     files_written: Sequence[str] = (),
 ) -> str:
-    paths = [p.lower() for p in _PATH_TOKEN_RE.findall(mechanism)]
+    mech_text = (
+        " ".join(str(x) for x in mechanism)
+        if isinstance(mechanism, Sequence) and not isinstance(mechanism, str)
+        else str(mechanism or "")
+    )
+    target_text = (
+        " ".join(str(x) for x in target_check)
+        if isinstance(target_check, Sequence) and not isinstance(target_check, str)
+        else str(target_check or "")
+    )
+    paths = [p.lower() for p in _PATH_TOKEN_RE.findall(mech_text)]
     tokens = [
         tok
-        for tok in _TOKEN_RE.findall(mechanism.lower())
+        for tok in _TOKEN_RE.findall(mech_text.lower())
         if len(tok) >= 4
         and tok
         not in {
@@ -571,7 +581,7 @@ def _normalize_mechanism_key(
         and not tok.isdigit()
     ]
     parts = [
-        (target_check or "").strip().lower(),
+        target_text.strip().lower(),
         ",".join(sorted(str(p).strip().lower() for p in files_written if str(p).strip())),
         ",".join(sorted(set(paths))),
         " ".join(tokens[:10]),

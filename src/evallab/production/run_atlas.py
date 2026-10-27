@@ -1118,6 +1118,9 @@ def register_parser(commands: Any) -> None:
     facet.add_argument("--dry-run", action="store_true",
                        help="Blind, render and plan chunks only; no model call, no write")
     facet.set_defaults(func=_facet_command)
+    from evallab.production.run_atlas_score import add_score_parser
+
+    add_score_parser(actions)
 
 
 def _run_ids(args: argparse.Namespace) -> list[str] | None:

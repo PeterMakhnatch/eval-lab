@@ -114,7 +114,11 @@ not validate the reader's mechanism or exact-step attribution as ground truth.
   `docent hosted free allowance; no BYOK; no billing method`.
   A usage-limit error would have been an abstention; none occurred.
 - One batch line with these token totals, model, run count and plan URL was
-  written to `~/.local/state/evallab-prod-live/trace-tools/spend.jsonl`.
+  written to the canonical ledger,
+  `~/.local/state/evallab-failure-library/spend.jsonl`, with a retained copy in
+  `~/.local/state/evallab-prod-live/trace-tools/spend.jsonl`. The lane owner's
+  ledger-location update was applied by re-reading completed results and
+  idempotently mirroring the existing batch, not by running another reading.
 - SDK **docent 0.1.88**, Harbor **0.21.0**, Python **3.12**. `receipts.json`
   contains collection/plan/reading IDs, source/exporter/normalizer digests,
   frozen keymap/payload hashes and timestamps, sanitized privacy checks, token

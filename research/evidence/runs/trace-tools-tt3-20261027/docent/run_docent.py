@@ -18,6 +18,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[5]
 STATE = Path.home() / ".local/state/evallab-prod-live/trace-tools"
+CANONICAL_SPEND = Path.home() / ".local/state/evallab-failure-library/spend.jsonl"
 DEFAULT_SCRATCH = Path("/private/tmp/trace-tools-tt3-docent-20261027")
 COLLECTION_NAME = "Trace Tools TT-3 own runs (private, blind)"
 MODEL = "openai/gpt-5.4-mini"
@@ -67,9 +68,21 @@ def rows(path: Path) -> list[dict]:
 
 
 def append_locked(path: Path, values: list[dict]) -> None:
-    with path.open("a") as stream:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+") as stream:
         fcntl.flock(stream, fcntl.LOCK_EX)
+        stream.seek(0)
+        existing = {
+            json.dumps([row.get(field) for field in ("tool", "route", "model")], sort_keys=True): row
+            for row in (json.loads(line) for line in stream if line.strip())
+        }
         for value in values:
+            key = json.dumps([value[field] for field in ("tool", "route", "model")], sort_keys=True)
+            if key in existing:
+                if any(existing[key][field] != value[field] for field in
+                       ("runs", "input_tokens", "output_tokens", "usd")):
+                    raise ValueError("existing spend batch has different usage")
+                continue
             stream.write(json.dumps(value, separators=(",", ":")) + "\n")
         stream.flush()
         os.fsync(stream.fileno())
@@ -363,12 +376,15 @@ WHERE rrl.reading_id = '{rid}'""")
         "other_error" if row.get("error") else "no_error" for row in result_rows))
     owner = str(query(client, cid, "SELECT created_by FROM collections")[0]["created_by"])
     receipt["privacy_after_reading"] = privacy(client, cid, owner)
-    if "spend_logged_at" not in receipt:
-        at = now()
-        append_locked(STATE / "spend.jsonl", [{"at": at, "tool": "docent", "route": receipt["plan_url"],
-            "model": MODEL, "runs": receipt["uploaded_runs"], "input_tokens": receipt["input_tokens"],
-            "output_tokens": receipt["output_tokens"], "usd": 0, "basis": BASIS}])
-        receipt["spend_logged_at"] = at
+    at = receipt.get("spend_logged_at") or now()
+    spend_batch = {"at": at, "tool": "docent", "route": receipt["plan_url"],
+                   "model": MODEL, "runs": receipt["uploaded_runs"], "input_tokens": receipt["input_tokens"],
+                   "output_tokens": receipt["output_tokens"], "usd": 0, "basis": BASIS}
+    spend_stores = [CANONICAL_SPEND, STATE / "spend.jsonl"]
+    for ledger in spend_stores:
+        append_locked(ledger, [spend_batch])
+    receipt.update(spend_logged_at=at, spend_stores=[str(path) for path in spend_stores],
+                   spend_mirrored_at=now())
     dump(scratch / "receipt.json", receipt)
     print(json.dumps({k: receipt[k] for k in ("plan_url", "reading_results", "input_tokens", "output_tokens", "error_categories")}))
 

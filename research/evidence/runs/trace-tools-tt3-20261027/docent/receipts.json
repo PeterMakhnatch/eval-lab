@@ -71,7 +71,7 @@
   "plan_url": "https://docent.transluce.org/dashboard/aacd026f-4a17-4053-b0dc-1aad03a79356/analysis-plan/5abdad71-2b3f-4af2-a445-7b2ccd0c6a05",
   "reading_id": "7b457a52-9c6f-43cf-b2f2-b9e813133d44",
   "reading_results": 165,
-  "collected_at": "2026-10-27T22:11:23.489509+00:00",
+  "collected_at": "2026-10-27T22:27:29.194724+00:00",
   "input_tokens": 5017895,
   "output_tokens": 23002,
   "model_configuration": {
@@ -103,7 +103,7 @@
     "no_error": 165
   },
   "privacy_after_reading": {
-    "at": "2026-10-27T22:11:23.695333+00:00",
+    "at": "2026-10-27T22:27:29.329200+00:00",
     "owner_only": true,
     "collaborators": [
       {
@@ -115,6 +115,11 @@
     "owner_subject_sha256": "cae8c20b9796f2faa2049312b33544271326aa90e95c5dc0b8276ce5b63774f4"
   },
   "spend_logged_at": "2026-10-27T22:11:23.695354+00:00",
+  "spend_stores": [
+    "/Users/petermakhnatch/.local/state/evallab-failure-library/spend.jsonl",
+    "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/spend.jsonl"
+  ],
+  "spend_mirrored_at": "2026-10-27T22:27:29.331409+00:00",
   "conversion_totals": {
     "all": {
       "documents": 184,
@@ -136,10 +141,10 @@
     }
   },
   "records_written": 169,
-  "records_appended": 169,
+  "records_appended": 0,
   "results_store": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/results-v1.jsonl",
   "label_sha256": "5e59994e0f1da6c7fea63c7129f4b53009dec17a1838726e7212abbd06530a47",
-  "scored_at": "2026-10-27T22:11:39.199610+00:00",
+  "scored_at": "2026-10-27T22:27:30.271077+00:00",
   "abstention_reasons": {
     "secret_scan": 4
   },

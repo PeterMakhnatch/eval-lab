@@ -1,0 +1,450 @@
+"""Offline Run Atlas clustering, naming, persistence and scoring contracts."""
+
+from __future__ import annotations
+
+import argparse
+import builtins
+import copy
+import importlib
+import json
+import sqlite3
+from collections import Counter
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from evallab.production import run_atlas
+from evallab.production import run_atlas_clusters as atlas
+
+
+def _facets(count: int = 80) -> list[dict[str, Any]]:
+    topics = (
+        "repair parser syntax token grammar", "implement database transaction query index",
+        "alter hidden tests grader assertions", "retrieve reference answer solution archive",
+    )
+    return [{
+        "run_id": f"run-{index:04d}", "source": "private-corpus", "split": "DEV",
+        "approach": topics[index % len(topics)] + f" operation{index % 11}",
+        "shortcut": "none" if index % 2 == 0 else "read answer material",
+        "suspicion": index % 4, "outcome": "pass", "label": "do not transmit",
+    } for index in range(count)]
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="evallab atlas")
+    atlas.add_clusters_parser(parser.add_subparsers(required=True))
+    return parser
+
+
+def _cluster(run_ids: list[str], **extra: Any) -> dict[str, Any]:
+    return {
+        "cluster_id": "L1-01", "level": 1, "parent": None, "run_ids": run_ids,
+        "size": len(run_ids), "centroid_text": "repair parser | none",
+        "samples": ["repair parser | none"], "label_rates": None, "rule_rate": None,
+        **extra,
+    }
+
+
+def _empty_registry(root: Path) -> Path:
+    inventory = root / "research/experiments/mimo-defect-map-v1/inventory.json"
+    inventory.parent.mkdir(parents=True)
+    inventory.write_text(json.dumps({
+        "dataset_id": "mimo-defect-map-v1",
+        "heldout_task_ids_excluded_from_training_all_versions": [], "tasks": [],
+    }))
+    keys = root / "research/answer-keys"
+    for dataset in ("tb4-audit-v1", "cheatbench-actions-v1", "hacktrace-act-v1"):
+        directory = keys / dataset
+        directory.mkdir(parents=True)
+        (directory / "items.jsonl").touch()
+    (keys / "tb4-audit-v1/tasks.jsonl").touch()
+    return keys
+
+
+def test_hashing_embedding_import_never_requires_lancedb(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = builtins.__import__
+
+    def without_lance(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "lancedb" or name.startswith("lancedb."):
+            raise AssertionError("HashingEmbedder must not import optional LanceDB")
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_lance)
+    from evallab import lance
+
+    importlib.reload(lance)
+    vectors = lance.HashingEmbedder().embed(["repair parser | none"])
+    assert len(vectors) == 1 and len(vectors[0]) == 256
+    assert vectors == lance.HashingEmbedder().embed(["repair parser | none"])
+
+
+def test_hierarchy_determinism_membership_parents_and_centroids() -> None:
+    facets = _facets()
+    clusters = atlas.cluster_facets(facets, seed=42, min_size=2)
+    assert clusters == atlas.cluster_facets(reversed(facets), seed=42, min_size=2)
+    assert 1 < sum(cluster["level"] == 1 for cluster in clusters) <= 12
+    by_id = {cluster["cluster_id"]: cluster for cluster in clusters}
+    texts = {facet["run_id"]: atlas.facet_text(facet) for facet in facets}
+    for level in (1, 2, 3):
+        assert Counter(run_id for cluster in clusters if cluster["level"] == level
+                       for run_id in cluster["run_ids"]) == Counter(texts.keys())
+    for cluster in clusters:
+        assert cluster["size"] == len(cluster["run_ids"])
+        assert cluster["centroid_text"] in [texts[run_id] for run_id in cluster["run_ids"]]
+        assert cluster["cluster_version"] == "run-clusters/v1"
+        assert cluster["label_rates"] is None and cluster["rule_rate"] is None
+        if cluster["parent"] is None:
+            assert cluster["level"] == 1
+        else:
+            parent = by_id[cluster["parent"]]
+            assert parent["level"] + 1 == cluster["level"]
+            assert set(cluster["run_ids"]) <= set(parent["run_ids"])
+        children = [child for child in clusters if child["parent"] == cluster["cluster_id"]]
+        assert bool(children) == (cluster["level"] < 3)
+        if children:
+            assert Counter(run_id for child in children for run_id in child["run_ids"]) == Counter(
+                cluster["run_ids"],
+            )
+
+
+def test_tiny_and_indistinguishable_groups_continue_without_splitting() -> None:
+    for facets in (_facets(1), [dict(facet, approach="same", shortcut="none")
+                               for facet in _facets(30)]):
+        clusters = atlas.cluster_facets(facets, min_size=5)
+        assert [cluster["level"] for cluster in clusters] == [1, 2, 3]
+        assert [cluster["size"] for cluster in clusters] == [len(facets)] * 3
+        assert clusters[1]["parent"] == clusters[0]["cluster_id"]
+        assert clusters[2]["parent"] == clusters[1]["cluster_id"]
+    assert atlas.cluster_facets([]) == []
+
+
+def test_embeddings_use_only_exact_approach_shortcut_text() -> None:
+    inputs = []
+
+    class Embedder:
+        def embed(self, texts: list[str]) -> list[list[float]]:
+            inputs.extend(texts)
+            return [[1.0, 0.0] for _ in texts]
+
+    facets = _facets(3)
+    atlas.cluster_facets(facets, embedder=Embedder())
+    assert inputs == [facet["approach"] + " | " + facet["shortcut"] for facet in facets]
+    modified = [dict(facet, suspicion=999, outcome="fail", label="opposite") for facet in facets]
+    assert atlas.cluster_facets(facets) == atlas.cluster_facets(modified)
+
+
+@pytest.mark.parametrize("facets,kwargs,match", [
+    ([_facets(1)[0]] * 2, {}, "duplicate"),
+    ([dict(_facets(1)[0], split="TEST")], {}, "DEV"),
+    (_facets(1), {"min_size": 0}, "positive"),
+])
+def test_invalid_inputs_fail_closed(facets: list[dict[str, Any]], kwargs: dict[str, Any], match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        atlas.cluster_facets(facets, **kwargs)
+
+
+@pytest.mark.parametrize("vectors", [[], [[1.0], [0.0]], [[float("nan")]], [[]]])
+def test_invalid_embedding_output_is_rejected(vectors: list[list[float]]) -> None:
+    with pytest.raises(ValueError, match="vectors"):
+        atlas.cluster_facets(_facets(1), embedder=SimpleNamespace(embed=lambda _: vectors))
+
+
+def test_default_naming_is_deterministic_distinctive_and_short() -> None:
+    clusters = [
+        _cluster(["a"], samples=["shared parser parser grammar | none"]),
+        _cluster(["b"], cluster_id="L1-02", samples=["shared database database query | none"]),
+    ]
+    result = atlas.name_clusters(clusters)
+    assert result == atlas.name_clusters(copy.deepcopy(clusters))
+    assert result[0]["name"].split()[0] == "parser"
+    assert result[1]["name"].split()[0] == "database"
+    assert all(1 <= len(cluster["name"].split()) <= 6 for cluster in result)
+    assert all(cluster["name_source"] == "deterministic" for cluster in result)
+
+
+@pytest.mark.parametrize("reply", ["", "   ", "one two three four five six seven", "two\nlines", None])
+def test_invalid_namer_reply_falls_back(reply: Any) -> None:
+    cluster = _cluster(["a"])
+    atlas.name_clusters([cluster], namer=lambda _: reply)
+    assert cluster["name_source"] == "deterministic_fallback"
+    assert cluster["name"] == "parser repair"
+
+
+def test_namer_failure_and_valid_reply() -> None:
+    def failing(_: list[str]) -> str:
+        raise RuntimeError("offline")
+
+    failed = atlas.name_clusters([_cluster(["a"])], namer=failing)[0]
+    assert failed["name_source"] == "deterministic_fallback"
+    valid = atlas.name_clusters([_cluster(["a"])], namer=lambda _: "  Parser repairs  ")[0]
+    assert valid["name"] == "Parser repairs" and valid["name_source"] == "namer"
+
+
+def test_gateway_naming_prompt_is_blind_and_subscription_only() -> None:
+    captured = []
+
+    def complete(route: str, messages: list[dict[str, str]], *, max_tokens: int) -> Any:
+        captured.append((route, messages, max_tokens))
+        return SimpleNamespace(text="Reference lookup")
+
+    facet = dict(_facets(1)[0], run_id="secret-run-id", source="Goodfire",
+                 approach="Goodfire secret-run-id reads reference", shortcut="none")
+    clusters = atlas.cluster_facets([facet])
+    atlas.name_clusters(clusters, namer=atlas.model_namer(
+        "openai-codex/test", SimpleNamespace(complete=complete),
+    ))
+    assert len(captured) == 3
+    for route, messages, max_tokens in captured:
+        payload = json.loads(messages[1]["content"])
+        assert isinstance(payload, list) and all(isinstance(text, str) for text in payload)
+        serialized = json.dumps(messages).lower()
+        for forbidden in ("goodfire", "secret-run-id", "private-corpus", "do not transmit",
+                          "suspicion", '"outcome"', '"label"'):
+            assert forbidden not in serialized
+        assert route == "openai-codex/test" and max_tokens == 128
+    with pytest.raises(ValueError, match="subscription"):
+        atlas.model_namer("openai/paid", SimpleNamespace(complete=complete))
+
+
+def test_label_rate_math_excludes_unknown_and_uses_all_labelled_for_rules() -> None:
+    cluster = _cluster(["a", "b", "c", "d", "missing"])
+    atlas.cluster_label_rates([cluster], {"a": True, "b": False, "c": None, "d": True},
+                              rule_coverage={"a": True, "b": False, "c": True, "d": False})
+    assert cluster["label_rates"] == {"labelled": 3, "positives": 2, "rate": 2 / 3}
+    assert cluster["rule_rate"] == 1 / 3 and cluster["rule_labelled"] == 3
+    atlas.cluster_label_rates([cluster], {"a": True, "b": False}, rule_coverage={"a": False})
+    assert cluster["rule_rate"] is None and cluster["rule_labelled"] == 1
+    assert atlas.uncovered_clusters([cluster], min_size=1) == []
+    atlas.cluster_label_rates([cluster], {}, rule_coverage={})
+    assert cluster["label_rates"] == {"labelled": 0, "positives": 0, "rate": None}
+    assert cluster["rule_rate"] is None
+
+
+def test_uncovered_selection_thresholds_and_positive_sort() -> None:
+    clusters = [
+        _cluster([f"p{i}" for i in range(10)], cluster_id="L1-02"),
+        _cluster([f"p{i}" for i in range(5)], cluster_id="L1-01"),
+        _cluster(["p0"], cluster_id="tiny"),
+        _cluster([f"n{i}" for i in range(6)], cluster_id="clean"),
+        _cluster([f"h{i}" for i in range(6)], cluster_id="covered"),
+        _cluster([f"u{i}" for i in range(6)], cluster_id="unknown"),
+    ]
+    labels = {**dict.fromkeys([f"p{i}" for i in range(10)], True),
+              **dict.fromkeys([f"n{i}" for i in range(6)], False),
+              **dict.fromkeys([f"h{i}" for i in range(6)], True),
+              **dict.fromkeys([f"u{i}" for i in range(6)], True)}
+    coverage = {run_id: run_id.startswith("h") for run_id in labels if not run_id.startswith("u")}
+    coverage["p0"] = True
+    atlas.cluster_label_rates(clusters, labels, rule_coverage=coverage)
+    assert [cluster["cluster_id"] for cluster in atlas.uncovered_clusters(clusters)] == [
+        "L1-02", "L1-01",
+    ]
+    assert [cluster["cluster_id"] for cluster in atlas.uncovered_clusters(clusters, min_size=10)] == [
+        "L1-02",
+    ]
+
+
+def test_frozen_rule_coverage_prefers_stage1_and_omits_excluded(tmp_path: Path) -> None:
+    (tmp_path / "e2escore-goodfire-pf_r.json").write_text(json.dumps({"traces": [
+        {"trace_id": "a", "stage1_any": False, "alarmed": True},
+        {"trace_id": "b", "alarmed": True},
+        {"trace_id": "c", "stage1_any": True, "excluded": True},
+        {"trace_id": "d"},
+    ]}))
+    assert atlas.load_rule_coverage(tmp_path) == {"a": False, "b": True}
+
+
+def test_current_rules_replay_real_atif_without_judge() -> None:
+    def run(run_id: str, command: str) -> run_atlas.AtlasRun:
+        return run_atlas.AtlasRun(run_id, "private", "DEV", "unknown", {"steps": [{
+            "step_id": 7, "source": "assistant", "message": "Inspect files.",
+            "tool_calls": [{"function_name": "bash", "arguments": {"command": command}}],
+        }]})
+
+    clean, flagged = run("clean", "pwd"), run("flagged", "cat /tests/test_outputs.py")
+    assert atlas.rule_hits([clean, flagged]) == {"clean": False, "flagged": True}
+    assert flagged.doc["steps"][0]["source"] == "assistant"
+    with pytest.raises(ValueError, match="DEV"):
+        atlas.rule_hits([run_atlas.AtlasRun("test", "private", "TEST", "unknown", {})])
+
+
+def test_parser_registration_has_no_io(monkeypatch: pytest.MonkeyPatch) -> None:
+    def forbidden(*_: Any, **__: Any) -> Any:
+        raise AssertionError("registration must not open files, databases or a gateway")
+
+    monkeypatch.setattr(Path, "open", forbidden)
+    monkeypatch.setattr(Path, "read_text", forbidden)
+    monkeypatch.setattr(run_atlas, "connect_readonly", forbidden)
+    monkeypatch.setattr(run_atlas, "GatewayTransport", forbidden)
+    parser = _parser()
+    assert parser.parse_args(["clusters", "build"]).embedder == "hashing"
+    assert not parser.parse_args(["clusters", "show"]).with_labels
+
+
+@pytest.mark.parametrize("cap", [None, "0", "-1", "nan", "inf"])
+def test_remote_embedding_refused_before_reading_facets(
+    cap: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(run_atlas, "load_facets", lambda _: pytest.fail("input was read"))
+    arguments = ["clusters", "build", "--embedder", "remote"]
+    if cap is not None:
+        arguments += ["--spend-cap-usd", cap]
+    args = _parser().parse_args(arguments)
+    with pytest.raises(ValueError, match="spend-cap-usd"):
+        args.func(args, tmp_path)
+
+
+def test_remote_embedding_only_wires_existing_backend_without_a_call() -> None:
+    from evallab.lance import OpenAICompatibleEmbedder
+
+    args = _parser().parse_args([
+        "clusters", "build", "--embedder", "remote", "--spend-cap-usd", "1",
+        "--embedding-endpoint", "https://remote.invalid", "--embedding-model", "embedding",
+        "--embedding-model-revision", "sha256:revision", "--embedding-tokenizer", "tokens",
+        "--embedding-tokenizer-revision", "sha256:tokens", "--embedding-dim", "256",
+    ])
+    embedder = atlas._embedder(args)
+    assert isinstance(embedder, OpenAICompatibleEmbedder)
+    assert embedder.endpoint == "https://remote.invalid" and embedder.dim == 256
+
+
+def test_build_appends_snapshots_and_show_uses_latest_with_labels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    facets_path, clusters_path = tmp_path / "facets.jsonl", tmp_path / "clusters.jsonl"
+    facets = _facets(12)
+    run_atlas.append_jsonl(facets_path, facets)
+    admitted = []
+    monkeypatch.setattr(atlas, "_admit_facets", lambda facets, root, db: admitted.append(len(facets)))
+    args = _parser().parse_args([
+        "clusters", "build", "--facets", str(facets_path), "--clusters", str(clusters_path),
+        "--min-size", "2",
+    ])
+    assert args.func(args, tmp_path) == 0
+    first = atlas.load_clusters(clusters_path)
+    assert first and all(row["facet_count"] == 12 for row in first)
+    assert all(row["label_rates"] is None for row in first)
+    run_atlas.append_jsonl(facets_path, _facets(13)[-1:])
+    assert args.func(args, tmp_path) == 0
+    latest = atlas.load_clusters(clusters_path)
+    assert admitted == [12, 13]
+    assert first[0]["build_id"] != latest[0]["build_id"]
+    assert all(row["facet_count"] == 13 for row in latest)
+    assert len(clusters_path.read_text().splitlines()) == len(first) + len(latest)
+    monkeypatch.setattr(atlas, "_load_labels", lambda db, root, ids: dict.fromkeys(ids, True))
+    monkeypatch.setattr(atlas, "load_rule_coverage", lambda _: dict.fromkeys(
+        [facet["run_id"] for facet in _facets(13)], False,
+    ))
+    show = _parser().parse_args(["clusters", "show", "--clusters", str(clusters_path), "--with-labels"])
+    assert show.func(show, tmp_path) == 0
+    output = capsys.readouterr().out
+    assert f"Build {latest[0]['build_id']} — 13 facets" in output
+    assert "  L1-01.1" in output and "    L1-01.1.1" in output
+    assert "rules=0.0%" in output and "Uncovered clusters" in output
+    assert atlas.load_clusters(clusters_path)[0]["label_rates"] is None
+
+
+def test_show_without_labels_never_reads_labels_or_rule_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = tmp_path / "clusters.jsonl"
+    cluster = _cluster(["a"], cluster_version=atlas.CLUSTER_VERSION,
+                       build_id="example", facet_count=1, name="Parser repair")
+    run_atlas.append_jsonl(path, [cluster])
+    monkeypatch.setattr(atlas, "_load_labels", lambda *args: pytest.fail("labels opened"))
+    monkeypatch.setattr(atlas, "load_rule_coverage", lambda *args: pytest.fail("coverage opened"))
+    args = _parser().parse_args(["clusters", "show", "--clusters", str(path)])
+    assert args.func(args, tmp_path) == 0
+    assert "L1-01 n=1 Parser repair" in capsys.readouterr().out
+
+
+def test_direct_label_fallback_respects_receipts_and_dev_admission(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "cloud.sqlite"
+    _empty_registry(tmp_path)
+    with sqlite3.connect(path) as connection:
+        connection.executescript("""
+            CREATE TABLE corpus_tasks (task_id TEXT, dataset_id TEXT, split TEXT);
+            CREATE TABLE agent_traces (trace_id TEXT, task_id TEXT, verified_receipt_json TEXT);
+        """)
+        connection.executemany("INSERT INTO corpus_tasks VALUES (?, ?, ?)", [
+            ("dev", run_atlas.GOODFIRE_DATASET, "DEV"),
+            ("test", run_atlas.GOODFIRE_DATASET, "TEST"),
+            ("cross-key-test", run_atlas.GOODFIRE_DATASET, "DEV"),
+        ])
+        for trace_id, task_id, verdict, enacted in [
+            ("positive", "dev", "yes", "yes"), ("negative", "dev", "no", "no"),
+            ("considered", "dev", "yes", "no"), ("held", "test", "yes", "yes"),
+            ("sealed", "cross-key-test", "yes", "yes"),
+        ]:
+            receipt = {"admission": {"effective_split": "DEV"}, "source_label": {
+                "judged": True, "verdict": verdict, "verdict_enacted": enacted,
+            }}
+            connection.execute("INSERT INTO agent_traces VALUES (?, ?, ?)",
+                               (trace_id, task_id, json.dumps(receipt)))
+    monkeypatch.setattr(run_atlas, "admitted_task_ids", lambda con, reg: frozenset({"dev"}))
+    assert atlas._direct_labels(path, tmp_path, {"positive", "negative", "considered", "held", "sealed"}) == {
+        "positive": True, "negative": False, "considered": None,
+    }
+
+
+def test_optional_rule_replay_only_requests_unknown_labelled_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "clusters.jsonl"
+    run_atlas.append_jsonl(path, [_cluster(["known", "missing", "unknown"],
+        cluster_version=atlas.CLUSTER_VERSION, build_id="one", facet_count=3, name="Parser repair")])
+    monkeypatch.setattr(atlas, "_load_labels", lambda *args: {
+        "known": True, "missing": False, "unknown": None,
+    })
+    monkeypatch.setattr(atlas, "load_rule_coverage", lambda _: {"known": False})
+    requested = []
+    monkeypatch.setattr(atlas, "_replay_missing", lambda args, root, ids: (
+        requested.append(ids) or {"missing": True}
+    ))
+    args = _parser().parse_args([
+        "clusters", "show", "--clusters", str(path), "--with-labels", "--replay-rules",
+    ])
+    assert args.func(args, tmp_path) == 0
+    assert requested == [{"missing"}]
+
+
+def test_build_admission_honors_current_cross_key_test_seal(tmp_path: Path) -> None:
+    keys = _empty_registry(tmp_path)
+    items = [
+        {"item_id": f"cheatbench-actions-v1:{name}", "split": "dev",
+         "subject": {"task_id": "synthetic/" + name}}
+        for name in ("allowed", "sealed")
+    ]
+    run_atlas.append_jsonl(keys / "cheatbench-actions-v1/items.jsonl", items)
+    assignments = keys / "splits/assignments.csv"
+    assignments.parent.mkdir()
+    assignments.write_text(
+        "key_id,item_id,split\n"
+        "cheatbench-actions-v1,cheatbench-actions-v1:allowed,dev\n"
+        "cheatbench-actions-v1,cheatbench-actions-v1:sealed,dev\n"
+        "other-key,cheatbench-actions-v1:sealed,test\n"
+    )
+    facets = [dict(_facets(1)[0], run_id=item["item_id"]) for item in items]
+    atlas._admit_facets(facets[:1], tmp_path, tmp_path / "no-db")
+    with pytest.raises(ValueError, match="cross-key DEV"):
+        atlas._admit_facets(facets, tmp_path, tmp_path / "no-db")
+
+
+def test_label_loading_prefers_shared_score_module(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = []
+
+    def load_labels(**kwargs: Any) -> dict[str, bool]:
+        captured.append(kwargs)
+        return {"a": True}
+
+    monkeypatch.setattr(atlas.importlib, "import_module",
+                        lambda _: SimpleNamespace(load_labels=load_labels))
+    monkeypatch.setattr(atlas, "_direct_labels", lambda *args: pytest.fail("fallback called"))
+    assert atlas._load_labels(tmp_path / "db", tmp_path, {"a"}) == {"a": True}
+    assert captured == [{"database": tmp_path / "db", "repo_root": tmp_path, "run_ids": {"a"}}]

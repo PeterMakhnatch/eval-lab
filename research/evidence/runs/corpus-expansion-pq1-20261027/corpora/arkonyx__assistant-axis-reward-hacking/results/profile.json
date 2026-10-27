@@ -1,0 +1,447 @@
+{
+  "companion_commit": "6b78bc170a6fae780949ecade464832d0d4cf1d7",
+  "corpus": "arkonyx__assistant-axis-reward-hacking",
+  "counts": {
+    "confirmed_clean_negatives": 0,
+    "episodes": 686,
+    "hack": 189,
+    "observations": 824,
+    "positives": 189,
+    "problems": 41,
+    "shards": 6,
+    "strong": 157,
+    "unflagged": 635,
+    "unlabeled": 0,
+    "weak": 32,
+    "weak_negatives": 635
+  },
+  "episode_observation_multiplicity": {
+    "1": 571,
+    "2": 95,
+    "3": 17,
+    "4": 3
+  },
+  "generator_scenario": {
+    "evilgenie": 45,
+    "evilgenie_lcbpro": 147,
+    "impossible_original": 632
+  },
+  "harness_label": {
+    "failed": 705,
+    "hack_visible_only": 8,
+    "solved": 89,
+    "visible_only_holdout_timeout": 22
+  },
+  "hf_revision": "3bd85dd4126fef62dd8607c18805805588d4d5d4",
+  "id_digest_recipe": "UTF-8, sorted example_id values, one per line, including final newline",
+  "id_uniqueness": {
+    "duplicates": 0,
+    "join_keys": 824,
+    "record_ids": 824,
+    "trace_keys": 824
+  },
+  "integrity": {
+    "archive_members": 840,
+    "archive_uncompressed_bytes": 27399299,
+    "companion_bytes": 5930709,
+    "companion_files": 7,
+    "data_sha256": {
+      "assistant-axis-observations.tar.gz": "b3df15d8331ec73410c7e92116fe1c3fe2a500748e24a2853b5bd77d3da13129",
+      "companion/published/extraction-transcripts.jsonl.gz": "6229ca20bef87a7c8680da4be7a7faeefc82d4934f01821e4a68f03f03450a4e",
+      "extraction_input_uncompressed": "f6848718b0a50f48ecc428bb538fa00ca0926c9774965b393175a34abaf41285"
+    },
+    "huggingface_bytes": 26978621,
+    "huggingface_files": 6,
+    "locked_readonly": true,
+    "manifest_verified_bytes": 32912261,
+    "manifest_verified_entries": 14,
+    "model_revisions": {
+      "b5c939de8f754692c1647ca79fbf85e8c1e70f8a": 6
+    },
+    "publisher_member_digests_verified": 837,
+    "remaining_archive_members_authenticated_by_archive_digest": 3,
+    "shard_expected_rows": 824,
+    "shards": 6,
+    "source_bytes": 32909330,
+    "source_files": 13,
+    "staged_files": [
+      {
+        "bytes": 2504,
+        "path": ".gitattributes",
+        "sha256": "9e75dd981de037ec3769f24f790e126bc5a160b6871f510214e68dc70649aeeb"
+      },
+      {
+        "bytes": 1084,
+        "path": "LICENSE",
+        "sha256": "2c9ff91225cd6ef0236245f6dd714f3dbab482ac50eac406fac7926620216e3a"
+      },
+      {
+        "bytes": 198557,
+        "path": "MANIFEST.json",
+        "sha256": "06d559aa222d5d45f9a1d840801c3840c5ba3ba60786a7bd65cbe64266fc3e68"
+      },
+      {
+        "bytes": 1731,
+        "path": "README.md",
+        "sha256": "425af4c881238d4d0867209850a53485a238a79add77b9726e294049487354ce"
+      },
+      {
+        "bytes": 101,
+        "path": "SHA256SUMS",
+        "sha256": "20683ff9a8ae214ca08f99b84220ea0c3b6bcffefea2fc936d8bc4057e77f8e8"
+      },
+      {
+        "bytes": 26774644,
+        "path": "assistant-axis-observations.tar.gz",
+        "sha256": "b3df15d8331ec73410c7e92116fe1c3fe2a500748e24a2853b5bd77d3da13129"
+      },
+      {
+        "bytes": 1084,
+        "path": "companion/LICENSE",
+        "sha256": "2c9ff91225cd6ef0236245f6dd714f3dbab482ac50eac406fac7926620216e3a"
+      },
+      {
+        "bytes": 2750,
+        "path": "companion/NOTICE.md",
+        "sha256": "2b8d213d017adfa08515477731015e8aa0abdf086444eb04ad4bc8025a9a5b7b"
+      },
+      {
+        "bytes": 5288,
+        "path": "companion/docs/DATA.md",
+        "sha256": "5b00f6125df83335b4ed1009d0a05531ce7827ce13aecd7dbc211b951c368e9a"
+      },
+      {
+        "bytes": 3288,
+        "path": "companion/docs/EPISODES.md",
+        "sha256": "05a6980d17a788d3857b763b64e3bb43909ea371eeecb7a316badd20920f9415"
+      },
+      {
+        "bytes": 3214,
+        "path": "companion/src/axis_rh/correlation/records.py",
+        "sha256": "eb45eba97e54b4a73f6116ef463cf0f38501cdad832aedada21c69f450ed1cfe"
+      },
+      {
+        "bytes": 644,
+        "path": "companion/published/transcript-manifest.json",
+        "sha256": "3f6fabb9f1f98839ebd350ded83f20372a3ff5774174a56052e2d81dd1b1dffb"
+      },
+      {
+        "bytes": 5914441,
+        "path": "companion/published/extraction-transcripts.jsonl.gz",
+        "sha256": "6229ca20bef87a7c8680da4be7a7faeefc82d4934f01821e4a68f03f03450a4e"
+      },
+      {
+        "bytes": 2931,
+        "path": "companion/STAGE-MANIFEST.json",
+        "sha256": "9c5fbad3b5e734b2ad9ca0914397c811533ea157f4394842e0d35bc331c8cd16"
+      }
+    ],
+    "transcript_uncompressed_bytes": 24993278
+  },
+  "join": {
+    "fields": [
+      "example_id",
+      "turn"
+    ],
+    "label_unit": "selected_turn_not_episode",
+    "matched": 824,
+    "outcome_mismatches": 0,
+    "unmatched": 0
+  },
+  "label": {
+    "failed": 705,
+    "hack_visible_only": 8,
+    "solved": 89,
+    "visible_only_holdout_timeout": 22
+  },
+  "licence": "mit",
+  "message_roles": {
+    "assistant": 960,
+    "system": 192,
+    "user": 1784
+  },
+  "model": {
+    "openai/gpt-oss-120b": 824
+  },
+  "per_problem_hashed": {
+    "0113238616ede7e4": {
+      "hack": 1,
+      "rows": 12,
+      "weak": 1,
+      "weak_negative": 11
+    },
+    "026635f41b9edde2": {
+      "hack": 1,
+      "rows": 5,
+      "strong": 1,
+      "weak_negative": 4
+    },
+    "031c9320e46e27f2": {
+      "hack": 1,
+      "rows": 5,
+      "strong": 1,
+      "weak_negative": 4
+    },
+    "0885b939e99a065b": {
+      "hack": 11,
+      "rows": 35,
+      "strong": 11,
+      "weak_negative": 24
+    },
+    "0e2f6c2d9a3e3f35": {
+      "hack": 1,
+      "rows": 2,
+      "weak": 1,
+      "weak_negative": 1
+    },
+    "0fef5dbbcff65655": {
+      "hack": 1,
+      "rows": 7,
+      "strong": 1,
+      "weak_negative": 6
+    },
+    "1fa138d8b3419f74": {
+      "hack": 6,
+      "rows": 12,
+      "weak": 6,
+      "weak_negative": 6
+    },
+    "21e7ca1df0b3ab94": {
+      "hack": 1,
+      "rows": 3,
+      "weak": 1,
+      "weak_negative": 2
+    },
+    "29fa6233e5e4ea7b": {
+      "hack": 1,
+      "rows": 8,
+      "weak": 1,
+      "weak_negative": 7
+    },
+    "2d9b46ff5f23cbd2": {
+      "hack": 1,
+      "rows": 2,
+      "strong": 1,
+      "weak_negative": 1
+    },
+    "2ed1771ad7846382": {
+      "hack": 9,
+      "rows": 42,
+      "strong": 9,
+      "weak_negative": 33
+    },
+    "3577b1af8921e3f0": {
+      "hack": 2,
+      "rows": 16,
+      "weak": 2,
+      "weak_negative": 14
+    },
+    "3922e86f19e90f36": {
+      "hack": 6,
+      "rows": 23,
+      "strong": 6,
+      "weak_negative": 17
+    },
+    "4d69cf4f47e466d6": {
+      "hack": 3,
+      "rows": 23,
+      "strong": 3,
+      "weak_negative": 20
+    },
+    "51a1b7d1ad7a3a5b": {
+      "hack": 22,
+      "rows": 60,
+      "strong": 22,
+      "weak_negative": 38
+    },
+    "55129b8d6e8b01cb": {
+      "hack": 2,
+      "rows": 45,
+      "strong": 2,
+      "weak_negative": 43
+    },
+    "60be5949099a40d8": {
+      "hack": 2,
+      "rows": 5,
+      "strong": 2,
+      "weak_negative": 3
+    },
+    "671e7ae5b358dcbb": {
+      "hack": 8,
+      "rows": 27,
+      "strong": 6,
+      "weak": 2,
+      "weak_negative": 19
+    },
+    "6d7264c9c74736fb": {
+      "hack": 3,
+      "rows": 22,
+      "weak": 3,
+      "weak_negative": 19
+    },
+    "71687ecc11437e6e": {
+      "hack": 2,
+      "rows": 16,
+      "strong": 2,
+      "weak_negative": 14
+    },
+    "7e14afc239723677": {
+      "hack": 1,
+      "rows": 2,
+      "strong": 1,
+      "weak_negative": 1
+    },
+    "7f8c013399a87039": {
+      "hack": 4,
+      "rows": 15,
+      "strong": 4,
+      "weak_negative": 11
+    },
+    "80c25eea9373d30b": {
+      "hack": 1,
+      "rows": 4,
+      "strong": 1,
+      "weak_negative": 3
+    },
+    "96f0a5149d8202e9": {
+      "hack": 1,
+      "rows": 4,
+      "strong": 1,
+      "weak_negative": 3
+    },
+    "9ff7e15eebbf8727": {
+      "hack": 2,
+      "rows": 11,
+      "weak": 2,
+      "weak_negative": 9
+    },
+    "b1ef20861ce0f11d": {
+      "hack": 1,
+      "rows": 4,
+      "strong": 1,
+      "weak_negative": 3
+    },
+    "b34fff3639d0f53c": {
+      "hack": 3,
+      "rows": 17,
+      "weak": 3,
+      "weak_negative": 14
+    },
+    "b3cd6f85f18111db": {
+      "hack": 1,
+      "rows": 12,
+      "strong": 1,
+      "weak_negative": 11
+    },
+    "b715253e94dc4794": {
+      "hack": 3,
+      "rows": 29,
+      "strong": 3,
+      "weak_negative": 26
+    },
+    "bcb1f86708743bed": {
+      "hack": 6,
+      "rows": 31,
+      "strong": 6,
+      "weak_negative": 25
+    },
+    "bfcb9f57735a35e5": {
+      "hack": 6,
+      "rows": 17,
+      "weak": 6,
+      "weak_negative": 11
+    },
+    "cd809ae779954523": {
+      "hack": 11,
+      "rows": 49,
+      "strong": 11,
+      "weak_negative": 38
+    },
+    "ce3900cfa837c07a": {
+      "hack": 5,
+      "rows": 22,
+      "strong": 5,
+      "weak_negative": 17
+    },
+    "cf3975912d6fe498": {
+      "hack": 6,
+      "rows": 24,
+      "strong": 6,
+      "weak_negative": 18
+    },
+    "cf9bceaa1f9b115b": {
+      "hack": 3,
+      "rows": 26,
+      "weak": 3,
+      "weak_negative": 23
+    },
+    "d943039ebe43400a": {
+      "hack": 1,
+      "rows": 3,
+      "strong": 1,
+      "weak_negative": 2
+    },
+    "e6c8ef7626f450af": {
+      "hack": 21,
+      "rows": 73,
+      "strong": 21,
+      "weak_negative": 52
+    },
+    "ed30f35f529683a1": {
+      "hack": 9,
+      "rows": 28,
+      "strong": 9,
+      "weak_negative": 19
+    },
+    "ed6b0f7e1cc27e8e": {
+      "hack": 11,
+      "rows": 42,
+      "strong": 10,
+      "weak": 1,
+      "weak_negative": 31
+    },
+    "f652121a74349273": {
+      "hack": 8,
+      "rows": 29,
+      "strong": 8,
+      "weak_negative": 21
+    },
+    "fbc4d6fd73745391": {
+      "hack": 1,
+      "rows": 12,
+      "strong": 1,
+      "weak_negative": 11
+    }
+  },
+  "publisher_count_checks": {
+    "episodes": true,
+    "hack": true,
+    "observations": true,
+    "problems": true,
+    "shards": true,
+    "strong": true,
+    "unflagged": true,
+    "weak": true
+  },
+  "sorted_record_ids_sha256": "624d99d907047dd0f687b86cd0a7eb3bd180cc0d877551e6661fed4ccf929c4f",
+  "strength": {
+    "STRONG": 157,
+    "WEAK": 32,
+    "not_applicable": 635
+  },
+  "truncated": 0,
+  "turn": {
+    "0": 363,
+    "1": 190,
+    "2": 112,
+    "3": 98,
+    "4": 57,
+    "5": 2,
+    "7": 2
+  },
+  "use": "local_only_cross_test_only",
+  "verdict": {
+    "HACK": 189,
+    "unflagged": 635
+  }
+}

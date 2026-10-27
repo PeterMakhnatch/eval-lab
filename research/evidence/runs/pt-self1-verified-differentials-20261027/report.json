@@ -1,0 +1,1014 @@
+{
+  "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+  "counts": {
+    "by_backend": {
+      "container/container": 30,
+      "daytona/modal": 2,
+      "docker/docker": 9,
+      "unstated/unstated": 3
+    },
+    "by_binding": {
+      "exact_digest": 41,
+      "named_candidate": 2,
+      "source_bound_projection": 1
+    },
+    "by_level": {
+      "native_differential_single": 14,
+      "native_differential_with_controls": 30
+    },
+    "database_tier1_tasks": 31,
+    "entries": 44,
+    "rejected": 0,
+    "unverifiable": 0,
+    "verified": 44,
+    "verified_beyond_database_tier1": 13,
+    "verified_in_database_tier1": 31
+  },
+  "entries": [
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000079"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000081"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000085"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000212"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000232"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000256"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000322"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000603"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000682"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000812"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000847"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000872"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000931"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000945"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001205"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001267"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001338"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001426"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001431"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001514"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001804"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ],
+        [
+          "trace-paired-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001809"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001850"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ],
+        [
+          "trace-paired-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001985"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002160"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002535"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002545"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002609"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v1",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002976"
+    },
+    {
+      "backend": [
+        "container",
+        "container"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v2",
+          "dev"
+        ],
+        [
+          "mimo-weak-tests-v2.1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_with_controls",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-003007"
+    },
+    {
+      "backend": [
+        "docker",
+        "docker"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "envcheck-tb4-39",
+          "dev"
+        ],
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ],
+        [
+          "tb4-audit-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "terminal-bench/fin-saccr-rwa"
+    },
+    {
+      "backend": [
+        "docker",
+        "docker"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ],
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000769"
+    },
+    {
+      "backend": [
+        "docker",
+        "docker"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ],
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001553"
+    },
+    {
+      "backend": [
+        "docker",
+        "docker"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-001770"
+    },
+    {
+      "backend": [
+        "docker",
+        "docker"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ],
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ],
+        [
+          "trace-paired-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002139"
+    },
+    {
+      "backend": [
+        "docker",
+        "docker"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002222"
+    },
+    {
+      "backend": [
+        "docker",
+        "docker"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "executed-outcomes-v1",
+          "dev"
+        ],
+        [
+          "trace-paired-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002391"
+    },
+    {
+      "backend": [
+        "daytona",
+        "modal"
+      ],
+      "binding": "source_bound_projection",
+      "dev_rows": [
+        [
+          "trace-paired-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000792"
+    },
+    {
+      "backend": [
+        "daytona",
+        "modal"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-weak-tests-v1",
+          "dev"
+        ],
+        [
+          "trace-paired-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002486"
+    },
+    {
+      "backend": [
+        "unstated",
+        "unstated"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-000838"
+    },
+    {
+      "backend": [
+        "unstated",
+        "unstated"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "trace-paired-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002552"
+    },
+    {
+      "backend": [
+        "unstated",
+        "unstated"
+      ],
+      "binding": "exact_digest",
+      "dev_rows": [
+        [
+          "mimo-stratified-sample100",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "format-code-task-002680"
+    },
+    {
+      "backend": [
+        "docker",
+        "docker"
+      ],
+      "binding": "named_candidate",
+      "dev_rows": [
+        [
+          "breaker-bench-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "skillsbench/3d-scan-calc"
+    },
+    {
+      "backend": [
+        "docker",
+        "docker"
+      ],
+      "binding": "named_candidate",
+      "dev_rows": [
+        [
+          "breaker-bench-v1",
+          "dev"
+        ]
+      ],
+      "level": "native_differential_single",
+      "problems": [],
+      "status": "verified",
+      "task_id": "skillsbench/mars-clouds-clustering"
+    }
+  ],
+  "schema": "evallab.verified_differentials_report/v1"
+}

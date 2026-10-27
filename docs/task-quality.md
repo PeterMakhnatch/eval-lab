@@ -188,6 +188,15 @@ call (trace-led and issue-led, including `task_quality` and any `issue_kind`)
 widens to documents matching any term. Ranking stays tier first, then per-term
 strength, so matching more terms ranks higher only within a tier.
 
+**Provable differentials.** Storage does not check what a tier claims: a tier-1 row
+needs only a valid tier value. The count of tasks where a wrong shortcut passes the
+original grader and fails the repaired one is therefore recomputed from retained
+bytes by `research/evidence/runs/pt-self1-verified-differentials-20261027/tools/verify_differentials.py`:
+it re-hashes each cited grade, resolves its reward pointer, refuses a host-side grade
+or an infrastructure exception, and applies the cross-key DEV predicate. A summary
+column, a nop control, or a hardcoded repaired zero never counts. The ledger it reads
+and its current count are in that run's README.
+
 At most one example per task and one trace per example is returned. `top_k`,
 `snippet_chars`, and `max_steps_per_trace` are positive integers. Overlong issue,
 witness, and trace identifiers use stable SHA-256 references; CAS URIs retain

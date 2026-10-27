@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import re
 import shlex
-from typing import Any
+from typing import Any, NamedTuple
 
 #: Tool calls that count as a file edit.
 EDIT_TOOL_NAMES = frozenset(
@@ -91,7 +91,8 @@ _SHELL_WRAPPER_RE = re.compile(r"^(?:(?:/usr)?/bin/)?(?:ba|z|da)?sh\s+-(?:l?c|cl
 #: Only complete JSON string values count, not literal prefixes of JS expressions.
 #: Comment matching must stop at the first terminator, not swallow an expression.
 _CODEX_EXEC_CMD_RE = re.compile(
-    r'exec_command\s*\(\s*\{[^{}]*?(?<![\w"])(?:"cmd"|cmd)\s*:\s*("(?:[^"\\]|\\.)*")'
+    r"exec_command\s*\(\s*(?P<obj>\{)[^{}]*?(?<![\w\"])(?:\"cmd\"|cmd)\s*:\s*"
+    r'(?P<cmd>"(?:[^"\\]|\\.)*")'
     r"(?=(?:\s|/\*(?:[^*]|\*(?!/))*\*/|"
     r"//[^\r\n\u2028\u2029]*(?:[\r\n\u2028\u2029]|\Z))*[,}])"
 )
@@ -114,19 +115,108 @@ def unwrap_shell_wrapper(command: str) -> str:
     return command
 
 
-def codex_exec_commands(script: str) -> list[str]:
-    """Complete literal ``cmd`` values in a Codex ``exec`` script, in call order."""
+_OPENERS = "([{"
+_CLOSERS = ")]}"
+_WORKDIR_FIELD_RE = re.compile(r"""^\s*(?:"workdir"|'workdir'|workdir)\s*(?::|$)""")
+_WORKDIR_LITERAL_RE = re.compile(
+    r"""^\s*(?:"workdir"|'workdir'|workdir)\s*:\s*("(?:[^"\\\n]|\\.)*")\s*$"""
+)
+
+
+def _object_fields(script: str, start: int) -> list[str]:
+    """Top-level field texts of the object literal opening at ``script[start]``.
+
+    Strings and nested brackets are skipped and comments dropped, so a quoted
+    ``workdir: "..."`` or a nested object's field is never a top-level field.
+    An unterminated object yields only its terminated fields.
+    """
+    fields: list[str] = []
+    current: list[str] = []
+    depth = 0
+    index = start + 1
+    end = len(script)
+    while index < end:
+        char = script[index]
+        if char in "\"'`":
+            close = index + 1
+            while close < end and script[close] != char:
+                close += 2 if script[close] == "\\" else 1
+            current.append(script[index : close + 1])
+            index = close + 1
+            continue
+        if script.startswith("//", index):
+            stop = re.compile(r"[\r\n\u2028\u2029]").search(script, index)
+            index = stop.start() if stop else end
+            continue
+        if script.startswith("/*", index):
+            stop_at = script.find("*/", index + 2)
+            if stop_at == -1:
+                return fields
+            index = stop_at + 2
+            current.append(" ")
+            continue
+        if char in _OPENERS:
+            depth += 1
+        elif char in _CLOSERS:
+            if depth == 0:
+                if char == "}":
+                    fields.append("".join(current))
+                return fields if char == "}" else []
+            depth -= 1
+        elif char == "," and depth == 0:
+            fields.append("".join(current))
+            current = []
+            index += 1
+            continue
+        current.append(char)
+        index += 1
+    return fields
+
+
+def _object_workdir(script: str, start: int) -> tuple[bool, str | None]:
+    """``(present, literal)`` for the ``workdir`` field of the call object at ``start``."""
+    found: list[str | None] = []
+    for field in _object_fields(script, start):
+        if _WORKDIR_FIELD_RE.match(field) is None:
+            continue
+        literal = _WORKDIR_LITERAL_RE.match(field)
+        value: Any = None
+        if literal is not None:
+            try:
+                value = json.loads(literal.group(1))
+            except ValueError:
+                value = None
+        found.append(value if isinstance(value, str) and value.strip() else None)
+    if not found:
+        return False, None
+    return True, found[0] if len(found) == 1 else None
+
+
+def codex_exec_invocations(script: str) -> list[BashInvocation]:
+    """Complete literal ``cmd`` values in a Codex ``exec`` script, in call order.
+
+    Each carries the literal ``workdir`` of the SAME ``exec_command`` argument
+    object (before or after ``cmd``). A computed, duplicated or non-string
+    ``workdir`` is present-but-unknown; quoted text, comments and nested objects
+    never supply one.
+    """
     if not isinstance(script, str) or "exec_command" not in script:
         return []
-    out: list[str] = []
+    out: list[BashInvocation] = []
     for match in _CODEX_EXEC_CMD_RE.finditer(script):
         try:
-            command = json.loads(match.group(1))
+            command = json.loads(match.group("cmd"))
         except ValueError:
             continue
         if isinstance(command, str) and command.strip():
-            out.append(command.strip())
+            present, workdir = _object_workdir(script, match.start("obj"))
+            out.append(BashInvocation(command.strip(), present, workdir))
     return out
+
+
+def codex_exec_commands(script: str) -> list[str]:
+    """Complete literal ``cmd`` values in a Codex ``exec`` script, in call order."""
+    return [invocation.command for invocation in codex_exec_invocations(script)]
 
 
 def codex_apply_patches(script: str) -> list[str]:
@@ -144,7 +234,21 @@ def codex_apply_patches(script: str) -> list[str]:
     return out
 
 
-def tool_bash_commands(call: dict[str, Any]) -> list[str]:
+class BashInvocation(NamedTuple):
+    """One decoded shell command and the working directory its own call object names.
+
+    ``has_workdir`` is False when the source carries no per-command directory.
+    When True, ``workdir`` is the complete literal directory, or ``None`` when
+    the field is present but computed, duplicated or otherwise not a plain
+    literal (unknown: callers must not guess).
+    """
+
+    command: str
+    has_workdir: bool = False
+    workdir: str | None = None
+
+
+def tool_bash_invocations(call: dict[str, Any]) -> list[BashInvocation]:
     """Decode shell text, preserving legacy keystrokes and Codex call attribution.
 
     Only known shell tools interpret ``command`` as executable text. Legacy
@@ -156,13 +260,18 @@ def tool_bash_commands(call: dict[str, Any]) -> list[str]:
         return []
     keystrokes = args.get("keystrokes")
     if isinstance(keystrokes, str) and keystrokes.strip():
-        return [keystrokes]
+        return [BashInvocation(keystrokes)]
     name = str(call.get("function_name") or call.get("name") or "").lower()
     command = args.get("command")
     if name in SHELL_TOOL_NAMES and isinstance(command, str) and command.strip():
-        return [command]
+        return [BashInvocation(command)]
     script = args.get("input")
-    return codex_exec_commands(script) if isinstance(script, str) else []
+    return codex_exec_invocations(script) if isinstance(script, str) else []
+
+
+def tool_bash_commands(call: dict[str, Any]) -> list[str]:
+    """Shell command texts of one tool call (see :func:`tool_bash_invocations`)."""
+    return [invocation.command for invocation in tool_bash_invocations(call)]
 
 
 def step_bash_commands(step: dict[str, Any]) -> list[str]:

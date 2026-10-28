@@ -1,0 +1,144 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-001431",
+  "variant_digest": "sha256:e1e5ae928f08270d79f0be4b1e191d660e2566b7437831102bc145b3b1a3ed70",
+  "variant_harbor_digest": "sha256:613e2ae806af0d542919c0c1dbde7e00c4a96157263a035c794e874bb147db7e",
+  "parent": {
+    "digest": "sha256:cb9d3d85293fdfb9d55e78a3024060ff69389a523632be653c6b66d0597fef36",
+    "harbor_digest": "sha256:2c45ed375781d7bb34321ef28a19429a5ae367ba47f8f428e83585186abb1945",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-code",
+      "revision": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
+      "path": "tasks/format-code-task-001431",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@ts11-1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:9c930574383e4ab9c53dd543ea0c817b6f961fc5f9d45e59e5610d82fd526cfd",
+      "after_sha256": "sha256:7ec67740832b1969964d6c3245dcfd75f6a682ee52f1d83f1051fea22d38f03d",
+      "content": "diff --git a/test/logformats_test.py b/test/logformats_test.py\nindex 347785b4b..400bf369d 100644\n--- a/test/logformats_test.py\n+++ b/test/logformats_test.py\n@@ -11,7 +11,7 @@\n \n TODO: correctly set preserves_channel and adds_default_channel\n \"\"\"\n-\n+import gzip\n import logging\n import unittest\n import tempfile\n@@ -555,6 +555,77 @@ def test_can_and_canfd_error_frames(self):\n         self.assertMessagesEqual(actual, expected_messages)\n \n \n+class TestGzipASCFileFormat(ReaderWriterTest):\n+    \"\"\"Tests can.GzipASCWriter and can.GzipASCReader\"\"\"\n+\n+    def _setup_instance(self):\n+        super()._setup_instance_helper(\n+            can.GzipASCWriter,\n+            can.GzipASCReader,\n+            binary_file=True,\n+            check_comments=True,\n+            preserves_channel=False,\n+            adds_default_channel=0,\n+        )\n+\n+    def test_logger_and_logreader_dispatch_gzip_asc(self):\n+        expected_messages = [\n+            can.Message(\n+                timestamp=1.0,\n+                arbitration_id=0x123,\n+                is_extended_id=False,\n+                data=[0x12, 0x34, 0x56],\n+            ),\n+            can.Message(\n+                timestamp=1.25,\n+                arbitration_id=0x1ABCDE,\n+                is_extended_id=True,\n+                data=[0xA5, 0x5A],\n+            ),\n+        ]\n+        expected = [\n+            (message.arbitration_id, message.is_extended_id, bytes(message.data))\n+            for message in expected_messages\n+        ]\n+        with tempfile.TemporaryDirectory() as directory:\n+            filename = directory + \"/dispatch.asc.gz\"\n+            logger = can.Logger(filename)\n+            try:\n+                for message in expected_messages:\n+                    logger(message)\n+            finally:\n+                logger.stop()\n+            with gzip.open(filename, \"rt\") as asc_file:\n+                decoded_messages = list(can.ASCReader(asc_file))\n+            reader = can.LogReader(filename)\n+            try:\n+                dispatched_messages = list(reader)\n+            finally:\n+                reader.stop()\n+            for messages in (decoded_messages, dispatched_messages):\n+                self.assertEqual(\n+                    [\n+                        (message.arbitration_id, message.is_extended_id, bytes(message.data))\n+                        for message in messages\n+                    ],\n+                    expected,\n+                )\n+\n+    def assertIncludesComments(self, filename):\n+        \"\"\"\n+        Ensures that all comments are literally contained in the given file.\n+\n+        :param filename: the path-like object to use\n+        \"\"\"\n+        if self.original_comments:\n+\n+            with gzip.open(filename, \"rt\" if self.binary_file else \"r\") as file:\n+                output_contents = file.read()\n+\n+            for comment in self.original_comments:\n+                self.assertIn(comment, output_contents)\n+\n+\n class TestBlfFileFormat(ReaderWriterTest):\n     \"\"\"Tests can.BLFWriter and can.BLFReader.\n \ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,5 @@\n+H4sIAAAAAAAAA+3SwY6DIBAGYM8+xaR3EUzR0z6LQWG3JlWMjCZ9+6KHttlkt5c2m3b/78IAkwD5\n+Ec3cHW3thiVPnkVGldbbGH0ft1rpQhWFqqQuEqmUrsqE9NNudGMObCaiZPKef+u7t/+ixDV/doHr\n+1ve9GawIh8edcS9/tb/kX1ZyzX9fypi/fNwVfvbP828tbcE3zqbBz1PrSCzrb2i6ITctd4thl44n\n+PviBsp5iFbsp87Qz1vqRw8eO1qX86L8+/dQbDvU6F+OJsiX96/cBAAAAAAAAAAAAAAAAAAAAALyz\n+M5bKGI4AKAAA\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\n"
+    }
+  ],
+  "rationale": "Require the instruction's .asc.gz Logger/LogReader factory behavior, which the original standalone gzip-class setup does not exercise. Add one unittest to the already selected logformats_test.py file: send distinct standard and extended CAN frames through can.Logger; require standard gzip plus can.ASCReader and can.LogReader to recover the exact ordered arbitration IDs, extended-ID flags and payload bytes. Preserve all existing tests and runner/image bytes. static only; no native oracle or retained-shortcut trial executed.",
+  "inputs": {
+    "task_id": "format-code-task-001431",
+    "case_id": "D0180",
+    "source_revision": "073bdd203ef8bec2db2169f70e214fcf1ad31779",
+    "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "qa_parent_digest": "sha256:cb9d3d85293fdfb9d55e78a3024060ff69389a523632be653c6b66d0597fef36",
+    "targeted_keys": [
+      "mimo-weak-tests-v2.1:format-code-task-001431:block"
+    ],
+    "weak_checks": [
+      {
+        "file": "tests/test.patch",
+        "line": 21,
+        "end_line": 29,
+        "native_file": "test/logformats_test.py",
+        "native_line": 561,
+        "description": "The added test setup supplies standalone can.GzipASCWriter/can.GzipASCReader, leaving the required Logger/LogReader .asc.gz dispatch unexercised."
+      }
+    ],
+    "semantic_assertions": [
+      "can.Logger(path ending .asc.gz) must produce a gzip stream whose decompressed contents are readable by the existing can.ASCReader.",
+      "Both standard gzip plus can.ASCReader and can.LogReader(path ending .asc.gz) must recover the exact two-message sequence of arbitration IDs, standard/extended flags and payload bytes."
+    ],
+    "runner_selection": {
+      "outer_command": "tests/test_command.sh:1 invokes bash /testbed/mimo_test_command.sh",
+      "wrapper_source": "tests/test.patch:63-69 adds the wrapper that extracts mimo_build_env.tar.gz.b64 and execs .build_env/test_command.sh",
+      "embedded_member": ".build_env/test_command.sh",
+      "embedded_line": 3,
+      "embedded_command": "python -m pytest -o \"addopts=\" test/logformats_test.py -v",
+      "new_node": "test/logformats_test.py::TestGzipASCFileFormat::test_logger_and_logreader_dispatch_gzip_asc",
+      "basis": "The embedded command selects the entire file without a -k filter; the new test_ method is on its existing unittest-derived gzip class."
+    },
+    "existing_candidate_relation": {
+      "supplied_semantic_candidate": null,
+      "same_task_record_count": 8,
+      "relation": "Existing same-task lineage metadata contains no tests/test.patch change and no semantic repair bound to this QA parent; structural/environment variants are not reused as parents."
+    },
+    "supplied_qualifying_run_count": 6,
+    "supplied_cluster_counts": [
+      {
+        "cluster_id": "L1-01",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-01.2",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-01.2.2",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-05",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-05.2",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-05.2.1",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-07",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-07.2",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-07.2.2",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-09",
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-09.2",
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-09.2.2",
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-11",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-11.2",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-11.2.1",
+        "qualifying_run_count": 1
+      }
+    ],
+    "observation_limit": "Supplied counts and clusters are co-occurrence, not a causal shortcut or original/repaired wrong-pass differential.",
+    "validation_class": "static only",
+    "checks_run": [],
+    "native_evidence": [],
+    "source_boundaries": [
+      "Assigned DEV instruction.md, task.toml and tests only; embedded verifier runner decoded as source, not executed.",
+      "Existing same-task records read through metadata-only projections; solution content was never opened.",
+      "No other native task source, TEST/held-out package, trace, oracle or solution source, remote source or answer fetched."
+    ]
+  },
+  "created_by": "ts11-defensive-repair",
+  "created_at": "2026-10-28T06:26:38Z",
+  "status": "candidate",
+  "evidence": []
+}

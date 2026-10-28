@@ -182,13 +182,15 @@ def quota():
             'basis': 'Stored OAuth subscription usage metadata only; provider-scoped invalidate/read; no generation',
         }
         event['batch_id'] = f'tt4-kimi-quota:{CAMPAIGN.name}:{event["at"]}'
+        raw_report = None
         try:
             env = subscription_env(os.environ)
             subprocess.run(['omp', 'usage', 'invalidate', '--provider', 'kimi-code'],
                            capture_output=True, text=True, timeout=40, check=True, env=env)
             proc = subprocess.run(['omp', 'usage', '--json', '--provider', 'kimi-code', '--redact'],
                                   capture_output=True, text=True, timeout=40, check=True, env=env)
-            report = json.loads(proc.stdout)
+            raw_report = proc.stdout
+            report = json.loads(raw_report)
             providers = report.get('reports', [])
             if len(providers) != 1 or providers[0].get('provider') != 'kimi-code':
                 raise RuntimeError('unknown subscription allowance provider')
@@ -229,6 +231,14 @@ def quota():
             }
             append(RECEIPTS / 'quota.jsonl', [result])
             return result
+        except Exception as exc:
+            append(RECEIPTS / 'quota-errors.jsonl', [{
+                'at': now(), 'available': False,
+                'reason': f'{type(exc).__name__}: {exc}',
+                'raw_report_json': raw_report,
+                'note': 'Diagnostic only; unknown allowance never authorizes generation.',
+            }])
+            raise
         finally:
             for target in (SPEND, STATE / 'spend.jsonl', RECEIPTS / 'spend.jsonl'):
                 append(target, [event])
@@ -249,7 +259,7 @@ def quota_watch():
                 current = quota()
             except Exception as exc:
                 current = {'at': now(), 'available': False, 'reset_at': [],
-                           'reason': f'quota check unavailable: {type(exc).__name__}'}
+                           'reason': f'quota check unavailable: {type(exc).__name__}: {exc}'}
             if finished.is_set():
                 return
             if not current['available']:
@@ -309,8 +319,8 @@ def collect(location, keys):
     return reports
 
 
-def source_abstention(row, category):
-    """A canonical privacy rejection is an explicit no-send, never a negative."""
+def append_abstention(row, category):
+    """Append only null results; no model attempt or completion is invented."""
     scan_id = f'abstain:{CAMPAIGN.name}:{row["opaque_id"]}:{category}'
     existing = {
         (record.get('run_id'), record.get('detector'), record.get('scan'))
@@ -326,12 +336,35 @@ def source_abstention(row, category):
                 'detector_version': DETECTOR_VERSION, 'value': None, 'flag': None,
                 'evidence_steps': [], 'scan': scan_id, 'at': now(),
             })
-    append(STATE / 'results-v1.jsonl', records)
-    save(CAMPAIGN / f'{row["opaque_id"]}-status.json', {
-        'at': now(), 'model': MODEL, 'location': None, 'scored': False,
+    if records:
+        append(STATE / 'results-v1.jsonl', records)
+
+
+def source_abstention(row, category):
+    """A canonical privacy rejection is an explicit terminal no-send."""
+    append_abstention(row, category)
+    status_path = CAMPAIGN / f'{row["opaque_id"]}-status.json'
+    status = {
+        'model': MODEL, 'location': None, 'scored': False,
         'complete': False, 'terminal_abstention': True, 'source_category': category,
         'native_scan_attempted': False,
-    })
+    }
+    previous = json.loads(status_path.read_text()) if status_path.exists() else {}
+    if {key: value for key, value in previous.items() if key != 'at'} != status:
+        save(status_path, {'at': now(), **status})
+
+
+def missing_abstentions(keys, measured):
+    """Unmeasured inputs stay resumable and are never imputed as negatives."""
+    projection = json.loads((RECEIPTS / 'admission.json').read_text())['input_projection']
+    rejected = {row['opaque_id']: row['category'] for row in projection['rejected']}
+    for row in keys:
+        if row['run_id'] in measured:
+            continue
+        if row['opaque_id'] in rejected:
+            source_abstention(row, rejected[row['opaque_id']])
+        else:
+            append_abstention(row, 'unmeasured')
 
 
 def scores(records):
@@ -407,7 +440,8 @@ def run(keys, limit):
         try:
             current = quota()
         except Exception as exc:
-            stop({'at': now(), 'available': False, 'reset_at': [], 'reason': f'quota unavailable: {type(exc).__name__}'})
+            stop({'at': now(), 'available': False, 'reset_at': [],
+                  'reason': f'quota unavailable: {type(exc).__name__}: {exc}'})
             break
         if not current['available']:
             stop(current)
@@ -474,6 +508,7 @@ def metrics(values, labels, baseline, threshold):
 
 def score(keys):
     values = scores(jsonl(STATE / 'results-v1.jsonl'))
+    missing_abstentions(keys, values)
     baseline = {row['trace_id']: row for row in json.loads(CASCADE.read_text())['traces']}
     labels, considered = {}, []
     with connect() as con:
@@ -497,6 +532,8 @@ def score(keys):
     pos = [values[t] for t in labels if labels[t] and t in values]
     neg = [values[t] for t in labels if not labels[t] and t in values]
     calls = [call for path in CAMPAIGN.glob('*-calls.jsonl') for call in jsonl(path)]
+    groups = {'enacted_yes': [t for t in labels if labels[t]],
+              'clean_no': [t for t in labels if not labels[t]], 'considered_only': considered}
     result = {
         'at': now(), 'model': MODEL, 'sample_n': 200, 'scored': sum(row['run_id'] in values for row in keys),
         'projection_version': PROJECTION_VERSION,
@@ -509,7 +546,12 @@ def score(keys):
                             'threshold_counts': {str(cutoff): sum(t in values and values[t]>=cutoff for t in considered) for cutoff in (5,7)}},
         'baseline_all200': {name: {'n':len(group), 'cascade_alarm':sum(baseline[t]['alarmed'] for t in group),
                                   'stage1_any':sum(baseline[t]['stage1_any'] for t in group)}
-                            for name,group in {'enacted_yes':[t for t in labels if labels[t]], 'clean_no':[t for t in labels if not labels[t]], 'considered_only':considered}.items()},
+                            for name, group in groups.items()},
+        'baseline_scored': {
+            name: {'n': sum(t in values for t in group),
+                   'cascade_alarm': sum(t in values and baseline[t]['alarmed'] for t in group),
+                   'stage1_any': sum(t in values and baseline[t]['stage1_any'] for t in group)}
+            for name, group in groups.items()},
         'calls':len(calls), 'attested_calls':sum(c.get('ok',False) for c in calls),
         'served_models':sorted({c['served_model'] for c in calls if c.get('ok')}),
         'input_tokens':sum(c.get('input_tokens',0)+c.get('cache_read_tokens',0)+c.get('cache_write_tokens',0) for c in calls),

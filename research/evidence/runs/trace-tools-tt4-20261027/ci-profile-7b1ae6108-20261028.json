@@ -1,0 +1,102 @@
+{
+  "schema": "evallab.trace_tools_ci_profile/v1",
+  "pr": 1378,
+  "head": "7b1ae61089b97d49a5ba85d8d8d374413a4105e6",
+  "run_id": 40707731147,
+  "attempt": 1,
+  "job_id": 122885566367,
+  "artifact_id": 12823019757,
+  "artifact_sha256": "fe18b11f45b6e779513d52b69b9eeafde01d090f776e9576ee66bd7154612977",
+  "conclusion": "failure",
+  "cause": "undetermined; no runner-variance cause proved",
+  "manual_reruns": 0,
+  "budgets_unchanged": true,
+  "all_other10_checks_passed": true,
+  "budget_ms": {
+    "projection": {
+      "base": 25,
+      "tolerance_fraction": 0.5,
+      "ceiling": 37.5
+    },
+    "facts": {
+      "base": 25,
+      "tolerance_fraction": 0.5,
+      "ceiling": 37.5
+    }
+  },
+  "report": {
+    "schema_version": 1,
+    "generated_at": "2026-10-28T14:40:03.450040+00:00",
+    "machine": "Linux-7.0.0-1017-azure-x86_64-with-glibc2.43",
+    "python": "3.12.12",
+    "corpus_jobs": 2,
+    "corpus_result_json": 4,
+    "corpus_bytes": 31716,
+    "corpus_roots": [
+      "research/evidence/runs/event-summary-nop-evidence",
+      "research/evidence/runs/event-summary-oracle-evidence"
+    ],
+    "database_url_kind": "scratch-postgres",
+    "harbor_dispatch": "stubbed",
+    "warmup": 1,
+    "reps": 5,
+    "paths": [
+      {
+        "path": "ingest",
+        "median_ms": 64.034,
+        "min_ms": 57.973,
+        "max_ms": 118.228,
+        "reps": 5,
+        "notes": "database.ingest on scratch DB"
+      },
+      {
+        "path": "projection",
+        "median_ms": 174.114,
+        "min_ms": 62.016,
+        "max_ms": 520.02,
+        "reps": 5,
+        "notes": "evallab.evidence.atif.export_trajectories"
+      },
+      {
+        "path": "facts",
+        "median_ms": 55.639,
+        "min_ms": 33.731,
+        "max_ms": 90.352,
+        "reps": 5,
+        "notes": "evallab.evidence.facts.export_facts"
+      },
+      {
+        "path": "digest",
+        "median_ms": 5.785,
+        "min_ms": 3.91,
+        "max_ms": 6.165,
+        "reps": 5,
+        "notes": "DigestRenderer.write with catalog seams stubbed"
+      },
+      {
+        "path": "queue-tick-100",
+        "median_ms": 156.245,
+        "min_ms": 143.562,
+        "max_ms": 161.478,
+        "reps": 5,
+        "notes": "Executor.tick N=100; runner/ingester/catalog stubbed"
+      },
+      {
+        "path": "fleet-status",
+        "median_ms": 61.115,
+        "min_ms": 59.95,
+        "max_ms": 257.627,
+        "reps": 5,
+        "notes": "scripts/fleet-status.sh with gh stubbed"
+      },
+      {
+        "path": "ingest+projection",
+        "median_ms": 104.044,
+        "min_ms": 103.021,
+        "max_ms": 288.177,
+        "reps": 5,
+        "notes": "atif.ingest_and_project (PIPELINE unified path)"
+      }
+    ]
+  }
+}

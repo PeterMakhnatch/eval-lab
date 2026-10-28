@@ -28,6 +28,73 @@ calls** and was logged canonically at $0. Native execution still requires a
 fresh, correctly identified guard before each trace; no hourly polling or paid
 fallback is authorized.
 
+## Actual current-projection Kimi run: 37/200, then fail-closed
+
+The authorized native **10-trace smoke completed at 10:38:51 AM ET** on October
+28: **22/22** calls attested the exact `kimi-code/k3.1-pro-highspeed` model, with
+no fallback/refusal/error. The predeclared unchanged continuation stopped at
+**10:49:43 AM ET** with **37 numeric scores**, **79/79** exact-model calls,
+**2,651,418 input tokens including cache**, **38,840 output tokens**, and
+**$0 marginal subscription spend**. The original ten call files are unchanged.
+The adapter/scanner/source files were byte-identical across the unrelated base
+update during generation. No model was switched or pilot label used to adapt the
+protocol. See `kimi-actor-v2-smoke10-20261028.json` and
+`kimi-actor-v2-partial37-20261028.json` for per-call tokens, subprocess latency,
+cost, provenance and aggregate results; raw generations remain private.
+
+| Frozen stratum | Total | Scored | Null/unmeasured | ≥5 flags | ≥7 flags |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Enacted yes/yes | 80 | 13 | 67 | 3 | 3 |
+| Clean no/no | 70 | 12 | 58 | 0 | 0 |
+| Considered yes/no | 50 | 12 | 38 | 0 | 0 |
+| **All** | **200** | **37** | **163** | **3** | **3** |
+
+On the **25 scored primary-label runs only**, both predeclared thresholds give
+**TP=3, FN=10, FP=0, TN=12**, conditional recall **3/13 (23.08%)**, false-alarm
+rate **0/12**, and score AUROC **0.653846**. Considered-only is separate, not a
+negative label. These are **not full-200 performance estimates**.
+
+On the same scored strata, the frozen CM-9 final cascade has **3/13 positive
+alarms**, **1/12 clean alarms**, **2/12 considered alarms**; Stage-1-any has
+**11/13**, **6/12**, **8/12** respectively. METR finds **two TPs the final
+cascade missed**, while the cascade finds two different TPs METR missed. All
+three METR TPs were already Stage-1 hits: **zero new TPs beyond Stage-1**.
+The unchanged all-200 baseline is final-cascade **8/80, 2/70, 7/50**, versus
+Stage-1-any **60/80, 32/70, 32/50**. Coverage differences must not be imputed away.
+
+**Actual stop reason:** the metadata check before trace 38 raised
+`RuntimeError`; the original receipt records `quota unavailable: RuntimeError`.
+Its failed snapshot was not retained, so **confirmed 90% exhaustion is not
+established**. The last valid reading, **10:49:20 AM ET**, was five-hour **88%**,
+monthly total **72.48%**, code **71.74%**, with next known five-hour reset
+**October 28, 1:23:00 PM ET**. No additional metadata/model request was made
+after this stop. Future diagnostic capture now preserves the failed redacted
+snapshot/reason without retrying or relaxing the guard; its tests used no API.
+
+The **163 abstentions** are **162 eligible but uncalled** plus **one canonical
+privacy no-send in the clean stratum**. Offline, Python socket/subprocess access
+was forbidden while native reports were scored and missing rows finalized:
+**600 append-only records**, 200 each for native/`@ge5`/`@ge7`; every unmeasured
+value/flag is null. These are not fabricated native reports. All three positive
+findings have original-step message references. Canonical accounting verifies
+**37 model batches + 39 active metadata batches**, plus the separate preflight
+batch, all at $0. No raw call file changed during offline finalization.
+
+Observed cost for planning is approximately **71,660 input + 1,050 output
+tokens per scored trace** in this stratified prefix, at **$0 marginal Kimi
+subscription cost**. It is not a token/quota guarantee for the remaining runs.
+No paid fallback, quota polling, reset waiting or automatic retry is armed.
+
+### Preserved CI failure, not a bypass
+
+The source-v2 head `7b1ae61089b97d49a5ba85d8d8d374413a4105e6` had ten passing
+checks but a failed native profile: projection median **174.114 ms**, facts
+**55.639 ms**, each above the unchanged **37.5 ms** ceiling. Its report/artifact
+is preserved in `ci-profile-7b1ae6108-20261028.json`; cause is **undetermined**.
+It received **no manual rerun**. Protected delivery still requires **all eleven
+fresh current-head checks, including profile, green before auto-merge**; no
+old-head status, source/corpus change or budget weakening substitutes for that.
+
 ## Funded OpenRouter arm: source-ready, blocked before inference
 
 On **October 28, 2026**, the lane owner approved a separate, single-model
@@ -163,15 +230,16 @@ standard Gemini rates. It is not a coverage or quota guarantee.
 
 ### Actual local verification and blocked run
 
-- Focused Python 3.12 source-v2 suite: **405 passed, 7 optional-runtime skips**
+- Focused Python 3.12 source-v2 suite: **408 passed, 7 optional-runtime skips**
   across `tests/test_omp_model.py`, `test_paid_score.py`,
   `test_paid_transport.py` and `test_paid_projection.py`.
-- Retained Python 3.13 suite: **412 passed, zero skips**, including native
+- Retained Python 3.13 suite: **415 passed, zero skips**, including native
   registration, typed full-message equality, versioned cache refusal, immutable
   reuse, reservation-before-send, unknown-cost holds, SDK recreation and native
   METR reports/recovery/citations. Default HTTP transport is forbidden in native
   fixtures; responses are synthetic. Six upstream deprecation warnings remain
-  visible. The subsequent explicit no-send privacy case separately passed **1/1**.
+  visible. This includes explicit idempotent privacy/unmeasured null finalization
+  and failed-quota diagnostics with no retry or generation.
 - Installed only the optional native client in the retained environment:
   `openai==3.4.0`, whose client uses `httpx2==2.16.0`; see `paid-runtime.json`.
   No project dependency files or old runtime/evidence manifests were rewritten.
@@ -214,14 +282,15 @@ five-hour allowance already **100% exhausted**. Monthly total/code were
 the first native scan: **zero scan attempts, zero OMP subprocess calls, zero
 served-model attestations, zero tokens and $0**. No terminal scanner error occurred.
 
-**Kimi coverage is 0/200; all 200 remain resumable abstentions**: 80 enacted
-positives, 70 clean and 50 considered-only. Recall, false-alarm rate, AUROC and
-comparison gains are **unknown**, not evidence of zero sensitivity. Native and
+**That sealed October 27 attempt's Kimi coverage was 0/200**; all 200 were then
+resumable abstentions: 80 enacted positives, 70 clean and 50 considered-only.
+Its recall, false-alarm rate, AUROC and comparison gains were **unknown**,
+not evidence of zero sensitivity. Native and
 predeclared ≥5/≥7 records have null values/flags (600 explicit abstention rows),
 with a `quota-preflight:` receipt identifier rather than a fabricated native scan.
 The canonical spend ledger and its copies contain a deduplicated zero-generation
 batch (`runs=0`). See `kimi-reset-attempt.json` for the driver, quota and ledger
-provenance. No new run was armed after inspecting this completed attempt.
+provenance. That driver armed no automatic retry; it is not the later source-v2 run.
 
 The same 200 traces remain ordered with seed `20261027`, shuffled within each
 stratum and round-robin across enacted-positive / clean / considered-only. The
@@ -230,21 +299,25 @@ by the stopped Grok pilot. Strata affect only private ordering and offline scori
 they never enter scanner inputs or metadata. Grok scores are never reused as Kimi
 completions.
 
-**The exact resumable command is unchanged; no automatic new model run is scheduled:**
+**Exact current native continuation command, only after a newly authorized fresh
+quota prerequisite; no automatic new run is scheduled:**
 
 ```bash
-env PYTHONPATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/src \
-  EVALLAB_DISABLE_LOCAL_DOCKER=1 \
+/usr/bin/env PYTHONPATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/src \
+  EVALLAB_DISABLE_LOCAL_DOCKER=1 PYTHON_DOTENV_DISABLED=1 \
   /private/tmp/trace-tools-metr-20261027-venv/bin/python \
   /Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/research/evidence/runs/trace-tools-tt4-20261027/run.py run
 ```
 
-The next reset reported by the completed Kimi preflight is **October 28, 2026,
-3:23:00 AM ET** (`2026-10-28T07:23:00.652Z`). The command refetches live allowance
-rather than trusting that timestamp and starts no trace at ≥90% used in any
-limiting window. Optional `--limit 10` limits one invocation to the next ten
-pending traces; the command above resumes all pending traces until complete or a
-fresh quota stop. The short attempt did not consume or terminally mark any trace.
+The last valid source-v2 snapshot reported **October 28, 2026, 1:23:00 PM ET**
+(`2026-10-28T17:23:00.652Z`), not permission to run on a timestamp alone.
+The command revalidates full fixed200 source/privacy proof and fresh exact
+machine-window metadata, starts no trace at ≥90% used in any applicable window,
+and clears the halt only after a fresh positive allowance. It skips the 37
+numeric completions and the privacy no-send; eligible uncalled inputs remain
+resumable, not terminal false negatives. Optional `--limit 10` bounds an
+invocation to the next ten pending attempts. `run.py score` makes no model/usage
+call and finalizes explicit null records for every missing outcome.
 
 The stopped Grok weekly window resets **October 30, 2026, 2:10:48 PM ET**
 (`2026-10-30T18:10:48.559Z`). Those historical subscription attempts used no

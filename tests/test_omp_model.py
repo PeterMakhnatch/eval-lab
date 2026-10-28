@@ -502,6 +502,64 @@ def test_canonical_privacy_abstention_never_sends_or_becomes_a_negative(monkeypa
     assert not runner.SPEND.exists()
 
 
+def test_missing_results_are_explicit_nulls_without_disabling_resume(monkeypatch, tmp_path):
+    runner = load_runner(monkeypatch, tmp_path)
+    keys = [
+        {"run_id": name, "opaque_id": "run-" + character * 24}
+        for name, character in (("done", "a"), ("privacy", "b"), ("unrun", "c"))
+    ]
+    runner.save(runner.RECEIPTS / "admission.json", {
+        "input_projection": {"rejected": [{"opaque_id": keys[1]["opaque_id"], "category": "secret_unsafe"}]},
+    })
+    runner.append(runner.STATE / "results-v1.jsonl", [{
+        "tool": "scout_metr", "detector": runner.DETECTOR,
+        "detector_version": runner.DETECTOR_VERSION, "run_id": "done", "value": 8,
+    }])
+    unrun_status = runner.CAMPAIGN / f'{keys[2]["opaque_id"]}-status.json'
+    runner.save(unrun_status, {"terminal_abstention": False, "location": "retained-native-scan"})
+    original_status = unrun_status.read_bytes()
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("finalizing missing results must not call a model or usage endpoint")
+
+    monkeypatch.setattr(runner.subprocess, "run", forbidden)
+    runner.missing_abstentions(keys, {"done": 8})
+    privacy_status = runner.CAMPAIGN / f'{keys[1]["opaque_id"]}-status.json'
+    original_privacy_status = privacy_status.read_bytes()
+    runner.missing_abstentions(keys, {"done": 8})
+    records = runner.jsonl(runner.STATE / "results-v1.jsonl")
+    assert len(records) == 7 and runner.scores(records) == {"done": 8}
+    assert all(row["value"] is None and row["flag"] is None for row in records[1:])
+    assert all(row["evidence_steps"] == [] for row in records[1:])
+    assert unrun_status.read_bytes() == original_status
+    assert privacy_status.read_bytes() == original_privacy_status
+    assert json.loads(original_privacy_status)["terminal_abstention"] is True
+    assert not runner.SPEND.exists()
+
+
+def test_failed_quota_metadata_is_retained_without_retry_or_generation(monkeypatch, tmp_path, kimi_quota_report):
+    runner = load_runner(monkeypatch, tmp_path)
+    kimi_quota_report["reports"][0]["limits"][0]["status"] = "unknown"
+    calls = []
+
+    def usage(argv, **kwargs):
+        calls.append(argv)
+        return SimpleNamespace(stdout=json.dumps(kimi_quota_report))
+
+    monkeypatch.setattr(runner.subprocess, "run", usage)
+    with pytest.raises(RuntimeError, match="unknown subscription allowance"):
+        runner.quota()
+    assert len(calls) == 2
+    failures = runner.jsonl(runner.RECEIPTS / "quota-errors.jsonl")
+    assert len(failures) == 1 and failures[0]["available"] is False
+    assert failures[0]["reason"] == "RuntimeError: unknown subscription allowance"
+    assert json.loads(failures[0]["raw_report_json"]) == kimi_quota_report
+    assert not (runner.RECEIPTS / "quota.jsonl").exists()
+    for target in (runner.SPEND, runner.STATE / "spend.jsonl", runner.RECEIPTS / "spend.jsonl"):
+        events = runner.jsonl(target)
+        assert len(events) == 1 and (events[0]["runs"], events[0]["usd"]) == (0, 0)
+
+
 BUDGET_PATH = (
     Path(__file__).resolve().parents[1]
     / "research/evidence/runs/trace-tools-tt4-20261027/openrouter_budget.py"

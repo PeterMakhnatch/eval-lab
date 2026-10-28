@@ -133,7 +133,7 @@ inputs:
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/run-health.md
-    digest: sha256:42d1b2b8148bb3a8bee46c026df7b992442b45eed347561e3dca8961d2fdfc1c
+    digest: sha256:bb8263d8023b2695b6cea728403af401b9655338657690ca092c82f73101b8ea
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/storm-alarms.md
@@ -145,7 +145,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:aefa6847822efc26edfb6b8dc0d205d207eb9895443db9351e2339435e50c1d9
+    digest: sha256:1a3b7e6cefd1a9c817b0311ee4dcb6232acf3831676edf2f830713674cd3cfe7
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

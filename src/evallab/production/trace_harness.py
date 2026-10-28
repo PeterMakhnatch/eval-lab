@@ -77,6 +77,18 @@ DETECTORS: dict[str, str] = {
     "laminar": "evallab.production.trace_harness_tools:LaminarDetector",
     "docent": "evallab.production.trace_harness_tools:DocentDetector",
     "omp_form": "evallab.production.trace_harness_tools:OmpFormDetector",
+    "cascade_own": "evallab.production.trace_harness_own:CascadeOwnDetector",
+    "laminar_copy": "evallab.production.trace_harness_own:LaminarCopyDetector",
+    "facet_windows": "evallab.production.trace_harness_experiments:FacetWindowsDetector",
+    "facet_windows_only": "evallab.production.trace_harness_experiments:FacetWindowsOnlyDetector",
+    "facet_windows_first": "evallab.production.trace_harness_experiments:FacetWindowsFirstDetector",
+    "facet_windows_baseline": "evallab.production.trace_harness_experiments:FacetWindowsBaselineDetector",
+    "facet_windows_random": "evallab.production.trace_harness_experiments:FacetWindowsRandomDetector",
+    "facets_prefix25": "evallab.production.trace_harness_experiments:FacetsPrefix25Detector",
+    "facets_prefix50": "evallab.production.trace_harness_experiments:FacetsPrefix50Detector",
+    "facets_prefix100": "evallab.production.trace_harness_experiments:FacetsPrefix100Detector",
+    "recheck_sol": "evallab.production.trace_harness_experiments:RecheckSolDetector",
+    "whole_run_logistic": "evallab.production.trace_harness_experiments:WholeRunLogisticDetector",
 }
 
 Key = tuple[str, str, str, str | None]
@@ -344,6 +356,8 @@ def run_detectors(
 CORPUS_LOADERS: dict[str, str] = {
     "hackbench": "evallab.production.trace_harness_corpora:hackbench_runs",
     "hackbench-all": "evallab.production.trace_harness_corpora:hackbench_all_runs",
+    "own": "evallab.production.trace_harness_own:own_runs",
+    "own-dev": "evallab.production.trace_harness_own:own_dev_runs",
 }
 
 
@@ -554,7 +568,7 @@ def register_subcommands(actions: Any) -> None:
 
 
 def cohort_ids(corpus: str, *, database: Path = DEFAULT_DATABASE, repo_root: Path = Path(".")) -> frozenset[str]:
-    """Run ids of a corpus (its label loader's cohort); no trajectory is read and no label is returned."""
+    """Run ids of a corpus: its label loader's cohort, or its run loader's runs when unlabelled. No label is returned."""
     if corpus.startswith("dataset:"):
         from evallab.production.corpus_queue import CorpusRegistry
         from evallab.production.run_atlas import (
@@ -571,8 +585,11 @@ def cohort_ids(corpus: str, *, database: Path = DEFAULT_DATABASE, repo_root: Pat
             ))
         finally:
             connection.close()
-    from evallab.production.trace_harness_corpora import load_corpus_labels
+    from evallab.production.trace_harness_corpora import CORPORA, load_corpus_labels
 
+    if corpus in CORPUS_LOADERS and corpus not in CORPORA:
+        # Unlabelled corpora (own runs): the cohort is what the run loader yields.
+        return frozenset(run.run_id for run in resolve_runs(corpus, database=database, repo_root=repo_root))
     return load_corpus_labels(corpus, database=database, repo_root=repo_root).run_ids
 
 

@@ -538,6 +538,18 @@ PUBLISHED_CHECKS: tuple[PublishedCheck, ...] = (
                    "frozen CM-6 v4 e2escore-goodfire-pf_r.json"),
     PublishedCheck("cascade-v4-cheatbench", "cheatbench", "cascade_v4", "native", (20, 75, 5, 75),
                    "frozen CM-6 v4 e2escore-cheatbench-pf_r.json"),
+    # CM-13 facet-window judge arms (gpt-6.1-terra), Goodfire DEV 80 hacks / 70 clean.
+    *(PublishedCheck(f"{name}-goodfire", "goodfire", name, "native", counts,
+                     f"cm13-facet-windows-20261028 RESULTS.md (arm {arm})")
+      for name, arm, counts in (
+          ("facet_windows_baseline", "A", (9, 80, 2, 70)),
+          ("facet_windows_only", "B", (23, 80, 5, 70)),
+          ("facet_windows_first", "B1", (17, 80, 4, 70)),
+          ("facet_windows", "C", (25, 80, 6, 70)),
+          ("facet_windows_random", "D", (16, 80, 5, 70)),
+      )),
+    PublishedCheck("whole-run-logistic-cheatbench", "cheatbench", "whole_run_logistic", "native",
+                   (12, 75, 4, 75), "pK-SELF whole-run logistic M3 (#1383)"),
 )
 
 

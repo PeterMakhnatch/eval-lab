@@ -60,7 +60,9 @@ NO_ACTOR_SUMMARY = "no actor transcript (actor_inputs_available=false); verdict 
 DETECTORS: dict[str, str] = {
     "tripwire": "evallab.production.trace_harness_rules:TripwireDetector",
     "flags": "evallab.production.trace_harness_rules:FlagsDetector",
-    "cascade": "evallab.production.trace_harness_cascade:CascadeDetector",
+    "cascade": "evallab.production.trace_harness_cascade:CascadeV8Detector",
+    "cascade-v7": "evallab.production.trace_harness_cascade:CascadeV7Detector",
+    "cascade-v4": "evallab.production.trace_harness_cascade:CascadeV4Detector",
     "facets": "evallab.production.trace_harness_facets:FacetsDetector",
     "scout": "evallab.production.trace_harness_tools:ScoutDetector",
     "metr": "evallab.production.trace_harness_tools:MetrDetector",

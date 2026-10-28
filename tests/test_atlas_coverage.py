@@ -105,6 +105,7 @@ def test_coverage_counts_stored_against_admitted_per_population_and_names_what_i
         "g2": _identity("goodfire", "tier2"),
         "g3": _identity("goodfire", "tier2"),
         "m1": _identity("mimo", "tier1"),
+        "t1": _identity("tb4", "tier1"),
     }
     shown = {
         "g1": _facet("g1"),
@@ -121,11 +122,15 @@ def test_coverage_counts_stored_against_admitted_per_population_and_names_what_i
     assert (goodfire["admitted_n"], goodfire["stored_n"]) == (3, 2)
     assert goodfire["facet_models"] == {"other/m": 1, "p/m": 1}
     assert goodfire["blinding"] == {"refreshed": 1, "pending": 1, "unlisted": 0, "unknown": 0}
+    assert goodfire["mixed_readers"] is True
     mimo = rows[("mimo", "tier1")]
     assert (mimo["admitted_n"], mimo["stored_n"]) == (1, 1) and mimo["facet_versions"] == {"run-facets/v2": 1}
+    assert mimo["mixed_readers"] is False
+    tb4 = rows[("tb4", "tier1")]  # admitted, nothing stored: no reader, not a mix
+    assert (tb4["stored_n"], tb4["facet_models"], tb4["mixed_readers"]) == (0, {}, False)
     assert mimo["blinding"]["unlisted"] == 1
     totals = coverage["totals"]
-    assert (totals["admitted_n"], totals["stored_n"], totals["not_stored_n"]) == (4, 3, 1)
+    assert (totals["admitted_n"], totals["stored_n"], totals["not_stored_n"]) == (5, 3, 2)
     assert (totals["pending_blinding_n"], totals["refreshed_n"]) == (1, 1)
     assert (totals["facets_read_n"], totals["unadmitted_n"], totals["rejected_n"]) == (4, 1, 4)
     assert totals["refresh_listed_n"] == 2

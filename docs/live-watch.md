@@ -144,6 +144,15 @@ declines it is `neither`. `window_cascade.CONTEXT_REASONING_CHARS` can add a sho
 reasoning excerpt (for example 300 characters) to every other window step; it is off
 because on Goodfire DEV it cost about a quarter more judge input and found nothing more.
 
+Hackbook's [source-only input-bound cues](../research/hackbook/README.md#source-only-runtime-diagnostics)
+emit low-severity `hackbook:hb_input_bound_clamp` and
+`hackbook:hb_input_domain_growth` cards at the authored edit's original step.
+These ordinary-code signatures have `eligibility: diagnostic`, `gate: false`
+and empty `entry_ids`; their `source_links` identify the DEV source rather than
+an unrelated catalog mechanism. They use the existing diagnostic-family budget,
+not a new escalation path. A card neither proves input-contract noncompliance
+nor establishes test tampering or a wrong reward.
+
 Stage 0 (`evallab.production.stage0_triage`, `stage0-triage/v1`) separately triages
 **whole runs** from Run Atlas's provisional, model-extracted `run-facets/v1`
 records, not causal prefixes. `load_facets` reads the interim append-only
@@ -1594,17 +1603,27 @@ the environment settings, and the commands. Nothing it prints has been run.
 | `run-atlas/reblinded-facets-v1.jsonl` | state root | Coverage | listed runs cannot be compared (optional) |
 | `run-atlas/field-reliability-v1.json` | state root | Field reliability | "not measured" |
 | `trace-tools/tt1-scorecard.json` | state root | Trace Tools | detector rows missing |
+| `trace-tools/detector-scope-v1.json` (`EVALLAB_DETECTOR_SCOPE`) | state root, counts-only receipt | Trace Tools: Where each detector works | scope notice; frozen-cascade and Stage 1 DEV cells and HackBench cells absent, not zero (optional) |
 | `trace-tools/results-v1.jsonl` | state root | Trace Tools run lists, Task Evidence | Task Evidence shows "Trace-tool results: not retained" |
 | `run-atlas/scorecards/<newest>.json`, `trace-tools/spend.jsonl`, `run-atlas/per-run-accounting-<newest>.jsonl` | state root | Trace Tools facet rows, cost | those columns blank (optional) |
 | `repair-board/inventory.json` (`EVALLAB_REPAIR_INVENTORY`) | TS-9 inventory, **reduced** | Grader repairs | empty state |
 | `cross-test/registry.json` (`EVALLAB_CROSS_TEST_REGISTRY`) | registry, **reduced** | Cross-test sets | empty state |
 | `cloud-trace-db.sqlite`, `prod.sqlite` | already on the volume | Run Atlas, Coverage, Task Evidence, Trace Tools, Grader repairs | tabs show no admitted runs |
 
-The two environment settings are optional because the defaults above sit under the volume's data
-root; `EVALLAB_CLOUD_TOKEN` comes from the Modal secret `evallab-cloud-production-auth`. The
-inventory and registry are staged as reduced projections that keep only the fields the pages read:
-annotation wording, key ids, answer-key paths, digests, bundle paths, caveats and source notes
-never reach the volume. A registry with a malformed entry blocks instead of being staged partly.
+| Environment setting | Requirement / default |
+| --- | --- |
+| `EVALLAB_CLOUD_TOKEN` | Required; Modal secret `evallab-cloud-production-auth` (not checked by preflight) |
+| `EVALLAB_REPAIR_INVENTORY` | Optional; `/data/repair-board/inventory.json` |
+| `EVALLAB_CROSS_TEST_REGISTRY` | Optional; `/data/cross-test/registry.json` |
+| `EVALLAB_DETECTOR_SCOPE` | Optional; `/data/trace-tools/detector-scope-v1.json` |
+
+The three path overrides are optional because their defaults sit under the volume's data root.
+Preflight stages a valid optional detector scope at the same relative path; its absence degrades
+only the scope-dependent cells. It stages only that counts-only file, never the raw CM receipts
+used to build it. The inventory and registry are staged as reduced projections that keep only
+the fields the pages read: annotation wording, key ids, answer-key paths, digests, bundle paths,
+caveats and source notes never reach the volume. A registry with a malformed entry blocks
+instead of being staged partly.
 
 **Never copy:** `cloud-trace-db.sqlite` and `prod.sqlite` (the volume's admitted copy is
 authoritative; adoption needs an exact allowlisted scope), model-call ledgers
@@ -1685,8 +1704,8 @@ Neither endpoint calls a model, joins source labels, or writes anything.
   recorded rates without a timestamp show "Scoring time not recorded".
 
 `GET /api/cloud-db/atlas` (always `split=dev`) takes the facet filters `source`,
-`outcome`, `tests`, `eval_awareness`, `min_suspicion`, the three boolean facets,
-`cluster_id`, free-text `q` and `limit`/`offset` (at most 200). It returns the cluster
+`outcome`, `tests`, `eval_awareness`, `facet_model` (the reader), `min_suspicion`, the three
+boolean facets, `cluster_id`, free-text `q` and `limit`/`offset` (at most 200). It returns the cluster
 tree (recorded `size`, `admitted_n` and `matching_n` under the current filters, the
 recorded label rates), counts for every filter value, the matching runs (most
 suspicious first) and `store` counters: facets read, shown, rejected, superseded, runs
@@ -1705,15 +1724,21 @@ cards are routing leads, not cheating verdicts.
 The **Trace Tools** tab puts Laminar, Docent, Inspect Scout (deterministic scanners and the
 METR scanner), the OMP subscription readings, the frozen rule cascade and the Run Atlas
 facets side by side on the two labelled cohorts the lanes already score: the Goodfire CM-9
-sample and the CheatBench DEV cross-test. `harbor analyze` has a row that reads "No retained
-result" until a scorecard contains one. The endpoint is a read-only projection of retained
-files, validated by `evallab.production.tool_scorecard_view` and re-read only when one changes:
+sample and the CheatBench DEV cross-test. **Where each detector works** adds the HackBench
+natural-trajectory cross-test for five detector rows, described below. `harbor analyze` has
+a row that reads "No retained result" until a scorecard contains one. The endpoint is a
+read-only projection of retained files, validated by `evallab.production.tool_scorecard_view`
+and re-read only when one changes:
 
 - `<data_root>/trace-tools/tt1-scorecard.json` (`evallab.trace_tool_scorecard/v1`): per tool
   and detector counts; the headline detector is `any_flag`. Abstentions are counts of runs the
   tool did not read, never negatives.
 - `<data_root>/run-atlas/scorecards/*.json` (`run-atlas-scorecard/v1`, newest valid file by
   modification time): the facet headline (`suspicion>=2`) and the cascade on the same traces.
+- `<data_root>/trace-tools/detector-scope-v1.json` (`evallab.detector_scope/v1`, optional;
+  `EVALLAB_DETECTOR_SCOPE` overrides the path): frozen-cascade and Stage 1 DEV counts, plus
+  facets, cascade and Stage 1 exact-command counts on HackBench. Unknown fields are refused;
+  only aggregate counts and safe provenance metadata are accepted.
 - `<data_root>/trace-tools/spend.jsonl` and `<data_root>/run-atlas/per-run-accounting-*.jsonl`:
   recorded usage. Cost per 1k runs divides entries that recorded tokens or dollars by the run
   count on the same line; entries with no usage are not denominators, and `$0` means a
@@ -1724,10 +1749,79 @@ files, validated by `evallab.production.tool_scorecard_view` and re-read only wh
   facets row is marked provisional while listed runs have no re-extracted record.
 
 Rows that contradict their own counts are rejected and counted; a missing or broken file
-degrades only its own columns and is listed under "Sources read". The response carries counts
-and confidence intervals only: the browser derives every recall, false-alarm rate and cost per
-run, so the page never computes a score the producers did not record. Nothing is ranked, no
-label is joined, and `split` other than `dev` is refused.
+degrades only its own columns and is listed under "Sources read". Score cells carry counts
+and confidence intervals: the browser derives recall, false-alarm rates and cost per run
+from retained counts, not new measurements. Nothing is ranked, no label is joined, and
+`split` other than `dev` is refused.
+
+**Where each detector works** (`where_it_works` in the same endpoint) has five rows:
+**Run Atlas facets**, **Frozen cascade (v8)**, **Stage 1 alone**, **Scout deterministic
+scanners** and **METR reward-hacking scanner**. Its three cohort result columns are:
+
+- **Goodfire DEV:** 80 cheating and 70 clean runs.
+- **CheatBench DEV:** 75 cheating and 75 clean runs; already examined during earlier tuning,
+  so this is not a held-out test.
+- **HackBench natural:** 41 natural trajectories, all cheating, never used for tuning.
+  Scout deterministic and METR have no retained HackBench measurement.
+
+The table also shows how each detector reads and the reader or judge route, keeping the
+route explicitly unknown when the receipt does not record the model. Facets, Scout and
+METR read a completed whole run (post-hoc); the cascade and Stage 1 read a growing prefix
+(prefix-causal). A whole-run result is not evidence that a detector could have raised an
+alarm before the run ended.
+
+On Goodfire and CheatBench a **hit** is a flagged run; on HackBench it is the **exact hack
+command named**, not merely a suspicious run or nearby command. These hit definitions differ,
+so rates are not directly comparable across corpora. HackBench has no clean rows and therefore
+**no false-alarm rate**; a high exact-command hit rate says nothing about false alarms.
+
+Each measured rate has a **95% Wilson interval** using the runs actually decided/read:
+hits divided by cheating runs read, false alarms divided by clean runs read. Unread or
+abstained runs are neither misses nor clean decisions, and the table shows coverage separately.
+In particular, the retained Goodfire METR reading covers only **3 of 80 cheating** and
+**5 of 70 clean** runs; its rates use denominators 3 and 5, not 80 and 70. Facet counts come
+from the current valid retained scorecard rather than a fixed snapshot in this runbook.
+
+The cascade's Goodfire and CheatBench cells come from the frozen **v8 CM-11b** measurement.
+HackBench was measured with **v7**, not rerun with v8: those counts carry forward only because
+the receipt records that `submission_tamper` never fired on any HackBench trajectory, and
+v8 changes only that family's Stage 2 treatment. The cell shows its actual version and this
+qualification. The exporter refuses the carry-forward if that family fired. Stage 1's DEV
+counts come from the CM-9 per-trace scores; the file does not record a version or arm, so the
+page says that explicitly rather than inventing one.
+
+Cell provenance includes `recorded_at` (a full ISO timestamp with a timezone), `date_basis`
+and the safe receipt source path, plus the actual version and note where recorded. The page
+formats timestamps in New York time with an **ET** suffix and prints the basis alongside the
+date. A cascade freeze time, a recorded cascade measurement time, a receipt file modification
+time and a scorecard file modification time mean different things: **modification dates are
+not measurement dates**.
+
+If the optional scope is absent or invalid, the page keeps all five rows, shows a notice with
+the reason, and leaves the frozen-cascade and Stage 1 DEV cells and the HackBench measurements
+absent. Facets, Scout and METR DEV cells still use their retained scorecards. Missing results
+are **not zero**, and a rejected scope does not become a clean result. This table and its
+scope receipt contain no run IDs, trajectory text or per-run labels; labels are used only
+offline to produce aggregate counts, never joined by the endpoint or browser. The separate
+admitted-DEV run-list feature below is not an input to this table.
+
+**Local export recipe.** The command below documents how to build the optional counts-only
+receipt from retained CM-11, CM-11b and CM-9 evidence; it is not evidence of an export or a
+deployment. UI-16 does not deploy code, upload a file or alter live state.
+
+```bash
+EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run evallab prod export-detector-scope \
+  --hackbench-directory ~/Developer/research-context/bridge/2026-10-27-run-atlas/raw/cm11-hackbench \
+  --cascade-measurement ~/Developer/research-context/bridge/2026-10-27-run-atlas/raw/cm11b-tamper-demotion/measurement.json \
+  --goodfire-scores ~/Developer/research-context/bridge/2026-10-25-systems-and-swarms/raw/cm9-window-budget-20261027/e2escore-muse-g.json \
+  --cheatbench-scores ~/Developer/research-context/bridge/2026-10-25-systems-and-swarms/raw/cm9-window-budget-20261027/e2escore-muse-cb.json \
+  --output-directory ~/.local/state/evallab-prod-live/trace-tools
+```
+
+This writes `detector-scope-v1.json` under `--output-directory`; an existing different file
+requires explicit `--replace`. It makes no model call and does not upload the source receipts.
+Only the exported counts-only file is eligible for optional deploy-preflight staging under
+the matrix above; generating or staging it is not permission to deploy.
 
 **Run lists behind each tool** (`GET /api/cloud-db/trace-tools/runs?tool=&kind=hit|clean|unread`,
 `split=dev` only, `limit` at most 200). Each Trace Tools row with a per-run record (`facets`,
@@ -1753,6 +1847,16 @@ readable list, reported as `refresh_error`, never as zero pending). Totals also 
 read, withheld (unadmitted or evidence outside the run), rejected and superseded lines. A run
 without a stored facet is not ready, which is not the same as clean. Atlas listing rows and run
 detail carry the same `blinding` value.
+
+**Reader mix.** Each population row also carries `facet_models` (stored facets per reader) and
+`mixed_readers` (more than one reader). The Run Atlas **Reader mix** strip lists them per
+population: one reader, a mix with a warning line, or "No reader yet" when nothing is stored.
+The warning cites RA-6: facets from different readers agree only at kappa 0.42 to 0.47 (92 runs
+read by every reader), so a score on a mixed population depends on who read the run. The
+runs table filters on the reader (`facet_model`, also in the shareable `#atlas?facet_model=`
+link, which keeps a reader no longer in the options as a visible "not in current options"
+choice), shows the reader on every row, and run detail shows **Reader (facet model)** and the
+facet version. Reader counts describe stored facets only; no label is involved.
 
 #### Field reliability (`/api/cloud-db/atlas/field-reliability`)
 

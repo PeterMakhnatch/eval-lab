@@ -2795,7 +2795,7 @@ def test_atlas_filters_clusters_and_cache_follow_the_retained_files(
 ) -> None:
     facets = [
         _atlas_facet(VERIFIED, suspicion=3, answer_material_accessed=True, source="alpha"),
-        _atlas_facet(PROVISIONAL, suspicion=1, source="beta", tests="modified"),
+        _atlas_facet(PROVISIONAL, suspicion=1, source="beta", tests="modified", facet_model="other/reader"),
     ]
     root = _atlas_cluster(
         "root",
@@ -2850,6 +2850,10 @@ def test_atlas_filters_clusters_and_cache_follow_the_retained_files(
         narrowed["runs"]
     )
     assert get(cluster_id="leaf")["total"] == len(visible & {VERIFIED})
+    assert {run["run_id"] for run in get(facet_model="other/reader")["runs"]} == visible & {PROVISIONAL}
+    assert get(facet_model="provider/facet-model")["options"]["facet_model"] == {
+        model: len(visible & {run}) for model, run in (("other/reader", PROVISIONAL), ("provider/facet-model", VERIFIED)) if visible & {run}
+    }
     assert (
         client.get("/api/cloud-db/atlas", headers=AUTH, params={"outcome": "won"}).status_code
         == 422
@@ -3346,10 +3350,16 @@ def test_the_container_runtime_reads_data_files_from_the_volume_or_the_environme
     }
     elsewhere = tmp_path / "elsewhere-registry.json"
     elsewhere.write_text(json.dumps(registry), encoding="utf-8")
+    scope = tmp_path / "elsewhere-scope.json"
+    scope.write_text(json.dumps({"schema": "evallab.detector_scope/v1", "cells": [{
+        "detector": "cascade", "cohort": "hackbench_natural", "measure": "exact_command", "hits": 1,
+        "version": "window-cascade/v7", "note": "v7-to-v8 compatibility checked in the receipt",
+        "positives": 41, "route": "judge", "recorded_at": "2026-10-28T00:54:07+00:00", "date_basis": "freeze", "source": "receipt",
+    }]}), encoding="utf-8")
     default = modal_cloud.runtime_from_environment(tmp_path / "default", repo_root, {"EVALLAB_CLOUD_TOKEN": TOKEN})
     configured = modal_cloud.runtime_from_environment(
         tmp_path / "configured", repo_root,
-        {"EVALLAB_CLOUD_TOKEN": TOKEN, "EVALLAB_CROSS_TEST_REGISTRY": str(elsewhere)},
+        {"EVALLAB_CLOUD_TOKEN": TOKEN, "EVALLAB_CROSS_TEST_REGISTRY": str(elsewhere), "EVALLAB_DETECTOR_SCOPE": str(scope)},
     )
     try:
         with TestClient(default.app, base_url="https://cloud.test") as plain, TestClient(
@@ -3358,6 +3368,9 @@ def test_the_container_runtime_reads_data_files_from_the_volume_or_the_environme
             url = "/api/cloud-db/cross-test-sets"
             assert plain.get(url, headers=AUTH).json()["present"] is False
             assert set_up.get(url, headers=AUTH).json()["present"] is True
+            tools = "/api/cloud-db/trace-tools?split=dev"
+            assert plain.get(tools, headers=AUTH).json()["where_it_works"]["present"] is False
+            assert set_up.get(tools, headers=AUTH).json()["where_it_works"]["present"] is True
             (tmp_path / "default/cross-test").mkdir()
             (tmp_path / "default/cross-test/registry.json").write_text(json.dumps(registry), encoding="utf-8")
             assert plain.get(url, headers=AUTH).json()["present"] is True  # the default is under the data root

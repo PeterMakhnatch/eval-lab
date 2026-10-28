@@ -791,3 +791,54 @@ def test_resource_errors_discard_one_record_without_losing_later_findings(
     assert payload["coverage"]["runs_with_findings"] == 2
     assert payload["withheld_strings"] == 1
     assert set(payload["findings"]) == {"dev-task/one", "run#1"}
+
+
+def test_ledger_overview_reports_source_counts_and_exact_admitted_cloud_joins(ctx: QaContext) -> None:
+    ledger(
+        ctx, result(), result(detector="second"),
+        result("dev-task/two"), result("test-task/one"), result("cross-key-task/one"),
+        result("sealed-task/one"), result("missing-run"),
+        result("dev-task/three", source="own-harbor"),
+        result("other-dev-task/one", tool="laminar"),
+    )
+    payload = findings_module.summary(ctx)
+    assert payload["rows"] == 9
+    assert payload["keys"] == sorted(result())
+    assert payload["per_tool"] == {
+        "laminar": {"rows": 1, "runs": 1, "admitted_runs": 1},
+        "scout": {"rows": 8, "runs": 7, "admitted_runs": 2},
+    }
+    assert payload["omitted"] == 0 and payload["truncated"] is False
+    serialized = json.dumps(payload)
+    assert all(secret not in serialized for secret in (
+        "test-task", "cross-key-task", "sealed-task", "missing-run", "private/opaque-keymap-id", "evidence_steps_original",
+    ))
+    assert set(payload) == {"rows", "keys", "per_tool", "omitted", "truncated"}
+
+
+def test_ledger_overview_streams_skips_oversized_invalid_rows_and_does_not_read_other_sources(ctx: QaContext) -> None:
+    ledger(ctx, "{bad-json", [], result(schema="unsupported"),
+           result(value="x" * (findings_module._MAX_RECORD_BYTES + 1)), result())
+    ledger(ctx, result(tool="laminar"), name="laminar-own.jsonl")
+    payload = findings_module.summary(ctx)
+    assert payload["rows"] == 1
+    assert payload["per_tool"] == {"scout": {"rows": 1, "runs": 1, "admitted_runs": 1}}
+    assert "skipped" not in json.dumps(payload)
+
+
+def test_ledger_overview_budget_omits_whole_metadata_items_and_keeps_row_total(ctx: QaContext) -> None:
+    ledger(ctx, *(result(tool=f"tool-{index}") for index in range(20)))
+    bounded = replace(ctx, budget=Budget(200))
+    payload = findings_module.summary(bounded)
+    assert payload["rows"] == 20
+    assert 0 < len(payload["per_tool"]) < 20
+    assert payload["omitted"] == bounded.budget.omitted == 20 - len(payload["per_tool"])
+    assert payload["truncated"]
+    assert estimate_tokens(payload) <= bounded.budget.limit
+    assert all(value == {"rows": 1, "runs": 1, "admitted_runs": 1} for value in payload["per_tool"].values())
+
+
+def test_ledger_overview_absent_file_has_explicit_empty_totals(ctx: QaContext) -> None:
+    assert findings_module.summary(ctx) == {
+        "rows": 0, "keys": [], "per_tool": {}, "omitted": 0, "truncated": False,
+    }

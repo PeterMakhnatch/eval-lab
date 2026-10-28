@@ -451,21 +451,74 @@ reports `tokens_est` (ceil(chars/4) of the whole reply), `latency_ms`, `omitted_
 reply that cannot fit becomes a bounded refusal, never an over-budget document.
 
 ```bash
-uv run evallab qa-data task TASK_ID [--file tests/check.py]      # instruction, tests, grader, Dockerfile
+uv run evallab qa-data inventory [--ids-out FILE]                 # admitted task/run counts by dataset, outcome, model
+uv run evallab qa-data traces --task cad-model --outcome pass       # admitted runs, faceted or not (task id: bare or full)
+uv run evallab qa-data task TASK_ID [--file REL] [--variant N --kind repaired_package]   # instruction, packages, issues, runs
 uv run evallab qa-data runs --facet outcome=pass --facet tests=modified,deleted,replaced --limit 10
 uv run evallab qa-data runs --cluster CLUSTER_ID | --like RUN_ID | --query "words" | --task TASK_ID
 uv run evallab qa-data window RUN_ID --around 12 --radius 3      # or --first A --last B
 uv run evallab qa-data history TASK_ID [--flag git_history_peek] # past issues, similar issues, playbook cards
-uv run evallab qa-data findings --run RUN_ID | --task TASK_ID    # Scout / Laminar / Docent leads
+uv run evallab qa-data findings [--run RUN_ID | --task TASK_ID]  # Scout / Laminar / Docent leads, or per-tool totals
+uv run evallab qa-data clusters [--source db|file] [--level N] [--members CLUSTER_ID]
+uv run evallab qa-data recount                                    # facets interim JSONL vs database
+uv run evallab qa-data split task TASK_ID | split item KEY_ID ITEM_ID   # DEV / TEST / UNKNOWN, never a label
+uv run evallab qa-data export --facet answer_material_accessed=true --limit 5 --out DIR   # blinded, with step map
+uv run evallab qa-data steps DIR.sealed-manifest.json TRACE_OR_BLIND_ID --original N      # original <-> exported step
+uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministic Scout text scanners, no model call
 ```
 
-- `task` bundles the instruction and the task package's Dockerfile, test and
-  grader files in priority order, within budget. The package is found only through
-  the registry's digest-matched locator for that exact task; Goodfire and
-  CheatBench-derived tasks have none and return the instruction with
-  `package: null`. `solution/` and answer-key-named files are listed by name under
-  `withheld`, never read; files that are DEV test content (including expected values
-  inside tests) are returned. `--file` takes a relative path inside the package.
+- Task ids: every call taking a task accepts the full namespaced id or the bare name
+  cohort and ledger files use (`cad-model` for `terminal-bench/cad-model`). An exact
+  admitted id wins; otherwise only a bare input (no `/` or `@`) falls back to
+  the one admitted task with that bare name, several matches list a few admitted
+  candidates, and a qualified id never lands on a namesake.
+- `task` returns the instruction, every variant's original and repaired package file
+  list (read from the local content-addressed store, hash-verified, never the
+  network), the retained issues without reproducer scripts or trust tiers, and run counts (total,
+  faceted, suspicion >= 2). `--file REL [--variant N --kind repaired_package]` returns
+  that file's text. Tasks without a CAS package use the registry's digest-matched
+  locator (Dockerfile, test and grader files in priority order, within budget);
+  Goodfire and CheatBench-derived tasks have none and say so. `solution/` and
+  scoring-key-named files (answer keys, `expected_verdict`, `exposures`, scorer-only
+  keys) are listed by name under `withheld`, never read; ordinary DEV test content,
+  including expected values inside tests, is returned.
+- Start-up: `evallab qa-data` runs through `evallab.entry`, which builds only the `qa-data`
+  parser instead of the whole CLI (about 0.2 s instead of 1.2 s of CPU before the first
+  query on the live store); every other command still goes to `evallab.cli`. Importing
+  one `evallab.production.*` module no longer imports the worker stack either.
+- `recount` counts the same runs as `runs` (facets naming a sealed identity are left out of
+  both the database and the JSONL counts), so their totals agree.
+- `inventory`, `traces`, `clusters`, `recount` and `findings` (no argument) are
+  aggregate and list views over admitted runs; only source-wide totals (ledger rows,
+  JSONL lines) are not admission-restricted, and they carry no identities or values.
+  `clusters` never returns cluster names or hidden-membership counts; the file view
+  binds every answer to its build id and splits members into cloud runs and
+  registry-only DEV items (CheatBench), excluding any id that exists as a cloud trace
+  but is not admitted.
+- `split` prints one word (`DEV`, `TEST`, `UNKNOWN`) from the ledger authority: TEST
+  under any key or sealed wins, `UNKNOWN` never authorizes access, and it needs no
+  store. `export` writes a blinded export of admitted runs chosen by facets, ids or an
+  ids file (any non-admitted id fails the whole call and writes nothing), with the
+  sealed manifest beside it, and prints the original-to-exported step map for each
+  run's cited steps; `steps` converts one step id with a sealed manifest without ever
+  printing a reward. `scan` runs the four deterministic Scout text scanners over a
+  scout export (re-executing under the scout-watch runtime when this environment
+  lacks Scout); no call makes a model call.
+- Every export manifest entry (cloud and CheatBench) carries `actor_inputs_available`: true
+  when some agent-authored step has message text or a tool call. False marks runs with no
+  model actor behind them (native replay receipts, retained event journals, differential
+  receipts); a monitor reading them has nothing to scan, so the answer is unknown, not clean.
+  It is derived from the exported structure, never from a label. `qa-data export` prints it
+  per run.
+- `--pretty` indents any reply for readers that clip long lines; `--budget` and `tokens_est`
+  describe the compact form (pretty text is about 30% larger). Store or path errors reply
+  with the same JSON envelope (exit 2), never a traceback.
+- Defects fixed with this surface: `prod status` is read-only (it refuses a missing,
+  non-queue SQLite file instead of creating or migrating it, and reads a queue another
+  process holds open without writing), and
+  `prod export-runs --strict` fails before publishing when any requested id is
+  missing or not admitted; `--trace-ids-file` takes ids from a file. The default
+  `export-runs` still exits 0 with `refused` counted.
 - `runs` lists every run (not one per task) from stored Run Atlas facets, ranked by
   facet similarity to `--like`, then query words found in goal/approach/shortcut,
   then suspicion. Records omit `source`/`split`/model and give only a cluster id
@@ -476,6 +529,25 @@ uv run evallab qa-data findings --run RUN_ID | --task TASK_ID    # Scout / Lamin
 - `history` returns the task's own confirmed/provisional issues (refuted ones are
   counted), similar issues elsewhere with `issue:<id>` pointers, and the matching
   playbook cards (issue defect classes and `--flag` values are the triggers).
+- **Label-free by default (CE-19).** A default `task`, `history`, `runs`, `window` or
+  `findings` reply has no dataset, source, split, reward or label-tier field. That is a
+  statement about fields: recorded step text is served as recorded, so the 582 native
+  replay runs (565 MiMo, 17 TB4) show their replay `"reward"` inside the text of a
+  `window` step, and `window` text can name a benchmark. Hand a reader that must stay
+  blind an `export`, never `window`/`task` output. Decided per field: `dataset` is dropped from `task` and no opaque family tag replaces
+  it (a QA reader needs the task, not the benchmark it came from, and no QA job reads
+  it; the package summary key that said `source` is now `stored_in`). `trust_tier`
+  (on own and similar issues, in `task` and `history`) and the `differential`
+  `[original_reward, repaired_reward]` of an issue are outcome labels: they are returned
+  only with `--with-outcomes` on `task` or `history`, which is off by default and echoed
+  as `meta.with_outcomes` on every reply of those two calls, refusals included. Kept on
+  purpose: an issue's `status` (the review state of the thing under QA), the facet
+  `outcome` and the reward-derived `outcome` of a listed run (the same field `runs`
+  returns), and the `dataset_id` that `inventory` and `traces` print because they select
+  by it; those two are operator listings and their records must not go to a blind reader. Identifiers are not
+  changed: a run id can embed its dataset (`qa-trace-sft-v0:tb4:…`, `goodfire-reward-hack-data/…`)
+  in every call, `runs` included, and a task id can be namespaced; only a blinded export
+  renames them.
 - `findings` joins the local trace-tool ledgers to run ids that equal the store's
   trace ids, and returns the tools' own leads (not verdicts) with sealed-identity
   screening. No finding means the tool did not scan the run or found nothing.

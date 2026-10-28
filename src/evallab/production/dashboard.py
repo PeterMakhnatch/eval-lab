@@ -24,6 +24,7 @@ DASHBOARD: str = r"""<!doctype html>
 .task-section{margin-top:22px}.task-section h3{margin:0 0 8px}.task-section>p{margin:0 0 8px}.task-command{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--raised);font:12px var(--mono)}.task-command-row{margin:12px 0}.task-lines{display:grid;gap:3px;min-width:0}.task-lines small{color:var(--muted);overflow-wrap:anywhere}.task-runs .cloud-table{min-width:1280px}.task-qa .cloud-table,.task-seeker .cloud-table,.task-fixes .cloud-table{min-width:900px}
 .reliability-bar{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}.reliability-track{display:block;width:140px;height:6px;border-radius:3px;background:var(--line)}.atlas-tools .cloud-table.reliability-table{min-width:560px}
 .repairs-table .cloud-table{min-width:1100px}.repairs-table td>div{display:grid;gap:3px;min-width:0}.repairs-table td small{color:var(--muted);overflow-wrap:anywhere}.repairs-table td a{color:var(--blue);overflow-wrap:anywhere}
+.scope-box{margin:16px 0}.scope-box h3{margin:0 0 6px}.scope-lines{margin:0 0 10px;padding-left:18px;color:var(--muted)}.scope-lines li{margin:2px 0}.scope-box .cloud-table{min-width:1100px}
 .crosstest-table .cloud-table{min-width:1320px}.crosstest-table td>div{display:grid;gap:3px;min-width:0}.crosstest-table td small{color:var(--muted);overflow-wrap:anywhere}.crosstest-table td a{color:var(--blue);overflow-wrap:anywhere}.crosstest-table details .cloud-table{min-width:0}.crosstest-table summary{cursor:pointer;color:var(--blue)}.crosstest-hold{margin-top:22px}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
@@ -120,6 +121,11 @@ DASHBOARD: str = r"""<!doctype html>
   <div id="atlas-tools-table"></div>
   <div class="row"><button id="atlas-tools-open" type="button" class="small">Open Trace Tools for cost, detectors and sources</button></div>
  </details>
+<details id="atlas-readers" class="atlas-tools" open>
+ <summary>Reader mix · which model read each population's stored facets</summary>
+ <p id="atlas-readers-status" class="notice" role="status"></p>
+ <div id="atlas-readers-body"></div>
+</details>
 <details id="atlas-coverage" class="atlas-tools" open>
  <summary>Coverage · stored facets versus admitted runs, and what is not yet ready</summary>
  <p id="atlas-coverage-status" class="notice" role="status"></p>
@@ -136,6 +142,7 @@ DASHBOARD: str = r"""<!doctype html>
   <div><label for="atlas-outcome">Outcome</label><select id="atlas-outcome"><option value="">Any outcome</option></select></div>
   <div><label for="atlas-tests">Tests</label><select id="atlas-tests"><option value="">Any tests</option></select></div>
   <div><label for="atlas-eval_awareness">Eval awareness</label><select id="atlas-eval_awareness"><option value="">Any eval awareness</option></select></div>
+  <div><label for="atlas-facet_model">Reader (facet model)</label><select id="atlas-facet_model"><option value="">Any reader</option></select></div>
   <div><label for="atlas-min_suspicion">Min suspicion · counts at exact value</label><select id="atlas-min_suspicion"><option value="">Any suspicion</option></select></div>
   <div><label for="atlas-grader_or_harness_touched">Grader / harness touched</label><select id="atlas-grader_or_harness_touched"><option value="">Any</option></select></div>
   <div><label for="atlas-answer_material_accessed">Answer material accessed</label><select id="atlas-answer_material_accessed"><option value="">Any</option></select></div>
@@ -156,9 +163,15 @@ DASHBOARD: str = r"""<!doctype html>
 </section>
 <section id="tools-view" class="panel" role="tabpanel" aria-labelledby="tools-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">Whole-run tools / rule cascade / blinded facets</div><h2>Trace Tools</h2></div><button id="cloud-tools-refresh" type="button" class="small">Refresh scorecard</button></div>
- <p class="seal">Measured on labelled DEV and cross-test cohorts, never tuned on the cross-test. A tool that did not read a run abstained: that run is neither a miss nor a clean pass. Nothing is ranked.</p>
+ <p class="seal">Retained DEV and cross-test measurements, not a ranking. CheatBench DEV was already examined and is not held out. A tool that did not read a run abstained: that run is neither a miss nor a clean pass.</p>
  <p id="cloud-tools-status" class="notice" role="status"></p>
  <div id="cloud-tools-cohorts" class="tools-cohorts"></div>
+<section id="cloud-tools-scope" class="scope-box" aria-labelledby="cloud-tools-scope-title">
+ <h3 id="cloud-tools-scope-title">Where each detector works</h3>
+ <p id="cloud-tools-scope-status" class="notice" role="status"></p>
+ <ul id="cloud-tools-scope-lines" class="scope-lines"></ul>
+ <div id="cloud-tools-scope-table" class="tools-table"></div>
+</section>
  <div id="cloud-tools-table" class="tools-table"></div>
 <section id="tools-runs-panel" class="atlas-detail" tabindex="-1" aria-labelledby="tools-runs-title" hidden>
  <div class="panel-head"><div><div class="eyebrow">Admitted DEV runs by trace id / no labels</div><h2 id="tools-runs-title">Tool runs</h2></div><div class="actions"><button id="tools-runs-copy" type="button" class="small">Copy run IDs · this page</button><button id="tools-runs-close" type="button" class="small">Close</button></div></div>
@@ -741,7 +754,7 @@ function cloudSystemPlaybook(report,parent){
  parent.append(grid,flags);
 }
 const atlasCategories=[['source','Any source'],['outcome','Any outcome'],['tests','Any tests'],
- ['eval_awareness','Any eval awareness'],['min_suspicion','Any suspicion']];
+ ['eval_awareness','Any eval awareness'],['facet_model','Any reader'],['min_suspicion','Any suspicion']];
 const atlasBooleans=[['grader_or_harness_touched','Grader / harness'],
  ['answer_material_accessed','Answer material'],['success_claim_without_evidence','Unevidenced success claim']];
 let atlasOffset=0,atlasCluster='',atlasListVersion=0,atlasRunVersion=0,atlasRunId='',atlasRunOpener=null,atlasShownIds=[],atlasToolsVersion=0;
@@ -833,8 +846,8 @@ function atlasRuns(data){
    'No facets have been written yet. Nothing is fabricated.':
    'No admitted DEV runs match these filters. Reset filters or inspect store health.','empty'));return;
  }
- const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Dataset / task','Goal','Approach','Shortcut',
-  'Tests','Facet flags','Eval awareness','Tokens in / out','Clusters','Facet version · blinding'],runs.map(run=>{
+const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Dataset / task','Goal','Approach','Shortcut',
+  'Tests','Facet flags','Eval awareness','Tokens in / out','Clusters','Reader · facet version · blinding'],runs.map(run=>{
   const open=button(String(run.run_id).slice(0,20),()=>openAtlasRun(run.run_id,open),'link');
   open.title=run.run_id;open.setAttribute('aria-label','Open run '+run.run_id);open.dataset.runId=run.run_id;openers.push(open);
   const identity=node('span',run.dataset_id),chips=node('div',undefined,'chips');
@@ -881,7 +894,7 @@ const blindingText={refreshed:'Re-blinded',pending:'Re-blind pending',unlisted:'
 const blindingBadge=state=>state?badge(blindingText[state]??state,state==='pending'?'warn':''):node('small','Not recorded');
 function atlasVersion(run){
  const box=node('div',undefined,'task-lines');
- box.append(node('small',run.facet_version),blindingBadge(run.blinding));
+ box.append(node('small',run.facet_model,'mono'),node('small',run.facet_version),blindingBadge(run.blinding));
  return box;
 }
 function openRunInAtlas(runId){
@@ -901,14 +914,32 @@ function atlasCoverage(data){
  parent.append(tiles);
  if(data.refresh_error)parent.append(node('p','Blinding refresh list: '+data.refresh_error,'notice error'));
  else if(totals.refresh_listed_n!==null)parent.append(node('small','Re-blinding refresh list: '+cloudCount(totals.refresh_listed_n)+' runs listed, '+cloudCount(totals.refreshed_n)+' stored as the re-extraction.'));
- parent.append(cloudTable(['Population (dataset · trust tier)','Stored / admitted','Ready','Facet version','Facet model','Blinding'],
+ parent.append(cloudTable(['Population (dataset · trust tier)','Stored / admitted','Ready','Facet version','Blinding'],
   list(data.populations).map(row=>{
    const missing=row.admitted_n-row.stored_n,ready=node('div',undefined,'task-lines');
    ready.append(node('small',cloudRatio(row.stored_n,row.admitted_n)),missing>0?badge(cloudCount(missing)+' not ready','warn'):badge('All stored','good'));
    return [row.dataset_id+' · '+row.trust_tier,cloudCount(row.stored_n)+' / '+cloudCount(row.admitted_n),ready,
-    coverageLines(row.facet_versions,key=>key),coverageLines(row.facet_models,key=>key),
+    coverageLines(row.facet_versions,key=>key),
     coverageLines(row.blinding,key=>blindingText[key]??key)];
   })));
+}
+const readerKappa='Facets from different readers agree only at kappa 0.42 to 0.47 (RA-6, 92 runs read by every reader), so a score on a mixed population depends on who read the run. Compare within one reader, or filter the runs table to one.';
+function atlasReaders(data){
+ const parent=$('atlas-readers-body'),rows=list(data.populations),mixed=rows.filter(row=>row.mixed_readers);
+ parent.replaceChildren();
+ if(!rows.length){parent.append(node('p','No admitted DEV populations.','empty'));return;}
+ parent.append(mixed.length?node('p',cloudCount(mixed.length)+' of '+cloudCount(rows.length)+' populations mix more than one reader: '+
+   mixed.map(row=>row.dataset_id+' · '+row.trust_tier).join('; ')+'. '+readerKappa,'notice error'):
+  node('p','No population mixes readers. Each population with stored facets was read by a single model.','notice'));
+ parent.append(cloudTable(['Population (dataset · trust tier)','Stored facets','Readers'],rows.map(row=>{
+  const readers=Object.entries(row.facet_models||{}).filter(([,value])=>value>0).sort((left,right)=>right[1]-left[1]),cell=node('div',undefined,'task-lines');
+  if(!readers.length)cell.append(badge('No reader yet','warn'),node('small','Nothing stored, so no model has read this population.'));
+  else{
+   for(const [model,count] of readers)cell.append(node('small',model+' · '+cloudCount(count)+' ('+cloudRatio(count,row.stored_n)+')','mono'));
+   cell.append(row.mixed_readers?badge('Mixed readers','warn'):badge('One reader','good'));
+  }
+  return [row.dataset_id+' · '+row.trust_tier,cloudCount(row.stored_n)+' / '+cloudCount(row.admitted_n)+' admitted',cell];
+ })));
 }
 const reliabilityBasis={within_1:'within one level'};
 function atlasReliability(data){
@@ -953,12 +984,14 @@ async function loadAtlasCoverage(){
  try{
   const data=await cloudApi('/api/cloud-db/atlas/coverage?split=dev');
   if(version!==atlasCoverageVersion)return;
-  atlasCoverage(data);
+  atlasCoverage(data);atlasReaders(data);
   notice('atlas-coverage-status',data.notice);
+  notice('atlas-readers-status','Counts are stored facets on admitted DEV runs, by the model that read them. No labels are involved.');
  }catch(error){
   if(version===atlasCoverageVersion){
-   $('atlas-coverage-body').replaceChildren();
+   $('atlas-coverage-body').replaceChildren();$('atlas-readers-body').replaceChildren();
    notice('atlas-coverage-status',cloudError(error,'Atlas coverage'),true);
+   notice('atlas-readers-status',cloudError(error,'Reader mix'),true);
   }
  }
 }
@@ -967,7 +1000,7 @@ function atlasFacet(run){
  for(const [label,value] of [['Run ID',run.run_id],['Dataset / task',text(run.dataset_id)+' / '+text(run.task_id)],
   ['Source / split',text(run.source)+' / '+text(run.split)],['Goal',run.goal],['Approach',run.approach],
   ['Shortcut',run.shortcut],['Outcome',run.outcome],['Tests',run.tests],['Eval awareness',run.eval_awareness],
-  ['Suspicion',cloudCount(run.suspicion)],['Facet model',run.facet_model],['Facet version',run.facet_version],
+  ['Suspicion',cloudCount(run.suspicion)],['Reader (facet model)',run.facet_model],['Facet version',run.facet_version],
   ['Blinding',blindingText[run.blinding]??'Not recorded'],
   ['Tokens in / out',cloudCount(run.input_tokens)+' / '+cloudCount(run.output_tokens)],
   ['Trust tier',run.trust_tier],['Run steps',cloudCount(run.step_count)],
@@ -1504,6 +1537,57 @@ function toolsRows(data){
   return cells;
  });
 }
+const scopePct=value=>value.toFixed(1)+'%';
+const scopeInterval=interval=>interval?'95% Wilson CI '+scopePct(interval[0])+' to '+scopePct(interval[1]):'';
+const scopeTime=value=>new Date(value).toLocaleString('en-US',{timeZone:'America/New_York',
+ year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET';
+function scopeCell(cell){
+ const box=node('div');
+ if(cell.state!=='measured'){box.append(node('span',cell.reason,'muted'));return box;}
+ const exact=cell.measure==='exact_command';
+ if(cell.read)box.append(node('strong',(exact?'Exact command named ':'Flagged ')+cloudCount(cell.hits)+' of '+cloudCount(cell.read)+
+  ' ('+scopePct(100*cell.hits/cell.read)+')'),node('small',scopeInterval(cell.hit_ci)));
+ else box.append(node('span','No cheating runs read','muted'));
+ if(cell.read<cell.positives)box.append(node('small','Read '+cloudCount(cell.read)+' of '+cloudCount(cell.positives)+' cheating runs'));
+ if(cell.negatives==null)box.append(node('small','All rows cheating: no false-alarm rate'));
+ else{
+  if(cell.negatives_read)box.append(node('strong','False alarms '+cloudCount(cell.false_alarms)+' of '+cloudCount(cell.negatives_read)+
+   ' ('+scopePct(100*cell.false_alarms/cell.negatives_read)+')'),node('small',scopeInterval(cell.false_alarm_ci)));
+  else box.append(node('span','No clean runs read','muted'));
+  if(cell.negatives_read<cell.negatives)box.append(node('small','Read '+cloudCount(cell.negatives_read)+' of '+cloudCount(cell.negatives)+' clean runs'));
+ }
+ if(cell.version)box.append(node('small','Version '+cell.version));
+ if(cell.note)box.append(node('small',cell.note));
+ if(cell.recorded_at){
+  const recorded=node('small',scopeTime(cell.recorded_at)+' · '+cell.date_basis);
+  recorded.title=cell.recorded_at+' · '+cell.source;box.append(recorded);
+ }
+ return box;
+}
+function renderToolsScope(scope){
+ const lines=$('cloud-tools-scope-lines'),holder=$('cloud-tools-scope-table');
+ lines.replaceChildren(...list(scope.lines).map(text=>node('li',text)));
+ notice('cloud-tools-scope-status',scope.present?'':'No detector scope receipt is retained ('+scope.error+
+  '). Set EVALLAB_DETECTOR_SCOPE to detector-scope-v1.json or place it at trace-tools/detector-scope-v1.json in the data root. '+
+  'Until then the frozen-cascade and Stage 1 DEV cells and every HackBench cell are blank; nothing is fabricated.',!scope.present);
+ const rows=list(scope.rows).map(row=>{
+  const name=node('div');name.append(node('strong',row.name));
+  return [name,row.reads,row.route,...['goodfire_dev','cheatbench_dev','hackbench_natural'].map(cohort=>scopeCell(row.cohorts[cohort]))];
+ });
+ const size=cohort=>{
+  for(const row of list(scope.rows)){
+   const cell=row.cohorts[cohort];
+   if(cell.state==='measured'&&cell.negatives!=null)return ' · '+cloudCount(cell.positives)+' cheating, '+cloudCount(cell.negatives)+' clean';
+  }
+  return '';
+ };
+ const table=cloudTable(['Detector','Reads','Reader or judge route','Goodfire DEV'+size('goodfire_dev'),
+  'CheatBench DEV'+size('cheatbench_dev')+' · examined in tuning, not held out','HackBench natural'+
+  (scope.hackbench_runs?' · '+cloudCount(scope.hackbench_runs)+' runs':'')+' · cross-test, all cheating'],rows);
+ const tools=list(scope.rows);
+ for(const [index,row] of Array.from(table.querySelector('table > tbody').children).entries())row.dataset.tool=tools[index].tool;
+ holder.replaceChildren(table);
+}
 function toolsSources(sources){
  const parent=$('cloud-tools-source-list'),items=node('ul',undefined,'cloud-issue-list');
  parent.replaceChildren(items);
@@ -1535,11 +1619,13 @@ async function loadTraceTools(){
   const tools=list(data.tools);
   for(const [index,row] of Array.from(table.querySelector('table > tbody').children).entries())row.dataset.tool=tools[index].tool;
   $('cloud-tools-table').replaceChildren(table);
+  renderToolsScope(data.where_it_works);
   toolsSources(data.sources);
   notice('cloud-tools-status',data.notice);
  }catch(error){
   if(version===toolsVersion){
    $('cloud-tools-table').replaceChildren();$('cloud-tools-cohorts').replaceChildren();
+   $('cloud-tools-scope-table').replaceChildren();$('cloud-tools-scope-lines').replaceChildren();
    notice('cloud-tools-status',cloudError(error,'Trace tool scorecard'),true);
   }
  }finally{

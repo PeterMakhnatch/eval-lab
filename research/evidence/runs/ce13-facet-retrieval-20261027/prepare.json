@@ -1,0 +1,126 @@
+{
+ "clean_records": 1128,
+ "clone_sha256": "1dbf99f03883a8403a6ffa867288d5ec9c98ca9922fa09ebc5ae8c0230a4f4c1",
+ "cluster_build_id": "04d7744deb694413a70e2a61b5e1a41c",
+ "cluster_build_members": 1237,
+ "cluster_members_stored": 973,
+ "clusters_stored": {
+  "clusters": 69,
+  "runs": 973
+ },
+ "excluded_unrefreshed": 114,
+ "facet_records": 1242,
+ "import": {
+  "admitted_tasks": 3474,
+  "database_overrides": {
+   "outcome": 0,
+   "source": 0,
+   "split": 0
+  },
+  "invalid_json_lines": 0,
+  "records": 1128,
+  "refused": 150,
+  "refused_by_reason": {
+   "run_id names no stored trace": 150
+  },
+  "refused_examples": [
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:02aef3bdf4c57ff66159800a"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:04e213b3f9c8a846fceaedc2"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:074eb242988b1f4a044c9e7f"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:0758d86ed70221017b9dab31"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:0ffed69a5b65a24b2e8a1e9a"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:116ccd80bb661c10db063518"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:12756f524d727c58289bea39"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:14ce546ab9cc9c1a141ea235"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:15255eceb38e2ec773024224"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:153cae3efab39141ce12a263"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:15639b4824918e94874089c8"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:191d71bca0aaf23fed8cde02"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:1b7d1e0b3f811e59a0459c89"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:1ba3c165dc3d03fec6085d09"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:1c1077475ebd0b416094c28d"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:201ec61d5020170dc5cf9b7b"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:20d722738c1488e299b88c87"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:27ad2ee03bffdc944ca6c782"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:28dfd7125d4be086531cf721"
+   },
+   {
+    "reason": "run_id names no stored trace",
+    "run_id": "cheatbench-actions-v1:2b56c312733858bffcfd783d"
+   }
+  ],
+  "runs": 1128,
+  "schema": "evallab.run_facets_import/v1",
+  "sha256": "c6799e44664d139bb5203125ee66b2bfaebfd8097a7faf57e06bdcaa34a4375b",
+  "stored": 978,
+  "superseded": 0
+ },
+ "inputs": {
+  "blinding-refresh-v1.json": "e89499bb2a15ec00c9a44ce5ad89eb55344bc5ddf840f8fc8ce2f3821cc2b888",
+  "clusters-v1.jsonl": "da99918fda49b9dba49f5a7f20c0ee3e48a981c9502e8d91a617bc1bca076a4d",
+  "facets-v1.jsonl": "b9ed5dbe8fced2a5ec54f35c83b26e969630855b6282700fb53efd2d06103327",
+  "reblinded-facets-v1.jsonl": "7f805b6988ae4910fbdc7f73932a0ff5497e05dd9c1fd22a9d27015091a3960c"
+ },
+ "live_sha256_note": "live store read through sqlite3 backup in read-only mode",
+ "needs_refresh": 326,
+ "recorded_at_utc": "2026-10-28T02:20:45.110315+00:00",
+ "refreshed_used": 212,
+ "schema": "evallab.ce13_prepare/v1",
+ "stored_facets": 978
+}

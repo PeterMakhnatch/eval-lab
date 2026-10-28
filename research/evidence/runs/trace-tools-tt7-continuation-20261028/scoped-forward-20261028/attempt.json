@@ -1,0 +1,76 @@
+{
+  "schema": "tt7.scoped_forward_attempt/v1",
+  "started_at": "2026-10-28T08:43:03.553387+00:00",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "baseline_study_commit": "25f63a3c28a3e02474eeb3014715158ba2b20493",
+  "sealed_continuation_commit": "727486eb54ab7892e3c50c59900b371840329fab",
+  "baseline_score_sha256": "61f55de784d2acdaef356ac361c7e04a05a66c548bbc9589a2050e58b195bd7f",
+  "source_sha256": {
+    "run_omp.py": "31b1aa04bae54158993d8b2a9365ca3c133005df5ed8024c157dd0853fb0bde0",
+    "scoped_attempt.py": "d6d8f7dc56b38b4f2836a56ee0194685a73a8894dc7d037b3116018e232a35fd"
+  },
+  "admission_fraction": 0.65,
+  "hard_stop_fraction": 0.7,
+  "quota_ttl_s": 120,
+  "concurrency": 2,
+  "initial_unattempted_per_route": {
+    "anthropic/claude-sonnet-5-5": 125,
+    "anthropic/claude-opus-5-5": 125
+  },
+  "quota_events": [
+    {
+      "argv": [
+        "omp",
+        "usage",
+        "--provider",
+        "anthropic",
+        "--json",
+        "--redact"
+      ],
+      "at": "2026-10-28T08:43:03.556156+00:00",
+      "returncode": 0,
+      "stdout_bytes": 3830,
+      "stderr_bytes": 0,
+      "usage_reports": 1,
+      "accounts_without_usage": 0,
+      "disabled_credentials": 0,
+      "fetched_at_ms": [
+        1793176981728
+      ],
+      "elapsed_s": 0.660009
+    }
+  ],
+  "new_model_calls": 0,
+  "new_terminal_records": 0,
+  "labels_read": false,
+  "old_terminal_retries": 0,
+  "old_results_rewritten": false,
+  "account_config_or_reset_changes": false,
+  "paid_fallback": false,
+  "verified_usage": {
+    "at": "2026-10-28T08:43:04.216217+00:00",
+    "provider": "anthropic",
+    "fetched_at_ms": 1793176981728,
+    "limits": [
+      {
+        "id": "anthropic:5h",
+        "used_fraction": 0.73,
+        "resets_at_ms": 1793181600000
+      },
+      {
+        "id": "anthropic:7d",
+        "used_fraction": 0.6,
+        "resets_at_ms": 1793584800000
+      }
+    ],
+    "maximum_fraction": 0.73
+  },
+  "status": "stopped_threshold",
+  "reason": "applicable fresh quota window at or above65%; no model call",
+  "remaining_unattempted_per_route": {
+    "anthropic/claude-sonnet-5-5": 125,
+    "anthropic/claude-opus-5-5": 125
+  },
+  "finished_at": "2026-10-28T08:43:04.479893+00:00",
+  "elapsed_s": 0.926364
+}

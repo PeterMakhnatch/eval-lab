@@ -1,0 +1,45 @@
+{
+  "schema": "evallab.tt4_cost_bound/v1",
+  "route": "openrouter/google/gemini-2.5-flash-lite",
+  "source": "https://openrouter.ai/api/v1/models/google/gemini-2.5-flash-lite/endpoints",
+  "observed_standard_endpoint": {
+    "tag": "google-ai-studio",
+    "provider_name": "Google AI Studio",
+    "service_tier": null,
+    "context_length": 1048576,
+    "max_completion_tokens": 65535,
+    "prompt_usd_per_token": "0.0000001",
+    "completion_usd_per_token": "0.0000004",
+    "supports_implicit_caching": false,
+    "supported_parameters_required": ["reasoning", "structured_outputs", "response_format", "max_tokens"]
+  },
+  "request_policy": {
+    "max_output_tokens": 4096,
+    "reasoning_enabled": false,
+    "tools": [],
+    "plugins": [],
+    "transforms": [],
+    "provider_order": ["google-ai-studio"],
+    "provider_only": ["google-ai-studio"],
+    "provider_allow_fallbacks": false,
+    "require_parameters": true,
+    "data_collection": "deny",
+    "max_price_usd_per_million_tokens": {"prompt": "0.10", "completion": "0.40", "request": "0"}
+  },
+  "input_tokens_upper_bound": 1048576,
+  "output_tokens_upper_bound": 4096,
+  "theoretical_usd_per_accepted_request": "0.106496",
+  "reservation_usd_before_each_http_attempt": "0.11",
+  "all_attempt_cap_usd": "14.85",
+  "context_guard": "Fresh public catalog must still report the pinned 1048576 context and no higher unit prices before a campaign starts; the gateway enforces max_price and max_tokens. Unexpected response cost/usage fails closed, never reroutes.",
+  "expected_cost_not_a_bound": {
+    "basis": "Stopped Grok pilot's 1820079 attested input tokens and22988 output tokens divided by8 scored traces, extrapolated to200 at uncached standard Gemini rates. Includes unfinished-pilot overhead, is not measured Gemini/Kimi usage, and is not a guarantee of full coverage.",
+    "input_tokens_per_trace": "227509.875",
+    "output_tokens_per_trace": "2873.5",
+    "estimated_usd_per_trace": "0.0239003875",
+    "estimated_usd_for200": "4.7800775"
+  },
+  "archive_note": "link-archive skips generic JSON endpoints. The reviewed endpoint fields are retained here; the runner fetches and validates fresh public metadata only after funding admission. No inference was used to obtain pricing.",
+  "actual_new_arm_model_calls": 0,
+  "actual_new_arm_usd": "0"
+}

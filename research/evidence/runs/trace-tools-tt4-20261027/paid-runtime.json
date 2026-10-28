@@ -1,0 +1,15 @@
+{
+  "schema": "evallab.tt4_optional_client_runtime/v1",
+  "python": "3.13.17",
+  "environment": "/private/tmp/trace-tools-metr-20261027-venv",
+  "preserved_native_packages": {"inspect-scout": "0.5.4", "inspect-ai": "0.3.285", "metr-scanners": "0.1.11", "duckdb": "1.5.5"},
+  "metr_revision_provenance": "runtime.json: c12893d1, unchanged retained uv git-cache installation",
+  "installation_command": "uv pip install --python /private/tmp/trace-tools-metr-20261027-venv/bin/python openai==3.4.0",
+  "installed": {"openai": "3.4.0", "httpx2": "2.16.0", "httpcore2": "2.16.0", "jiter": "0.18.0", "truststore": "0.10.5"},
+  "basis": "The retained OMP-only runtime did not contain the optional native OpenAI client. inspect-ai0.3.285 declares openai>=3.4.0 in its dev requirements; the exact minimum was installed for deterministic native-client tests and the authorized paid arm. openai3.4.0's DefaultAsyncHttpxClient subclasses httpx2.AsyncClient, not httpx0.28.1.AsyncClient.",
+  "original_runtime_manifest_modified": false,
+  "original_scan_artifacts_modified": false,
+  "project_dependency_files_modified": false,
+  "model_calls_for_installation": 0,
+  "usd": 0
+}

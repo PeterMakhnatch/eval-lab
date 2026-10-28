@@ -1,0 +1,163 @@
+{
+  "compiled_binary_build_commit_independently_verified": false,
+  "credential_value_reads": 0,
+  "current_entitlement_basis": [
+    "Actual current target-model session resolves public AuthSource.kind=oauth, concrete=true; no runtime/config/API-key source took precedence.",
+    "Actual current target model resolves api=openai-codex-responses and native https://chatgpt.com/backend-api; not api.openai.com, OpenRouter, Docent or another paid endpoint.",
+    "Supported accounts metadata lists exactly one OAuth identity; current OAuth-only Codex usage report identifies prolite and an allowed chat meter below90% at the observed timestamp.",
+    "Official OpenAI documentation says Codex is included across ChatGPT plans; current native quota headroom, OAuth authclass and native endpoint\u2014not catalog price/client cost counters\u2014establish current included-native entitlement.",
+    "Native execution must continue to use the unchanged paid-key-stripped environment and no-model-fallback overlay; stop before any call when applicable Codex usage is stale/unknown/or >=90%. No credits-overage continuation authorized."
+  ],
+  "current_route_metadata": {
+    "api": "openai-codex-responses",
+    "authSource": {
+      "concrete": true,
+      "kind": "oauth"
+    },
+    "contextWindow": 272000,
+    "credentialSourceMetadataOnly": true,
+    "credentialValuesRead": false,
+    "endpoint": {
+      "origin": "https://chatgpt.com",
+      "pathname": "/backend-api",
+      "protocol": "https:"
+    },
+    "id": "gpt-6-luna",
+    "inferencePermitted": false,
+    "maxTokens": 128000,
+    "provider": "openai-codex",
+    "rawAuthStoreRead": false,
+    "rawHeadersRead": false,
+    "type": "tt7_current_route_metadata"
+  },
+  "entitlement_private_receipt": {
+    "bytes": 7046,
+    "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-codex-entitlement-20261028T151645Z/entitlement.json",
+    "sha256": "15487f4717a527da0d5a2ae96263efc0872e4513cd53c8b2c105dbb33c7a9f3d"
+  },
+  "global_account_or_config_changes": 0,
+  "historical_luna_financial_status": "UNKNOWN; no retroactive inclusion/free/charge claim",
+  "historical_luna_provider_billed_or_marginal_usd": null,
+  "historical_luna_records": 2,
+  "labels_read": false,
+  "marginal_usd_for_metadata_only": 0,
+  "metadata_command": [
+    "omp",
+    "--mode",
+    "rpc",
+    "--no-session",
+    "--no-tools",
+    "--no-lsp",
+    "--no-extensions",
+    "--extension",
+    "<committed metadata-observer.ts>",
+    "--no-skills",
+    "--no-rules",
+    "--no-title",
+    "--no-pty",
+    "--config",
+    "<ephemeral unchanged no-fallback overlay>",
+    "--model",
+    "openai-codex/gpt-6-luna",
+    "--thinking",
+    "low"
+  ],
+  "metadata_command_result": {
+    "elapsed_s": 0.675684,
+    "exit_code": 0,
+    "model_prompt_commands": 0,
+    "stderr_bytes": 0,
+    "stdout_bytes": 17411
+  },
+  "metadata_observer_sha256": "856e9a59c2968f2dea697420c476f5ceed969b56f7579816a2b3ab47aa803416",
+  "new_inference_in_this_receipt": 0,
+  "no_paid_or_overage_authorization": true,
+  "observed_at": "2026-10-28T15:49:22.246796+00:00",
+  "official_document": {
+    "local_archive": "/Users/petermakhnatch/Developer/research-context/sources/links/help.openai.com/2026-10-28-using-codex-with-your-chatgpt-plan-openai-help-center.md",
+    "url": "https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan"
+  },
+  "omp_version": "18.12.6",
+  "original_bad_accounts_argv_cause": "accounts intentionally rejects --redact; the documented provider/json/no-extensions query succeeds",
+  "paid_fallback_authorized": false,
+  "public_implementation_commit": "45c35e40c46166dc726ccc52f5d27f40f2449f99",
+  "public_implementation_sources": [
+    "https://raw.githubusercontent.com/can1357/oh-my-pi/45c35e40c46166dc726ccc52f5d27f40f2449f99/packages/ai/src/auth/types.ts",
+    "https://raw.githubusercontent.com/can1357/oh-my-pi/45c35e40c46166dc726ccc52f5d27f40f2449f99/packages/ai/src/auth/cascade.ts",
+    "https://raw.githubusercontent.com/can1357/oh-my-pi/45c35e40c46166dc726ccc52f5d27f40f2449f99/packages/ai/src/registry/oauth/openai-codex.ts",
+    "https://raw.githubusercontent.com/can1357/oh-my-pi/45c35e40c46166dc726ccc52f5d27f40f2449f99/packages/ai/src/providers/openai-codex-responses.ts",
+    "https://raw.githubusercontent.com/can1357/oh-my-pi/45c35e40c46166dc726ccc52f5d27f40f2449f99/packages/catalog/src/wire/codex.ts",
+    "https://raw.githubusercontent.com/can1357/oh-my-pi/45c35e40c46166dc726ccc52f5d27f40f2449f99/packages/ai/src/usage/openai-codex.ts",
+    "https://raw.githubusercontent.com/can1357/oh-my-pi/45c35e40c46166dc726ccc52f5d27f40f2449f99/packages/coding-agent/src/cli/usage-cli.ts"
+  ],
+  "public_implementation_tag": "v18.12.6",
+  "quota_at_read": {
+    "age_s": 54.391,
+    "command": [
+      "omp",
+      "usage",
+      "--provider",
+      "openai-codex",
+      "--json",
+      "--redact",
+      "--no-extensions"
+    ],
+    "declared_limits": [
+      {
+        "amount": {
+          "limit": 100,
+          "remaining": 23,
+          "remainingFraction": 0.22999999999999998,
+          "unit": "percent",
+          "used": 77,
+          "usedFraction": 0.77
+        },
+        "id": "openai-codex:primary",
+        "scope": {
+          "provider": "openai-codex",
+          "shared": true,
+          "windowId": "7d"
+        },
+        "status": "ok",
+        "window": {
+          "durationMs": 604800000,
+          "id": "7d",
+          "label": "7 days",
+          "resetsAt": 1793774122000
+        }
+      }
+    ],
+    "elapsed_s": 0.522048,
+    "exit_code": 0,
+    "fetched_at_ms": [
+      1793202199239
+    ],
+    "maximum_applicable_fraction": 0.77,
+    "not_reusable_for_later_execution": true,
+    "plan_type": "prolite",
+    "read_at": "2026-10-28T15:44:13.630236+00:00",
+    "stderr_bytes": 0,
+    "stdout_bytes": 1520
+  },
+  "raw_auth_store_reads": 0,
+  "safe_account_listing": {
+    "command": [
+      "omp",
+      "usage",
+      "accounts",
+      "--provider=openai-codex",
+      "--json",
+      "--no-extensions"
+    ],
+    "credential_values_published": false,
+    "elapsed_s": 0.120008,
+    "exit_code": 0,
+    "identity_values_published": false,
+    "oauth_identity_count": 1,
+    "stderr_bytes": 0,
+    "stdout_bytes": 190
+  },
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "schema": "tt7.codex_current_route_receipt/v1",
+  "status": "verified_current_included_native_endpoint"
+}

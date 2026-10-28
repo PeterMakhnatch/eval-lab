@@ -1,0 +1,493 @@
+{
+  "schema_version": "issue-bank/v1",
+  "sources": {
+    "answer-keys": {
+      "by_actor_transcript": {
+        "False": 68,
+        "None": 1420,
+        "True": 1111
+      },
+      "by_granularity": {
+        "run": 1179,
+        "task": 1420
+      },
+      "by_kind": {
+        "cheat": 1076,
+        "grader_unfair_fail": 80,
+        "grader_wrong_pass": 1239,
+        "task_defect": 204
+      },
+      "by_kind_polarity_split": {
+        "cheat|negative|DEV": 210,
+        "cheat|negative|TEST": 210,
+        "cheat|positive|DEV": 348,
+        "cheat|positive|TEST": 308,
+        "grader_unfair_fail|negative|TEST": 4,
+        "grader_unfair_fail|positive|DEV": 11,
+        "grader_unfair_fail|positive|TEST": 65,
+        "grader_wrong_pass|negative|DEV": 43,
+        "grader_wrong_pass|negative|TEST": 295,
+        "grader_wrong_pass|negative|heldout": 13,
+        "grader_wrong_pass|positive|DEV": 220,
+        "grader_wrong_pass|positive|TEST": 620,
+        "grader_wrong_pass|positive|heldout": 48,
+        "task_defect|negative|DEV": 1,
+        "task_defect|negative|TEST": 78,
+        "task_defect|negative|heldout": 32,
+        "task_defect|positive|DEV": 10,
+        "task_defect|positive|TEST": 55,
+        "task_defect|positive|heldout": 28
+      },
+      "by_label_type": {
+        "consensus": 32,
+        "construction": 400,
+        "detector": 43,
+        "executed": 943,
+        "human": 543,
+        "judge": 449,
+        "static": 74,
+        "upstream_fix": 115
+      },
+      "by_license": {
+        "Apache-2.0": 849,
+        "CC-BY-4.0": 339,
+        "MIT": 700,
+        "None": 400,
+        "internal": 311
+      },
+      "by_polarity": {
+        "negative": 886,
+        "positive": 1713
+      },
+      "by_split": {
+        "DEV": 843,
+        "TEST": 1635,
+        "heldout": 121
+      },
+      "count": 2599,
+      "itemized": true,
+      "positive_units": 0,
+      "runnable_in_harness": 129,
+      "sha256": "094510115e64ee908e636794c5ec4b105ec4f086de5121113c4e24b7d28b4485"
+    },
+    "cloud-task-issues": {
+      "by_actor_transcript": {
+        "None": 252
+      },
+      "by_granularity": {
+        "task": 236,
+        "test": 16
+      },
+      "by_kind": {
+        "grader_unfair_fail": 46,
+        "grader_wrong_pass": 206
+      },
+      "by_kind_polarity_split": {
+        "grader_unfair_fail|positive|DEV": 20,
+        "grader_unfair_fail|positive|TEST": 26,
+        "grader_wrong_pass|negative|DEV": 24,
+        "grader_wrong_pass|negative|TEST": 7,
+        "grader_wrong_pass|positive|DEV": 113,
+        "grader_wrong_pass|positive|TEST": 62
+      },
+      "by_label_type": {
+        "consensus": 40,
+        "executed": 32,
+        "judge": 180
+      },
+      "by_license": {
+        "None": 252
+      },
+      "by_polarity": {
+        "negative": 31,
+        "positive": 221
+      },
+      "by_split": {
+        "DEV": 157,
+        "TEST": 95
+      },
+      "count": 252,
+      "itemized": true,
+      "positive_units": 0,
+      "runnable_in_harness": 0,
+      "sha256": "c0d6290b983991930d2a99178c5913f7565c1310f4831c84e2e014f9b449e830"
+    },
+    "cloud-traces": {
+      "by_actor_transcript": {
+        "False": 43,
+        "None": 208,
+        "True": 2480
+      },
+      "by_granularity": {
+        "passage": 1609,
+        "run": 1122
+      },
+      "by_kind": {
+        "cheat": 2731
+      },
+      "by_kind_polarity_split": {
+        "cheat|negative|DEV": 828,
+        "cheat|negative|TEST": 10,
+        "cheat|negative|heldout": 37,
+        "cheat|positive|DEV": 1695,
+        "cheat|positive|TEST": 30,
+        "cheat|positive|heldout": 131
+      },
+      "by_label_type": {
+        "consensus": 2556,
+        "detector": 81,
+        "executed": 57,
+        "human": 21,
+        "judge": 16
+      },
+      "by_license": {
+        "MIT": 21,
+        "None": 154,
+        "none-declared; internal research only": 2556
+      },
+      "by_polarity": {
+        "negative": 875,
+        "positive": 1856
+      },
+      "by_split": {
+        "DEV": 2523,
+        "TEST": 40,
+        "heldout": 168
+      },
+      "count": 2731,
+      "itemized": true,
+      "positive_units": 7425,
+      "runnable_in_harness": 2523,
+      "sha256": "6247c905320ae1810dfef5712b698f560b5bf8380b0574d8d5655dea1c41d0f1"
+    },
+    "cross-test": {
+      "by_actor_transcript": {
+        "False": 90,
+        "None": 2797,
+        "True": 5730
+      },
+      "by_granularity": {
+        "run": 5545,
+        "segment": 86,
+        "step": 189,
+        "task": 2797
+      },
+      "by_kind": {
+        "cheat": 5714,
+        "grader_wrong_pass": 106,
+        "task_defect": 2797
+      },
+      "by_kind_polarity_split": {
+        "cheat|negative|cross_test": 4441,
+        "cheat|positive|cross_test": 1273,
+        "grader_wrong_pass|negative|cross_test": 29,
+        "grader_wrong_pass|positive|cross_test": 77,
+        "task_defect|negative|cross_test": 1502,
+        "task_defect|positive|cross_test": 1295
+      },
+      "by_label_type": {
+        "consensus": 2314,
+        "construction": 106,
+        "detector": 1761,
+        "executed": 1395,
+        "human": 2827,
+        "judge": 214
+      },
+      "by_license": {
+        "MIT": 86,
+        "apache-2.0": 1931,
+        "cc-by-4.0": 1604,
+        "mit": 4996
+      },
+      "by_polarity": {
+        "negative": 5972,
+        "positive": 2645
+      },
+      "by_split": {
+        "cross_test": 8617
+      },
+      "count": 8617,
+      "itemized": true,
+      "positive_units": 0,
+      "runnable_in_harness": 5297,
+      "sha256": "6ff6ebe0c967306f8b17e60f890ff646ebba5ac437c141cef3839b27063222fe",
+      "summaries": [
+        {
+          "actor_transcript": true,
+          "counts": {
+            "negative": 0,
+            "positive": 169
+          },
+          "granularity": "run",
+          "kind": "cheat",
+          "license": "cc-by-nc-4.0",
+          "provenance": {
+            "digest": "1f67847133f7f2f160a872e363c177d4f383c891da3ccae18b966e2cea4fe008",
+            "note": null,
+            "ref": "hackbench@b3d6f678e635",
+            "store": "cross-test:hackbench"
+          },
+          "reason": "hackbench (CC BY-NC, no rehosting): 169 hack trajectories (41 natural), 0 clean; counts only, no rows stored",
+          "source": "cross-test",
+          "split": "cross_test"
+        }
+      ]
+    },
+    "grader-repairs": {
+      "by_actor_transcript": {
+        "None": 143
+      },
+      "by_granularity": {
+        "repair_pair": 143
+      },
+      "by_kind": {
+        "grader_repair": 143
+      },
+      "by_kind_polarity_split": {
+        "grader_repair|positive|DEV": 107,
+        "grader_repair|positive|TEST": 23,
+        "grader_repair|positive|unassigned": 13
+      },
+      "by_label_type": {
+        "executed": 51,
+        "static": 92
+      },
+      "by_license": {
+        "None": 143
+      },
+      "by_polarity": {
+        "positive": 143
+      },
+      "by_split": {
+        "DEV": 107,
+        "TEST": 23,
+        "unassigned": 13
+      },
+      "count": 143,
+      "itemized": true,
+      "positive_units": 0,
+      "runnable_in_harness": 0,
+      "sha256": "f911861a020f37528a4b620e0bd03c57c6070aa065511e18abdeae92c5937cf1"
+    },
+    "library-findings": {
+      "by_actor_transcript": {
+        "None": 5266
+      },
+      "by_granularity": {
+        "task": 5266
+      },
+      "by_kind": {
+        "grader_unfair_fail": 3101,
+        "grader_wrong_pass": 1899,
+        "task_defect": 266
+      },
+      "by_kind_polarity_split": {
+        "grader_unfair_fail|positive|DEV": 2368,
+        "grader_unfair_fail|positive|TEST": 158,
+        "grader_unfair_fail|positive|heldout": 575,
+        "grader_wrong_pass|negative|DEV": 20,
+        "grader_wrong_pass|negative|TEST": 7,
+        "grader_wrong_pass|positive|DEV": 1283,
+        "grader_wrong_pass|positive|TEST": 292,
+        "grader_wrong_pass|positive|heldout": 297,
+        "task_defect|positive|DEV": 135,
+        "task_defect|positive|TEST": 99,
+        "task_defect|positive|heldout": 32
+      },
+      "by_label_type": {
+        "construction": 2128,
+        "executed": 383,
+        "human": 2103,
+        "judge": 480,
+        "static": 44,
+        "upstream_fix": 128
+      },
+      "by_license": {
+        "Apache-2.0": 14,
+        "Apache-2.0 (MiMo dataset); retained evidence has original source licenses": 108,
+        "Apache-2.0 (dataset); witness code retains upstream project licenses": 242,
+        "CC-BY-4.0": 36,
+        "MIT (repository); inherited task rights apply": 36,
+        "None": 3436,
+        "apache-2.0": 1326,
+        "cc-by-4.0": 68
+      },
+      "by_polarity": {
+        "negative": 27,
+        "positive": 5239
+      },
+      "by_split": {
+        "DEV": 3806,
+        "TEST": 556,
+        "heldout": 904
+      },
+      "count": 5266,
+      "itemized": true,
+      "positive_units": 0,
+      "runnable_in_harness": 0,
+      "sha256": "82b0842c6c3f27ccee177cd1b03ba11dad2fd461dba9396300b03107f17992d7"
+    },
+    "library-runs": {
+      "by_actor_transcript": {
+        "False": 76,
+        "None": 274,
+        "True": 229683
+      },
+      "by_granularity": {
+        "run": 230033
+      },
+      "by_kind": {
+        "cheat": 230033
+      },
+      "by_kind_polarity_split": {
+        "cheat|negative|DEV": 64862,
+        "cheat|negative|cross_test": 7694,
+        "cheat|negative|heldout": 78572,
+        "cheat|positive|DEV": 46498,
+        "cheat|positive|cross_test": 3455,
+        "cheat|positive|heldout": 28952
+      },
+      "by_label_type": {
+        "construction": 129475,
+        "executed": 68967,
+        "human": 5003,
+        "judge": 26588
+      },
+      "by_license": {
+        "Apache-2.0": 30611,
+        "CC-BY-4.0": 20000,
+        "CC-BY-SA-4.0": 572,
+        "MIT": 4431,
+        "None": 174419
+      },
+      "by_polarity": {
+        "negative": 151128,
+        "positive": 78905
+      },
+      "by_split": {
+        "DEV": 111360,
+        "cross_test": 11149,
+        "heldout": 107524
+      },
+      "count": 230033,
+      "itemized": true,
+      "positive_units": 0,
+      "runnable_in_harness": 2566,
+      "sha256": "b6ae4d1254b6a6aa2927181f7660e021a178837b2358d8ff3c46a1b53e18a395"
+    },
+    "run-health": {
+      "by_actor_transcript": {
+        "False": 49,
+        "True": 266
+      },
+      "by_granularity": {
+        "run": 180,
+        "segment": 135
+      },
+      "by_kind": {
+        "infra": 54,
+        "latency": 49,
+        "loop": 140,
+        "runaway": 72
+      },
+      "by_kind_polarity_split": {
+        "infra|positive|DEV": 54,
+        "latency|positive|DEV": 49,
+        "loop|negative|DEV": 125,
+        "loop|positive|DEV": 15,
+        "runaway|positive|DEV": 72
+      },
+      "by_label_type": {
+        "detector": 180,
+        "judge": 135
+      },
+      "by_license": {
+        "None": 315
+      },
+      "by_polarity": {
+        "negative": 125,
+        "positive": 190
+      },
+      "by_split": {
+        "DEV": 315
+      },
+      "count": 315,
+      "itemized": true,
+      "positive_units": 127,
+      "runnable_in_harness": 315,
+      "sha256": "a291e28e6a9714cc50ce45b8d26fcdc7f09877f00b8e56022b0599e3913ec2dc"
+    },
+    "seeker": {
+      "by_actor_transcript": {
+        "False": 8,
+        "True": 40
+      },
+      "by_granularity": {
+        "run": 48
+      },
+      "by_kind": {
+        "infra": 48
+      },
+      "by_kind_polarity_split": {
+        "infra|positive|DEV": 48
+      },
+      "by_label_type": {
+        "executed": 48
+      },
+      "by_license": {
+        "None": 48
+      },
+      "by_polarity": {
+        "positive": 48
+      },
+      "by_split": {
+        "DEV": 48
+      },
+      "count": 48,
+      "itemized": true,
+      "positive_units": 0,
+      "runnable_in_harness": 0,
+      "sha256": "14378b9a89a46d8b7f4be96d6c39670a9fe3ea5fa73d248eefbe0d25fcaa18e6"
+    }
+  },
+  "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+  "totals": {
+    "by_polarity_split": {
+      "negative|DEV": 66113,
+      "negative|TEST": 611,
+      "negative|cross_test": 13666,
+      "negative|cross_test(summary)": 0,
+      "negative|heldout": 78654,
+      "positive|DEV": 53046,
+      "positive|TEST": 1738,
+      "positive|cross_test": 6100,
+      "positive|cross_test(summary)": 169,
+      "positive|heldout": 30063,
+      "positive|unassigned": 13
+    },
+    "by_source_kind": {
+      "answer-keys|cheat": 1076,
+      "answer-keys|grader_unfair_fail": 80,
+      "answer-keys|grader_wrong_pass": 1239,
+      "answer-keys|task_defect": 204,
+      "cloud-task-issues|grader_unfair_fail": 46,
+      "cloud-task-issues|grader_wrong_pass": 206,
+      "cloud-traces|cheat": 2731,
+      "cross-test|cheat": 5714,
+      "cross-test|cheat(summary)": 169,
+      "cross-test|grader_wrong_pass": 106,
+      "cross-test|task_defect": 2797,
+      "grader-repairs|grader_repair": 143,
+      "library-findings|grader_unfair_fail": 3101,
+      "library-findings|grader_wrong_pass": 1899,
+      "library-findings|task_defect": 266,
+      "library-runs|cheat": 230033,
+      "run-health|infra": 54,
+      "run-health|latency": 49,
+      "run-health|loop": 140,
+      "run-health|runaway": 72,
+      "seeker|infra": 48
+    },
+    "items": 250004
+  }
+}

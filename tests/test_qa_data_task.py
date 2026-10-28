@@ -119,7 +119,7 @@ def test_missing_test_held_sealed_and_cross_key_locked_refuse_identically(case: 
 def test_bundles_database_instruction_and_whole_files_in_priority_order(case: Case) -> None:
     result = task(case.context(), "dev-task", files=("README.md", "environment/setup.sh"))
     assert result["task_id"] == "dev-task"
-    assert result["dataset"] == "synthetic-corpus"
+    assert "dataset" not in result and "synthetic-corpus" not in json.dumps(result)
     assert result["instruction"] == "Use the database instruction, not instruction.md."
     assert result["instruction_chars"] == len(result["instruction"])
     assert result["instruction_truncated"] is False
@@ -659,7 +659,7 @@ def test_cas_lists_all_variants_and_reads_only_the_selected_file(case: Case, mon
     cas_task(case)
     result = task(case.context(), "cas-task", files=("tests/test.sh", "tests/test.sh"))
     original = result["packages"]["0:original_package"]
-    assert original["source"] == "cas" and original["package"] == "available"
+    assert original["stored_in"] == "cas" and original["package"] == "available"
     assert original["file_count"] == 4 and original["omissions"] == 1
     assert original["files"] == [
         {"relative_path": "tests/test.sh", "size": 14},
@@ -682,7 +682,7 @@ def test_cas_listing_is_preferred_to_the_registry_package(case: Case) -> None:
     cas_task(case, "dev-task")
     result = task(case.context(), "dev-task")
     original = result["packages"]["0:original_package"]
-    assert original["source"] == "cas"
+    assert original["stored_in"] == "cas"
     assert original["contents"] == []
     assert "environment/Dockerfile" not in {row["relative_path"] for row in original["files"]}
     assert "FROM python:3.12-slim" not in json.dumps(result)
@@ -749,7 +749,7 @@ def test_missing_cas_packages_fall_back_to_the_digest_bound_registry(case: Case)
     (cas.local_directory / "sha256" / uris["0:original_package"].rsplit("/", 1)[1]).unlink()
     result = task(case.context(), "dev-task", files=("README.md",))
     package = result["packages"]["0:original_package"]
-    assert package["source"] == "registry" and package["package"] == "available"
+    assert package["stored_in"] == "registry" and package["package"] == "available"
     assert next(row for row in package["contents"] if row["relative_path"] == "README.md")["text"] == (
         "Public package documentation.\n"
     )
@@ -817,7 +817,10 @@ def test_retained_issues_exclude_reproducers_and_runs_use_rewards_and_facets(cas
     result = task(case.context(), "cas-task")
     assert result["issues_total"] == 3 and result["issues_omitted"] == 0
     assert {row["status"] for row in result["issues"]} == {"provisional", "confirmed", "refuted"}
-    assert all(set(row) == {"issue_id", "defect_class", "direction", "status", "trust_tier"} for row in result["issues"])
+    assert all(set(row) == {"issue_id", "defect_class", "direction", "status"} for row in result["issues"])
+    labelled = task(case.context(), "cas-task", with_outcomes=True)
+    assert all(row["trust_tier"] for row in labelled["issues"])
+    assert [{k: v for k, v in row.items() if k != "trust_tier"} for row in labelled["issues"]] == result["issues"]
     assert "reproducer" not in json.dumps(result).lower()
     runs = result["runs"]
     assert (runs["total"], runs["faceted"], runs["suspicion_ge_2"], runs["omitted"]) == (4, 3, 2, 0)

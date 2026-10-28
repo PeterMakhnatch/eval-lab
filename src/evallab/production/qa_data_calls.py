@@ -188,8 +188,14 @@ def window(
     }
 
 
-def history(ctx: QaContext, task_id: str, *, flags: Sequence[str], limit: int) -> dict[str, Any]:
-    """The task's own issues, similar past issues elsewhere, and matching playbook cards."""
+def history(
+    ctx: QaContext, task_id: str, *, flags: Sequence[str], limit: int, with_outcomes: bool = False,
+) -> dict[str, Any]:
+    """The task's own issues, similar past issues elsewhere, and matching playbook cards.
+
+    Trust tiers and original/repaired reward differentials are outcome labels: they are returned
+    only with ``with_outcomes`` (the CLI's ``--with-outcomes``), never by default.
+    """
     if limit < 1:
         raise QaDataError("--limit must be at least 1")
     if not isinstance(task_id, str):
@@ -211,13 +217,11 @@ def history(ctx: QaContext, task_id: str, *, flags: Sequence[str], limit: int) -
     live = [row for row in issue_rows if row["status"] != "refuted"]
     own = []
     for row in live:
-        item = {
-            key: row[key] for key in ("issue_id", "defect_class", "direction", "status", "trust_tier")
-            if row[key] is not None
-        }
+        fields = ("issue_id", "defect_class", "direction", "status") + (("trust_tier",) if with_outcomes else ())
+        item = {key: row[key] for key in fields if row[key] is not None}
         if row["citation_file"]:
             item["citation"] = f"{row['citation_file']}:{row['citation_line']}"
-        if row["original_reward"] is not None and row["repaired_reward"] is not None:
+        if with_outcomes and row["original_reward"] is not None and row["repaired_reward"] is not None:
             item["differential"] = [row["original_reward"], row["repaired_reward"]]
         if row["status"] == "confirmed":
             item["expand"] = f"issue:{row['issue_id']}"
@@ -231,12 +235,13 @@ def history(ctx: QaContext, task_id: str, *, flags: Sequence[str], limit: int) -
     for example in examples:
         item = {
             "task_id": example.task_id, "issue_id": example.issue_id, "defect_class": example.defect_class,
-            "direction": example.direction, "trust_tier": example.trust_tier,
-            "expand": f"issue:{example.issue_id}",
+            "direction": example.direction, "expand": f"issue:{example.issue_id}",
         }
+        if with_outcomes:
+            item["trust_tier"] = example.trust_tier
         if example.citation:
             item["citation"] = example.citation
-        if example.differential:
+        if with_outcomes and example.differential:
             item["differential"] = example.differential
         if ctx.budget.take(item):
             similar.append(item)

@@ -15,9 +15,10 @@ the cloud trace database and :func:`trial_run` for a Harbor trial directory.
 Neither reads labels, rewards or publisher judgments, so the same record is safe
 to score against any label set later.
 
-Thresholds are fixed constants (``run-health/1``) chosen before scoring; scores
-are continuous so a scorer can still sweep operating points. A run without an
-actor transcript gets ``verdict: unknown`` from every detector, never ``clear``.
+Thresholds are fixed constants (``run-health/2``) set from the unlabelled DEV
+distribution before scoring; scores are continuous so a scorer can still sweep
+operating points. A run without an actor transcript is ``unknown`` for every
+kind, never ``clear``; it can still alarm on a run-level exception or stop reason.
 """
 
 from __future__ import annotations
@@ -38,35 +39,42 @@ from typing import Any
 from evallab.token_flow import _is_edit, _step_calls, _stitched_steps, normalized_command
 
 FINDING_SCHEMA = "trace-findings/v1"
-DETECTOR_VERSION = "run-health/1"
+DETECTOR_VERSION = "run-health/2"
 KINDS = ("loop", "runaway", "latency", "infra")
 AGENT_SOURCES = frozenset({"agent", "assistant"})
 
 # --------------------------------------------------------------------------- thresholds
-# Frozen before any label was read (run-health/1). A component fires when its
-# value reaches the threshold; a detector's score is its largest value/threshold.
+# run-health/2: chosen from the unlabelled DEV distribution only (3,809 actor runs of
+# the admitted cloud store, 2026-10-28): each step-level threshold sits at or above
+# the pooled DEV p99 of its feature, or keeps an existing harness constant that
+# already does. A component fires when its value reaches the threshold; a
+# detector's score is its largest value/threshold, so >= 1.0 is an alarm.
 
-#: Consecutive agent steps with one normalized command and no edit (token_flow's onset rule).
-LOOP_COMMAND_RUN = 4
-#: Consecutive byte-identical agent messages (probe03 ``LOOP_MIN_RUN``).
+#: Consecutive agent steps with one normalized command and no edit (DEV p99 6; the
+#: live watch ``repetition_run`` and the agent's ``loop_command_run_min`` are 8).
+LOOP_COMMAND_RUN = 8
+#: Consecutive byte-identical agent messages (probe03 ``LOOP_MIN_RUN``; DEV p99 1).
 LOOP_MESSAGE_RUN = 10
-#: Completion claims (live watch ``completion_claims``).
+#: Completion claims (live watch ``completion_claims``; DEV p99 1).
 LOOP_COMPLETION_CLAIMS = 5
-#: Any window of this many agent steps with at most ``LOOP_CYCLE_DISTINCT`` distinct commands and no edit.
+#: Any window of this many agent steps with at most ``LOOP_CYCLE_DISTINCT`` distinct
+#: commands and no edit (18 of the 1,998 DEV runs with a full edit-free window).
 LOOP_CYCLE_WINDOW = 12
 LOOP_CYCLE_DISTINCT = 3
-#: Edits reverted to an earlier state of the same file (undo commands or a repeated edit after another edit).
+#: Explicit undo commands after an edit (``git checkout --``, ``git restore``,
+#: ``git reset --hard``, ``patch -R``, restoring a ``.bak``/``.orig`` copy).
 LOOP_EDIT_UNDO = 3
-#: The same normalized error output fed back this many times.
-LOOP_REPEATED_ERROR = 5
+#: The same normalized error output fed back this many times (DEV p99 8, p99.5 10).
+LOOP_REPEATED_ERROR = 10
 
-RUNAWAY_AGENT_STEPS = 200
+#: DEV p99.5 is 250 agent steps (also a common max-turns budget); DEV wall p99 is 1.6 h.
+RUNAWAY_AGENT_STEPS = 250
 RUNAWAY_WALL_SECONDS = 2 * 3600
-RUNAWAY_PROMPT_TOKENS = 2_000_000
 
+#: DEV p99: median step 56 s, p90 step 225 s, largest gap 2,528 s.
 LATENCY_MEDIAN_STEP_SECONDS = 60.0
-LATENCY_P90_STEP_SECONDS = 180.0
-LATENCY_MAX_GAP_SECONDS = 900.0
+LATENCY_P90_STEP_SECONDS = 300.0
+LATENCY_MAX_GAP_SECONDS = 2700.0
 LATENCY_SETUP_SECONDS = 900.0
 LATENCY_VERIFIER_SECONDS = 900.0
 #: Fewer timestamped agent steps than this and latency abstains.
@@ -99,20 +107,26 @@ EXCEPTION_KIND: dict[str, str] = {
 }
 _INFRA_EXCEPTION_SUBSTRINGS = ("daytona", "modal", "docker", "sandbox", "serviceunavailable",
                                "connection", "environment", "image")
-#: Harbor/terminus stop reasons by kind.
+#: Harbor/terminus stop reasons and the cloud store's receipt ``native_status.stop_condition``, by kind.
 STOP_KIND: dict[str, str] = {
     "agent_timeout": "runaway",
     "trial_budget_exhausted": "runaway",
     "max_episodes": "runaway",
     "context_length_exceeded": "runaway",
+    "max_turns": "runaway",
+    "context_length": "runaway",
+    "LimitsExceeded": "runaway",
+    "ContextWindowExceededError": "runaway",
     "loop_break": "loop",
     "model_auth_error": "infra",
 }
 
-#: Timeout/kill markers in tool output.
+#: Timeout/kill markers in tool output, including the store's JSON ``returncode`` and
+#: ``<returncode>N</returncode>`` forms (124 timeout, 137/-9 SIGKILL, 143/-15 SIGTERM).
 TIMEOUT_MARKER_RE = re.compile(
-    r"timed out|time ?out(?:Error| exceeded)|\bexit(?: code|ed with)?[: ]+124\b|"
-    r"\bKilled\b|\bexit(?: code|ed with)?[: ]+137\b|Terminated|SIGKILL|deadline exceeded",
+    r"timed out|time ?out(?:Error| exceeded)|\bexit(?: code|ed with)?[: ]+(?:124|137|143)\b|"
+    r"\"returncode\":\s*(?:124|137|143|-9|-15)\b|<returncode>(?:124|137|143|-9|-15)</returncode>|"
+    r"\bKilled\b|Terminated|SIGKILL|deadline exceeded",
     re.IGNORECASE,
 )
 
@@ -120,7 +134,8 @@ TIMEOUT_MARKER_RE = re.compile(
 #: they appear; ``run_health.infra`` alarms on them only in the run's last
 #: ``INFRA_TAIL_STEPS`` steps with no agent step after (the failure ended the run).
 INFRA_SIGNATURES: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("route", re.compile(r"served_route_mismatch|upstream_failed", re.IGNORECASE)),
+    # ``upstream_failed`` is a measured grader rejection, not infra (VF-29/VF-30).
+    ("route", re.compile(r"served_route_mismatch", re.IGNORECASE)),
     ("grader_unavailable", re.compile(
         r"original_grader_unavailable|reward file (?:not found|missing|empty)|"
         r"RewardFile(?:NotFound|Empty)Error|VerifierOutputParseError", re.IGNORECASE)),
@@ -144,8 +159,10 @@ INFRA_SIGNATURES: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 INFRA_TAIL_STEPS = 3
 
+#: Undo commands. ``git stash`` is excluded: agents stash to compare against the
+#: baseline and pop it back, which is not an undo (207 of 245 matches in a DEV check).
 _UNDO_RE = re.compile(
-    r"\bgit\s+(?:checkout\s+(?:--\s+|HEAD\s+--\s+)\S|restore\s+\S|reset\s+--hard|stash(?:\s|$))|"
+    r"\bgit\s+(?:checkout\s+(?:--\s+|HEAD\s+--\s+)\S|restore\s+\S|reset\s+--hard)|"
     r"\bpatch\s+-R\b|\bcp\s+\S+\.(?:bak|orig)\s+\S|\bmv\s+\S+\.(?:bak|orig)\s+\S",
 )
 _COMPLETION_RE = re.compile(
@@ -279,20 +296,19 @@ def _cycle(signatures: Sequence[str], edits: Sequence[bool]) -> tuple[int, int |
     return (best if best is not None else 0), at
 
 
-def _edit_undo(signatures: Sequence[str], edits: Sequence[bool]) -> tuple[int, list[int]]:
-    """Undo commands after an edit, plus edits repeating an earlier edit after a different one."""
-    count, where = 0, []
+def _edit_undo(signatures: Sequence[str], edits: Sequence[bool]) -> tuple[list[int], list[int]]:
+    """Positions of explicit undo commands after an edit, and of edits repeating an
+    earlier edit after a different one (a weaker edit/undo signal, reported only)."""
+    undos, repeats = [], []
     previous_edits: list[str] = []
     for position, sig in enumerate(signatures):
         if previous_edits and sig and _UNDO_RE.search(sig):
-            count += 1
-            where.append(position)
+            undos.append(position)
         if edits[position] and sig:
             if previous_edits and previous_edits[-1] != sig and sig in previous_edits:
-                count += 1
-                where.append(position)
+                repeats.append(position)
             previous_edits.append(sig)
-    return count, where
+    return undos, repeats
 
 
 def _quantile(values: Sequence[float], q: float) -> float | None:
@@ -329,7 +345,7 @@ def features(run: HealthRun) -> dict[str, Any]:
     cmd_run, cmd_at = _longest_run(signatures, edits)
     msg_run, msg_at = _longest_run(messages)
     cycle_distinct, cycle_at = _cycle(signatures, edits)
-    undo, undo_at = _edit_undo(signatures, edits)
+    undo_at, repeat_at = _edit_undo(signatures, edits)
     nonempty = [s for s in signatures if s]
     commands = Counter(nonempty)
     top_command_count = commands.most_common(1)[0][1] if commands else 0
@@ -428,8 +444,9 @@ def features(run: HealthRun) -> dict[str, Any]:
         "cycle_step": agent_ids[cycle_at] if cycle_at is not None else None,
         "distinct_command_ratio": round(len(commands) / len(nonempty), 4) if nonempty else None,
         "top_command_count": top_command_count,
-        "edit_undo_cycles": undo,
+        "edit_undo_cycles": len(undo_at),
         "edit_undo_steps": [agent_ids[p] for p in undo_at][:5],
+        "repeated_edits": len(repeat_at),
         "max_repeated_error": max(errors.values()) if errors else 0,
         "completion_claims": completions,
         "timeout_marker_steps": timeout_hits[:5],
@@ -509,14 +526,31 @@ def _decide(run_id: str, kind: str, components: list[dict[str, Any]], started: f
     return _finding(run_id, kind, "clear", score, [], summary, started)
 
 
+def _run_level(f: Mapping[str, Any], kind: str) -> str | None:
+    """The run-level exception or stop reason that maps to ``kind``, if any."""
+    if f["exception_kind"] == kind:
+        return "exception:" + f["exception_type"]
+    if f["stop_kind"] == kind:
+        return "stop:" + f["stop_reason"]
+    return None
+
+
 def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
-    """One ``trace-findings/v1`` record per kind for ``run`` (loop, runaway, latency, infra)."""
+    """One ``trace-findings/v1`` record per kind for ``run`` (loop, runaway, latency, infra).
+
+    Without an actor transcript a kind can still alarm on a run-level exception or
+    stop reason (an infra exception needs no transcript); otherwise it is ``unknown``.
+    """
     started = time.perf_counter()
     f = dict(feats) if feats is not None else features(run)
     rid = run.run_id
     if not f["actor_inputs_available"]:
         reason = "no actor transcript (actor_inputs_available=false): unknown, not clear"
-        return [_finding(rid, kind, "unknown", 0.0, [], reason, started) for kind in KINDS]
+        return [
+            _decide(rid, kind, [], started, forced=forced) if (forced := _run_level(f, kind))
+            else _finding(rid, kind, "unknown", 0.0, [], reason, started)
+            for kind in KINDS
+        ]
 
     out = []
     loop = _components([
@@ -531,18 +565,13 @@ def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[
         # fewer distinct commands in the window is worse: ratio = threshold / distinct
         loop.append({"name": "command_cycle", "value": f["cycle_min_distinct"], "threshold": LOOP_CYCLE_DISTINCT,
                      "ratio": LOOP_CYCLE_DISTINCT / f["cycle_min_distinct"], "step": f["cycle_step"]})
-    loop_forced = "exception:" + f["exception_type"] if f["exception_kind"] == "loop" else (
-        "stop:" + f["stop_reason"] if f["stop_kind"] == "loop" else None)
-    out.append(_decide(rid, "loop", loop, started, forced=loop_forced))
+    out.append(_decide(rid, "loop", loop, started, forced=_run_level(f, "loop")))
 
     runaway = _components([
         ("agent_steps", f["agent_steps"], RUNAWAY_AGENT_STEPS, f["last_step"]),
         ("wall_seconds", f["wall_seconds"], RUNAWAY_WALL_SECONDS, f["last_step"]),
-        ("prompt_tokens", f["prompt_tokens"], RUNAWAY_PROMPT_TOKENS, f["last_step"]),
     ])
-    runaway_forced = "exception:" + f["exception_type"] if f["exception_kind"] == "runaway" else (
-        "stop:" + f["stop_reason"] if f["stop_kind"] == "runaway" else None)
-    out.append(_decide(rid, "runaway", runaway, started, forced=runaway_forced))
+    out.append(_decide(rid, "runaway", runaway, started, forced=_run_level(f, "runaway")))
 
     latency = _components([
         ("setup_seconds", f["setup_seconds"], LATENCY_SETUP_SECONDS, None),
@@ -560,11 +589,9 @@ def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[
     else:
         out.append(_decide(rid, "latency", latency, started))
 
-    infra_forced = "exception:" + f["exception_type"] if f["exception_kind"] == "infra" else (
-        "stop:" + f["stop_reason"] if f["stop_kind"] == "infra" else None)
     tail = [{"name": f"tail:{name}", "value": 1, "threshold": 1, "ratio": 1.0, "step": steps[0]}
             for name, steps in f["infra_tail"].items()]
-    out.append(_decide(rid, "infra", tail, started, forced=infra_forced))
+    out.append(_decide(rid, "infra", tail, started, forced=_run_level(f, "infra")))
     return out
 
 
@@ -608,17 +635,13 @@ def trial_run(trial_dir: Path, *, run_id: str | None = None, source: str = "harb
     return HealthRun(run_id=run_id or trial_dir.name, source=source, steps=steps or [], meta=meta)
 
 
-#: Per-step timestamp paths inside ``trace_steps.flags_json``, first hit wins.
-STORE_TIMESTAMP_PATHS = (
-    "timestamp", "source_timestamp", "native_node_residual.timestamp",
-    "raw_message.timestamp", "raw_message.completedAt",
-)
+#: Per-step timestamp paths inside ``trace_steps.flags_json``, first hit wins (Goodfire
+#: epoch seconds; TB4/MiMo ISO; TB4 native epoch milliseconds).
+STORE_TIMESTAMP_PATHS = ("native_node_residual.timestamp", "source_timestamp", "raw_message.timestamp")
 #: Per-step (prompt, completion) token paths inside ``flags_json``, first pair with a prompt wins.
 STORE_TOKEN_PATHS = (
-    ("metrics.prompt_tokens", "metrics.completion_tokens"),
+    ("source_metrics.prompt_tokens", "source_metrics.completion_tokens"),
     ("raw_message.usage.input", "raw_message.usage.output"),
-    ("usage.prompt_tokens", "usage.completion_tokens"),
-    ("native_node_residual.message.usage.prompt_tokens", "native_node_residual.message.usage.completion_tokens"),
 )
 
 
@@ -643,7 +666,8 @@ def store_runs(database: Path, *, registry: Any, dataset_ids: Sequence[str] | No
 
     Steps come from :func:`evallab.production.run_atlas.cloud_runs` (which reads no
     label or publisher flag); this adds only timestamps and token counts from
-    ``flags_json``, keyed by the original ``step_index``.
+    ``flags_json``, keyed by the original ``step_index``, and the receipt's
+    ``native_status.stop_condition`` as the run's stop reason.
     """
     from evallab.production.run_atlas import cloud_runs, connect_readonly
 
@@ -669,8 +693,15 @@ def store_runs(database: Path, *, registry: Any, dataset_ids: Sequence[str] | No
                 if metrics:
                     enriched["metrics"] = metrics
                 steps.append(enriched)
-            yield HealthRun(run_id=run.run_id, source=run.source, steps=steps,
-                            meta={"actor_inputs_available": actor_inputs_available(steps)})
+            receipt = connection.execute(
+                "SELECT CASE WHEN json_valid(verified_receipt_json)"
+                " THEN json_extract(verified_receipt_json, '$.native_status.stop_condition') END"
+                " FROM agent_traces WHERE trace_id = ?", (run.run_id,),
+            ).fetchone()
+            yield HealthRun(run_id=run.run_id, source=run.source, steps=steps, meta={
+                "actor_inputs_available": actor_inputs_available(steps),
+                "stop_reason": receipt[0] if receipt else None,
+            })
     finally:
         connection.close()
 

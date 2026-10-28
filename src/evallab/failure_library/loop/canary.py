@@ -722,7 +722,7 @@ def canary(
     stages["shared-score"] = _shared_score(manifest, root, receipt, runner)
     stages["feedback"] = {
         "status": "failed",
-        "reason": "read-only source-review heartbeat cannot mint executed evidence; confirmed findings must enter through failures verify/ingest, never promote model claims",
+        "reason": "read-only model signals remain proposals; historical/source receipts require review through source-owned ingest, never automatic promotion to executed evidence",
     }
     actual = {
         "broken_tasks": sum(row["expected"] == "broken" for row in manifest["tasks"]),

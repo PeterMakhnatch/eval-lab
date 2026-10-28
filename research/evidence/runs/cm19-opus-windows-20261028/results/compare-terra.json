@@ -1,0 +1,83 @@
+{
+ "windows": {
+  "prompts_total": 418,
+  "judged_by_both": 410,
+  "opus_failed_refused": 8,
+  "terra_failed": 0,
+  "confirmed_terra": 58,
+  "confirmed_opus": 24,
+  "confirmed_both": 21,
+  "terra_only": 37,
+  "opus_only": 3,
+  "label_counts": {
+   "terra": {
+    "neither": 349,
+    "defect-fail": 55,
+    "exploit-pass": 6
+   },
+   "opus": {
+    "neither": 386,
+    "defect-fail": 21,
+    "exploit-pass": 3
+   }
+  }
+ },
+ "paired_run_alarms_terra_vs_opus": {
+  "A": {
+   "positives": {
+    "terra_only": 4,
+    "opus_only": 0,
+    "both": 4,
+    "n": 76,
+    "sign_test_p": 0.125
+   },
+   "negatives": {
+    "terra_only": 2,
+    "opus_only": 0,
+    "both": 0,
+    "n": 70,
+    "sign_test_p": 0.5
+   }
+  },
+  "B": {
+   "positives": {
+    "terra_only": 10,
+    "opus_only": 0,
+    "both": 12,
+    "n": 76,
+    "sign_test_p": 0.002
+   },
+   "negatives": {
+    "terra_only": 2,
+    "opus_only": 2,
+    "both": 3,
+    "n": 70,
+    "sign_test_p": 1.0
+   }
+  },
+  "C": {
+   "positives": {
+    "terra_only": 10,
+    "opus_only": 0,
+    "both": 14,
+    "n": 76,
+    "sign_test_p": 0.002
+   },
+   "negatives": {
+    "terra_only": 3,
+    "opus_only": 2,
+    "both": 3,
+    "n": 70,
+    "sign_test_p": 1.0
+   }
+  }
+ },
+ "tokens": {
+  "opus_input_per_call": 5006.0,
+  "opus_output_per_call": 45.9,
+  "terra_input_per_call": 3050.4,
+  "terra_output_per_call": 31.5,
+  "opus_input_total_all_ok": 2052444,
+  "opus_output_total_all_ok": 18837
+ }
+}

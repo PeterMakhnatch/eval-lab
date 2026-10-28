@@ -1189,7 +1189,7 @@ $('atlas-tools-open').addEventListener('click',()=>$('tools-tab').click());
 let repairData=null,repairVersion=0;
 const repairTone=status=>status==='native-validated'?'good':status==='no repair'?'blue':'warn';
 function repairLink(repair){
- const label='#'+repair.pr+' '+(repair.kind==='ts9-candidate'?'TS-9 candidate':'related candidate')+(repair.merged===true?' · merged':'');
+ const label='#'+repair.pr+' '+(repair.kind==='ts9-candidate'?'candidate':'related candidate')+(repair.merged===true?' · merged':'');
  const target=repair.pr_url?node('a',label):node('span',label);
  if(repair.pr_url){target.href=repair.pr_url;target.target='_blank';target.rel='noopener noreferrer';}
  const cell=node('div',undefined,'task-lines');

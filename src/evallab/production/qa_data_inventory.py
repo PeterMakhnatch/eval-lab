@@ -14,6 +14,15 @@ from evallab.production.cloud_trace_export import CHEATBENCH_DATASET, cheatbench
 from evallab.production.qa_data import UNAVAILABLE, QaContext, QaDataError
 from evallab.production.run_atlas import outcome_from_reward
 from evallab.production.run_atlas_clusters import load_clusters
+from evallab.production.trace_findings import has_actor_inputs, has_table
+
+NO_RESULTS = "no results retained"
+TRACE_SORTS = ("task", "alarms")
+_ALARM_DETECTORS_SHOWN = 20
+_ALARM_NOTE = (
+    "Leads, not verdicts. detector_results 0 = no detector read the run (not clean); "
+    "no actor transcript = unknown, never clean."
+)
 
 
 def _reserve(ctx: QaContext, payload: dict[str, Any]) -> None:
@@ -86,41 +95,143 @@ def inventory(ctx: QaContext, *, ids_out: Path | None) -> dict[str, Any]:
     return payload
 
 
+def _alarm_records(ctx: QaContext, rows: list[dict[str, Any]]) -> tuple[str, list[tuple[str, str, str]]] | None:
+    """Caller owns the snapshot: (source, [(run, detector, verdict)]) over admitted runs, or None if none is retained.
+
+    Stored ``trace_findings`` rows win; a store with none for an admitted run falls back to the harness's interim
+    ``findings-v1.jsonl`` (newest record per detector, version and reader, as the Run Atlas reads it).
+    """
+    if not rows:
+        return None
+    if has_table(ctx.database):
+        parameters: list[Any] = []
+        scope = ctx.database._task_id_scope("a.task_id", sorted({row["task_id"] for row in rows}), parameters)
+        stored = ctx.database._rows(
+            "SELECT f.run_id, f.detector, f.verdict FROM trace_findings f "
+            "JOIN agent_traces a ON a.trace_id=f.run_id AND a.task_id=f.task_id "
+            f"WHERE {scope}", parameters,
+        )
+        if stored:
+            return "trace_findings", [(row["run_id"], row["detector"], row["verdict"]) for row in stored]
+    from evallab.production.harness_view import FINDINGS_FILE, load_findings
+
+    admitted = {row["trace_id"] for row in rows}
+    interim = [
+        (run, record["detector"], record["verdict"])
+        for run, kept in load_findings(ctx.state_dir / FINDINGS_FILE)["by_run"].items() if run in admitted
+        for record in kept.values()
+    ]
+    return (f"{FINDINGS_FILE} (interim)", interim) if interim else None
+
+
+def _stored_alarms(ctx: QaContext, rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Caller owns the snapshot: per admitted run, the detectors that alarm on it and how many results it has.
+
+    Every verdict counts toward ``results``; a detector name that names a sealed identity is withheld.
+    None when no result is retained for any admitted run.
+    """
+    found = _alarm_records(ctx, rows)
+    if found is None:
+        return None
+    source, records = found
+    sealed = _sealed_pattern(frozenset(ctx.retriever._admitted_ids()[1]))
+    by_run: dict[str, dict[str, Any]] = {}
+    withheld = 0
+    for run_id, detector, verdict in records:
+        entry = by_run.setdefault(run_id, {"alarms": set(), "results": 0})
+        entry["results"] += 1
+        if verdict != "alarm":
+            continue
+        if ctx.retriever._sealed_text(detector, sealed):
+            withheld += 1
+            entry["alarms"].add("[withheld]")
+        else:
+            entry["alarms"].add(detector)
+    return {"source": source, "by_run": by_run, "withheld": withheld}
+
+
 def traces(
     ctx: QaContext, *, task_id: str | None, dataset: str | None, model: str | None,
-    outcome: str | None, limit: int, ids_only: bool,
+    outcome: str | None, limit: int, ids_only: bool, alarmed_by: str | None = None, sort: str = "task",
 ) -> dict[str, Any]:
-    """List all admitted runs, faceted or not. Records expose dataset/model for QA, NOT blind readers."""
+    """List all admitted runs, faceted or not. Records expose dataset/model for QA, NOT blind readers.
+
+    ``alarmed_by`` keeps runs a retained alarm of that detector names; ``sort="alarms"`` puts the runs
+    most detectors alarm on first. Either adds each record's alarms, retained result count and
+    ``actor_inputs_available``, and an ``alarms`` summary whose source says when nothing is retained.
+    """
     if limit < 1:
         raise QaDataError("--limit must be at least 1")
     if outcome is not None and outcome not in ("pass", "fail", "unknown"):
         raise QaDataError("--outcome must be pass, fail or unknown")
+    if sort not in TRACE_SORTS:
+        raise QaDataError("--sort must be task or alarms")
+    alarm_mode = alarmed_by is not None or sort == "alarms"
     owner = ctx.require_task(task_id)["task_id"] if task_id is not None else None
     with ctx.database._transaction():
         _tasks, rows = _tasks_and_traces(ctx, owner)
-    matched = []
-    for row in rows:
-        derived = outcome_from_reward(row["reward"])
-        if owner is not None and row["task_id"] != owner:
+        found = _stored_alarms(ctx, rows) if alarm_mode else None
+        selected = [
+            row for row in rows
+            if (owner is None or row["task_id"] == owner)
+            and (dataset is None or row["dataset_id"] == dataset)
+            and (model is None or row["model_id"] == model)
+            and (outcome is None or outcome_from_reward(row["reward"]) == outcome)
+        ]
+        by_run = found["by_run"] if found is not None else {}
+        summary: dict[str, Any] | None = None
+        if alarm_mode:
+            summary = _alarm_summary(selected, found)
+            if alarmed_by is not None:
+                selected = [row for row in selected if alarmed_by in by_run.get(row["trace_id"], {}).get("alarms", ())]
+            if sort == "alarms":  # stable: equal counts keep the dataset, task, model, trace order
+                selected.sort(key=lambda row: -len(by_run.get(row["trace_id"], {}).get("alarms", ())))
+        actors = {
+            row["trace_id"]: has_actor_inputs(ctx.database, row["trace_id"]) for row in selected[:limit]
+        } if found is not None and not ids_only else {}
+    matched: list[Any] = []
+    for row in selected:
+        if ids_only:
+            matched.append(row["trace_id"])
             continue
-        if dataset is not None and row["dataset_id"] != dataset:
-            continue
-        if model is not None and row["model_id"] != model:
-            continue
-        if outcome is not None and derived != outcome:
-            continue
-        matched.append(row["trace_id"] if ids_only else {
-            key: row[key] for key in ("trace_id", "task_id", "dataset_id", "model_id", "step_count")
-        } | {"outcome": derived, "faceted": bool(row["faceted"])})
+        item = {key: row[key] for key in ("trace_id", "task_id", "dataset_id", "model_id", "step_count")} | {
+            "outcome": outcome_from_reward(row["reward"]), "faceted": bool(row["faceted"]),
+        }
+        if found is not None:
+            entry = by_run.get(row["trace_id"], {"alarms": (), "results": 0})
+            item |= {"alarms": sorted(entry["alarms"]), "detector_results": entry["results"]}
+            if row["trace_id"] in actors:
+                item["actor_inputs_available"] = actors[row["trace_id"]]
+        matched.append(item)
     payload: dict[str, Any] = {"traces": [], "matched": len(matched), "omitted": len(matched), "truncated": bool(matched)}
     if owner is not None:
         payload["task_id"] = owner
+    if summary is not None:
+        payload["alarms"] = summary
     _reserve(ctx, payload)
     payload["traces"] = [item for item in matched[:limit] if ctx.budget.take([item] if ids_only else item)]
     ctx.budget.omitted += max(0, len(matched) - limit)
     payload["omitted"] = len(matched) - len(payload["traces"])
     payload["truncated"] = payload["omitted"] > 0
     return payload
+
+
+def _alarm_summary(selected: list[dict[str, Any]], found: dict[str, Any] | None) -> dict[str, Any]:
+    """Over the runs the other filters keep: how many a detector read, alarmed, and runs per alarming detector."""
+    if found is None:
+        return {"source": NO_RESULTS}
+    by_run, withheld = found["by_run"], found["withheld"]
+    entries = [by_run[row["trace_id"]] for row in selected if row["trace_id"] in by_run]
+    detectors = Counter(name for entry in entries for name in entry["alarms"])
+    summary: dict[str, Any] = {
+        "source": found["source"], "runs_read": len(entries),
+        "runs_alarmed": sum(1 for entry in entries if entry["alarms"]),
+        "by_detector": dict(sorted(detectors.items(), key=lambda pair: (-pair[1], pair[0]))[:_ALARM_DETECTORS_SHOWN]),
+        "detectors_total": len(detectors), "note": _ALARM_NOTE,
+    }
+    if withheld:
+        summary["withheld_detectors"] = withheld
+    return summary
 
 
 def _registry_dev_ids(ctx: QaContext) -> set[str]:

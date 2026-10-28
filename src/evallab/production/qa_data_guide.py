@@ -41,12 +41,19 @@ IDS
 CALLS (all JSON; examples use real flags)
   inventory                          admitted tasks/runs by dataset, outcomes, top models
        inventory --ids-out /private/tmp/me/ids.txt        also write every admitted trace id (file must not exist)
-  traces [--task T] [--dataset D] [--model M] [--outcome pass|fail|unknown] [--limit N] [--ids-only]
+  traces [--task T] [--dataset D] [--model M] [--outcome pass|fail|unknown] [--alarmed-by DETECTOR] [--sort task|alarms]
+         [--limit N] [--ids-only]
        list admitted runs, faceted or not (task/dataset/model are shown; never hand these records to blind readers)
        --model is the id as stored, with its prefix (`source-reported:moonshotai/Kimi-K3`; copy it from `inventory`
        models): a name that matches nothing is matched 0, not an error. --ids-only gives data.traces[] = ids: save
        them with `... | jq -r '.data.traces[]' > ids.txt` for `export --ids-file`.
        traces --task cad-model              -> matched, runs of terminal-bench/cad-model (matched: 0 says none exist)
+       traces --sort alarms --limit 10      PICK RUNS BY DETECTOR ALARM: the 10 admitted runs the most detectors alarm
+       on; each record adds alarms[], detector_results and actor_inputs_available. data.alarms.source: the store's
+       trace_findings, else the harness's interim trace-harness/findings-v1.jsonl. --alarmed-by DETECTOR keeps the
+       runs that detector alarms on (names and run counts: data.alarms.by_detector). Source "no results retained"
+       = no detector result is kept anywhere: that is NOT "no alarm"; detector_results 0 = no detector read that run
+       (not clean). Read one picked run with `trace-card RUN_ID` (it reads stored findings only).
   runs [--facet K=V[,V] ...] [--cluster ID] [--like TRACE_ID] [--query WORDS] [--task T] [--limit N]
        search FACETED runs. Records carry no dataset, split, source or model field, but task_id and run_id strings
        still name their dataset: for a blind reader use `export` files, never these records. Facet fields: outcome

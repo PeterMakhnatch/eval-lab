@@ -6,8 +6,9 @@ in the hundreds of thousands, so they live in local state
 (``$EVALLAB_FAILURE_LIBRARY_STATE`` or ``~/.local/state/evallab-failure-library``)
 and Git keeps a manifest with their count and digest beside the findings.
 
-Writes are whole-collection, sorted by id and atomic. One id with two
-different bodies is refused instead of silently picking one.
+Writes are whole-collection, sorted by id and atomic. Every published collection
+and manifest is also retained in the existing evidence CAS before replacement.
+One id with two different bodies in one write is refused.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from collections import Counter
 from collections.abc import Iterable, Iterator
 from pathlib import Path
@@ -22,6 +24,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from evallab.evidence_store import store_blob
 from evallab.failure_library.records import SCHEMA_VERSION, Finding, RunRecord
 from evallab.schemas import ContractModel
 
@@ -40,11 +43,12 @@ class RunManifest(ContractModel):
     """Committed provenance for one run collection kept outside Git."""
 
     schema_version: Literal["failure-library/v1"] = SCHEMA_VERSION
-    collection: str
+    collection: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]*$")
     source_revision: str = Field(min_length=1)
     count: int = Field(ge=0)
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     outcomes: dict[str, int]
+    #: Label occurrences by kind; one run can carry several labels of one kind.
     label_kinds: dict[str, int]
 
 
@@ -71,6 +75,12 @@ def _unique_by_id(records: Iterable[Any], key: str) -> list[dict[str, Any]]:
     return [seen[record_id] for record_id in sorted(seen)]
 
 
+def _collection_name(collection: str) -> str:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", collection):
+        raise ValueError(f"invalid collection name: {collection!r}")
+    return collection
+
+
 class LibraryStore:
     """Read and write findings and run records for named collections."""
 
@@ -78,6 +88,7 @@ class LibraryStore:
         self.findings_root = findings_root
         self.manifest_root = manifest_root
         self.runs_root = runs_root
+        self.history_root = runs_root.parent / "history"
 
     @classmethod
     def for_repo(cls, repo_root: Path, *, state_root: Path | None = None) -> LibraryStore:
@@ -90,13 +101,20 @@ class LibraryStore:
         )
 
     def findings_path(self, collection: str) -> Path:
-        return self.findings_root / f"{collection}.jsonl"
+        return self.findings_root / f"{_collection_name(collection)}.jsonl"
 
     def runs_path(self, collection: str) -> Path:
-        return self.runs_root / f"{collection}.jsonl"
+        return self.runs_root / f"{_collection_name(collection)}.jsonl"
 
     def manifest_path(self, collection: str) -> Path:
-        return self.manifest_root / f"{collection}.manifest.json"
+        return self.manifest_root / f"{_collection_name(collection)}.manifest.json"
+
+    def _publish(self, path: Path, text: str) -> None:
+        """Retain old and new bytes before advancing a mutable collection pointer."""
+        if path.is_file():
+            store_blob(self.history_root, path.read_bytes())
+        store_blob(self.history_root, text)
+        _atomic_write(path, text)
 
     def write_findings(self, collection: str, findings: Iterable[Finding]) -> Path:
         items = list(findings)
@@ -105,7 +123,7 @@ class LibraryStore:
             raise ValueError(f"findings from {strays} cannot be written to collection {collection}")
         rows = _unique_by_id(items, "finding_id")
         path = self.findings_path(collection)
-        _atomic_write(path, "".join(_line(row) + "\n" for row in rows))
+        self._publish(path, "".join(_line(row) + "\n" for row in rows))
         return path
 
     def write_runs(
@@ -117,7 +135,6 @@ class LibraryStore:
             raise ValueError(f"runs from {strays} cannot be written to collection {collection}")
         rows = _unique_by_id(items, "run_id")
         text = "".join(_line(row) + "\n" for row in rows)
-        _atomic_write(self.runs_path(collection), text)
         manifest = RunManifest(
             collection=collection,
             source_revision=source_revision,
@@ -128,7 +145,9 @@ class LibraryStore:
                 sorted(Counter(label["kind"] for row in rows for label in row["labels"]).items())
             ),
         )
-        _atomic_write(
+        # Validate the manifest before advancing either latest pointer.
+        self._publish(self.runs_path(collection), text)
+        self._publish(
             self.manifest_path(collection), _line(manifest.model_dump(mode="json")) + "\n"
         )
         return manifest
@@ -176,17 +195,41 @@ class LibraryStore:
             "defect_class": Counter(),
             "split": Counter(),
             "status_now": Counter(),
+            "evidence_kind": Counter(),
+            "record_basis": Counter(),
+            "execution_support": Counter(),
         }
+        task_ids: set[tuple[str, str, str]] = set()
+        task_versions: set[tuple[str, str, str, str | None, str | None]] = set()
         for finding in self.iter_findings():
             findings["collection"][finding.collection] += 1
             findings["tier"][finding.tier] += 1
             findings["defect_class"][finding.defect_class] += 1
             findings["split"][finding.split] += 1
             findings["status_now"][finding.status_now] += 1
+            kinds = {item.kind for item in finding.evidence}
+            for kind in kinds:
+                findings["evidence_kind"][kind] += 1
+            basis = "constructed" if "construction" in kinds else "reported_failure"
+            findings["record_basis"][basis] += 1
+            executed = [item for item in finding.evidence if item.kind == "executed"]
+            support = (
+                "receipt_referenced"
+                if any(item.receipt_ref for item in executed)
+                else "reproducer_referenced_without_receipt"
+                if executed
+                else "no_execution_evidence"
+            )
+            findings["execution_support"][support] += 1
+            task = finding.task
+            identity = (task.source_id, task.upstream_repo, task.task_id)
+            task_ids.add(identity)
+            task_versions.add((*identity, task.upstream_revision, task.task_version_digest))
         runs: dict[str, Counter[str]] = {
             "collection": Counter(),
             "outcome": Counter(),
             "label_kind": Counter(),
+            "runs_with_label_kind": Counter(),
             "split": Counter(),
         }
         for run in self.iter_runs():
@@ -195,9 +238,13 @@ class LibraryStore:
             runs["split"][run.split] += 1
             for label in run.labels:
                 runs["label_kind"][label.kind] += 1
+            for kind in {label.kind for label in run.labels}:
+                runs["runs_with_label_kind"][kind] += 1
         return {
             "findings": {
                 "total": sum(findings["collection"].values()),
+                "unique_task_ids": len(task_ids),
+                "unique_task_versions": len(task_versions),
                 **{f"by_{name}": dict(sorted(counts.items())) for name, counts in findings.items()},
             },
             "runs": {

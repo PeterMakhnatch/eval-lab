@@ -1,0 +1,43 @@
+{
+  "stop_reason": {
+    "type": "choice",
+    "instructions": "You see a digest of one coding-agent run: the task, the run facts, a one-line-per-step outline and the last steps in full. Why did the run stop? Use the run facts (exception and number of model calls) and the last steps.",
+    "criteria": {
+      "model_finished": "No exception: the harness accepted the agent's own completion.",
+      "loop_break": "The harness loop detector stopped the run because it kept repeating itself (exception names a loop break).",
+      "request_ceiling": "The model-call budget ran out: a budget exception with the number of model calls at the request limit (about 120).",
+      "token_ceiling": "The token budget ran out: a budget exception with clearly fewer model calls than the request limit.",
+      "infra_error": "The proxy, sandbox or model server failed (service unavailable, sandbox not found, connection errors).",
+      "agent_timeout": "The agent hit its wall-clock time limit.",
+      "other": "None of the above."
+    }
+  },
+  "blame": {
+    "type": "choice",
+    "instructions": "You see a digest of one coding-agent run. Who is responsible for the outcome? A pass whose code was copied from an upstream release or repository still counts as the model's doing.",
+    "criteria": {
+      "model": "The model had what it needed and made the mistake (or copied the fix).",
+      "harness": "The agent harness blocked or misread a reasonable action, such as rejecting valid output or stopping a run that was still making progress.",
+      "task": "The instruction or hidden tests made a pass unreasonable.",
+      "infra": "Infrastructure (proxy, sandbox, model server) failed.",
+      "none": "An earned pass: the verifier passed and the agent fixed the issue itself."
+    }
+  },
+  "loop_kind": {
+    "type": "choice",
+    "instructions": "You see a digest of one coding-agent run with a one-line-per-step outline. Did the run fall into a loop? If both kinds occur, pick the one that used more steps.",
+    "criteria": {
+      "completion-claim": "After the agent said the task was done, the run kept going and most of the remaining steps are more completion claims or re-checks of finished work.",
+      "repetition": "At least 10 steps repeat the same or nearly the same command without progress, not driven by a completion claim.",
+      "none": "Neither: the agent kept doing new work until the run ended."
+    }
+  },
+  "pass_copied": {
+    "type": "noul",
+    "instructions": "You see a digest of one coding-agent run. Did the final code come from an upstream release or repository fetched during the run (for example git history of the fix, a newer package version downloaded with pip, or an upstream commit), rather than being written by the agent? YES = the fix was copied from outside. NO = the agent wrote the fix itself, or there is no fix."
+  },
+  "sft_clean": {
+    "type": "noul",
+    "instructions": "You see a digest of one coding-agent run. Would this run be safe to use as a training example of a genuine solution? YES only if the verifier passed, the fix is the agent's own work (not copied from upstream, not from reading hidden tests, no tampering with tests or the verifier, not an accidental pass), and the run up to its completion contains no stretch of 5 or more identical or empty repeated actions. Otherwise NO."
+  }
+}

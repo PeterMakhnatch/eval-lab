@@ -1,0 +1,201 @@
+{
+  "admitted_dev_examples": 141994,
+  "by_collection": {
+    "aba-audits": 327,
+    "djinn": 976,
+    "envcheck-tb4": 2,
+    "goodfire-reward-hack-data": 4858,
+    "hacktrace": 12737,
+    "impossiblebench": 606,
+    "mimo-defect-map": 88,
+    "mimo-weak-tests": 101,
+    "olmo-reward-hacking": 18956,
+    "patchdiff-wrong-passes": 49,
+    "pm-tb4-findings": 48,
+    "reward-hacking-ablation": 72407,
+    "swebench-pro-verified-corrections": 83,
+    "termgrade": 27598,
+    "terminal-wrench": 3133,
+    "utboost-weak-tasks": 25
+  },
+  "by_split": {
+    "DEV": 141994
+  },
+  "by_tier": {
+    "V0_unverified": 385,
+    "V1_external_label": 1653,
+    "V2_upstream_fixed": 83,
+    "V3_executed": 184,
+    "run_label": 139689
+  },
+  "cards": 30,
+  "insufficient_dev_support": {},
+  "library_digest": "sha256:65fab305b5ab31f1b2840874e9ba215f330450adc150255825994655a2a31231",
+  "missing_run_collections": [],
+  "omitted_hackbook_proposals": {
+    "FC-HB-RS01-001": {
+      "collections": [
+        "hacktrace"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-RS01-002": {
+      "collections": [
+        "olmo-reward-hacking"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-RS02-001": {
+      "collections": [
+        "hacktrace"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-RS02-002": {
+      "collections": [
+        "olmo-reward-hacking",
+        "reward-hacking-ablation"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-RS03-001": {
+      "collections": [
+        "reward-hacking-ablation"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS01-001": {
+      "collections": [
+        "djinn"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS01-006": {
+      "collections": [
+        "aba-audits"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS01-010": {
+      "collections": [
+        "djinn"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS01-013": {
+      "collections": [
+        "swebench-pro-verified-corrections",
+        "utboost-weak-tasks"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS05-001": {
+      "collections": [
+        "aba-audits"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS05-002": {
+      "collections": [
+        "swebench-pro-verified-corrections"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS05-004": {
+      "collections": [
+        "aba-audits"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS06-001": {
+      "collections": [
+        "impossiblebench"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS07-001": {
+      "collections": [
+        "aba-audits"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS07-002": {
+      "collections": [
+        "aba-audits"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS09-002": {
+      "collections": [
+        "aba-audits"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS09-003": {
+      "collections": [
+        "aba-audits"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS09-004": {
+      "collections": [
+        "aba-audits"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS10-001": {
+      "collections": [
+        "impossiblebench"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    },
+    "FC-HB-TS10-002": {
+      "collections": [
+        "aba-audits",
+        "goodfire-reward-hack-data"
+      ],
+      "reason": "No approved exact-source mapping to the Hackbook source enum"
+    }
+  },
+  "rejected_examples": 148624,
+  "schema_version": "failure-knowledge/v1",
+  "sha256": {
+    "cards.jsonl": "a52059e3fb5eb83068415373b507910fc918fd263af4ec377729be6e8e2d5786",
+    "hackbook-proposals.jsonl": "77182ba66d180fb3714d834719d1e733e917fd2d900be573161d71824f670b44"
+  },
+  "source_collection_digests": {
+    "findings/aba-audits.jsonl": "sha256:11aecd8a87affee4508dbd0300d72e90b56de67cdd75c8a576d51d079212c2e0",
+    "findings/djinn.jsonl": "sha256:860040710117bb25eab5c1335b792df63bc14bcecf07c6fe05da6a394f21cdf0",
+    "findings/envcheck-tb4.jsonl": "sha256:94c6ace768e6ac7937732e26fa7858df3e18d81ce64391c2ed17af6f98821394",
+    "findings/impossiblebench.jsonl": "sha256:73ce5c42712e9c93e33e6d3e3e09e6bad205e7913c5e65c8e0ce92dd7697d3dd",
+    "findings/mimo-defect-map.jsonl": "sha256:318c5ec9b2def84edc5d2520aa8409fc2a215a0dc6c15bb8621f7fe7d2ccfe81",
+    "findings/mimo-weak-tests.jsonl": "sha256:9603395d1735cab28ce4224028fa1f53973cd283babf7c0279a8db3d30c2304d",
+    "findings/openai-swebench-verified-annotations.jsonl": "sha256:3ce7c84a6f9260d554d52cdddacb9d95fba99c346a48572ad54a516e30b0f2cb",
+    "findings/patchdiff-wrong-passes.jsonl": "sha256:71597e864f28183978a1f0b2a81c854c835c5aeceb7e55fde40805478ab1eda9",
+    "findings/pm-tb4-findings.jsonl": "sha256:0be9bbdef2e8dfe669f57d7566f523e741ac32fe948199ae076522f41d6d3c3e",
+    "findings/swebench-pro-verified-corrections.jsonl": "sha256:80713f4fa45d8ae03bb37d8732fa38d583ef817a9eac064e2fcf3914b46d5db9",
+    "findings/tb2-to-tb21-fixes.jsonl": "sha256:4fdc2913fc2f9ed2a88cdf9bd14083ee7a10161c8373129d0acec5a9c3b6d99b",
+    "findings/tb21-weak-tests.jsonl": "sha256:c269cad458a6dc4e9a8f324d8feb6e923f0869542cbb57e06242819b508482a2",
+    "findings/utboost-weak-tasks.jsonl": "sha256:1ac14b4ea98346da6f740a3550b9e8626df5f1a22b1425c22ff10bce690d133e",
+    "manifests/cheatbench.manifest.json": "sha256:3b904906af50dc66f8cb6dcdc63b274f16cfc4aeb68d4896bb8b86e949a2cc45",
+    "manifests/goodfire-reward-hack-data.manifest.json": "sha256:2a84fa32d2ef4e4dc742d8e7bba9f356fb4dd977193113fe6e7dea2091e38c68",
+    "manifests/hacktrace.manifest.json": "sha256:1b595ac3ba51e1f0a3c3a02cbe9442ce3db71e0169280851779778fb19555670",
+    "manifests/metr-malt.manifest.json": "sha256:d64e10cbf7d4507f1919594b671c228ec0650ba514f91836a68905006dc9c6f3",
+    "manifests/olmo-reward-hacking.manifest.json": "sha256:6c27a1031f85e596b2cc65d2764ad18307ad788f171002baecb5f627dc9fe975",
+    "manifests/reward-hacking-ablation.manifest.json": "sha256:54b14bc2812e08aa325275c1e2d96ee18a56d0ddb1749de2c148558ddd4c73f5",
+    "manifests/termgrade.manifest.json": "sha256:f0161eb8211e393970095fa87c813d0d2953e969f87dd45ddbab3179c61bffc0",
+    "manifests/terminal-wrench.manifest.json": "sha256:23475ed9b5659e1722b1a6afdcb5b2662ef5815835222c3c6f99b96076976e8d",
+    "runs/cheatbench.jsonl": "sha256:61a47003587056e6d2c7c302d14b6702217f2b372ebf09f07d7fb7bd96dbbdeb",
+    "runs/goodfire-reward-hack-data.jsonl": "sha256:a65b9c9b151f778d9e220ef065f560d05b98a967a0fbfaa23922ccf2d8330772",
+    "runs/hacktrace.jsonl": "sha256:ac7bbb68014e999b797f6d46fb7adb1864d7a7c038c3ff9b14fef33aedeae060",
+    "runs/metr-malt.jsonl": "sha256:0e8f1d7a7c0faf1659a67ecffa88095e754dc282965dc020a8cb32f579972558",
+    "runs/olmo-reward-hacking.jsonl": "sha256:4a74ccc070994992f2dbf2ab281f79a4afabbe67d51300bd849bce184d1f06da",
+    "runs/reward-hacking-ablation.jsonl": "sha256:44cbc1e7278b3bffae92689a4dca7c19258e98dc278f94f68ff43fd9ce6a9eb8",
+    "runs/termgrade.jsonl": "sha256:a9fb7c9e1d63e4119c1fdc07480b5442d8ad69f22b6121f0cdc61d7121cdcfd0",
+    "runs/terminal-wrench.jsonl": "sha256:088ce0f0f4cf0f737ca8751f8c191fb2f72a0e6ef8d8391376e32beca37fbcdf"
+  },
+  "source_digest_format": "sha256-file-bytes",
+  "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+  "taxonomy_sha256": "sha256:d7665300c720271202b4166af64fdf14b4b0dde34d57dec0fb2e7bd99e792da8",
+  "unbound_finding_links": 1397
+}

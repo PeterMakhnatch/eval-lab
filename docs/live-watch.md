@@ -1563,6 +1563,16 @@ verifier log tail and CTRF excerpts; free text is passed through `scrub_blind_ta
 paths are dropped, the repaired grade is never fed back, 6000-character cap), then the blind
 prompt and DEV-only `CloudTraceRetriever` evidence (query enriched with the first failure token).
 
+The live production seeker uses the same bounded runner-feedback renderer on **every retry**:
+after the role/rules header, the immediately preceding attempt's measured ORIGINAL-grader
+output comes first, followed by failed shortcut signatures, then the Hackbook hypothesis/cues,
+and finally retrieved DEV evidence. Repaired rewards and diagnostic output remain in the
+journal, never in the model-facing failure-memory projection. With `hide_tests`, attempt 1
+still has no feedback, cues or retrieval. An unavailable, refused, invalid or skipped preceding
+execution produces an explicit **no runner output / not evaluated** note, not a fabricated
+error or zero reward; older runner output is never reused across that gap. Failure-token
+query enrichment and the cross-key DEV admission rules are unchanged.
+
 ```bash
 # free: counts, Modal upper bound, per-task cross-key DEV gate; writes <out>/plan.json
 uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out
@@ -1584,6 +1594,53 @@ uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out -
   turn is renamed `turn-N.superseded-K`, never overwritten.
 - Model calls log `tool: omp`, `usd: 0` rows and Modal grades log `route: modal` rows to
   `~/.local/state/evallab-failure-library/spend.jsonl` (`--spend-log` overrides it).
+
+#### SB-2 retained known-hack export (`evallab prod seeker-known-hacks`)
+
+This offline exporter runs no model or grader. The default `--dry-run` reads retained
+DEV evidence and reports `cells_seen`, `confirmed`, `exported`, `already_exported`,
+`would_export`, and first-failed `rejected_by_gate` counts; it writes nothing.
+Unlisted tasks and any cross-key non-DEV task are refused before reading cell bodies.
+The QC attestation/served-route, hidden-tests condition, stdout and executed-solve
+digests must agree. The production `VerifiedAssetExporter._verify_exploit_witness`
+also recomputes the complete submission digest and requires two distinct native
+measured receipts with original reward 1 and repaired reward 0. Inline reward fields
+or a claimed confirmation event alone never qualify.
+
+```bash
+uv run evallab prod seeker-known-hacks --cells-root /path/to/pairs --dry-run
+uv run evallab prod seeker-known-hacks --cells-root /path/to/pairs \
+  --state-dir /path/to/local-state --stage
+uv run evallab prod seeker-known-hacks --cells-root /path/to/pairs \
+  --state-dir /path/to/local-state --apply --cloud-trace-db /path/to/cloud-trace-db.sqlite
+```
+
+`--stage` writes `runs-v1.jsonl` ingestion envelopes and a **separate local-only**
+`labels-v1.jsonl`. Only `--apply` calls the public cloud DB task/trace upsert API.
+Labels are never put in cloud receipt fields or exploit flags. Envelopes carry
+admission metadata outside `doc`; `doc` is ordinary blind-able ATIF with an opaque
+run id, scrubbed prompt, complete untruncated response/thinking, exact executed action
+and digest, and the original native verifier tail. Turn 2 adds the preceding
+runner-error feedback using the SB-1 feedback builder. Every step cites relative
+retained file paths and their raw-byte digests. Repeated exports deduplicate by task,
+requested model, turn and solve digest; conflicting evidence for one identity fails
+closed. `--visible-tests` selects `hide_tests=false` explicitly instead of mixing arms.
+Legacy cells without native receipts or preceding turn-2 error evidence are rejected,
+not promoted from their inline differential claims.
+
+**Run Atlas scorer integration boundary:** the current `run_atlas_score._read_labels`
+joins only Goodfire cloud receipts and CheatBench registry items. It does not yet
+read seeker receipts. A scorer-side local JSONL input must check schema
+`evallab.seeker_known_hack/v1`, join by `run_id` to a cloud task admitted by
+`admitted_task_ids`, call `_check` on that run/task, and recheck the receipt's
+`admission.effective_split == "dev"` and `admission.assignments_csv_sha256` against
+the current ledger. Then `source_label = {judged: true, verdict: "yes",
+verdict_enacted: "yes"}` maps to `_Label(run_id, "seeker", "enacted_yes", True,
+tuple(passage_step_labels.positive_step_indices))`. `evidence` holds both measured
+receipt digests, the cell-result digest and `run_doc_sha256`; it has no model-facing
+prompt/response fields. This is a local scoring join only: do not upload the label
+file or attach it to facet-model inputs.
+
 
 #### Deploy runbook: data files for the dashboard tabs
 

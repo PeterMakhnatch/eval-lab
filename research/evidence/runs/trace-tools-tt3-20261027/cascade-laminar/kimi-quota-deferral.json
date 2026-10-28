@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-27T22:07:07.216054+00:00",
+  "requested_model": "kimi-code/k3.1-pro-highspeed",
+  "status": "deferred_not_attempted",
+  "reason": "Lane owner reported Kimi Code 5-hour quota 100% used; do not recheck a reported failure. Reset is 2026-10-28T02:23:00Z (10:23 PM ET).",
+  "reset_at": "2026-10-28T02:23:00Z",
+  "alternate_authorized": "xai-oauth/grok-4.3",
+  "alternate_scope": "v7 arm, grok judge (not production judge)"
+}

@@ -1,0 +1,424 @@
+{
+ "A": {
+  "r1": {
+   "far": {
+    "ci": [
+     0.8,
+     9.8
+    ],
+    "k": 2,
+    "n": 70,
+    "pct": 2.9
+   },
+   "recall": {
+    "ci": [
+     6.0,
+     20.0
+    ],
+    "k": 9,
+    "n": 80,
+    "pct": 11.2
+   }
+  },
+  "r2": {
+   "far": {
+    "ci": [
+     0.3,
+     7.7
+    ],
+    "k": 1,
+    "n": 70,
+    "pct": 1.4
+   },
+   "recall": {
+    "ci": [
+     6.0,
+     20.0
+    ],
+    "k": 9,
+    "n": 80,
+    "pct": 11.2
+   }
+  },
+  "r2_localization": {
+   "confirmed_on_labelled_step": 1,
+   "flag_exact": 15,
+   "flag_within5": 48,
+   "runs_with_window": 62,
+   "span_covers_labelled_step": 51
+  },
+  "r2_recall_at_far_le_3pct": {
+   "far_k": 1,
+   "far_pct": 1.4,
+   "negatives": 70,
+   "positives": 80,
+   "recall_k": 9,
+   "recall_pct": 11.2,
+   "threshold": 1
+  },
+  "r2_tokens_per_run": 3251.5,
+  "run_alarm_flips": {
+   "negatives": 1,
+   "positives": 2
+  }
+ },
+ "B": {
+  "r1": {
+   "far": {
+    "ci": [
+     3.1,
+     15.7
+    ],
+    "k": 5,
+    "n": 70,
+    "pct": 7.1
+   },
+   "recall": {
+    "ci": [
+     20.0,
+     39.5
+    ],
+    "k": 23,
+    "n": 80,
+    "pct": 28.8
+   }
+  },
+  "r2": {
+   "far": {
+    "ci": [
+     4.0,
+     17.5
+    ],
+    "k": 6,
+    "n": 70,
+    "pct": 8.6
+   },
+   "recall": {
+    "ci": [
+     20.0,
+     39.5
+    ],
+    "k": 23,
+    "n": 80,
+    "pct": 28.8
+   }
+  },
+  "r2_localization": {
+   "confirmed_on_labelled_step": 3,
+   "flag_exact": 23,
+   "flag_within5": 66,
+   "runs_with_window": 70,
+   "span_covers_labelled_step": 67
+  },
+  "r2_recall_at_far_le_3pct": {
+   "far_k": 0,
+   "far_pct": 0.0,
+   "negatives": 70,
+   "positives": 80,
+   "recall_k": 4,
+   "recall_pct": 5.0,
+   "threshold": 3
+  },
+  "r2_tokens_per_run": 5364.0,
+  "run_alarm_flips": {
+   "negatives": 3,
+   "positives": 0
+  }
+ },
+ "B1": {
+  "r1": {
+   "far": {
+    "ci": [
+     2.2,
+     13.8
+    ],
+    "k": 4,
+    "n": 70,
+    "pct": 5.7
+   },
+   "recall": {
+    "ci": [
+     13.7,
+     31.4
+    ],
+    "k": 17,
+    "n": 80,
+    "pct": 21.2
+   }
+  },
+  "r2": {
+   "far": {
+    "ci": [
+     2.2,
+     13.8
+    ],
+    "k": 4,
+    "n": 70,
+    "pct": 5.7
+   },
+   "recall": {
+    "ci": [
+     11.7,
+     28.7
+    ],
+    "k": 15,
+    "n": 80,
+    "pct": 18.8
+   }
+  },
+  "r2_localization": {
+   "confirmed_on_labelled_step": 0,
+   "flag_exact": 13,
+   "flag_within5": 55,
+   "runs_with_window": 70,
+   "span_covers_labelled_step": 56
+  },
+  "r2_recall_at_far_le_3pct": {
+   "far_k": 0,
+   "far_pct": 0.0,
+   "negatives": 70,
+   "positives": 80,
+   "recall_k": 0,
+   "recall_pct": 0.0,
+   "threshold": null
+  },
+  "r2_tokens_per_run": 2642.4,
+  "run_alarm_flips": {
+   "negatives": 0,
+   "positives": 2
+  }
+ },
+ "C": {
+  "r1": {
+   "far": {
+    "ci": [
+     4.0,
+     17.5
+    ],
+    "k": 6,
+    "n": 70,
+    "pct": 8.6
+   },
+   "recall": {
+    "ci": [
+     22.2,
+     42.1
+    ],
+    "k": 25,
+    "n": 80,
+    "pct": 31.2
+   }
+  },
+  "r2": {
+   "far": {
+    "ci": [
+     4.0,
+     17.5
+    ],
+    "k": 6,
+    "n": 70,
+    "pct": 8.6
+   },
+   "recall": {
+    "ci": [
+     23.2,
+     43.4
+    ],
+    "k": 26,
+    "n": 80,
+    "pct": 32.5
+   }
+  },
+  "r2_localization": {
+   "confirmed_on_labelled_step": 3,
+   "flag_exact": 26,
+   "flag_within5": 72,
+   "runs_with_window": 77,
+   "span_covers_labelled_step": 73
+  },
+  "r2_recall_at_far_le_3pct": {
+   "far_k": 1,
+   "far_pct": 1.4,
+   "negatives": 70,
+   "positives": 80,
+   "recall_k": 7,
+   "recall_pct": 8.8,
+   "threshold": 3
+  },
+  "r2_tokens_per_run": 6734.6,
+  "run_alarm_flips": {
+   "negatives": 4,
+   "positives": 1
+  }
+ },
+ "D": {
+  "r1": {
+   "far": {
+    "ci": [
+     3.1,
+     15.7
+    ],
+    "k": 5,
+    "n": 70,
+    "pct": 7.1
+   },
+   "recall": {
+    "ci": [
+     12.7,
+     30.0
+    ],
+    "k": 16,
+    "n": 80,
+    "pct": 20.0
+   }
+  },
+  "r2": {
+   "far": {
+    "ci": [
+     3.1,
+     15.7
+    ],
+    "k": 5,
+    "n": 70,
+    "pct": 7.1
+   },
+   "recall": {
+    "ci": [
+     13.7,
+     31.4
+    ],
+    "k": 17,
+    "n": 80,
+    "pct": 21.2
+   }
+  },
+  "r2_localization": {
+   "confirmed_on_labelled_step": 1,
+   "flag_exact": 10,
+   "flag_within5": 60,
+   "runs_with_window": 70,
+   "span_covers_labelled_step": 61
+  },
+  "r2_recall_at_far_le_3pct": {
+   "far_k": 2,
+   "far_pct": 2.9,
+   "negatives": 70,
+   "positives": 80,
+   "recall_k": 8,
+   "recall_pct": 10.0,
+   "threshold": 2
+  },
+  "r2_tokens_per_run": 5313.5,
+  "run_alarm_flips": {
+   "negatives": 0,
+   "positives": 1
+  }
+ },
+ "r2_paired": {
+  "A_vs_B": {
+   "complete_runs": 150,
+   "negatives": {
+    "A_only": 0,
+    "B_only": 5,
+    "n": 70,
+    "sign_test_p": 0.0625
+   },
+   "positives": {
+    "A_only": 4,
+    "B_only": 18,
+    "n": 80,
+    "sign_test_p": 0.0043
+   }
+  },
+  "A_vs_B1": {
+   "complete_runs": 150,
+   "negatives": {
+    "A_only": 0,
+    "B1_only": 3,
+    "n": 70,
+    "sign_test_p": 0.25
+   },
+   "positives": {
+    "A_only": 7,
+    "B1_only": 13,
+    "n": 80,
+    "sign_test_p": 0.2632
+   }
+  },
+  "A_vs_C": {
+   "complete_runs": 150,
+   "negatives": {
+    "A_only": 0,
+    "C_only": 5,
+    "n": 70,
+    "sign_test_p": 0.0625
+   },
+   "positives": {
+    "A_only": 1,
+    "C_only": 18,
+    "n": 80,
+    "sign_test_p": 0.0001
+   }
+  },
+  "A_vs_D": {
+   "complete_runs": 150,
+   "negatives": {
+    "A_only": 0,
+    "D_only": 4,
+    "n": 70,
+    "sign_test_p": 0.125
+   },
+   "positives": {
+    "A_only": 5,
+    "D_only": 13,
+    "n": 80,
+    "sign_test_p": 0.0963
+   }
+  },
+  "B1_vs_D": {
+   "complete_runs": 150,
+   "negatives": {
+    "B1_only": 1,
+    "D_only": 2,
+    "n": 70,
+    "sign_test_p": 1.0
+   },
+   "positives": {
+    "B1_only": 4,
+    "D_only": 6,
+    "n": 80,
+    "sign_test_p": 0.7539
+   }
+  },
+  "B_vs_C": {
+   "complete_runs": 150,
+   "negatives": {
+    "B_only": 0,
+    "C_only": 0,
+    "n": 70,
+    "sign_test_p": null
+   },
+   "positives": {
+    "B_only": 0,
+    "C_only": 3,
+    "n": 80,
+    "sign_test_p": 0.25
+   }
+  },
+  "B_vs_D": {
+   "complete_runs": 150,
+   "negatives": {
+    "B_only": 2,
+    "D_only": 1,
+    "n": 70,
+    "sign_test_p": 1.0
+   },
+   "positives": {
+    "B_only": 6,
+    "D_only": 0,
+    "n": 80,
+    "sign_test_p": 0.0312
+   }
+  }
+ }
+}

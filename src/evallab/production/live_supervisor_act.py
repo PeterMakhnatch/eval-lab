@@ -19,6 +19,11 @@ rolling hour and ten per UTC day across the lab. Every real kill attempt counts.
 (the default) checks the same guards and caps, consumes nothing, runs nothing, and records the
 exact command it would have run. Every attempt appends one receipt row to ``actions-v1.jsonl``.
 
+Act mode enables nothing implicitly: ``act_actions`` names the actions an operator approved
+(default empty, so every action is report-only). Kills still need a registration and the evidence
+gate on top of that; nudge, research alerts and cheating flags need their action in the set, and a
+cheating flag also needs the LS-5 router. A dry run is unaffected and plans every action.
+
 ``kill_and_retry`` is blocked unless a real retry admission is injected (``retry_admitter``, an
 admission into the lab queue): killing without a queue to retry into drops the work, so the action
 is refused rather than simulated. With an admitter, the receipt is ``done`` only when both the
@@ -43,7 +48,7 @@ import fcntl
 import hashlib
 import json
 import subprocess
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -53,6 +58,7 @@ from zoneinfo import ZoneInfo
 
 from evallab.harbor_watch_hooks import read_hook_journal
 from evallab.production.live_supervisor import (
+    ACTIONS,
     DEFAULT_ROOT,
     KILL_ACTIONS,
     Decision,
@@ -117,6 +123,9 @@ class RetryAdmission:
 
 #: ``admit(observation, decision) -> RetryAdmission``; the only way ``kill_and_retry`` may run.
 RetryAdmitter = Callable[[Observation, Decision], RetryAdmission]
+#: Act mode enables nothing implicitly: only the actions named here may take effect.
+#: Kills additionally need an operator registration and the evidence gate.
+DEFAULT_ACT_ACTIONS: frozenset[str] = frozenset()
 #: ``kill_and_retry`` without a real queue admission is blocked, never simulated.
 RETRY_BLOCKED = ("retry not admitted: no DirectoryQueue retry admission is wired, so "
                  "kill_and_retry cannot be executed (kill_and_mark_infra is unaffected)")
@@ -324,6 +333,7 @@ class LabActuator:
                  queue_path: Path = DEFAULT_QUEUE_APPEND, alerts_path: Path = DEFAULT_ALERTS_MD,
                  cheat_router: CheatRouter | None = None, gate: KillGate | None = None,
                  retry_admitter: RetryAdmitter | None = None,
+                 act_actions: Iterable[str] = DEFAULT_ACT_ACTIONS,
                  clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         self.root = root.expanduser()
         self.dry_run = dry_run
@@ -336,6 +346,11 @@ class LabActuator:
         self.gate = gate
         #: Real retry admission into the lab queue; none blocks ``kill_and_retry``.
         self.retry_admitter = retry_admitter
+        #: Actions an operator approved for act mode; every other action stays report-only.
+        unknown = set(act_actions) - set(ACTIONS)
+        if unknown:
+            raise ValueError(f"unknown act actions: {sorted(unknown)}")
+        self.act_actions = frozenset(act_actions)
         self.clock = clock
         self.actions_path = self.root / ACTIONS_FILE
         self.caps_path = self.root / CAPS_FILE
@@ -361,7 +376,13 @@ class LabActuator:
         with self._locked():
             ledger = KillLedger.load(self.caps_path)
             retry = False
-            if decision.action in KILL_ACTIONS:
+            if not self.dry_run and decision.action != "continue" \
+                    and decision.action not in self.act_actions:
+                # An unapproved action never reaches a channel, so nothing can happen by accident.
+                outcome = Outcome("refused", "none",
+                                  f"action not enabled for act: {decision.action} is not in the "
+                                  f"approved act scopes {sorted(self.act_actions)}")
+            elif decision.action in KILL_ACTIONS:
                 outcome, retry = self._kill(observation, decision, ledger, now)
             elif decision.action == "nudge":
                 outcome = self._nudge(observation, decision)

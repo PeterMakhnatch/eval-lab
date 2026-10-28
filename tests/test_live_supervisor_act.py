@@ -51,13 +51,20 @@ def _admit(observation: Observation, decision: Decision) -> RetryAdmission:
     return RetryAdmission(True, "queued", "rq-0001")
 
 
+#: Every action approved, for tests that are about a channel rather than about the scope switch.
+ACT_ALL = frozenset({"kill_and_retry", "kill_and_mark_infra", "nudge", "alert_research",
+                     "flag_cheating"})
+
+
 def _actuator(tmp_path: Path, *, dry_run: bool = False, runner: FakeRunner | None = None,
               clock: Clock | None = None, gate=_permit, retry_admitter=_admit,
               **kw) -> LabActuator:
+    act_actions = kw.pop("act_actions", ACT_ALL)
     return LabActuator(root=tmp_path / "ls", dry_run=dry_run, runner=runner or FakeRunner(),
                        queue_path=tmp_path / "queue-append.jsonl",
                        alerts_path=tmp_path / "live-supervisor.md", gate=gate,
-                       retry_admitter=retry_admitter, clock=clock or Clock(), **kw)
+                       retry_admitter=retry_admitter, act_actions=act_actions,
+                       clock=clock or Clock(), **kw)
 
 
 def _register_apps(act: LabActuator, *app_ids: str) -> None:
@@ -360,6 +367,29 @@ def test_dry_run_never_invokes_the_runner_and_logs_the_command(tmp_path: Path) -
 
 
 # --------------------------------------------------------------------------- nudge / alert / cheat
+
+
+def test_act_mode_enables_only_the_approved_action_scopes(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    act = _actuator(tmp_path, runner=runner,
+                    act_actions=frozenset({"kill_and_mark_infra"}))  # e.g. only that scope measured
+    _register_apps(act, "ap-1")
+    lane = _obs(Subject("omp_lane", "w1C:pZ", "fleet"))
+    assert act.act(lane, Decision("nudge", "latency", "silence")) is False
+    assert act.act(_app("ap-1"), KILL) is False
+    assert act.act(_app("ap-1"), Decision("alert_research", "infra", "needs a human")) is False
+    assert runner.calls == [] and not (tmp_path / "queue-append.jsonl").exists()
+    assert not (tmp_path / "live-supervisor.md").exists()
+    assert [r["detail"] for r in _receipts(tmp_path)] == [
+        "action not enabled for act: nudge is not in the approved act scopes ['kill_and_mark_infra']",
+        "action not enabled for act: kill_and_retry is not in the approved act scopes "
+        "['kill_and_mark_infra']",
+        "action not enabled for act: alert_research is not in the approved act scopes "
+        "['kill_and_mark_infra']",
+    ]
+    assert act.act(_app("ap-1"), Decision("kill_and_mark_infra", "infra", "dead backend")) is True
+    assert act.act(lane, Decision("nudge", "latency", "silence")) is False  # still not approved
+    assert not (tmp_path / "queue-append.jsonl").exists()
 
 
 def test_nudge_appends_one_queue_item_with_pane_id_text(tmp_path: Path) -> None:

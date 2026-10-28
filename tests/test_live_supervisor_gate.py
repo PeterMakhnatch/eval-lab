@@ -165,6 +165,7 @@ def test_actuator_kills_only_with_registration_and_measurable_evidence(tmp_path:
     (root / GATE_DIGEST_FILE).write_text(digest)
     act = LabActuator(root=root, dry_run=False, runner=runner, gate=gate_for_root(root),
                       retry_admitter=lambda obs, d: RetryAdmission(True, "queued", "rq-1"),
+                      act_actions=frozenset({"kill_and_retry"}),
                       queue_path=tmp_path / "q.jsonl", alerts_path=tmp_path / "a.md",
                       clock=lambda: T0)
     rules = _decision(reader_model=None)

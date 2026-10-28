@@ -135,10 +135,13 @@ def test_reader_override_other_than_stored_judge_returns_nothing(source: Path) -
     assert list(detector.detect([_run("alarm-confirmed")])) == []
 
 
-def test_evidence_step_outside_the_run_is_rejected(source: Path) -> None:
-    detector = cascade.CascadeV8Detector(source_dir=source)
-    with pytest.raises(ValueError, match="original run step id"):
-        list(detector.detect([_run("alarm-confirmed", steps=3)]))
+def test_evidence_steps_may_be_tool_result_rows_absent_from_the_run_doc(source: Path) -> None:
+    # cloud_doc folds tool-result rows into the calling agent step, so a flagged
+    # original step_index need not appear among the doc's own step ids
+    record = next(
+        cascade.CascadeV8Detector(source_dir=source).detect([_run("alarm-confirmed", steps=3)])
+    )
+    assert record["evidence_steps"] == [4]
 
 
 def test_hackbench_rows_serve_v7_and_v8(tmp_path: Path, source: Path) -> None:

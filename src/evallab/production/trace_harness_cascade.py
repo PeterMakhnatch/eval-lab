@@ -29,7 +29,9 @@ Verdicts follow ``current_cascade`` in the CM-12 blinded-acceptance tool: ``alar
 iff some card is ``confirmed`` or its rule is in the pass-through set; ``clear`` iff
 none and no judge call was unavailable; otherwise ``abstain``. ``score`` is the
 number of alarm-raising cards (null on abstain); ``evidence_steps`` are their flagged
-steps. Per-run token counts were not recorded, so they are reported as 0.
+steps (original ``step_index`` values; a flagged tool-result row need not be one of the
+run document's agent step ids, so they are not checked against it). Per-run token
+counts were not recorded, so they are reported as 0.
 """
 
 from __future__ import annotations
@@ -170,12 +172,6 @@ def _describe(cards: Sequence[Mapping[str, Any]]) -> str:
     return "; ".join(parts)
 
 
-def _check_steps(run: HarnessRun, steps: Iterable[int]) -> None:
-    known = {step for step in run.step_ids if isinstance(step, int)}
-    if known and any(step not in known for step in steps):
-        raise ValueError(f"{run.run_id}: cascade lead is not an original run step id")
-
-
 class _StoredCascade:
     """Shared base: map stored cascade rows onto ``trace-findings/v1`` records."""
 
@@ -209,7 +205,6 @@ class _StoredCascade:
         steps = sorted(
             {card["flagged_step"] for card in alarming if isinstance(card.get("flagged_step"), int)}
         )
-        _check_steps(run, steps)
         if verdict == "alarm":
             summary = _describe(alarming)
         elif verdict == "clear":
@@ -358,7 +353,6 @@ class CascadeV4Detector(_StoredCascade):
             )
             if verdict != "alarm":
                 steps = []
-            _check_steps(run, steps)
             yield finding(
                 run.run_id,
                 self.name,

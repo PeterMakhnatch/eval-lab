@@ -6,10 +6,10 @@ and dataset ids, defect-type names, annotation counts, repair PR numbers, valida
 and run counts. Annotation text, weak-check wording, key ids, answer-key paths and digests
 stay in the inventory.
 
-A task is ``native-validated`` only when a repair names a native receipt. Everything else is
-``static only`` (a delivered candidate with host checks, no sandbox run), ``candidate`` (a
-related candidate that is not bound to the exact package) or ``no repair``. "Repaired" is never
-inferred from a merged PR.
+A task is ``native-validated`` only when a repair names a native receipt and claims
+qualification. Everything else is ``static only`` (a host-checked candidate without complete
+native proof), ``candidate`` (a related candidate not bound to the exact package) or
+``no repair``. "Repaired" is never inferred from a merged PR or an oracle-only control.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ NONE = "no repair"
 STATUSES = (NATIVE, STATIC, CANDIDATE, NONE)
 STATUS_NOTE = {
     NATIVE: "A native sandbox receipt is named for this repair.",
-    STATIC: "A repair candidate was delivered and passed host checks. No native proof: no sandbox, oracle or historical shortcut was run.",
+    STATIC: "A repair candidate was delivered and passed host checks. No complete native proof: check each repair's verification for recorded controls.",
     CANDIDATE: "A related candidate exists but is not bound to this exact package. No native proof.",
     NONE: "No repair is recorded for this task.",
 }

@@ -1565,6 +1565,72 @@ uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out -
 - Model calls log `tool: omp`, `usd: 0` rows and Modal grades log `route: modal` rows to
   `~/.local/state/evallab-failure-library/spend.jsonl` (`--spend-log` overrides it).
 
+#### Deploy runbook: data files for the dashboard tabs
+
+Deploying is a shared-service change that needs Peter's approval. `evallab prod deploy-preflight`
+prepares it and runs nothing on Modal: it checks each file, stages clean copies into a local
+directory, and prints the exact commands. Run it, read the report, and run the printed commands
+only after approval.
+
+```bash
+uv run evallab prod deploy-preflight --stage-directory /private/tmp/evallab-deploy-stage
+```
+
+It reads `~/.local/state/evallab-prod-live` (`--state-root`), the TS-9 inventory (`--inventory`) and
+the cross-test registry (`--registry`), writes only under the new stage directory (omit the flag to
+use a temporary one that is deleted), exits 1 when a required file is missing, unparseable, too
+large, rejected by the cloud loader or holds a per-run label or reward field, and prints `ok`,
+per-file status, which tabs are ready or degraded, the never-copy names it found, the deploy source,
+the environment settings, and the commands. Nothing it prints has been run.
+
+| Volume path (under `/data`) | Source | Tabs | If absent |
+| --- | --- | --- | --- |
+| `run-atlas/facets-v1.jsonl` | state root | Run Atlas, Coverage, Task Evidence, Trace Tools, Grader repairs | Run Atlas: "No facets have been written yet" |
+| `run-atlas/blinding-refresh-v1.json` | state root | Run Atlas, Coverage | both show an error notice; blinding unknown (required) |
+| `run-atlas/clusters-v1.jsonl` | state root | Run Atlas tree and paths | "No retained cluster tree" (optional) |
+| `run-atlas/reblinded-facets-v1.jsonl` | state root | Coverage | listed runs cannot be compared (optional) |
+| `run-atlas/field-reliability-v1.json` | state root | Field reliability | "not measured" |
+| `trace-tools/tt1-scorecard.json` | state root | Trace Tools | detector rows missing |
+| `trace-tools/results-v1.jsonl` | state root | Trace Tools run lists, Task Evidence | Task Evidence shows "Trace-tool results: not retained" |
+| `run-atlas/scorecards/<newest>.json`, `trace-tools/spend.jsonl`, `run-atlas/per-run-accounting-<newest>.jsonl` | state root | Trace Tools facet rows, cost | those columns blank (optional) |
+| `repair-board/inventory.json` (`EVALLAB_REPAIR_INVENTORY`) | TS-9 inventory, **reduced** | Grader repairs | empty state |
+| `cross-test/registry.json` (`EVALLAB_CROSS_TEST_REGISTRY`) | registry, **reduced** | Cross-test sets | empty state |
+| `cloud-trace-db.sqlite`, `prod.sqlite` | already on the volume | Run Atlas, Coverage, Task Evidence, Trace Tools, Grader repairs | tabs show no admitted runs |
+
+The two environment settings are optional because the defaults above sit under the volume's data
+root; `EVALLAB_CLOUD_TOKEN` comes from the Modal secret `evallab-cloud-production-auth`. The
+inventory and registry are staged as reduced projections that keep only the fields the pages read:
+annotation wording, key ids, answer-key paths, digests, bundle paths, caveats and source notes
+never reach the volume. A registry with a malformed entry blocks instead of being staged partly.
+
+**Never copy:** `cloud-trace-db.sqlite` and `prod.sqlite` (the volume's admitted copy is
+authoritative; adoption needs an exact allowlisted scope), model-call ledgers
+(`*-calls-v1.jsonl`), `trace-tools/keymap-v1.jsonl`, `evidence/` directories, cascade and Laminar
+working files, any manifest (sealed or QA), `research/answer-keys` outside the repository image,
+`assignments.csv`, label files, the cross-test bundles under `~/.local/state/evallab-cross-test`
+(local-only, eval-only, no-training, no uploads), and any HackBench or CheatBench record or
+label. The preflight lists these names when it finds them and never stages them.
+
+Image contents: `modal deploy` uploads `src/`, `library/` and `research/` (about 0.6 GB for
+`library/` and 0.3 GB for `research/` in a clean checkout). `research/` includes
+`research/answer-keys`, which `CorpusRegistry` reads for DEV admission, so deploy from a clean
+worktree of `origin/main`: an untracked local file under those directories would be uploaded too.
+The report states whether the checkout is clean and at `origin/main`.
+
+Steps after approval: run the printed `modal volume put` lines (no `--force`: an existing file makes
+the put fail instead of overwriting; add `--force` only after reading what it would replace), then
+the printed `modal deploy --strategy recreate src/evallab/production/modal_cloud.py` from the clean
+worktree, then open each tab with the bearer token. To undo a data file use
+`modal volume rm evallab-cloud-store /<path>`; to undo code redeploy the previous commit. The
+preflight does not read the volume, so check what is already there first with
+`modal volume ls evallab-cloud-store /` and `/run-atlas`.
+
+Cost: Modal's published rates are $0.0000131 per core-second and $0.00000222 per GiB-second, and
+this app runs one container with 1 core and 2 GiB that scales down after 30 seconds idle, so
+[INFERENCE] about $0.06 per hour of active serving and nothing idle. The staged files total about 30
+MB. What Modal charges for the image build and the upload of the repository is unknown: it is not
+stated where this repository can see it.
+
 #### Run Atlas (`/api/cloud-db/atlas`)
 
 The atlas is a read-only projection of two retained files under `<data_root>/run-atlas/`,

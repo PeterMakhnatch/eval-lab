@@ -118,7 +118,7 @@ def test_second_kill_on_the_same_subject_is_refused_even_after_a_failed_first(tm
     assert act.act(_app("ap-1"), Decision("kill_and_mark_infra", "infra", "dead")) is False
     assert len(runner.calls) == 1
     rows = _receipts(tmp_path)
-    assert [r["status"] for r in rows] == ["failed", "refused"]
+    assert [r["status"] for r in rows] == ["started", "failed", "refused"]
     assert rows[-1]["detail"].startswith("cap_subject")
 
 
@@ -131,7 +131,7 @@ def test_kill_and_retry_records_retry_requested_only(tmp_path: Path) -> None:
     assert [k["subject"] for k in caps["kills"]] == ["modal_app:ap-1", "modal_app:ap-2"]
     assert caps["retries"] == [{"subject": "modal_app:ap-1", "status": "retry_requested",
                                 "reason": KILL.reason, "at": "2026-10-28T01:00:00Z"}]
-    assert [r["retry_requested"] for r in _receipts(tmp_path)] == [True, False]
+    assert [r["retry_requested"] for r in _receipts(tmp_path)] == [False, True, False, False]
 
 
 # --------------------------------------------------------------------------- refusals
@@ -204,6 +204,46 @@ def test_expired_or_mismatched_registration_is_refused(tmp_path: Path) -> None:
     register_trial(trial_act.root, "job-a", "task__b2", registered_by="test")
     assert trial_act.act(_trial(), KILL) is False  # the registration names another trial
     assert "unregistered: harbor_trial:job-a/task__a1" in _receipts(tmp_path)[-1]["detail"]
+
+
+def test_reservation_survives_a_stop_that_raises_and_blocks_a_retry(tmp_path: Path) -> None:
+    class Exiting(FakeRunner):
+        def __call__(self, argv: Sequence[str]) -> int:
+            self.calls.append(tuple(argv))
+            raise SystemExit("modal CLI died mid-stop")
+
+    runner = Exiting()
+    act = _actuator(tmp_path, runner=runner)
+    _register_apps(act, "ap-1")
+    with pytest.raises(SystemExit):
+        act.act(_app("ap-1"), KILL)
+    assert json.loads((tmp_path / "ls" / CAPS_FILE).read_text())["kills"][0]["subject"] == "modal_app:ap-1"
+    assert [r["status"] for r in _receipts(tmp_path)] == ["started"]  # intent before effect
+    fresh = _actuator(tmp_path)  # a new process re-reads the ledger
+    _register_apps(fresh, "ap-1")
+    assert fresh.act(_app("ap-1"), KILL) is False
+    assert _receipts(tmp_path)[-1]["detail"].startswith("cap_subject")
+
+
+def test_job_dir_hint_must_resolve_inside_a_lab_runs_root(tmp_path: Path) -> None:
+    job = _job(tmp_path, hooks=[START])
+    outside = tmp_path / "not-lab" / "job-c"  # not present under any lab root
+    (outside / "task__a1" / "agent").mkdir(parents=True)
+    hinted = _obs(Subject("harbor_trial", "job-a/task__a1", "lab", True),
+                  events=(Event(3, None, "trajectory", "loop"),), metrics={"job_dir": str(job)})
+    assert _actuator(tmp_path, harbor_roots=[]).act(hinted, KILL) is False
+    assert "not under a lab runs root" in _receipts(tmp_path)[-1]["detail"]
+    escape = _obs(Subject("harbor_trial", "job-c/task__a1", "lab", True),
+                  metrics={"job_dir": str(outside)})
+    act = _actuator(tmp_path, harbor_roots=[tmp_path / "runs"])
+    assert act.act(escape, KILL) is False
+    assert "not under a lab runs root" in _receipts(tmp_path)[-1]["detail"]
+    (tmp_path / "runs").mkdir(exist_ok=True)
+    symlink = tmp_path / "runs" / "job-b"
+    symlink.symlink_to(outside)  # resolves to job-c, outside the root
+    linked = _obs(Subject("harbor_trial", "job-b/task__a1", "lab", True))
+    assert act.act(linked, KILL) is False
+    assert "not under a lab runs root" in _receipts(tmp_path)[-1]["detail"]
 
 
 # --------------------------------------------------------------------------- harbor

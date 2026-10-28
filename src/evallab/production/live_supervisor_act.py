@@ -323,18 +323,17 @@ class LabActuator:
                 fcntl.flock(handle, fcntl.LOCK_UN)
 
     def act(self, observation: Observation, decision: Decision) -> bool:
-        """Carry out ``decision``; True only when something real was done."""
+        """Carry out ``decision``; True only when something real was done.
+
+        A real kill reserves its cap slot (and appends an intent receipt) under the lock
+        *before* the external stop runs, so a crash mid-stop cannot buy a second kill.
+        """
         now = self.clock()
         with self._locked():
             ledger = KillLedger.load(self.caps_path)
             retry = False
             if decision.action in KILL_ACTIONS:
-                outcome = self._kill(observation, decision, ledger, now)
-                if outcome.acted and decision.action == "kill_and_retry":
-                    ledger.record_retry(observation.subject, decision.reason, now)
-                    retry = True
-                if outcome.status in ("done", "failed"):  # every real attempt counts
-                    ledger.save(self.caps_path)
+                outcome, retry = self._kill(observation, decision, ledger, now)
             elif decision.action == "nudge":
                 outcome = self._nudge(observation, decision)
             elif decision.action == "alert_research":
@@ -349,19 +348,19 @@ class LabActuator:
     # ----------------------------------------------------------------------- kills
 
     def _kill(self, observation: Observation, decision: Decision, ledger: KillLedger,
-              now: datetime) -> Outcome:
+              now: datetime) -> tuple[Outcome, bool]:
         subject = observation.subject
         if subject.kind == "harbor_trial":
             plan = self._harbor_plan(observation, decision)
         elif subject.kind == "modal_app":
             plan = self._modal_plan(observation)
         else:
-            return _refused("none", f"no kill channel for {subject.kind}")
+            return _refused("none", f"no kill channel for {subject.kind}"), False
         if plan.status == "refused":
-            return plan
+            return plan, False
         if not subject.killable or subject.owner != "lab":
             return _refused(plan.channel, f"not lab-killable ({subject.owner}-owned)",
-                            command=plan.command, target=plan.target)
+                            command=plan.command, target=plan.target), False
         blockers = self._blockers(observation, decision, now)
         cap = ledger.refusal(subject, now)
         if self.dry_run:
@@ -370,15 +369,28 @@ class LabActuator:
                 detail += f" (blocked: {'; '.join(blockers)})"
             if cap is not None:
                 detail += f" (blocked: {cap})"
-            return Outcome("dry_run", plan.channel, detail, plan.command, plan.target)
+            return Outcome("dry_run", plan.channel, detail, plan.command, plan.target), False
         if blockers:
-            return _refused(plan.channel, blockers[0], command=plan.command, target=plan.target)
+            return _refused(plan.channel, blockers[0], command=plan.command,
+                            target=plan.target), False
         if cap is not None:
-            return _refused(plan.channel, cap, command=plan.command, target=plan.target)
+            return _refused(plan.channel, cap, command=plan.command, target=plan.target), False
+        # Reservation first: the slot is spent even if the stop crashes or fails.
         ledger.record_kill(subject, decision.action, plan.channel, now)
+        ledger.save(self.caps_path)
+        self._receipt(observation, decision, Outcome("started", plan.channel, "intent before effect",
+                                                     plan.command, plan.target), now,
+                      retry_requested=False)
         if plan.channel == "harbor_stop_request":
-            return self._harbor_stop(decision, plan, now)
-        return self._modal_stop(subject, plan)
+            outcome = self._harbor_stop(decision, plan, now)
+        else:
+            outcome = self._modal_stop(subject, plan)
+        retry = False
+        if outcome.acted and decision.action == "kill_and_retry":
+            ledger.record_retry(subject, decision.reason, now)
+            ledger.save(self.caps_path)
+            retry = True
+        return outcome, retry
 
     def _blockers(self, observation: Observation, decision: Decision, now: datetime) -> list[str]:
         """Why a real kill would not be allowed: registration, then the LS-3 gate."""
@@ -397,11 +409,25 @@ class LabActuator:
         return out
 
     def _job_dir(self, observation: Observation, job: str) -> Path | None:
+        """Resolve ``job`` only inside an explicit lab runs root (symlinks resolved first)."""
+        roots = [r.resolve() for r in self.harbor_roots]
+        if not roots:
+            return None
         hinted = observation.metrics.get("job_dir")
-        candidates = [Path(hinted)] if isinstance(hinted, str) and hinted else []
+        candidates = [Path(hinted).expanduser()] if isinstance(hinted, str) and hinted else []
         for root in self.harbor_roots:
             candidates += [root / job, root / ".exec-stage" / job]
-        return next((c for c in candidates if c.is_dir() and c.name == job), None)
+        for candidate in candidates:
+            try:
+                resolved = candidate.resolve()
+            except OSError:
+                continue
+            if resolved.name != job or not resolved.is_dir():
+                continue
+            if not any(resolved.is_relative_to(root) for root in roots):
+                continue
+            return resolved
+        return None
 
     def _harbor_plan(self, observation: Observation, decision: Decision) -> Outcome:
         """Resolve the trial and apply the ``watch stop`` refusals (no write)."""

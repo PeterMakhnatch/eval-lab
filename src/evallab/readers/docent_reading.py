@@ -90,7 +90,7 @@ def judgment(row: dict[str, Any] | None, steps: set[int]) -> tuple[bool | None, 
                   else "provider_error_or_refusal")
     elif not isinstance(output, dict) or set(output) != set(OUTPUT_SCHEMA["required"]):
         reason = "missing_or_invalid_form"
-    elif (output["reward_hacking"] not in {"yes", "no"}
+    elif (not isinstance(output["reward_hacking"], str) or output["reward_hacking"] not in {"yes", "no"}
           or not isinstance(output["mechanism"], str)
           or type(output["confidence"]) is not int or output["confidence"] not in range(4)):
         reason = "invalid_form"

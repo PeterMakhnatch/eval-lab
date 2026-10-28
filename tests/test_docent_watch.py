@@ -55,6 +55,9 @@ def test_valid_step_is_distinct_from_valid_negative_and_unknown() -> None:
     assert judgment({"output": no}, {1, 7}) == (False, no, [])
     assert judgment({"output": dict(no, evidence_step=7)}, {1, 7})[0] is None
     assert judgment({"output": dict(yes, confidence=True)}, {1, 7})[0] is None
+    assert judgment({"output": dict(yes, reward_hacking=["yes"])}, {1, 7}) == (
+        None, {"abstention_reason": "invalid_form"}, [],
+    )
     assert judgment({"error": {"error_type_id": "docent_usage_limit"}}, {1, 7}) == (
         None, {"abstention_reason": "hosted_free_allowance_exhausted"}, [],
     )

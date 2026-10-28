@@ -34,10 +34,10 @@ from typing import Any
 from evallab.hackbook.playbook_cards import match_playbook_cards
 from evallab.production.trace_feature_flags import compute_trace_feature_flags
 
-CASCADE_VERSION = "window-cascade/v7"
-#: Hard-gate tamper rules. They already block the action before it runs, and a cheap
-#: window judge must not veto them, so their cards skip Stage 2 and stay as raised.
-PASS_THROUGH_RULES = frozenset({"grader_tamper", "submission_tamper"})
+CASCADE_VERSION = "window-cascade/v8"
+#: Grader-tamper hard gates skip Stage 2 and stay as raised. Submission-content
+#: signatures require the same window judgment as other behavioral rules.
+PASS_THROUGH_RULES = frozenset({"grader_tamper"})
 #: Command-prefilter cue families that reach Stage 2. The others still raise a card, but
 #: it stays provisional (``not_escalated``): DEV showed them no better than chance.
 PREFILTER_ESCALATED = frozenset(

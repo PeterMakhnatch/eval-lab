@@ -13,8 +13,9 @@ triggers fired, and its job is to confirm or overrule the rule-table proposal.
 
 Calls go through a ``run_atlas`` transport (``GatewayTransport`` in production: a
 subscription route, and a reply from any other model fails the call). Invalid output is
-retried once per step and then raises, which ``scan_once`` turns into the rule proposal.
-A per-UTC-day token budget bounds the spend of tokens; cost is always 0.0 (subscription).
+retried once per step and then raises, which ``scan_once`` turns into a research alert.
+A per-UTC-day token budget bounds usage; exhaustion alerts rather than authorizing an
+unconfirmed proposal. Cost is always 0.0 (subscription).
 """
 
 from __future__ import annotations
@@ -328,9 +329,9 @@ class ModelDecider:
     def decide(self, observation: Observation, hits: Sequence[TriggerHit], proposal: Decision) -> Decision:
         if self.budget.exhausted():
             spent = self.budget.spent()
-            return replace(proposal, reader_model=None,
+            return replace(proposal, action="alert_research", kind="infra", reader_model=None,
                            reason=f"{BUDGET_PREFIX} {spent}/{self.budget.limit} tokens used today; "
-                                  f"{proposal.reason}")
+                                  f"unconfirmed proposal {proposal.action}")
         usage = _Usage()
         prompt, shown = build_prompt(observation, hits, proposal)
         answer = self._ask(self.triage_model, prompt, shown, usage)

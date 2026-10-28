@@ -133,10 +133,10 @@ def test_scan_once_isolates_failures_falls_back_and_suppresses(tmp_path: Path) -
     ]
     log = ls.DecisionLog(tmp_path)
     report = ls.scan_once(sources, _Boom(), log, now=NOW)
-    assert report.errors == {"broken": "RuntimeError: source down"}
+    assert report.errors["broken"] == "RuntimeError: source down"
     assert (report.observed, report.quiet, report.terminal, len(report.records)) == (3, 1, 1, 1)
     record = report.records[0]
-    assert record["action"] == "kill_and_retry" and "reader failed: TimeoutError" in record["summary"]
+    assert record["action"] == "alert_research"
     assert record["mode"] == "shadow" and record["acted"] is False
 
     # same fingerprint inside the cooldown is suppressed, also across a fresh log object
@@ -160,3 +160,51 @@ def test_actuator_runs_only_in_act_mode_and_never_for_continue(tmp_path: Path) -
     ls.scan_once([slow], ls.RuleDecider(), ls.DecisionLog(tmp_path / "c"), now=NOW, mode="act",
                  actuator=actuator)
     assert actuator.calls == ["job/trial-1:kill_and_retry"]
+
+
+def test_reader_failure_never_turns_a_proposal_into_a_live_stop(tmp_path: Path) -> None:
+    actuator = _Actuator()
+    source = _Source("harbor", [_obs(_trial())], [_hit("repetition", "loop")])
+    report = ls.scan_once([source], _Boom(), ls.DecisionLog(tmp_path), now=NOW,
+                          mode="act", actuator=actuator)
+    assert actuator.calls == ["job/trial-1:alert_research"]
+    assert report.records[0]["proposal"] == "kill_and_retry"
+    assert report.records[0]["action"] == "alert_research"
+    assert report.errors["reader:harbor_trial:job/trial-1"] == "TimeoutError: reader"
+
+
+def test_missing_transcript_is_unknown_even_when_an_action_is_proposed() -> None:
+    observation = _obs(_trial(), actor=False)
+    hit = _hit("error_signature", "infra")
+    decision = ls.propose(observation.subject, [hit])
+    record = ls.finding(observation, [hit], decision, proposal=decision, mode="shadow",
+                        acted=False, produced_at=NOW)
+    assert record["verdict"] == "unknown"
+    assert record["action"] == "kill_and_mark_infra"
+
+
+def test_broken_trigger_does_not_hide_other_subjects(tmp_path: Path) -> None:
+    class BrokenTrigger(_Source):
+        def triggers(self, observation: ls.Observation) -> list[ls.TriggerHit]:
+            raise ValueError("invalid observation")
+
+    broken = BrokenTrigger("broken", [_obs(_trial())], [])
+    healthy = _Source("healthy", [_obs(_lane())], [_hit("silence", "latency")])
+    report = ls.scan_once([broken, healthy], ls.RuleDecider(), ls.DecisionLog(tmp_path), now=NOW)
+    assert report.errors["trigger:broken:job/trial-1"] == "ValueError: invalid observation"
+    assert [record["subject"]["id"] for record in report.records] == ["w1C:pJ"]
+
+
+def test_action_failure_is_recorded_and_other_subjects_still_run(tmp_path: Path) -> None:
+    class BrokenActuator:
+        def act(self, observation: ls.Observation, decision: ls.Decision) -> bool:
+            raise OSError("stop unavailable")
+
+    sources = [_Source("harbor", [_obs(_trial()), _obs(_lane())], [_hit("repetition", "loop")])]
+    report = ls.scan_once(sources, ls.RuleDecider(), ls.DecisionLog(tmp_path), now=NOW,
+                          mode="act", actuator=BrokenActuator())
+    assert {record["subject"]["id"] for record in report.records} == {"job/trial-1", "w1C:pJ"}
+    assert all(record["acted"] is False for record in report.records)
+    assert report.errors["action:harbor_trial:job/trial-1"] == "OSError: stop unavailable"
+    records = [json.loads(line) for line in (tmp_path / ls.DECISIONS_FILE).read_text().splitlines()]
+    assert records == report.records

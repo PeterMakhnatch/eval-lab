@@ -1,0 +1,20 @@
+{
+  "schema": "evallab.trace_tools_tt4_gold_join_freeze/v1",
+  "at": "2026-10-28T16:08:34.881434+00:00",
+  "generation_closed_at": "2026-10-28T14:49:43.432073+00:00",
+  "native_detector_version": "metr-scanners/0.1.11@c12893d1;scanner-v0;omp-kimi-code-k3.1-pro-highspeed;projection-native-actor-v2",
+  "native_prediction_rows": 600,
+  "sample_n": 200,
+  "numeric_native_n": 37,
+  "null_native_n": 163,
+  "predeclared_thresholds": [
+    5,
+    7
+  ],
+  "native600_sha256": "c13b32e53c5ef8a15cf90c49c3bdd2a9dfef2f4a5e83333721a786dd7ec1e20a",
+  "all79_call_files_manifest_sha256": "c28ec5fd543d2b6429f687eca5a376724c0b5cdfe79e0e2fc10114e72cc6dc7d",
+  "gold_join_policy": "Literal set intersection of original step_index message references with agent_traces.flagged_passage_steps; verify source coordinate definition first. Missing/malformed/unproven gold coordinates are unavailable, not zero matches. No offset search or tolerance expansion.",
+  "scope": "Native model inputs/prompt/thresholds and outputs were fixed before offline label scoring. This additional gold-step audit is declared after already-published primary-label metrics but before examining/joining gold-step sets; it is not a claim of pre-generation preregistration.",
+  "model_or_metadata_calls": 0,
+  "mutates_originals": false
+}

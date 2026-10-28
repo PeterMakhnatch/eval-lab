@@ -1,0 +1,89 @@
+{
+  "schema": "evallab.trace_tools_native_protocol_seal/v1",
+  "at": "2026-10-28T18:28:26.518538+00:00",
+  "status": "SEALED current OMP CLI transport; not independently tool-free and no unsafe override",
+  "reason": "User-derived actor reader confirmed a built-in mutating tool call despite frozen --no-tools/--no-skills/--no-extensions flags; this is not a claim that native METR tool use was observed.",
+  "preserved_before_live_source_edits": true,
+  "sources": [
+    {
+      "label": "smoke-as-executed",
+      "commit": "fca9632802187166bb7f7fed6e6ebbb248e12963",
+      "source": "research/evidence/runs/trace-tools-tt4-20261027/run.py",
+      "git_blob": "27c7e741c7c4ca970c2ea9f18884a2951f39b04d",
+      "sha256": "c13abf27faa33c5fe82cf310dba3dc1379e133c802d877b6424f5f6258509a7a",
+      "archive": "run-c13abf27faa33c5f.py.txt",
+      "bytes": 26628,
+      "non_executable_historical_text": true
+    },
+    {
+      "label": "smoke-as-executed",
+      "commit": "fca9632802187166bb7f7fed6e6ebbb248e12963",
+      "source": "src/evallab/readers/omp_model.py",
+      "git_blob": "21250d0f0dace538331f37ae7f0992d4843239b6",
+      "sha256": "34052d33b93804c8c0b63704f8e935927e328f0fc89104f35052ad7e5d8cbec1",
+      "archive": "omp_model-34052d33b93804c8.py.txt",
+      "bytes": 13386,
+      "non_executable_historical_text": true
+    },
+    {
+      "label": "continuation-as-executed",
+      "commit": "7b1ae61089b97d49a5ba85d8d8d374413a4105e6",
+      "source": "research/evidence/runs/trace-tools-tt4-20261027/run.py",
+      "git_blob": "27c7e741c7c4ca970c2ea9f18884a2951f39b04d",
+      "sha256": "c13abf27faa33c5fe82cf310dba3dc1379e133c802d877b6424f5f6258509a7a",
+      "archive": "run-c13abf27faa33c5f.py.txt",
+      "bytes": 26628,
+      "non_executable_historical_text": true
+    },
+    {
+      "label": "continuation-as-executed",
+      "commit": "7b1ae61089b97d49a5ba85d8d8d374413a4105e6",
+      "source": "src/evallab/readers/omp_model.py",
+      "git_blob": "21250d0f0dace538331f37ae7f0992d4843239b6",
+      "sha256": "34052d33b93804c8c0b63704f8e935927e328f0fc89104f35052ad7e5d8cbec1",
+      "archive": "omp_model-34052d33b93804c8.py.txt",
+      "bytes": 13386,
+      "non_executable_historical_text": true
+    },
+    {
+      "label": "pre-seal-maintained",
+      "commit": "51633d5a02497b3550f937389737c262fd0a8380",
+      "source": "research/evidence/runs/trace-tools-tt4-20261027/run.py",
+      "git_blob": "911fb1c9fd666dec0442a33871267eac5141fcc5",
+      "sha256": "d96f26477e86f0dcb811598c93227abf629022ac97c08cf55561cd72dbeb0595",
+      "archive": "run-d96f26477e86f0dc.py.txt",
+      "bytes": 28426,
+      "non_executable_historical_text": true
+    },
+    {
+      "label": "pre-seal-maintained",
+      "commit": "51633d5a02497b3550f937389737c262fd0a8380",
+      "source": "src/evallab/readers/omp_model.py",
+      "git_blob": "21250d0f0dace538331f37ae7f0992d4843239b6",
+      "sha256": "34052d33b93804c8c0b63704f8e935927e328f0fc89104f35052ad7e5d8cbec1",
+      "archive": "omp_model-34052d33b93804c8.py.txt",
+      "bytes": 13386,
+      "non_executable_historical_text": true
+    }
+  ],
+  "historical_prediction600_sha256": "c13b32e53c5ef8a15cf90c49c3bdd2a9dfef2f4a5e83333721a786dd7ec1e20a",
+  "historical_generation_closed_receipt": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt4-metr-20261027/kimi-20261028-native-actor-v2/receipts/generation-closed-20261028T144943432073Z.json",
+  "historical_generation_closed_receipt_sha256": "c22b0f947a570d02c71f348373e5ec1bf2fe6ee136c3d25bb3858e020f3055c1",
+  "historical_model": "kimi-code/k3.1-pro-highspeed",
+  "historical_model_attested_calls": 79,
+  "historical_scored_runs": 37,
+  "historical_abstentions": 163,
+  "historical_input_tokens_including_cache": 2651418,
+  "historical_output_tokens": 38840,
+  "historical_usd": 0,
+  "historical_basis": "Kimi Code OAuth subscription; $0 marginal, no paid fallback",
+  "historical_canonical_model_batches": 37,
+  "historical_active_quota_metadata_batches": 39,
+  "canonical_model_batch_snapshot_normalized_sha256": "57c689fcc230f31cb902fa55c8a44d786b01a5be6076f54e450981ce8596b58a",
+  "historical_financial_and_raw_model_evidence_not_modified": true,
+  "raw_native_tool_event_counts": "UNKNOWN, not zero; no raw stream metadata retained",
+  "future_native_generation_and_quota": "Must deny before registration/run/quota/subprocess; parser and offline scoring remain available",
+  "archive_use": "Non-executable historical source text only; not a supported resume entrypoint or an override",
+  "model_or_usage_calls_during_seal_preparation": 0,
+  "usd_during_seal_preparation": 0
+}

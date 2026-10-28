@@ -512,6 +512,10 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   scout export (re-executing under the scout-watch runtime when this environment
   lacks Scout); its refusals (more than 200 transcripts, not a file) never repeat the file's
   size or the path given. No call makes a model call.
+- Export output and its sibling manifest must both be new, including dangling
+  symlinks. Refusal preserves existing entries' contents, identities, permissions
+  and mutation timestamps. Read-only admission and path probes can still advance
+  filesystem access timestamps (`atime`); those are not evidence of a write.
 - Every export manifest entry (cloud and CheatBench) carries `actor_inputs_available`: true
   when some agent-authored step has message text or a tool call. False marks runs with no
   model actor behind them (native replay receipts, retained event journals, differential

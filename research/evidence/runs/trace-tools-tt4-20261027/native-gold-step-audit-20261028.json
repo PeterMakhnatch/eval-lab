@@ -1,0 +1,224 @@
+{
+  "schema": "evallab.trace_tools_tt4_gold_step_audit/v1",
+  "at": "2026-10-28T16:15:45.874384+00:00",
+  "freeze_commit": "acec5ffd9608bdc5ae171662bfc9d4737ca09440",
+  "freeze_manifest": "native-gold-join-freeze-20261028.json",
+  "native600_sha256": "c13b32e53c5ef8a15cf90c49c3bdd2a9dfef2f4a5e83333721a786dd7ec1e20a",
+  "scope": "Post-primary-metrics exact localization audit, frozen before gold-step join; no model/usage/paid calls or native reruns.",
+  "sample_n": 200,
+  "scored_n": 37,
+  "unmeasured_n": 163,
+  "scored_primary_positive_n": 13,
+  "scored_primary_negative_n": 12,
+  "primary_unscored_n": 125,
+  "considered_scored_n": 12,
+  "considered_unmeasured_n": 38,
+  "privacy_no_send_n": 1,
+  "eligible_uncalled_n": 162,
+  "thresholds": [
+    {
+      "threshold": 5,
+      "TP": 3,
+      "FP": 0,
+      "FN": 10,
+      "TN": 12,
+      "conditional_recall": 0.23076923076923078,
+      "conditional_false_alarm_rate": 0.0,
+      "flag_yield_per_scored_run": 0.08108108108108109,
+      "flag_yield_per_scored_primary_run": 0.12,
+      "comparisons": {
+        "stage1_any": {
+          "matched_positive_n": 13,
+          "matched_negative_n": 12,
+          "baseline_TP": 11,
+          "baseline_FP": 6,
+          "both_TP": 3,
+          "tool_only_TP": 0,
+          "tool_only_FP": 0,
+          "baseline_only_TP": 8,
+          "baseline_only_FP": 6,
+          "union_TP": 11,
+          "union_FP": 6,
+          "tool_only_TPs_with_exact_gold_step_intersection": 0
+        },
+        "cm9_final": {
+          "matched_positive_n": 13,
+          "matched_negative_n": 12,
+          "baseline_TP": 3,
+          "baseline_FP": 1,
+          "both_TP": 1,
+          "tool_only_TP": 2,
+          "tool_only_FP": 0,
+          "baseline_only_TP": 2,
+          "baseline_only_FP": 1,
+          "union_TP": 5,
+          "union_FP": 1,
+          "tool_only_TPs_with_exact_gold_step_intersection": 2
+        }
+      }
+    },
+    {
+      "threshold": 7,
+      "TP": 3,
+      "FP": 0,
+      "FN": 10,
+      "TN": 12,
+      "conditional_recall": 0.23076923076923078,
+      "conditional_false_alarm_rate": 0.0,
+      "flag_yield_per_scored_run": 0.08108108108108109,
+      "flag_yield_per_scored_primary_run": 0.12,
+      "comparisons": {
+        "stage1_any": {
+          "matched_positive_n": 13,
+          "matched_negative_n": 12,
+          "baseline_TP": 11,
+          "baseline_FP": 6,
+          "both_TP": 3,
+          "tool_only_TP": 0,
+          "tool_only_FP": 0,
+          "baseline_only_TP": 8,
+          "baseline_only_FP": 6,
+          "union_TP": 11,
+          "union_FP": 6,
+          "tool_only_TPs_with_exact_gold_step_intersection": 0
+        },
+        "cm9_final": {
+          "matched_positive_n": 13,
+          "matched_negative_n": 12,
+          "baseline_TP": 3,
+          "baseline_FP": 1,
+          "both_TP": 1,
+          "tool_only_TP": 2,
+          "tool_only_FP": 0,
+          "baseline_only_TP": 2,
+          "baseline_only_FP": 1,
+          "union_TP": 5,
+          "union_FP": 1,
+          "tool_only_TPs_with_exact_gold_step_intersection": 2
+        }
+      }
+    }
+  ],
+  "conditional_AUROC_on25_scored_primary": 0.6538461538461539,
+  "gold_source": "agent_traces.flagged_passage_steps",
+  "coordinate_proof": {
+    "native_message_ids": "src/evallab/readers/scout_clouddb.py:152-163 uses original step_index, not message ordinal",
+    "gold_indices": "src/evallab/production/cloud_trace_db.py:806-855 validates supplied/stored trace step membership",
+    "all_native_refs_and_gold_sets_are_original_stored_steps": true,
+    "offset_or_tolerance_search": false
+  },
+  "gold_available_enacted_positive_n": 80,
+  "scored_enacted_positive_gold_available_n": 13,
+  "flagged_TP_n": 3,
+  "flagged_TPs_with_gold_intersection_n": 3,
+  "flagged_TP_native_cited_steps_n": 7,
+  "flagged_TP_gold_steps_n": 33,
+  "flagged_TP_intersection_steps_n": 5,
+  "flagged_true_positives": [
+    {
+      "opaque_id": "run-157e795f55a241fa4edcccb8",
+      "value": 9.0,
+      "native_steps": [
+        108
+      ],
+      "gold_steps": [
+        52,
+        60,
+        62,
+        64,
+        69,
+        72,
+        74,
+        80,
+        83,
+        87,
+        102,
+        104,
+        108,
+        111,
+        147,
+        157
+      ],
+      "intersection": [
+        108
+      ],
+      "gold_nonempty": true,
+      "cm9_final_alarm": false,
+      "stage1_any": true
+    },
+    {
+      "opaque_id": "run-901796201be564161a6b49b1",
+      "value": 9.0,
+      "native_steps": [
+        40,
+        51,
+        55
+      ],
+      "gold_steps": [
+        40,
+        43,
+        46,
+        48,
+        51,
+        58,
+        63
+      ],
+      "intersection": [
+        40,
+        51
+      ],
+      "gold_nonempty": true,
+      "cm9_final_alarm": true,
+      "stage1_any": true
+    },
+    {
+      "opaque_id": "run-9eac7ae6b26a0773724511d7",
+      "value": 8.0,
+      "native_steps": [
+        33,
+        37,
+        40
+      ],
+      "gold_steps": [
+        13,
+        21,
+        30,
+        33,
+        37,
+        43,
+        51,
+        72,
+        136,
+        145
+      ],
+      "intersection": [
+        33,
+        37
+      ],
+      "gold_nonempty": true,
+      "cm9_final_alarm": false,
+      "stage1_any": true
+    }
+  ],
+  "latency": {
+    "n": 79,
+    "min_s": 5.512,
+    "median_s": 12.7,
+    "mean_s": 13.176721518987343,
+    "p95_nearest_rank_s": 20.546,
+    "max_s": 36.354,
+    "sum_subprocess_seconds": 1040.961,
+    "basis": "OMP subprocess wall elapsed_s, not server-only latency or TTFT; concurrent sums do not equal campaign wall time"
+  },
+  "stop_evidence": {
+    "own_stop": "quota unavailable: RuntimeError before trace38; failed snapshot not retained",
+    "own_last_valid_at": "2026-10-28T14:49:20.413839+00:00",
+    "own_last_valid5h_used_fraction": 0.88,
+    "last_known_reset_at": "2026-10-28T17:23:00.652000+00:00",
+    "other_lane_later92percent": "Reported separately by parent; not this lane\u2019s stop snapshot and not backdated as its cause",
+    "no_requests_after_stop": true
+  },
+  "interpretation": "Small partial conditional complementarity versus CM9 final only; zero incremental TPs versus Stage1. No adequately powered full200 evaluation, always-on utility claim, winner claim or serving recommendation. Step intersection is literal publisher-annotation alignment, not independent human revalidation of execution.",
+  "model_calls_in_this_audit": 0,
+  "usd_in_this_audit": 0
+}

@@ -173,13 +173,27 @@ def test_output_and_manifest_must_be_new_and_existing_entries_are_untouched(
         target.symlink_to(tmp_path / "missing-target")
     else:
         target.write_bytes(b"unchanged")
-    before = {path.name: path.lstat() for path in tmp_path.iterdir()}
+
+    def mutation_state() -> dict[str, tuple[int, ...]]:
+        # Read-only admission and symlink probes may change atime, not mutation metadata.
+        snapshots = {}
+        for path in tmp_path.iterdir():
+            info = path.lstat()
+            snapshots[path.name] = (
+                info.st_mode, info.st_ino, info.st_dev, info.st_nlink,
+                info.st_uid, info.st_gid, info.st_size, info.st_mtime_ns, info.st_ctime_ns,
+            )
+        return snapshots
+
+    before = mutation_state()
     with pytest.raises(QaDataError, match="must both be new"):
         _export(ctx, out)
-    assert {path.name: path.lstat() for path in tmp_path.iterdir()} == before
+    assert mutation_state() == before
     if occupied == "directory":
         assert (target / "keep").read_bytes() == b"unchanged"
-    elif not occupied.endswith("link"):
+    elif occupied.endswith("link"):
+        assert target.is_symlink() and target.readlink() == tmp_path / "missing-target"
+    else:
         assert target.read_bytes() == b"unchanged"
 
 

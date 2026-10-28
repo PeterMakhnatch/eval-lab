@@ -69,12 +69,13 @@ _POSTGRES_VECTOR_SOURCE_BYTES = 65_536
 _READ_MEMO_ENTRIES = 24
 _JSON_COLUMNS = {
     "metadata_json", "verified_receipt_json", "flags_json", "flagged_passage_steps", "evidence_steps",
+    "run_ids", "label_rates", "provenance_json",
 }
 #: Run Atlas ``run-facets/v1``: one model-filled form per run. ``run_id`` is the
 #: run's ``agent_traces.trace_id``; ``source``, ``split`` and ``outcome`` are
 #: copied from the database on write, never taken from the record.
 RUN_FACETS_VERSION = "run-facets/v1"
-_FACET_ENUMS = {
+_FACET_ENUMS: dict[str, tuple[str, ...]] = {
     "tests": ("untouched", "read", "modified", "deleted", "replaced"),
     "eval_awareness": ("none", "mentions_tests", "reasons_about_grader", "plans_to_game"),
 }
@@ -90,6 +91,17 @@ _FACET_RECORD_FIELDS = (
 _FACET_COLUMNS = (
     "run_id", "task_id", *_FACET_DATABASE_FIELDS, *_FACET_RECORD_FIELDS[1:],
 )
+#: Run Atlas ``run-clusters/v1``: a three-level hierarchy over faceted runs.
+RUN_CLUSTERS_VERSION = "run-clusters/v1"
+_CLUSTER_COLUMNS = (
+    "cluster_id", "name", "level", "parent", "run_ids", "centroid_text", "size", "label_rates",
+)
+#: Fields ``search_runs`` filters on, with their accepted values (``None``: any nonempty text).
+_FACET_FILTERS: dict[str, tuple[Any, ...] | None] = {
+    "outcome": _FACET_OUTCOMES, **_FACET_ENUMS,
+    **{field: (False, True) for field in _FACET_BOOLEANS},
+    "suspicion": (0, 1, 2, 3), "source": None, "split": None, "facet_model": None,
+}
 # Evidence trust, strongest first. Tier 1: container-verified differentials
 # (qualified repairs, differentially replayed witnesses, maintainer fixes).
 # Tier 2: consensus-labeled evidence (unanimous judge votes with passage-level
@@ -208,6 +220,70 @@ def _reward_outcome(reward: float | None) -> str:
     if reward is None:
         return "unknown"
     return "pass" if reward >= 1 else "fail" if reward <= 0 else "unknown"
+
+
+def _facet_filters(facets: Any) -> list[tuple[str, list[Any]]]:
+    """Validated ``(field, accepted values)`` pairs; a scalar accepts that one value.
+
+    Unknown fields and values are errors, so a typo never reads as "no runs".
+    """
+    if not isinstance(facets, Mapping):
+        raise ValueError("facets must map a field to a value or a collection of values")
+    filters = []
+    for field, value in facets.items():
+        if field not in _FACET_FILTERS:
+            raise ValueError(f"facets cannot filter on {field!r}; use {', '.join(_FACET_FILTERS)}")
+        values = list(value) if isinstance(value, (list, tuple, set, frozenset)) else [value]
+        if not values:
+            raise ValueError(f"facets[{field!r}] must accept at least one value")
+        accepted = _FACET_FILTERS[field]
+        for item in values:
+            if field == "suspicion":
+                _integer(item, f"facets[{field!r}]")
+            if accepted is None:
+                _text(item, f"facets[{field!r}]")
+            elif item not in accepted or isinstance(item, bool) != (field in _FACET_BOOLEANS):
+                raise ValueError(f"facets[{field!r}] must be one of {', '.join(map(str, accepted))}")
+        filters.append((field, values))
+    return filters
+
+
+def _run_cluster(cluster: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate one ``run-clusters/v1`` record's own fields.
+
+    Other keys (build, embedder, seed, samples...) are kept verbatim as the
+    cluster's ``provenance_json``; a stated ``cluster_version`` must be v1.
+    """
+    extra = {key: value for key, value in cluster.items() if key not in _CLUSTER_COLUMNS}
+    if extra.get("cluster_version", RUN_CLUSTERS_VERSION) != RUN_CLUSTERS_VERSION:
+        raise ValueError(f"cluster_version must be {RUN_CLUSTERS_VERSION}")
+    row = _record(
+        {key: value for key, value in cluster.items() if key in _CLUSTER_COLUMNS},
+        _CLUSTER_COLUMNS, {"parent": None, "label_rates": None},
+    )
+    row["provenance_json"] = _json_value(extra)
+    cluster_id = _text(row["cluster_id"], "cluster_id")
+    _text(row["name"], "name")
+    if not isinstance(row["centroid_text"], str):
+        raise ValueError("centroid_text must be a string")
+    if _integer(row["level"], "level", minimum=1) > 3:
+        raise ValueError("level must be 1, 2 or 3")
+    if row["parent"] is not None:
+        _text(row["parent"], "parent")
+    run_ids = row["run_ids"]
+    if (
+        not isinstance(run_ids, list) or not run_ids
+        or any(not isinstance(run_id, str) or not run_id.strip() for run_id in run_ids)
+        or len(set(run_ids)) != len(run_ids)
+    ):
+        raise ValueError(f"cluster {cluster_id!r} run_ids must be a nonempty list of distinct run IDs")
+    if _integer(row["size"], "size", minimum=1) != len(run_ids):
+        raise ValueError(f"cluster {cluster_id!r} size must equal the number of run_ids")
+    row["run_ids"] = list(run_ids)
+    row["label_rates"] = _json_value(row["label_rates"], nullable=True)
+    if row["label_rates"] is not None and not isinstance(row["label_rates"], dict):
+        raise ValueError("label_rates must be an object or null")
+    return row
 
 
 def _record(record: Mapping[str, Any], columns: Sequence[str], defaults: Mapping[str, Any]) -> dict[str, Any]:
@@ -550,11 +626,20 @@ class CloudTraceDatabase:
                     shortcut TEXT NOT NULL,
                     suspicion INTEGER NOT NULL CHECK(suspicion BETWEEN 0 AND 3),
                     evidence_steps {json_type} NOT NULL)""")
+            if not self._postgres or not self._exists("run_clusters"):
+                self._execute(f"""CREATE TABLE IF NOT EXISTS run_clusters (
+                    cluster_id TEXT PRIMARY KEY, name TEXT NOT NULL,
+                    level INTEGER NOT NULL CHECK(level BETWEEN 1 AND 3),
+                    parent TEXT REFERENCES run_clusters(cluster_id),
+                    run_ids {json_type} NOT NULL, centroid_text TEXT NOT NULL,
+                    size INTEGER NOT NULL CHECK(size >= 1), label_rates {json_type},
+                    provenance_json {json_type} NOT NULL)""")
             for table, fields in (
                 ("task_issues", "task_id, direction, status, defect_class"),
                 ("agent_traces", "task_id, run_id"),
                 ("trace_steps", "tool_name, trace_id"),
                 ("run_facets", "task_id, outcome, tests, suspicion"),
+                ("run_clusters", "parent, level"),
             ):
                 if not self._postgres or not self._exists(f"{table}_lookup"):
                     self._execute(f"CREATE INDEX IF NOT EXISTS {table}_lookup ON {table} ({fields})")
@@ -883,6 +968,105 @@ class CloudTraceDatabase:
             "refused": sum(reasons.values()), "refused_by_reason": dict(sorted(reasons.items())),
             "refused_examples": examples, "database_overrides": overrides,
         }
+
+    def replace_run_clusters(
+        self, clusters: Sequence[Mapping[str, Any]], *, registry: CorpusRegistry | None = None,
+        allowed_task_ids: Collection[str] | None = None,
+    ) -> dict[str, int]:
+        """Atomically replace the whole ``run-clusters/v1`` hierarchy.
+
+        Each cluster has ``cluster_id``, ``name``, ``level`` (1-3), ``parent``
+        (``None`` exactly at level 1, otherwise a cluster one level up whose runs
+        include all of this cluster's), ``run_ids`` (distinct runs with stored
+        facets whose current tasks are registry-admitted DEV), ``centroid_text``,
+        ``size`` (``len(run_ids)``) and optional ``label_rates`` (filled only at
+        scoring time). ``allowed_task_ids`` only narrows admission. Any invalid
+        cluster keeps the stored hierarchy.
+        """
+        rows: dict[str, dict[str, Any]] = {}
+        for cluster in clusters:
+            row = _run_cluster(cluster)
+            if row["cluster_id"] in rows:
+                raise ValueError(f"duplicate cluster_id {row['cluster_id']!r}")
+            rows[row["cluster_id"]] = row
+        for cluster_id, row in rows.items():
+            parent = rows.get(row["parent"]) if row["parent"] is not None else None
+            if (row["level"] == 1) != (row["parent"] is None) or (
+                row["level"] > 1 and (parent is None or parent["level"] != row["level"] - 1)
+            ):
+                raise ValueError(f"cluster {cluster_id!r} needs no parent at level 1, else one a level up")
+            if parent is not None and not set(row["run_ids"]) <= set(parent["run_ids"]):
+                raise ValueError(f"cluster {cluster_id!r} has runs outside its parent")
+        members = sorted({run_id for row in rows.values() for run_id in row["run_ids"]})
+        with self._transaction(write=True):
+            if self._postgres:
+                self._execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+                self._execute("LOCK TABLE run_clusters IN EXCLUSIVE MODE")
+            admitted, _ = CloudTraceRetriever(self, registry=registry)._admitted_ids()
+            allowed = frozenset(admitted)
+            if allowed_task_ids is not None:
+                allowed = allowed.intersection(allowed_task_ids)
+            parameters: list[Any] = []
+            scope = self._task_id_scope("f.run_id", members, parameters)
+            task_scope = self._task_id_scope("a.task_id", allowed, parameters)
+            faceted = {
+                row["run_id"] for row in self._rows(
+                    "SELECT f.run_id FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+                    f"WHERE a.task_id = f.task_id AND {scope} AND {task_scope}", parameters,
+                )
+            }
+            missing = [run_id for run_id in members if run_id not in faceted]
+            if missing:
+                raise ValueError(
+                    f"{len(missing)} clustered runs lack stored facets of an admitted DEV task "
+                    f"(first: {missing[0]!r})"
+                )
+            self._execute("DELETE FROM run_clusters")
+            for level in (1, 2, 3):  # parents precede children for the foreign key
+                for row in rows.values():
+                    if row["level"] == level:
+                        self._upsert("run_clusters", row, ("cluster_id",))
+        return {"clusters": len(rows), "runs": len(members)}
+
+    def search_runs(
+        self, facets: Mapping[str, Any] | None = None, *, registry: CorpusRegistry | None = None,
+        allowed_task_ids: Collection[str] | None = None, sealed_task_ids: Iterable[str] = (),
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Admitted ``run-facets/v1`` records matching every filter, most suspicious first.
+
+        ``facets`` maps ``outcome``, ``tests``, ``eval_awareness``, the three
+        booleans, ``suspicion``, ``source``, ``split`` or ``facet_model`` to one
+        value or a collection of accepted values. Registry admission, current
+        trace ownership and facet reads share one snapshot. An optional
+        ``allowed_task_ids`` only narrows admission; an empty scope reads no
+        facet columns. Records naming a sealed identity are withheld.
+        """
+        filters = _facet_filters({} if facets is None else facets)
+        if limit is not None:
+            _integer(limit, "limit", minimum=1)
+        retriever = CloudTraceRetriever(self, registry=registry, sealed_task_ids=sealed_task_ids)
+        with self._transaction():
+            admitted, sealed_ids = retriever._admitted_ids()
+            allowed = frozenset(admitted)
+            if allowed_task_ids is not None:
+                allowed = allowed.intersection(allowed_task_ids)
+            if not allowed:
+                return []
+            parameters: list[Any] = []
+            clauses = [self._task_id_scope("a.task_id", allowed, parameters), "a.task_id = f.task_id"]
+            clauses.extend(self._task_id_scope(f"f.{field}", values, parameters) for field, values in filters)
+            query = (
+                "SELECT f.* FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+                f"WHERE {' AND '.join(clauses)} ORDER BY f.suspicion DESC, f.run_id"
+            )
+            if limit is not None:
+                query += f" LIMIT {limit}"
+            sealed = _sealed_pattern(frozenset(sealed_ids))
+            return [
+                row for row in self._rows(query, parameters)
+                if not retriever._sealed_text(_json_text(row), sealed)
+            ]
 
     def _replace_steps(self, trace_id: str, rows: Sequence[Mapping[str, Any]]) -> None:
         self._execute("DELETE FROM trace_steps WHERE trace_id = ?", (trace_id,))
@@ -2385,6 +2569,18 @@ class CloudTraceRetriever:
                     steps.append(self._step_evidence(step))
             result.update(trace_id=self._identity(raw_id), steps=steps)
             return result
+
+    def search_runs(
+        self, facets: Mapping[str, Any] | None = None, *, limit: int | None = 50,
+    ) -> list[dict[str, Any]]:
+        """``CloudTraceDatabase.search_runs`` over admitted DEV runs only.
+
+        Admission is decided before any facet is read; a record that names a
+        sealed identity is dropped, so fewer than ``limit`` may return.
+        """
+        return self.database.search_runs(
+            facets, registry=self.registry, sealed_task_ids=self._sealed_ids, limit=limit,
+        )
 
 
 def import_run_facets(

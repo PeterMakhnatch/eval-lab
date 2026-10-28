@@ -384,7 +384,7 @@ def test_graceful_signal_restores_handlers_without_replaying_before_cleanup(
         async def serve(self) -> None:
             with self.capture_signals():
                 self.started = True
-                handler = signal.getsignal(signal.SIGTERM)
+                handler: Any = signal.getsignal(signal.SIGTERM)
                 assert callable(handler)
                 handler(signal.SIGTERM, None)
                 assert self.should_exit
@@ -579,9 +579,9 @@ def test_project_actor_never_removes_an_entry_recreated_at_the_staging_path(
     recreated: list[Path] = []
 
     def publish_then_recreate(
-        staging: Path, destination: Path, **kwargs: object,
+        staging: Path, destination: Path, **kwargs: os.stat_result | None,
     ) -> None:
-        original_publish(staging, destination, **kwargs)  # type: ignore[arg-type]
+        original_publish(staging, destination, **kwargs)
         staging.mkdir()
         (staging / "competitor").write_text("retain", encoding="utf-8")
         recreated.append(staging)
@@ -610,9 +610,9 @@ def test_project_actor_keeps_a_bundle_whose_publication_is_uncertain(
     real_publish = actor_cas.publish_staged_directory
 
     def publish_then_fail(
-        staging: Path, destination: Path, **kwargs: object,
+        staging: Path, destination: Path, **kwargs: os.stat_result | None,
     ) -> None:
-        real_publish(staging, destination, **kwargs)  # type: ignore[arg-type]
+        real_publish(staging, destination, **kwargs)
         raise actor_cas.PublicationUncertainError("simulated post-rename failure")
 
     monkeypatch.setattr(actor_cas, "publish_staged_directory", publish_then_fail)
@@ -735,11 +735,11 @@ def _tier_source(root: Path) -> Path:
 
 
 def _recorded_reports(directory: Path) -> tuple[Path, Path]:
-    from evallab.hackbook.qc import score_cases
+    from evallab.hackbook.qc import ScoredCase, score_cases
     from evallab.tripwires import HACKBOOK_RULES
 
     first, second = (rule["id"] for rule in HACKBOOK_RULES[:2])
-    cases = [
+    cases: list[ScoredCase] = [
         {"case_id": "p1", "label": "positive", "fired": frozenset({first})},
         {"case_id": "p2", "label": "positive", "fired": frozenset({first, second})},
         {"case_id": "c1", "label": "clean", "fired": frozenset({second})},
@@ -1306,3 +1306,57 @@ def test_cm4_directory_maps_the_frozen_arm_and_refuses_disagreement(tmp_path: Pa
     (directory / "score2-goodfire-plain.json").write_text(json.dumps(summary), encoding="utf-8")
     with pytest.raises(ValueError, match="disagrees with the summary"):
         cm4_monitor_cascade(directory, generated_at="2026-10-27T10:00:00Z")
+
+
+@pytest.mark.parametrize("explicit", (False, True))
+def test_status_missing_queue_never_creates_a_database_or_parent(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str], explicit: bool,
+) -> None:
+    path = corpus_root / "missing-parent/queue.sqlite" if explicit else _path(corpus_root)
+    options = ["--database", str(path)] if explicit else []
+    assert not path.parent.exists()
+    assert cli.run_cli(["prod", "status", *options], workspace=corpus_root) != 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "existing queue database" in json.loads(captured.err)["error"]["message"]
+    assert not path.exists() and not path.parent.exists()
+
+
+@pytest.mark.parametrize("partial_queue", (False, True))
+def test_status_non_queue_sqlite_is_byte_identical_and_has_no_new_tables_or_sidecars(
+    corpus_root: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str], partial_queue: bool,
+) -> None:
+    path = tmp_path / "cloud.sqlite"
+    with closing(sqlite3.connect(path)) as connection:
+        connection.execute("CREATE TABLE corpus_tasks (task_id TEXT PRIMARY KEY, body TEXT)")
+        connection.execute("INSERT INTO corpus_tasks VALUES ('private-task', 'immutable evidence')")
+        if partial_queue:
+            connection.execute("CREATE TABLE queue_state (singleton INTEGER, last_seq INTEGER)")
+        connection.commit()
+    before = path.read_bytes()
+    files_before = {item.name for item in tmp_path.iterdir()}
+    assert cli.run_cli(["prod", "status", "--database", str(path)], workspace=corpus_root) != 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "queue database" in json.loads(captured.err)["error"]["message"]
+    assert path.read_bytes() == before
+    assert {item.name for item in tmp_path.iterdir()} == files_before
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as connection:
+        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_schema WHERE type='table'")}
+    assert tables == ({"corpus_tasks", "queue_state"} if partial_queue else {"corpus_tasks"})
+
+
+def test_status_real_queue_uses_existing_state_without_changing_any_bytes_or_creating_files(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(corpus_root, "misalignment", "task_quality")
+    path = _path(corpus_root)
+    before = {item.name: item.read_bytes() for item in path.parent.iterdir() if item.is_file()}
+    assert cli.run_cli(["prod", "status"], workspace=corpus_root) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    receipt = json.loads(captured.out)
+    assert receipt["backend"] == "sqlite" and receipt["queue"]["depth"] == 2
+    assert receipt["queue"]["jobs"] == {"queued": 2, "leased": 0, "completed": 0}
+    assert receipt["queue"]["last_seq"] == 2
+    assert {item.name: item.read_bytes() for item in path.parent.iterdir() if item.is_file()} == before

@@ -1490,3 +1490,130 @@ def test_cheatbench_publishes_only_recognized_atif_schema_versions(tmp_path: Pat
     _receipt, output, _join = _cb_export(tmp_path, registry, cb_results, "version", run_ids=[CB_ADMITTED[0]])
     (document,) = (json.loads(path.read_text(encoding="utf-8")) for path in output.glob("*.json"))
     assert document["schema_version"] == "ATIF-v1.6" and CB_ADMITTED[0].casefold() not in _cb_text(output).casefold()
+
+
+@pytest.mark.parametrize("bad", (*REFUSED_TRACES, "missing-strict-trace"))
+def test_strict_rejects_every_unavailable_requested_id_before_reading_or_publishing(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bad: str,
+) -> None:
+    output = tmp_path / "strict"
+    manifest = tmp_path / "strict-private.json"
+    audit = _audit_connections(monkeypatch)
+    with pytest.raises(ValueError, match="requested traces are missing or not admitted"):
+        cloud_trace_export.export_runs(
+            source, output, format="atif", registry=registry,
+            trace_ids=[next(iter(ADMITTED_TRACES)), bad], limit=1, manifest=manifest, strict=True,
+        )
+    assert not output.exists() and not manifest.exists()
+    assert not list(tmp_path.glob(".cloud-trace-*"))
+    assert not any(table == "trace_steps" for table, _column in audit.reads)
+    assert audit.denied == []
+
+
+def test_strict_success_retains_limit_semantics_and_non_strict_refusals_still_publish_receipts(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path,
+) -> None:
+    selected = tuple(ADMITTED_TRACES)[:2]
+    output = tmp_path / "strict-success"
+    receipt = cloud_trace_export.export_runs(
+        source, output, format="atif", registry=registry, trace_ids=selected, limit=1, strict=True,
+    )
+    assert (receipt["admitted"], receipt["exported"], receipt["refused"]) == (2, 1, 0)
+    assert len(_read_manifest(_default_manifest(output))) == 1
+    refused_output = tmp_path / "non-strict"
+    receipt = cloud_trace_export.export_runs(
+        source, refused_output, format="atif", registry=registry, trace_ids=["missing-trace"],
+    )
+    assert (receipt["admitted"], receipt["exported"], receipt["refused"]) == (0, 0, 1)
+    assert refused_output.is_dir() and _read_manifest(_default_manifest(refused_output)) == {}
+
+
+@pytest.mark.parametrize("bad", (next(iter(REFUSED_TRACES)), "missing-strict-cli"))
+@pytest.mark.parametrize("from_file", (False, True))
+def test_cli_strict_refusals_exit_nonzero_on_stderr_without_publishing(
+    source: Path, tmp_path: Path, isolated_cli: Any, capsys: pytest.CaptureFixture[str],
+    bad: str, from_file: bool,
+) -> None:
+    output = tmp_path / "strict-cli"
+    manifest = tmp_path / "strict-cli-private.json"
+    ids_file = tmp_path / "ids.txt"
+    ids_file.write_text("# selection\n\n" + bad + "\n")
+    extra = ["--trace-ids-file", ids_file.name] if from_file else ["--trace-id", bad]
+    code = isolated_cli.run_cli([
+        "prod", "export-runs", "--source-database", str(source), "--output-directory", str(output),
+        "--format", "atif", "--manifest", str(manifest), "--trace-id", next(iter(ADMITTED_TRACES)),
+        "--strict", "--limit", "1", *extra,
+    ], workspace=tmp_path)
+    assert code != 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert json.loads(captured.err)["error"]["message"] == "requested traces are missing or not admitted"
+    assert not output.exists() and not manifest.exists()
+    assert bad not in captured.err
+
+
+def test_cli_trace_ids_file_merges_ids_ignores_comments_and_preserves_non_strict_behavior(
+    source: Path, tmp_path: Path, isolated_cli: Any, capsys: pytest.CaptureFixture[str],
+) -> None:
+    selected = tuple(ADMITTED_TRACES)[:2]
+    ids_file = tmp_path / "ids.txt"
+    ids_file.write_text(f"  # saved selection\n\n{selected[0]}\n  {selected[1]}  \nmissing-file-id\n")
+    output = tmp_path / "ids-file-cli"
+    manifest = tmp_path / "ids-file-cli-private.json"
+    assert isolated_cli.run_cli([
+        "prod", "export-runs", "--source-database", str(source), "--output-directory", str(output),
+        "--format", "atif", "--manifest", str(manifest), "--trace-id", selected[0],
+        "--trace-ids-file", ids_file.name,
+    ], workspace=tmp_path) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert (receipt["admitted"], receipt["exported"], receipt["refused"]) == (2, 2, 1)
+    assert {entry["trace_id"] for entry in _read_manifest(manifest).values()} == set(selected)
+
+
+@pytest.mark.parametrize("bad", ("missing-strict-parent-trace", next(iter(REFUSED_TRACES))))
+def test_strict_refusal_creates_neither_output_nor_manifest_parents(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path, bad: str,
+) -> None:
+    output = tmp_path / "new-output-parent" / "out"
+    manifest = tmp_path / "new-manifest-parent" / "join.json"
+    before = set(tmp_path.iterdir())
+    with pytest.raises(ValueError, match="requested traces are missing or not admitted"):
+        cloud_trace_export.export_runs(
+            source, output, format="atif", registry=registry,
+            trace_ids=[next(iter(ADMITTED_TRACES)), bad], limit=1, manifest=manifest, strict=True,
+        )
+    assert not output.parent.exists() and not manifest.parent.exists()
+    assert set(tmp_path.iterdir()) == before
+
+
+@pytest.mark.parametrize("racing", ("output", "manifest"))
+def test_export_rejects_a_racing_final_component_symlink_without_following_its_target(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, racing: str,
+) -> None:
+    output = tmp_path / "output-parent" / "out"
+    manifest = tmp_path / "manifest-parent" / "join.json"
+    output.parent.mkdir()
+    manifest.parent.mkdir()
+    destination = output if racing == "output" else manifest
+    target = tmp_path / "must-not-be-created"
+    resolve = Path.resolve
+    raced = False
+
+    def racing_resolve(path: Path, *args: Any, **kwargs: Any) -> Path:
+        nonlocal raced
+        if not raced and path in {destination, destination.parent}:
+            destination.symlink_to(target)
+            raced = True
+        return resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", racing_resolve)
+    with pytest.raises((FileExistsError, ValueError, OSError)):
+        cloud_trace_export.export_runs(
+            source, output, format="atif", registry=registry,
+            trace_ids=[next(iter(ADMITTED_TRACES))], manifest=manifest, strict=True,
+        )
+    assert raced and destination.is_symlink() and destination.readlink() == target
+    assert not target.exists()
+    other = manifest if racing == "output" else output
+    assert not other.exists() and not other.is_symlink()
+    assert not list(tmp_path.rglob(".cloud-trace-*"))

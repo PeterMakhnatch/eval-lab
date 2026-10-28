@@ -118,6 +118,43 @@ def test_run_search_returns_blind_triage_records_most_suspicious_first(store: Cl
     assert [run["run_id"] for run in only_alpha["runs"]] == ["alpha/a1", "alpha/a2"]
 
 
+def test_only_bare_inputs_fall_back_to_a_namesake_and_qualified_ids_must_match_exactly(
+    store: CloudTraceDatabase,
+) -> None:
+    ctx = context(store)
+    assert ctx.require_task("alpha")["task_id"] == "alpha"
+    for denied in ("test-suite/alpha", "alpha@sha256:abc", "other__alpha", "suite/locked-task", "held-out"):
+        with pytest.raises(QaDataError) as refused:
+            ctx.require_task(denied)
+        assert str(refused.value) == UNAVAILABLE  # a qualified, missing or denied id never lands on a namesake
+    add_task(store, "left/gamma")
+    add_task(store, "right/gamma")
+    with pytest.raises(QaDataError, match="2 admitted tasks") as ambiguous:
+        ctx.require_task("gamma")
+    assert "left/gamma" in str(ambiguous.value) and len(str(ambiguous.value)) < 300
+    assert ctx.require_task("left/gamma")["task_id"] == "left/gamma"
+
+
+def test_bare_names_resolve_canonical_runs_and_history_including_own_issues(store: CloudTraceDatabase) -> None:
+    add_task(store, "terminal-bench/cad-model")
+    run_id = add_run(store, "terminal-bench/cad-model", "one")
+    store.upsert_task_issue({
+        "issue_id": "cad/issue", "task_id": "terminal-bench/cad-model", "defect_class": "weak_check",
+        "direction": "wrong_pass", "status": "confirmed", "trust_tier": TIER1,
+    })
+    outputs = []
+    for task_id in ("cad-model", "terminal-bench/cad-model"):
+        runs = qa_data_calls.runs(
+            context(store), facets={}, cluster_id=None, like_run_id=None, query="", task_id=task_id, limit=10,
+        )
+        history = qa_data_calls.history(context(store), task_id, flags=[], limit=3)
+        outputs.append((runs, history))
+    assert outputs[0] == outputs[1]
+    assert [run["run_id"] for run in outputs[0][0]["runs"]] == [run_id]
+    assert outputs[0][1]["task_id"] == "terminal-bench/cad-model"
+    assert [issue["issue_id"] for issue in outputs[0][1]["issues"]] == ["cad/issue"]
+
+
 def test_run_search_budget_omits_whole_runs_and_says_so(store: CloudTraceDatabase) -> None:
     one_run = estimate_tokens(qa_data_calls.runs(
         context(store), facets={"tests": "modified"}, cluster_id=None, like_run_id=None,
@@ -227,6 +264,23 @@ def test_cli_envelope_reports_tokens_latency_and_a_uniform_refusal(
     assert reply["ok"] is False and reply["error"] == UNAVAILABLE
     assert {"call", "budget", "tokens_est", "latency_ms", "truncated"} <= reply["meta"].keys()
     assert reply["meta"]["call"] == "history" and reply["meta"]["latency_ms"] >= 0
+
+
+def test_pretty_reply_is_the_same_envelope_one_field_per_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    database = tmp_path / "qa.sqlite"
+    with CloudTraceDatabase(database, sqlite_fts=False) as db:
+        add_task(db, "held-out", "test")
+    argv = ["qa-data", "history", "held-out", "--cloud-database", str(database), "--budget", "800"]
+    compact_args = cli_parser().parse_args(argv)
+    compact_args.func(compact_args, Path.cwd(), harbor=None)
+    compact = capsys.readouterr().out
+    pretty_args = cli_parser().parse_args([*argv, "--pretty"])
+    assert pretty_args.func(pretty_args, Path.cwd(), harbor=None) == 2
+    pretty = capsys.readouterr().out
+    assert len(compact.splitlines()) == 1 and len(pretty.splitlines()) > 5
+    assert json.loads(pretty)["error"] == json.loads(compact)["error"] == UNAVAILABLE
 
 
 def test_cli_rejects_a_search_with_no_criteria_and_malformed_facets(

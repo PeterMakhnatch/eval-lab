@@ -356,6 +356,22 @@ def register_parser(commands: Any) -> None:
     progress.add_argument("--replace", action="store_true", help="Overwrite an existing, different file")
     progress.set_defaults(func=_command)
 
+    staged_findings = actions.add_parser(
+        "export-trace-findings",
+        help="Write trace-harness/findings-v1.jsonl from retained trace-findings/v1 files (validated, newest per key)",
+    )
+    staged_findings.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    staged_findings.add_argument(
+        "--findings", type=Path, action="append", required=True,
+        help="A trace-findings/v1 JSONL file (repeatable; a later file wins a tie)",
+    )
+    staged_findings.add_argument(
+        "--output-directory", type=Path, required=True,
+        help="The trace-harness state directory that receives findings-v1.jsonl",
+    )
+    staged_findings.add_argument("--replace", action="store_true", help="Overwrite an existing, different file")
+    staged_findings.set_defaults(func=_command)
+
     preflight = actions.add_parser(
         "deploy-preflight",
         help="Read-only check of the data files the Modal cloud tabs need; prints, never runs, the deploy commands",
@@ -479,6 +495,12 @@ def register_parser(commands: Any) -> None:
 def _resolve(root: Path, path: Path) -> Path:
     path = path.expanduser()
     return (path if path.is_absolute() else root / path).resolve()
+
+
+def _resolve_parent(root: Path, path: Path) -> Path:
+    """Resolve the parents only, so a linked final component is still seen (and refused)."""
+    path = path.expanduser()
+    return _resolve(root, path.parent) / path.name
 
 
 def _database(root: Path, value: str | None) -> str | Path:
@@ -1051,6 +1073,16 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 gate_progress.export_progress(
                     _resolve(root, args.coverage_summary), _resolve(root, args.checkpoint_summary)
                 ),
+                replace=args.replace,
+            )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "export-trace-findings":
+            from evallab.production.findings_export import export_findings
+
+            receipt = export_findings(
+                [_resolve_parent(root, path) for path in args.findings],
+                _resolve_parent(root, args.output_directory),
                 replace=args.replace,
             )
             _emit({"command": args.prod_command, **receipt}, args)

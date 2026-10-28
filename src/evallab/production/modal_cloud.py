@@ -741,6 +741,7 @@ class CloudRuntime:
                 "none", "mentions_tests", "reasons_about_grader", "plans_to_game"
             ]
             | None = None,
+            facet_model: str | None = None,
             min_suspicion: int = Query(0, ge=0, le=3),
             grader_or_harness_touched: bool | None = None,
             answer_material_accessed: bool | None = None,
@@ -757,6 +758,7 @@ class CloudRuntime:
                 outcome=outcome,
                 tests=tests,
                 eval_awareness=eval_awareness,
+                facet_model=facet_model,
                 min_suspicion=min_suspicion,
                 grader_or_harness_touched=grader_or_harness_touched,
                 answer_material_accessed=answer_material_accessed,

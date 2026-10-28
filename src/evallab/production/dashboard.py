@@ -121,6 +121,11 @@ DASHBOARD: str = r"""<!doctype html>
   <div id="atlas-tools-table"></div>
   <div class="row"><button id="atlas-tools-open" type="button" class="small">Open Trace Tools for cost, detectors and sources</button></div>
  </details>
+<details id="atlas-readers" class="atlas-tools" open>
+ <summary>Reader mix · which model read each population's stored facets</summary>
+ <p id="atlas-readers-status" class="notice" role="status"></p>
+ <div id="atlas-readers-body"></div>
+</details>
 <details id="atlas-coverage" class="atlas-tools" open>
  <summary>Coverage · stored facets versus admitted runs, and what is not yet ready</summary>
  <p id="atlas-coverage-status" class="notice" role="status"></p>
@@ -137,6 +142,7 @@ DASHBOARD: str = r"""<!doctype html>
   <div><label for="atlas-outcome">Outcome</label><select id="atlas-outcome"><option value="">Any outcome</option></select></div>
   <div><label for="atlas-tests">Tests</label><select id="atlas-tests"><option value="">Any tests</option></select></div>
   <div><label for="atlas-eval_awareness">Eval awareness</label><select id="atlas-eval_awareness"><option value="">Any eval awareness</option></select></div>
+  <div><label for="atlas-facet_model">Reader (facet model)</label><select id="atlas-facet_model"><option value="">Any reader</option></select></div>
   <div><label for="atlas-min_suspicion">Min suspicion · counts at exact value</label><select id="atlas-min_suspicion"><option value="">Any suspicion</option></select></div>
   <div><label for="atlas-grader_or_harness_touched">Grader / harness touched</label><select id="atlas-grader_or_harness_touched"><option value="">Any</option></select></div>
   <div><label for="atlas-answer_material_accessed">Answer material accessed</label><select id="atlas-answer_material_accessed"><option value="">Any</option></select></div>
@@ -748,7 +754,7 @@ function cloudSystemPlaybook(report,parent){
  parent.append(grid,flags);
 }
 const atlasCategories=[['source','Any source'],['outcome','Any outcome'],['tests','Any tests'],
- ['eval_awareness','Any eval awareness'],['min_suspicion','Any suspicion']];
+ ['eval_awareness','Any eval awareness'],['facet_model','Any reader'],['min_suspicion','Any suspicion']];
 const atlasBooleans=[['grader_or_harness_touched','Grader / harness'],
  ['answer_material_accessed','Answer material'],['success_claim_without_evidence','Unevidenced success claim']];
 let atlasOffset=0,atlasCluster='',atlasListVersion=0,atlasRunVersion=0,atlasRunId='',atlasRunOpener=null,atlasShownIds=[],atlasToolsVersion=0;
@@ -840,8 +846,8 @@ function atlasRuns(data){
    'No facets have been written yet. Nothing is fabricated.':
    'No admitted DEV runs match these filters. Reset filters or inspect store health.','empty'));return;
  }
- const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Dataset / task','Goal','Approach','Shortcut',
-  'Tests','Facet flags','Eval awareness','Tokens in / out','Clusters','Facet version · blinding'],runs.map(run=>{
+const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Dataset / task','Goal','Approach','Shortcut',
+  'Tests','Facet flags','Eval awareness','Tokens in / out','Clusters','Reader · facet version · blinding'],runs.map(run=>{
   const open=button(String(run.run_id).slice(0,20),()=>openAtlasRun(run.run_id,open),'link');
   open.title=run.run_id;open.setAttribute('aria-label','Open run '+run.run_id);open.dataset.runId=run.run_id;openers.push(open);
   const identity=node('span',run.dataset_id),chips=node('div',undefined,'chips');
@@ -888,7 +894,7 @@ const blindingText={refreshed:'Re-blinded',pending:'Re-blind pending',unlisted:'
 const blindingBadge=state=>state?badge(blindingText[state]??state,state==='pending'?'warn':''):node('small','Not recorded');
 function atlasVersion(run){
  const box=node('div',undefined,'task-lines');
- box.append(node('small',run.facet_version),blindingBadge(run.blinding));
+ box.append(node('small',run.facet_model,'mono'),node('small',run.facet_version),blindingBadge(run.blinding));
  return box;
 }
 function openRunInAtlas(runId){
@@ -908,14 +914,32 @@ function atlasCoverage(data){
  parent.append(tiles);
  if(data.refresh_error)parent.append(node('p','Blinding refresh list: '+data.refresh_error,'notice error'));
  else if(totals.refresh_listed_n!==null)parent.append(node('small','Re-blinding refresh list: '+cloudCount(totals.refresh_listed_n)+' runs listed, '+cloudCount(totals.refreshed_n)+' stored as the re-extraction.'));
- parent.append(cloudTable(['Population (dataset · trust tier)','Stored / admitted','Ready','Facet version','Facet model','Blinding'],
+ parent.append(cloudTable(['Population (dataset · trust tier)','Stored / admitted','Ready','Facet version','Blinding'],
   list(data.populations).map(row=>{
    const missing=row.admitted_n-row.stored_n,ready=node('div',undefined,'task-lines');
    ready.append(node('small',cloudRatio(row.stored_n,row.admitted_n)),missing>0?badge(cloudCount(missing)+' not ready','warn'):badge('All stored','good'));
    return [row.dataset_id+' · '+row.trust_tier,cloudCount(row.stored_n)+' / '+cloudCount(row.admitted_n),ready,
-    coverageLines(row.facet_versions,key=>key),coverageLines(row.facet_models,key=>key),
+    coverageLines(row.facet_versions,key=>key),
     coverageLines(row.blinding,key=>blindingText[key]??key)];
   })));
+}
+const readerKappa='Facets from different readers agree only at kappa 0.42 to 0.47 (RA-6, 92 runs read by every reader), so a score on a mixed population depends on who read the run. Compare within one reader, or filter the runs table to one.';
+function atlasReaders(data){
+ const parent=$('atlas-readers-body'),rows=list(data.populations),mixed=rows.filter(row=>row.mixed_readers);
+ parent.replaceChildren();
+ if(!rows.length){parent.append(node('p','No admitted DEV populations.','empty'));return;}
+ parent.append(mixed.length?node('p',cloudCount(mixed.length)+' of '+cloudCount(rows.length)+' populations mix more than one reader: '+
+   mixed.map(row=>row.dataset_id+' · '+row.trust_tier).join('; ')+'. '+readerKappa,'notice error'):
+  node('p','No population mixes readers. Each population with stored facets was read by a single model.','notice'));
+ parent.append(cloudTable(['Population (dataset · trust tier)','Stored facets','Readers'],rows.map(row=>{
+  const readers=Object.entries(row.facet_models||{}).filter(([,value])=>value>0).sort((left,right)=>right[1]-left[1]),cell=node('div',undefined,'task-lines');
+  if(!readers.length)cell.append(badge('No reader yet','warn'),node('small','Nothing stored, so no model has read this population.'));
+  else{
+   for(const [model,count] of readers)cell.append(node('small',model+' · '+cloudCount(count)+' ('+cloudRatio(count,row.stored_n)+')','mono'));
+   cell.append(row.mixed_readers?badge('Mixed readers','warn'):badge('One reader','good'));
+  }
+  return [row.dataset_id+' · '+row.trust_tier,cloudCount(row.stored_n)+' / '+cloudCount(row.admitted_n)+' admitted',cell];
+ })));
 }
 const reliabilityBasis={within_1:'within one level'};
 function atlasReliability(data){
@@ -960,12 +984,14 @@ async function loadAtlasCoverage(){
  try{
   const data=await cloudApi('/api/cloud-db/atlas/coverage?split=dev');
   if(version!==atlasCoverageVersion)return;
-  atlasCoverage(data);
+  atlasCoverage(data);atlasReaders(data);
   notice('atlas-coverage-status',data.notice);
+  notice('atlas-readers-status','Counts are stored facets on admitted DEV runs, by the model that read them. No labels are involved.');
  }catch(error){
   if(version===atlasCoverageVersion){
-   $('atlas-coverage-body').replaceChildren();
+   $('atlas-coverage-body').replaceChildren();$('atlas-readers-body').replaceChildren();
    notice('atlas-coverage-status',cloudError(error,'Atlas coverage'),true);
+   notice('atlas-readers-status',cloudError(error,'Reader mix'),true);
   }
  }
 }
@@ -974,7 +1000,7 @@ function atlasFacet(run){
  for(const [label,value] of [['Run ID',run.run_id],['Dataset / task',text(run.dataset_id)+' / '+text(run.task_id)],
   ['Source / split',text(run.source)+' / '+text(run.split)],['Goal',run.goal],['Approach',run.approach],
   ['Shortcut',run.shortcut],['Outcome',run.outcome],['Tests',run.tests],['Eval awareness',run.eval_awareness],
-  ['Suspicion',cloudCount(run.suspicion)],['Facet model',run.facet_model],['Facet version',run.facet_version],
+  ['Suspicion',cloudCount(run.suspicion)],['Reader (facet model)',run.facet_model],['Facet version',run.facet_version],
   ['Blinding',blindingText[run.blinding]??'Not recorded'],
   ['Tokens in / out',cloudCount(run.input_tokens)+' / '+cloudCount(run.output_tokens)],
   ['Trust tier',run.trust_tier],['Run steps',cloudCount(run.step_count)],

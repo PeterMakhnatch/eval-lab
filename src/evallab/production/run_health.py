@@ -39,7 +39,7 @@ from typing import Any
 from evallab.token_flow import _is_edit, _step_calls, _stitched_steps, normalized_command
 
 FINDING_SCHEMA = "trace-findings/v1"
-DETECTOR_VERSION = "run-health/2"
+DETECTOR_VERSION = "run-health/3"
 KINDS = ("loop", "runaway", "latency", "infra")
 AGENT_SOURCES = frozenset({"agent", "assistant"})
 
@@ -80,26 +80,36 @@ LATENCY_VERIFIER_SECONDS = 900.0
 #: Fewer timestamped agent steps than this and latency abstains.
 LATENCY_MIN_TIMESTAMPS = 3
 
-#: Run-level exception types by health kind. Unknown types fall through to the
-#: substring rules below; an unmapped type is reported, never guessed.
+#: Run-level exception types by health kind (Harbor ``exception_info``; the infra
+#: types follow the InfraSigs catalog of 8,374 of our Harbor trials, 2026-10-28).
+#: Budget and loop-break stops are policy stops, not infra. Unknown types fall
+#: through to the message and substring rules below; an unmapped type is reported,
+#: never guessed.
 EXCEPTION_KIND: dict[str, str] = {
     "AgentTimeoutError": "runaway",
     "TrialBudgetExhaustedError": "runaway",
     "ContextLengthExceededError": "runaway",
     "MaxTurnsExceededError": "runaway",
     "LoopBreakStop": "loop",
+    "AdmissionRefused": "infra",
     "DaytonaNotFoundError": "infra",
-    "ServiceUnavailableError": "infra",
+    "DaytonaConflictError": "infra",
+    "SandboxBuildFailedError": "infra",
     "EnvironmentStartTimeoutError": "infra",
-    "VerifierTimeoutError": "infra",
-    "RewardFileNotFoundError": "infra",
-    "RewardFileEmptyError": "infra",
-    "VerifierOutputParseError": "infra",
-    "AuthenticationError": "infra",
+    "HealthcheckError": "infra",
+    "ServiceUnavailableError": "infra",
+    "BadGatewayError": "infra",
+    "APIError": "infra",
     "APIConnectionError": "infra",
     "APITimeoutError": "infra",
     "InternalServerError": "infra",
     "RateLimitError": "infra",
+    "AuthenticationError": "infra",
+    "VerifierTimeoutError": "infra",
+    "RewardFileNotFoundError": "infra",
+    "RewardFileEmptyError": "infra",
+    "VerifierOutputParseError": "infra",
+    "GuardUnavailable": "infra",
     "DockerError": "infra",
     "ImageNotFound": "infra",
     "OSError": "infra",
@@ -107,7 +117,17 @@ EXCEPTION_KIND: dict[str, str] = {
 }
 _INFRA_EXCEPTION_SUBSTRINGS = ("daytona", "modal", "docker", "sandbox", "serviceunavailable",
                                "connection", "environment", "image")
-#: Harbor/terminus stop reasons and the cloud store's receipt ``native_status.stop_condition``, by kind.
+#: Generic exception types (``RuntimeError`` and the like) whose message names an
+#: infrastructure failure.
+INFRA_EXCEPTION_MESSAGE_RE = re.compile(
+    r"admission refused|capacity changed before fresh environment allocation|Failed to create sandbox|"
+    r"Sandbox build failed|Failed to (?:create|get) session|Healthcheck failed after|"
+    r"Docker compose command failed|failed to send non-blocking keys|Failed to start tmux session|"
+    r"stopped on (?:ModelQueryError|InfraError)|litellm\.\w+Error|No reward file found",
+    re.IGNORECASE,
+)
+#: Harbor/terminus stop reasons, the cloud store receipt's ``native_status.stop_condition``
+#: and the store's run-level ``outcome`` statuses, by kind.
 STOP_KIND: dict[str, str] = {
     "agent_timeout": "runaway",
     "trial_budget_exhausted": "runaway",
@@ -119,7 +139,13 @@ STOP_KIND: dict[str, str] = {
     "ContextWindowExceededError": "runaway",
     "loop_break": "loop",
     "model_auth_error": "infra",
+    "refused": "infra",
+    "error": "infra",
+    "provisional_execution_unavailable": "infra",
 }
+#: Store ``agent_traces.outcome`` values read as a run status. Every other value
+#: (including publisher labels such as ``source_label:*``) is never read.
+STORE_RUN_STATUSES = frozenset({"refused", "error", "provisional_execution_unavailable"})
 
 #: Timeout/kill markers in tool output, including the store's JSON ``returncode`` and
 #: ``<returncode>N</returncode>`` forms (124 timeout, 137/-9 SIGKILL, 143/-15 SIGTERM).
@@ -130,9 +156,10 @@ TIMEOUT_MARKER_RE = re.compile(
     re.IGNORECASE,
 )
 
-#: Infrastructure signatures: (class, pattern). They count in ``features`` wherever
-#: they appear; ``run_health.infra`` alarms on them only in the run's last
-#: ``INFRA_TAIL_STEPS`` steps with no agent step after (the failure ended the run).
+#: Infrastructure signatures in tool output: (class, pattern). They count in
+#: ``features`` wherever they appear; ``run_health.infra`` alarms on them only in
+#: tool output of the run's last ``INFRA_TAIL_STEPS`` steps with no agent step
+#: after (the failure ended the run). Agent text never counts: agents quote errors.
 INFRA_SIGNATURES: tuple[tuple[str, re.Pattern[str]], ...] = (
     # ``upstream_failed`` is a measured grader rejection, not infra (VF-29/VF-30).
     ("route", re.compile(r"served_route_mismatch", re.IGNORECASE)),
@@ -143,8 +170,10 @@ INFRA_SIGNATURES: tuple[tuple[str, re.Pattern[str]], ...] = (
         r"(?:image|manifest)[^\n]{0,40}not found|pull access denied|ErrImagePull|ImagePullBackOff|"
         r"failed to (?:pull|build) image|error pulling image", re.IGNORECASE)),
     ("sandbox", re.compile(
+        r"Sandbox with container ID \S+ not found|sandbox[^\n]{0,80}already shut down|"
         r"DaytonaNotFoundError|DaytonaError|sandbox (?:not found|creation failed|failed to start)|"
-        r"ServiceUnavailableError|Cannot connect to the Docker daemon|container [^\n]{0,40}(?:not running|is not running)",
+        r"ServiceUnavailableError|Cannot connect to the Docker daemon|admission refused|"
+        r"container [^\n]{0,40}(?:not running|is not running)",
         re.IGNORECASE)),
     ("oom", re.compile(r"Out of memory|OOMKilled|oom-kill|MemoryError|Cannot allocate memory", re.IGNORECASE)),
     ("disk", re.compile(r"No space left on device|ENOSPC|Disk quota exceeded", re.IGNORECASE)),
@@ -153,7 +182,7 @@ INFRA_SIGNATURES: tuple[tuple[str, re.Pattern[str]], ...] = (
         r"Connection (?:refused|reset by peer)|Network is unreachable|getaddrinfo failed|"
         r"Max retries exceeded with url|SSL: CERTIFICATE_VERIFY_FAILED", re.IGNORECASE)),
     ("model_api", re.compile(
-        r"\b429\b[^\n]{0,40}(?:Too Many Requests|rate limit)|rate limit(?:ed| exceeded)|overloaded_error|"
+        r"\b429\b[^\n]{0,40}(?:Too Many Requests|rate limit)|rate limit(?:ed| exceeded)|"
         r"\b(?:502|503|504) (?:Bad Gateway|Service Unavailable|Gateway Time-?out)|"
         r"context(?:_length| length| window)[^\n]{0,20}exceeded|maximum context length", re.IGNORECASE)),
 )
@@ -260,6 +289,13 @@ def _step_text(step: Mapping[str, Any]) -> str:
     message = step.get("message")
     text = message if isinstance(message, str) else ""
     return f"{text}\n{_observation_text(step)}"
+
+
+def _output_text(step: Mapping[str, Any]) -> str:
+    """What the environment returned: tool output of agent steps, the whole text of others."""
+    if str(step.get("source") or "") in AGENT_SOURCES:
+        return _observation_text(step)
+    return _step_text(step)
 
 
 def _error_signature(text: str) -> str:
@@ -391,7 +427,7 @@ def features(run: HealthRun) -> dict[str, Any]:
     timeout_hits = [s.get("step_id") for s in agent if TIMEOUT_MARKER_RE.search(_observation_text(s))]
     infra_hits: dict[str, list[Any]] = {}
     for position, step in enumerate(steps):
-        text = _step_text(step) + "\n" + " ".join(sg for _, sg in _step_calls(dict(step)))
+        text = _output_text(step)
         for name, pattern in INFRA_SIGNATURES:
             if pattern.search(text):
                 infra_hits.setdefault(name, []).append(step.get("step_id", position))
@@ -399,11 +435,9 @@ def features(run: HealthRun) -> dict[str, Any]:
                            default=-1)
     tail_start = max(0, len(steps) - INFRA_TAIL_STEPS)
     infra_tail: dict[str, list[Any]] = {}
-    for position in range(tail_start, len(steps)):
+    for position in range(max(tail_start, last_agent_index), len(steps)):
         step = steps[position]
-        if position < last_agent_index:
-            continue
-        text = _step_text(step)
+        text = _output_text(step)
         for name, pattern in INFRA_SIGNATURES:
             if pattern.search(text):
                 infra_tail.setdefault(name, []).append(step.get("step_id", position))
@@ -455,15 +489,15 @@ def features(run: HealthRun) -> dict[str, Any]:
         "infra_signature_steps": {k: v[:3] for k, v in sorted(infra_hits.items())},
         "infra_tail": {k: v[:3] for k, v in sorted(infra_tail.items())},
         "exception_type": exc_type,
-        "exception_kind": exception_kind(exc_type),
+        "exception_kind": exception_kind(exc_type, meta.get("exception_message")),
         "stop_reason": stop_reason,
         "stop_kind": STOP_KIND.get(stop_reason or ""),
         "last_step": steps[-1].get("step_id") if steps else None,
     }
 
 
-def exception_kind(exc_type: str | None) -> str | None:
-    """``runaway`` / ``loop`` / ``infra`` for a run-level exception type, or None."""
+def exception_kind(exc_type: str | None, message: Any = None) -> str | None:
+    """``runaway`` / ``loop`` / ``infra`` for a run-level exception, or None."""
     if not exc_type:
         return None
     if exc_type in EXCEPTION_KIND:
@@ -472,6 +506,8 @@ def exception_kind(exc_type: str | None) -> str | None:
     if "timeout" in lowered and "agent" in lowered:
         return "runaway"
     if any(marker in lowered for marker in _INFRA_EXCEPTION_SUBSTRINGS):
+        return "infra"
+    if isinstance(message, str) and INFRA_EXCEPTION_MESSAGE_RE.search(message):
         return "infra"
     return None
 
@@ -538,19 +574,25 @@ def _run_level(f: Mapping[str, Any], kind: str) -> str | None:
 def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     """One ``trace-findings/v1`` record per kind for ``run`` (loop, runaway, latency, infra).
 
-    Without an actor transcript a kind can still alarm on a run-level exception or
-    stop reason (an infra exception needs no transcript); otherwise it is ``unknown``.
+    Without an actor transcript a kind is ``unknown``, except that it can still alarm
+    on a run-level exception or stop reason, and infra on a signature that ends the run.
     """
     started = time.perf_counter()
     f = dict(feats) if feats is not None else features(run)
     rid = run.run_id
+    tail = [{"name": f"tail:{name}", "value": 1, "threshold": 1, "ratio": 1.0, "step": steps[0]}
+            for name, steps in f["infra_tail"].items()]
     if not f["actor_inputs_available"]:
         reason = "no actor transcript (actor_inputs_available=false): unknown, not clear"
-        return [
-            _decide(rid, kind, [], started, forced=forced) if (forced := _run_level(f, kind))
-            else _finding(rid, kind, "unknown", 0.0, [], reason, started)
-            for kind in KINDS
-        ]
+        out = []
+        for kind in KINDS:
+            forced = _run_level(f, kind)
+            components = tail if kind == "infra" else []
+            if forced or components:
+                out.append(_decide(rid, kind, components, started, forced=forced))
+            else:
+                out.append(_finding(rid, kind, "unknown", 0.0, [], reason, started))
+        return out
 
     out = []
     loop = _components([
@@ -589,8 +631,6 @@ def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[
     else:
         out.append(_decide(rid, "latency", latency, started))
 
-    tail = [{"name": f"tail:{name}", "value": 1, "threshold": 1, "ratio": 1.0, "step": steps[0]}
-            for name, steps in f["infra_tail"].items()]
     out.append(_decide(rid, "infra", tail, started, forced=_run_level(f, "infra")))
     return out
 
@@ -666,8 +706,10 @@ def store_runs(database: Path, *, registry: Any, dataset_ids: Sequence[str] | No
 
     Steps come from :func:`evallab.production.run_atlas.cloud_runs` (which reads no
     label or publisher flag); this adds only timestamps and token counts from
-    ``flags_json``, keyed by the original ``step_index``, and the receipt's
-    ``native_status.stop_condition`` as the run's stop reason.
+    ``flags_json``, keyed by the original ``step_index``. The run's stop reason is a
+    run status in ``outcome`` (only :data:`STORE_RUN_STATUSES`; any other value,
+    including a publisher label, is ignored) or else the receipt's
+    ``native_status.stop_condition``.
     """
     from evallab.production.run_atlas import cloud_runs, connect_readonly
 
@@ -693,14 +735,15 @@ def store_runs(database: Path, *, registry: Any, dataset_ids: Sequence[str] | No
                 if metrics:
                     enriched["metrics"] = metrics
                 steps.append(enriched)
-            receipt = connection.execute(
-                "SELECT CASE WHEN json_valid(verified_receipt_json)"
+            status = connection.execute(
+                "SELECT outcome, CASE WHEN json_valid(verified_receipt_json)"
                 " THEN json_extract(verified_receipt_json, '$.native_status.stop_condition') END"
                 " FROM agent_traces WHERE trace_id = ?", (run.run_id,),
             ).fetchone()
+            outcome, stop_condition = status if status else (None, None)
             yield HealthRun(run_id=run.run_id, source=run.source, steps=steps, meta={
                 "actor_inputs_available": actor_inputs_available(steps),
-                "stop_reason": receipt[0] if receipt else None,
+                "stop_reason": outcome if outcome in STORE_RUN_STATUSES else stop_condition,
             })
     finally:
         connection.close()

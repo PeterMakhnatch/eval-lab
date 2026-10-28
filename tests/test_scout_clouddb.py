@@ -64,7 +64,9 @@ def _keymap_row(trace_id: str, **changes: object) -> dict[str, Any]:
     }
 
 
-def test_concrete_messages_keep_unbounded_reasoning_and_only_blind_metadata(corpus: tuple) -> None:
+def test_concrete_messages_keep_unbounded_reasoning_and_only_blind_metadata(
+    corpus: tuple, scout_runtime: Any,
+) -> None:
     _, _, con = corpus
     transcript = to_transcript(opaque_id("trace-goodfire"), blind_messages(con, "trace-goodfire"))
     assert transcript.metadata == {

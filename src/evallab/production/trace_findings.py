@@ -224,17 +224,12 @@ def upsert_trace_findings(
             run["trace_id"]: run["task_id"]
             for run in database._rows(f"SELECT trace_id, task_id FROM agent_traces WHERE {scope}", parameters)
         }
-        parameters = []
-        scope = database._task_id_scope("trace_id", [run for run in run_ids if tasks.get(run) in allowed], parameters)
-        step_scope = database._task_id_scope(
-            "step_index", sorted({index for row in everything for index in row["evidence_steps"]}), parameters,
+        present = database._stored_steps(
+            (row["run_id"], index) for row in everything if tasks.get(row["run_id"]) in allowed
+            for index in row["evidence_steps"]
         )
-        present = {
-            (step["trace_id"], step["step_index"]) for step in database._rows(
-                f"SELECT trace_id, step_index FROM trace_steps WHERE {scope} AND {step_scope}", parameters,
-            )
-        }
         actor: dict[str, bool] = {}
+        chosen: list[dict[str, Any]] = []
         for options in candidates.values():
             selected: dict[str, Any] | None = None
             for _, _, row in sorted(options, key=lambda option: option[:2], reverse=True):
@@ -260,17 +255,24 @@ def upsert_trace_findings(
                 claimed = row.pop("actor_inputs_available", actor[run_id])
                 overrides += claimed != actor[run_id]
                 selected = row | {"task_id": task_id, "actor_inputs_available": actor[run_id]}
-            if selected is None:
-                continue
-            existing = database._execute(
-                "SELECT produced_at FROM trace_findings WHERE run_id = ? AND detector = ? "
-                "AND detector_version = ? AND reader_model = ?", [selected[field] for field in _KEY],
-            ).fetchone()
-            if existing is not None and existing[0] > selected["produced_at"]:
+            if selected is not None:
+                chosen.append(selected)
+        parameters = []
+        scope = database._task_id_scope("run_id", {row["run_id"] for row in chosen}, parameters)
+        newest = {
+            tuple(found[field] for field in _KEY): found["produced_at"] for found in database._rows(
+                f"SELECT {', '.join(_KEY)}, produced_at FROM trace_findings WHERE {scope}", parameters,
+            )
+        } if chosen else {}
+        writes = []
+        for selected in chosen:
+            existing = newest.get(tuple(selected[field] for field in _KEY))
+            if existing is not None and existing > selected["produced_at"]:
                 unchanged += 1
                 continue
-            database._upsert("trace_findings", {column: selected[column] for column in COLUMNS}, _KEY)
-            stored += 1
+            writes.append({column: selected[column] for column in COLUMNS})
+        database._upsert_many("trace_findings", writes, _KEY)
+        stored = len(writes)
     return {
         "admitted_tasks": len(allowed), "records": count, "keys": len(candidates), "stored": stored,
         "kept_newer_stored": unchanged, "superseded_in_input": superseded,

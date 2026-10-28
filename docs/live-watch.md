@@ -1584,6 +1584,35 @@ their step indices, and the matching Trace-Watcher playbook cards. Retrieval's o
 gate decides first; a run it will not return yields `withheld` and no steps. Flags and
 cards are routing leads, not cheating verdicts.
 
+#### Trace Tools scorecard (`/api/cloud-db/trace-tools`)
+
+The **Trace Tools** tab puts Laminar, Docent, Inspect Scout (deterministic scanners and the
+METR scanner), the OMP subscription readings, the frozen rule cascade and the Run Atlas
+facets side by side on the two labelled cohorts the lanes already score: the Goodfire CM-9
+sample and the CheatBench DEV cross-test. `harbor analyze` has a row that reads "No retained
+result" until a scorecard contains one. The endpoint is a read-only projection of retained
+files, validated by `evallab.production.tool_scorecard_view` and re-read only when one changes:
+
+- `<data_root>/trace-tools/tt1-scorecard.json` (`evallab.trace_tool_scorecard/v1`): per tool
+  and detector counts; the headline detector is `any_flag`. Abstentions are counts of runs the
+  tool did not read, never negatives.
+- `<data_root>/run-atlas/scorecards/*.json` (`run-atlas-scorecard/v1`, newest valid file by
+  modification time): the facet headline (`suspicion>=2`) and the cascade on the same traces.
+- `<data_root>/trace-tools/spend.jsonl` and `<data_root>/run-atlas/per-run-accounting-*.jsonl`:
+  recorded usage. Cost per 1k runs divides entries that recorded tokens or dollars by the run
+  count on the same line; entries with no usage are not denominators, and `$0` means a
+  subscription or free allowance. An interrupted line is not adjusted.
+- `<data_root>/trace-tools/results-v1.jsonl` and `<data_root>/run-atlas/facet-calls-v1.jsonl`:
+  the last recorded write per tool, shown in ET with the file it came from.
+- `<data_root>/run-atlas/blinding-refresh-v1.json` against `reblinded-facets-v1.jsonl`: the
+  facets row is marked provisional while listed runs have no re-extracted record.
+
+Rows that contradict their own counts are rejected and counted; a missing or broken file
+degrades only its own columns and is listed under "Sources read". The response carries counts
+and confidence intervals only: the browser derives every recall, false-alarm rate and cost per
+run, so the page never computes a score the producers did not record. Nothing is ranked, no
+label is joined, and `split` other than `dev` is refused.
+
 ### Production supervisor
 
 `evallab.production.ProductionSupervisor` is the thin orchestration layer that

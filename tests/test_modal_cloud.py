@@ -2945,3 +2945,40 @@ def test_atlas_run_drilldown_has_evidence_flags_and_playbook_cards(
         card["card_id"].startswith("TW") for card in detail["playbook_cards"]
     )
     assert "not cheating verdicts" in detail["notice"]
+
+
+def test_trace_tool_scorecard_is_authenticated_dev_only_and_follows_retained_files(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    assert client.get("/api/cloud-db/trace-tools").status_code == 401
+    for split in ("test", "held", "all"):
+        response = client.get("/api/cloud-db/trace-tools", headers=AUTH, params={"split": split})
+        assert response.status_code == 400, split
+
+    empty = client.get("/api/cloud-db/trace-tools", headers=AUTH)
+    assert empty.status_code == 200, empty.text
+    assert empty.headers["cache-control"] == "no-store"
+    body = empty.json()
+    assert all(entry is None for tool in body["tools"] for entry in tool["populations"].values())
+    assert {source["error"] for source in body["sources"]} == {"not retained"}
+
+    directory = runtime.data_root / "trace-tools"
+    directory.mkdir()
+    (directory / "spend.jsonl").write_text(
+        json.dumps(
+            {
+                "at": "2026-10-27T22:00:00+00:00",
+                "tool": "docent",
+                "route": "hosted",
+                "runs": 10,
+                "input_tokens": 100,
+                "output_tokens": 5,
+                "usd": 0.5,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    served = client.get("/api/cloud-db/trace-tools", headers=AUTH).json()
+    docent = next(tool for tool in served["tools"] if tool["tool"] == "docent")
+    assert docent["usage"]["usage_runs"] == 10 and docent["last_run_source"] == "spend ledger"

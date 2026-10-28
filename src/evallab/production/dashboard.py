@@ -19,6 +19,7 @@ DASHBOARD: str = r"""<!doctype html>
 .atlas-detail{margin-top:20px;border-top:1px solid var(--line);padding-top:18px;scroll-margin-top:18px;min-width:0}.atlas-detail:focus{outline:2px solid var(--accent);outline-offset:8px}.atlas-detail h3{margin:16px 0 10px}.atlas-facet{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 18px}.atlas-facet div{min-width:0}.atlas-facet dt{color:var(--muted);font-size:11px}.atlas-facet dd{margin:3px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}.atlas-step{padding:12px;border:1px solid var(--line);border-radius:7px;scroll-margin-top:18px;min-width:0}.atlas-step h4{margin-bottom:8px}.atlas-step.evidence{border-left:3px solid var(--accent);background:#10251f}.atlas-step.neighbour{color:var(--muted);background:#0e1723}.atlas-step.neighbour pre{color:var(--muted)}.atlas-step:focus{outline:2px solid var(--accent);outline-offset:3px}.atlas-detail pre{max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}.atlas-flags .actions{margin-top:7px}.atlas-detail .playbook-grid{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}
 .atlas-detail .panel-head>div:first-child{min-width:0}.atlas-detail h2{overflow-wrap:anywhere}
 @media(max-width:1000px){.atlas-layout{grid-template-columns:1fr}.atlas-tree{max-height:370px}.atlas-detail .panel-head{flex-wrap:wrap}}
+.tools-cohorts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.tools-table .cloud-table{min-width:1180px}.tools-table>.cloud-table-wrap>.cloud-table>tbody>tr>td:first-child{min-width:280px}.tools-table td>div{display:grid;gap:3px;min-width:0}.tools-table td small{color:var(--muted);overflow-wrap:anywhere}.tools-table details{margin-top:8px}.tools-table summary{cursor:pointer;color:var(--blue)}.tools-table details h4{margin:10px 0 0}.tools-table details .cloud-table{min-width:0}.tools-sources summary{cursor:pointer;color:var(--blue)}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}.focus-step{animation:step-focus 1.5s ease-out}@keyframes step-focus{from{box-shadow:0 0 0 5px #6ce4b844}to{box-shadow:0 0 0 0 transparent}}}
@@ -40,6 +41,7 @@ DASHBOARD: str = r"""<!doctype html>
  <button id="corpus-tab" type="button" role="tab" aria-selected="false" aria-controls="corpus-view" tabindex="-1">Corpus</button>
  <button id="seeker-tab" type="button" role="tab" aria-selected="false" aria-controls="seeker-view" tabindex="-1">Reward Seeker</button>
  <button id="atlas-tab" type="button" role="tab" aria-selected="false" aria-controls="atlas-view" tabindex="-1">Run Atlas</button>
+ <button id="tools-tab" type="button" role="tab" aria-selected="false" aria-controls="tools-view" tabindex="-1">Trace Tools</button>
  <button id="trust-tab" type="button" role="tab" aria-selected="false" aria-controls="trust-view" tabindex="-1">Trust &amp; QC</button>
 </nav>
 <div id="live-view" role="tabpanel" aria-labelledby="live-tab">
@@ -127,6 +129,14 @@ DASHBOARD: str = r"""<!doctype html>
   <p class="seal">Trace flags and playbook cards are routing leads, not verdicts. No wrong submission or grader weakness is established by a flag alone.</p>
   <p id="atlas-run-status" class="notice" role="status"></p><div id="atlas-run-content"></div>
  </section>
+</section>
+<section id="tools-view" class="panel" role="tabpanel" aria-labelledby="tools-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Whole-run tools / rule cascade / blinded facets</div><h2>Trace Tools</h2></div><button id="cloud-tools-refresh" type="button" class="small">Refresh scorecard</button></div>
+ <p class="seal">Measured on labelled DEV and cross-test cohorts, never tuned on the cross-test. A tool that did not read a run abstained: that run is neither a miss nor a clean pass. Nothing is ranked.</p>
+ <p id="cloud-tools-status" class="notice" role="status"></p>
+ <div id="cloud-tools-cohorts" class="tools-cohorts"></div>
+ <div id="cloud-tools-table" class="tools-table"></div>
+ <details id="cloud-tools-sources" class="tools-sources"><summary>Sources read</summary><div id="cloud-tools-source-list"></div></details>
 </section>
 <section id="trust-view" class="panel" role="tabpanel" aria-labelledby="trust-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">Retained producer reports / counts and arithmetic only</div><h2>Trust tiers, Hackbook QC and cross-test</h2></div><button id="cloud-trust-refresh" type="button" class="small">Refresh retained reports</button></div>
@@ -907,6 +917,124 @@ $('atlas-run-refresh').addEventListener('click',()=>{if(atlasRunId)openAtlasRun(
 $('atlas-view').addEventListener('keydown',event=>{
  if(event.key==='Escape'&&!$('atlas-run-panel').hidden){event.preventDefault();closeAtlasRun();}
 });
+const toolsPct=value=>(value*100).toFixed(1)+'%';
+const toolsTokens=new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
+function toolsTime(value){
+ const date=new Date(value);
+ return Number.isNaN(date.getTime())?'Not recorded':date.toLocaleString('en-US',{timeZone:'America/New_York',
+  month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
+}
+function toolsRate(hits,decided,total,interval,extra){
+ const cell=node('div');
+ if(!decided){cell.append(node('span','No runs read ('+cloudCount(total)+' labelled)','muted'));return cell;}
+ cell.append(node('strong',toolsPct(hits/decided)),node('small',cloudCount(hits)+' of '+cloudCount(decided)+
+  (interval?' · 95% CI '+toolsPct(interval[0])+' to '+toolsPct(interval[1]):'')));
+ if(decided<total)cell.append(node('small','Read '+cloudCount(decided)+' of '+cloudCount(total)+' labelled'));
+ if(extra)cell.append(node('small',extra));
+ return cell;
+}
+function toolsCost(usage){
+ const cell=node('div');
+ if(!usage){cell.append(node('span','No usage recorded','muted'));return cell;}
+ if(!usage.usage_runs){
+  cell.append(node('span','No billable usage recorded','muted'),
+   node('small',cloudCount(usage.entries)+' ledger entries, none with tokens or dollars'));
+  return cell;
+ }
+ const per=value=>value/usage.usage_runs*1000;
+ cell.append(node('strong',cloudSpend(per(usage.usd))+' per 1k runs'),
+  node('small',toolsTokens.format(per(usage.input_tokens))+' in · '+toolsTokens.format(per(usage.output_tokens))+' out per 1k runs'),
+  node('small','Over '+cloudCount(usage.usage_runs)+' recorded runs'));
+ if(list(usage.routes).length)cell.title='Routes: '+usage.routes.join(', ');
+ return cell;
+}
+function toolsDetectors(tool,populations){
+ const total=populations.reduce((sum,population)=>sum+list(tool.populations[population.key]?.details).length,0);
+ if(!total)return null;
+ const details=node('details');
+ details.append(node('summary','Detectors ('+total+')'));
+ for(const population of populations){
+  const rows=list(tool.populations[population.key]?.details);
+  if(!rows.length)continue;
+  const side=(hits,decided)=>decided?toolsPct(hits/decided)+' ('+cloudCount(hits)+'/'+cloudCount(decided)+')':'No runs read';
+  details.append(node('h4',population.title),cloudTable(['Detector','Caught','False alarms'],
+   rows.map(row=>[row.detector,side(row.tp,row.positives_decided),side(row.fp,row.negatives_decided)])));
+ }
+ return details;
+}
+function toolsRows(data){
+ const populations=list(data.populations);
+ return list(data.tools).map(tool=>{
+  const name=node('div'),cells=[name];
+  name.append(node('strong',tool.name));
+  const refresh=tool.pending_blinding_refresh;
+  if(refresh&&refresh.pending)name.append(badge('Provisional · '+cloudCount(refresh.pending)+' of '+
+   cloudCount(refresh.listed)+' re-blinding runs not re-extracted','warn'));
+  const detectors=toolsDetectors(tool,populations);
+  if(detectors)name.append(detectors);
+  for(const population of populations){
+   const entry=tool.populations[population.key];
+   if(!entry){
+    cells.push(node('span','No retained result','muted'),node('span','No retained result','muted'));
+    continue;
+   }
+   const beyond=entry.caught_beyond_cascade==null?'':'Caught beyond cascade: '+cloudCount(entry.caught_beyond_cascade)+
+    ' · cascade only: '+cloudCount(entry.cascade_only_caught);
+   cells.push(toolsRate(entry.tp,entry.positives_decided,entry.positives,entry.recall_ci,beyond),
+    toolsRate(entry.fp,entry.negatives_decided,entry.negatives,entry.far_ci,''));
+  }
+  const last=node('div');
+  if(tool.last_run_at){
+   const when=node('strong',toolsTime(tool.last_run_at));when.title=tool.last_run_at;
+   last.append(when,node('small',tool.last_run_source));
+  }else last.append(node('span','No run recorded','muted'));
+  cells.push(toolsCost(tool.usage),last);
+  return cells;
+ });
+}
+function toolsSources(sources){
+ const parent=$('cloud-tools-source-list'),items=node('ul',undefined,'cloud-issue-list');
+ parent.replaceChildren(items);
+ for(const source of list(sources)){
+  const state=source.error?source.error:source.rejected_n?cloudCount(source.rejected_n)+' unreadable lines skipped':'read';
+  const item=node('li');
+  item.append(badge(source.file+': '+state,source.error?'bad':source.rejected_n?'warn':'good'));
+  if(source.sha256)item.append(' ',cloudDigest(source.sha256));
+  for(const note of list(source.notes))item.append(node('small',note));
+  items.append(item);
+ }
+}
+let toolsVersion=0;
+async function loadTraceTools(){
+ const version=++toolsVersion;
+ $('cloud-tools-refresh').disabled=true;$('tools-view').setAttribute('aria-busy','true');
+ notice('cloud-tools-status','Loading retained tool scorecards…');
+ try{
+  const data=await cloudApi('/api/cloud-db/trace-tools?split=dev');
+  if(version!==toolsVersion)return;
+  const cohorts=$('cloud-tools-cohorts');cohorts.replaceChildren();
+  for(const population of list(data.populations)){
+   const labels=population.labels;
+   cohorts.append(badge(population.title+': '+(labels?cloudCount(labels.positive)+' cheating · '+
+    cloudCount(labels.negative)+' clean · '+cloudCount(labels.unscored)+' unscored':'labels not retained')));
+  }
+  const table=cloudTable(['Tool',...list(data.populations).flatMap(population=>
+   [population.title+' · caught',population.title+' · false alarms']),'Cost per 1k runs','Last run'],toolsRows(data));
+  const tools=list(data.tools);
+  for(const [index,row] of Array.from(table.querySelector('table > tbody').children).entries())row.dataset.tool=tools[index].tool;
+  $('cloud-tools-table').replaceChildren(table);
+  toolsSources(data.sources);
+  notice('cloud-tools-status',data.notice);
+ }catch(error){
+  if(version===toolsVersion){
+   $('cloud-tools-table').replaceChildren();$('cloud-tools-cohorts').replaceChildren();
+   notice('cloud-tools-status',cloudError(error,'Trace tool scorecard'),true);
+  }
+ }finally{
+  if(version===toolsVersion){$('cloud-tools-refresh').disabled=false;$('tools-view').setAttribute('aria-busy','false');}
+ }
+}
+$('cloud-tools-refresh').addEventListener('click',loadTraceTools);
 const trustSections=[
  ['evallab.system_playbook/v1','cloud-trust-playbook',cloudSystemPlaybook,'No retained system playbook.'],
  ['evallab.trust_tier_census/v1','cloud-trust-tiers',cloudTierCensus,'No retained trust-tier census.'],
@@ -954,6 +1082,7 @@ for(const tab of viewTabs){
   if(tab.id==='corpus-tab')loadCloudCorpus();
   if(tab.id==='seeker-tab')loadSeekerComparison();
   if(tab.id==='atlas-tab')loadAtlas();
+  if(tab.id==='tools-tab')loadTraceTools();
   if(tab.id==='trust-tab')loadTrustQc();
  });
  tab.addEventListener('keydown',event=>{

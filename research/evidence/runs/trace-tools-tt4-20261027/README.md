@@ -117,6 +117,18 @@ latency or TTFT. No new model, quota or paid call was made for this audit.
 The small partial sample establishes neither an **always-on utility** claim nor
 a **model winner/serving recommendation**; it adds zero TPs beyond Stage-1.
 
+**Read-only runtime attestation limit:** the adapter did not retain raw CLI
+event metadata. All 79 accepted receipts passed the generation parser's
+exactly-one-`agent_end`-assistant and text/thinking-only guards, but actual
+`tool_execution_start`/`tool_execution_end` counts are **unknown, not zero**.
+Flag intent (`--no-tools` etc.) and those guards do not independently prove
+the absence of internal tool side effects. Missing evidence does not establish
+that tools were used, either. `native-event-metadata-audit-20261028.json`
+records this metadata-only audit: no content/bodies/arguments, global chat
+history, live reproduction or new runtime/model call was inspected/executed.
+These are **model-attested scores, not independently tool-execution-attested
+runs**.
+
 Source/guards PR **#1378 merged at 11:58 AM ET** on October 28 as
 `6fbe1acb33fa203d8420e047800f7650cbb56095`. Exact premerge head `ded6a3b6e`
 had all eleven checks green **before** protected auto-merge, and the existing
@@ -133,6 +145,18 @@ is preserved in `ci-profile-7b1ae6108-20261028.json`; cause is **undetermined**.
 It received **no manual rerun**. Protected delivery still requires **all eleven
 fresh current-head checks, including profile, green before auto-merge**; no
 old-head status, source/corpus change or budget weakening substitutes for that.
+
+The later evidence-only head `74ff472d3` had **10/11 passing checks** but
+failed native profile attempt 1: facts median **141.210 ms**, range
+**61.762–247.070 ms**. Its one explicitly authorized, scoped profile-job
+recovery failed projection instead: median **99.257 ms**, range
+**60.076–279.662 ms**; facts was **36.252 ms**. Both use the unchanged
+**37.5 ms** ceiling and pinned **2-job / 4-JSON / 31,716-byte** corpus; all
+eight source/workflow/profiler/lock/config/fixture identities equal the
+already-green protected base. Cause remains **undetermined**, not proven
+runner variance. No third recovery is authorized or armed. Both originals
+and the explicit-ID/created-at/generated-at/head/job binding for recovery
+artifact **12835770330** are retained in `ci-profile-74ff472d3-20261028.json`.
 
 ## Funded OpenRouter arm: source-ready, blocked before inference
 

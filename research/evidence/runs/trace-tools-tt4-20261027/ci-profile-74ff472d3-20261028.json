@@ -1,0 +1,109 @@
+{
+  "schema": "evallab.trace_tools_tt4_profile_failure/v1",
+  "head": "74ff472d39fdb33a2014e398c8114474aaf5a4b9",
+  "protected_base": "6fbe1acb33fa203d8420e047800f7650cbb56095",
+  "protected_base_existing_merged_main_all11_success": true,
+  "all8_source_workflow_profiler_lock_config_fixture_identities_equal": {
+    "head": "74ff472d39fdb33a2014e398c8114474aaf5a4b9",
+    "protected_base": "6fbe1acb33fa203d8420e047800f7650cbb56095",
+    "all8_input_identities_equal": true,
+    "git_objects": {
+      "src": {
+        "head": "b4ec5843caeb90ab68f3f0423c0e16f0dad8e85a",
+        "protected_base": "b4ec5843caeb90ab68f3f0423c0e16f0dad8e85a",
+        "equal": true
+      },
+      "scripts": {
+        "head": "388dbd74f5138a6064a3da036c10dc6bfa996ded",
+        "protected_base": "388dbd74f5138a6064a3da036c10dc6bfa996ded",
+        "equal": true
+      },
+      ".github/workflows": {
+        "head": "48cbf0d56fea9cc6ed0c0f308c9483bb03cb1a90",
+        "protected_base": "48cbf0d56fea9cc6ed0c0f308c9483bb03cb1a90",
+        "equal": true
+      },
+      "scripts/profile": {
+        "head": "577b8d0ba4afd8dedf37d9a808ada52a06d59497",
+        "protected_base": "577b8d0ba4afd8dedf37d9a808ada52a06d59497",
+        "equal": true
+      },
+      "pyproject.toml": {
+        "head": "2757e5d7a3b562ea46cdc72f6eea60a7d29e7bc3",
+        "protected_base": "2757e5d7a3b562ea46cdc72f6eea60a7d29e7bc3",
+        "equal": true
+      },
+      "uv.lock": {
+        "head": "df866015f8fbdfed3d0e0cd3a8b905f4e669123c",
+        "protected_base": "df866015f8fbdfed3d0e0cd3a8b905f4e669123c",
+        "equal": true
+      },
+      "research/evidence/runs/event-summary-nop-evidence": {
+        "head": "b27aaa09aff6f2ece76d8926c7f2fc21770db1cd",
+        "protected_base": "b27aaa09aff6f2ece76d8926c7f2fc21770db1cd",
+        "equal": true
+      },
+      "research/evidence/runs/event-summary-oracle-evidence": {
+        "head": "a10f679e0becdfa6c605336e300a85de5aaae831",
+        "protected_base": "a10f679e0becdfa6c605336e300a85de5aaae831",
+        "equal": true
+      }
+    },
+    "source_or_fixture_or_budget_modified": false,
+    "reruns": 0,
+    "cause": "undetermined"
+  },
+  "pinned_corpus": {
+    "jobs": 2,
+    "result_json": 4,
+    "bytes": 31716
+  },
+  "unchanged_native_ceiling_ms": 37.5,
+  "attempts": [
+    {
+      "attempt": 1,
+      "run_id": 40725337536,
+      "job_id": 122947559285,
+      "artifact_id": 12831009741,
+      "failed": "facts",
+      "facts_ms": {
+        "median": 141.21,
+        "min": 61.762,
+        "max": 247.07
+      },
+      "projection_median_ms": 16.948,
+      "other10_checks": "SUCCESS"
+    },
+    {
+      "attempt": 2,
+      "authorization": "One scoped native profile-job recovery explicitly authorized by parent on unchanged inputs; no further recovery",
+      "failed": "projection",
+      "projection_ms": {
+        "median": 99.257,
+        "min": 60.076,
+        "max": 279.662
+      },
+      "facts_median_ms": 36.252,
+      "explicit_artifact_binding": {
+        "head_sha": "74ff472d39fdb33a2014e398c8114474aaf5a4b9",
+        "run_id": 40725337536,
+        "run_attempt": 2,
+        "job_id": 122968523882,
+        "job_started_at": "2026-10-28T17:00:04Z",
+        "job_completed_at": "2026-10-28T17:00:46Z",
+        "artifact_id": 12835770330,
+        "artifact_created_at": "2026-10-28T17:00:43Z",
+        "report_generated_at": "2026-10-28T17:00:42.384509+00:00",
+        "generated_created_within_exact_job": true,
+        "artifact_workflow_run_head_matches_job_and_attempt_head": true,
+        "archive_sha256": "05cf4298a53239d665ad026cf1a457978f01f46846fef843145be987bca7c7f5",
+        "fetched_by_explicit_artifact_id": true
+      }
+    }
+  ],
+  "source_or_budget_or_corpus_change": false,
+  "manual_recoveries": 1,
+  "cause": "undetermined; differing timings do not prove runner variance as cause",
+  "auto_merge_enabled": false,
+  "future_current_heads": "Require their own fresh all11 including profile; no carried old status or bypass"
+}

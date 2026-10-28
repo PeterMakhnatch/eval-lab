@@ -81,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:1dec04931bf33afecfc5b9e6053d14136a5e3da91243b1b525790725c433743d
+    digest: sha256:a2192d906302a41acff2c97ec3b92cff63d0dd5fe236decd61ed28ef6c678003
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
@@ -128,6 +128,8 @@ inputs:
     digest: sha256:bb52ffc71923ab06175dbe300d266ba22574796dc14d5a547971b0b4654a3a34
   - path: docs/rollout.md
     digest: sha256:478b97b1ff840eb80549057203e5626209a4475c14c69aac9caf04fcf6298daf
+  - path: docs/run-atlas.md
+    digest: sha256:38db7dc6bfd49cb55b860347121a177094e70b5692e3c4584b83fcd68428e537
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/scaling.md
@@ -278,6 +280,7 @@ an operator can see what is archived.
 | `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/research/trajectory-intelligence.md` | Trajectory intelligence: metrics and failure signals | `living` | `analyst` |
+| `docs/run-atlas.md` | Run Atlas | `living` | `analyst, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
@@ -392,6 +395,7 @@ an operator can see what is archived.
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/rollout.md` | Rollout engine (`evallab rollout`) | `living` | `builder, operator` |
+| `docs/run-atlas.md` | Run Atlas | `living` | `analyst, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |

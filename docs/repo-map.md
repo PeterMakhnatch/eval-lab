@@ -577,7 +577,7 @@ inputs:
   - path: src/evallab/production/deploy_preflight.py
     digest: sha256:65467c8560df848f540d4be8925e1369fcc3552fe8273bb11ef3635b481f8ab5
   - path: src/evallab/production/detector_scope.py
-    digest: sha256:b611b92e4da1490bb85b493fbef421ed834211051e6c04e394b3ca5738d9e2c8
+    digest: sha256:330c4710b7bf510487db87da58b8e2a3e1102d28abe8e200752ec0f153bb6f6e
   - path: src/evallab/production/feeder.py
     digest: sha256:596c0ecfa4001bc5f937c365b6e158e3123c5cceda4af3793442b10d0b9bd03e
   - path: src/evallab/production/field_reliability.py

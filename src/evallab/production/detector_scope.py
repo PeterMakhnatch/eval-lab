@@ -134,7 +134,7 @@ def parse_scope(document: Any) -> dict[tuple[str, str], Cell]:
 # (tool key, name, how it reads, route when the scope file does not say)
 ROWS: tuple[tuple[str, str, str, str | None], ...] = (
     ("facets", "Run Atlas facets", "whole run, after it ended (post-hoc)",
-     "model reader of the whole run; the model varies by run"),
+     "model reader; the aggregate receipts do not record its route"),
     ("cascade", "Frozen cascade (v8)", "growing prefix (prefix-causal)", None),
     ("stage1", "Stage 1 alone", "growing prefix (prefix-causal)", "none: fixed rules, no judge"),
     ("scout", "Scout deterministic scanners", "whole run, after it ended (post-hoc)",

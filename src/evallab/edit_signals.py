@@ -251,9 +251,9 @@ class BashInvocation(NamedTuple):
 def tool_bash_invocations(call: dict[str, Any]) -> list[BashInvocation]:
     """Decode shell text, preserving legacy keystrokes and Codex call attribution.
 
-    Only known shell tools interpret ``command`` as executable text. Legacy
-    ``keystrokes`` and scripted Codex input keep their existing extraction
-    semantics; a populated ``keystrokes`` always takes precedence.
+    Only known shell tools interpret ``command`` or ``cmd`` as executable text.
+    Legacy ``keystrokes`` and scripted Codex input keep their existing semantics;
+    populated fields take precedence in the order ``keystrokes``, ``command``, ``cmd``.
     """
     args = call.get("arguments")
     if not isinstance(args, dict):
@@ -265,6 +265,9 @@ def tool_bash_invocations(call: dict[str, Any]) -> list[BashInvocation]:
     command = args.get("command")
     if name in SHELL_TOOL_NAMES and isinstance(command, str) and command.strip():
         return [BashInvocation(command)]
+    cmd = args.get("cmd")
+    if name in SHELL_TOOL_NAMES and isinstance(cmd, str) and cmd.strip():
+        return [BashInvocation(cmd)]
     script = args.get("input")
     return codex_exec_invocations(script) if isinstance(script, str) else []
 
@@ -277,8 +280,8 @@ def tool_bash_commands(call: dict[str, Any]) -> list[str]:
 def step_bash_commands(step: dict[str, Any]) -> list[str]:
     """Shell command texts one ATIF step runs, in order.
 
-    ``keystrokes`` or ``command`` of the shell tools (verbatim), plus the
-    ``tools.exec_command({cmd: ...})`` calls inside a Codex ``exec`` script
+    ``keystrokes``, ``command`` or ``cmd`` of the shell tools (verbatim), plus
+    the ``tools.exec_command({cmd: ...})`` calls inside a Codex ``exec`` script
     (``arguments.input``). Other argument shapes are not read.
     """
     out: list[str] = []

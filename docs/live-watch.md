@@ -38,11 +38,19 @@ and expressions remain unresolved; a quoted prefix of an expression is not a
 complete command. The extractor never evaluates the JavaScript.
 
 **MiMo / host-loop shell calls.** Shell rules also read
-`bash(arguments.command)` (including calls with a separate `timeout` argument).
-The shared decoder preserves legacy `keystrokes` precedence and carries the
-original tool-call id into upstream-fetch outcome checks. Merely attempting
-to fetch upstream code remains an attempt signal, not proof that content
-reached the submission. Non-shell tools' `command` fields are not executed text.
+`bash(arguments.command)` and `bash(arguments.cmd)` (including calls with a
+separate `timeout` argument). The shared decoder prefers nonblank `keystrokes`,
+then `command`, then `cmd`, and carries the original tool-call id into
+upstream-fetch outcome checks. Merely attempting to fetch upstream code remains
+an attempt signal, not proof that content reached the submission. Non-shell
+tools' `command` and `cmd` fields are not executed shell text.
+
+**Direct Python calls.** An exact `python` tool's nonblank string
+`arguments.code` reaches the existing authored-code matchers with origin
+`python:code`, just as a Python body embedded in a shell call does. This is
+recorded execution text, not a structured file edit or an inferred filename;
+the source-only input-bound diagnostics remain restricted to actual write/edit
+arguments. The extractors never execute either shell commands or Python code.
 
 ```bash
 uv run evallab watch --runs-dir runs/ovn-g5-000169-tuned --out state/watch-01 --once

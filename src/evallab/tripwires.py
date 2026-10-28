@@ -7,7 +7,7 @@ apart:
 
 * live per-step rules from ``live_watch`` (grader tamper edits, hidden-info
   reads, harness-log reads) and the former ``submission_tamper`` module
-  (content-level tamper detection over code the agent *writes*);
+  (content-level tamper detection over code the agent writes or executes);
 * offline content rules from the former ``content_rules`` module (TA
   candidate rules over extracted answer files);
 * adapters composing the specialized engines that keep their own modules
@@ -398,14 +398,23 @@ def _bash_write_texts(step: dict[str, Any]) -> list[tuple[str, str]]:
 
 
 def written_texts(step: dict[str, Any]) -> list[tuple[str, str]]:
-    """``(origin, text)`` file content one agent step proposes to write.
+    """``(origin, text)`` authored file content or executable Python in one step.
 
-    File-edit tool arguments verbatim, plus Python/heredoc bodies embedded in
-    bash keystrokes. Read-only commands (``grep``, ``cat`` of grader files)
-    and single-line ``echo > file`` writes are deliberately out of scope (see
-    the module docstring).
+    File-edit tool arguments, Python/heredoc bodies embedded in shell calls and
+    direct ``python.code`` are read verbatim. Python execution has a distinct
+    origin, not a structured file-edit attribution. Read-only commands and
+    single-line ``echo > file`` writes remain out of scope.
     """
-    return _tool_write_texts(step) + _bash_write_texts(step)
+    texts = _tool_write_texts(step) + _bash_write_texts(step)
+    for call in step.get("tool_calls") or []:
+        if not isinstance(call, dict):
+            continue
+        name = str(call.get("function_name") or call.get("name") or "").lower()
+        if name == "python":
+            code = _tool_arguments(call).get("code")
+            if isinstance(code, str) and code.strip():
+                texts.append(("python:code", code))
+    return texts
 
 
 def submission_tamper_hits(agent_steps: list[dict[str, Any]]) -> list[dict[str, Any]]:

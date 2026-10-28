@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from evallab.production.cloud_trace_db import TRACE_FINDING_KINDS, TRACE_FINDING_VERDICTS
 from evallab.production.run_atlas import (
     CHEATBENCH_DATASET,
     DEFAULT_DATABASE,
@@ -37,10 +38,16 @@ from evallab.production.run_atlas import (
     append_jsonl,
     blind_run,
 )
+from evallab.production.trace_findings import (
+    MAX_EVIDENCE_STEPS,
+    MAX_SUMMARY_CHARS,
+    MAX_SUMMARY_WORDS,
+    _finding,
+)
 
 FINDINGS_VERSION = "trace-findings/v1"
-VERDICTS = ("alarm", "clear", "abstain", "unknown")
-KINDS = ("cheat", "loop", "runaway", "latency", "infra", "other")
+VERDICTS = TRACE_FINDING_VERDICTS
+KINDS = TRACE_FINDING_KINDS
 HARNESS_ROOT = STATE_ROOT / "trace-harness"
 DEFAULT_FINDINGS = HARNESS_ROOT / "findings-v1.jsonl"
 FINDING_FIELDS = (
@@ -48,8 +55,8 @@ FINDING_FIELDS = (
     "evidence_steps", "summary", "input_tokens", "output_tokens", "cost_usd", "latency_ms",
     "produced_at",
 )
-SUMMARY_WORDS = 40
-SUMMARY_CHARS = 600  # the cloud DB trace_findings importer refuses longer summaries
+SUMMARY_WORDS = MAX_SUMMARY_WORDS
+SUMMARY_CHARS = MAX_SUMMARY_CHARS
 CARD_MAX_TOKENS = 1500
 # The repository's approximate-token convention (``trace_feature_flags``):
 # four characters per token, not a tokenizer guarantee.
@@ -62,14 +69,14 @@ DETECTORS: dict[str, str] = {
     "tripwire": "evallab.production.trace_harness_rules:TripwireDetector",
     "flags": "evallab.production.trace_harness_rules:FlagsDetector",
     "cascade": "evallab.production.trace_harness_cascade:CascadeV8Detector",
-    "cascade-v7": "evallab.production.trace_harness_cascade:CascadeV7Detector",
-    "cascade-v4": "evallab.production.trace_harness_cascade:CascadeV4Detector",
+    "cascade_v7": "evallab.production.trace_harness_cascade:CascadeV7Detector",
+    "cascade_v4": "evallab.production.trace_harness_cascade:CascadeV4Detector",
     "facets": "evallab.production.trace_harness_facets:FacetsDetector",
     "scout": "evallab.production.trace_harness_tools:ScoutDetector",
     "metr": "evallab.production.trace_harness_tools:MetrDetector",
     "laminar": "evallab.production.trace_harness_tools:LaminarDetector",
     "docent": "evallab.production.trace_harness_tools:DocentDetector",
-    "omp-form": "evallab.production.trace_harness_tools:OmpFormDetector",
+    "omp_form": "evallab.production.trace_harness_tools:OmpFormDetector",
 }
 
 Key = tuple[str, str, str, str | None]
@@ -145,12 +152,16 @@ def finding(
     summary: str = "", input_tokens: int = 0, output_tokens: int = 0, cost_usd: float = 0.0,
     latency_ms: int = 0, produced_at: str | None = None,
 ) -> dict[str, Any]:
-    """Build one validated ``trace-findings/v1`` record."""
+    """Build one validated ``trace-findings/v1`` record.
+
+    The summary is trimmed and the cited steps are capped (lowest ids first) to the
+    cloud DB importer's limits, so every stored record is importable.
+    """
     record = {
         "run_id": run_id, "detector": detector, "detector_version": detector_version,
         "reader_model": reader_model, "verdict": verdict,
         "score": None if score is None else float(score), "kind": kind,
-        "evidence_steps": sorted({int(step) for step in evidence_steps}),
+        "evidence_steps": sorted({int(step) for step in evidence_steps})[:MAX_EVIDENCE_STEPS],
         "summary": trim_words(summary), "input_tokens": int(input_tokens),
         "output_tokens": int(output_tokens), "cost_usd": float(cost_usd),
         "latency_ms": int(latency_ms), "produced_at": produced_at or now_utc(),
@@ -162,37 +173,26 @@ def finding(
 
 
 def validate_finding(record: Mapping[str, Any]) -> list[str]:
-    """Reasons a record breaks ``trace-findings/v1``; empty when valid."""
+    """Reasons a record breaks ``trace-findings/v1``; empty when valid.
+
+    The value rules are the cloud DB importer's own (``trace_findings._finding``), so
+    the harness never stores a record that table would refuse. The harness adds an
+    exact field set and a ``provider/id`` reader.
+    """
     errors = [f"missing field {name}" for name in FINDING_FIELDS if name not in record]
     errors += [f"unexpected field {name}" for name in sorted(set(record) - set(FINDING_FIELDS))]
     if errors:
         return errors
-    for name in ("run_id", "detector", "detector_version", "produced_at"):
-        if not isinstance(record[name], str) or not record[name]:
-            errors.append(f"{name} must be a non-empty string")
     if record["reader_model"] is not None and (
         not isinstance(record["reader_model"], str) or "/" not in record["reader_model"]
     ):
         errors.append("reader_model must be provider/id or null")
-    if record["verdict"] not in VERDICTS:
-        errors.append(f"verdict must be one of {VERDICTS}")
-    if record["kind"] not in KINDS:
-        errors.append(f"kind must be one of {KINDS}")
-    score = record["score"]
-    if score is not None and (isinstance(score, bool) or not isinstance(score, int | float)):
-        errors.append("score must be a number or null")
-    steps = record["evidence_steps"]
-    if not isinstance(steps, list) or any(isinstance(s, bool) or not isinstance(s, int) for s in steps):
-        errors.append("evidence_steps must be a list of integer step ids")
-    if len(str(record["summary"]).split()) > SUMMARY_WORDS or len(str(record["summary"])) > SUMMARY_CHARS:
-        errors.append(f"summary exceeds {SUMMARY_WORDS} words or {SUMMARY_CHARS} characters")
-    for name in ("input_tokens", "output_tokens", "latency_ms"):
-        value = record[name]
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            errors.append(f"{name} must be a non-negative integer")
-    cost = record["cost_usd"]
-    if isinstance(cost, bool) or not isinstance(cost, int | float) or cost < 0:
-        errors.append("cost_usd must be a non-negative number")
+    if any(isinstance(step, bool) for step in record["evidence_steps"] or ()):
+        errors.append("evidence_steps entry must be an integer")
+    try:
+        _finding(record)
+    except (TypeError, ValueError) as error:
+        errors.append(str(error))
     return errors
 
 

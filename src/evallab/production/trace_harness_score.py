@@ -521,9 +521,9 @@ PUBLISHED_CHECKS: tuple[PublishedCheck, ...] = (
     PublishedCheck("facets-hackbench-alarmed-exact", "hackbench", "facets", "alarmed_exact", (20, 41),
                    "cm11-hackbench-crosstest RESULTS.md (natural 41: alarmed and exact command "
                    "hit; records split across readers)", pooled=True),
-    PublishedCheck("cascade-v4-goodfire", "goodfire", "cascade-v4", "native", (12, 80, 2, 70),
+    PublishedCheck("cascade-v4-goodfire", "goodfire", "cascade_v4", "native", (12, 80, 2, 70),
                    "frozen CM-6 v4 e2escore-goodfire-pf_r.json"),
-    PublishedCheck("cascade-v4-cheatbench", "cheatbench", "cascade-v4", "native", (20, 75, 5, 75),
+    PublishedCheck("cascade-v4-cheatbench", "cheatbench", "cascade_v4", "native", (20, 75, 5, 75),
                    "frozen CM-6 v4 e2escore-cheatbench-pf_r.json"),
 )
 

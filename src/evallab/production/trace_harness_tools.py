@@ -2,7 +2,7 @@
 
 ``ScoutDetector`` (``scout``), ``MetrDetector`` (``metr``), ``LaminarDetector``
 (``laminar``), ``DocentDetector`` (``docent``) and ``OmpFormDetector``
-(``omp-form``) turn the per-run rows of the ``evallab.trace_tool_result/v1``
+(``omp_form``) turn the per-run rows of the ``evallab.trace_tool_result/v1``
 ledgers under ``~/.local/state/evallab-prod-live/trace-tools/`` into
 ``trace-findings/v1`` records. Nothing here runs Scout, METR, Laminar, Docent or
 a model, and nothing reads labels: a run with no stored row is omitted, never
@@ -34,7 +34,7 @@ Per tool:
 * ``laminar``: union of the Laminar Signals stored for our own Harbor runs
   (``laminar-own.jsonl`` rows in the ledger); ``reader_model`` is the Signals
   profile model ``zai/glm-5.3-flash``; tokens sum the per-signal runs.
-* ``docent`` / ``omp-form``: one reader model per instance (the TT-7 form), by
+* ``docent`` / ``omp_form``: one reader model per instance (the TT-7 form), by
   reader override; default ``anthropic/claude-sonnet-5-5``. ``docent`` also takes
   ``docent:rh_reading_v1`` (the own-run hosted rubric, ``openai/gpt-5.4-mini``).
 
@@ -69,10 +69,15 @@ SCOUT_REPEAT = "repeated_assistant_message"
 
 #: METR scanner build the stored rows were produced by (``metr-scanners`` 0.1.11).
 METR_BUILD = "metr-scanners/0.1.11@c12893d1;scanner-v0"
-#: reader model -> ledger ``detector_version`` suffix (after ``METR_BUILD``).
-METR_READERS: dict[str, str] = {
-    "kimi-code/k3.1-pro-highspeed": ";omp-kimi-code-k3.1-pro-highspeed;projection-native-actor-v2",
-    "xai-oauth/grok-4.3": ";omp-xai-oauth-grok-4.3",
+#: reader model -> (ledger ``detector_version`` suffix after ``METR_BUILD``, emitted version).
+#: The emitted version drops the reader (it is ``reader_model``) and fits the trace_findings
+#: identifier rule (no ``;``, at most 64 characters).
+METR_READERS: dict[str, tuple[str, str]] = {
+    "kimi-code/k3.1-pro-highspeed": (
+        ";omp-kimi-code-k3.1-pro-highspeed;projection-native-actor-v2",
+        "metr-scanners/0.1.11@c12893d1+scanner-v0+native-actor-v2",
+    ),
+    "xai-oauth/grok-4.3": (";omp-xai-oauth-grok-4.3", "metr-scanners/0.1.11@c12893d1+scanner-v0"),
 }
 METR_DEFAULT_READER = "kimi-code/k3.1-pro-highspeed"
 METR_DETECTORS = ("reward_hacking_scanner@ge5", "reward_hacking_scanner@ge7")
@@ -347,13 +352,14 @@ class MetrDetector:
         self.reader_model = options.reader or METR_DEFAULT_READER
         if self.reader_model not in METR_READERS:
             raise ValueError(f"unknown METR reader {self.reader_model!r}; stored: {', '.join(METR_READERS)}")
-        self.version = METR_BUILD + METR_READERS[self.reader_model]
+        suffix, self.version = METR_READERS[self.reader_model]
+        self.ledger_version = METR_BUILD + suffix
         self.results = results or TRACE_TOOLS / "results-v1.jsonl"
         self.reports = MetrReports(tt4_root or TT4_ROOT)
 
     def detect(self, runs: Sequence[HarnessRun]) -> Iterator[dict[str, Any]]:
         ledger, _ = read_ledger(
-            self.results, "scout_metr", lambda row: row.get("detector_version") == self.version,
+            self.results, "scout_metr", lambda row: row.get("detector_version") == self.ledger_version,
             [run.run_id for run in runs],
         )
         stored = [run for run in runs if (METR_NATIVE, run.run_id) in ledger]
@@ -553,6 +559,6 @@ class DocentDetector(_Tt7Detector):
 class OmpFormDetector(_Tt7Detector):
     """The TT-7 form read through OMP (subscription routes) over CheatBench DEV runs."""
 
-    name = "omp-form"
+    name = "omp_form"
     tool = "omp"
     form_version = TT7_OMP_VERSION

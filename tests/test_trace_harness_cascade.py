@@ -118,7 +118,7 @@ def test_pass_through_differs_between_v7_and_v8(source: Path) -> None:
     assert v8["submission-only"]["verdict"] == "clear"
     assert v7["submission-only"]["verdict"] == "alarm"
     assert v7["submission-only"]["evidence_steps"] == [7]
-    assert v7["submission-only"]["detector"] == "cascade-v7"
+    assert v7["submission-only"]["detector"] == "cascade_v7"
     assert v7["submission-only"]["detector_version"] == "window-cascade/v7"
     assert v8["grader-only"]["verdict"] == v7["grader-only"]["verdict"] == "alarm"
     assert v8["grader-only"]["evidence_steps"] == [9]
@@ -192,7 +192,7 @@ def test_v4_uses_score_verdicts_and_abstains_on_excluded(tmp_path: Path) -> None
     assert {record["detector_version"] for record in records.values()} == {
         "window-cascade/v4-cm6-frozen"
     }
-    assert detector.name == "cascade-v4"
+    assert detector.name == "cascade_v4"
 
 
 def test_snapshot_copies_bytes_with_manifest_and_never_overwrites(tmp_path: Path) -> None:

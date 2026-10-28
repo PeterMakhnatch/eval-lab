@@ -5,9 +5,9 @@ that were produced once and frozen:
 
 ``cascade``     ``window-cascade/v8`` (CM-11b rows ``after-*``; ``submission_tamper``
                 needs a Stage-2 judgment, only ``grader_tamper`` passes through)
-``cascade-v7``  ``window-cascade/v7`` (rows ``before-*``; ``submission_tamper`` also
+``cascade_v7``  ``window-cascade/v7`` (rows ``before-*``; ``submission_tamper`` also
                 passes through)
-``cascade-v4``  frozen CM-6 ``pf_r`` arm (``e2escore-*-pf_r.json``)
+``cascade_v4``  frozen CM-6 ``pf_r`` arm (``e2escore-*-pf_r.json``)
 
 Rows live in a durable snapshot (``snapshot_sources``) because the originals were
 scratch files under ``/tmp/cm11b``. HackBench runs (``hackbench:<trace_key>``, CM-11
@@ -286,7 +286,7 @@ class CascadeV8Detector(_CascadeRowDetector):
 
 
 class CascadeV7Detector(_CascadeRowDetector):
-    name = "cascade-v7"
+    name = "cascade_v7"
     version = "window-cascade/v7"
     arm = "before"
     pass_through = V7_PASS_THROUGH
@@ -295,7 +295,7 @@ class CascadeV7Detector(_CascadeRowDetector):
 class CascadeV4Detector(_StoredCascade):
     """Frozen CM-6 ``pf_r`` arm: verdicts from ``e2escore-*``, steps from ``e2e-*`` cards."""
 
-    name = "cascade-v4"
+    name = "cascade_v4"
     version = "window-cascade/v4-cm6-frozen"
     # The v4 gate passed ``submission_tamper`` and ``grader_tamper`` through unjudged.
     pass_through = V7_PASS_THROUGH

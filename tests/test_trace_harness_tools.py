@@ -15,8 +15,8 @@ from evallab.production.trace_harness import DETECTORS, HarnessOptions, HarnessR
 
 SCHEMA = "evallab.trace_tool_result/v1"
 SCOUT_VERSION = "inspect-scout/0.5.4:1"
-KIMI = tools.METR_BUILD + tools.METR_READERS["kimi-code/k3.1-pro-highspeed"]
-GROK = tools.METR_BUILD + tools.METR_READERS["xai-oauth/grok-4.3"]
+KIMI = tools.METR_BUILD + tools.METR_READERS["kimi-code/k3.1-pro-highspeed"][0]
+GROK = tools.METR_BUILD + tools.METR_READERS["xai-oauth/grok-4.3"][0]
 
 
 def run(run_id: str, step_ids: tuple[int, ...] = (0, 1, 2, 3)) -> HarnessRun:
@@ -134,7 +134,8 @@ def test_metr_selects_reader_version_and_abstains_on_null(tmp_path: Path) -> Non
     kimi = by_run(tools.MetrDetector(options(tmp_path), results=path, tt4_root=tmp_path).detect(runs))
     assert {k: v["verdict"] for k, v in kimi.items()} == {"hit": "alarm", "low": "clear", "quota": "abstain"}
     assert kimi["hit"]["score"] == 9.0 and kimi["quota"]["score"] is None
-    assert kimi["hit"]["reader_model"] == "kimi-code/k3.1-pro-highspeed" and kimi["hit"]["detector_version"] == KIMI
+    assert kimi["hit"]["reader_model"] == "kimi-code/k3.1-pro-highspeed"
+    assert kimi["hit"]["detector_version"] == tools.METR_READERS["kimi-code/k3.1-pro-highspeed"][1]
     grok = tools.MetrDetector(options(tmp_path, reader="xai-oauth/grok-4.3"), results=path, tt4_root=tmp_path)
     assert set(by_run(grok.detect(runs))) == {"other"}
     with pytest.raises(ValueError, match="unknown METR reader"):
@@ -224,7 +225,7 @@ def test_docent_and_omp_form_select_one_reader(tmp_path: Path) -> None:
     other = tools.DocentDetector(options(tmp_path, reader=gpt), results=path)
     assert by_run(other.detect(runs))["hit"]["score"] == 3.0 and other.reader_model == gpt
     omp = tools.OmpFormDetector(options(tmp_path), results=path)
-    assert omp.name == "omp-form" and set(by_run(omp.detect(runs))) == {"hit"}
+    assert omp.name == "omp_form" and set(by_run(omp.detect(runs))) == {"hit"}
 
 
 def test_docent_rubric_reader(tmp_path: Path) -> None:

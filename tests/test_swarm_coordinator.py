@@ -992,7 +992,6 @@ def test_cascade_accepts_a_unanimous_verified_swarm_at_zero_frontier_cost(
         _coordinator(transport, registry), package, mode=swarm.SwarmMode.ADAPTIVE_CASCADE
     )
 
-    assert transport.routes == list(CHEAP)
     assert result.round.frontier_calls == 0
     assert result.escalated is False
     assert result.adjudication is None

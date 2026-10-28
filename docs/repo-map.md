@@ -655,7 +655,7 @@ inputs:
   - path: src/evallab/production/gate_progress.py
     digest: sha256:c0737b9c65bad106e37f5ee3ebe23024a70a80c8bef9a255a737e881c1a52adc
   - path: src/evallab/production/harness_view.py
-    digest: sha256:08d1403f4cc93b672e048635d9af1794b799426e4ae636d7e69cf58aee649269
+    digest: sha256:594c4265a18ff557c952f14c93b055c141f8b63cdb34f9178d114ea520d28200
   - path: src/evallab/production/ingest.py
     digest: sha256:8d9b4a839b8cb0484ad6bad3d46867b7c83761b4376cd8dc586c140e993764c2
   - path: src/evallab/production/inspector.py

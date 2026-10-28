@@ -46,6 +46,9 @@ def isolated_execution_policy(monkeypatch):
         pytest.fail(f"Unexpected external process in worker unit test: {argv!r}")
 
     monkeypatch.setattr("subprocess.run", no_process)
+    monkeypatch.setattr(
+        "evallab.production.seeker_worker.find_tb4_test_leaks", lambda *_args, **_kwargs: []
+    )
 
 
 class SplitLockError(ValueError):
@@ -364,6 +367,32 @@ class SequenceGenerator:
         self.calls.append(cue.entry_id if cue is not None else None)
         index = min(len(self.calls) - 1, len(self.candidates) - 1)
         return self.candidates[index]
+
+
+class PromptRecordingGenerator(SequenceGenerator):
+    def __init__(self, candidates: list[SeekerAttemptCandidate]) -> None:
+        super().__init__(candidates)
+        self.prompts: list[str] = []
+
+    def __call__(
+        self, task: Any, attempt_index: int, cue: Any, cues: Any, memory: Any, workspace: Path
+    ) -> SeekerAttemptCandidate:
+        from evallab.production.seeker_worker import build_headless_seeker_prompt
+
+        self.prompts.append(
+            build_headless_seeker_prompt(
+                task,
+                attempt_index=attempt_index,
+                selected_cue=cue,
+                cues=cues,
+                memory=memory,
+                workspace=workspace,
+                retrieval_markdown="## Retrieved DEV traces\nRETRIEVAL_MARKER",
+                dev_task_allowlist=frozenset({task.task_id}),
+                hide_tests=True,
+            )
+        )
+        return super().__call__(task, attempt_index, cue, cues, memory, workspace)
 
 
 class MarkerGrader:
@@ -2247,6 +2276,7 @@ def test_headless_candidate_recovers_outer_brace_variants_preserving_exact_solve
 
 
 def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2(tmp_path: Path) -> None:
+    from evallab.production.seeker_error_first import RunnerError, render_feedback_block
     from evallab.production.seeker_worker import (
         OmpHeadlessAttemptGenerator,
         ResolvedSeekerTask,
@@ -2274,6 +2304,7 @@ def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2
         repo_root=REPO_ROOT,
         work_root=tmp_path / "work",
         hide_tests=True,
+        hackbook_entries=_hackbook_entries(),
     )
     resolved = ResolvedSeekerTask(
         run_id="r-hide-tests",
@@ -2301,6 +2332,8 @@ def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2
         last_feedback_markdown=None,
     )
     assert not (ws1 / "task" / "tests").exists()
+    assert not (ws1 / "feedback.md").exists()
+    assert not (ws1 / "hackbook.md").exists()
     prompt1 = build_headless_seeker_prompt(
         resolved,
         attempt_index=1,
@@ -2315,6 +2348,8 @@ def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2
     assert "Upstream Grader Files (`tests/`)" not in prompt1
     assert "Retrieved Historical Traces" not in prompt1
     assert "ENV_SETUP_VISIBLE" in prompt1
+    assert "# Failure Memory" not in prompt1 and "# Runner error" not in prompt1
+    assert "Primary Hackbook hypothesis" not in prompt1
 
     # Turn 2 after recording Turn-1 grader failure output: tests/ still hidden, but feedback + retrieval are included
     memory.record(
@@ -2340,7 +2375,18 @@ def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2
         attempt_index=2,
         cues=(cue,),
         memory=memory,
-        last_feedback_markdown=None,
+        last_feedback_markdown=render_feedback_block(
+            RunnerError(
+                "measured",
+                0.0,
+                None,
+                (1,),
+                ("tests/test_outputs.py::test_rwa_column",),
+                (),
+                "AssertionError: missing rwa_amount in /app/output/sa_ccr_results.csv",
+                ("test-stdout.txt",),
+            )
+        ),
     )
     assert not (ws2 / "task" / "tests").exists()
     prompt2 = build_headless_seeker_prompt(
@@ -2357,6 +2403,13 @@ def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2
     assert "Upstream Grader Files (`tests/`)" not in prompt2
     assert "missing rwa_amount in /app/output/sa_ccr_results.csv" in prompt2
     assert "Goodfire enacted-hack trace" in prompt2
+    assert (
+        prompt2.index("# Runner error")
+        < prompt2.index("# Failure Memory")
+        < prompt2.index("Primary Hackbook hypothesis")
+        < prompt2.index("Retrieved Historical Traces")
+    )
+    assert "repaired=0.0" not in prompt2
 
     # Cascade routing check
     tb4_order = select_cascade_model_order(resolved)
@@ -2478,3 +2531,146 @@ def test_hide_tests_two_turn_seeker_strips_tests_on_turn1_and_retrieves_on_turn2
     )
     assert "[verifier]" not in p_scrubbed
     assert "tests/" not in p_scrubbed
+
+
+def test_live_worker_uses_only_original_runner_evidence_for_retry_prompt(tmp_path: Path) -> None:
+    original, repaired = _make_task(tmp_path, "original"), _make_task(tmp_path, "repaired")
+    log = tmp_path / "test-stdout.txt"
+    log.write_text("ORIGINAL_RUNNER_MARKER\nFAILED tests/test_private.py::test_checksum\n")
+    original_result = {
+        "status": "measured",
+        "reward": 1.0,
+        "error": None,
+        "lifecycle": {"closure": {"sandboxes": [{"exit_code": 13}]}},
+        "logs": {
+            "verifier": [
+                {"path": str(log), "digest": "sha256:" + hashlib.sha256(log.read_bytes()).hexdigest()}
+            ]
+        },
+        "per_test": {"tests": [{"id": "tests/test_private.py::test_checksum", "status": "failed"}]},
+    }
+    grader = SequenceGrader(
+        [
+            original_result,
+            {
+                "status": "measured",
+                "reward": 0.375,
+                "per_test": {"tests": [{"id": "REPAIRED_ONLY_MARKER", "status": "failed"}]},
+            },
+            {"status": "measured", "reward": 0.0, "error": None},
+        ]
+    )
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired, hide_tests=True),
+        run_id="error-first",
+        event_id="error-first",
+    )
+    generator = PromptRecordingGenerator([HONEST_CANDIDATE, BAD_CANDIDATE])
+    worker = _worker(queue, tmp_path, generator=generator, grader=grader, max_attempts=2)
+    outcome = asyncio.run(worker.run_once())
+    assert outcome is not None and outcome.attempts_run == 2
+    first, second = generator.prompts
+    assert "# Runner error" not in first and "# Failure Memory" not in first
+    assert "Primary Hackbook hypothesis" not in first and "RETRIEVAL_MARKER" not in first
+    assert (
+        second.index("ORIGINAL_RUNNER_MARKER")
+        < second.index("# Failure Memory")
+        < second.index("Primary Hackbook hypothesis")
+        < second.index("RETRIEVAL_MARKER")
+    )
+    assert next(line for line in second.splitlines() if line.startswith("#")).startswith("# Runner error")
+    assert "- sandbox exit codes: 13" in second and "- test_checksum" in second
+    assert "tests/test_private.py" not in second
+    assert all("REPAIRED_ONLY_MARKER" not in prompt and "0.375" not in prompt for prompt in generator.prompts)
+    assert outcome.failure_memory.records[0].failed_tests == ("tests/test_private.py::test_checksum",)
+    feedback = [event["payload"] for event in queue.events if event["event_type"] == "seeker.grader_feedback"]
+    assert feedback[0]["repaired_reward"] == 0.375 and feedback[0]["evaluated"] is True
+
+
+@pytest.mark.parametrize(
+    "unmeasured",
+    [
+        {"status": "refused", "executed": False, "reward": None, "error": "NOT_RUN_MARKER"},
+        {"status": "refused", "executed": False, "reward": 0.0, "error": "NOT_RUN_MARKER"},
+        {"status": "measured", "reward": None, "error": None},
+        {"status": "error", "reward": 0.0, "error": "NOT_RUN_MARKER"},
+        {"status": "measured", "executed": False, "reward": 0.0, "error": None},
+    ],
+)
+def test_live_worker_missing_original_measurement_is_not_evaluated_or_feedback_error(
+    tmp_path: Path, unmeasured: dict[str, Any]
+) -> None:
+    original, repaired = _make_task(tmp_path, "original"), _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired, hide_tests=True),
+        run_id="no-runner",
+        event_id="no-runner",
+    )
+    generator = PromptRecordingGenerator([BAD_CANDIDATE, BAD_CANDIDATE])
+    grader = SequenceGrader([unmeasured, dict(unmeasured)])
+    worker = _worker(queue, tmp_path, generator=generator, grader=grader, max_attempts=2)
+    outcome = asyncio.run(worker.run_once())
+    assert outcome is not None and outcome.original_reward is None
+    assert outcome.attempts_run == 2 and not outcome.failure_memory.records
+    prompt = generator.prompts[1]
+    assert "No runner output:" in prompt and "not evaluated" in prompt
+    assert "NOT_RUN_MARKER" not in prompt and "- reward:" not in prompt
+    assert "- harness error:" not in prompt and "# Runner error" not in prompt
+    feedback = [event["payload"] for event in queue.events if event["event_type"] == "seeker.grader_feedback"]
+    assert len(feedback) == 2
+    assert all(event["evaluated"] is False and event["original_reward"] is None for event in feedback)
+    completed = next(event["payload"] for event in queue.events if event["event_type"] == "worker.completed")
+    assert completed["evaluated"] is False and completed["original_reward"] is None
+
+
+@pytest.mark.parametrize("intervening", ["duplicate", "invalid", "unavailable"])
+def test_retry_never_reuses_runner_output_from_before_an_unexecuted_attempt(
+    tmp_path: Path, intervening: str
+) -> None:
+    from dataclasses import replace
+
+    original, repaired = _make_task(tmp_path, "original"), _make_task(tmp_path, "repaired")
+    log = tmp_path / "test-stdout.txt"
+    log.write_text("STALE_RUNNER_MARKER\n")
+    invalid_solve = "#!/bin/bash\nif\n"
+    invalid = replace(
+        HONEST_CANDIDATE,
+        files={"solve.sh": invalid_solve},
+        mechanism="invalid shell syntax",
+        llm_solve_sha256=hashlib.sha256(invalid_solve.encode()).hexdigest(),
+    )
+    middle = {
+        "duplicate": BAD_CANDIDATE,
+        "invalid": invalid,
+        "unavailable": HONEST_CANDIDATE,
+    }[intervening]
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired, hide_tests=True),
+        run_id="no-stale-runner",
+        event_id="no-stale-runner",
+    )
+    generator = PromptRecordingGenerator([BAD_CANDIDATE, middle, EXPLOIT_CANDIDATE])
+    results = [
+        {
+            "status": "measured",
+            "reward": 0.0,
+            "logs": {"verifier": [{"path": str(log)}]},
+        }
+    ]
+    if intervening == "unavailable":
+        results.append({"status": "refused", "executed": False, "reward": None})
+    results.append({"status": "measured", "reward": 0.0})
+    worker = _worker(
+        queue, tmp_path, generator=generator, grader=SequenceGrader(results), max_attempts=3
+    )
+    outcome = asyncio.run(worker.run_once())
+    assert outcome is not None
+    assert "STALE_RUNNER_MARKER" in generator.prompts[1]
+    assert "STALE_RUNNER_MARKER" not in generator.prompts[2]
+    assert "No runner output:" in generator.prompts[2]

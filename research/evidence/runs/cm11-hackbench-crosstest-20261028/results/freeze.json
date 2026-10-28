@@ -1,0 +1,62 @@
+{
+ "schema": "cm11-freeze/v1",
+ "frozen_at_utc": "2026-10-28T00:54:07Z",
+ "files": {
+  "src/evallab/production/window_cascade.py": "cc705a6f8a60edcbae78f1690b949744cb070ac1cbd85088946e7e4e7fe7acc5",
+  "src/evallab/production/command_prefilter.py": "09eac0705ac5f4e473961d8d666e8af24fdc0e4ea771eedebaaf44a2a0546fd4",
+  "src/evallab/tripwires.py": "787a006e5cbeab00dfd10af32ba189119ed9e810a398da7969555251eb44c745",
+  "src/evallab/production/monitor_worker.py": "f2b1787d4dd2dbcf4e62f24122a26c589acd713a7e3e61dcda734c0277bfb601",
+  "research/evidence/runs/corpus-expansion-lb6-20261027/tools/hackbench_adapter.py": "dfe5a2d6410c2cff35f430fff6f856f112113774c58fa23aac61ead7e0766964",
+  "research/evidence/runs/corpus-expansion-lb6-20261027/README.md": "ecb3db729c081168dbcf1a2e172da669326ce87c1dcb8b501e62509f2024e3fb",
+  "research/evidence/runs/cm11-hackbench-crosstest-20261028/tools/hackbench_cascade.py": "a94c1cb360e95527dff1c0eb5adfd82992f5d5257776c013fca4f7e01ffbaa72",
+  "research/evidence/runs/cm11-hackbench-crosstest-20261028/README.md": "bb448933e4a6f9f3218bbbae7b75f3114a27e37b5daa5555808edfa27c558e7c"
+ },
+ "cascade_version": "window-cascade/v7",
+ "arm": "pf_r (production defaults, no overrides)",
+ "settings": {
+  "prefilter_escalated": [
+   "prefilter:answer_path_probe",
+   "prefilter:assertion_override",
+   "prefilter:git_history",
+   "prefilter:git_object_by_sha",
+   "prefilter:harness_scaffold_in_code",
+   "prefilter:package_fetch",
+   "prefilter:test_exclusion_flag"
+  ],
+  "pass_through": [
+   "grader_tamper",
+   "submission_tamper"
+  ],
+  "include_reasoning": true,
+  "context_reasoning_chars": 0,
+  "max_window_chars": 9000,
+  "max_families": 3,
+  "radius": 5,
+  "lookahead": 5,
+  "stage2_playbook_cards": 0
+ },
+ "stage2_prompt_sha256": "2b8a61cba5535ed19f80122eca2a9fd51ec7b6c054604d51d8e52554bb362f6b",
+ "judges": {
+  "kimi-code/k3.1-pro-highspeed": {
+   "role": "primary",
+   "allowed_served": [
+    "kimi-code/k3.1-pro-highspeed"
+   ]
+  },
+  "meta/muse-wonder-1.0-contributor": {
+   "role": "sensitivity",
+   "allowed_served": [
+    "meta/muse-wonder-1.0-contributor"
+   ]
+  }
+ },
+ "judge_settings": {
+  "thinking": "low",
+  "tools": "none",
+  "attempts": 3,
+  "timeout_s": 240
+ },
+ "data_sha256": "42c0cfa4a3dc822eb6505fbcc58989c5df5dcf509cc4a97338abbb38c7e9fd87",
+ "git_head": "511e0cd350b4c486e8e66b15fb631c73377608be",
+ "git_dirty_paths": []
+}

@@ -1,5 +1,51 @@
 # TT-4: native METR scanner, subscription and budgeted OpenRouter arms
 
+## Native generation is sealed before quota or transport
+
+A separate user-derived reader executed a built-in **mutating tool** under the
+same frozen `--no-tools` / `--no-skills` / `--no-extensions` flags. Those flags
+are not a mechanically enforced read-only boundary. This does **not** establish
+that native METR used a tool: its raw event metadata was not retained.
+
+The current native `run` command, direct runner, `call_omp()` and
+`register_omp_provider()` now **deny unconditionally** before preparation, quota
+reads, scanner handlers, provider registration or subprocesses, as applicable.
+There is **no unsafe override**, quota-reset exception, model-name exception,
+prompt-only repair, SDK substitution or policy-refusal retry. This seals an
+unproved transport; it does **not** claim to have fixed a hard tool-free CLI.
+Local preparation, pure parsers and offline scoring of old reports remain usable.
+
+`sealed-native-cli-20261028/manifest.json` binds the exact smoke, continuation
+and pre-seal driver/core bytes to non-executable historical `.py.txt` snapshots.
+They were preserved **before** sealing edits, with the 79 calls' model/financial
+provenance and frozen 600-row prediction digest. The old raw generations,
+receipts, labels, scores and ledgers are unchanged. No generation or usage call
+was made to investigate or implement this seal.
+
+See the **Q27 no-tools reader-boundary incident** in
+[`QUIRKS.md`](../../../explorations/trace-lab/QUIRKS.md). Its confirmed side effect
+belongs to the separate TT-7 reader; native METR's tool-event counts stay unknown.
+
+### Offline seal proof (October 28)
+
+[`native-transport-seal-20261028.json`](native-transport-seal-20261028.json)
+records the current denial behavior and local checks. The final five-file suite
+passed **435 tests** in the retained Python 3.13 runtime (six upstream deprecation
+warnings). Sentinels cover subprocesses, provider imports/handlers, core-request
+environment access, campaign writes, locks, preparation and quota. CLI `run`
+fails **once** before campaign I/O, preparation, quota or provider/scanner work;
+direct `run` does not inspect even a synthetic fixed-200 input. Offline
+preparation/scoring dispatch remains usable.
+Changed Python paths pass Ruff without suppressions.
+
+The integrity checkpoint verified six historical source bindings in three
+non-executable text archives, all **37 original call files / 79 call records**,
+the generation-closed receipt and the frozen 600-row pre-gold prediction vector.
+The six retained pure definitions are AST-identical to their executed originals.
+This work made **zero scientific generation calls, zero usage calls, zero paid
+calls/reservations and $0 new scientific spend**. It did not reproduce the tool
+side effect or establish a hard tool-free CLI boundary.
+
 ## Current source-v2 admission (October 28)
 
 After source-provenance fix #1372, **unversioned caches are historical only**.
@@ -9,8 +55,9 @@ message hashes match** the historical frozen inputs, including roles, content,
 reasoning, tool calls, ids and step metadata; the sample/order and native METR
 prompts are unchanged. The canonical `trace_store.secrets.secret_hits` gate
 quarantines **one** input. It is an explicit no-send/null abstention, never a
-negative or replacement sample. The remaining **199** are eligible. No matched
-secret or actor text is copied into this evidence.
+negative or replacement sample. The remaining **199** passed the source/privacy
+gate only; neither native transport nor paid billing is admitted by that fact.
+No matched secret or actor text is copied into this evidence.
 
 Both new transcript derivatives use current projection markers and metadata;
 old Parquet, keys, zero-attempt quota receipts and the Grok pilot stay untouched.
@@ -24,9 +71,9 @@ The one newly authorized scoped Kimi check at **9:57:48 AM ET** fetched a
 **67.27%**. All were below the unchanged **90%** guard; the five-hour reset was
 **1:23:00 PM ET**. One cached read was followed by one documented Kimi-only
 invalidate/read, not a global clear or quota reset. This read made **zero model
-calls** and was logged canonically at $0. Native execution still requires a
-fresh, correctly identified guard before each trace; no hourly polling or paid
-fallback is authorized.
+calls** and was logged canonically at $0. This was a historical pre-seal guard,
+not proof of tool isolation. Quota or reset headroom no longer authorizes native
+execution; the unconditional transport seal above takes precedence.
 
 ## Actual current-projection Kimi run: 37/200, then fail-closed
 
@@ -70,6 +117,8 @@ monthly total **72.48%**, code **71.74%**, with next known five-hour reset
 **October 28, 1:23:00 PM ET**. No additional metadata/model request was made
 after this stop. Future diagnostic capture now preserves the failed redacted
 snapshot/reason without retrying or relaxing the guard; its tests used no API.
+A **later 92% reading from another lane**, reported by the parent, is separate
+evidence. It is **not backdated** as this lane's stop snapshot or cause.
 
 The **163 abstentions** are **162 eligible but uncalled** plus **one canonical
 privacy no-send in the clean stratum**. Offline, Python socket/subprocess access
@@ -85,6 +134,55 @@ tokens per scored trace** in this stratified prefix, at **$0 marginal Kimi
 subscription cost**. It is not a token/quota guarantee for the remaining runs.
 No paid fallback, quota polling, reset waiting or automatic retry is armed.
 
+### Frozen gold-step, conditional yield and latency audit
+
+`native-gold-join-freeze-20261028.json` freezes all 600 prediction rows before
+the additional gold-step join; commit
+`acec5ffd9608bdc5ae171662bfc9d4737ca09440` precedes that join. This secondary
+audit was declared after the already-reported primary-label metrics, not
+retroactively preregistered before generation. Model inputs/prompts/thresholds
+and native outputs themselves were fixed before offline label scoring.
+
+All **3/3 threshold-positive TPs** have a literal intersection with canonical
+`agent_traces.flagged_passage_steps`: **5 of 7 cited original steps** intersect
+the **33 annotated steps** across those three runs. Both **2/2 METR-only TPs
+versus CM-9 final** intersect gold. Source/native step coordinates were checked
+directly; no offset search, fuzzy match or tolerance expansion was used. This
+is publisher-annotation alignment, not independent human proof of execution.
+See `native-gold-step-audit-20261028.json`.
+
+Both thresholds yield **3/37 (8.11%)** flags per scored run, or **3/25 (12%)**
+on the scored primary-label subset. Extra TP/FP versus CM-9 final is **2/0**;
+versus Stage-1 it is **0/0**. The final-cascade/METR union is **5 TP, 1 FP** on
+the same 13-positive/12-clean subset, versus the cascade's **3 TP, 1 FP**.
+The 163 abstentions remain missing, not negatives.
+
+Across the **79 actual OMP subprocess calls**, elapsed latency is median
+**12.700 s**, mean **13.177 s**, nearest-rank p95 **20.546 s**, range
+**5.512–36.354 s**. This includes subprocess overhead; it is not server-only
+latency or TTFT. No new model, quota or paid call was made for this audit.
+The small partial sample establishes neither an **always-on utility** claim nor
+a **model winner/serving recommendation**; it adds zero TPs beyond Stage-1.
+
+**Read-only runtime attestation limit:** the adapter did not retain raw CLI
+event metadata. All 79 accepted receipts passed the generation parser's
+exactly-one-`agent_end`-assistant and text/thinking-only guards, but actual
+`tool_execution_start`/`tool_execution_end` counts are **unknown, not zero**.
+Flag intent (`--no-tools` etc.) and those guards do not independently prove
+the absence of internal tool side effects. Missing evidence does not establish
+that tools were used, either. `native-event-metadata-audit-20261028.json`
+records this metadata-only audit: no content/bodies/arguments, global chat
+history, live reproduction or new runtime/model call was inspected/executed.
+These are **model-attested scores, not independently tool-execution-attested
+runs**.
+
+Source/guards PR **#1378 merged at 11:58 AM ET** on October 28 as
+`6fbe1acb33fa203d8420e047800f7650cbb56095`. Exact premerge head `ded6a3b6e`
+had all eleven checks green **before** protected auto-merge, and the existing
+fresh merged-main CI also passed all eleven. Full repository tree equivalence,
+check URLs and merge proof are in `delivery-1378-20261028.json`; the runtime and
+locked worktree are preserved. No billed/full-run smoke was repeated.
+
 ### Preserved CI failure, not a bypass
 
 The source-v2 head `7b1ae61089b97d49a5ba85d8d8d374413a4105e6` had ten passing
@@ -94,6 +192,18 @@ is preserved in `ci-profile-7b1ae6108-20261028.json`; cause is **undetermined**.
 It received **no manual rerun**. Protected delivery still requires **all eleven
 fresh current-head checks, including profile, green before auto-merge**; no
 old-head status, source/corpus change or budget weakening substitutes for that.
+
+The later evidence-only head `74ff472d3` had **10/11 passing checks** but
+failed native profile attempt 1: facts median **141.210 ms**, range
+**61.762–247.070 ms**. Its one explicitly authorized, scoped profile-job
+recovery failed projection instead: median **99.257 ms**, range
+**60.076–279.662 ms**; facts was **36.252 ms**. Both use the unchanged
+**37.5 ms** ceiling and pinned **2-job / 4-JSON / 31,716-byte** corpus; all
+eight source/workflow/profiler/lock/config/fixture identities equal the
+already-green protected base. Cause remains **undetermined**, not proven
+runner variance. No third recovery is authorized or armed. Both originals
+and the explicit-ID/created-at/generated-at/head/job binding for recovery
+artifact **12835770330** are retained in `ci-profile-74ff472d3-20261028.json`.
 
 ## Funded OpenRouter arm: source-ready, blocked before inference
 
@@ -228,7 +338,7 @@ extrapolates to about **228k input + 2.9k
 output tokens per scored trace**, **$0.0239/trace or $4.78 for 200** at uncached
 standard Gemini rates. It is not a coverage or quota guarantee.
 
-### Actual local verification and blocked run
+### Historical pre-seal verification and blocked paid run
 
 - Focused Python 3.12 source-v2 suite: **408 passed, 7 optional-runtime skips**
   across `tests/test_omp_model.py`, `test_paid_score.py`,
@@ -299,25 +409,25 @@ by the stopped Grok pilot. Strata affect only private ordering and offline scori
 they never enter scanner inputs or metadata. Grok scores are never reused as Kimi
 completions.
 
-**Exact current native continuation command, only after a newly authorized fresh
-quota prerequisite; no automatic new run is scheduled:**
+**There is no supported native continuation command.** The former `run.py run`
+entrypoint now fails once before preparation, quota, transport or per-trace
+handlers, regardless of quota, model name or `--limit`. Exact executed bytes are
+preserved as non-executable text under `sealed-native-cli-20261028/`; they are
+not an override or a ready-to-run replacement.
+
+The historical last valid source-v2 snapshot reported **October 28, 2026,
+1:23:00 PM ET** (`2026-10-28T17:23:00.652Z`). That timestamp cannot reopen the
+sealed protocol. The 37 numeric observations and 163 missing outcomes are kept
+as executed, not retried or converted to synthetic negatives.
+
+Only local offline scoring remains available through this entrypoint:
 
 ```bash
 /usr/bin/env PYTHONPATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/src \
   EVALLAB_DISABLE_LOCAL_DOCKER=1 PYTHON_DOTENV_DISABLED=1 \
   /private/tmp/trace-tools-metr-20261027-venv/bin/python \
-  /Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/research/evidence/runs/trace-tools-tt4-20261027/run.py run
+  /Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/research/evidence/runs/trace-tools-tt4-20261027/run.py score
 ```
-
-The last valid source-v2 snapshot reported **October 28, 2026, 1:23:00 PM ET**
-(`2026-10-28T17:23:00.652Z`), not permission to run on a timestamp alone.
-The command revalidates full fixed200 source/privacy proof and fresh exact
-machine-window metadata, starts no trace at ≥90% used in any applicable window,
-and clears the halt only after a fresh positive allowance. It skips the 37
-numeric completions and the privacy no-send; eligible uncalled inputs remain
-resumable, not terminal false negatives. Optional `--limit 10` bounds an
-invocation to the next ten pending attempts. `run.py score` makes no model/usage
-call and finalizes explicit null records for every missing outcome.
 
 The stopped Grok weekly window resets **October 30, 2026, 2:10:48 PM ET**
 (`2026-10-30T18:10:48.559Z`). Those historical subscription attempts used no
@@ -325,89 +435,54 @@ OpenRouter, Muse, Laminar ingestion, Docker or local inference. The separately
 approved funded OpenRouter arm above remains blocked before inference on its
 upstream-billing proof; it is not a fallback or a retroactive subscription result.
 
-## What the resumable command guarantees
+## Frozen native protocol and retained offline evidence
 
-- Exactly the retained **200 CM-9 Goodfire trace ids**, checked against both
-  `raw/cm2-monitor-20261026/goodfire-sample.json` and
-  `raw/cm9-window-budget-20261027/e2escore-muse-g.json`.
-- Every invocation rechecks **all 200** through `clouddb_blind.dev_trace_refs`:
-  exact DB `split='DEV'` plus `admitted_cloud_task_ids` with the complete
-  `CorpusRegistry` answer-key indexes in this owned worktree. Missing authority or
-  an inadmissible trace fails closed. The frozen sample hash cannot change.
-- `blind_messages` and `scout_clouddb.to_transcript` preserve full text, reasoning
-  and restored tool calls from the merged TT-1 modules; there is no dependency on
-  its staging worktree. Transcript ids
-  are salted opaque ids; metadata is only the blind schema/current projection
-  version, and message metadata only the original step index.
-  Labels/source/cohort/family fields are not sent.
-- The native, unmodified
-  `metr_scanners.reward_hacking.reward_hacking_scanner()` is used with
-  **`omp/kimi-code/k3.1-pro-highspeed` for the entire campaign**. Scanner prompts,
-  150,000-character chunking, native retry policy, Pydantic validation and
-  max-over-chunks reduction are unchanged. Oversized/context failures abstain;
-  nothing is clipped, relabelled or imputed.
-- Traces run **one at a time in round-robin order**, preserving stratified
-  attempt/completion order while each trace's chunks can use up to four
-  subprocesses. The numeric-score subset can still be unbalanced by abstentions;
-  no values are imputed to force balance.
-  Numeric native scores from the exact Kimi detector version are skipped on
-  repeat invocations. Grok, derived-threshold rows, nulls, booleans, NaNs and
-  out-of-range values never count as completed native scores.
-- Native interrupted scans are found by their opaque id and receipt path and
-  resumed with `scan_resume`. A file lock prevents duplicate live runners.
-  Genuine non-quota scanner failures become explicit terminal abstentions rather
-  than an endless resubmission loop. Missing/unrun traces remain abstentions in
-  aggregate scoring, never synthetic negatives or numeric scores.
-- Allowance is invalidated/refetched before each trace and watched every 30 seconds
-  during the native scan. **At ≥90% used in the shared five-hour allowance or any
-  monthly allowance**, or on an unknown/unavailable quota check, it writes a halt
-  file and interrupts the scan cleanly. The adapter checks that file **after
-  acquiring its semaphore**, so already queued calls cannot start after a stop.
-  Already in-flight requests can finish; no new trace starts. Only a fresh allowance
-  below the 90% ceiling in every window clears the campaign's own halt marker.
-- Per-call receipts survive interruption. Spend is recovered idempotently to the
-  canonical **`~/.local/state/evallab-failure-library/spend.jsonl`**, with the
-  trace-tools copy retained. Both ledgers carry the route, model, token totals,
-  explicit $0 subscription basis and stable batch identity. Failed-call usage is
-  unknown, not reported as observed zero tokens.
+- The sample remains the exact **200 CM-9 Goodfire trace ids**, with frozen
+  source/order hashes and DEV admission. Source/privacy preparation remains
+  separate from admission to any model transport.
+- Historical native typed actor transcripts preserved text, reasoning, restored
+  tool calls and original step ids. Scanner metadata contained only the blind
+  schema/projection version; labels/source/cohort/family were not supplied.
+- Historical METR **0.1.11 @ c12893d1**, prompts, 150,000-character chunking,
+  validation, max-over-chunks reduction and the fixed ≥5/≥7 thresholds are not
+  rewritten. The scored prefix remains **37**, with **163 explicit abstentions**.
+- The former quota watcher, retry/resume loop and four-subprocess transport are
+  historical implementation details, not currently supported safety guarantees.
+  Fresh allowance, a reset time or a model attestation cannot prove tool isolation.
+- Model/spend receipts retain their exact requested/served route, observed tokens,
+  $0 subscription basis and stable batch identities. Failed-call usage is unknown,
+  never invented as zero. The canonical ledger remains
+  `~/.local/state/evallab-failure-library/spend.jsonl`.
 
-Runtime transcripts, key maps, locks, native scan state and receipts are outside
-Git under:
+The historical scored attempt's transcripts, key maps, native scan state and
+receipts remain outside Git under:
 
 ```text
-~/.local/state/evallab-prod-live/trace-tools/tt4-metr-20261027/kimi-rr-seed-20261027/
+~/.local/state/evallab-prod-live/trace-tools/tt4-metr-20261027/kimi-20261028-native-actor-v2/
 ```
 
-Its `receipts/summary.json` contains per-stratum metrics and any reset/blocker;
-`receipts/quota.jsonl` retains fresh allowance reports. Native scan files remain
-under the primary checkout's ignored
-`derived/trace-lab/scout/scans/trace-tools/metr/` viewer root. The command does not
-write future run artifacts into the merged source checkout.
+Native scan files remain under the ignored
+`derived/trace-lab/scout/scans/trace-tools/metr/` viewer root. Local report parsing
+and scoring do not reactivate generation, quota polling or scanner handlers.
 
-## Adapter and runtime
+## Historical parser and retained runtime; live provider sealed
 
-`evallab.readers.omp_model.register_omp_provider()` lazily registers Inspect's
-`omp/<provider>/<model>` provider. No Inspect dependency is added to the base
-package. The transport uses the retained CM-9 command:
+`parse_omp_stream`, text rendering and credential-filtering utilities remain
+available for historical/offline inspection. The original parser validated one
+terminal assistant message, served-model identity, stop reason, usage and
+refusal/fallback conditions. It did **not** independently attest the absence of
+internal tool side effects; raw CLI tool-event counts remain unknown.
 
-```text
-omp -p --mode json --no-session --no-tools --no-lsp --no-extensions
-  --no-skills --no-rules --no-title --no-pty --config <no-fallback-overlay>
-  --model <provider/model> --system-prompt <system> --thinking low
-```
+`register_omp_provider()` and `call_omp()` now raise the explicit
+`OmpTransportSealedError` before importing Inspect, registering a provider,
+handling credentials, writing receipts or starting a subprocess. No real
+provider is registered behind a fake model or fallback. The exact former CLI
+command and implementation are historical text snapshots, not live transport.
 
-The child environment removes inherited API/auth/access/OAuth-token variables;
-stored OMP account state remains discoverable. Memory is off, OMP retries and
-fallback chains are disabled, and every successful final stream must contain one
-assistant reply with the **exact requested served model**, normal stop, text and
-native usage. Fallback events, mismatch, refusal, missing usage, truncated streams
-or non-text responses raise. A shared bounded semaphore caps child processes at
-four. A response schema becomes a JSON-only system instruction; METR still does
-its own validation. No answer-key aliasing or Markdown repair is applied.
-
-The existing isolated runtime is Python **3.13.17**, Inspect Scout **0.5.4**,
+The retained isolated environment is Python **3.13.17**, Inspect Scout **0.5.4**,
 Inspect AI **0.3.285**, METR scanners **0.1.11 @ c12893d1**, DuckDB **1.5.5**.
-`runtime.json` records the resolved packages. To rebuild it without model spend:
+`runtime.json` records the packages. This environment supports offline parsing,
+scoring and synthetic tests; rebuilding it does **not** unseal native generation:
 
 ```bash
 uv venv --python 3.13 /private/tmp/trace-tools-metr-20261027-venv
@@ -458,23 +533,23 @@ before any result**; `reward_hacking_scanner@ge5` and `@ge7` add explicit boolea
 flags (null on abstention), with evidence steps from native message references.
 Grok and Kimi have distinct model-specific detector versions.
 
-## Token planning and checks
+## Historical token usage and offline checks
 
-The Grok pilot observed **1,820,079 input tokens including cache reads** and
-**22,988 output tokens**, over 41 attested calls and ten requested traces:
-approximately **182,000 input + 2,300 output tokens per requested trace**, or
-228,000 + 2,900 per completed score when unfinished-work overhead is included.
-For the Kimi handoff, plan on roughly **0.2M input and 2–3k output tokens per
-trace**, with a wide trace-length/chunking spread. This is an empirical planning
-estimate, **not a measured Kimi token rate or a guarantee that 200 fit one window**.
-Marginal monetary cost is **$0 on the explicitly approved subscription**; unknown
-usage on six failed calls is excluded from the observed token totals.
+The scored Kimi prefix observed **2,651,418 input tokens including cache** and
+**38,840 output tokens** across 79 model-attested calls: approximately
+**71,660 input + 1,050 output tokens per scored trace**. This is historical
+measurement, not a forecast or permission for another native call.
 
-Focused coverage includes fallback/model/refusal/truncation boundaries, lossless
-text rendering, environment stripping, four-process concurrency, queued-call halt,
-seeded round-robin ordering, model-isolated resumption, partial-ledger recovery,
-and the 90% five-hour/monthly headroom boundary with unknown-quota rejection.
-The base environment's optional Inspect test skips; the separate Python 3.13
-runtime exercises registration, schema instructions and native usage without a
-hosted model call. Exact exercised check results and the PR state are reported in
-the delivery, not inferred from this protocol.
+The separate Grok pilot observed **1,820,079 input tokens including cache reads**
+and **22,988 output tokens** over 41 attested calls and ten requested traces.
+Unknown usage on its six failed calls is excluded, not reported as observed zero.
+Both arms used an explicitly approved subscription at **$0 marginal cost**.
+
+Current behavioral coverage targets unconditional denial before any transport,
+Inspect registration, quota read, source preparation or scanner handler, including
+direct and repeated entrypoint calls. Historical parser/model/refusal validation,
+pure fresh-window/≥90% quota-report validation and offline scoring remain covered.
+This proves the **default-deny seal**, not a repaired hard tool-free CLI. Exact
+exercised results and protected current-head delivery evidence are reported
+separately; the historical 415-test result above is not reused as fresh proof.
+

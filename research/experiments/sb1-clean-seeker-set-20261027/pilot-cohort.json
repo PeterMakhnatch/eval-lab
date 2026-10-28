@@ -1,0 +1,1299 @@
+{
+  "assignments_csv_sha256": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+  "builder_sha256": "sha256:91f2b052aaabdae77de83e98dcfee50c99c0baae5dd6e1d8a72e0f0422606e5a",
+  "digest_algorithms": {
+    "exact_tree": "evallab.upstream_grader._tree_digest (includes modes and empty directories)",
+    "grader": "evallab.registry.compute_subpath_digest over tests/ (or verifier/); entire port source for port rows",
+    "package": "evallab.registry.task_directory_digest",
+    "static_plan": "sha256 of canonical compact sorted-key JSON returned by run_candidate(plan=True)"
+  },
+  "git_head": "28659e5ba0ad840446545ad49508db0063e09a17",
+  "pilot": {
+    "parent": "cohort.json",
+    "rule": "evenly spaced by sorted task_id: 6 of 36 mimo-defect-map-v1, 5 of 8 tb4-audit-v1; no cost or outcome criterion"
+  },
+  "planning": {
+    "backend": "modal",
+    "grader_executions": 0,
+    "model_calls": 0,
+    "plan": true,
+    "reserved_usd": 0.0,
+    "timeout_seconds": 600
+  },
+  "schema": "evallab.sb1_clean_seeker_set/v1",
+  "source_files": {
+    "research/answer-keys/breaker-bench-v1/pairs.jsonl": "sha256:a6bb215b4d55cc40be865dc8ea168c745e737eae324f5ce6fc0cdbcb8a70dd18",
+    "research/answer-keys/tb2-to-tb21-v1/pairs.jsonl": "sha256:4b68f6a9d007e21f1a9e9fda3a6ca5878ddbe7489d5837422787aef9efcc3511",
+    "research/answer-keys/tb4-audit-v1/tasks.jsonl": "sha256:b5a70285a7995272ad09ac0de7248ba409f7ee3ada5d906316218e3322b0de40",
+    "research/experiments/mimo-defect-map-v1/inventory.json": "sha256:33d0a46b7069572d013e27932059c304c3174dac0669a436f6d8ddc7fd685065",
+    "research/experiments/mimo-defect-map-v1/repairs.json": "sha256:2917f286cbe672f49a047bc917e8dd94cc42baf9c74a2375f3d496b626435606",
+    "research/experiments/mimo-executed-clean-v1/manifest.json": "sha256:4f51d0ae3a65aa36be9cf86976ec37e5ef816bf27f936524ceb42586df0d231b",
+    "research/experiments/seeker-gym-v0/gym.json": "sha256:f231e764d7babf3776275bb40a4af5b314016a57ba9d993329a5b548728d2a82",
+    "research/experiments/ts3-hide-tests-two-turn-20261025/manifest.json": "sha256:75061b7dc40c1c0bb6eb1444664690d8c8f397f533ab200fbf26a46960c194b1"
+  },
+  "tasks": [
+    {
+      "assignment_rows": [
+        {
+          "item_id": "mimo-weak-tests-v2:task:format-code-task-000079@443bc8ed6bfe",
+          "key_id": "mimo-weak-tests-v2",
+          "split": "dev",
+          "task": "format-code-task-000079",
+          "unit": "mimo-v2.6-rl/format-code-task-000079"
+        },
+        {
+          "item_id": "mimo-weak-tests-v2.1:task:format-code-task-000079@443bc8ed6bfe",
+          "key_id": "mimo-weak-tests-v2.1",
+          "split": "dev",
+          "task": "format-code-task-000079",
+          "unit": "mimo-v2.6-rl/format-code-task-000079"
+        }
+      ],
+      "dataset_id": "mimo-defect-map-v1",
+      "original_exact_tree_digest": "sha256:c85d9937e608eebc473daa0311f08da954f028bace5fb273d3ec8c085383f1e4",
+      "original_grader_digest": "sha256:e0a89deba7ce089194afdb4a981c7303dad25169939ef3067b1b82a753992b80",
+      "original_package_digest": "sha256:443bc8ed6bfe34f19c7b0c92e2ea081c09d93dac05f56c71c1be62c26a211fa5",
+      "original_reservation_usd": 1.063703,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000079",
+      "reason_code": "qualified",
+      "repaired_exact_tree_digest": "sha256:a812b976b7899eec73874a2ade9f0abb60688d483176dafe8d72dbddf13fbcd1",
+      "repaired_grader_digest": "sha256:631cfe3cd13d12aa9b42837b500f330387ae4b050ae98e10bb3222558c1f2b39",
+      "repaired_grader_kind": "package",
+      "repaired_package_digest": "sha256:5fabed86931c24b0b1b1519295a511db37318c0b5b0c70d3481e5918515add5c",
+      "repaired_reservation_basis": "native_plan",
+      "repaired_reservation_usd": 1.063703,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000079/20d92a160e7e8756",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "mimo-defect-map-v1/inventory+repairs",
+        "mimo-defect-map-v1/inventory-fallback",
+        "mimo-defect-map-v1/repairs",
+        "mimo-executed-clean-v1",
+        "seeker-gym-v0"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:706c450fa440c21eb8087123ab8831f6b36e6e56771923c2e46e5f49b0a2aef3",
+        "repaired": "sha256:ea2f9891231b61cbb5cb54addae8d96f694a957def71e11d0b69203ccd0c2232"
+      },
+      "task_id": "format-code-task-000079"
+    },
+    {
+      "assignment_rows": [
+        {
+          "item_id": "mimo-stratified-sample100:task:format-code-task-000322@f8e3a0380fae",
+          "key_id": "mimo-stratified-sample100",
+          "split": "dev",
+          "task": "format-code-task-000322",
+          "unit": "mimo-v2.6-rl/format-code-task-000322"
+        },
+        {
+          "item_id": "mimo-weak-tests-v2:task:format-code-task-000322@f8e3a0380fae",
+          "key_id": "mimo-weak-tests-v2",
+          "split": "dev",
+          "task": "format-code-task-000322",
+          "unit": "mimo-v2.6-rl/format-code-task-000322"
+        },
+        {
+          "item_id": "mimo-weak-tests-v2.1:task:format-code-task-000322@f8e3a0380fae",
+          "key_id": "mimo-weak-tests-v2.1",
+          "split": "dev",
+          "task": "format-code-task-000322",
+          "unit": "mimo-v2.6-rl/format-code-task-000322"
+        }
+      ],
+      "dataset_id": "mimo-defect-map-v1",
+      "original_exact_tree_digest": "sha256:a1f159462fbb70556effd2c14d2f816a0346adcdfc506552ae6c75c8553b3af6",
+      "original_grader_digest": "sha256:87499b394cf7aabb021952fadd07129624074c0645d19d22955e4abb91151a6c",
+      "original_package_digest": "sha256:f8e3a0380faead850e005eb613b68d1018c1c8287c1e5ea6b2fda4b70cb950dc",
+      "original_reservation_usd": 1.063703,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000322",
+      "reason_code": "qualified",
+      "repaired_exact_tree_digest": "sha256:949ba823029b8a47bc74ef2e08bd1c2ed7030a1ee295237207b00b8f21b971ae",
+      "repaired_grader_digest": "sha256:7677a88ca928aaff8fb7ddadad95197eefd75a88c945c878e7fee60a202e7479",
+      "repaired_grader_kind": "package",
+      "repaired_package_digest": "sha256:10f6117ab511f24f5d3f45720f187142c02b55f04893168288900b41d682b805",
+      "repaired_reservation_basis": "native_plan",
+      "repaired_reservation_usd": 1.063703,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000322/c9fdf32bb3b38a0f",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "mimo-defect-map-v1/inventory-fallback"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:909b2b3d659f30c83bf6b7921d40ce920dc22df5bd0dbb3aba3cd1bfde7a5bb9",
+        "repaired": "sha256:74bd588e8fa03e162365bf88dc52883859f034ffbca431212dc7f9ad5a18146e"
+      },
+      "task_id": "format-code-task-000322"
+    },
+    {
+      "assignment_rows": [
+        {
+          "item_id": "executed-outcomes-v1:mimo-v2.6-rl/format-code-task-000847@a4f5adc97868",
+          "key_id": "executed-outcomes-v1",
+          "split": "dev",
+          "task": "format-code-task-000847",
+          "unit": "mimo-v2.6-rl/format-code-task-000847"
+        },
+        {
+          "item_id": "mimo-weak-tests-v1:task:format-code-task-000847@a4f5adc97868",
+          "key_id": "mimo-weak-tests-v1",
+          "split": "dev",
+          "task": "format-code-task-000847",
+          "unit": "mimo-v2.6-rl/format-code-task-000847"
+        },
+        {
+          "item_id": "mimo-weak-tests-v2:task:format-code-task-000847@a4f5adc97868",
+          "key_id": "mimo-weak-tests-v2",
+          "split": "dev",
+          "task": "format-code-task-000847",
+          "unit": "mimo-v2.6-rl/format-code-task-000847"
+        },
+        {
+          "item_id": "mimo-weak-tests-v2.1:task:format-code-task-000847@a4f5adc97868",
+          "key_id": "mimo-weak-tests-v2.1",
+          "split": "dev",
+          "task": "format-code-task-000847",
+          "unit": "mimo-v2.6-rl/format-code-task-000847"
+        }
+      ],
+      "dataset_id": "mimo-defect-map-v1",
+      "original_exact_tree_digest": "sha256:7e5a9ba5acb8bafd26c438fe70b72743345f6aa82e6dc7a69ef5115cf63cdacf",
+      "original_grader_digest": "sha256:ff8e648dca71e9d65c5b64eae781f85f1a8d9da1f343836f5342af58c64bb12d",
+      "original_package_digest": "sha256:a4f5adc9786868367f9d44a858a32936316b52dbd36ad724c9d859cd992f60d6",
+      "original_reservation_usd": 1.063703,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000847",
+      "reason_code": "qualified",
+      "repaired_exact_tree_digest": "sha256:b0f48fd87d551f534b616c417bc313c1be54625c49e1142b38e5dc1458a1b38f",
+      "repaired_grader_digest": "sha256:66f07f32323ecd7c58aa384c1f8d57ef6867c36fc12b9b1d23ff656dd7e24109",
+      "repaired_grader_kind": "package",
+      "repaired_package_digest": "sha256:4f6e801bfb0bb714487eb3cd8f01d5996a3c1f77507d4f837dc83f7b72bdee88",
+      "repaired_reservation_basis": "native_plan",
+      "repaired_reservation_usd": 1.063703,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000847/137d2ca3957acfe4",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "mimo-defect-map-v1/inventory-fallback"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:56efd09914b60795a32120c3c6576eb208eb501c0f2d2753683fe66e08eaa686",
+        "repaired": "sha256:ece05cd73d8d3b5c6d71e56b1ebbd399211874e21d81645995303429e66aba74"
+      },
+      "task_id": "format-code-task-000847"
+    },
+    {
+      "assignment_rows": [
+        {
+          "item_id": "mimo-weak-tests-v2:task:format-code-task-001338@bb254ac8363e",
+          "key_id": "mimo-weak-tests-v2",
+          "split": "dev",
+          "task": "format-code-task-001338",
+          "unit": "mimo-v2.6-rl/format-code-task-001338"
+        },
+        {
+          "item_id": "mimo-weak-tests-v2.1:task:format-code-task-001338@bb254ac8363e",
+          "key_id": "mimo-weak-tests-v2.1",
+          "split": "dev",
+          "task": "format-code-task-001338",
+          "unit": "mimo-v2.6-rl/format-code-task-001338"
+        }
+      ],
+      "dataset_id": "mimo-defect-map-v1",
+      "original_exact_tree_digest": "sha256:2338a264fe040aef90fdcabddaca6e9a11945bbdd79a238113c86cfa7f195035",
+      "original_grader_digest": "sha256:5557d11c2b8bf612df1477fd9bca33f2454ee1b00ed499791f79077bc4e72993",
+      "original_package_digest": "sha256:bb254ac8363ead39d979510874add4a7233cfb144dbb6f409143d6f6bf4adc2a",
+      "original_reservation_usd": 1.063703,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001338",
+      "reason_code": "qualified",
+      "repaired_exact_tree_digest": "sha256:cc69559560a80c66b08190db186536a5a88da9980b8680ec6aef4a9371a18548",
+      "repaired_grader_digest": "sha256:a2ff86d5a7a3eddf791d344229b03fbed917498e481f7d012025b80a550118b7",
+      "repaired_grader_kind": "package",
+      "repaired_package_digest": "sha256:f5e5865025f95f875407b193ac105eaddbf73ef45216f8097a92547a60fcef70",
+      "repaired_reservation_basis": "native_plan",
+      "repaired_reservation_usd": 1.063703,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-001338/decf912bc0c96f42",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "mimo-defect-map-v1/inventory-fallback"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:aa867ee94dd0a9a3e5bb704eec478a181e30bcb0390ca993298ea31a383bc484",
+        "repaired": "sha256:364dfa35fbf61ec398b73cdfac7afc7f97bf6459028a8ad95cdff600e310bbe2"
+      },
+      "task_id": "format-code-task-001338"
+    },
+    {
+      "assignment_rows": [
+        {
+          "item_id": "mimo-weak-tests-v2.1:task:format-code-task-001850@5be1b852ba5e",
+          "key_id": "mimo-weak-tests-v2.1",
+          "split": "dev",
+          "task": "format-code-task-001850",
+          "unit": "mimo-v2.6-rl/format-code-task-001850"
+        }
+      ],
+      "dataset_id": "mimo-defect-map-v1",
+      "original_exact_tree_digest": "sha256:18e4bdc0c0cdf6067cfc40a892c875edd596fe10fecbe781890155ecb1f6d658",
+      "original_grader_digest": "sha256:c4122b13792c1bd89e561d99437bbcdaf64945fce47d1115a1c8890ebaf00181",
+      "original_package_digest": "sha256:5be1b852ba5e57f339200fec84121e019c4d5c9b5073f83f580d7cd58f0fe41f",
+      "original_reservation_usd": 1.063703,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001850",
+      "reason_code": "qualified",
+      "repaired_exact_tree_digest": "sha256:c3de750c97273f40cdc893223c93e91c596225f0ac3cad907ae75dcf921253c8",
+      "repaired_grader_digest": "sha256:75c7c0f9e3d737de9c51153d1839e973a78333a044e34490ead5de0159a165ab",
+      "repaired_grader_kind": "package",
+      "repaired_package_digest": "sha256:44d8b019f4b51ebbcb5fa464e134ca8ee50cb4b2d1da9d9241a383e206f8b0ef",
+      "repaired_reservation_basis": "native_plan",
+      "repaired_reservation_usd": 1.063703,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-001850/25aa655393228334",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "mimo-defect-map-v1/inventory-fallback"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:45357a19e568591c9ad1180a46bc0312293289c2fa9003a25fff90e8e1da29c0",
+        "repaired": "sha256:6af43dfdc0ae48d5c55d45079f71fc537c91abc90830e302397e3fd6d31721b2"
+      },
+      "task_id": "format-code-task-001850"
+    },
+    {
+      "assignment_rows": [
+        {
+          "item_id": "mimo-stratified-sample100:task:format-code-task-002545@1a8328d4702d",
+          "key_id": "mimo-stratified-sample100",
+          "split": "dev",
+          "task": "format-code-task-002545",
+          "unit": "mimo-v2.6-rl/format-code-task-002545"
+        },
+        {
+          "item_id": "mimo-weak-tests-v2:task:format-code-task-002545@1a8328d4702d",
+          "key_id": "mimo-weak-tests-v2",
+          "split": "dev",
+          "task": "format-code-task-002545",
+          "unit": "mimo-v2.6-rl/format-code-task-002545"
+        },
+        {
+          "item_id": "mimo-weak-tests-v2.1:task:format-code-task-002545@1a8328d4702d",
+          "key_id": "mimo-weak-tests-v2.1",
+          "split": "dev",
+          "task": "format-code-task-002545",
+          "unit": "mimo-v2.6-rl/format-code-task-002545"
+        }
+      ],
+      "dataset_id": "mimo-defect-map-v1",
+      "original_exact_tree_digest": "sha256:2c6827c5d279b44d4f819829e048864086013d746a7641133f5d07f5fd1ce1e3",
+      "original_grader_digest": "sha256:c06e933d225b6d585cfd80a926e27ce9ae41483bd63c5270012fcaab12cbbbdf",
+      "original_package_digest": "sha256:1a8328d4702dc1c0f38b5e3d0266121da3fd56bdd6ce8c6d6cd3cfd5d0233205",
+      "original_reservation_usd": 1.063703,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002545",
+      "reason_code": "qualified",
+      "repaired_exact_tree_digest": "sha256:9501a6017c9b38045bd977b1201e1927d6d23a5213db5bdb3162205bc8ec1a2e",
+      "repaired_grader_digest": "sha256:e3b08453ff6edbb1a989d07664e8f0883b7a97006a6d066d52dc5cc93159697f",
+      "repaired_grader_kind": "package",
+      "repaired_package_digest": "sha256:ed0fb7b4f59d53a39550c5b8967364868650323d59d2ae892f6303fc8d0700b0",
+      "repaired_reservation_basis": "native_plan",
+      "repaired_reservation_usd": 1.063703,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-002545/43ec115a18f790b7",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.063703,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "mimo-defect-map-v1/inventory-fallback"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:200a378c7aaa014286ce4b8a33f5ce8adc2ed0c050761d91c0a8aec41873ebe6",
+        "repaired": "sha256:e0c9e5bd1b4804c049165ba2a7efc4ba0217c08f24c5c5b282deca87c38d6b0f"
+      },
+      "task_id": "format-code-task-002545"
+    },
+    {
+      "assignment_rows": [
+        {
+          "item_id": "pm-tb4:cad-model:7d23c2489f",
+          "key_id": "tb4-audit-v1",
+          "split": "dev",
+          "task": "cad-model",
+          "unit": "terminal-bench/cad-model"
+        }
+      ],
+      "dataset_id": "tb4-audit-v1",
+      "original_exact_tree_digest": "sha256:655ae5b5df52d5eb23ee177dbe6338f74048ecf1dcbc3eca705273a26f063505",
+      "original_grader_digest": "sha256:96b9bc053b8a35defd248c262232d50e68a05b71be9ae2ebd456321b36c60547",
+      "original_package_digest": "sha256:b1510cc3d08d1348baff6e941efc32e5fcf2380cde3ab87165be332b07730e70",
+      "original_reservation_usd": 0.861165,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/cad-model",
+      "reason_code": "qualified",
+      "repaired_adapter_digest": "sha256:d4bb8e87e45c01e4a2f89526d8415c75a80328ebab5bdafc74933e8b6b5a2cb1",
+      "repaired_exact_tree_digest": "sha256:3f17019874aaaf3e8bdc047928055037964ff1e8bd18451f149772ecef6674c2",
+      "repaired_grader_digest": "sha256:1390401bb994cb9be3f9aeaf1c673567c0e66fd2f992c6029e98d8f8d1cd9928",
+      "repaired_grader_kind": "port",
+      "repaired_package_digest": "sha256:1390401bb994cb9be3f9aeaf1c673567c0e66fd2f992c6029e98d8f8d1cd9928",
+      "repaired_reservation_basis": "adapter_resources_native_formula",
+      "repaired_reservation_usd": 0.861165,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/cad-model",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 0.861165,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            },
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "verifier",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 0.861165,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            },
+            {
+              "cpus": 2,
+              "memory_mb": 8192,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "verifier",
+              "sandbox_estimate_usd": 0.091218,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "corpus-registry/tb4-audit-v1",
+        "seeker-gym-v0"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:b8e60c44564bd7b8ca6e121b328d47a2a44de8c7db9bd96291200f3b70f56b5a",
+        "repaired": "sha256:4f6094e3268bcdc308f8bf5d0786f1c635e1afc1a965f8e06e850b405444f4ce"
+      },
+      "task_id": "cad-model"
+    },
+    {
+      "assignment_rows": [
+        {
+          "item_id": "terminal-bench/fin-saccr-rwa",
+          "key_id": "envcheck-tb4-39",
+          "split": "dev",
+          "task": "fin-saccr-rwa",
+          "unit": "terminal-bench/fin-saccr-rwa"
+        },
+        {
+          "item_id": "executed-outcomes-v1:terminal-bench/fin-saccr-rwa@ec0ad66e5d1c",
+          "key_id": "executed-outcomes-v1",
+          "split": "dev",
+          "task": "fin-saccr-rwa",
+          "unit": "terminal-bench/fin-saccr-rwa"
+        },
+        {
+          "item_id": "pm-tb4:fin-saccr-rwa:89ffd51aac",
+          "key_id": "tb4-audit-v1",
+          "split": "dev",
+          "task": "fin-saccr-rwa",
+          "unit": "terminal-bench/fin-saccr-rwa"
+        }
+      ],
+      "dataset_id": "tb4-audit-v1",
+      "original_exact_tree_digest": "sha256:62a4d45ab4306945a535c5315e3ab882b58fa4b41900bd1f8987a629317b3b7c",
+      "original_grader_digest": "sha256:619b6c096df5778e63cd659b813428cb07d56329c4bb91d74036b8a4e400cfb3",
+      "original_package_digest": "sha256:ec0ad66e5d1cfd0f99fc973b2ba503ca415388dadd4d4977f1a2bdcf8d9d4ddf",
+      "original_reservation_usd": 0.815142,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/fin-saccr-rwa",
+      "reason_code": "qualified",
+      "repaired_adapter_digest": "sha256:8f33e4f7afde3419a9bc629bcab148a7a08beeec46c07048bf9c0faab3e180cc",
+      "repaired_exact_tree_digest": "sha256:55d039be97d11253861165965955c9afd47fa744d1cc7c089a49533b3578cb16",
+      "repaired_grader_digest": "sha256:24bc0c0e86b77d2d85fd4eb5848080016ab7338f31be48ac650a5a082b68a608",
+      "repaired_grader_kind": "port",
+      "repaired_package_digest": "sha256:24bc0c0e86b77d2d85fd4eb5848080016ab7338f31be48ac650a5a082b68a608",
+      "repaired_reservation_basis": "adapter_resources_native_formula",
+      "repaired_reservation_usd": 0.815142,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/fin-saccr-rwa",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 0.815142,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            },
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "verifier",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 0.815142,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            },
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "verifier",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "corpus-registry/tb4-audit-v1",
+        "retained-ts3/by_task",
+        "seeker-gym-v0"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:0d6edf27e8e6f6e2560c552fd85706e1541fb04279139810de35e6c62e37b48f",
+        "repaired": "sha256:fe778146cefaff04a71fa60eabb2bb421001b92e37ed427a29e7cb8172ed7c99"
+      },
+      "task_id": "fin-saccr-rwa"
+    },
+    {
+      "assignment_rows": [
+        {
+          "item_id": "pm-tb4:freecad-spring-clip:0dd6eb117b",
+          "key_id": "tb4-audit-v1",
+          "split": "dev",
+          "task": "freecad-spring-clip",
+          "unit": "terminal-bench/freecad-spring-clip"
+        },
+        {
+          "item_id": "pm-tb4:freecad-spring-clip:20a4f05f95",
+          "key_id": "tb4-audit-v1",
+          "split": "dev",
+          "task": "freecad-spring-clip",
+          "unit": "terminal-bench/freecad-spring-clip"
+        },
+        {
+          "item_id": "pm-tb4:freecad-spring-clip:240252f1e1",
+          "key_id": "tb4-audit-v1",
+          "split": "dev",
+          "task": "freecad-spring-clip",
+          "unit": "terminal-bench/freecad-spring-clip"
+        },
+        {
+          "item_id": "pm-tb4:freecad-spring-clip:6601461b66",
+          "key_id": "tb4-audit-v1",
+          "split": "dev",
+          "task": "freecad-spring-clip",
+          "unit": "terminal-bench/freecad-spring-clip"
+        },
+        {
+          "item_id": "pm-tb4:freecad-spring-clip:c675f909ca",
+          "key_id": "tb4-audit-v1",
+          "split": "dev",
+          "task": "freecad-spring-clip",
+          "unit": "terminal-bench/freecad-spring-clip"
+        }
+      ],
+      "dataset_id": "tb4-audit-v1",
+      "original_exact_tree_digest": "sha256:016b051830f929b312791bd27c07972aefc5047dcc64e81a2d363297480f7549",
+      "original_grader_digest": "sha256:b24d0dd03ab38a1b9df30925e2c5691a39b4691fa42f903d1bd6fcf16ef3ea96",
+      "original_package_digest": "sha256:eebc7f2071da3fdda7525262aefe22bd094a4da9111caf2c7147d7adc541d318",
+      "original_reservation_usd": 2.081382,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/freecad-spring-clip",
+      "reason_code": "qualified",
+      "repaired_adapter_digest": "sha256:e221c3fcf8453bbd6c8d809f5d34ce3d2150595b0526783e35b81b050ffc5dce",
+      "repaired_exact_tree_digest": "sha256:3ff6c0428b35f9b6f033479a4f94530d516f527b3f75bc16b9d6a350ae024585",
+      "repaired_grader_digest": "sha256:f90529e8bfcd9476ebab5af3297bae4387192b7b1ba51d3a07c000daffc6a1e4",
+      "repaired_grader_kind": "port",
+      "repaired_package_digest": "sha256:f90529e8bfcd9476ebab5af3297bae4387192b7b1ba51d3a07c000daffc6a1e4",
+      "repaired_reservation_basis": "adapter_resources_native_formula",
+      "repaired_reservation_usd": 2.081382,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/freecad-spring-clip",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 2.081382,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            },
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "verifier",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 2.081382,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            },
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 1800.0,
+              "preparation_estimate_usd": 0.759744,
+              "role": "verifier",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "corpus-registry/tb4-audit-v1",
+        "retained-ts3/by_task",
+        "seeker-gym-v0"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:95e4469478ef6f420ca079c246038e13782448328419d4baea34d5105b8acecc",
+        "repaired": "sha256:132f2e7ce1af0942d70e320e6dd29025af48ca0b8d398d03d6df8581463de4b4"
+      },
+      "task_id": "freecad-spring-clip"
+    },
+    {
+      "assignment_rows": [
+        {
+          "item_id": "pm-tb4:gsea-proteomics:4343745cf3",
+          "key_id": "tb4-audit-v1",
+          "split": "dev",
+          "task": "gsea-proteomics",
+          "unit": "terminal-bench/gsea-proteomics"
+        },
+        {
+          "item_id": "pm-tb4:gsea-proteomics:8203fba3ef",
+          "key_id": "tb4-audit-v1",
+          "split": "dev",
+          "task": "gsea-proteomics",
+          "unit": "terminal-bench/gsea-proteomics"
+        }
+      ],
+      "dataset_id": "tb4-audit-v1",
+      "original_exact_tree_digest": "sha256:56f93a25bdfb185c58d3018988b121c3c599836479fd33d380d44edfb3112ad4",
+      "original_grader_digest": "sha256:1852c7e25d3df5b70a5f673b92e4ce344c9077ea79b59bf3217ef403d7d4ca29",
+      "original_package_digest": "sha256:34fd0c57cd9c898b095fab780246f7c9dbce83fc9ef9bf47787a43b7b3a1c6e6",
+      "original_reservation_usd": 1.267701,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/gsea-proteomics",
+      "reason_code": "qualified",
+      "repaired_adapter_digest": "sha256:e1ac02da2bd2c192e052d09f3f44881cbd9b41709e19057af1734c502addc999",
+      "repaired_exact_tree_digest": "sha256:762bd0c9c65dd6e7437c0e3bdf0509625c8c9e72d347127a492f1e932f66f77a",
+      "repaired_grader_digest": "sha256:003059e91b243bb680db7ec79b366e22955c381de5d6879697ab2856eda0b422",
+      "repaired_grader_kind": "port",
+      "repaired_package_digest": "sha256:003059e91b243bb680db7ec79b366e22955c381de5d6879697ab2856eda0b422",
+      "repaired_reservation_basis": "adapter_resources_native_formula",
+      "repaired_reservation_usd": 1.267701,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/gsea-proteomics",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.267701,
+          "roles": [
+            {
+              "cpus": 4,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 900.0,
+              "preparation_estimate_usd": 0.379872,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.1272084,
+              "sandbox_lifetime_seconds": 690
+            },
+            {
+              "cpus": 4,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 900.0,
+              "preparation_estimate_usd": 0.379872,
+              "role": "verifier",
+              "sandbox_estimate_usd": 0.1272084,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 1.267701,
+          "roles": [
+            {
+              "cpus": 4,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 900.0,
+              "preparation_estimate_usd": 0.379872,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.1272084,
+              "sandbox_lifetime_seconds": 690
+            },
+            {
+              "cpus": 4,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 900.0,
+              "preparation_estimate_usd": 0.379872,
+              "role": "verifier",
+              "sandbox_estimate_usd": 0.1272084,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "corpus-registry/tb4-audit-v1",
+        "seeker-gym-v0"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:29d59399551795ac74417f0173168d9a87df7c1dd0dbb8869b6255c36f8cc85b",
+        "repaired": "sha256:2aaa9df54ce1ade456559bf7d6e16e2d886f0e1f66bccc18a2a7a74c7c292bb1"
+      },
+      "task_id": "gsea-proteomics"
+    },
+    {
+      "assignment_rows": [
+        {
+          "item_id": "pm-tb4:photonic-waveguide-routing:c7b7ba6862",
+          "key_id": "tb4-audit-v1",
+          "split": "dev",
+          "task": "photonic-waveguide-routing",
+          "unit": "terminal-bench/photonic-waveguide-routing"
+        }
+      ],
+      "dataset_id": "tb4-audit-v1",
+      "original_exact_tree_digest": "sha256:9ec439c9836562d160750a594a419d307ef600717e61b821221b58729afcb252",
+      "original_grader_digest": "sha256:8239705430f07d74237e421ccefbfd62c68def46aba6eb8fd082e9c38d0a7a78",
+      "original_package_digest": "sha256:c707929145d98244b6a06cf891308c42dba43439339a25bce4f88ca5b51e4695",
+      "original_reservation_usd": 0.815142,
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/photonic-waveguide-routing",
+      "reason_code": "qualified",
+      "repaired_adapter_digest": "sha256:716e18475f596f2915b00a3f14bbf484755b09847913cc63981f19c6b1d15c9f",
+      "repaired_exact_tree_digest": "sha256:8bd8d25c008fd734a964cf8dbd106534ed3f9b6cf7d7b7472b9175ef2199ddeb",
+      "repaired_grader_digest": "sha256:002fb4565671154142a9e75c0526381d429876a6fac755d70101415127e67971",
+      "repaired_grader_kind": "port",
+      "repaired_package_digest": "sha256:002fb4565671154142a9e75c0526381d429876a6fac755d70101415127e67971",
+      "repaired_reservation_basis": "adapter_resources_native_formula",
+      "repaired_reservation_usd": 0.815142,
+      "repaired_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/photonic-waveguide-routing",
+      "reservation_estimates": {
+        "original": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 0.815142,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            },
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "verifier",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        },
+        "repaired": {
+          "price_basis": {
+            "basis": "resource/lifetime reservation estimates, not invoices or a provider dollar kill switch",
+            "contingency_multiplier": 1.25,
+            "cpu_usd_per_core_second": 3.942e-05,
+            "finalization_basis": "only measured native success plus affirmative completed image hydration and terminal public SDK wait for every owned sandbox; both role builder and task resources charged for rounded-up whole-lifecycle elapsed",
+            "memory_usd_per_gib_second": 6.67e-06,
+            "preparation_cpus": 8,
+            "preparation_lifetime_basis": "full declared build_timeout_sec; provider builder timeout/cancellation is not claimed",
+            "preparation_memory_mb": 16384,
+            "preparation_rate_basis": "conservative Sandbox rates also used for the larger builder allowance; not assumed Functions pricing",
+            "rates_source": "https://modal.com/pricing (Sandbox rates, observed 2026-10-20)",
+            "sandbox_create_attempts": 1,
+            "spend_scope": "Modal infrastructure only; excludes task, solution and verifier external-API charges, which require separate caller authorization",
+            "version": "upstream-grader-resource-lifetime/v1"
+          },
+          "reserved_usd": 0.815142,
+          "roles": [
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "agent",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            },
+            {
+              "cpus": 2,
+              "memory_mb": 4096,
+              "preparation_allowance_seconds": 600.0,
+              "preparation_estimate_usd": 0.253248,
+              "role": "verifier",
+              "sandbox_estimate_usd": 0.07280879999999999,
+              "sandbox_lifetime_seconds": 690
+            }
+          ]
+        }
+      },
+      "sources": [
+        "cloud-db/paired-digests",
+        "cloud-db/variants",
+        "corpus-registry/tb4-audit-v1",
+        "seeker-gym-v0"
+      ],
+      "static_plan_digests": {
+        "original": "sha256:3d984bfeca89011c3d70591004715240c9f868c64a0a3430797053d9a30b8e20",
+        "repaired": "sha256:8d6942834c415a68b36b3a282e5982d14e1535f01831eaf6b8fa28c04f466561"
+      },
+      "task_id": "photonic-waveguide-routing"
+    }
+  ]
+}

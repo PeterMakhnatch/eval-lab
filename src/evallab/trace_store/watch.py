@@ -160,7 +160,7 @@ def new_laminar_target() -> Any:
 
 
 def _preflight() -> tuple[Any | None, str | None]:
-    """Verify Signals are off once, before any hosted sync. Never leaks provider text."""
+    """Verify Laminar Signals are off before its selected pass. Never leaks provider text."""
     requests = 0
     uploader: Any | None = None
     error: str | None = None
@@ -232,7 +232,9 @@ def _tick(
         results[name] = _view(status, states[name])
         _save_state(state_path, states)
 
-    if todo:
+    guard: Any | None = None
+    # Keep the shared refusal for both-target ticks, even if only Docent is due.
+    if todo and "laminar" in selected:
         guard, refusal = _preflight()
         if guard is None:
             for name in todo:

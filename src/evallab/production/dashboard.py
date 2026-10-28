@@ -126,6 +126,7 @@ DASHBOARD: str = r"""<!doctype html>
   <div><label for="atlas-eval_awareness">Eval awareness</label><select id="atlas-eval_awareness"><option value="">Any eval awareness</option></select></div>
   <div><label for="atlas-facet_model">Reader (facet model)</label><select id="atlas-facet_model"><option value="">Any reader</option></select></div>
   <div><label for="atlas-alarmed_by">Detector alarm</label><select id="atlas-alarmed_by"><option value="">Any detector alarm</option></select></div>
+  <div><label for="atlas-results">Detector results</label><select id="atlas-results"><option value="">Any detector results</option></select></div>
   <div><label for="atlas-min_suspicion">Min suspicion · counts at exact value</label><select id="atlas-min_suspicion"><option value="">Any suspicion</option></select></div>
   <div><label for="atlas-grader_or_harness_touched">Grader / harness touched</label><select id="atlas-grader_or_harness_touched"><option value="">Any</option></select></div>
   <div><label for="atlas-answer_material_accessed">Answer material accessed</label><select id="atlas-answer_material_accessed"><option value="">Any</option></select></div>
@@ -790,12 +791,28 @@ function atlasAlarms(run,available){
  const chips=node('div',undefined,'chips');
  for(const name of list(run.alarms))chips.append(badge(name,'warn'));
  if(!available)chips.append(node('small','No detector results retained'));
- else if(!chips.children.length)chips.append(node('small',run.detector_results_n===0?'No detector read this run':
+ else if(!chips.children.length)chips.append(node('small',run.detector_results_n===0?'No recorded detector result':
   run.actor_inputs_available===false?'No actor transcript: unknown, not clean':'No detector alarm'));
- if(available&&run.detector_results_n>0)chips.append(node('small','read by '+cloudCount(run.detector_results_n)+(run.detector_results_n===1?' detector':' detectors')));
+ if(available&&run.detector_results_n>0)chips.append(node('small','results from '+cloudCount(run.detector_results_n)+(run.detector_results_n===1?' detector':' detectors')));
  return chips;
 }
-function atlasOptions(options){
+function atlasResultsOptions(options,available){
+ const select=$('atlas-results'),selected=select.value,counts=options.results||{};
+ select.replaceChildren();
+ select.disabled=!available;
+ if(!available){
+  const option=node('option','No detector results retained');option.value='';select.append(option);select.value='';return;
+ }
+ for(const [value,label] of [['','Any detector results'],['any','Has detector results ('+cloudCount(counts.any||0)+')'],
+  ['none','No recorded detector result ('+cloudCount(counts.none||0)+')']]){
+  const option=node('option',label);option.value=value;select.append(option);
+ }
+ if(selected&&!Array.from(select.options).some(option=>option.value===selected)){
+  const option=node('option',selected+' (not in current options)');option.value=selected;select.append(option);
+ }
+ select.value=selected;
+}
+function atlasOptions(options,available){
  for(const [key,any] of atlasCategories){
   const select=$('atlas-'+key),selected=select.value,first=node('option',any);
   first.value='';select.replaceChildren(first);
@@ -815,6 +832,7 @@ function atlasOptions(options){
   }
   select.value=selected;
  }
+ atlasResultsOptions(options,available);
 }
 function atlasHealth(data){
  const store=data.store,parent=$('cloud-atlas-health'),counts=node('div',undefined,'atlas-health');
@@ -883,7 +901,7 @@ function atlasRuns(data){
    'No facets have been written yet. Nothing is fabricated.':
    'No admitted DEV runs match these filters. Reset filters or inspect store health.','empty'));return;
  }
-const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Detector alarms','Dataset / task','Goal','Approach','Shortcut',
+const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Detectors · results / alarms','Dataset / task','Goal','Approach','Shortcut',
   'Tests','Facet flags','Eval awareness','Tokens in / out','Clusters','Reader · facet version · blinding'],runs.map(run=>{
   const open=button(String(run.run_id).slice(0,20),()=>openAtlasRun(run.run_id,open),'link');
   open.title=run.run_id;open.setAttribute('aria-label','Open run '+run.run_id);open.dataset.runId=run.run_id;openers.push(open);
@@ -915,7 +933,7 @@ async function loadAtlas(){
  try{
   const data=await cloudApi('/api/cloud-db/atlas?'+params);
   if(version!==atlasListVersion)return;
-  atlasOptions(data.options);atlasHealth(data);atlasTree(list(data.clusters));atlasRuns(data);
+  atlasOptions(data.options,data.alarms_available);atlasHealth(data);atlasTree(list(data.clusters));atlasRuns(data);
   notice('cloud-atlas-status',data.notice);
   history.replaceState(null,'',atlasLink());
  }catch(error){
@@ -1139,12 +1157,12 @@ $('atlas-run-refresh').addEventListener('click',()=>{if(atlasRunId)openAtlasRun(
 $('atlas-view').addEventListener('keydown',event=>{
  if(event.key==='Escape'&&!$('atlas-run-panel').hidden){event.preventDefault();closeAtlasRun();}
 });
-const atlasFilterKeys=[...atlasCategories,...atlasBooleans].map(([key])=>key).concat('sort');
+const atlasFilterKeys=[...atlasCategories,...atlasBooleans].map(([key])=>key).concat('sort','results');
 function atlasFilterParams(){
  const params=new URLSearchParams();
  for(const key of atlasFilterKeys){
   const value=$('atlas-'+key).value;
-  if(value&&!(key==='sort'&&value==='suspicion'))params.set(key,value);
+  if(value&&!(key==='sort'&&value==='suspicion')&&!(key==='results'&&$('atlas-results').disabled))params.set(key,value);
  }
  const query=$('atlas-query').value.trim();if(query)params.set('q',query);
  if(atlasCluster)params.set('cluster_id',atlasCluster);

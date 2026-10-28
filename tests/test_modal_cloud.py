@@ -3440,10 +3440,20 @@ def test_atlas_picks_runs_by_detector_alarms_from_tool_results_and_harness_findi
     client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
 ) -> None:
     url = "/api/cloud-db/atlas"
-    _write_atlas(runtime, [_atlas_facet(VERIFIED, suspicion=1), _atlas_facet(PROVISIONAL, suspicion=3)])
+    _write_atlas(
+        runtime,
+        [
+            _atlas_facet(VERIFIED, suspicion=1),
+            _atlas_facet(PROVISIONAL, suspicion=3),
+            _atlas_facet(REFUTED, suspicion=2, evidence_steps=[5]),
+        ],
+    )
     before = client.get(url, headers=AUTH).json()
     assert before["alarms_available"] is False and before["options"]["alarmed_by"] == {}
-    assert [run["alarms"] for run in before["runs"]] == [[], []]  # nothing recorded: not "no alarm"
+    assert before["options"]["results"] == {}  # no source retained: never "no result"
+    assert [run["alarms"] for run in before["runs"]] == [[], [], []]  # nothing recorded: not "no alarm"
+    assert [run["detector_results_n"] for run in before["runs"]] == [0, 0, 0]
+    assert client.get(url, headers=AUTH, params={"results": "none"}).json()["total"] == 0
 
     tools = runtime.data_root / "trace-tools"
     tools.mkdir()
@@ -3467,20 +3477,28 @@ def test_atlas_picks_runs_by_detector_alarms_from_tool_results_and_harness_findi
     listing = client.get(url, headers=AUTH).json()
     assert listing["alarms_available"] is True
     assert {run["run_id"]: run["alarms"] for run in listing["runs"]} == {
-        VERIFIED: ["run_health.loop", "scout"], PROVISIONAL: [],  # a clear and a clean read add no alarm
+        VERIFIED: ["run_health.loop", "scout"], PROVISIONAL: [], REFUTED: [],  # a clear and a clean read add no alarm
     }
+    assert {run["run_id"]: run["detector_results_n"] for run in listing["runs"]} == {
+        VERIFIED: 2, PROVISIONAL: 2, REFUTED: 0,  # scout + run_health.loop; scout + facets; nothing recorded
+    }
+    assert listing["options"]["results"] == {"any": 2, "none": 1}
     rows = {run["run_id"]: run for run in listing["runs"]}
-    # a clear or a clean read adds no alarm but still counts as read; PROVISIONAL has no actor transcript
+    # a clear or a clean read adds no alarm but still counts as a recorded result; PROVISIONAL has no actor transcript
     assert (rows[VERIFIED]["detector_results_n"], rows[VERIFIED]["actor_inputs_available"]) == (2, True)
     assert (rows[PROVISIONAL]["detector_results_n"], rows[PROVISIONAL]["actor_inputs_available"]) == (2, False)
     assert listing["options"]["alarmed_by"] == {"run_health.loop": 1, "scout": 1}
-    assert [run["run_id"] for run in listing["runs"]] == [PROVISIONAL, VERIFIED]  # suspicion order by default
+    assert [run["run_id"] for run in listing["runs"]] == [PROVISIONAL, REFUTED, VERIFIED]  # suspicion order by default
+    unread = client.get(url, headers=AUTH, params={"results": "none"}).json()
+    assert [run["run_id"] for run in unread["runs"]] == [REFUTED] and unread["total"] == 1
+    read = client.get(url, headers=AUTH, params={"results": "any"}).json()
+    assert [run["run_id"] for run in read["runs"]] == [PROVISIONAL, VERIFIED]
     by_alarms = client.get(url, headers=AUTH, params={"sort": "alarms"}).json()
-    assert [run["run_id"] for run in by_alarms["runs"]] == [VERIFIED, PROVISIONAL]
+    assert [run["run_id"] for run in by_alarms["runs"]] == [VERIFIED, PROVISIONAL, REFUTED]
     scout = client.get(url, headers=AUTH, params={"alarmed_by": "scout"}).json()
     assert [run["run_id"] for run in scout["runs"]] == [VERIFIED] and scout["total"] == 1
     assert client.get(url, headers=AUTH, params={"alarmed_by": "nobody"}).json()["total"] == 0
-    for bad in ({"alarmed_by": "a b"}, {"alarmed_by": "x" * 81}, {"sort": "random"}):
+    for bad in ({"alarmed_by": "a b"}, {"alarmed_by": "x" * 81}, {"sort": "random"}, {"results": "some"}):
         assert client.get(url, headers=AUTH, params=bad).status_code == 422
 
 

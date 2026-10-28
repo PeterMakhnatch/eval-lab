@@ -83,7 +83,7 @@ inputs:
   - path: docs/live-supervisor.md
     digest: sha256:2e737b34a3a41ecb627fa93d94d10610dabf9dc3f9c28aaf720a2daf047f4180
   - path: docs/live-watch.md
-    digest: sha256:f57774603a04786c12ab6051e86d0b03f170eb4e9f688fce513798d6d1bcf581
+    digest: sha256:1ecb1adab864a2b3c9771b03d20d4862d9f7635296d0ce8225aeecfefc287ba6
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md

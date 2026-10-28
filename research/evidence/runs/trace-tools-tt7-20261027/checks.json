@@ -39,7 +39,7 @@
     "ci_green_claim": false
   },
   "publication_constraints": {
-    "public_data_files_checked": 11,
+    "public_data_files_checked": 21,
     "original_sample_run_id_hit_files": 0,
     "aggregate_score_contains_raw_label_field": false,
     "aggregate_score_contains_per_run_evidence_steps": false,
@@ -55,6 +55,25 @@
     "known_output_tokens": 14488,
     "omp_known_uncached_list_price_equivalent_usd": 16.4030989,
     "raw_ledger_committed": false
+  },
+  "reviewability_fix": {
+    "failed_ci_head": "eff1ed252cf8d55cc3d0716efd94cbf678df1a62",
+    "failed_ci_test_merge": "8468523fc6f1759a28f64c084d3f185950d8263f",
+    "failed_ci_job": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40608576402/job/122554174892",
+    "failure": "test_curated_evidence_files_remain_reviewable rejected the former 7253973-byte monolithic score.json against the existing 2 MiB per-file cap",
+    "fix": "Lossless v2 aggregate index plus one replay shard per cheap arm; no test or model/form changes",
+    "index_bytes": 1031188,
+    "replay_shards": 10,
+    "largest_shard_bytes": 652311,
+    "all_16_arms_and_68_replays_deep_equal": true,
+    "markdown_byte_identical": true,
+    "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-20261027/score.py --readings-finalized research/evidence/runs/trace-tools-tt7-20261027/readings-finalized.json --out research/evidence/runs/trace-tools-tt7-20261027/score.json && env EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run --locked --python 3.12 pytest -q -n 0 tests/test_repository_contract.py::test_curated_evidence_files_remain_reviewable && make check",
+    "observed_exit_code": 0,
+    "combined_elapsed_s": 80.99,
+    "focused_test_passed": true,
+    "focused_tests_selected": 1,
+    "static_passed": true,
+    "model_calls": 0
   },
   "src_package_changes": false,
   "ci_claim": "No CI-green claim is made by this local checkpoint. Exact-head required GitHub checks and merge evidence are separate."

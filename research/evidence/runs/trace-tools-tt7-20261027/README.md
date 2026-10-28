@@ -254,8 +254,12 @@ change, or paid fallback occurred**.
 
 [`score.md`](score.md) contains every arm and **all 68 cheap × frontier
 replays**, for both predeclared forms, both sources, and both the full-200
-and identical prefix-60 views. [`score.json`](score.json) is the complete
-aggregate machine-readable record. Neither contains run-level labels, forms,
+and identical prefix-60 views. [`score.json`](score.json) indexes the complete
+aggregate machine-readable record: its arm metrics plus **10 replay shards**,
+one per cheap arm, with relative paths, pair counts, and SHA-256 hashes.
+Every individual evidence file stays below the repository's 2 MiB reviewability
+limit; sharding drops no metrics or pairs and does not weaken that test.
+None of these artifacts contains run-level labels, forms,
 trace content, or evidence-step lists. Labels and Goodfire passage annotations
 were first joined only after `readings-finalized.json` closed all reading arms.
 The readers and frozen prompt had already been committed and pushed as

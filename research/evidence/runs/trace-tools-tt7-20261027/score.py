@@ -25,9 +25,10 @@ total_sample=200, threshold=0.70. Every arm and replay has a supplemental
 prefix_60 view on exactly the first 60 frozen sample rows, irrespective of
 its declared scope. Prefix-only rows never enter main recommendations.
 
---out FILE.json writes FILE.json and FILE.md; --out DIRECTORY writes score.json
-and score.md there. Both contain aggregates only, never run IDs, trace text,
-forms, evidence-step IDs, per-run labels, or local error payloads. Recommendations
+--out FILE.json writes an aggregate index FILE.json, FILE.md, and one JSON replay
+shard per cheap arm; --out DIRECTORY uses score as the filename stem. Every
+output contains aggregates only, never run IDs, trace text, forms, evidence-step
+IDs, per-run labels, or local error payloads. Recommendations
 use full-coverage Goodfire DEV only; CheatBench is an unchanged cross-test.
 
 The decided-only denominators and Wilson calculation follow the pure
@@ -1014,7 +1015,7 @@ def main() -> None:
                             "scope": "prefix-60" if min(cheap.target_run_count, frontier.target_run_count) == 60 else "full-200",
                             "by_form": by_form})
     report = {
-        "schema": "tt7.aggregate_score/v1", "sample_runs": 200,
+        "schema": "tt7.aggregate_score/v2", "sample_runs": 200,
         "sample_sha256": SAMPLE_SHA256, "labels_sha256": LABELS_SHA256,
         "readings_finalized_manifest_sha256": _digest(manifest_bytes),
         "finalized": True, "declared_reading_arms": len(manifest["arms"]),
@@ -1055,10 +1056,26 @@ def main() -> None:
         raise ValueError("aggregate outputs must not overwrite scorer inputs or code")
     json_path.parent.mkdir(parents=True, exist_ok=True)
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(json.dumps(report, sort_keys=True, indent=2, allow_nan=False) + "\n")
+    index_report = {key: value for key, value in report.items() if key != "replayed_cascades"}
+    index_report["replayed_pair_count"] = len(replays)
+    index_report["replayed_cascade_shards"] = []
+    for number, cheap in enumerate(sorted({replay["cheap"] for replay in replays}), start=1):
+        group = [replay for replay in replays if replay["cheap"] == cheap]
+        shard_path = json_path.with_name(f"{json_path.stem}-replays-{number:02}.json")
+        payload = json.dumps({"schema": "tt7.aggregate_replay_shard/v1", "cheap": cheap,
+                              "replayed_cascades": group}, sort_keys=True, indent=2,
+                             allow_nan=False) + "\n"
+        shard_path.write_text(payload)
+        index_report["replayed_cascade_shards"].append({
+            "path": shard_path.name, "cheap": cheap, "pair_count": len(group),
+            "sha256": _digest(payload.encode()),
+        })
+    json_path.write_text(json.dumps(index_report, sort_keys=True, indent=2, allow_nan=False) + "\n")
     markdown_path.write_text(_markdown(report))
     print(json.dumps({"json": str(json_path), "markdown": str(markdown_path),
-                      "arms": len(arms), "replayed_pairs": len(replays), "sample_runs": 200}, sort_keys=True))
+                      "arms": len(arms), "replayed_pairs": len(replays),
+                      "replay_shards": len(index_report["replayed_cascade_shards"]),
+                      "sample_runs": 200}, sort_keys=True))
 
 
 if __name__ == "__main__":

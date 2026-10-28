@@ -1,0 +1,76 @@
+{
+  "schema": "evallab.trace_tools_kimi_reset/v1",
+  "model_requested": "kimi-code/k3.1-pro-highspeed",
+  "inspect_model": "omp/kimi-code/k3.1-pro-highspeed",
+  "detector_version": "metr-scanners/0.1.11@c12893d1;scanner-v0;omp-kimi-code-k3.1-pro-highspeed",
+  "started_at": "2026-10-28T02:33:49.192885+00:00",
+  "ended_at": "2026-10-28T02:34:08.780521+00:00",
+  "elapsed_seconds": 19.587636,
+  "returncode": 0,
+  "command": [
+    "/private/tmp/trace-tools-metr-20261027-venv/bin/python",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/research/evidence/runs/trace-tools-tt4-20261027/run.py",
+    "run"
+  ],
+  "sample_n": 200,
+  "scan_attempts": 0,
+  "model_subprocess_attempts": 0,
+  "attested_calls": 0,
+  "served_models": [],
+  "scored": 0,
+  "abstentions": 200,
+  "remaining_resumable": 200,
+  "terminal_scanner_failures": 0,
+  "strata": {
+    "enacted_yes": {"n": 80, "scored": 0, "abstentions": 80},
+    "clean_no": {"n": 70, "scored": 0, "abstentions": 70},
+    "considered_only": {"n": 50, "scored": 0, "abstentions": 50}
+  },
+  "quota": {
+    "observed_at": "2026-10-28T02:34:06.665229+00:00",
+    "available": false,
+    "stop_used_fraction": 0.9,
+    "five_hour_used_fraction": 1,
+    "five_hour_status": "exhausted",
+    "monthly_total_used_fraction": 0.6105,
+    "monthly_code_used_fraction": 0.6032,
+    "reset_at": "2026-10-28T07:23:00.652000+00:00",
+    "reason": "The first fresh preflight found the shared five-hour allowance already 100% exhausted. The coding-headroom guard stopped before starting any scanner or model subprocess. Monthly allowances were below the 90% ceiling. This is resumable quota abstention, not a terminal scanner failure."
+  },
+  "metrics": {
+    "thresholds_predeclared": [5, 7],
+    "primary_scored": 0,
+    "primary_abstentions": 150,
+    "considered_only_abstentions": 50,
+    "recall": null,
+    "false_alarm_rate": null,
+    "auroc": null,
+    "metr_only_true_positives": null,
+    "interpretation": "No Kimi detection result exists; zero coverage cannot be interpreted as zero sensitivity."
+  },
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "usd": 0,
+  "basis": "Authorized stored Kimi Code OAuth subscription; zero generation calls. No paid fallback, no automatic rerun, no model switch.",
+  "result_store": {
+    "scan": "quota-preflight:tt4-kimi:2026-10-28T02:34:06.665229+00:00",
+    "native_abstention_records": 200,
+    "ge5_abstention_records": 200,
+    "ge7_abstention_records": 200,
+    "values_and_flags": "all null; this identifier is a preflight receipt, not a native Scout scan"
+  },
+  "spend": {
+    "runs": 0,
+    "canonical_ledger": "~/.local/state/evallab-failure-library/spend.jsonl",
+    "legacy_copy": "~/.local/state/evallab-prod-live/trace-tools/spend.jsonl",
+    "campaign_copy": "~/.local/state/evallab-prod-live/trace-tools/tt4-metr-20261027/kimi-rr-seed-20261027/receipts/spend.jsonl",
+    "batch_marker": "tt4-kimi-reset-20261028T023406Z"
+  },
+  "provenance": {
+    "driver_receipt": "~/.local/state/evallab-prod-live/trace-tools/kimi-resume-20261027.json",
+    "driver_log": "~/.local/state/evallab-prod-live/trace-tools/metr-kimi-resume.log",
+    "structured_summary": "~/.local/state/evallab-prod-live/trace-tools/tt4-metr-20261027/kimi-rr-seed-20261027/receipts/summary.json",
+    "quota_receipt": "~/.local/state/evallab-prod-live/trace-tools/tt4-metr-20261027/kimi-rr-seed-20261027/receipts/blocked.json",
+    "preceding_driver_job": "own-cascade-kimi finished before METR; this receipt does not attribute all shared-quota consumption to that job"
+  }
+}

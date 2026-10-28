@@ -2638,13 +2638,16 @@ def test_atlas_admission_precedes_trace_body_reads(
     reads = _guard_atlas_step_bodies(runtime, monkeypatch, denied)
 
     assert set(runtime._atlas_traces()) == {"trace-atlas-allowed"}
+    assert reads == []  # identity collection does not inspect transcript contents
     listing = client.get("/api/cloud-db/atlas", headers=AUTH)
     assert listing.status_code == 200, listing.text
     assert {run["run_id"] for run in listing.json()["runs"]} == {"trace-atlas-allowed"}
+    assert listing.json()["runs"][0]["actor_inputs_available"] is True
+    assert "Synthetic body." not in listing.text  # presence is returned, never the actor text
     for trace_id in denied:
         response = client.get("/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": trace_id})
         assert response.status_code == 404, response.text
-    assert reads == []
+    assert not denied.intersection(reads)
     detail = client.get(
         "/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": "trace-atlas-allowed"}
     )
@@ -3466,6 +3469,10 @@ def test_atlas_picks_runs_by_detector_alarms_from_tool_results_and_harness_findi
     assert {run["run_id"]: run["alarms"] for run in listing["runs"]} == {
         VERIFIED: ["run_health.loop", "scout"], PROVISIONAL: [],  # a clear and a clean read add no alarm
     }
+    rows = {run["run_id"]: run for run in listing["runs"]}
+    # a clear or a clean read adds no alarm but still counts as read; PROVISIONAL has no actor transcript
+    assert (rows[VERIFIED]["detector_results_n"], rows[VERIFIED]["actor_inputs_available"]) == (2, True)
+    assert (rows[PROVISIONAL]["detector_results_n"], rows[PROVISIONAL]["actor_inputs_available"]) == (2, False)
     assert listing["options"]["alarmed_by"] == {"run_health.loop": 1, "scout": 1}
     assert [run["run_id"] for run in listing["runs"]] == [PROVISIONAL, VERIFIED]  # suspicion order by default
     by_alarms = client.get(url, headers=AUTH, params={"sort": "alarms"}).json()
@@ -3473,7 +3480,7 @@ def test_atlas_picks_runs_by_detector_alarms_from_tool_results_and_harness_findi
     scout = client.get(url, headers=AUTH, params={"alarmed_by": "scout"}).json()
     assert [run["run_id"] for run in scout["runs"]] == [VERIFIED] and scout["total"] == 1
     assert client.get(url, headers=AUTH, params={"alarmed_by": "nobody"}).json()["total"] == 0
-    for bad in ({"alarmed_by": "a b"}, {"alarmed_by": "x" * 61}, {"sort": "random"}):
+    for bad in ({"alarmed_by": "a b"}, {"alarmed_by": "x" * 81}, {"sort": "random"}):
         assert client.get(url, headers=AUTH, params=bad).status_code == 422
 
 

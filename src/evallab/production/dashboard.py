@@ -789,7 +789,10 @@ let atlasOffset=0,atlasCluster='',atlasListVersion=0,atlasRunVersion=0,atlasRunI
 function atlasAlarms(run,available){
  const chips=node('div',undefined,'chips');
  for(const name of list(run.alarms))chips.append(badge(name,'warn'));
- if(!chips.children.length)chips.append(node('small',available?'No detector alarm':'No detector results retained'));
+ if(!available)chips.append(node('small','No detector results retained'));
+ else if(!chips.children.length)chips.append(node('small',run.detector_results_n===0?'No detector read this run':
+  run.actor_inputs_available===false?'No actor transcript: unknown, not clean':'No detector alarm'));
+ if(available&&run.detector_results_n>0)chips.append(node('small','read by '+cloudCount(run.detector_results_n)+(run.detector_results_n===1?' detector':' detectors')));
  return chips;
 }
 function atlasOptions(options){

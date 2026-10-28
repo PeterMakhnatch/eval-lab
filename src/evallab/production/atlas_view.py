@@ -387,6 +387,7 @@ def atlas_listing(
     offset: int = 0,
     blinding: Mapping[str, str] | None = None,
     alarms: Mapping[str, Collection[str]] | None = None,
+    read: Mapping[str, int] | None = None,
     alarms_available: bool = False,
 ) -> dict[str, Any]:
     """Cluster tree, filter counts and one page of matching runs for the admitted DEV set."""
@@ -464,6 +465,7 @@ def atlas_listing(
                 "step_count": traces[run_id]["step_count"],
                 "cluster_ids": by_run[run_id],
                 "alarms": sorted(alarmed.get(run_id, ())),
+                "detector_results_n": (read or {}).get(run_id, 0),
                 "blinding": None if blinding is None else blinding.get(run_id),
             }
             for run_id in page

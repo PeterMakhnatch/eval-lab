@@ -1788,13 +1788,18 @@ is reachable without scrolling past them. Two
 parameters pick runs by what the detectors recorded: `alarmed_by=<name>` keeps runs on which that
 detector alarms, and `sort=alarms` orders runs by how many distinct detectors alarm (then
 suspicion, then id; the default stays suspicion first). A detector name is a whole-run tool from
-`trace-tools/results-v1.jsonl` with a flagged result (`scout`, `metr`, `laminar`, `docent`) or a
-`trace-findings/v1` detector with an `alarm` verdict in `trace-harness/findings-v1.jsonl`
-(`cascade`, `facets`, `tripwire`, `run_health.loop`, ...). Each run row carries `alarms` (sorted
+`trace-tools/results-v1.jsonl` with a flagged result (`scout`, `scout_metr`, `laminar`, `docent`,
+`omp`) or a `trace-findings/v1` detector with an `alarm` verdict in
+`trace-harness/findings-v1.jsonl` (`cascade`, `facets`, `metr`, `tripwire`, `run_health.loop`, ...).
+Matching names across sources count once; separately named versions, such as `cascade_v4`,
+remain separate leads, not independent votes or evidence of quality. Each run row carries `alarms` (sorted
 names), `options.alarmed_by` counts admitted runs per detector, and `alarms_available` says
 whether either source is retained: an empty `alarms` with `alarms_available: false` means nothing
 was recorded, never that no detector alarmed. A detector that read the run and found nothing, or
-abstained, adds nothing. The page shows these as the **Detector alarm** filter, the **Order**
+abstained, adds nothing, but it counts in `detector_results_n` (how many distinct detectors
+recorded any result for the run), and `actor_inputs_available` says whether the run has an agent
+step with text or a tool call. With no alarm the cell therefore says one of "No detector read this
+run", "No actor transcript: unknown, not clean" or "No detector alarm", never a bare pass. The page shows these as the **Detector alarm** filter, the **Order**
 selector and a **Detector alarms** column, all in the shareable `#atlas?alarmed_by=&sort=` link.
 An agent can use the same endpoint with the bearer token, for example
 `GET /api/cloud-db/atlas?alarmed_by=scout&sort=alarms&limit=25`, then open
@@ -2082,6 +2087,8 @@ under `<data_root>/trace-harness/` feed it, both optional and both re-read only 
   JSON key) is counted by reason on the page and never shown; no reason repeats the line. A version
   may use letters, digits and `. _ / + : @ -` (up to 80 characters). The contract stores an absent
   latency as 0, so a latency of 0 is shown as not recorded and left out of the mean.
+  A missing score stays null and is shown as not recorded; it is not a measured zero. The cloud
+  findings loader accepts files up to 48 MiB to bound retained-memory use.
 - `scorecard-v1.json`: `evallab.trace_scorecard/v1`, counts only: per corpus and detector
   combination, the reader model (`none` for a deterministic detector), recall hits and false alarms
   at the 3% and 5% false-alarm budgets, localization, cost per 1,000 runs, median latency and, for a

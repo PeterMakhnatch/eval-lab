@@ -288,7 +288,9 @@ def test_detector_alarms_filter_order_and_never_turn_missing_results_into_a_pass
     alarms = {"run-b": ["scout", "metr", "run_health.loop"], "run-c": ["scout"], "run-ghost": ["scout"]}
 
     def listing(**fields: Any) -> dict[str, Any]:
-        return atlas_listing(store, TRACES, AtlasFilters(**fields), alarms=alarms, alarms_available=True)
+        return atlas_listing(
+            store, TRACES, AtlasFilters(**fields), alarms=alarms, read={"run-b": 3, "run-c": 1}, alarms_available=True
+        )
 
     default = listing()
     assert [run["run_id"] for run in default["runs"]] == ["run-a", "run-c", "run-b"]  # suspicion order is unchanged
@@ -304,6 +306,7 @@ def test_detector_alarms_filter_order_and_never_turn_missing_results_into_a_pass
     silent = atlas_listing(store, TRACES, AtlasFilters())
     assert silent["alarms_available"] is False and silent["options"]["alarmed_by"] == {}
     assert all(run["alarms"] == [] for run in silent["runs"])
+    assert {run["run_id"]: run["detector_results_n"] for run in default["runs"]} == {"run-a": 0, "run-c": 1, "run-b": 3}
 
 
 def test_cluster_paths_run_root_to_leaf(tmp_path: Path) -> None:

@@ -615,22 +615,31 @@ class CloudRuntime:
             )
         return found
 
-    def _run_alarms(self, run_ids: Collection[str]) -> tuple[dict[str, list[str]], bool]:
-        """Per run, the detectors that alarm on it: whole-run tool results and harness findings.
+    def _run_alarms(
+        self, run_ids: Collection[str]
+    ) -> tuple[dict[str, list[str]], dict[str, int], bool]:
+        """Per run, the detectors that alarm on it and how many detectors read it at all.
 
-        A detector that recorded nothing for a run adds nothing; the flag says whether any source is
-        retained at all, so "no run alarmed" is never confused with "nothing was read".
+        Sources are whole-run tool results and harness findings. A detector that recorded nothing for
+        a run adds nothing; the flag says whether any source is retained, so "no run alarmed" is never
+        confused with "nothing was read".
         """
         tools = self._tool_results.for_runs(run_ids)
         findings = self._harness_findings.get()
         by_run = findings["by_run"]
         alarms: dict[str, list[str]] = {}
+        read: dict[str, int] = {}
         for run in run_ids:
-            names = {tool for tool, entry in tools.get(run, {}).items() if entry["flagged"]}
-            names.update(record["detector"] for record in by_run.get(run, {}).values() if record["verdict"] == "alarm")
+            entries = tools.get(run, {})
+            records = by_run.get(run, {}).values()
+            names = {tool for tool, entry in entries.items() if entry["flagged"]}
+            names.update(record["detector"] for record in records if record["verdict"] == "alarm")
             if names:
                 alarms[run] = sorted(names)
-        return alarms, self._tool_results.error is None or bool(findings["present"])
+            readers = set(entries) | {record["detector"] for record in records}
+            if readers:
+                read[run] = len(readers)
+        return alarms, read, self._tool_results.error is None or bool(findings["present"])
 
     def _harness_overview(self) -> dict[str, Any]:
         findings = self._harness_findings.get()
@@ -848,7 +857,7 @@ class CloudRuntime:
             grader_or_harness_touched: bool | None = None,
             answer_material_accessed: bool | None = None,
             success_claim_without_evidence: bool | None = None,
-            alarmed_by: str | None = Query(None, pattern=r"^[A-Za-z0-9_.-]{1,60}$"),
+            alarmed_by: str | None = Query(None, pattern=r"^[A-Za-z0-9_.-]{1,80}$"),
             sort: Literal["suspicion", "alarms"] = "suspicion",
             cluster_id: str | None = None,
             limit: int = Query(50, ge=1, le=atlas_view.MAX_PAGE),
@@ -874,8 +883,8 @@ class CloudRuntime:
             try:
                 store, traces = self._atlas_store(), self._atlas_traces()
                 shown, _ = atlas_view.visible_facets(store, traces)
-                alarms, available = self._run_alarms(shown)
-                return atlas_view.atlas_listing(
+                alarms, read, available = self._run_alarms(shown)
+                listing = atlas_view.atlas_listing(
                     store,
                     traces,
                     filters,
@@ -883,8 +892,13 @@ class CloudRuntime:
                     offset=offset,
                     blinding=atlas_coverage.blinding_states(self._atlas_refresh.get(), shown),
                     alarms=alarms,
+                    read=read,
                     alarms_available=available,
                 )
+                with_transcript = self._actor_runs([row["run_id"] for row in listing["runs"]])
+                for row in listing["runs"]:
+                    row["actor_inputs_available"] = row["run_id"] in with_transcript
+                return listing
             except ValueError as error:
                 raise HTTPException(400, str(error)) from error
 

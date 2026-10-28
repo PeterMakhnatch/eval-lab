@@ -71,6 +71,15 @@ def test_a_clear_on_a_run_with_no_actor_transcript_is_shown_unknown() -> None:
     assert card["run"]["actor_inputs_available"] is False and "no actor transcript" in card["notice"]
 
 
+def test_missing_scores_stay_unknown_while_a_measured_zero_stays_zero() -> None:
+    missing = _finding(detector="scout", verdict="abstain")
+    missing.pop("score")
+    card = _card([missing, _finding(detector="metr", verdict="abstain", score=None),
+                  _finding(detector="cascade", verdict="clear", score=0)])
+    scores = {row["detector"]: row["score"] for group in card["groups"] for row in group["results"]}
+    assert scores == {"scout": None, "metr": None, "cascade": 0}
+
+
 def test_cited_steps_outside_the_run_are_hidden_and_counted() -> None:
     card = _card([_finding(evidence_steps=[2, 5, 77])], steps={2, 5})
     only = card["groups"][0]["results"][0]

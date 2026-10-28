@@ -1,0 +1,71 @@
+{
+  "schema": "oq6.route-local-stage-continuation/v1",
+  "study_version": "v5",
+  "parent_version": "v4",
+  "parent_freeze_sha256": "b4dbfc443fcb962d1e95474308e563232c082a227211641c3086c24cd50945e6",
+  "change_scope": [
+    "Route-local scheduling prevents an independent audit provider's keyed queue from idling another provider.",
+    "Explicit remaining-role selection references closed prior consumption instead of repeating any sent request.",
+    "Unique coverage and actual usage are reconciled across immutable phases."
+  ],
+  "unchanged_science": [
+    "Every original admitted DEV and original-cross source view and task/package digest",
+    "Every original A/B auditor prompt, including the bounded historical-context amendment",
+    "Frozen production parsing, both eligibility gates and one-to-one causal-key matching",
+    "The same native auditor routes and fixed Sonnet union scorer",
+    "Invocation controls, native attestation, admission threshold and missingness of actually sent failures"
+  ],
+  "population": {
+    "admitted_prepared_dev_tasks": 399,
+    "keyed_dev_tasks": 44,
+    "evaluable_dev_annotations": 118,
+    "unkeyed_dev_tasks_not_certified_negative": 355,
+    "represented_arms_per_active_auditor": ["A", "B"],
+    "three_finding_prompt_compliant_maximum_key_matches": 77,
+    "original_cross_tasks": 15,
+    "original_cross_prepared_tasks": 12,
+    "original_cross_planned_keys": 28,
+    "original_cross_source_available_keys": 24
+  },
+  "active_auditor_routes": [
+    "anthropic/claude-sonnet-5-5",
+    "kimi-code/kimi-for-coding"
+  ],
+  "fixed_scorer_route": "anthropic/claude-sonnet-5-5",
+  "cross_policy": "Preserve every existing/consumed cross output and attempt unchanged, with no retry. A separate stage continuation may finish only never-sent roles from the SAME original15 cases under the identical original source, prompts, gates, scorer and hash-bound scorer-only cache. No new key set or source labels are admitted. Original v4 cross metrics remain separately reported.",
+  "prior_close_barrier": "Actual preparation requires the registered v4 cutoff to have passed and every initialized v4 worker to be finished; the integration owner also verifies native consumers stopped.",
+  "selection": {
+    "basis": "Consumption and finalization metadata only, never observed quality or matched-key labels.",
+    "new_audit": "No original audit receipt, consumption marker or owned native artifact exists.",
+    "scorer_only_resume": "An isolated attested audit answered, no terminal cell exists, and the scorer has no consumed native attempt. Reuse the exact audit bytes; dispatch only the still-unsent scorer.",
+    "prior_terminal": "Any already-finalized cell or actually-consumed refusal, transport error, malformed answer, quarantine, orphaned attempt or scorer failure stays terminal and is not rerun.",
+    "unavailable_input": "Frozen source-unavailable original cases stay represented and unattemptable; no new source or key intake is used to repair their mismatches.",
+    "partition": "Each route plan represents every original case of its explicit DEV or original-cross stage. Each arm partitions them exactly into remaining actions and referenced prior-terminal/unavailable slots. Unequal remaining A/B cohorts are allowed only with bound prior-consumption proof."
+  },
+  "scheduler": {
+    "audit_provider_priority_scope": "one route per plan",
+    "shared_output_root_within_each_stage": true,
+    "shared_provider_lock_root_across_stages": true,
+    "shared_provider_locks_cover_the_fixed_scorer": true,
+    "priority_within_route": ["original unsent cross when scheduled", "remaining keyed DEV", "remaining unkeyed DEV"],
+    "quota_recheck_seconds": 60,
+    "priority_wait_seconds": 5,
+    "admission": "Fresh complete native account/all-window metadata strictly below90% before every new auditor or scorer request.",
+    "checkpoint_policy": "A future checkpoint closes only that immutable phase. It does not authorize reducing ALL-DEV scope; remaining unsent work continues disjointly through natural subscription windows until delivered or a genuine resource blocker is established."
+  },
+  "accounting": {
+    "unique_attempt_identity": "Canonical resolved native request directory and its bound receipt/consumption artifacts, not the number of cells or symlinks referencing it.",
+    "cached_auditor_origin": "The original phase retains its call, tokens and attestation; a new phase may add only an unsent scorer.",
+    "quality": "One authoritative quality row per exact model/arm/task; phase metrics and unique-union metrics are both retained.",
+    "ab_comparison": "Same-route shared-complete-cell intersection with exact task/key denominators.",
+    "acceptance": "All399 represented/prepared tasks, actual active-model/arm audit attempts, answers, fully scored cells and auditor/scorer unsent backlog are separate. Disabled catalog candidates and null full-cohort quality metrics alone do not determine delivery coverage.",
+    "unknown_usage": "Null with explicit known lower bounds; never zero-imputed."
+  },
+  "paid_spend_usd": 0,
+  "subscription_usd": null,
+  "reset_credit_use": false,
+  "fallback_or_sent_request_retry": false,
+  "new_grader_executions": 0,
+  "protected_bodies_hydrated_or_prompted": 0,
+  "frozen_prerequisite": "Route protocol/plan, prior-consumption snapshot, actual source/runtime/input pins and code digests are recorded before any continuation dispatch. A no-provider actual-constructor/science-loader preflight must pass first."
+}

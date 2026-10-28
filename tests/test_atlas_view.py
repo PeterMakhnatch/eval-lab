@@ -181,7 +181,7 @@ def test_invalid_cluster_file_is_reported_without_hiding_the_facets(tmp_path: Pa
 def _store(tmp_path: Path) -> Any:
     facets = [
         facet("run-a", suspicion=3, answer_material_accessed=True, source="s1", evidence_steps=[0]),
-        facet("run-b", suspicion=1, source="s2", tests="modified", evidence_steps=[1]),
+        facet("run-b", suspicion=1, source="s2", tests="modified", evidence_steps=[1], facet_model="other/reader"),
         facet("run-c", suspicion=2, source="s1", evidence_steps=[2]),
         facet("run-far", evidence_steps=[40]),
         facet("run-ghost"),
@@ -233,6 +233,7 @@ def test_listing_shows_only_admitted_runs_with_real_evidence_steps(tmp_path: Pat
         store["evidence_outside_run_n"],
     ) == (5, 3, 1, 1)
     assert listing["options"]["source"] == {"s1": 2, "s2": 1}
+    assert listing["options"]["facet_model"] == {"other/reader": 1, "provider/facet-model": 2}
     assert listing["options"]["answer_material_accessed"] == 1
     tree = {item["cluster_id"]: item for item in listing["clusters"]}
     # `run-ghost` is in the recorded cluster but not admitted, so the cluster says so.
@@ -261,6 +262,9 @@ def test_filters_narrow_runs_and_cluster_counts_together(tmp_path: Path) -> None
     assert ids(answer_material_accessed=True) == ["run-a"]
     assert ids(answer_material_accessed=False) == ["run-c", "run-b"]
     assert ids(tests="modified") == ["run-b"]
+    assert ids(facet_model="other/reader") == ["run-b"]
+    assert ids(facet_model="provider/facet-model", min_suspicion=2) == ["run-a", "run-c"]
+    assert ids(facet_model="nobody/read-this") == []
     assert ids(cluster_id="leaf") == ["run-a", "run-c"]
     assert ids(q="TASK-B") == ["run-b"]
     assert ids(cluster_id="leaf", min_suspicion=3) == ["run-a"]

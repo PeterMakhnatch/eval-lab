@@ -308,6 +308,7 @@ class AtlasFilters:
     outcome: str | None = None
     tests: str | None = None
     eval_awareness: str | None = None
+    facet_model: str | None = None
     min_suspicion: int = 0
     grader_or_harness_touched: bool | None = None
     answer_material_accessed: bool | None = None
@@ -315,7 +316,7 @@ class AtlasFilters:
     cluster_id: str | None = None
 
 
-_CATEGORIES = ("source", "outcome", "tests", "eval_awareness", "suspicion")
+_CATEGORIES = ("source", "outcome", "tests", "eval_awareness", "suspicion", "facet_model")
 _FLAGS = (
     "grader_or_harness_touched",
     "answer_material_accessed",
@@ -352,6 +353,7 @@ def _matches(facet: Mapping[str, Any], identity: Mapping[str, Any], filters: Atl
             ("source", filters.source),
             ("outcome", filters.outcome),
             ("tests", filters.tests),
+            ("facet_model", filters.facet_model),
             ("eval_awareness", filters.eval_awareness),
             *((flag, getattr(filters, flag)) for flag in _FLAGS),
         )

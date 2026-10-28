@@ -54,7 +54,7 @@ COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
 SNAPSHOT="$RUNTIME/runtime/$COMMIT"
 if [ ! -f "$SNAPSHOT/READY" ]; then
   mkdir -p "$SNAPSHOT"
-  ARCHIVE="$(mktemp -t evallab-scout-watch)"
+  ARCHIVE="$(mktemp "${TMPDIR:-/tmp}/evallab-scout-watch.XXXXXX")"
   trap 'rm -f "$ARCHIVE"' EXIT
   git -C "$ROOT" archive --format=tar --output="$ARCHIVE" "$COMMIT"
   tar -xf "$ARCHIVE" -C "$SNAPSHOT"

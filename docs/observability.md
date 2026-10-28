@@ -86,6 +86,8 @@ including JSON embedded inside tool-message content. Raw-string hits are never
 lost by decoding. Laminar's generated input/output fields use the same logical
 gate. A hit rejects only its trace, including within a Docent batch, and the gate
 is checked before an unchanged-content receipt can skip a trace.
+Evaluator-field rejection also recursively decodes quoted JSON strings; ordinary
+actor prose and code stay intact rather than being scrubbed.
 
 Laminar uses the existing project and OTLP encoders, preserving text rather than
 the live watch exporter's clipped display values. Import sequence timestamps are

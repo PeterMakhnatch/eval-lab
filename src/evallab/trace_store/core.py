@@ -137,7 +137,7 @@ def _has_evaluator_fields(value: Any) -> bool:
 
 
 def _unsafe_actor_text(text: str) -> bool:
-    if not text.lstrip().startswith(("{", "[")):
+    if not text.lstrip().startswith(("{", "[", '"')):
         return False
     try:
         return _has_evaluator_fields(json.loads(text))

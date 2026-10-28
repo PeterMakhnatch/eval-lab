@@ -450,6 +450,18 @@ def test_inline_evaluator_envelopes_fail_without_cas(
     assert not corpus.cas_root.exists()
 
 
+@pytest.mark.parametrize("layers", [1, 2, 3])
+def test_quoted_evaluator_json_is_rejected_recursively(corpus: Corpus, layers: int) -> None:
+    content = json.dumps({"is_exploit": ANNOTATION})
+    for _ in range(layers):
+        content = json.dumps(content)
+    corpus.step("z-own-mimo", 2, "tool", content=content)
+    with pytest.raises(HydrationError) as caught:
+        corpus.load()
+    assert caught.value.category == "evaluator_fields"
+    assert ANNOTATION not in str(caught.value)
+
+
 def test_goodfire_inline_evaluator_envelope_is_also_rejected(corpus: Corpus) -> None:
     corpus.step("a-goodfire", 2, "tool", content='{"source_label":"not actor content"}')
     with pytest.raises(HydrationError) as caught:
@@ -459,6 +471,7 @@ def test_goodfire_inline_evaluator_envelope_is_also_rejected(corpus: Corpus) -> 
 
 @pytest.mark.parametrize("content", [
     'An example JSON object is {"source_label":"a source-code field"}.',
+    json.dumps('An example JSON object is {"source_label":"a source-code field"}.'),
     '```json\n{"source_label":"a source-code field"}\n```',
     'payload = {"source_label":"a source-code field"}',
     "{'source_label': 'a Python dict expression, not evaluator JSON'}",

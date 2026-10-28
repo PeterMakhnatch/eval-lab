@@ -81,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:b39c344ee1e9e3a77f9b3580cbc8bb940ebc2da86d6ad684980f2d2ac2537fc5
+    digest: sha256:ca4b6dc0520501c77381fca457c21bc3fd0979ed32e776ecde0dea2ef54baaf9
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
@@ -93,7 +93,7 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
-    digest: sha256:c8008738c32f6e97e26399c55e8effd7dacde2eb123d0099a3eb446340c6ec77
+    digest: sha256:df9bacf7f5dc9df05cab42825b1a20ea5028cb705a82081b0b9d517dbf3982d2
   - path: docs/open-qa-harness.md
     digest: sha256:cf0a4da37baa714c321301e312826782948bc011e6840a16474f903fe6344b6f
   - path: docs/operating-manual.md

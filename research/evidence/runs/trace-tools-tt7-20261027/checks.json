@@ -1,0 +1,243 @@
+{
+  "schema": "tt7.delivery_checks/v1",
+  "local_static": {
+    "command": "make check",
+    "observed_exit_code": 0,
+    "elapsed_s": 317.35,
+    "final_output": "static checks passed: Python 3.12; no tests or runtime smoke run; not CI green",
+    "scope": "Locked install, repository lint, docindex, repomap, governance, registry audit, lessons freshness, and ty static checkpoint",
+    "tests_run": false,
+    "runtime_smoke_run": false,
+    "baseline_warnings": [
+      "semantic_facts CapabilityOpportunity/EvidenceCoverage construct fields shadow the FactRow parent attribute",
+      "legacy registry records lack certification packets; registry audit passed",
+      "a derived/parquet ownership diagnostic references the primary checkout; static checkpoint still exited zero and lessons freshness passed"
+    ]
+  },
+  "earlier_attempts": [
+    {
+      "command": "uv run --locked --python 3.12 ruff check research/evidence/runs/trace-tools-tt7-20261027",
+      "observed_exit_code": 1,
+      "reason": "B007 unused loop variable in score.py; fixed before the successful make check"
+    },
+    {
+      "command": "make check",
+      "status": "cancelled",
+      "reason": "Stopped by owner while integrating known scorer/summary fixes; not claimed as verification"
+    }
+  ],
+  "final_integration": {
+    "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-20261027/score.py --readings-finalized research/evidence/runs/trace-tools-tt7-20261027/readings-finalized.json --out research/evidence/runs/trace-tools-tt7-20261027/score.json && make check",
+    "observed_exit_code": 0,
+    "combined_scoring_and_static_elapsed_s": 64.6,
+    "scored_sample_runs": 200,
+    "scored_arms": 16,
+    "replayed_pairs": 68,
+    "static_passed": true,
+    "tests_run": false,
+    "source_scope": "Final explicit ordered-prefix replay keys, refusal-abstention handling, coverage/yield table renderer, and completed README",
+    "ci_green_claim": false
+  },
+  "publication_constraints": {
+    "public_data_files_checked": 29,
+    "original_sample_run_id_hit_files": 0,
+    "aggregate_score_contains_raw_label_field": false,
+    "aggregate_score_contains_per_run_evidence_steps": false,
+    "comparison_table_rows": 1236,
+    "comparison_table_columns": 16,
+    "every_table_has_explicit_full_positive_yield": true,
+    "private_failure_credential_key_hit_records": 0,
+    "raw_per_run_id_label_or_evidence_key_hit_files": 0
+  },
+  "spend_ledger": {
+    "tt7_batch_lines": 88,
+    "known_input_tokens": 18498882,
+    "known_output_tokens": 17121,
+    "omp_known_uncached_list_price_equivalent_usd": 27.2002749,
+    "raw_ledger_committed": false,
+    "ledger_reported_usd": 0,
+    "verified_full_study_marginal_usd": null,
+    "provider_billed_full_study_usd": null,
+    "unverified_route": "openai-codex/gpt-6-luna",
+    "financial_basis_receipt": "luna-financial-basis.json",
+    "append_only_billing_annotation_batch_id": "tt7-luna-billing-basis-annotation-20261028"
+  },
+  "reviewability_fix": {
+    "failed_ci_head": "eff1ed252cf8d55cc3d0716efd94cbf678df1a62",
+    "failed_ci_test_merge": "8468523fc6f1759a28f64c084d3f185950d8263f",
+    "failed_ci_job": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40608576402/job/122554174892",
+    "failure": "test_curated_evidence_files_remain_reviewable rejected the former 7253973-byte monolithic score.json against the existing 2 MiB per-file cap",
+    "fix": "Lossless v2 aggregate index plus one replay shard per cheap arm; no test or model/form changes",
+    "index_bytes": 1031188,
+    "replay_shards": 10,
+    "largest_shard_bytes": 652311,
+    "all_16_arms_and_68_replays_deep_equal": true,
+    "markdown_byte_identical": true,
+    "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-20261027/score.py --readings-finalized research/evidence/runs/trace-tools-tt7-20261027/readings-finalized.json --out research/evidence/runs/trace-tools-tt7-20261027/score.json && env EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run --locked --python 3.12 pytest -q -n 0 tests/test_repository_contract.py::test_curated_evidence_files_remain_reviewable && make check",
+    "observed_exit_code": 0,
+    "combined_elapsed_s": 80.99,
+    "focused_test_passed": true,
+    "focused_tests_selected": 1,
+    "static_passed": true,
+    "model_calls": 0
+  },
+  "src_package_changes": false,
+  "ci_claim": "No CI-green claim is made by this local checkpoint. Exact-head required GitHub checks and merge evidence are separate.",
+  "initial_full_200_admission_checkpoint": {
+    "receipt": "continuation-200-receipts.json",
+    "requested_runs_per_claude": 200,
+    "completed_prefix_positions_per_claude": 60,
+    "unknown_quota_unattempted_positions_per_claude": 140,
+    "unknown_quota_unattempted_goodfire_positions_per_claude": 115,
+    "unknown_quota_unattempted_cheatbench_positions_per_claude": 25,
+    "new_inference_calls": 0,
+    "canonical_rows_appended": 0,
+    "provider_refusals_retried": 0,
+    "common_and_run_omp_match_prelabel_commit": "67ff0c4c5",
+    "all_16_standalone_numeric_metrics_unchanged": true,
+    "all_68_prefix60_replay_metrics_unchanged_both_forms": true,
+    "full200_replay_pairs_updated_for_cheap_negative_exits": 10,
+    "raw_id_or_label_field_hit_files": 0,
+    "index_bytes": 1031898,
+    "largest_replay_shard_bytes": 651850,
+    "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-20261027/finalize.py && uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-20261027/score.py --readings-finalized research/evidence/runs/trace-tools-tt7-20261027/readings-finalized.json --out research/evidence/runs/trace-tools-tt7-20261027/score.json && env EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run --locked --python 3.12 pytest -q -n0 tests/test_repository_contract.py::test_curated_evidence_files_remain_reviewable && make check",
+    "observed_exit_code": 0,
+    "combined_elapsed_s": 64.25,
+    "focused_test_passed": true,
+    "focused_tests_selected": 1,
+    "static_passed": true,
+    "runtime_smoke_run": false,
+    "ci_green_claim": false
+  },
+  "full_200_continuation": {
+    "receipt": "continuation-200-receipts.json",
+    "requested_runs_per_claude": 200,
+    "original_prefix_positions_per_claude": 60,
+    "new_model_inputs_per_claude": 14,
+    "new_local_privacy_abstentions_per_claude": 1,
+    "total_terminal_records_per_claude": 75,
+    "unattempted_positions_per_claude": 125,
+    "unattempted_goodfire_positions_per_claude": 109,
+    "unattempted_cheatbench_positions_per_claude": 16,
+    "new_inference_calls": 28,
+    "canonical_rows_appended": 30,
+    "provider_refusals_retried": 0,
+    "highest_valid_batch_guard_fraction": 0.53,
+    "batch_guard_snapshots": 14,
+    "stop_reason": "quota telemetry older than120s; unknown, not exhausted",
+    "later_readonly_guard_fraction": 0.65,
+    "later_readonly_guard_receipt": "quota-telemetry-diagnostic.json",
+    "current_admission_allowed": false,
+    "rendering_adapter_promoted_from_tt1_without_byte_changes": "a539d7aa0c59788c40cea4f8b012c2f443edebad693c030cb25630077feca713",
+    "protocol_invariance": {
+      "common.py": {
+        "prelabel_revision": "67ff0c4c5",
+        "preexisting_named_nodes": 22,
+        "changed_preexisting_named_nodes": [],
+        "added_named_nodes": [
+          "SECRET_GATE_SHA256",
+          "run_secret_hits",
+          "secret_gate_module",
+          "secret_hits"
+        ],
+        "all_preexisting_module_statements_preserved_in_order": true
+      },
+      "run_omp.py": {
+        "prelabel_revision": "67ff0c4c5",
+        "preexisting_named_nodes": 20,
+        "changed_preexisting_named_nodes": [
+          "refresh_usage",
+          "read_one",
+          "main"
+        ],
+        "added_named_nodes": [],
+        "read_one_equals_prelabel_after_removing_only_new_privacy_guard_and_its_import": true,
+        "other_changed_definitions": {
+          "refresh_usage": "require both fresh provider windows; same guarded budget semantics",
+          "main": "invalidate finalized marker before authorized continuation"
+        }
+      }
+    },
+    "model_cli_wall_s": 208.48,
+    "finalize_and_score_wall_s": 2.0,
+    "all_existing_16_prefix_decision_passage_token_and_model_latency_measurements_preserved": true,
+    "all_original_68_prefix_replay_decision_and_token_metrics_preserved": true,
+    "accounting_only_corrections": [
+      "Luna marginal billing unknown despite client0",
+      "Unmeasured baseline and dependent replay latency null, never0"
+    ],
+    "execution_source_unchanged_during_guarded_calls": true
+  },
+  "privacy": {
+    "precall_receipt": "privacy-audit.json",
+    "committed_source_reproduction": "privacy-audit-reproduced.json",
+    "canonical_gate_sha256": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f",
+    "gate_snapshot": "canonical_secret_gate.py",
+    "total_fixed_sample": 200,
+    "pattern_flagged": 4,
+    "safe_eligible_secondary": 196,
+    "hosted_payloads_audited": 149,
+    "hosted_payload_flags": 0,
+    "prior_flagged_prefix_ids_preserved_as_measured": 3,
+    "new_local_privacy_terminal_cells": 2,
+    "labels_used_for_eligibility": false,
+    "form_or_threshold_tuning": false,
+    "remote_mutations": 0
+  },
+  "latest_score_artifacts": {
+    "arms": 19,
+    "replayed_pairs": 82,
+    "replay_shards": 12,
+    "index_bytes": 1846200,
+    "largest_replay_shard_bytes": 983997,
+    "per_file_limit_bytes": 2097152,
+    "views": [
+      "full200",
+      "prefix60",
+      "safe-eligible196"
+    ],
+    "cartesian_pair_count": 84,
+    "policy_unavailable_same_measurement_pairs": 2,
+    "all_shard_sha256_verified": true,
+    "all_84_cartesian_pairs_accounted_for": true
+  },
+  "privacy_safe_checkpoint_before_financial_correction": {
+    "command": "finalize.py && score.py && pytest -q -n0 tests/test_repository_contract.py::test_curated_evidence_files_remain_reviewable && make check",
+    "observed_exit_code": 0,
+    "combined_elapsed_s": 66.7,
+    "focused_tests_passed": 1,
+    "static_passed": true,
+    "model_calls": 0,
+    "source_scope": "Pinned privacy guard,196safe view,guarded continuation; before latest billing/latency/pair-reporting corrections"
+  },
+  "financial_correction": {
+    "route": "openai-codex/gpt-6-luna",
+    "auth_class": "UNKNOWN: historical credential class was not retained",
+    "attested_transport_api": "openai-codex-responses",
+    "included_entitlement_verified": false,
+    "billed_and_marginal_usd": null,
+    "client_reported_usd": 0,
+    "list_equivalent_usd": 0.0136769,
+    "original_ledger_rows_unchanged": true,
+    "new_calls": 0,
+    "account_changes": 0,
+    "verified_zero_study_claim_withdrawn": true
+  },
+  "final_delivery": {
+    "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-20261027/finalize.py && uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-20261027/score.py --readings-finalized research/evidence/runs/trace-tools-tt7-20261027/readings-finalized.json --out research/evidence/runs/trace-tools-tt7-20261027/score.json && env EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run --locked --python 3.12 pytest -q -n0 tests/test_repository_contract.py::test_curated_evidence_files_remain_reviewable && make check",
+    "observed_exit_code": 0,
+    "combined_elapsed_s": 75.23,
+    "focused_tests_passed": 1,
+    "static_passed": true,
+    "runtime_smoke_run": false,
+    "ci_green_claim": false,
+    "model_calls": 0,
+    "arms": 19,
+    "scored_replays": 82,
+    "policy_unavailable_pairs": 2,
+    "cartesian_pairs": 84,
+    "all_19_arm_capability_and_token_metrics_preserved_during_accounting_correction": true,
+    "all_82_replay_capability_and_token_metrics_preserved_during_accounting_correction": true,
+    "recommendation_unchanged": true
+  }
+}

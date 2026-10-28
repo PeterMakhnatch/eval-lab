@@ -1,0 +1,54 @@
+{
+  "schema": "tt7.quota_telemetry_diagnostic/v1",
+  "started_at": "2026-10-28T03:37:05.018039+00:00",
+  "finished_at": "2026-10-28T03:37:05.823588+00:00",
+  "elapsed_s": 0.806,
+  "usage_cli_returncode": 0,
+  "reports": [
+    {
+      "provider": "anthropic",
+      "fetched_at_ms": 1793158614907,
+      "age_seconds": 10.916,
+      "status_codes": [],
+      "error_present": false,
+      "error_categories": {
+        "rate_limit": false,
+        "unauthorized": false,
+        "cache_or_refresh": false,
+        "timeout": false
+      },
+      "limits": [
+        {
+          "id": "anthropic:5h",
+          "used_fraction": 0.65
+        },
+        {
+          "id": "anthropic:7d",
+          "used_fraction": 0.46
+        }
+      ]
+    }
+  ],
+  "raw_headers_or_tokens_serialized": false,
+  "model_calls": 0,
+  "marginal_usd": 0,
+  "scope": "One explicitly requested read-only failure diagnostic; no invalidation, unbounded retries, or inference",
+  "command": [
+    "omp",
+    "usage",
+    "--provider",
+    "anthropic",
+    "--json",
+    "--redact"
+  ],
+  "historical_stop_reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+  "historical_http_cause_retained": false,
+  "historical_maximum_guard_fraction": 0.53,
+  "current_admission_allowed": false,
+  "current_admission_reason": "fresh five-hour usage equals the 65% admission cap; weekly46%; not provider exhaustion",
+  "fresh_snapshot_required_windows": [
+    "anthropic:5h",
+    "anthropic:7d"
+  ],
+  "diagnostic_did_not_invalidate_cache": true
+}

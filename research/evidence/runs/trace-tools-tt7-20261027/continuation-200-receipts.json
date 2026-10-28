@@ -1,0 +1,279 @@
+{
+  "schema": "tt7.subscription_continuation_admission/v1",
+  "recorded_at": "2026-10-28T02:07:49.840828+00:00",
+  "status": "partial",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "requested_run_count": 200,
+  "completed_prefix_count": 60,
+  "continuation_start_zero_based": 60,
+  "continuation_end_exclusive": 200,
+  "authority": "Main lane-owner full-200 clarification, unchanged fixed continuation after prefix-60",
+  "prefix_reading_receipt": "omp-prefix60-receipts.json",
+  "prefix_readings_finished_at": "2026-10-28T00:06:17.902740+00:00",
+  "protocol_changed": false,
+  "model_routes_changed": false,
+  "decision_rules_changed": false,
+  "execution_read_labels": false,
+  "read_trace_content": false,
+  "canonical_rows_appended": 30,
+  "admission_fraction": 0.65,
+  "hard_fraction_ceiling": 0.7,
+  "concurrency_per_route": 2,
+  "freshness_max_seconds": 120,
+  "result": "stale_quota_after_guarded_partial_continuation",
+  "quota_probe_command": [
+    "uv",
+    "run",
+    "--locked",
+    "--python",
+    "3.12",
+    "python",
+    "-c",
+    "import json,sys;sys.path.insert(0,'research/evidence/runs/trace-tools-tt7-20261027');import run_omp;print(json.dumps(run_omp.refresh_usage('anthropic')))"
+  ],
+  "paid_keys_stripped": true,
+  "foreground_auth_calls": 0,
+  "model_calls": 28,
+  "input_tokens": 3585060,
+  "output_tokens": 2633,
+  "marginal_cost_usd": 0,
+  "elapsed_seconds": 208.48,
+  "timing_note": "Actual continuation CLI walltime; initial read-only probe timing uncaptured, recovery probe4.02s in admission_attempts",
+  "execution_code_sha256": {
+    "common.py": "bdf0dd5c3afc29a2c81282f3b7dd8ad7a70b9f0de81a7d1c4db5aa90b37a9fea",
+    "run_omp.py": "43a6966c35614970b2dff257a4bc6d6d0a19b019ba3a1ead6da5bcfe6eef9e50"
+  },
+  "routes": {
+    "anthropic/claude-sonnet-5-5": {
+      "status": "partial",
+      "requested_run_count": 200,
+      "completed_prefix_positions": 60,
+      "unattempted_positions": 125,
+      "unattempted_by_source": {
+        "cloud-trace-db": 109,
+        "cheatbench-actions-v1": 16
+      },
+      "unattempted_reason": "unknown_quota_unattempted",
+      "new_model_calls": 14,
+      "provider_refusals_retried": 0,
+      "admission": "Runner must refresh both five-hour andweekly windows before everybatch and stop at65%",
+      "new_terminal_records": 15,
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "driver_stopped_at": "2026-10-28T03:01:21.560557+00:00",
+      "new_valid_forms": 11,
+      "new_provider_refusals": 3,
+      "new_privacy_abstentions": 1,
+      "new_null_categories": {
+        "refusal_cyber": 1,
+        "refusal_reasoning_extraction": 2,
+        "privacy_policy_veto": 1
+      },
+      "full_requested_terminal_records": 75,
+      "full_requested_valid_forms": 51
+    },
+    "anthropic/claude-opus-5-5": {
+      "status": "partial",
+      "requested_run_count": 200,
+      "completed_prefix_positions": 60,
+      "unattempted_positions": 125,
+      "unattempted_by_source": {
+        "cloud-trace-db": 109,
+        "cheatbench-actions-v1": 16
+      },
+      "unattempted_reason": "unknown_quota_unattempted",
+      "new_model_calls": 14,
+      "provider_refusals_retried": 0,
+      "admission": "Runner must refresh both five-hour andweekly windows before everybatch and stop at65%",
+      "new_terminal_records": 15,
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "driver_stopped_at": "2026-10-28T03:01:24.754627+00:00",
+      "new_valid_forms": 11,
+      "new_provider_refusals": 3,
+      "new_privacy_abstentions": 1,
+      "new_null_categories": {
+        "refusal_cyber": 1,
+        "refusal_reasoning_extraction": 2,
+        "privacy_policy_veto": 1
+      },
+      "full_requested_terminal_records": 75,
+      "full_requested_valid_forms": 48
+    }
+  },
+  "admission_attempts": [
+    {
+      "attempt": 1,
+      "recorded_at": "2026-10-28T02:07:49.840828+00:00",
+      "result": "unknown_quota",
+      "error": "run_omp.RouteError: anthropic: usage snapshot older than 120 seconds; fail closed",
+      "cli_calls": 3,
+      "elapsed_seconds": null,
+      "model_calls": 0,
+      "returncode": 1
+    },
+    {
+      "attempt": 2,
+      "started_at": "2026-10-28T02:31:13.827079+00:00",
+      "finished_at": "2026-10-28T02:31:17.847420+00:00",
+      "result": "recovered_below_guard",
+      "snapshot": {
+        "at": "2026-10-28T02:31:17.837452+00:00",
+        "provider": "anthropic",
+        "fetched_at_ms": 1793154677566,
+        "limits": [
+          {
+            "id": "anthropic:5h",
+            "used_fraction": 0.4,
+            "resets_at_ms": 1793163600386
+          },
+          {
+            "id": "anthropic:7d",
+            "used_fraction": 0.44,
+            "resets_at_ms": 1793584800386
+          }
+        ],
+        "maximum_fraction": 0.44
+      },
+      "cli_calls": 1,
+      "elapsed_seconds": 4.02,
+      "model_calls": 0,
+      "returncode": 0
+    }
+  ],
+  "latest_recovery_at": "2026-10-28T02:31:17.847420+00:00",
+  "execution_code_changes": "Require both existing quota windows; invalidate stale finalization before resume; uniformly veto canonical structured/rendered secret-pattern hits before new calls. No prompt, form, model route, sample order, actor-evidence edits, or decision-threshold changes",
+  "privacy_audit_receipt": "privacy-audit.json",
+  "privacy_gate_sha256": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f",
+  "continuation_command": [
+    "uv",
+    "run",
+    "--locked",
+    "--python",
+    "3.12",
+    "python",
+    "research/evidence/runs/trace-tools-tt7-20261027/run_omp.py",
+    "run",
+    "--routes",
+    "anthropic/claude-sonnet-5-5",
+    "anthropic/claude-opus-5-5",
+    "--max-runs",
+    "200",
+    "--stop-threshold",
+    "0.65",
+    "--concurrency",
+    "2",
+    "--batch-size",
+    "2"
+  ],
+  "privacy_gate_source_snapshot": "canonical_secret_gate.py",
+  "launch_requested_at": "2026-10-28T02:57:50.875143+00:00",
+  "driver_finished_at": "2026-10-28T03:01:25.166499+00:00",
+  "finished_at": "2026-10-28T04:45:17.206671+00:00",
+  "active_cli_wall_seconds": 208.48,
+  "recorded_guard_snapshots": 14,
+  "maximum_observed_guard_fraction": 0.53,
+  "last_valid_guard_snapshot": {
+    "at": "2026-10-28T03:00:50.587111+00:00",
+    "provider": "anthropic",
+    "fetched_at_ms": 1793156449099,
+    "limits": [
+      {
+        "id": "anthropic:5h",
+        "used_fraction": 0.53,
+        "resets_at_ms": 1793163600000
+      },
+      {
+        "id": "anthropic:7d",
+        "used_fraction": 0.45,
+        "resets_at_ms": 1793584800000
+      }
+    ],
+    "maximum_fraction": 0.53
+  },
+  "policy_refusal_retries": 0,
+  "refused_long_run_summaries": [
+    {
+      "model": "anthropic/claude-sonnet-5-5",
+      "chunked": true,
+      "planned_chunks": 3,
+      "observed_calls": 1,
+      "tag": "refusal_reasoning_extraction"
+    },
+    {
+      "model": "anthropic/claude-opus-5-5",
+      "chunked": true,
+      "planned_chunks": 3,
+      "observed_calls": 1,
+      "tag": "refusal_reasoning_extraction"
+    }
+  ],
+  "refusal_counts_all_phases": {
+    "anthropic/claude-sonnet-5-5": {
+      "all": {
+        "refusal_reasoning_extraction": 15,
+        "refusal_cyber": 8,
+        "privacy_policy_veto": 1
+      },
+      "by_source": {
+        "cloud-trace-db:refusal_reasoning_extraction": 14,
+        "cheatbench-actions-v1:refusal_cyber": 8,
+        "cloud-trace-db:privacy_policy_veto": 1,
+        "cheatbench-actions-v1:refusal_reasoning_extraction": 1
+      }
+    },
+    "anthropic/claude-opus-5-5": {
+      "all": {
+        "refusal_reasoning_extraction": 17,
+        "refusal_cyber": 9,
+        "privacy_policy_veto": 1
+      },
+      "by_source": {
+        "cloud-trace-db:refusal_reasoning_extraction": 16,
+        "cheatbench-actions-v1:refusal_cyber": 9,
+        "cloud-trace-db:privacy_policy_veto": 1,
+        "cheatbench-actions-v1:refusal_reasoning_extraction": 1
+      }
+    }
+  },
+  "full_form_records": 752,
+  "full_valid_forms": 170,
+  "full_null_form_records": 582,
+  "known_input_tokens": 18498882,
+  "known_output_tokens": 17121,
+  "tt7_spend_ledger_batches": 88,
+  "privacy_reproduction_receipt": "privacy-audit-reproduced.json",
+  "privacy_terminal_rows_added_after_driver": 2,
+  "list_price_usd": 10.797176,
+  "preflight_quota_cli_calls": 4,
+  "recovery_preflight_snapshot": {
+    "at": "2026-10-28T02:31:17.837452+00:00",
+    "provider": "anthropic",
+    "fetched_at_ms": 1793154677566,
+    "limits": [
+      {
+        "id": "anthropic:5h",
+        "used_fraction": 0.4,
+        "resets_at_ms": 1793163600386
+      },
+      {
+        "id": "anthropic:7d",
+        "used_fraction": 0.44,
+        "resets_at_ms": 1793584800386
+      }
+    ],
+    "maximum_fraction": 0.44
+  },
+  "first_call_recorded_at": "2026-10-28T02:58:05.559756+00:00",
+  "after_stop_quota_diagnostic": "quota-telemetry-diagnostic.json",
+  "current_guard_at_diagnostic": {
+    "at": "2026-10-28T03:37:05.823588+00:00",
+    "five_hour_fraction": 0.65,
+    "weekly_fraction": 0.46,
+    "admission_allowed": false,
+    "cause": "fresh snapshot equals65% admission cap; not provider exhaustion"
+  },
+  "financial_basis_receipt": "luna-financial-basis.json",
+  "marginal_cost_scope": "New guarded Claude continuation only; full-study billed/marginal cost remains unknown because of Luna",
+  "full_study_provider_billed_usd": null,
+  "full_study_marginal_usd": null,
+  "ledger_reported_usd": 0
+}

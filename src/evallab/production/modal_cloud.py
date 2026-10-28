@@ -63,7 +63,7 @@ import re
 import sqlite3
 import stat
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from contextlib import ExitStack, closing
 from pathlib import Path
 from typing import Any, Literal
@@ -75,7 +75,7 @@ from pydantic import BaseModel, ValidationError
 
 from evallab.execution_backend import ExecutionBackendConfig
 from evallab.hackbook.playbook_cards import match_playbook_cards
-from evallab.production import atlas_view
+from evallab.production import atlas_view, task_evidence
 from evallab.production.asset_store import VerifiedAssetStore
 from evallab.production.benchmark_reports import MAX_BENCHMARK_BYTES, validate_benchmark_document
 from evallab.production.cloud_trace_db import (
@@ -183,6 +183,14 @@ class CloudRuntime:
         self._atlas_lock = threading.Lock()
         self._atlas_cache: tuple[list[tuple[int, int, int] | None], atlas_view.AtlasStore] | None = None
         self._tool_scorecard = ToolScorecardCache(self.data_root)
+        self._tool_results = task_evidence.ToolFindingIndex(
+            self.data_root / "trace-tools" / task_evidence.RESULTS_FILE
+        )
+        self._journal_tasks = task_evidence.JournalTaskIndex(
+            lambda types, after, limit: self.queue.read_events_of_types(
+                types, after_seq=after, limit=limit
+            )
+        )
         self.registry = CorpusRegistry(self.repo_root)
         with ExitStack() as cleanup:
             self.queue = ContinuousWorkQueue(self.data_root / "prod.sqlite", registry=self.registry)
@@ -380,15 +388,16 @@ class CloudRuntime:
                     raise HTTPException(503, f"Atlas store is unreadable: {error}") from error
             return self._atlas_cache[1]
 
-    def _atlas_traces(self) -> dict[str, dict[str, Any]]:
+    def _atlas_traces(self, task_ids: Collection[str] | None = None) -> dict[str, dict[str, Any]]:
         """Admitted DEV identities and exact step indices; no body is read here."""
-        identifiers = sorted(self._admitted_task_ids())
+        admitted = self._admitted_task_ids()
+        identifiers = sorted(admitted if task_ids is None else admitted.intersection(task_ids))
         traces: dict[str, dict[str, Any]] = {}
         for start in range(0, len(identifiers), 500):
             page = identifiers[start : start + 500]
             placeholders = ", ".join("?" for _ in page)
             rows = self._query(
-                "SELECT t.trace_id, t.task_id, t.step_count, t.trust_tier, c.dataset_id,"
+                "SELECT t.trace_id, t.task_id, t.model_id, t.step_count, t.trust_tier, c.dataset_id,"
                 " CASE WHEN t.reward >= 1 THEN 'pass' WHEN t.reward <= 0 THEN 'fail'"
                 " ELSE 'unknown' END AS outcome"
                 " FROM agent_traces t JOIN corpus_tasks c ON c.task_id = t.task_id"
@@ -489,6 +498,69 @@ class CloudRuntime:
         result["flags"] = fired
         result["playbook_cards"] = match_playbook_cards(list(fired), kind="trace", max_cards=6)
         return result
+
+    def _task_evidence(self, task_id: str) -> dict[str, Any]:
+        """Everything retained about one admitted DEV task: runs, tools, QA, seeker, fixes."""
+        if task_id not in self._admitted_task_ids(task_id):
+            raise HTTPException(404, "Task is not an admitted DEV task")
+        rows = self._query(
+            "SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest,"
+            " metadata_json FROM corpus_tasks WHERE task_id = ?",
+            (task_id,),
+        )
+        if not rows:
+            raise HTTPException(404, "Task is not an admitted DEV task")
+        task = rows[0]
+        try:
+            task["metadata_json"] = json.loads(task["metadata_json"])
+        except ValueError:
+            task["metadata_json"] = {}
+        issues = self._query(
+            "SELECT issue_id, defect_class, direction, status, trust_tier, original_reward,"
+            " repaired_reward, citation_file, citation_line, witness_digest"
+            " FROM task_issues WHERE task_id = ? ORDER BY issue_id",
+            (task_id,),
+        )
+        traces = self._atlas_traces([task_id])
+        store = self._atlas_store()
+        facets, _ = atlas_view.visible_facets(store, traces)
+        keys = {task_id}
+        item_id = task["metadata_json"].get("item_id") if isinstance(task["metadata_json"], dict) else None
+        if isinstance(item_id, str) and item_id:
+            keys.add(item_id)
+        tools = self._tool_results.for_runs(traces)
+        return task_evidence.build_task_evidence(
+            task=task,
+            issues=issues,
+            traces=traces,
+            facets=facets,
+            cluster_paths=lambda run_id: atlas_view.cluster_paths(store, run_id),
+            tools=tools,
+            tools_error=self._tool_results.error,
+            journal=self._journal_tasks.for_keys(keys),
+        )
+
+    def _task_search(self, query: str) -> dict[str, Any]:
+        """Admitted DEV task ids containing the text, with run and issue counts."""
+        needle = query.strip()
+        if len(needle) < 2:
+            raise HTTPException(400, "Type at least two characters of a task id")
+        pattern = "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        candidates = self._query(
+            "SELECT task_id, dataset_id FROM corpus_tasks WHERE task_id LIKE ? ESCAPE '\\'"
+            " ORDER BY task_id LIMIT 500",
+            (pattern,),
+        )
+        admitted = self._admitted_task_ids()
+        found = [row for row in candidates if row["task_id"] in admitted][: task_evidence.SEARCH_LIMIT]
+        for row in found:
+            row["runs_n"] = self._query(
+                "SELECT COUNT(*) AS n FROM agent_traces WHERE task_id = ?", (row["task_id"],)
+            )[0]["n"]
+            row["issues_n"] = self._query(
+                "SELECT COUNT(*) AS n FROM task_issues WHERE task_id = ?", (row["task_id"],)
+            )[0]["n"]
+        return {"tasks": found, "limit": task_evidence.SEARCH_LIMIT}
 
     def _add_routes(self, token: str) -> None:
         expected = token.encode()
@@ -681,6 +753,18 @@ class CloudRuntime:
         def trace_tools(split: str = "dev"):
             _require_dev(split)
             return self._tool_scorecard.get()
+
+        @self.app.get("/api/cloud-db/task-evidence")
+        def task_evidence_route(
+            task_id: str = Query(min_length=1, max_length=300), split: str = "dev"
+        ):
+            _require_dev(split)
+            return self._task_evidence(task_id)
+
+        @self.app.get("/api/cloud-db/task-evidence/search")
+        def task_evidence_search(q: str = Query("", max_length=100), split: str = "dev"):
+            _require_dev(split)
+            return self._task_search(q)
 
     def run_supervisor_step(self, approval: str, max_usd: float) -> dict[str, Any]:
         """One explicitly approved cloud step, never a laptop Docker fallback."""

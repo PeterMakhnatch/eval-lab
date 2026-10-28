@@ -591,14 +591,14 @@ def _node_name(test_id: str) -> str:
     return _clip(scrub_blind_task_text(node).strip() or "[scrubbed-test-path]", _MAX_ID_CHARS)
 
 
-def render_feedback_block(error: RunnerError) -> str:
-    """Bounded markdown for the top of the turn-2 prompt; free text is blind-scrubbed."""
+def render_feedback_block(error: RunnerError, *, attempt_index: int = 1) -> str:
+    """Bounded ORIGINAL-runner markdown; free text is blind-scrubbed."""
     reward = "unreported" if error.reward is None else f"{error.reward}"
     exits = ", ".join(str(code) for code in error.sandbox_exit_codes) or "not reported"
     lines = [
-        _FEEDBACK_HEADING,
+        _FEEDBACK_HEADING.replace("turn-1", f"turn-{attempt_index}"),
         "",
-        "Your turn-1 `solve.sh` was run in the task container and graded by the ORIGINAL "
+        f"Your turn-{attempt_index} `solve.sh` was run in the task container and graded by the ORIGINAL "
         "(upstream) grader. This is what the runner reported.",
         "",
         f"- status: {error.status}",

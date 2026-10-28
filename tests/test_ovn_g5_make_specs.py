@@ -6,7 +6,6 @@ import importlib.util
 import json
 import shutil
 import sys
-from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -75,56 +74,49 @@ class _Digests:
 
 @pytest.fixture
 def check_setup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """A minimal valid 3-arm check() setup: one kept task, real tree and route.
-
-    The staged dir and the GEPA candidate live in the generator's real
-    gitignored tasks/ dir (check() resolves task dirs against it) and are
-    removed afterwards; the specs go to a tmp dir.
-    """
-    tasks = MAKE.TASKS
-    tasks.mkdir(exist_ok=True)
+    """A valid 3-arm setup whose writable state is outside the checkout."""
+    repo = (tmp_path / "repo").resolve()
+    tasks = repo / "tasks"
+    tasks.mkdir(parents=True)
+    tree_dir = repo / PLACEHOLDER_TREE
+    tree_dir.parent.mkdir(parents=True)
+    shutil.copytree(MAKE.REPO / PLACEHOLDER_TREE, tree_dir)
+    monkeypatch.setattr(MAKE, "REPO", repo)
+    monkeypatch.setattr(MAKE, "TASKS", tasks)
     staged_dir = tasks / _CHECK_TASK
-    staged_dir.mkdir(exist_ok=True)
+    staged_dir.mkdir()
     candidate = tasks / ".g5-test-candidate.txt"
     candidate.write_text("test addendum")
     import hashlib
 
     candidate_sha = "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
-    candidate_rel = candidate.relative_to(MAKE.REPO).as_posix()
+    candidate_rel = candidate.relative_to(repo).as_posix()
     monkeypatch.setattr(
         MAKE,
         "compute_task_digests",
         lambda _dest: _Digests(_CHECK_PACKAGE, _CHECK_VERIFIER),
     )
-    try:
-        kept = [
-            {
-                "task_id": _CHECK_TASK,
-                "run_digest": _CHECK_PACKAGE,
-                "run": "original",
-                "repo": "powerline",
-            }
-        ]
-        route = MAKE._route(MAKE.BASE_SPEC)
-        tree = MAKE._tree(PLACEHOLDER_TREE, None)
-        out_dir = tmp_path / "specs"
-        out_dir.mkdir()
-        staged = {
-            _CHECK_TASK: {
-                "staged_dir": staged_dir,
-                "package_digest": _CHECK_PACKAGE,
-                "verifier": _CHECK_VERIFIER,
-            }
+    kept = [
+        {
+            "task_id": _CHECK_TASK,
+            "run_digest": _CHECK_PACKAGE,
+            "run": "original",
+            "repo": "powerline",
         }
-        MAKE.generate(kept, staged, route, tree, out_dir, _CHECK_ARMS, candidate_rel, candidate_sha)
-        MAKE.write_cohort(out_dir, kept, staged, tree, _CHECK_ARMS, candidate_rel, candidate_sha)
-        yield out_dir, kept, route, tree, candidate_rel, candidate_sha
-    finally:
-        shutil.rmtree(staged_dir, ignore_errors=True)
-        with suppress(OSError):
-            candidate.unlink()
-        with suppress(OSError):
-            tasks.rmdir()
+    ]
+    route = MAKE._route(MAKE.BASE_SPEC)
+    tree = MAKE._tree(tree_dir, None)
+    out_dir = tmp_path / "specs"
+    staged = {
+        _CHECK_TASK: {
+            "staged_dir": staged_dir,
+            "package_digest": _CHECK_PACKAGE,
+            "verifier": _CHECK_VERIFIER,
+        }
+    }
+    MAKE.generate(kept, staged, route, tree, out_dir, _CHECK_ARMS, candidate_rel, candidate_sha)
+    MAKE.write_cohort(out_dir, kept, staged, tree, _CHECK_ARMS, candidate_rel, candidate_sha)
+    return out_dir, kept, route, tree, candidate_rel, candidate_sha
 
 
 def _rewrite_spec(out_dir: Path, stem: str, **overrides) -> None:

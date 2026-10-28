@@ -176,12 +176,76 @@ inputs:
     digest: sha256:d8dcb8f74122596696e0ce4dde2df02a9bd85c690a6cfa587bd5cc3e6964aa20
   - path: src/evallab/failure_library/commands/__init__.py
     digest: sha256:4bc6b2240ce0bab80521af0073d6b6af0ffb74e3bdbc1ae57291d5503e202093
+  - path: src/evallab/failure_library/commands/ingest.py
+    digest: sha256:762d02ded5b16521c4c319c04630c708e15707a8213063207622d785799f6960
+  - path: src/evallab/failure_library/commands/loop.py
+    digest: sha256:3862699201820361658a6ecf07c5fe96ac59390edf6c0c187798033d7152ca31
+  - path: src/evallab/failure_library/commands/mine.py
+    digest: sha256:bcb745ca527df8a2653da57bc22cd6c5883f0c7194fa0473477f21e7b5aeef7d
+  - path: src/evallab/failure_library/commands/pack.py
+    digest: sha256:6f2e709569800e520337da9a3643b2089bedb3e874d04db263d08b321285d913
+  - path: src/evallab/failure_library/commands/runs.py
+    digest: sha256:4d387bfcd42625b0615b67df280fbd4765170acaadaca1c4eea0964279f1839b
   - path: src/evallab/failure_library/commands/stats.py
-    digest: sha256:fa42e0a42704404ab26791f008c416e8f42469bc42d54c73e9f75e36d8ab38b5
+    digest: sha256:81fbb2f75b993b7060f0920a66ef94cdb34450ead9f13ef330b3e877b01bf2a6
+  - path: src/evallab/failure_library/fixmine/__init__.py
+    digest: sha256:1514ae163307a448ddc32dc5e18d4624b36ff6ecc117bbba0f97a4f8c2292aec
+  - path: src/evallab/failure_library/fixmine/classify.py
+    digest: sha256:da9c731078bca3be0eac736db08494207685339add1b5b6fcdce017b6e3ff7fc
+  - path: src/evallab/failure_library/fixmine/hf.py
+    digest: sha256:4087303f586fb2b330a4e5d09b59db2eb40b30e97395f4853823b98797bad089
+  - path: src/evallab/failure_library/fixmine/miner.py
+    digest: sha256:ccdd9e64741f528eaa7287c239cb3fe21f6b87c8912dc36eef6363e039d76bf2
+  - path: src/evallab/failure_library/fixmine/models.py
+    digest: sha256:5386c2bd6cd6e10ee5ef9472449a2a996cee7ce9efd13fdf4d54d48a98c6afca
+  - path: src/evallab/failure_library/fixmine/publish.py
+    digest: sha256:d362ecc44f7dc62f6bc42a25b0450038503e259c5677d7614c54c678a3ff8ab4
+  - path: src/evallab/failure_library/knowledge/__init__.py
+    digest: sha256:c958c065b96136ff5522b907fc13b56a88dfcad4bfb266a49aea81d5a3da2fc0
+  - path: src/evallab/failure_library/knowledge/compiler.py
+    digest: sha256:31b565315c07aa7dc8c530fb56ca6da9aca261db13c82526e265d12d622a765d
+  - path: src/evallab/failure_library/knowledge/export.py
+    digest: sha256:2d9c92c1961361759e2fb93d2ea9198118430f7ef559b21d193ac17926c3328a
+  - path: src/evallab/failure_library/knowledge/models.py
+    digest: sha256:2f46e74ff58e4e9b903e1e0954e256e904897112e43ba6c94869f0b9455234d1
+  - path: src/evallab/failure_library/knowledge/packs.py
+    digest: sha256:811602c1a26f418f65477ae582308295ad48264149d8a26aa759dd8809842ca7
+  - path: src/evallab/failure_library/loop/__init__.py
+    digest: sha256:344b6291fb55568d7680b2537634accb0bfeef91e414cbdc72a89c4d82479166
+  - path: src/evallab/failure_library/loop/canary.py
+    digest: sha256:7c2895c27f833f7fe57ec9f84b833ba394656b28149af404b3ec74cf615d0630
+  - path: src/evallab/failure_library/loop/readonly.py
+    digest: sha256:2649ffd723ea5361e87c7dfe1347891d8c3b6db8ef74b7caaf48c60763f74ffa
+  - path: src/evallab/failure_library/loop/selection.py
+    digest: sha256:ecd03d16f516703cd927c047ea7edaf0a293cbdd6a7c0cfd7f8156065d45660b
+  - path: src/evallab/failure_library/loop/source_views.py
+    digest: sha256:70354f4bede1f890c6e0af95d9e007e39a2f94292fabc2a227e5727e39e551da
   - path: src/evallab/failure_library/records.py
     digest: sha256:e22a03b9d11e1709cff534e16a33cc6b4384af4123b4cd9eb9a495f579ed7b29
+  - path: src/evallab/failure_library/runs/__init__.py
+    digest: sha256:f0633f1ac486dfaeca7908e49bae4972651d9bd3e52f45bc93328c9855dd5b3f
+  - path: src/evallab/failure_library/runs/cached.py
+    digest: sha256:8b891cc6873c8a2dfae741620e6de251ff84e05129b7c31cf93582d67884d8f7
+  - path: src/evallab/failure_library/runs/common.py
+    digest: sha256:2453548ecccbdd92c99916588b40d703c3c7b64955ba27cd413358a3abd04095
+  - path: src/evallab/failure_library/runs/ingest.py
+    digest: sha256:b83de5668a32216e883538b33167792b19517d543650f9702cc505d21cf67d89
+  - path: src/evallab/failure_library/runs/io.py
+    digest: sha256:7e7e6592efa48c98847dc04408fa97be2cbd380d6b9aba95ea05e9a454314892
+  - path: src/evallab/failure_library/runs/published.py
+    digest: sha256:dfbfb64e27eafb88cef9b51368c6d280759c19695e128578e76aaf7676dec1b7
+  - path: src/evallab/failure_library/sources/__init__.py
+    digest: sha256:2b573b19ca0cdfdc45693c31db0b2eec88ff8ca78a940b206a2c9df328abcea6
+  - path: src/evallab/failure_library/sources/constructed.py
+    digest: sha256:171d5b2b2548c271a764e228e7e946a517d444a397196e634a47897c3bfb67d0
+  - path: src/evallab/failure_library/sources/mimo.py
+    digest: sha256:bca529478c3a40c7190d58bbe85616b7315747642fa96c78bed62062e76b39ca
+  - path: src/evallab/failure_library/sources/swe_family.py
+    digest: sha256:b0f64899a3c3472869344a2afe72d60d508c3b6dab3aed92eb3ce018d3ced05a
+  - path: src/evallab/failure_library/sources/tb_family.py
+    digest: sha256:dc58447bca91ecdde18f4db90580f38069a16263573ee81f78a1a6aada71589f
   - path: src/evallab/failure_library/store.py
-    digest: sha256:a879e985914886b27f4d5426db3e8966e9deb89a8c3d0c4dab3276385f7d9b4e
+    digest: sha256:091b7c8a6f3b1055fbe221fddd7d05ae92e594e37245e85795227d1f77d58742
   - path: src/evallab/fetch.py
     digest: sha256:be19b01e305d61048c3734b0ff8bd17875bc0c232772e395389bbc6f396d9d69
   - path: src/evallab/file_access.py
@@ -557,7 +621,7 @@ inputs:
   - path: src/evallab/production/cli.py
     digest: sha256:85adc6b79e44491675c6215370d340c583fa2757b0a8c6ca7d184bacf7fc839c
   - path: src/evallab/production/cloud_trace_db.py
-    digest: sha256:82b4d795dde2200952729d4474c44eb27233aed845422f6d1319fd1a1b39ddef
+    digest: sha256:228eac34c4ef5658f6b568917538591021f6b0e8bcbb3c8ac014ccc332e6a7d6
   - path: src/evallab/production/cloud_trace_export.py
     digest: sha256:5aa97c055439f35683af5b1663910091a7e2daea5d59e8cb2abe15b45948d98e
   - path: src/evallab/production/cloud_trace_retriever.py
@@ -605,15 +669,17 @@ inputs:
   - path: src/evallab/production/public_corpus_loader.py
     digest: sha256:6dd834cea54b40d742bb4289f1a7ac2b1586197b27483d1e6b1112095adde01f
   - path: src/evallab/production/qa_data.py
-    digest: sha256:7382871dc87992af951119a3cde88933ff35aab20d1ea2c188f337eaba38189a
+    digest: sha256:9bf1623c4b66b6d486a2675cb95db1c3ba28073dae0db2f891d8af66eb484abe
   - path: src/evallab/production/qa_data_calls.py
     digest: sha256:5793c936388a304db4061fcd213f4fd76da85c64e13f9e671c73034f80d7ce12
+  - path: src/evallab/production/qa_data_card.py
+    digest: sha256:c7d6efe181ce39ea135bb86bb15e05e8146d7cbb92724564041d896248a05a35
   - path: src/evallab/production/qa_data_export.py
     digest: sha256:afbe1258837a190b9df5f0e26c092fea8349c68ed06c416395185ca14dc10246
   - path: src/evallab/production/qa_data_findings.py
     digest: sha256:7b2e3eeed802ebe29807a08318c1fe54f5af8626927f4f8ebfaff4af58ce3cbb
   - path: src/evallab/production/qa_data_guide.py
-    digest: sha256:820c20cd4a50f359cf3cd3e6b3bb8dc4d30451f4de191e37ce4c08bdeb50c34d
+    digest: sha256:ffd0ca2fd81147c2ca2c29ee6685375874ccfe6b702d0304bac19b4f5c0487ea
   - path: src/evallab/production/qa_data_inventory.py
     digest: sha256:881e34ffbd8f2eceb8d2e069ab0872bfc6f3c492685ec345a8e7563ba0e62b56
   - path: src/evallab/production/qa_data_scan.py
@@ -643,9 +709,11 @@ inputs:
   - path: src/evallab/production/safe_paths.py
     digest: sha256:bcaab5996fe97a77fa456f340ff5a215f5a063d4cbfbb72645038740e3708e70
   - path: src/evallab/production/seeker_error_first.py
-    digest: sha256:9f567f057da81f71f12c274e0a28d5cf492b5f73eee6bde9ec9696786450c67a
+    digest: sha256:d3455a471b59824620739f6090d67ee842cecb3231d47aaba0eacbed0c0e6891
+  - path: src/evallab/production/seeker_known_hacks.py
+    digest: sha256:ce94c18865b262e585d25ed79a0d338532725ee580c8477ef40005b491b74b51
   - path: src/evallab/production/seeker_worker.py
-    digest: sha256:1a3d3876bb45527e926d46d14c95241eb964e191f5f9e925ff53d1d7189624fd
+    digest: sha256:0282886380804829d8afe9f7758e2074286a9d41916e4aefab592ad6f9d66910
   - path: src/evallab/production/stage0_triage.py
     digest: sha256:12390ab3511c4a1b7723e692117ba1dafcac1feb704ea6f1d7f7dc20eccf7d87
   - path: src/evallab/production/supervisor.py
@@ -668,6 +736,8 @@ inputs:
     digest: sha256:3debfff97c335ed9f1d766b7e41c6b88f98604171765c9c9a5cedef8d93c6ab3
   - path: src/evallab/production/trace_feature_flags.py
     digest: sha256:8c82a7afdd8ae01b4ad30b3f2cd50f2c8d9437c965d75656ef5676d1435a64bb
+  - path: src/evallab/production/trace_findings.py
+    digest: sha256:8276e8db66ecdf68c40fc47527b531e679e0fe3d966140b37fd878675d85ad78
   - path: src/evallab/production/window_cascade.py
     digest: sha256:6f5213a670a73487426f185fa79837a58f81820a4328dc459ec629ad998b772e
   - path: src/evallab/profiles.py
@@ -1151,9 +1221,41 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `failure_library` | 100 | Failure Library: provenance-first broken tasks and failed or hacked runs. | — |
 | `failure_library.cli` | 100 | ``evallab failures`` command group. | — |
 | `failure_library.commands` | 100 | Subcommands of ``evallab failures``; each module exposes ``register(subparsers)``. | — |
+| `failure_library.commands.ingest` | 100 | ``evallab failures ingest <collection>``: rebuild pinned finding collections. | — |
+| `failure_library.commands.loop` | 100 | ``evallab failures loop canary``: manual DEV integration heartbeat. | — |
+| `failure_library.commands.mine` | 200 | ``evallab failures mine``: version-pinned upstream-diff candidates, not proof. | — |
+| `failure_library.commands.pack` | 100 | ``evallab failures pack``: compile and retrieve provenance-grounded DEV knowledge. | — |
+| `failure_library.commands.runs` | 100 | ``evallab failures runs``: pinned source ingestion and local manifest verification. | — |
 | `failure_library.commands.stats` | 100 | ``evallab failures stats``: counts by collection, tier, class, split and status. | — |
+| `failure_library.fixmine` | 100 | Upstream repair mining, attested classification and deterministic findings. | — |
+| `failure_library.fixmine.classify` | 1000 | Blinded, locally cached OMP judgments; labels alone are not defect evidence. | — |
+| `failure_library.fixmine.hf` | 300 | Metadata-only Hugging Face history feasibility probes, not fix evidence. | — |
+| `failure_library.fixmine.miner` | 400 | Mine pinned, task-local changes without executing untrusted upstream code. | — |
+| `failure_library.fixmine.models` | 100 | Pinned candidates and machine labels; neither alone is a published finding. | — |
+| `failure_library.fixmine.publish` | 200 | Publish unverified candidate manifests, never canonical defect Findings. | — |
+| `failure_library.knowledge` | 100 | Failure cards and bounded DEV-only agent packs; no live model or database calls. | — |
+| `failure_library.knowledge.compiler` | 600 | Compile DEV evidence into existing Hackbook mechanisms without model calls. | — |
+| `failure_library.knowledge.export` | 200 | Deterministic defensive Task/Trace QA artifacts and provenance-bearing proposals. | — |
+| `failure_library.knowledge.models` | 100 | Validated, provenance-bearing ``failure-card/v1`` contracts. | — |
+| `failure_library.knowledge.packs` | 300 | Bounded agent context with mandatory DEV and leave-subject-out admission. | — |
+| `failure_library.loop` | 100 | Manual Failure Library canary selection, consumer receipts and heartbeat. | — |
+| `failure_library.loop.canary` | 800 | Bounded, manual heartbeat over real CLI consumers; failed stages stay visible. | — |
+| `failure_library.loop.readonly` | 500 | One text-only diagnostic turn over archived, cited source bytes. | — |
+| `failure_library.loop.selection` | 500 | Frozen DEV canaries; labels are retained for scoring, never model inputs. | — |
+| `failure_library.loop.source_views` | 100 | Recompute blinded diagnostic views from their pinned native source bytes. | — |
 | `failure_library.records` | 200 | ``failure-library/v1`` contracts. | — |
-| `failure_library.store` | 200 | Deterministic JSONL storage for the Failure Library. | — |
+| `failure_library.runs` | 100 | Provenance-preserving adapters for failed, hacked and control agent runs. | — |
+| `failure_library.runs.cached` | 200 | Normalize native Wrench, Goodfire, CheatBench and redistributed MALT rows. | — |
+| `failure_library.runs.common` | 200 | Shared, offline run-ingestion primitives; transcript bodies never enter records. | — |
+| `failure_library.runs.ingest` | 500 | Source dispatch, conservative split admission, provenance notes and regex sidecars. | — |
+| `failure_library.runs.io` | 200 | Pinned downloads, immutable raw custody and bounded native-row iteration. | — |
+| `failure_library.runs.published` | 300 | Offline adapters for pinned public execution tables and oracle-labeled rollouts. | — |
+| `failure_library.sources` | 200 | Deterministic finding collections; source modules export a ``COLLECTIONS`` map. | — |
+| `failure_library.sources.constructed` | 300 | Constructed-broken task collections; originals are retained as controls, not defects. | — |
+| `failure_library.sources.mimo` | 300 | MiMo weak-test witnesses and a frozen read-only Cloud DB issue projection. | — |
+| `failure_library.sources.swe_family` | 500 | Pinned, metadata-only imports of SWE task quality evidence. | — |
+| `failure_library.sources.tb_family` | 400 | Terminal-Bench source findings, retaining version pins and evidence limits. | — |
+| `failure_library.store` | 300 | Deterministic JSONL storage for the Failure Library. | — |
 | `fetch` | 1100 | Pinned Harbor Hub / adapter-lane acquisition for library/benchmarks/. | `fetch`, `verdict` |
 | `file_access` | 500 | Shared constants and pure record utilities for file-access observation. | — |
 | `file_access_capture` | 1000 | Sandbox-side file-access observer for HAR-180. | `python -m evallab.file_access_capture probe`, `python -m evallab.file_access_capture snapshot`, `python -m evallab.file_access_capture capture` |
@@ -1367,6 +1469,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.public_corpus_loader` | 900 | Stream cataloged public-corpus exports into durable production jobs. | — |
 | `production.qa_data` | 500 | ``evallab qa-data``: one token-budgeted JSON surface over the admitted DEV cloud trace store. | — |
 | `production.qa_data_calls` | 300 | ``qa-data`` calls over runs and history: run search, step windows, past issues and cards. | — |
+| `production.qa_data_card` | 200 | ``qa-data trace-card``: one compact, label-free evidence card for one admitted DEV run. | — |
 | `production.qa_data_export` | 200 | Admission-first blinded exports and reward-free joins between original and exported steps. | — |
 | `production.qa_data_findings` | 600 | Read-only, admitted-DEV findings from the local trace-tool result ledgers. | — |
 | `production.qa_data_guide` | 200 | The text of ``evallab qa-data --help``: what an agent with no other documentation needs. | — |
@@ -1385,6 +1488,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.runtime` | 1000 | One model-free-by-default cycle over the durable production workers. | — |
 | `production.safe_paths` | 100 | Confine journal-supplied filesystem paths to explicitly allowed roots. | — |
 | `production.seeker_error_first` | 1800 | SB-1 two-turn "error-first" Reward Seeker campaign driver. | — |
+| `production.seeker_known_hacks` | 500 | Export measured DEV seeker runs, keeping known-hack labels strictly local. | — |
 | `production.seeker_worker` | 4000 | Live Reward Seeker production worker for measurable DEV tasks and newly repaired tasks. | — |
 | `production.stage0_triage` | 200 | Stage-0 whole-run alarms from provisional, model-extracted run facets. | — |
 | `production.supervisor` | 1000 | Production supervisor: one deterministic, lease-aware orchestration step. | — |
@@ -1397,6 +1501,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.tq_fixture` | 200 | Separate, provenance-bound DEV fixtures for defensive Task Quality studies. | — |
 | `production.tq_worker` | 1600 | Durable Task Quality consumption and execution-backed live findings. | — |
 | `production.trace_feature_flags` | 300 | Cheap, deterministic trace leads with on-demand, position-addressed disclosure. | — |
+| `production.trace_findings` | 300 | ``trace-findings/v1``: one record per (run, detector, detector version, reader), stored in ``trace_findings``. | — |
 | `production.window_cascade` | 500 | Stage 2 of the live monitor cascade: judge tripwire cards from bounded windows. | — |
 | `profiles` | 1400 | Provider-neutral agent profiles and credential preflight seams (M003). | — |
 | `provenance` | 400 | PROVENANCE: explicit task origin classification across corpora. | `python -m evallab.provenance classify`, `python -m evallab.provenance report` |
@@ -1822,8 +1927,8 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 
 | Name | Location | Written by |
 |---|---|---|
-| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `readers.scout_clouddb`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
-| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `readers.scout_clouddb`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
+| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `failure_library.commands.runs`, `failure_library.fixmine.hf`, `failure_library.loop.selection`, `failure_library.runs.ingest`, `failure_library.runs.io`, `failure_library.sources.constructed`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `readers.scout_clouddb`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
+| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `failure_library.commands.runs`, `failure_library.fixmine.hf`, `failure_library.loop.selection`, `failure_library.runs.ingest`, `failure_library.runs.io`, `failure_library.sources.constructed`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `readers.scout_clouddb`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
 | `acceptance_decisions.parquet` | `acceptance_decisions/acceptance_decisions.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime` |
 | `action_effects.parquet` | `derived/parquet/**/action_effects.parquet` | `evidence.atif` |
 | `action_transition_edges.parquet` | `derived/parquet/**/action_transition_edges.parquet` | `interpretation.trajectory_sequence` |
@@ -1833,12 +1938,14 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `aria_reward_hacking_v0_6.parquet` | `data/aria_reward_hacking_v0_6.parquet` | `rl_rollouts` |
 | `artifact_facts.parquet` | `derived/parquet/**/artifact_facts.parquet` | `evidence.atif`, `evidence.facts` |
 | `audit.parquet` | `derived/parquet/**/audit.parquet` | `storage.paths` |
+| `baseline.parquet` | `derived/parquet/**/baseline.parquet` | `failure_library.runs.io` |
 | `behavior_episodes.parquet` | `derived/parquet/**/behavior_episodes.parquet` | `behavior_episodes` |
 | `behavior_labels.parquet` | `derived/parquet/**/behavior_labels.parquet` | `labels` |
 | `capability_opportunities.parquet` | `derived/parquet/**/capability_opportunities.parquet` | `semantic_facts` |
 | `craft.parquet` | `craft/craft.parquet` | `authoring`, `contextpack`, `craft`, `lessons` |
 | `evidence_coverage.parquet` | `derived/parquet/**/evidence_coverage.parquet` | `interpretation.traj_card`, `semantic_facts` |
-| `full.parquet` | `data/processed/parquet/full.parquet` | `cheatbench` |
+| `full.parquet` | `data/processed/parquet/full.parquet` | `cheatbench`, `failure_library.runs.ingest`, `failure_library.runs.io` |
+| `hack.parquet` | `derived/parquet/**/hack.parquet` | `failure_library.runs.io` |
 | `interpretation_artifacts.parquet` | `derived/parquet/**/interpretation_artifacts.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime`, `storage.data_backfill` |
 | `jobs.parquet` | `derived/parquet/**/jobs.parquet` | `evidence.atif`, `interpretation.trajectory_data_quality`, `storage.parquet_compaction` |
 | `ledger.parquet` | `qualification/ledger.parquet` | `authoring` |
@@ -1846,8 +1953,10 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `machine_judgments.parquet` | `machine_judgments/machine_judgments.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime` |
 | `model_calls.parquet` | `derived/parquet/**/model_calls.parquet` | `model_capture` |
 | `motif_summaries.parquet` | `derived/parquet/**/motif_summaries.parquet` | `interpretation.trajectory_sequence` |
+| `non_hack.parquet` | `derived/parquet/**/non_hack.parquet` | `failure_library.runs.io` |
 | `observable_motifs.parquet` | `derived/parquet/**/observable_motifs.parquet` | `interpretation.trajectory_sequence` |
 | `observations.parquet` | `derived/parquet/**/observations.parquet` | `evidence.atif`, `report` |
+| `redistributed.parquet` | `derived/parquet/**/redistributed.parquet` | `failure_library.commands.runs`, `failure_library.runs.ingest`, `failure_library.runs.io` |
 | `reward_facts.parquet` | `derived/parquet/**/reward_facts.parquet` | `evidence.atif`, `evidence.facts` |
 | `semantic_action_coverage.parquet` | `job_id=*/trial_id=*/semantic_action_coverage.parquet` | `interpretation.trajectory_semantics` |
 | `semantic_action_facts.parquet` | `derived/parquet/**/semantic_action_facts.parquet` | `interpretation.trajectory_semantics` |
@@ -1860,7 +1969,9 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `task_qualification.parquet` | `derived/parquet/**/task_qualification.parquet` | `task_health`, `task_qualification` |
 | `task_stability.parquet` | `derived/parquet/**/task_stability.parquet` | `task_stability` |
 | `task_versions.parquet` | `derived/parquet/**/task_versions.parquet` | `cli`, `qa.trace_workspace`, `sft_split`, `task_catalog` |
+| `tasks.parquet` | `derived/parquet/**/tasks.parquet` | `failure_library.runs.io` |
 | `test.parquet` | `trajectories/test.parquet` | `rl_rollouts` |
+| `tests.parquet` | `data/tests.parquet` | `failure_library.runs.ingest`, `failure_library.runs.io` |
 | `tool_calls.parquet` | `derived/parquet/**/tool_calls.parquet` | `evidence.atif`, `interpretation.trajectory_context`, `report` |
 | `tool_usage.parquet` | `derived/parquet/**/tool_usage.parquet` | `evidence.atif`, `evidence.facts` |
 | `traj_features.parquet` | `derived/parquet/**/traj_features.parquet` | `traj` |
@@ -1870,7 +1981,7 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `trial_capture.parquet` | `derived/parquet/**/trial_capture.parquet` | `model_capture`, `trial_treatment` |
 | `trial_facts.parquet` | `derived/parquet/**/trial_facts.parquet` | `evidence.atif`, `evidence.facts`, `interpretation.trajectory_data_quality`, `lessons`, `report` |
 | `trial_treatment.parquet` | `derived/parquet/**/trial_treatment.parquet` | `trial_treatment` |
-| `trials.parquet` | `derived/parquet/**/trials.parquet` | `nightly_refresh` |
+| `trials.parquet` | `data/trials.parquet` | `failure_library.runs.ingest`, `failure_library.runs.io`, `nightly_refresh` |
 
 ### DuckDB views (`sql/`)
 

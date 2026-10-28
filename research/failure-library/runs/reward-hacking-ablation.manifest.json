@@ -1,0 +1,1 @@
+{"collection":"reward-hacking-ablation","count":182773,"label_kinds":{"construction":1162979,"executed":536964},"outcomes":{"error":210,"fail":37038,"pass":24733,"unknown":120792},"schema_version":"failure-library/v1","sha256":"44cbc1e7278b3bffae92689a4dca7c19258e98dc278f94f68ff43fd9ce6a9eb8","source_revision":"dda898075de555d8bbf30b4598dbe5be878817a2"}

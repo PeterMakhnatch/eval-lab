@@ -105,6 +105,9 @@ _FACET_FILTERS: dict[str, tuple[Any, ...] | None] = {
 _FACET_SIMILARITY_FIELDS = (
     "outcome", "tests", "eval_awareness", "shortcut", *_FACET_BOOLEANS, "suspicion",
 )
+#: ``trace-findings/v1`` (see ``trace_findings.py``): one record per run, detector, detector version and reader.
+TRACE_FINDING_VERDICTS = ("alarm", "clear", "abstain", "unknown")
+TRACE_FINDING_KINDS = ("cheat", "loop", "runaway", "latency", "infra", "other")
 # Evidence trust, strongest first. Tier 1: container-verified differentials
 # (qualified repairs, differentially replayed witnesses, maintainer fixes).
 # Tier 2: consensus-labeled evidence (unanimous judge votes with passage-level
@@ -659,12 +662,32 @@ class CloudTraceDatabase:
                     run_ids {json_type} NOT NULL, centroid_text TEXT NOT NULL,
                     size INTEGER NOT NULL CHECK(size >= 1), label_rates {json_type},
                     provenance_json {json_type} NOT NULL)""")
+            if not self._postgres or not self._exists("trace_findings"):
+                verdicts = " OR ".join(f"verdict = '{value}'" for value in TRACE_FINDING_VERDICTS)
+                kinds = " OR ".join(f"kind = '{value}'" for value in TRACE_FINDING_KINDS)
+                self._execute(f"""CREATE TABLE IF NOT EXISTS trace_findings (
+                    run_id TEXT NOT NULL REFERENCES agent_traces(trace_id) ON DELETE CASCADE,
+                    task_id TEXT NOT NULL REFERENCES corpus_tasks(task_id),
+                    detector TEXT NOT NULL, detector_version TEXT NOT NULL,
+                    reader_model TEXT NOT NULL DEFAULT '',
+                    verdict TEXT NOT NULL CHECK({verdicts}),
+                    score DOUBLE PRECISION,
+                    kind TEXT NOT NULL CHECK({kinds}),
+                    evidence_steps {json_type} NOT NULL, summary TEXT NOT NULL,
+                    input_tokens INTEGER NOT NULL CHECK(input_tokens >= 0),
+                    output_tokens INTEGER NOT NULL CHECK(output_tokens >= 0),
+                    cost_usd DOUBLE PRECISION NOT NULL CHECK(cost_usd >= 0),
+                    latency_ms INTEGER NOT NULL CHECK(latency_ms >= 0),
+                    produced_at TEXT NOT NULL,
+                    actor_inputs_available {boolean_type} NOT NULL,
+                    PRIMARY KEY(run_id, detector, detector_version, reader_model))""")
             for table, fields in (
                 ("task_issues", "task_id, direction, status, defect_class"),
                 ("agent_traces", "task_id, run_id"),
                 ("trace_steps", "tool_name, trace_id"),
                 ("run_facets", "task_id, outcome, tests, suspicion"),
                 ("run_clusters", "parent, level"),
+                ("trace_findings", "detector, verdict, kind"),
             ):
                 if not self._postgres or not self._exists(f"{table}_lookup"):
                     self._execute(f"CREATE INDEX IF NOT EXISTS {table}_lookup ON {table} ({fields})")

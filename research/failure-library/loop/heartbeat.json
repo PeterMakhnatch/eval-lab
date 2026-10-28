@@ -1,5 +1,6 @@
 {
   "actual_curated_packet_sha256": "9eba9de11c833a56321f84f39110e49d3364d4ff8817c4251105e3ee31c8557e",
+  "actual_model": null,
   "admission_gap": "Public pilot currently binds file/view hashes separately. Parent owns wiring offline exact-row/span reconstruction and task package digest checks before another model call.",
   "cli_wall_seconds": 5.09,
   "collections": {
@@ -17,6 +18,7 @@
     }
   },
   "completed_reviews": 0,
+  "error_record_model": "meta/muse-wonder-1.0-contributor",
   "executed_checkout_head": "9cd7f4e62c73d5b17500159a859b1472141a1bd9",
   "executed_code_commit": "182d25002",
   "feedback": {
@@ -29,6 +31,7 @@
   "independent_verification": false,
   "matching_code_committed_after_attempt": true,
   "measurement_note": "Original exception path did not retain the per-arm wall measurement; its private CSV fallback zero is not interpreted as a measured zero. Public score fields stay blank. Code now retains exception wall time.",
+  "model_attestation": "Native assistant error identifies the requested route; no completed reply establishes the actually served model.",
   "next_call_owner": "Main; manual explicit route/reset decision and NEW immutable output directories; no automatic retry",
   "original_input_manifest_digest": "sha256:b2104db6d80d508bb2848f821e4c73c09a3105f4111ef5cdf26f54649447da5a",
   "per_arm_wall_seconds": null,
@@ -52,7 +55,6 @@
   },
   "schema": "failure-library.heartbeat/v1",
   "scope": "real public CLI attempt; no completed paired diagnostic and no native Harbor canary",
-  "served_model": "meta/muse-wonder-1.0-contributor",
   "source_label_caveat": "Task positives are publisher human labels; run executed labels describe publisher-reported execution, not independent local reproduction. No clean-control certification is inferred.",
   "spend_usd": 0,
   "stages": [

@@ -141,6 +141,30 @@ declines it is `neither`. `window_cascade.CONTEXT_REASONING_CHARS` can add a sho
 reasoning excerpt (for example 300 characters) to every other window step; it is off
 because on Goodfire DEV it cost about a quarter more judge input and found nothing more.
 
+Stage 0 (`evallab.production.stage0_triage`, `stage0-triage/v1`) separately triages
+**whole runs** from Run Atlas's provisional, model-extracted `run-facets/v1`
+records, not causal prefixes. `load_facets` reads the interim append-only
+`~/.local/state/evallab-prod-live/run-atlas/facets-v1.jsonl`, validates records with
+Run Atlas's canonical validator, skips malformed records, and keeps the last
+valid record for each run. The default alarm is `suspicion >= 2`; named rules can
+be combined with OR for DEV measurement. No model call or extraction is started.
+`MisalignmentLiveWorker.ingest_run_facets` requires a bound registry with an
+authoritative assignment ledger and rejects cross-key TEST or sealed identities.
+For runs already observed, their task identity and steps are authoritative; for
+Atlas-only runs, callers supply the resolved `task_id` and original `step_ids`.
+After admission and citation checks it journals one idempotent
+`monitor.run_triage` diagnostic per run, facet digest and rule combination.
+The event retains the assignment digest, rule names, evidence step IDs and the
+canonical facet SHA-256, never the facet's goal, approach or shortcut prose.
+These alarms are investigation leads, never gates or verdicts: they do not
+change `pre_action_gate`, verify an outcome, or establish reward causality.
+Run-level scoring excludes missing decisions from every count and reports their
+run IDs separately. An OR union is positive if either reader alarms, but is
+negative only when all readers returned a negative; otherwise it is unknown.
+Comparisons use the same complete facet/cascade intersection. A frozen
+cross-dataset DEV check is not a new unseen holdout, and scores from facets with
+incomplete source-name blinding remain exploratory.
+
 Live alert cards also carry a `playbook` lead: `window_cascade.playbook_lead` runs
 `trace_feature_flags.compute_trace_feature_flags` over the steps observed up to the flagged
 step (agent commands and text only, so a replay gives the same lead as a stream) and
@@ -1510,24 +1534,53 @@ modal run src/evallab/production/modal_cloud.py::run_cloud_supervisor_step \
 
 #### Run Atlas (`/api/cloud-db/atlas`)
 
-The atlas is a read-only projection of two retained files under `<data_root>/atlas/`,
-validated strictly by `evallab.production.atlas_view` and re-read only when a file
-changes. Neither endpoint calls a model, reads a label, or writes anything.
+The atlas is a read-only projection of two retained files under `<data_root>/run-atlas/`,
+validated by `evallab.production.atlas_view` and re-read only when a file changes.
+Neither endpoint calls a model, joins source labels, or writes anything.
 
+- The dashboard's **Run Atlas** tab shows store health, the recorded cluster tree,
+  facet filters and paged DEV runs, with in-page evidence, trace flags and playbook cards.
+- **Opening screen.** The cloud deployment (`CloudRuntime`) serves the dashboard with
+  `home="atlas"`, so it opens on the Run Atlas; the local control plane has no trace
+  database and keeps `home="live"`. The server picks the screen (`dashboard_html(home)`),
+  so there is no probing request and no flicker. A `#atlas?…` link opens it from either.
+- **Which tool to trust.** Above the filters, a collapsible strip shows each tool's recall
+  and false alarms on the two labelled cohorts from `/api/cloud-db/trace-tools` (counts
+  only; abstentions are never misses) with a button to the full **Trace Tools** tab for
+  cost, detectors and sources.
+- **Picking runs.** The view is a link: after every load the address bar carries
+  `#atlas?` plus the active source, outcome, tests, eval-awareness, minimum-suspicion,
+  boolean, free-text and cluster filters (never page size, offset or a token). **Copy link
+  to this view** copies it; opening it restores the filters and cluster, and a link the API
+  refuses (unknown cluster, bad value) shows that refusal instead of an empty page.
+  **Copy run IDs · this page** copies the shown trace IDs, one per line, for an agent.
 - `facets-v1.jsonl` -- one `run-facets/v1` JSON object per line (contract: the Wave 6
-  `CONTRACT.md` §3). `run_id` is `agent_traces.trace_id`: the database's `run_id`
-  column is shared by many traces and is never used to look a run up. A line that is
-  not exactly that record (extra or missing field, `split` other than `DEV`,
+  `CONTRACT.md` §3). Cloud-backed `run_id` is `agent_traces.trace_id`: the database's
+  `run_id` column is shared by many traces and is never used to look a run up.
+  Item-only records without a corresponding trace are counted as withheld, not aliased.
+  A line that is not exactly that record (extra or missing field, `split` other than `DEV`,
   `suspicion` outside 0-3, more than 5 or repeated `evidence_steps`, bad enum) is
   counted as rejected and shown as a short reason; the latest valid line per `run_id`
-  wins.
-- `clusters-v1.json` -- one `run-clusters/v1` document: `facet_version`, `generated_at`,
-  `scored_at` (null until scored) and `clusters[]` of `{cluster_id, name, level 1-3,
-  parent, run_ids, centroid_text, size, label_rates[] of {label, hits_n, of_n}}`. Rules:
-  `size` equals the distinct `run_ids`; only level 1 has no parent; a parent sits one
-  level above and contains every child run; `label_rates` exist only once `scored_at`
-  is set and never exceed the cluster (`hits_n <= of_n <= size`). An invalid cluster
-  file is reported as `store.cluster_error` and the facets still show.
+  wins. Displayed `source` comes from the admitted task's `dataset_id`; `outcome`
+  comes from trace reward (at least 1: pass; at most 0: fail; otherwise unknown).
+  Evidence is checked against actual `trace_steps.step_index` membership, not
+  `step_count`: sparse indices are valid, nonexistent gaps are not.
+- `clusters-v1.jsonl` -- the producer's append-only `run-clusters/v1` rows, with
+  `cluster_version`, `build_id`, `created_at`, `facet_count`, `cluster_id`, `name`,
+  `level`, `parent`, `run_ids`, `centroid_text`, `size` and nullable `label_rates`.
+  The final contiguous build in file order is used; reused IDs never mix builds.
+  Creation timestamps may differ per node within a build; only `build_id` and
+  `facet_count` identify its shared snapshot, not timestamp equality.
+  Its three levels must partition the same `facet_count` identities, with distinct
+  IDs, correct sizes, parents one level above and children contained in their parent.
+  An incomplete or invalid final build yields `store.cluster_error`; facets still show.
+  Unused producer diagnostics and sample texts are not returned.
+- Producer `label_rates` is either null or `{labelled, positives, rate}`. The view
+  validates `positives <= labelled <= size` and the ratio, then projects it into
+  `{label, hits_n, of_n}` for display. Unknown labels never become negatives.
+  The producer does not record a scoring timestamp: API `scored_at` remains null,
+  never replaced with clustering time or file mtime. Null rates show "Not scored yet";
+  recorded rates without a timestamp show "Scoring time not recorded".
 
 `GET /api/cloud-db/atlas` (always `split=dev`) takes the facet filters `source`,
 `outcome`, `tests`, `eval_awareness`, `min_suspicion`, the three boolean facets,
@@ -1540,10 +1593,39 @@ step of the run (`evidence_outside_run_n`). Neither kind is shown.
 
 `GET /api/cloud-db/atlas/run?run_id=` returns one run: its facet, the cluster chains
 that hold it, its evidence steps with one neighbour each side (bounded excerpts from
-retrieval's `expand_pointer`, never user prompts), the fired trace feature flags with
+retrieval's `expand_pointer`, never user or system prompts), the fired trace feature flags with
 their step indices, and the matching Trace-Watcher playbook cards. Retrieval's own
 gate decides first; a run it will not return yields `withheld` and no steps. Flags and
 cards are routing leads, not cheating verdicts.
+
+#### Trace Tools scorecard (`/api/cloud-db/trace-tools`)
+
+The **Trace Tools** tab puts Laminar, Docent, Inspect Scout (deterministic scanners and the
+METR scanner), the OMP subscription readings, the frozen rule cascade and the Run Atlas
+facets side by side on the two labelled cohorts the lanes already score: the Goodfire CM-9
+sample and the CheatBench DEV cross-test. `harbor analyze` has a row that reads "No retained
+result" until a scorecard contains one. The endpoint is a read-only projection of retained
+files, validated by `evallab.production.tool_scorecard_view` and re-read only when one changes:
+
+- `<data_root>/trace-tools/tt1-scorecard.json` (`evallab.trace_tool_scorecard/v1`): per tool
+  and detector counts; the headline detector is `any_flag`. Abstentions are counts of runs the
+  tool did not read, never negatives.
+- `<data_root>/run-atlas/scorecards/*.json` (`run-atlas-scorecard/v1`, newest valid file by
+  modification time): the facet headline (`suspicion>=2`) and the cascade on the same traces.
+- `<data_root>/trace-tools/spend.jsonl` and `<data_root>/run-atlas/per-run-accounting-*.jsonl`:
+  recorded usage. Cost per 1k runs divides entries that recorded tokens or dollars by the run
+  count on the same line; entries with no usage are not denominators, and `$0` means a
+  subscription or free allowance. An interrupted line is not adjusted.
+- `<data_root>/trace-tools/results-v1.jsonl` and `<data_root>/run-atlas/facet-calls-v1.jsonl`:
+  the last recorded write per tool, shown in ET with the file it came from.
+- `<data_root>/run-atlas/blinding-refresh-v1.json` against `reblinded-facets-v1.jsonl`: the
+  facets row is marked provisional while listed runs have no re-extracted record.
+
+Rows that contradict their own counts are rejected and counted; a missing or broken file
+degrades only its own columns and is listed under "Sources read". The response carries counts
+and confidence intervals only: the browser derives every recall, false-alarm rate and cost per
+run, so the page never computes a score the producers did not record. Nothing is ranked, no
+label is joined, and `split` other than `dev` is refused.
 
 ### Production supervisor
 

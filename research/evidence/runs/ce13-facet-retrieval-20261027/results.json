@@ -1,0 +1,265 @@
+{
+ "admitted_tasks": 1048,
+ "dataset": "goodfire-reward-hack-data",
+ "faceted_admitted_runs": 155,
+ "faceted_returnable_pool": 100,
+ "population": 104,
+ "protocol": "CE-4 leave-one-out, top_k 5, query task excluded, shared publisher category",
+ "recorded_at_utc": "2026-10-28T03:11:22.644071+00:00",
+ "results": {
+  "misalignment/facet_profile": {
+   "judged": 502,
+   "latency_median_s": 0.216,
+   "paired_vs_lexical": {
+    "ci95": [
+     -0.354,
+     -0.227
+    ],
+    "delta": -0.29,
+    "queries": 104
+   },
+   "paired_vs_lexical_faceted_pool": {
+    "ci95": [
+     -0.416,
+     -0.273
+    ],
+    "delta": -0.344,
+    "queries": 104
+   },
+   "precision_shared_label": 0.508,
+   "queries_with_full_top_k": 99,
+   "queries_with_results": 104,
+   "random_pool_shared_label": 0.614,
+   "returned_total": 502
+  },
+  "misalignment/lexical": {
+   "judged": 520,
+   "latency_median_s": 1.071,
+   "precision_shared_label": 0.798,
+   "queries_with_full_top_k": 104,
+   "queries_with_results": 104,
+   "random_pool_shared_label": 0.652,
+   "returned_total": 520
+  },
+  "misalignment/lexical_faceted_pool": {
+   "judged": 520,
+   "latency_median_s": 0.701,
+   "paired_vs_lexical": {
+    "ci95": [
+     0.008,
+     0.102
+    ],
+    "delta": 0.054,
+    "queries": 104
+   },
+   "precision_shared_label": 0.852,
+   "queries_with_full_top_k": 104,
+   "queries_with_results": 104,
+   "random_pool_shared_label": 0.537,
+   "returned_total": 520
+  },
+  "misalignment/lexical_like_run": {
+   "judged": 520,
+   "latency_median_s": 0.646,
+   "paired_vs_lexical": {
+    "ci95": [
+     0.062,
+     0.148
+    ],
+    "delta": 0.104,
+    "queries": 104
+   },
+   "paired_vs_lexical_faceted_pool": {
+    "ci95": [
+     0.013,
+     0.088
+    ],
+    "delta": 0.05,
+    "queries": 104
+   },
+   "precision_shared_label": 0.902,
+   "queries_with_full_top_k": 104,
+   "queries_with_results": 104,
+   "random_pool_shared_label": 0.537,
+   "returned_total": 520
+  },
+  "misalignment/like_run": {
+   "judged": 520,
+   "latency_median_s": 0.167,
+   "paired_vs_lexical": {
+    "ci95": [
+     0.013,
+     0.104
+    ],
+    "delta": 0.06,
+    "queries": 104
+   },
+   "paired_vs_lexical_faceted_pool": {
+    "ci95": [
+     -0.04,
+     0.048
+    ],
+    "delta": 0.006,
+    "queries": 104
+   },
+   "precision_shared_label": 0.858,
+   "queries_with_full_top_k": 104,
+   "queries_with_results": 104,
+   "random_pool_shared_label": 0.537,
+   "returned_total": 520
+  },
+  "misalignment/same_cluster": {
+   "judged": 453,
+   "latency_median_s": 0.194,
+   "paired_vs_lexical": {
+    "ci95": [
+     -0.096,
+     0.041
+    ],
+    "delta": -0.027,
+    "queries": 97
+   },
+   "paired_vs_lexical_faceted_pool": {
+    "ci95": [
+     -0.143,
+     -0.005
+    ],
+    "delta": -0.075,
+    "queries": 97
+   },
+   "precision_shared_label": 0.775,
+   "queries_with_full_top_k": 87,
+   "queries_with_results": 97,
+   "random_pool_shared_label": 0.768,
+   "returned_total": 453
+  },
+  "reward_seeker/facet_profile": {
+   "judged": 502,
+   "latency_median_s": 0.246,
+   "paired_vs_lexical": {
+    "ci95": [
+     -0.354,
+     -0.227
+    ],
+    "delta": -0.29,
+    "queries": 104
+   },
+   "paired_vs_lexical_faceted_pool": {
+    "ci95": [
+     -0.416,
+     -0.273
+    ],
+    "delta": -0.344,
+    "queries": 104
+   },
+   "precision_shared_label": 0.508,
+   "queries_with_full_top_k": 99,
+   "queries_with_results": 104,
+   "random_pool_shared_label": 0.614,
+   "returned_total": 502
+  },
+  "reward_seeker/lexical": {
+   "judged": 520,
+   "latency_median_s": 1.421,
+   "precision_shared_label": 0.798,
+   "queries_with_full_top_k": 104,
+   "queries_with_results": 104,
+   "random_pool_shared_label": 0.652,
+   "returned_total": 520
+  },
+  "reward_seeker/lexical_faceted_pool": {
+   "judged": 520,
+   "latency_median_s": 0.927,
+   "paired_vs_lexical": {
+    "ci95": [
+     0.008,
+     0.102
+    ],
+    "delta": 0.054,
+    "queries": 104
+   },
+   "precision_shared_label": 0.852,
+   "queries_with_full_top_k": 104,
+   "queries_with_results": 104,
+   "random_pool_shared_label": 0.537,
+   "returned_total": 520
+  },
+  "reward_seeker/lexical_like_run": {
+   "judged": 520,
+   "latency_median_s": 0.807,
+   "paired_vs_lexical": {
+    "ci95": [
+     0.062,
+     0.148
+    ],
+    "delta": 0.104,
+    "queries": 104
+   },
+   "paired_vs_lexical_faceted_pool": {
+    "ci95": [
+     0.013,
+     0.088
+    ],
+    "delta": 0.05,
+    "queries": 104
+   },
+   "precision_shared_label": 0.902,
+   "queries_with_full_top_k": 104,
+   "queries_with_results": 104,
+   "random_pool_shared_label": 0.537,
+   "returned_total": 520
+  },
+  "reward_seeker/like_run": {
+   "judged": 520,
+   "latency_median_s": 0.255,
+   "paired_vs_lexical": {
+    "ci95": [
+     0.013,
+     0.104
+    ],
+    "delta": 0.06,
+    "queries": 104
+   },
+   "paired_vs_lexical_faceted_pool": {
+    "ci95": [
+     -0.04,
+     0.048
+    ],
+    "delta": 0.006,
+    "queries": 104
+   },
+   "precision_shared_label": 0.858,
+   "queries_with_full_top_k": 104,
+   "queries_with_results": 104,
+   "random_pool_shared_label": 0.537,
+   "returned_total": 520
+  },
+  "reward_seeker/same_cluster": {
+   "judged": 453,
+   "latency_median_s": 0.212,
+   "paired_vs_lexical": {
+    "ci95": [
+     -0.096,
+     0.041
+    ],
+    "delta": -0.027,
+    "queries": 97
+   },
+   "paired_vs_lexical_faceted_pool": {
+    "ci95": [
+     -0.143,
+     -0.005
+    ],
+    "delta": -0.075,
+    "queries": 97
+   },
+   "precision_shared_label": 0.775,
+   "queries_with_full_top_k": 87,
+   "queries_with_results": 97,
+   "random_pool_shared_label": 0.768,
+   "returned_total": 453
+  }
+ },
+ "returnable_pool": 1609,
+ "schema": "evallab.ce13_facet_retrieval/v1"
+}

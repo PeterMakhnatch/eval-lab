@@ -1,0 +1,373 @@
+{
+  "archived_implementation_sha256": {
+    "failure_library/commands/pack.py": "9583a640a3e53438089c222b3c973ba2d7054e1fc59142113306a7c2e116f7fe",
+    "failure_library/knowledge/compiler.py": "9413b927086bd7635e1e57c102e38b8aebb250955daa0e0dadf0d2ae6fe57c5a",
+    "failure_library/knowledge/export.py": "543ff489f2abe429bb8900a498de963e041de58186f53a1ab3c1b280fa31fdf2",
+    "failure_library/knowledge/models.py": "2ff5e0151a3c4c1b28b87cae2481d796eea3950bed23be0c430558211682fa35",
+    "failure_library/knowledge/packs.py": "e8a744eae5307969bd2cf00da0664d2cdaadada7c8be27423fd2ec04bad6eac3",
+    "failure_library/records.py": "c5ea7c9b1ab0cdeb7fedc04e7ca1990d87e64cca7875d92959878eded2d100a6",
+    "failure_library/store.py": "349a9596de4cdf21e16f147e251ac2c8d38de9b83a94c969b631dbe81ccaf5bd",
+    "hackbook/models.py": "0ad821797631b87b292ed0c2b0b88b8f33c742de2330980f617b3f5395519c7e",
+    "production/cloud_trace_db.py": "d4206f88290c891de1f0430e5b94d987dafeed1916ba921940fd75bd3d8c7447",
+    "production/corpus_queue.py": "8f6b7628e28ad366da7d01277c5b258a4d4c58a721c37a0d71ef2899587f6c6a"
+  },
+  "artifact_state": "historical_pre_parent_source_corrections_not_current_verification",
+  "build": {
+    "admitted_dev_examples": 141990,
+    "by_collection": {
+      "aba-audits": 327,
+      "djinn": 976,
+      "envcheck-tb4": 2,
+      "goodfire-reward-hack-data": 4858,
+      "hacktrace": 12737,
+      "impossiblebench": 606,
+      "mimo-defect-map": 88,
+      "mimo-weak-tests": 97,
+      "olmo-reward-hacking": 18956,
+      "patchdiff-wrong-passes": 49,
+      "pm-tb4-findings": 48,
+      "reward-hacking-ablation": 72407,
+      "swebench-pro-verified-corrections": 83,
+      "termgrade": 27598,
+      "terminal-wrench": 3133,
+      "utboost-weak-tasks": 25
+    },
+    "by_split": {
+      "DEV": 141990
+    },
+    "by_tier": {
+      "V0_unverified": 347,
+      "V1_external_label": 1691,
+      "V2_upstream_fixed": 83,
+      "V3_executed": 180,
+      "run_label": 139689
+    },
+    "cards": 38,
+    "insufficient_dev_support": {},
+    "library_digest": "sha256:d9142e22bf32cdab259482cfa5ca63c5fe769b2f92caed435db165cc22172fb0",
+    "missing_run_collections": [],
+    "rejected_examples": 148628,
+    "schema_version": "failure-knowledge/v1",
+    "sha256": {
+      "cards.jsonl": "db0b9fbd424cbd8b9a2abf9dede2a74f56c9579668de851cfcd9a66f3668a6a4",
+      "hackbook-proposals.jsonl": "d9d32a632f81d1213a90d19abc74a85018988c75bd0c25a54dee850aef67fc19"
+    },
+    "source_collection_digests": {
+      "findings/aba-audits.jsonl": "sha256:11aecd8a87affee4508dbd0300d72e90b56de67cdd75c8a576d51d079212c2e0",
+      "findings/djinn.jsonl": "sha256:860040710117bb25eab5c1335b792df63bc14bcecf07c6fe05da6a394f21cdf0",
+      "findings/envcheck-tb4.jsonl": "sha256:c703617a8d58d4c895254aa404a4cf42f1c3c0085b6e237444b9f7ec4009275f",
+      "findings/impossiblebench.jsonl": "sha256:73ce5c42712e9c93e33e6d3e3e09e6bad205e7913c5e65c8e0ce92dd7697d3dd",
+      "findings/mimo-defect-map.jsonl": "sha256:a96085e06a8f430965c37bb3e5b0490fec1a65e676504e082c48ab7476a32e75",
+      "findings/mimo-weak-tests.jsonl": "sha256:b569d1b2fcc9c9d2aaed675176c5898b9399b075f29d0f60ebd35feab16f7def",
+      "findings/openai-swebench-verified-annotations.jsonl": "sha256:3ce7c84a6f9260d554d52cdddacb9d95fba99c346a48572ad54a516e30b0f2cb",
+      "findings/patchdiff-wrong-passes.jsonl": "sha256:71597e864f28183978a1f0b2a81c854c835c5aeceb7e55fde40805478ab1eda9",
+      "findings/pm-tb4-findings.jsonl": "sha256:81708ad8a3c79de8571599021dc0914600bf56761ab60ce1b72ea30a4019f5f2",
+      "findings/swebench-pro-verified-corrections.jsonl": "sha256:80713f4fa45d8ae03bb37d8732fa38d583ef817a9eac064e2fcf3914b46d5db9",
+      "findings/tb2-to-tb21-fixes.jsonl": "sha256:f423e86980c7a72f57fe9033fc02084a5ad86feb54fd5ad53683ee36a3da3800",
+      "findings/tb21-weak-tests.jsonl": "sha256:f68c18f928bb868c6a4afd5cb3d7fc0402aad21e2d5847c3216efa4c97a1b70d",
+      "findings/utboost-weak-tasks.jsonl": "sha256:1ac14b4ea98346da6f740a3550b9e8626df5f1a22b1425c22ff10bce690d133e",
+      "manifests/cheatbench.manifest.json": "sha256:3b904906af50dc66f8cb6dcdc63b274f16cfc4aeb68d4896bb8b86e949a2cc45",
+      "manifests/goodfire-reward-hack-data.manifest.json": "sha256:2a84fa32d2ef4e4dc742d8e7bba9f356fb4dd977193113fe6e7dea2091e38c68",
+      "manifests/hacktrace.manifest.json": "sha256:1b595ac3ba51e1f0a3c3a02cbe9442ce3db71e0169280851779778fb19555670",
+      "manifests/metr-malt.manifest.json": "sha256:d64e10cbf7d4507f1919594b671c228ec0650ba514f91836a68905006dc9c6f3",
+      "manifests/olmo-reward-hacking.manifest.json": "sha256:6c27a1031f85e596b2cc65d2764ad18307ad788f171002baecb5f627dc9fe975",
+      "manifests/reward-hacking-ablation.manifest.json": "sha256:54b14bc2812e08aa325275c1e2d96ee18a56d0ddb1749de2c148558ddd4c73f5",
+      "manifests/termgrade.manifest.json": "sha256:f0161eb8211e393970095fa87c813d0d2953e969f87dd45ddbab3179c61bffc0",
+      "manifests/terminal-wrench.manifest.json": "sha256:23475ed9b5659e1722b1a6afdcb5b2662ef5815835222c3c6f99b96076976e8d",
+      "runs/cheatbench.jsonl": "sha256:61a47003587056e6d2c7c302d14b6702217f2b372ebf09f07d7fb7bd96dbbdeb",
+      "runs/goodfire-reward-hack-data.jsonl": "sha256:a65b9c9b151f778d9e220ef065f560d05b98a967a0fbfaa23922ccf2d8330772",
+      "runs/hacktrace.jsonl": "sha256:ac7bbb68014e999b797f6d46fb7adb1864d7a7c038c3ff9b14fef33aedeae060",
+      "runs/metr-malt.jsonl": "sha256:0e8f1d7a7c0faf1659a67ecffa88095e754dc282965dc020a8cb32f579972558",
+      "runs/olmo-reward-hacking.jsonl": "sha256:4a74ccc070994992f2dbf2ab281f79a4afabbe67d51300bd849bce184d1f06da",
+      "runs/reward-hacking-ablation.jsonl": "sha256:44cbc1e7278b3bffae92689a4dca7c19258e98dc278f94f68ff43fd9ce6a9eb8",
+      "runs/termgrade.jsonl": "sha256:a9fb7c9e1d63e4119c1fdc07480b5442d8ad69f22b6121f0cdc61d7121cdcfd0",
+      "runs/terminal-wrench.jsonl": "sha256:088ce0f0f4cf0f737ca8751f8c191fb2f72a0e6ef8d8391376e32beca37fbcdf"
+    },
+    "source_digest_format": "sha256-file-bytes",
+    "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "unbound_finding_links": 1397
+  },
+  "card_classes": [
+    "RS01",
+    "RS02",
+    "RS03",
+    "RS04",
+    "TS01",
+    "TS02",
+    "TS03",
+    "TS04",
+    "TS05",
+    "TS06",
+    "TS07",
+    "TS09",
+    "TS10"
+  ],
+  "execution": "Real CLI dispatch with explicit immutable library workspace; no model inference or task execution.",
+  "library_digest": "sha256:d9142e22bf32cdab259482cfa5ca63c5fe769b2f92caed435db165cc22172fb0",
+  "metered_cost_usd": 0,
+  "results": [
+    {
+      "agent": "task-qa",
+      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-65b15a96-8b5f74c8-e8ea0a0d/packets-version-bound/task-qa",
+      "card_ids": [
+        "FC-HB-RS01-002",
+        "FC-HB-RS01-001",
+        "FC-HB-RS02-001",
+        "FC-HB-RS02-002",
+        "FC-HB-TS01-009"
+      ],
+      "elapsed_seconds": 74.961,
+      "example_ids": [
+        "fl-73b577ab26dc22a6",
+        "fl-4e0baa21858a9c72",
+        "fl-0f3d850c03032c6c"
+      ],
+      "exit_code": 0,
+      "files": {
+        "pack.md": {
+          "chars": 7871,
+          "sha256": "0181610aba9a0476dcd202b84e5497e98de054fe2bb42a0337b0cd43b3c619db"
+        },
+        "playbook.md": {
+          "chars": 7871,
+          "sha256": "0181610aba9a0476dcd202b84e5497e98de054fe2bb42a0337b0cd43b3c619db"
+        },
+        "rubric.toml": {
+          "chars": 13289,
+          "sha256": "4cf73f537703394fa1baef89d7fa6d2d5c6f8e9657e0aae8d594622e878f8006"
+        }
+      },
+      "markdown_chars": 7871,
+      "status": "ready",
+      "stdout_sha256": "0181610aba9a0476dcd202b84e5497e98de054fe2bb42a0337b0cd43b3c619db"
+    },
+    {
+      "agent": "trace-qa",
+      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-65b15a96-8b5f74c8-e8ea0a0d/packets-version-bound/trace-qa",
+      "card_ids": [
+        "FC-HB-TS01-010",
+        "FC-HB-RS01-002",
+        "FC-HB-RS01-001",
+        "FC-HB-RS02-001",
+        "FC-HB-RS02-002"
+      ],
+      "elapsed_seconds": 108.563,
+      "example_ids": [
+        "fl-73b577ab26dc22a6",
+        "fl-4e0baa21858a9c72",
+        "fl-0f3d850c03032c6c"
+      ],
+      "exit_code": 0,
+      "files": {
+        "pack.md": {
+          "chars": 7958,
+          "sha256": "ec57125326940cd9d7dc3fac225335eed280c2cd91a2de53a3cb92ba0843eb1f"
+        },
+        "task_priors.json": {
+          "chars": 8923,
+          "sha256": "2539b246faae6201aecb9bc2d87d06ed3500b5ced1ef80a4b742e8ab730da1ed"
+        }
+      },
+      "markdown_chars": 7958,
+      "status": "ready",
+      "stdout_sha256": "ec57125326940cd9d7dc3fac225335eed280c2cd91a2de53a3cb92ba0843eb1f"
+    },
+    {
+      "agent": "trace-qa",
+      "artifact_directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/snapshots/20261027-65b15a96-8b5f74c8-e8ea0a0d/packets-version-bound/generic-trace-qa",
+      "card_ids": [
+        "FC-HB-RS04-001",
+        "FC-HB-RS02-002",
+        "FC-HB-RS01-002",
+        "FC-HB-TS07-001",
+        "FC-HB-TS01-009",
+        "FC-HB-TS01-008",
+        "FC-HB-TS01-001"
+      ],
+      "elapsed_seconds": 154.967,
+      "example_ids": [
+        "terminal-wrench:70364fd11707d7d718255482",
+        "terminal-wrench:7f2cb5c01367f0c133b31a65"
+      ],
+      "exit_code": 0,
+      "files": {
+        "pack.md": {
+          "chars": 6977,
+          "sha256": "18afd649c4844694bb51ce7af73b13c6145d017d9de26eeb9ec8dd6579bb71a2"
+        },
+        "task_priors.json": {
+          "chars": 7858,
+          "sha256": "b5c8726831020cf81f0165aee30407b7647ed9d52da071b2e58aca6fdfb5388e"
+        }
+      },
+      "markdown_chars": 6977,
+      "scope": "generic_unscoped_not_canary",
+      "status": "ready",
+      "stdout_sha256": "18afd649c4844694bb51ce7af73b13c6145d017d9de26eeb9ec8dd6579bb71a2"
+    }
+  ],
+  "schema_version": "failure-pack-smoke/v1",
+  "source_semantics_note": "Frozen data preceded parent corrections to consensus labels and TB narrative sanitization; parent must rebuild evidence-backed artifacts against final data.",
+  "source_snapshot": {
+    "finding_file_sha256": {
+      "aba-audits": "11aecd8a87affee4508dbd0300d72e90b56de67cdd75c8a576d51d079212c2e0",
+      "djinn": "860040710117bb25eab5c1335b792df63bc14bcecf07c6fe05da6a394f21cdf0",
+      "envcheck-tb4": "c703617a8d58d4c895254aa404a4cf42f1c3c0085b6e237444b9f7ec4009275f",
+      "impossiblebench": "73ce5c42712e9c93e33e6d3e3e09e6bad205e7913c5e65c8e0ce92dd7697d3dd",
+      "mimo-defect-map": "a96085e06a8f430965c37bb3e5b0490fec1a65e676504e082c48ab7476a32e75",
+      "mimo-weak-tests": "b569d1b2fcc9c9d2aaed675176c5898b9399b075f29d0f60ebd35feab16f7def",
+      "openai-swebench-verified-annotations": "3ce7c84a6f9260d554d52cdddacb9d95fba99c346a48572ad54a516e30b0f2cb",
+      "patchdiff-wrong-passes": "71597e864f28183978a1f0b2a81c854c835c5aeceb7e55fde40805478ab1eda9",
+      "pm-tb4-findings": "81708ad8a3c79de8571599021dc0914600bf56761ab60ce1b72ea30a4019f5f2",
+      "swebench-pro-verified-corrections": "80713f4fa45d8ae03bb37d8732fa38d583ef817a9eac064e2fcf3914b46d5db9",
+      "tb2-to-tb21-fixes": "f423e86980c7a72f57fe9033fc02084a5ad86feb54fd5ad53683ee36a3da3800",
+      "tb21-weak-tests": "f68c18f928bb868c6a4afd5cb3d7fc0402aad21e2d5847c3216efa4c97a1b70d",
+      "utboost-weak-tasks": "1ac14b4ea98346da6f740a3550b9e8626df5f1a22b1425c22ff10bce690d133e"
+    },
+    "metadata_sha256": {
+      "research/answer-keys/cheatbench-actions-v1/items.jsonl": "2c42c12f5423cfe19bec1e42dceec65d0753bb5506ac73db0e6020fc289891ac",
+      "research/answer-keys/hacktrace-act-v1/items.jsonl": "6a089780f64fb363478240bc468a3435762eec9d4937575f745aac872d34a098",
+      "research/answer-keys/splits/assignments.csv": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+      "research/answer-keys/tb4-audit-v1/items.jsonl": "e0f1daf325fdca0ee95e6187eef6c7f1753e9c596a95670c140045a3c4b3d8ab",
+      "research/answer-keys/tb4-audit-v1/tasks.jsonl": "b5a70285a7995272ad09ac0de7248ba409f7ee3ada5d906316218e3322b0de40",
+      "research/experiments/mimo-defect-map-v1/inventory.json": "33d0a46b7069572d013e27932059c304c3174dac0669a436f6d8ddc7fd685065",
+      "research/failure-library/knowledge/drafting.json": "41ef37c0318759a0e854f9f8961aede930ee0fc88a1f5ac5c82f0a088c91a502",
+      "research/failure-library/knowledge/mechanisms.json": "c74f4c37e050c86f35d66fb7cf93badffdf533bbce291180d71664005efbd7ae",
+      "research/failure-library/knowledge/run-drafting.json": "1fee36c1433e01092c7682382f151cbb29c50b76b1b384924ce0d94989ae8323",
+      "research/hackbook/entries.jsonl": "1e3e31705dcd4ce9554dd28e044fbe80c9b6d04f58601fc42d7197d2e038183c"
+    },
+    "retained_run_snapshot": "/Users/petermakhnatch/.local/state/evallab-failure-library/snapshots/e8ea0a0d9b53ac3dc42dc0f88079dd5ad79240266edb83a7d940023fdd05e6c1",
+    "run_manifests": {
+      "cheatbench": {
+        "collection": "cheatbench",
+        "count": 4472,
+        "label_kinds": {
+          "human": 9788
+        },
+        "outcomes": {
+          "unknown": 4472
+        },
+        "schema_version": "failure-library/v1",
+        "sha256": "61a47003587056e6d2c7c302d14b6702217f2b372ebf09f07d7fb7bd96dbbdeb",
+        "source_revision": "461360b34e93644955563dcc9243c6cc1a53bd0f"
+      },
+      "goodfire-reward-hack-data": {
+        "collection": "goodfire-reward-hack-data",
+        "count": 6958,
+        "label_kinds": {
+          "executed": 6930,
+          "judge": 17757
+        },
+        "outcomes": {
+          "error": 28,
+          "fail": 2628,
+          "pass": 4302
+        },
+        "schema_version": "failure-library/v1",
+        "sha256": "a65b9c9b151f778d9e220ef065f560d05b98a967a0fbfaa23922ccf2d8330772",
+        "source_revision": "bd8fb473568b8ef1d12fc2325a5c8af939c15ad9"
+      },
+      "hacktrace": {
+        "collection": "hacktrace",
+        "count": 20000,
+        "label_kinds": {
+          "construction": 12159,
+          "executed": 26299,
+          "judge": 61862
+        },
+        "outcomes": {
+          "fail": 13701,
+          "pass": 6299
+        },
+        "schema_version": "failure-library/v1",
+        "sha256": "ac7bbb68014e999b797f6d46fb7adb1864d7a7c038c3ff9b14fef33aedeae060",
+        "source_revision": "291cf50ffc3cb4d2af42ade5e0cd728cb0037312"
+      },
+      "metr-malt": {
+        "collection": "metr-malt",
+        "count": 572,
+        "label_kinds": {
+          "human": 1144
+        },
+        "outcomes": {
+          "unknown": 572
+        },
+        "schema_version": "failure-library/v1",
+        "sha256": "0e8f1d7a7c0faf1659a67ecffa88095e754dc282965dc020a8cb32f579972558",
+        "source_revision": "ktolnos/rh-bench@1045a7336432c40182924bbd3698af292ea24acb"
+      },
+      "olmo-reward-hacking": {
+        "collection": "olmo-reward-hacking",
+        "count": 25792,
+        "label_kinds": {
+          "executed": 146181
+        },
+        "outcomes": {
+          "fail": 12405,
+          "pass": 13358,
+          "unknown": 29
+        },
+        "schema_version": "failure-library/v1",
+        "sha256": "4a74ccc070994992f2dbf2ab281f79a4afabbe67d51300bd849bce184d1f06da",
+        "source_revision": "fb89a90a4a4eeb287148dada7715dbdcc15f6cfe"
+      },
+      "reward-hacking-ablation": {
+        "collection": "reward-hacking-ablation",
+        "count": 182773,
+        "label_kinds": {
+          "construction": 1162979,
+          "executed": 536964
+        },
+        "outcomes": {
+          "error": 210,
+          "fail": 37038,
+          "pass": 24733,
+          "unknown": 120792
+        },
+        "schema_version": "failure-library/v1",
+        "sha256": "44cbc1e7278b3bffae92689a4dca7c19258e98dc278f94f68ff43fd9ce6a9eb8",
+        "source_revision": "dda898075de555d8bbf30b4598dbe5be878817a2"
+      },
+      "termgrade": {
+        "collection": "termgrade",
+        "count": 36144,
+        "label_kinds": {
+          "construction": 70,
+          "executed": 620101
+        },
+        "outcomes": {
+          "error": 68,
+          "fail": 14166,
+          "pass": 21910
+        },
+        "schema_version": "failure-library/v1",
+        "sha256": "a9fb7c9e1d63e4119c1fdc07480b5442d8ad69f22b6121f0cdc61d7121cdcfd0",
+        "source_revision": "7d584d63dd598d7e76d444ca23e1527fb5ebd6d9"
+      },
+      "terminal-wrench": {
+        "collection": "terminal-wrench",
+        "count": 8641,
+        "label_kinds": {
+          "construction": 2352,
+          "executed": 8641,
+          "judge": 19788
+        },
+        "outcomes": {
+          "fail": 1441,
+          "pass": 7200
+        },
+        "schema_version": "failure-library/v1",
+        "sha256": "088ce0f0f4cf0f737ca8751f8c191fb2f72a0e6ef8d8391376e32beca37fbcdf",
+        "source_revision": "622449769ec6ddf33f770794489b8cd21712a0ad"
+      }
+    },
+    "schema_version": "failure-knowledge-input-snapshot/v1",
+    "source_commits": {
+      "runs": "f2ff5a22e68571c778aaa6cf248074b19f956c77",
+      "swe": "65b15a96b0349db9274acc68033ffb1e76fc8d67",
+      "tb": "8b5f74c81ed3aa6e37134a9656af9cd9ec2aadad"
+    }
+  },
+  "subject": "terminal-bench/html-js-filter",
+  "verification_note": "These were packet-format/retrieval smokes, not independent execution of source defects."
+}

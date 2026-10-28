@@ -276,14 +276,52 @@ class ToolFindingIndex:
             self.error = (str(error).splitlines() or [type(error).__name__])[0][:200]
         self._latest = latest
 
-    def for_runs(self, run_ids: Collection[str]) -> dict[str, dict[str, dict[str, Any]]]:
-        """Per run and tool: the detectors that flagged it and how many read clean or abstained."""
+    def _current(self) -> dict[str, dict[tuple[str, str], tuple[Any, bool | None, list[int]]]]:
         with self._lock:
             key = self._signature()
             if not self._loaded or key != self._key:
                 self._key, self._loaded = key, True
                 self._load()
-            latest = self._latest
+            return self._latest
+
+    def partition(self, tool: str, admitted: Collection[str]) -> dict[str, Any]:
+        """Admitted runs split by what one tool recorded: hit, read clean, or not read.
+
+        A run is a hit if any of the tool's detectors flagged it, read clean if one read it
+        and none flagged, and not read if the tool has no result or only abstained. Runs the
+        tool read that are not in ``admitted`` are only counted, never listed.
+        """
+        latest = self._current()
+        admitted_set = set(admitted)
+        hit: dict[str, list[dict[str, Any]]] = {}
+        clean: list[str] = []
+        unread: list[str] = []
+        for run in sorted(admitted_set):
+            flagged: list[dict[str, Any]] = []
+            read_clean = False
+            for (name, detector), (_, flag, steps) in sorted(latest.get(run, {}).items()):
+                if name != tool:
+                    continue
+                if flag is True:
+                    flagged.append({"detector": detector, "evidence_steps": steps})
+                elif flag is False:
+                    read_clean = True
+            if flagged:
+                hit[run] = flagged
+            elif read_clean:
+                clean.append(run)
+            else:
+                unread.append(run)
+        outside = sum(
+            1
+            for run, kept in latest.items()
+            if run not in admitted_set and any(name == tool for name, _ in kept)
+        )
+        return {"hit": hit, "clean": clean, "unread": unread, "outside_n": outside}
+
+    def for_runs(self, run_ids: Collection[str]) -> dict[str, dict[str, dict[str, Any]]]:
+        """Per run and tool: the detectors that flagged it and how many read clean or abstained."""
+        latest = self._current()
         found: dict[str, dict[str, dict[str, Any]]] = {}
         for run in run_ids:
             tools: dict[str, dict[str, Any]] = {}

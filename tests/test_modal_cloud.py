@@ -2795,7 +2795,7 @@ def test_atlas_filters_clusters_and_cache_follow_the_retained_files(
 ) -> None:
     facets = [
         _atlas_facet(VERIFIED, suspicion=3, answer_material_accessed=True, source="alpha"),
-        _atlas_facet(PROVISIONAL, suspicion=1, source="beta", tests="modified"),
+        _atlas_facet(PROVISIONAL, suspicion=1, source="beta", tests="modified", facet_model="other/reader"),
     ]
     root = _atlas_cluster(
         "root",
@@ -2850,6 +2850,10 @@ def test_atlas_filters_clusters_and_cache_follow_the_retained_files(
         narrowed["runs"]
     )
     assert get(cluster_id="leaf")["total"] == len(visible & {VERIFIED})
+    assert {run["run_id"] for run in get(facet_model="other/reader")["runs"]} == visible & {PROVISIONAL}
+    assert get(facet_model="provider/facet-model")["options"]["facet_model"] == {
+        model: len(visible & {run}) for model, run in (("other/reader", PROVISIONAL), ("provider/facet-model", VERIFIED)) if visible & {run}
+    }
     assert (
         client.get("/api/cloud-db/atlas", headers=AUTH, params={"outcome": "won"}).status_code
         == 422

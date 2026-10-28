@@ -1694,8 +1694,8 @@ Neither endpoint calls a model, joins source labels, or writes anything.
   recorded rates without a timestamp show "Scoring time not recorded".
 
 `GET /api/cloud-db/atlas` (always `split=dev`) takes the facet filters `source`,
-`outcome`, `tests`, `eval_awareness`, `min_suspicion`, the three boolean facets,
-`cluster_id`, free-text `q` and `limit`/`offset` (at most 200). It returns the cluster
+`outcome`, `tests`, `eval_awareness`, `facet_model` (the reader), `min_suspicion`, the three
+boolean facets, `cluster_id`, free-text `q` and `limit`/`offset` (at most 200). It returns the cluster
 tree (recorded `size`, `admitted_n` and `matching_n` under the current filters, the
 recorded label rates), counts for every filter value, the matching runs (most
 suspicious first) and `store` counters: facets read, shown, rejected, superseded, runs
@@ -1762,6 +1762,16 @@ readable list, reported as `refresh_error`, never as zero pending). Totals also 
 read, withheld (unadmitted or evidence outside the run), rejected and superseded lines. A run
 without a stored facet is not ready, which is not the same as clean. Atlas listing rows and run
 detail carry the same `blinding` value.
+
+**Reader mix.** Each population row also carries `facet_models` (stored facets per reader) and
+`mixed_readers` (more than one reader). The Run Atlas **Reader mix** strip lists them per
+population: one reader, a mix with a warning line, or "No reader yet" when nothing is stored.
+The warning cites RA-6: facets from different readers agree only at kappa 0.42 to 0.47 (92 runs
+read by every reader), so a score on a mixed population depends on who read the run. The
+runs table filters on the reader (`facet_model`, also in the shareable `#atlas?facet_model=`
+link, which keeps a reader no longer in the options as a visible "not in current options"
+choice), shows the reader on every row, and run detail shows **Reader (facet model)** and the
+facet version. Reader counts describe stored facets only; no label is involved.
 
 #### Field reliability (`/api/cloud-db/atlas/field-reliability`)
 

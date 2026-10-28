@@ -346,6 +346,7 @@ def run_detectors(
 
 CORPUS_LOADERS: dict[str, str] = {
     "hackbench": "evallab.production.trace_harness_corpora:hackbench_runs",
+    "hackbench-all": "evallab.production.trace_harness_corpora:hackbench_all_runs",
 }
 
 
@@ -365,9 +366,10 @@ def resolve_runs(
 
     ``goodfire`` (the frozen CM-6 cohort), ``goodfire-dev`` (every admitted
     Goodfire DEV run), ``cheatbench`` (CheatBench DEV items), ``dataset:<id>``,
-    ``file:<path>`` (one run id per line), a registered corpus loader such as
-    ``hackbench``, or comma-separated run ids. Non-admitted ids are dropped by
-    the loaders, never scored.
+    ``file:<path>`` (one run id per line), a registered corpus loader
+    (``hackbench``, ``hackbench-all``), ``staged:<set>`` (a staged cross-test
+    set), or comma-separated run ids. Non-admitted ids are dropped by the
+    loaders, never scored.
     """
     from evallab.production.corpus_queue import CorpusRegistry
     from evallab.production.run_atlas import cheatbench_runs, cloud_runs
@@ -379,6 +381,10 @@ def resolve_runs(
         module_name, _, attribute = CORPUS_LOADERS[selector].partition(":")
         loader = getattr(importlib.import_module(module_name), attribute)
         return list(_limited(loader(limit=limit), limit))
+    if selector.startswith("staged:"):
+        from evallab.production.trace_harness_staged import staged_runs
+
+        return list(staged_runs(selector.removeprefix("staged:"), limit, repo_root=repo_root))
     if selector == "cheatbench":
         atlas: Iterator[AtlasRun] = cheatbench_runs(registry, results_root or default_results_root())
     elif selector == "goodfire":
@@ -522,7 +528,8 @@ def register_subcommands(actions: Any) -> None:
         description=__doc__.split("\n\n")[1] if __doc__ else None,
     )
     run.add_argument("--runs", required=True,
-                     help="goodfire | goodfire-dev | cheatbench | hackbench | dataset:<id> | file:<path> | id[,id…]")
+                     help="goodfire | goodfire-dev | cheatbench | hackbench | hackbench-all | staged:<set>"
+                          " | dataset:<id> | file:<path> | id[,id…]")
     run.add_argument("--detectors", default="all",
                      help=f"Comma list or 'all' ({', '.join(DETECTORS)}); name:provider/model overrides the reader")
     run.add_argument("--limit", type=int, help="At most this many runs")
@@ -536,13 +543,9 @@ def register_subcommands(actions: Any) -> None:
     show.add_argument("--max-tokens", type=int, default=CARD_MAX_TOKENS)
     _common(show)
     show.set_defaults(func=_card_command)
-    try:
-        from evallab.production.trace_harness_score import add_score_parser
-    except ModuleNotFoundError as error:
-        if error.name != "evallab.production.trace_harness_score":
-            raise
-    else:
-        add_score_parser(actions)
+    from evallab.production.trace_harness_score import add_score_parser
+
+    add_score_parser(actions)
 
 
 def _common(parser: argparse.ArgumentParser) -> None:

@@ -248,7 +248,12 @@ def load_corpus_labels(
         return _hackbench_labels(name, hackbench_root, (NATURAL,))
     if name == "hackbench-all":
         return _hackbench_labels(name, hackbench_root, None)
-    raise ValueError(f"unknown corpus {name!r}; known: {', '.join(CORPORA)}")
+    if name.startswith("staged:"):
+        from evallab.production.trace_harness_staged import staged_labels
+
+        run_ids, positive, steps = staged_labels(name.removeprefix("staged:"), repo_root=repo_root)
+        return CorpusLabels(name, run_ids, positive, steps, "step", {})
+    raise ValueError(f"unknown corpus {name!r}; known: {', '.join(CORPORA)}, staged:<set>")
 
 
 def _goodfire_sample_ids(path: Path | None) -> list[str]:

@@ -25,12 +25,13 @@ import stat
 import threading
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from evallab.production import detector_scope
 from evallab.production.atlas_view import json_reason, read_regular, strict_loads
 
 TOOLS_DIR = "trace-tools"
@@ -506,6 +507,7 @@ class _Paths:
     accounting: Path | None
     facet_calls: Path
     atlas_dir: Path
+    scope: Path
 
     def signature(self) -> tuple[Any, ...]:
         scorecards = [(path.name, _stat_key(path)) for path in self.atlas_scorecards]
@@ -518,10 +520,11 @@ class _Paths:
             _stat_key(self.facet_calls),
             _stat_key(self.atlas_dir / BLINDING_REFRESH_FILE),
             _stat_key(self.atlas_dir / REBLINDED_FILE),
+            _stat_key(self.scope),
         )
 
 
-def _paths(data_root: Path) -> _Paths:
+def _paths(data_root: Path, scope: Path | None = None) -> _Paths:
     atlas = data_root / ATLAS_DIR
     accounting = newest_regular(
         atlas, lambda name: name.startswith(ACCOUNTING_PREFIX) and name.endswith(".jsonl")
@@ -534,12 +537,19 @@ def _paths(data_root: Path) -> _Paths:
         accounting[0] if accounting else None,
         atlas / FACET_CALLS_FILE,
         atlas,
+        scope or data_root / detector_scope.DEFAULT_FILE,
     )
 
 
-def build_tool_scorecard(data_root: Path) -> dict[str, Any]:
+def build_tool_scorecard(data_root: Path, scope: Path | None = None) -> dict[str, Any]:
     """The side-by-side tool scorecard; every source degrades independently."""
-    return _build(_paths(data_root))
+    return _build(_paths(data_root, scope))
+
+
+def _modified_time(path: Path | None) -> str | None:
+    """The UTC time a retained file was last written, not a measurement timestamp."""
+    key = _stat_key(path)
+    return None if key is None else datetime.fromtimestamp(key[0] / 1e9, UTC).isoformat()
 
 
 def _build(paths: _Paths) -> dict[str, Any]:
@@ -561,6 +571,7 @@ def _build(paths: _Paths) -> dict[str, Any]:
 
     atlas, source = _atlas_scorecards(paths.atlas_scorecards)
     sources.append(source)
+    atlas_file = source.path
 
     spend, source = _read_records(paths.spend, "spend ledger", _Spend)
     sources.append(source)
@@ -604,6 +615,20 @@ def _build(paths: _Paths) -> dict[str, Any]:
     blinding, source = _blinding(paths.atlas_dir)
     sources.append(source)
 
+    scope_cells = None
+    scope_document, source = _read_document(paths.scope, "detector scope")
+    if source.error is not None and source.error != "not retained":
+        source = Source(source.name, source.path, error="unreadable counts-only detector scope")
+    if scope_document is not None:
+        try:
+            scope_cells = detector_scope.parse_scope(scope_document)
+        except ValidationError:
+            source = Source(
+                source.name, source.path, error="invalid counts-only detector scope"
+            )
+    sources.append(source)
+    scope_error = source.error
+
     keys = [key for key, _ in TOOLS]
     extra = sorted(set(tool_rows) - set(keys))
     names = dict(TOOLS)
@@ -646,6 +671,15 @@ def _build(paths: _Paths) -> dict[str, Any]:
             for key, title, _, _ in POPULATIONS
         ],
         "tools": tools,
+        "where_it_works": detector_scope.table(
+            scope_cells,
+            scope_error,
+            tools,
+            {
+                "tool_scorecard": _modified_time(paths.tool_scorecard),
+                "atlas_scorecard": _modified_time(atlas_file),
+            },
+        ),
         "sources": [item.describe() for item in sources],
         "result_lines_skipped": skipped,
         "notice": (
@@ -661,14 +695,15 @@ def _build(paths: _Paths) -> dict[str, Any]:
 class ToolScorecardCache:
     """Rebuilds the view only when one of its retained files changes on disk."""
 
-    def __init__(self, data_root: Path) -> None:
+    def __init__(self, data_root: Path, scope: Path | None = None) -> None:
         self._data_root = data_root
+        self._scope = scope
         self._lock = threading.Lock()
         self._cached: tuple[tuple[Any, ...], dict[str, Any]] | None = None
 
     def get(self) -> Mapping[str, Any]:
         with self._lock:
-            paths = _paths(self._data_root)
+            paths = _paths(self._data_root, self._scope)
             signature = paths.signature()
             if self._cached is None or self._cached[0] != signature:
                 self._cached = (signature, _build(paths))

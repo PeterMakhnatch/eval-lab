@@ -24,6 +24,7 @@ DASHBOARD: str = r"""<!doctype html>
 .task-section{margin-top:22px}.task-section h3{margin:0 0 8px}.task-section>p{margin:0 0 8px}.task-command{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--raised);font:12px var(--mono)}.task-command-row{margin:12px 0}.task-lines{display:grid;gap:3px;min-width:0}.task-lines small{color:var(--muted);overflow-wrap:anywhere}.task-runs .cloud-table{min-width:1280px}.task-qa .cloud-table,.task-seeker .cloud-table,.task-fixes .cloud-table{min-width:900px}
 .reliability-bar{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}.reliability-track{display:block;width:140px;height:6px;border-radius:3px;background:var(--line)}.atlas-tools .cloud-table.reliability-table{min-width:560px}
 .repairs-table .cloud-table{min-width:1100px}.repairs-table td>div{display:grid;gap:3px;min-width:0}.repairs-table td small{color:var(--muted);overflow-wrap:anywhere}.repairs-table td a{color:var(--blue);overflow-wrap:anywhere}
+.scope-box{margin:16px 0}.scope-box h3{margin:0 0 6px}.scope-lines{margin:0 0 10px;padding-left:18px;color:var(--muted)}.scope-lines li{margin:2px 0}.scope-box .cloud-table{min-width:1100px}
 .crosstest-table .cloud-table{min-width:1320px}.crosstest-table td>div{display:grid;gap:3px;min-width:0}.crosstest-table td small{color:var(--muted);overflow-wrap:anywhere}.crosstest-table td a{color:var(--blue);overflow-wrap:anywhere}.crosstest-table details .cloud-table{min-width:0}.crosstest-table summary{cursor:pointer;color:var(--blue)}.crosstest-hold{margin-top:22px}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
@@ -156,9 +157,15 @@ DASHBOARD: str = r"""<!doctype html>
 </section>
 <section id="tools-view" class="panel" role="tabpanel" aria-labelledby="tools-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">Whole-run tools / rule cascade / blinded facets</div><h2>Trace Tools</h2></div><button id="cloud-tools-refresh" type="button" class="small">Refresh scorecard</button></div>
- <p class="seal">Measured on labelled DEV and cross-test cohorts, never tuned on the cross-test. A tool that did not read a run abstained: that run is neither a miss nor a clean pass. Nothing is ranked.</p>
+ <p class="seal">Retained DEV and cross-test measurements, not a ranking. CheatBench DEV was already examined and is not held out. A tool that did not read a run abstained: that run is neither a miss nor a clean pass.</p>
  <p id="cloud-tools-status" class="notice" role="status"></p>
  <div id="cloud-tools-cohorts" class="tools-cohorts"></div>
+<section id="cloud-tools-scope" class="scope-box" aria-labelledby="cloud-tools-scope-title">
+ <h3 id="cloud-tools-scope-title">Where each detector works</h3>
+ <p id="cloud-tools-scope-status" class="notice" role="status"></p>
+ <ul id="cloud-tools-scope-lines" class="scope-lines"></ul>
+ <div id="cloud-tools-scope-table" class="tools-table"></div>
+</section>
  <div id="cloud-tools-table" class="tools-table"></div>
 <section id="tools-runs-panel" class="atlas-detail" tabindex="-1" aria-labelledby="tools-runs-title" hidden>
  <div class="panel-head"><div><div class="eyebrow">Admitted DEV runs by trace id / no labels</div><h2 id="tools-runs-title">Tool runs</h2></div><div class="actions"><button id="tools-runs-copy" type="button" class="small">Copy run IDs · this page</button><button id="tools-runs-close" type="button" class="small">Close</button></div></div>
@@ -1504,6 +1511,57 @@ function toolsRows(data){
   return cells;
  });
 }
+const scopePct=value=>value.toFixed(1)+'%';
+const scopeInterval=interval=>interval?'95% Wilson CI '+scopePct(interval[0])+' to '+scopePct(interval[1]):'';
+const scopeTime=value=>new Date(value).toLocaleString('en-US',{timeZone:'America/New_York',
+ year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET';
+function scopeCell(cell){
+ const box=node('div');
+ if(cell.state!=='measured'){box.append(node('span',cell.reason,'muted'));return box;}
+ const exact=cell.measure==='exact_command';
+ if(cell.read)box.append(node('strong',(exact?'Exact command named ':'Flagged ')+cloudCount(cell.hits)+' of '+cloudCount(cell.read)+
+  ' ('+scopePct(100*cell.hits/cell.read)+')'),node('small',scopeInterval(cell.hit_ci)));
+ else box.append(node('span','No cheating runs read','muted'));
+ if(cell.read<cell.positives)box.append(node('small','Read '+cloudCount(cell.read)+' of '+cloudCount(cell.positives)+' cheating runs'));
+ if(cell.negatives==null)box.append(node('small','All rows cheating: no false-alarm rate'));
+ else{
+  if(cell.negatives_read)box.append(node('strong','False alarms '+cloudCount(cell.false_alarms)+' of '+cloudCount(cell.negatives_read)+
+   ' ('+scopePct(100*cell.false_alarms/cell.negatives_read)+')'),node('small',scopeInterval(cell.false_alarm_ci)));
+  else box.append(node('span','No clean runs read','muted'));
+  if(cell.negatives_read<cell.negatives)box.append(node('small','Read '+cloudCount(cell.negatives_read)+' of '+cloudCount(cell.negatives)+' clean runs'));
+ }
+ if(cell.version)box.append(node('small','Version '+cell.version));
+ if(cell.note)box.append(node('small',cell.note));
+ if(cell.recorded_at){
+  const recorded=node('small',scopeTime(cell.recorded_at)+' · '+cell.date_basis);
+  recorded.title=cell.recorded_at+' · '+cell.source;box.append(recorded);
+ }
+ return box;
+}
+function renderToolsScope(scope){
+ const lines=$('cloud-tools-scope-lines'),holder=$('cloud-tools-scope-table');
+ lines.replaceChildren(...list(scope.lines).map(text=>node('li',text)));
+ notice('cloud-tools-scope-status',scope.present?'':'No detector scope receipt is retained ('+scope.error+
+  '). Set EVALLAB_DETECTOR_SCOPE to detector-scope-v1.json or place it at trace-tools/detector-scope-v1.json in the data root. '+
+  'Until then the frozen-cascade and Stage 1 DEV cells and every HackBench cell are blank; nothing is fabricated.',!scope.present);
+ const rows=list(scope.rows).map(row=>{
+  const name=node('div');name.append(node('strong',row.name));
+  return [name,row.reads,row.route,...['goodfire_dev','cheatbench_dev','hackbench_natural'].map(cohort=>scopeCell(row.cohorts[cohort]))];
+ });
+ const size=cohort=>{
+  for(const row of list(scope.rows)){
+   const cell=row.cohorts[cohort];
+   if(cell.state==='measured'&&cell.negatives!=null)return ' · '+cloudCount(cell.positives)+' cheating, '+cloudCount(cell.negatives)+' clean';
+  }
+  return '';
+ };
+ const table=cloudTable(['Detector','Reads','Reader or judge route','Goodfire DEV'+size('goodfire_dev'),
+  'CheatBench DEV'+size('cheatbench_dev')+' · examined in tuning, not held out','HackBench natural'+
+  (scope.hackbench_runs?' · '+cloudCount(scope.hackbench_runs)+' runs':'')+' · cross-test, all cheating'],rows);
+ const tools=list(scope.rows);
+ for(const [index,row] of Array.from(table.querySelector('table > tbody').children).entries())row.dataset.tool=tools[index].tool;
+ holder.replaceChildren(table);
+}
 function toolsSources(sources){
  const parent=$('cloud-tools-source-list'),items=node('ul',undefined,'cloud-issue-list');
  parent.replaceChildren(items);
@@ -1535,11 +1593,13 @@ async function loadTraceTools(){
   const tools=list(data.tools);
   for(const [index,row] of Array.from(table.querySelector('table > tbody').children).entries())row.dataset.tool=tools[index].tool;
   $('cloud-tools-table').replaceChildren(table);
+  renderToolsScope(data.where_it_works);
   toolsSources(data.sources);
   notice('cloud-tools-status',data.notice);
  }catch(error){
   if(version===toolsVersion){
    $('cloud-tools-table').replaceChildren();$('cloud-tools-cohorts').replaceChildren();
+   $('cloud-tools-scope-table').replaceChildren();$('cloud-tools-scope-lines').replaceChildren();
    notice('cloud-tools-status',cloudError(error,'Trace tool scorecard'),true);
   }
  }finally{

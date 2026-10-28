@@ -1,0 +1,97 @@
+{
+  "schema": "evallab.oq6-preregistration/v1",
+  "study_version": "oq6-gate-rerun-v3",
+  "registered_at": "2026-10-28T00:38:54.477945Z",
+  "cutoff_at": "2026-10-28T10:00:00Z",
+  "freeze_sha256": "3884670a9564377e7684bfe600ce18ecf46893ff470bc57d24f49917492913b0",
+  "v2_freeze_sha256": "87b0a48e5a32e2a62fa14606c1c8811231c4655d592639370bd5e580a4cf1d30",
+  "runtime_base_git_sha": "7762ea56a1d03b739f46d4a8da487e22683d00f8",
+  "runner_sha256": "6a23ab526dee005ac57737d908b5362a5d322f01b1aeb8864667dbaea21b2394",
+  "result_summary_sha256": "6f0f29fcabd7ff84906c11e11d6e6c891bc360c90317cc5725cc30f5d2ff7303",
+  "controlled_native_config_sha256": "e02d06e509a9f2c5afed008ea15a9d91612cb663e68f17b9ecb8da1451329ca4",
+  "raw_artifacts": "~/Developer/eval-lab-results/2026-10-27/oq6-tq-gate-rerun/v3/",
+  "bridge_report": "bridge/2026-10-27-run-atlas/oq6-task-quality-gate-rerun.md",
+  "native_source_pins": 509,
+  "pre_use_data_pins": 6026,
+  "DEV": {
+    "tasks": 399,
+    "source_prepared_tasks": 399,
+    "keyed_tasks": 44,
+    "exact_package_evaluable_annotations": 118,
+    "unkeyed_tasks_not_certified_negative": 355
+  },
+  "cross": {
+    "scoring_key": "mimo-weak-tests-v2.1",
+    "split": "dev",
+    "native_corpus": "mimo-defect-map-v1",
+    "planned_tasks": 15,
+    "planned_annotations": 28,
+    "source_prepared_tasks": 12,
+    "source_available_annotations": 24,
+    "unavailable_source_tasks": 3,
+    "unavailable_source_annotations": 4,
+    "pristine_holdout": false
+  },
+  "models": [
+    "anthropic/claude-sonnet-5-5",
+    "anthropic/claude-opus-5-5",
+    "google-antigravity/claude-sonnet-5-5",
+    "google-antigravity/claude-opus-5-5",
+    "meta/muse-spark-1.3",
+    "kimi-code/kimi-for-coding"
+  ],
+  "scheduled_native_workers": 6,
+  "offline_disabled_route": "anthropic/claude-opus-5-5",
+  "offline_disabled_reason": "Exact dispatch-account usage coverage is not proved. No auth/account-pool mutation or model probe is permitted.",
+  "other_unadmitted_routes": {
+    "google-antigravity": "Retained shared Claude/GPT weekly quota exceeds the strict 90 percent gate.",
+    "meta": "Free/subscription entitlement and authoritative quota coverage are not proved.",
+    "openai-codex": "Native subscription metadata was checked: its existing shared weekly usage is 100 percent and reset is after the cutoff. No shared reset credit is redeemed; no Codex stratum is added."
+  },
+  "priority": [
+    "Sonnet: both arms of source-available cross tasks, then all keyed DEV tasks",
+    "The same two tiers on offline-covered Opus, then Kimi, as each route admits",
+    "All unkeyed DEV tasks last; never omit them or certify them negative"
+  ],
+  "arms": {
+    "A": "History ablated; identical source/template/model route",
+    "B": "One same-task failed-run summary when available, plus three bounded leave-target-out DEV issue/diff examples"
+  },
+  "gates": {
+    "old_0_8": "Verified citation and confidence at least 0.8",
+    "new_verified_0_5": "Production eligibility: verified nonblank actual source quote at least 0.5; otherwise at least 0.8"
+  },
+  "fixed_scorer": "anthropic/claude-sonnet-5-5",
+  "same_model_scorer_bias_disclosed": true,
+  "scientific_invariants_unchanged_from_v2": [
+    "Prompts, gates, all cohorts and bounded source-view bytes",
+    "Production parser and anonymous union-once one-to-one scorer",
+    "High thinking; no tools, skills, rules, extensions, LSP, memory, model retries or fallback",
+    "Every actual auditor and scorer admission uses fresh complete native account/window metadata strictly below 90 percent"
+  ],
+  "prospective_changes": [
+    "Unsent quota-closed requests wait natural windows rather than becoming terminal missing",
+    "An answered auditor is preserved while only its unsent scorer waits",
+    "Actually consumed refusal, transport failure, malformed or quarantined response remains terminal missing",
+    "A/B effects use same-route shared-complete-cell intersections with exact paired key denominators",
+    "Actual native consumption and usage are reconciled independently of final cell existence",
+    "Existing scorer key and provenance bytes must match their prospective pins; no deferred cache construction",
+    "Gold selector/source/record, prompt amendment, runtime feeder and actual retrieval corpus state are bound before consumption"
+  ],
+  "v2_historical_result": {
+    "task_auditor_scorer_calls": 0,
+    "complete_paired_cells": 0,
+    "quality_metrics": null,
+    "study_input_tokens": 0,
+    "study_output_tokens": 0,
+    "no_send_cell_records_are_not_calls": true
+  },
+  "incomplete_coverage_is_complete_ALL_DEV_rerun": false,
+  "population_FPR_without_certified_negatives": null,
+  "new_repaired_grader_qualification_rate": null,
+  "new_grader_executions": 0,
+  "paid_spend_usd": 0,
+  "subscription_usd": null,
+  "protected_bodies_hydrated_or_prompted_by_study": 0,
+  "infrastructure_caveat": "Repository CI's pre-existing scorer tests json-load the full key file, as on every PR; study and model pipeline hydrated/prompted 0 protected bodies."
+}

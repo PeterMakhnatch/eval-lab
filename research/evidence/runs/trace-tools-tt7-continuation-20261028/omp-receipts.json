@@ -1,0 +1,81 @@
+{
+  "schema": "tt7.omp_receipts/v1",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "started_at": "2026-10-28T07:02:26.487091+00:00",
+  "routes": {
+    "anthropic/claude-sonnet-5-5": {
+      "status": "partial",
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "stopped_at": "2026-10-28T07:02:29.500836+00:00",
+      "pending_runs": 125,
+      "scope": "full-200",
+      "target_runs": 200,
+      "admission_threshold": 0.65,
+      "outside_scope_runs": 0,
+      "missing_target_runs": 125,
+      "recorded_runs": 75,
+      "valid_runs": 51,
+      "abstentions": 24,
+      "missing_runs": 125,
+      "input_tokens": 4928628,
+      "output_tokens": 5089,
+      "list_price_usd": 9.908146,
+      "marginal_usd": 0,
+      "errors": {
+        "valid": 51,
+        "RouteError": 23,
+        "schema_or_evidence": 1
+      }
+    },
+    "anthropic/claude-opus-5-5": {
+      "status": "partial",
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "stopped_at": "2026-10-28T07:02:32.098257+00:00",
+      "pending_runs": 125,
+      "scope": "full-200",
+      "target_runs": 200,
+      "admission_threshold": 0.65,
+      "outside_scope_runs": 0,
+      "missing_target_runs": 125,
+      "recorded_runs": 75,
+      "valid_runs": 48,
+      "abstentions": 27,
+      "missing_runs": 125,
+      "input_tokens": 4292088,
+      "output_tokens": 5505,
+      "list_price_usd": 17.278452,
+      "marginal_usd": 0,
+      "errors": {
+        "valid": 48,
+        "RouteError": 26,
+        "schema_or_evidence": 1
+      }
+    }
+  },
+  "commands": "omp -p --mode json --no-session --no-tools --no-lsp --no-extensions --no-skills --no-rules --no-title --no-pty --config <no-fallback-overlay> --model <route> --system-prompt <frozen> --thinking low",
+  "pricing_basis": "omp models find <route> --json --no-extensions; uncached list-price equivalent, not marginal spend",
+  "context_windows": {
+    "anthropic/claude-sonnet-5-5": 1000000,
+    "anthropic/claude-opus-5-5": 1000000,
+    "openai-codex/gpt-6-luna": 272000
+  },
+  "rates_per_million_input_output": {
+    "anthropic/claude-sonnet-5-5": [
+      2.0,
+      10.0
+    ],
+    "anthropic/claude-opus-5-5": [
+      4.0,
+      20.0
+    ],
+    "openai-codex/gpt-6-luna": [
+      0.1,
+      0.5
+    ]
+  },
+  "deferred": {
+    "xai-oauth/grok-4.3": "weekly quota exhausted until 2026-10-30 14:10 ET; no call",
+    "laminar/flow-1": "paid Signals approved but not funded; no call"
+  },
+  "finished_at": "2026-10-28T07:02:32.562527+00:00"
+}

@@ -5,11 +5,14 @@ import plistlib
 import re
 import shlex
 import shutil
+import signal
 import subprocess
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any, Literal
 
@@ -25,6 +28,7 @@ from evallab.queue import (
     new_ulid,
     record_projection_failures,
 )
+from evallab.researchers import DEFAULT_ROLE_LIMITS, pass_wall_clock_bound_seconds
 from evallab.runner import database_url_from_environment, subscription_environment
 from evallab.schemas import (
     HeadlessDoctorChecks,
@@ -102,10 +106,137 @@ StepCallable = Callable[[NightlyContext], Any]
 class NightlyStep:
     name: str
     fn: StepCallable
-    timeout: float = 60.0
+    # Wall-clock seconds enforced by NightlyCycle.run. ``None`` only where the
+    # step's own watchdog is the authoritative bound (see ``dispatch``).
+    timeout: float | None = 60.0
     on_fail: OnFailPolicy = "abort"
     description: str = ""
     idempotent: bool = True
+
+
+STEP_KILL_GRACE_SECONDS = 5.0
+_PROCESS_POLL_SECONDS = 0.05
+
+
+class StepTimeout(BaseException):
+    """A step outlived its declared timeout; its new child processes are already gone.
+
+    A ``BaseException`` (like ``KeyboardInterrupt``) so the ``except Exception``
+    bookkeeping inside step bodies cannot swallow or reclassify the expiry.
+    """
+
+    def __init__(self, seconds: float, terminated: tuple[int, ...]) -> None:
+        super().__init__(
+            f"exceeded declared timeout of {seconds:g}s; "
+            f"terminated {len(terminated)} child process(es)"
+        )
+        self.seconds = seconds
+        self.terminated = terminated
+
+
+def _process_table() -> dict[int, tuple[int, str]]:
+    """Map live pid -> (ppid, state) with one ``ps`` call; zombies count as gone."""
+    process = subprocess.Popen(
+        ["ps", "-A", "-o", "pid=,ppid=,stat="],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        env=subscription_environment(),
+    )
+    output, _ = process.communicate(timeout=10)
+    table: dict[int, tuple[int, str]] = {}
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) == 3 and fields[0].isdigit() and fields[1].isdigit():
+            pid = int(fields[0])
+            if pid != process.pid and not fields[2].startswith("Z"):
+                table[pid] = (int(fields[1]), fields[2])
+    return table
+
+
+def _descendants(table: dict[int, tuple[int, str]], root: int) -> set[int]:
+    children: dict[int, list[int]] = {}
+    for pid, (parent, _) in table.items():
+        children.setdefault(parent, []).append(pid)
+    found: set[int] = set()
+    frontier = [root]
+    while frontier:
+        for child in children.get(frontier.pop(), ()):
+            if child not in found:
+                found.add(child)
+                frontier.append(child)
+    return found
+
+
+def _signal_processes(pids: set[int], signum: signal.Signals) -> None:
+    for pid in pids:
+        try:
+            # Harbor-style children lead their own session; signal the whole
+            # group so grandchildren that were already reparented die too.
+            if os.getpgid(pid) == pid:
+                os.killpg(pid, signum)
+            else:
+                os.kill(pid, signum)
+        except (ProcessLookupError, PermissionError):
+            continue
+
+
+def _terminate_new_descendants(baseline: set[int], grace_seconds: float) -> tuple[int, ...]:
+    """SIGTERM every descendant started since ``baseline``; SIGKILL survivors."""
+    targets = child_processes() - baseline
+    if not targets:
+        return ()
+    _signal_processes(targets, signal.SIGTERM)
+    deadline = time.monotonic() + grace_seconds
+    alive = targets
+    while alive and time.monotonic() < deadline:
+        time.sleep(_PROCESS_POLL_SECONDS)
+        alive = targets & _process_table().keys()
+    if alive:
+        _signal_processes(alive, signal.SIGKILL)
+    return tuple(sorted(targets))
+
+
+def child_processes() -> set[int]:
+    """Current descendants of this process (one ``ps`` call)."""
+    return _descendants(_process_table(), os.getpid())
+
+
+def run_with_timeout(
+    fn: Callable[[], Any],
+    seconds: float | None,
+    *,
+    baseline: set[int] | None = None,
+    grace_seconds: float = STEP_KILL_GRACE_SECONDS,
+) -> Any:
+    """Run ``fn`` under a SIGALRM wall-clock bound, or unbounded when ``None``.
+
+    On expiry, descendants not in ``baseline`` (default: those alive when this
+    call starts) are terminated before ``StepTimeout`` unwinds ``fn``, so cleanup
+    that waits on a child cannot hang and nothing is orphaned. Never retries:
+    callers decide what expiry means.
+    """
+    if seconds is None:
+        return fn()
+    if seconds <= 0:
+        raise ValueError(f"step timeout must be positive, got {seconds}")
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError("step timeouts use SIGALRM and must run on the main thread")
+    known = child_processes() if baseline is None else baseline
+
+    def expire(_signum: int, _frame: object) -> None:
+        raise StepTimeout(seconds, _terminate_new_descendants(known, grace_seconds))
+
+    previous = signal.signal(signal.SIGALRM, expire)
+    try:
+        signal.setitimer(signal.ITIMER_REAL, seconds)
+        try:
+            return fn()
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+    finally:
+        signal.signal(signal.SIGALRM, previous)
 
 
 def _step_doctor(context: NightlyContext) -> None:
@@ -433,7 +564,9 @@ DEFAULT_NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
     NightlyStep(
         name="dispatch",
         fn=_step_dispatch,
-        timeout=600.0,
+        # Executor.tick() already ends each Harbor process group at the trial's
+        # timeout_seconds + 600 s; a shorter outer alarm would kill paid trials.
+        timeout=None,
         on_fail="abort",
         description="Execute approved specs in queue via executor tick",
         idempotent=False,
@@ -441,7 +574,8 @@ DEFAULT_NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
     NightlyStep(
         name="researcher_pass",
         fn=_step_researcher_pass,
-        timeout=300.0,
+        # Every role may retry once and run to its own limit; margin for I/O.
+        timeout=pass_wall_clock_bound_seconds(DEFAULT_ROLE_LIMITS) + 60.0,
         on_fail="continue",
         description="Run unattended researcher autopilot iterations",
         idempotent=False,
@@ -847,7 +981,8 @@ class NightlyCycle:
             compactor=self.compactor,
             lessons_generator=self.lessons_generator,
         )
-
+        # Processes that predate the cycle are never a step's to terminate.
+        baseline = child_processes()
         for step in self.steps:
             if context.aborted and step.name not in SURFACE_STEP_NAMES:
                 reason = (
@@ -894,7 +1029,7 @@ class NightlyCycle:
 
             start_time = time.perf_counter()
             try:
-                step.fn(context)
+                run_with_timeout(partial(step.fn, context), step.timeout, baseline=baseline)
                 elapsed = time.perf_counter() - start_time
                 context.step_outcomes.append(
                     StepOutcome(
@@ -903,6 +1038,41 @@ class NightlyCycle:
                         duration_s=elapsed,
                     )
                 )
+            except StepTimeout as expired:
+                elapsed = time.perf_counter() - start_time
+                # Never retried. A non-idempotent step may have advanced the
+                # queue or spent quota before expiry, so it fails closed even
+                # when its ordinary failures would continue.
+                reason = (
+                    "timeout_exceeded"
+                    if step.idempotent
+                    else "timeout_exceeded_non_idempotent_not_retried"
+                )
+                context.step_outcomes.append(
+                    StepOutcome(
+                        name=step.name,
+                        status="failed",
+                        duration_s=elapsed,
+                        reason=reason,
+                        error=f"StepTimeout: {expired}",
+                    )
+                )
+                fail_closed = step.on_fail == "abort" or not step.idempotent
+                context.executor.queue.append_event(
+                    QueueEvent(
+                        event_id=new_ulid(),
+                        spec_id=f"system-{new_ulid()}",
+                        occurred_at=date_time_now(),
+                        # The digest renders nightly_quarantined events as quarantine.
+                        event="nightly_quarantined" if fail_closed else "nightly_step_timed_out",
+                        actor="nightly",
+                        reason_code=f"{reason}:{step.name}",
+                        report_date=target_date.isoformat(),
+                    )
+                )
+                if fail_closed:
+                    context.quarantined = True
+                    context.aborted = True
             except Exception as exc:
                 elapsed = time.perf_counter() - start_time
                 context.step_outcomes.append(

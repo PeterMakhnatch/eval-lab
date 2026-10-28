@@ -417,6 +417,8 @@ def test_bearer_serves_protected_dashboard_and_state(client: TestClient) -> None
     assert dashboard.status_code == 200
     assert dashboard.headers["content-type"].startswith("text/html")
     assert TOKEN not in dashboard.text
+    # The cloud deployment opens on the Run Atlas; the local control plane keeps the live journal.
+    assert '<body data-home="atlas">' in dashboard.text
     assert client.get("/api/state", headers=AUTH).status_code == 200
 
 
@@ -2945,3 +2947,392 @@ def test_atlas_run_drilldown_has_evidence_flags_and_playbook_cards(
         card["card_id"].startswith("TW") for card in detail["playbook_cards"]
     )
     assert "not cheating verdicts" in detail["notice"]
+
+
+def test_trace_tool_scorecard_is_authenticated_dev_only_and_follows_retained_files(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    assert client.get("/api/cloud-db/trace-tools").status_code == 401
+    for split in ("test", "held", "all"):
+        response = client.get("/api/cloud-db/trace-tools", headers=AUTH, params={"split": split})
+        assert response.status_code == 400, split
+
+    empty = client.get("/api/cloud-db/trace-tools", headers=AUTH)
+    assert empty.status_code == 200, empty.text
+    assert empty.headers["cache-control"] == "no-store"
+    body = empty.json()
+    assert all(entry is None for tool in body["tools"] for entry in tool["populations"].values())
+    assert {source["error"] for source in body["sources"]} == {"not retained"}
+
+    directory = runtime.data_root / "trace-tools"
+    directory.mkdir()
+    (directory / "spend.jsonl").write_text(
+        json.dumps(
+            {
+                "at": "2026-10-27T22:00:00+00:00",
+                "tool": "docent",
+                "route": "hosted",
+                "runs": 10,
+                "input_tokens": 100,
+                "output_tokens": 5,
+                "usd": 0.5,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    served = client.get("/api/cloud-db/trace-tools", headers=AUTH).json()
+    docent = next(tool for tool in served["tools"] if tool["tool"] == "docent")
+    assert docent["usage"]["usage_runs"] == 10 and docent["last_run_source"] == "spend ledger"
+
+
+def test_task_evidence_joins_one_admitted_task_and_never_returns_bodies(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    _write_atlas(
+        runtime,
+        [_atlas_facet(VERIFIED, suspicion=3, goal="Fix the parser"), _atlas_facet(PROVISIONAL)],
+        [
+            _atlas_cluster("root", [VERIFIED, PROVISIONAL], name="all runs"),
+            _atlas_cluster(
+                "leaf", [VERIFIED, PROVISIONAL], name="parsers", level=2, parent="root"
+            ),
+            _atlas_cluster(
+                "tip", [VERIFIED, PROVISIONAL], name="parser tips", level=3, parent="leaf"
+            ),
+        ],
+    )
+    results = runtime.data_root / "trace-tools"
+    results.mkdir()
+    (results / "results-v1.jsonl").write_text(
+        json.dumps(
+            {
+                "run_id": VERIFIED,
+                "tool": "scout",
+                "detector": "repeated_assistant_message",
+                "flag": True,
+                "at": "2026-10-27T22:00:00+00:00",
+                "evidence_steps": [2],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    assert client.get("/api/cloud-db/task-evidence", params={"task_id": PRIMARY}).status_code == 401
+    for split in ("test", "held"):
+        refused = client.get(
+            "/api/cloud-db/task-evidence", headers=AUTH, params={"task_id": PRIMARY, "split": split}
+        )
+        assert refused.status_code == 400
+    assert (
+        client.get(
+            "/api/cloud-db/task-evidence", headers=AUTH, params={"task_id": "no-such-task"}
+        ).status_code
+        == 404
+    )
+
+    response = client.get("/api/cloud-db/task-evidence", headers=AUTH, params={"task_id": PRIMARY})
+    assert response.status_code == 200, response.text
+    assert response.headers["cache-control"] == "no-store"
+    document = response.json()
+    assert document["task"]["task_id"] == PRIMARY
+    runs = {run["run_id"]: run for run in document["runs"]}
+    assert set(runs) == {VERIFIED, PROVISIONAL}
+    assert [run["run_id"] for run in document["runs"]][0] == VERIFIED  # most suspicious first
+    assert runs[VERIFIED]["facet"]["goal"] == "Fix the parser"
+    assert runs[VERIFIED]["clusters"] == [["all runs", "parsers", "parser tips"]]
+    assert runs[VERIFIED]["tools"]["scout"]["flagged"][0]["detector"] == "repeated_assistant_message"
+    assert runs[PROVISIONAL]["tools"] == {}  # no result is not a clean result
+    assert {issue["issue_id"] for issue in document["issues"]} == {
+        "issue-confirmed-primary",
+        "issue-provisional-primary",
+    }
+    assert document["summary"]["runs_n"] == 2 and document["summary"]["issues_confirmed_n"] == 1
+    assert document["seeker"] == [] and document["repairs"] == []
+    for secret in ("primaryneedle", "witnessneedle", "provisionalneedle", "instruction_text", "cas_uri"):
+        assert secret not in response.text
+    assert any(c["command"].startswith("uv run evallab task ") for c in document["commands"])
+
+
+def test_task_search_finds_only_admitted_tasks_and_treats_wildcards_literally(
+    client: TestClient, records: dict[str, Any]
+) -> None:
+    found = client.get("/api/cloud-db/task-evidence/search", headers=AUTH, params={"q": "cloud-pri"})
+    assert found.status_code == 200, found.text
+    assert [(row["task_id"], row["runs_n"], row["issues_n"]) for row in found.json()["tasks"]] == [
+        (PRIMARY, 2, 2)
+    ]
+    for query in ("%%", "c_ud"):
+        literal = client.get("/api/cloud-db/task-evidence/search", headers=AUTH, params={"q": query})
+        assert literal.status_code == 200 and literal.json()["tasks"] == []
+    short = client.get("/api/cloud-db/task-evidence/search", headers=AUTH, params={"q": "c"})
+    assert short.status_code == 400
+
+
+def _refresh_files(runtime: CloudRuntime, listed: list[str], redone: list[dict[str, Any]]) -> None:
+    directory = runtime.data_root / "run-atlas"
+    directory.mkdir(exist_ok=True)
+    (directory / "blinding-refresh-v1.json").write_text(
+        json.dumps({"schema": "run-atlas-blinding-refresh/v1", "run_ids": listed}), encoding="utf-8"
+    )
+    (directory / "reblinded-facets-v1.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in redone), encoding="utf-8"
+    )
+
+
+def test_atlas_coverage_reports_stored_versus_admitted_and_blinding_state(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    verified = _atlas_facet(VERIFIED, suspicion=3, goal="Re-blinded goal")
+    provisional = _atlas_facet(PROVISIONAL, goal="Earlier leaky goal")
+    _write_atlas(runtime, [verified, provisional, _atlas_facet("not-a-trace")])
+    assert client.get("/api/cloud-db/atlas/coverage").status_code == 401
+    assert (
+        client.get("/api/cloud-db/atlas/coverage", headers=AUTH, params={"split": "test"}).status_code
+        == 400
+    )
+
+    # No refresh list yet: nothing is claimed about blinding.
+    bare = client.get("/api/cloud-db/atlas/coverage", headers=AUTH).json()
+    assert bare["refresh_error"] and bare["totals"]["refresh_listed_n"] is None
+    assert bare["populations"][0]["blinding"]["unknown"] == 2
+
+    _refresh_files(
+        runtime,
+        [VERIFIED, PROVISIONAL],
+        [verified, _atlas_facet(PROVISIONAL, goal="Re-extracted goal")],
+    )
+    response = client.get("/api/cloud-db/atlas/coverage", headers=AUTH)
+    assert response.status_code == 200, response.text
+    coverage = response.json()
+    assert coverage["refresh_error"] is None
+    totals = coverage["totals"]
+    assert (totals["admitted_n"], totals["stored_n"], totals["not_stored_n"]) == (3, 2, 1)
+    assert (totals["pending_blinding_n"], totals["refreshed_n"], totals["unadmitted_n"]) == (1, 1, 1)
+    (population,) = coverage["populations"]
+    assert (population["admitted_n"], population["stored_n"]) == (3, 2)
+    assert population["facet_versions"] == {"run-facets/v1": 2}
+    assert population["blinding"] == {"refreshed": 1, "pending": 1, "unlisted": 0, "unknown": 0}
+
+    listing = client.get("/api/cloud-db/atlas", headers=AUTH).json()
+    assert {run["run_id"]: run["blinding"] for run in listing["runs"]} == {
+        VERIFIED: "refreshed",
+        PROVISIONAL: "pending",
+    }
+    detail = client.get("/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": PROVISIONAL})
+    assert detail.json()["run"]["blinding"] == "pending"
+    assert detail.json()["run"]["facet_version"] == "run-facets/v1"
+
+
+def _scout_rows(rows: list[tuple[str, str, bool | None]]) -> str:
+    return "".join(
+        json.dumps(
+            {
+                "run_id": run,
+                "tool": tool,
+                "detector": "d1",
+                "flag": flag,
+                "at": "2026-10-27T22:00:00+00:00",
+                "evidence_steps": [2],
+            }
+        )
+        + "\n"
+        for run, tool, flag in rows
+    )
+
+
+def test_trace_tool_run_lists_are_dev_only_by_trace_id_and_carry_no_labels(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    _write_atlas(
+        runtime, [_atlas_facet(VERIFIED, suspicion=3), _atlas_facet(PROVISIONAL, suspicion=0)]
+    )
+    directory = runtime.data_root / "trace-tools"
+    directory.mkdir()
+    (directory / "results-v1.jsonl").write_text(
+        _scout_rows(
+            [
+                (VERIFIED, "scout", True),
+                (PROVISIONAL, "scout", False),
+                (REFUTED, "docent", None),
+                ("run-outside-the-corpus", "scout", True),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    url = "/api/cloud-db/trace-tools/runs"
+    assert client.get(url, params={"tool": "scout"}).status_code == 401
+    assert client.get(url, headers=AUTH, params={"tool": "scout", "split": "test"}).status_code == 400
+    for tool in ("cascade", "harbor_analyze", "unknown"):
+        assert client.get(url, headers=AUTH, params={"tool": tool}).status_code == 404
+    for bad in ({"kind": "missed"}, {"limit": 0}, {"limit": 201}, {"offset": -1}):
+        assert client.get(url, headers=AUTH, params={"tool": "scout"} | bad).status_code == 422
+
+    hit = client.get(url, headers=AUTH, params={"tool": "scout"})
+    assert hit.status_code == 200, hit.text
+    assert hit.headers["cache-control"] == "no-store"
+    body = hit.json()
+    assert [(row["run_id"], row["task_id"], row["faceted"]) for row in body["runs"]] == [
+        (VERIFIED, PRIMARY, True)
+    ]
+    assert body["runs"][0]["detectors"] == [{"detector": "d1", "evidence_steps": [2]}]
+    assert body["counts"] == {
+        "admitted_n": 3,
+        "hit_n": 1,
+        "clean_n": 1,
+        "unread_n": 1,
+        "outside_n": 1,
+    }
+    clean = client.get(url, headers=AUTH, params={"tool": "scout", "kind": "clean"}).json()
+    assert [row["run_id"] for row in clean["runs"]] == [PROVISIONAL]
+    unread = client.get(url, headers=AUTH, params={"tool": "scout", "kind": "unread"}).json()
+    assert [(row["run_id"], row["faceted"]) for row in unread["runs"]] == [(REFUTED, False)]
+    docent = client.get(url, headers=AUTH, params={"tool": "docent", "kind": "unread"}).json()
+    assert docent["counts"]["unread_n"] == 3  # an abstention is not a read
+    facets = client.get(url, headers=AUTH, params={"tool": "facets"}).json()
+    assert [row["run_id"] for row in facets["runs"]] == [VERIFIED]
+    assert (facets["counts"]["clean_n"], facets["counts"]["unread_n"]) == (1, 1)
+    for text in (hit.text, json.dumps(unread), json.dumps(facets)):
+        assert "outcome" not in text and "reward" not in text
+        assert "primaryneedle" not in text and "witnessneedle" not in text
+
+
+def test_field_reliability_endpoint_says_not_measured_until_a_receipt_is_retained(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    url = "/api/cloud-db/atlas/field-reliability"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["measured"] is False
+    assert absent.json()["error"].startswith("not measured")
+
+    directory = runtime.data_root / "run-atlas"
+    directory.mkdir(exist_ok=True)
+    (directory / "field-reliability-v1.json").write_text(
+        json.dumps(
+            {
+                "schema": "evallab.field_reliability/v1",
+                "measured_at": "2026-10-28T03:42:26+00:00",
+                "source": "VF-11 blind re-rate",
+                "design": "5 runs per cluster, rated blind",
+                "sample_runs": 60,
+                "fields": [
+                    {"field": "goal", "agree_n": 35, "n": 40, "basis": None},
+                    {"field": "evidence_steps", "agree_n": 35, "n": 42, "basis": None},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH).json()
+    assert served["measured"] is True
+    assert [(row["field"], row["agree_n"], row["n"]) for row in served["reliability"]["fields"]] == [
+        ("goal", 35, 40),
+        ("evidence_steps", 35, 42),
+    ]
+
+
+def test_repair_board_endpoint_joins_atlas_counts_and_reports_absent_inventory(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    url = "/api/cloud-db/repair-board"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["present"] is False and absent.json()["tasks"] == []
+
+    _write_atlas(
+        runtime,
+        [
+            _atlas_facet(VERIFIED, tests="modified"),
+            _atlas_facet(PROVISIONAL, tests="modified"),
+            _atlas_facet(REFUTED, tests="modified", evidence_steps=[5]),
+        ],
+    )
+    inventory = runtime.data_root / "repair-board" / "inventory.json"
+    inventory.parent.mkdir()
+    inventory.write_text(
+        json.dumps(
+            {
+                "schema": "evallab.ts9_defensive_inventory/v1",
+                "observed_at": "2026-10-28T04:03:55+00:00",
+                "source_revision": "837dc7c",
+                "tasks": [
+                    {
+                        "task_id": task_id,
+                        "dataset_id": "tb4-audit-v1",
+                        "dev_assignments": [["tb4-audit-v1", "dev"]],
+                        "annotations": [{"defect_type": "weak_check", "weak_check": "private wording"}],
+                    }
+                    for task_id in (PRIMARY, "task-without-cloud-rows")
+                ],
+                "selected_repair_deliveries": [
+                    {
+                        "task": PRIMARY,
+                        "pr": 1326,
+                        "pr_url": "https://github.com/PeterMakhnatch/eval-lab/pull/1326",
+                        "delivery_status": "MERGED",
+                        "verification_class": "static-only",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH)
+    assert "private wording" not in served.text and VERIFIED not in served.text
+    board = served.json()
+    rows = {row["task_id"]: row for row in board["tasks"]}
+    assert board["present"] is True and board["counts"]["by_status"]["native-validated"] == 0
+    assert rows[PRIMARY]["status"] == "static only" and rows[PRIMARY]["admitted"] is True
+    # Of the task's two atlas runs only the passing one counts as passed with modified tests.
+    assert (rows[PRIMARY]["atlas_runs"], rows[PRIMARY]["passed_tests_modified"]) == (2, 1)
+    missing = rows["task-without-cloud-rows"]
+    assert (missing["admitted"], missing["atlas_runs"], missing["status"]) == (False, 0, "no repair")
+
+
+def test_cross_test_sets_endpoint_reads_the_registry_file_only(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    url = "/api/cloud-db/cross-test-sets"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["present"] is False
+
+    registry = runtime.data_root / "cross-test" / "registry.json"
+    registry.parent.mkdir()
+    entry = {
+        "id": "set-a", "name": "org/set-a", "source_url": "https://example.org/a", "unit": "run",
+        "status": "ready",
+        "flags": {
+            "eval_only": True, "local_only": True, "no_training": True, "no_rehosting": True,
+            "uploadable_to_vendor_projects": False, "hosted_model_api_for_evaluation": "allowed",
+        },
+        "licence": {"text": "mit", "redistributable": True},
+        "labels": {"type": "oracle", "counts": {"rows": 3}},
+        "scoring": {"command_level_localization_scorable": True},
+        "adapter": {"merge_state": "open-pr", "pr": 1302},
+        "caveats": ["recordtextneedle"],
+    }
+    registry.write_text(
+        json.dumps(
+            {
+                "schema_version": "cross-test-registry/v1",
+                "entries": [entry, {**entry, "id": "set-b", "flags": {**entry["flags"], "uploadable_to_vendor_projects": True}}],
+                "hold_access": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH)
+    assert "recordtextneedle" not in served.text
+    board = served.json()
+    assert board["present"] is True
+    assert [row["id"] for row in board["entries"]] == ["set-a"]
+    assert board["entries"][0]["uploadable"] is False and board["entries"][0]["adapter"]["merge_state"] == "open-pr"
+    assert [problem["id"] for problem in board["malformed"]] == ["set-b"]

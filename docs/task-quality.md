@@ -174,8 +174,8 @@ provisional; re-upserting a row without `trust_tier` keeps the stored tier, and
 else. Older stores gain the columns, provisional by default, when opened.
 `retrieve_similar_examples` omits provisional issues and traces entirely unless
 `include_provisional=True`; examples rank by their strongest returned tier, then
-match strength, and each example prefers its strongest evidence. A trace with
-labeled passage steps (or LB-3 `passage_positive` step marks) returns one window:
+optional facet similarity (below), then match strength, and prefer their strongest
+evidence. A trace with labeled passage steps (or LB-3 `passage_positive` step marks) returns one window:
 its best-matching passage step with up to three steps on each side; provenance
 reports `passage_window` and `flagged_step_indices`, and prompt lines mark flagged
 steps. A list of flag names flags a step; source metadata objects do not. Each
@@ -235,6 +235,85 @@ counts disagreements and refusals by reason. `evallab prod import-run-facets
 JSONL with retrieval's own admission; the last fully valid record wins. Refused
 replacements cannot discard a valid prefix, and a torn UTF-8/JSON append is counted
 without losing the complete preceding records.
+
+`evallab prod import-run-clusters --cloud-database <db> --jsonl <clusters-v1.jsonl>
+[--drop-unfaceted]` stores the **final contiguous build** of the producer's cluster
+stream, as the Run Atlas reader selects it. An incomplete build (a level not yet
+covering `facet_count` runs, e.g. mid-write) stores nothing. Scoring-time label
+fields (`label_rates`, `rule_recall`, `rule_fpr`) are never stored. Runs without
+stored admitted facets (for example CheatBench action IDs that have no cloud
+trace) refuse the build, or with `--drop-unfaceted` are removed, sizes recomputed,
+emptied clusters dropped, and the dropped counts reported in the receipt.
+
+`replace_run_clusters(clusters, registry=...)` atomically replaces the
+`run_clusters` (`run-clusters/v1`) hierarchy: levels 1–3, a level-1 cluster has no
+parent and every other one a parent one level up containing all its runs, `size`
+equals `len(run_ids)`, and every run has stored facets of its current,
+registry-admitted DEV task. `label_rates` stays null until scoring; other keys
+(build id, embedder, seed, samples) are kept verbatim as `provenance_json`. Any
+invalid cluster keeps the stored hierarchy; concurrent PostgreSQL replacements
+serialize under a table lock. `search_runs(facets, registry=..., limit=...)` returns
+stored facets matching every filter (`outcome`, `tests`, `eval_awareness`, the
+three booleans, `suspicion`, `source`, `split`, `facet_model`; one value or a
+collection), most suspicious first; unknown fields or values raise.
+Both operations recompute registry admission in the same snapshot as their
+reads/writes; an optional `allowed_task_ids` list only narrows it.
+`CloudTraceRetriever.search_runs(facets)` uses the same gate and withholds records
+naming a sealed identity, e.g.
+`retriever.search_runs({"outcome": "pass", "tests": ["modified", "deleted", "replaced"]})`.
+
+`CloudTraceRetriever.retrieve_similar_examples(query, ..., facets=None,
+cluster_id=None, like_run_id=None)` also uses Run Atlas:
+
+- `facets` hard-filters traces with exactly the `search_runs` vocabulary and
+  validation above. A task qualifies only if it owns an admitted matching trace,
+  and the returned trace itself must match. `facets={}` requires a stored facet
+  row without adding field constraints; `None` leaves lexical retrieval unchanged.
+- `cluster_id` hard-filters trace IDs to that stored cluster's admitted,
+  ownership-consistent, sealed-screened members. A missing cluster or one with no
+  such members raises the same `ValueError("unknown cluster_id")`, including when
+  admission is empty. Facet and cluster filters intersect.
+- `like_run_id` ranks candidates by equal values of `outcome`, `tests`,
+  `eval_awareness`, `shortcut`, `grader_or_harness_touched`,
+  `answer_material_accessed`, `success_claim_without_evidence`, and `suspicion`
+  (0–8), plus one for sharing the reference's deepest cluster, when stored.
+  Cluster membership is projected onto admitted, ownership-consistent,
+  sealed-screened runs before comparing sizes; same-depth ties use the projected
+  member count, then cluster ID. Non-admitted membership cannot affect ranking.
+  The reference must be an admitted trace with stored facets; unavailable,
+  non-admitted, and unfaceted references raise the same `ValueError`. It need
+  not match the hard filters. Its own task is automatically excluded, in addition
+  to `exclude_task_ids`.
+
+Ranking is `(trust tier, descending facet similarity, descending lexical
+strength, task_id)`: similarity never outranks stronger trust. Within a task,
+the strongest matching trace tier wins, then its most similar trace, then the
+existing evidence order. Without `like_run_id`, similarity is zero and the
+existing ordering is unchanged. Only an Atlas request adds trace provenance
+`facet_similarity` (integer, zero when unused) and `run_facets_matched` (true).
+Default calls retain their existing provenance and rendered output.
+
+Any of these three arguments requires trace-backed evidence, including
+`task_quality` examples: an issue-only task or one without a matching,
+returnable trace is omitted. An empty or punctuation-only `query` then lists
+matching admitted tasks with lexical strength zero; without an Atlas argument
+it still returns no examples. For example:
+
+```python
+examples = retriever.retrieve_similar_examples(
+    "",
+    facets={"outcome": "pass", "tests": ["modified", "deleted", "replaced"]},
+    top_k=5,
+)
+```
+
+Admission, facet/cluster reads and evidence hydration share one read snapshot;
+an empty admitted scope reads no facet or cluster bodies. Existing sealed-identity
+screening remains in force. Best-first expansion uses precomputed per-task facet
+similarity bounds alongside lexical bounds, including conservative bounds when
+screening can expose a different trace.
+Partial-match widening likewise counts only matching traces at allowed trust
+tiers for Atlas requests, never unrelated traces or issue-only evidence.
 
 `evallab.production.CloudTraceRetriever` supplies a bounded, read-only DEV
 projection for consumers that need prior verified evidence. A local SQLite
@@ -310,6 +389,99 @@ default (`auto` for custom endpoints, `us-east-1` for AWS S3). `put_bytes` /
 `get_bundle` handle deterministic JSON bundles. Pass `local_directory=` for
 an offline CAS, or alongside S3 configuration for an atomic local mirror.
 CAS references do not assert that the corresponding object has been ingested.
+
+**Blinded CheatBench runs (not in the cloud database).** CheatBench facet run ids are
+answer-key registry item ids (`cheatbench-actions-v1:<hash>`); the trajectories live
+under `eval-lab-results/<trial_ref>/agent/trajectory.json`, so `export-runs` cannot
+reach them. `evallab prod export-cheatbench-runs --format harbor|atif|scout
+--output-directory D --manifest M [--run-id ID ...] [--limit N] [--view full|actions_only]`
+resolves each id through the registry and writes the same blinded formats. Admission
+is per item, because CheatBench items share task names across splits: the item's
+effective split must be DEV, `assignments.csv` must say DEV for it, no assignment key
+may mark the item or its task TEST, and its id must not be sealed. TEST, sealed,
+cross-key-locked and unknown ids are refused with no output. The trajectory must match
+the registry's pinned sha256 (`trajectory_sha256`, or `actions_only_sha256` for
+`--view actions_only`), else the export fails whole. The default `full` view is what the
+facets were produced from. Annotation steps are dropped in any letter case, and an
+annotation marker embedded anywhere else fails the export. Each trajectory then goes
+through `blind_atif` and an explicit native-ATIF projection (`extra`, model names,
+timestamps and metrics are dropped; any other unknown step, tool-call or observation
+field refuses the export rather than being dropped or passed through; registry
+answer-key names such as `expected_*` as tool-argument names refuse it too). Identities
+(item, task and benchmark names, trial ids, `trial_ref` path segments, source names)
+are redacted in text, argument values and argument names; a case-folded registry
+identity (for example an uppercase spelling of a non-ASCII name) left in the output
+refuses the export. Role enums are left alone, tool calls get blind per-step ids
+(`call-<step>-<n>`) and each observation points at its call, or at none when the
+recorded id named no call (native ATIF requires pairing). Step ids are renumbered from
+1 and only `ATIF-v<major>.<minor>` schema versions are published. The sealed manifest,
+outside the export and mode 0600, holds per blind id: run id, `trial_ref`, observed
+digest, step origins, `reward: null` and the registry's `expected_*` fields for
+scoring. Blind readers must not receive it. The receipt counts canonical candidates
+(aliases of one id count once) and reports no timing, which would time lookups of
+refused ids.
+
+**Metadata-only cluster scope.** `evallab prod export-cluster-scope --cluster-id ID
+--manifest PATH [--source-database DB]` (default: the live store) writes one new
+JSON file, never replacing one, for a stored Run Atlas cluster. It reads only
+`run_clusters`, `agent_traces`, `run_facets` and task identity columns, through a
+read-only connection: no step, label, reward, issue, facet text or cluster name.
+Each row is a member run that `admitted_cloud_task_ids` + `CorpusRegistry` admit as
+DEV (this includes the cross-key TEST check in `assignments.csv`): `trace_id`,
+`task_id`, `native_task_id` (the stored native name, or null),
+`canonical_task_id` (`CorpusRegistry.task_name`), `assignments_sha256`,
+`admission`, `facet_build_id` (the cluster build that covers the facets),
+`facet_producer_revision` (`run-facets/v1`) and `facet_served_model`. Members that
+are not admitted get no row; `counts.refused_by_reason` gives only totals
+(`db_non_dev_split`, `registry_cross_key_or_sealed`, `unstored_run`). Without a
+loaded `assignments.csv` it refuses rather than certify. The ids themselves may
+carry source names, so the file scopes orchestration; it is not a blinded-reader input.
+
+**QA data access (`evallab qa-data`).** One JSON document per call over the admitted
+DEV cloud trace store, sized for an agent's context. The store is opened
+**read-only** (`CloudTraceDatabase(read_only=True)`: SQLite `mode=ro`, no
+migration, index or rebuild; PostgreSQL in a read-only session). Every call decides
+registry admission (`CorpusRegistry`, cross-key `assignments.csv`, seals) afresh
+**in the same read snapshot** as the rows it returns, and a missing, held-out,
+sealed or cross-key-locked identity gives the **identical** refusal
+(`not available: not an admitted DEV task or run`) with no counts, names or
+partial data. All calls take `--budget N` (default 4000, minimum 200); `meta`
+reports `tokens_est` (ceil(chars/4) of the whole reply), `latency_ms`, `omitted_items` and
+`truncated`. Sections omit whole items and count them rather than cut records; a
+reply that cannot fit becomes a bounded refusal, never an over-budget document.
+
+```bash
+uv run evallab qa-data task TASK_ID [--file tests/check.py]      # instruction, tests, grader, Dockerfile
+uv run evallab qa-data runs --facet outcome=pass --facet tests=modified,deleted,replaced --limit 10
+uv run evallab qa-data runs --cluster CLUSTER_ID | --like RUN_ID | --query "words" | --task TASK_ID
+uv run evallab qa-data window RUN_ID --around 12 --radius 3      # or --first A --last B
+uv run evallab qa-data history TASK_ID [--flag git_history_peek] # past issues, similar issues, playbook cards
+uv run evallab qa-data findings --run RUN_ID | --task TASK_ID    # Scout / Laminar / Docent leads
+```
+
+- `task` bundles the instruction and the task package's Dockerfile, test and
+  grader files in priority order, within budget. The package is found only through
+  the registry's digest-matched locator for that exact task; Goodfire and
+  CheatBench-derived tasks have none and return the instruction with
+  `package: null`. `solution/` and answer-key-named files are listed by name under
+  `withheld`, never read; files that are DEV test content (including expected values
+  inside tests) are returned. `--file` takes a relative path inside the package.
+- `runs` lists every run (not one per task) from stored Run Atlas facets, ranked by
+  facet similarity to `--like`, then query words found in goal/approach/shortcut,
+  then suspicion. Records omit `source`/`split`/model and give only a cluster id
+  and level: cluster names are model-written from stored samples that may include
+  runs the caller cannot see, so they are never returned.
+- `window` returns recorded non-user steps (`step_index`, role, tool, command,
+  content, observation preview), without evaluator flags or CAS pointers.
+- `history` returns the task's own confirmed/provisional issues (refuted ones are
+  counted), similar issues elsewhere with `issue:<id>` pointers, and the matching
+  playbook cards (issue defect classes and `--flag` values are the triggers).
+- `findings` joins the local trace-tool ledgers to run ids that equal the store's
+  trace ids, and returns the tools' own leads (not verdicts) with sealed-identity
+  screening. No finding means the tool did not scan the run or found nothing.
+
+Measured tokens and latency per call type on the live store are in
+`research/evidence/runs/ce14-qa-data-20261028/`.
 
 ### Task Quality proposal review and retained causal descriptions
 

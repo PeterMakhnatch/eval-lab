@@ -1,0 +1,115 @@
+{
+  "abstentions": 192,
+  "at": "2026-10-27T22:23:00.851193+00:00",
+  "attested_calls": 41,
+  "auroc_scored_yesyes_vs_nono": 0.6666666666666666,
+  "baseline_all200": {
+    "clean_no": {
+      "cascade_alarm": 2,
+      "n": 70,
+      "stage1_any": 32
+    },
+    "considered_only": {
+      "cascade_alarm": 7,
+      "n": 50,
+      "stage1_any": 32
+    },
+    "enacted_yes": {
+      "cascade_alarm": 8,
+      "n": 80,
+      "stage1_any": 60
+    }
+  },
+  "basis": "Explicit TT-4 lane approval: SuperGrok OAuth subscription; $0 marginal; no API keys or fallback",
+  "blocked_quota": {
+    "at": "2026-10-27T22:19:36.811Z",
+    "basis": "Stored SuperGrok OAuth subscription; explicit $0-marginal lane approval",
+    "cache_invalidated_before_fetch": true,
+    "fetched_at_epoch_ms": 1793139568497,
+    "generated_at_epoch_ms": 1793139576811,
+    "limits": [
+      {
+        "label": "SuperGrok Weekly Credits",
+        "remaining_fraction": 0,
+        "status": "exhausted",
+        "used_fraction": 1
+      },
+      {
+        "label": "Grok Build (Weekly)",
+        "remaining_fraction": 0,
+        "status": "exhausted",
+        "used_fraction": 1
+      }
+    ],
+    "model": "xai-oauth/grok-4.3",
+    "reason": "SuperGrok weekly subscription quota exhausted during ten-trace smoke; stopped active scan immediately; no paid fallback",
+    "reset_at": [
+      "2026-10-30T18:10:48.559Z"
+    ],
+    "usd": 0
+  },
+  "calls": 47,
+  "considered_only": {
+    "abstentions": 50,
+    "n": 50,
+    "scored": 0,
+    "threshold_counts": {
+      "5": 0,
+      "7": 0
+    }
+  },
+  "input_tokens": 1820079,
+  "metrics": [
+    {
+      "FP": 0,
+      "TP": 1,
+      "abstentions": 142,
+      "false_alarm_rate": 0.0,
+      "n_neg": 5,
+      "n_pos": 3,
+      "positive_overlap_cascade": {
+        "both": 0,
+        "cascade_only": 0,
+        "neither": 2,
+        "tool_only": 1
+      },
+      "recall": 0.3333333333333333,
+      "threshold": 5,
+      "tool_only_negative": 0,
+      "tool_only_vs_stage1_positive": 0
+    },
+    {
+      "FP": 0,
+      "TP": 1,
+      "abstentions": 142,
+      "false_alarm_rate": 0.0,
+      "n_neg": 5,
+      "n_pos": 3,
+      "positive_overlap_cascade": {
+        "both": 0,
+        "cascade_only": 0,
+        "neither": 2,
+        "tool_only": 1
+      },
+      "recall": 0.3333333333333333,
+      "threshold": 7,
+      "tool_only_negative": 0,
+      "tool_only_vs_stage1_positive": 0
+    }
+  ],
+  "model": "xai-oauth/grok-4.3",
+  "output_tokens": 22988,
+  "sample_n": 200,
+  "scored": 8,
+  "served_models": [
+    "xai-oauth/grok-4.3"
+  ],
+  "source_labels": {
+    "clean_no": 70,
+    "considered_only": 50,
+    "enacted_yes": 80
+  },
+  "unattested_calls": 6,
+  "usage_totals_scope": "Attested calls only; usage for failed or unattested responses is unknown",
+  "usd": 0
+}

@@ -49,6 +49,130 @@ stopped when done; never start one on a reserved port.
 Harbor job directories under `runs/` remain the immutable source of truth.
 Phoenix and Laminar are derived views; neither replaces those artifacts.
 
+## Laminar Signal spend guard
+
+The four Eval Lab Signal definitions in `src/evallab/laminar.py` are **paused**
+and require the explicit span tag `evallab.signals=on` if subsequently enabled.
+`evallab laminar signals apply` preserves both protections; ordinary traces and
+bulk cloud-store syncs never add the tag. Re-enabling paid, per-token Signals
+requires funded allowance and current authorization, not merely a stored BYOK key.
+The project Failure Detector and other presets must also be paused or opt-in
+filtered before historical ingestion. Before changing live definitions, retain a
+GET snapshot under `~/.local/state/evallab-prod-live/trace-store/`, then verify
+the stored definitions and a single trace's `signal_runs` via read-only SQL.
+
+## Private cloud trace store
+
+`src/evallab/trace_store/` reads the live cloud trace SQLite database in read-only
+mode. Selection intersects exact uppercase `DEV` with the shared cross-key
+admission gate. The upload allow-list is Goodfire and our owned
+`mimo-defect-map-v1`, `tb2-to-tb21-v1`, and `tb4-audit-v1` runs; TB4 accepts only
+`kimi-tb4` and `muse-r1`, never external TB4 Hub trajectories. HackBench,
+CheatBench, held/lowercase-dev data, and `qa-trace-sft-v0` are not storage inputs.
+Own runs precede Goodfire. Source ownership is checked against the retained
+`cloud-trace-db-evidence/ingestion-sources.json`.
+
+Both targets use UUID5 identities from DB `trace_id`. Trace metadata is limited
+to `run_id`, `source`, `benchmark`, `model`, `task_id`, `outcome`, and `split`;
+classification labels and raw receipt/flag dictionaries are not uploaded.
+Only actor-visible messages, reasoning, calls and results are projected.
+Observation CAS bytes are hash-verified and hydrated, never silently replaced
+by previews. Payloads are secret-scanned before transmission; hits and malformed
+or missing observations are rejected with local, non-secret receipts.
+Provider-prefix patterns require a token boundary, so opaque `task-<hash>` IDs
+are not credentials; the exporter's other secret rules are unchanged. Both
+providers inspect raw string values and recursively decoded JSON string wrappers,
+including JSON embedded inside tool-message content. Raw-string hits are never
+lost by decoding. Laminar's generated input/output fields use the same logical
+gate. A hit rejects only its trace, including within a Docent batch, and the gate
+is checked before an unchanged-content receipt can skip a trace.
+Evaluator-field rejection also recursively decodes quoted JSON strings; ordinary
+actor prose and code stay intact rather than being scrubbed.
+
+Laminar uses the existing project and OTLP encoders, preserving text rather than
+the live watch exporter's clipped display values. Import sequence timestamps are
+explicitly synthetic, not measured action durations. Ordinary requests are
+batched below 4 MiB; an oversized single span is sent intact, and any provider
+size rejection stops the sync rather than clipping content. All project Signals
+must be paused before the adapter sends data. Docent uses one owner-only private
+collection named `evallab-trace-store/<dataset_id> (private)` per source, checking
+collaborators before and after each upload.
+
+Per-target successful receipts and opaque quarantine tombstones live under
+`~/.local/state/evallab-prod-live/trace-store/{laminar,docent}-state.jsonl`.
+Tombstones preserve every original receipt and replay only after a separately
+authorized removal of a proven lane-owned copy, with remote absence verified.
+Sync never automatically deletes remote runs or collections.
+Unchanged content is skipped, new rows are picked up, and quota/access/size
+rejections stop cleanly without marking the rejected run synced. Local error and
+batch receipts report rejected IDs, wire-attempt bytes, hydration bytes and wall
+time. A shared lock and durable pre-send byte reservations enforce an independent
+2.5 GB monthly ceiling for each provider, including retries and interrupted sends.
+The Laminar allowance is not charged for Docent traffic. API/storage batches are
+logged to the spend ledger. Ingest invokes no model, paid Signal or Docent Reading
+API and activates no paid storage. Accepted bytes do not prove a $0 invoice:
+published storage tariffs are unverified, so ingestion cost is recorded as unknown.
+Docent has no supported upsert: different content at an existing deterministic
+remote ID pauses without deleting that evidence.
+
+### Scheduled cloud sync
+
+```bash
+git fetch origin
+scripts/ops/launchd/install-trace-store-sync.sh --load
+```
+
+The separate `com.petermakhnatch.evallab.trace-store-sync` LaunchAgent runs one
+`evallab.trace_store.watch` tick every 600 seconds; it does not run local Scout
+scans. Its `keys run --` command, interpreter, working directory, code, locked
+dependencies and `CorpusRegistry` authority use a full committed runtime snapshot
+under `~/Library/Application Support/evallab/trace-store-sync/releases/`, never a
+disposable worktree or the potentially sparse primary checkout. The primary Git
+repository supplies the merged install revision only. Reinstall after adopting
+code or corpus-policy changes. Both cloud adapters must be installed and their
+dependencies and snapshot registry must validate before replacing the owned job.
+
+The watcher fingerprints the database and WAL, ignoring SHM. An unchanged tick
+makes no hosted calls. Before any changed target syncs, a read-only Laminar GET
+must verify the existing project's Signals are all disabled. Normal sync retains
+every source, admission, secret and Docent owner-only guard, plus each provider's
+independent 2.5 GB monthly byte cap.
+The timer invokes no model or paid Signal API.
+
+`watch-state.json` under the sync state root records compact results and latched
+pauses. Quota, access, size, byte-cap or Signals refusals preserve the cursor and
+are not automatically retried; initial adoption also honors the latest manual
+sync's stop. An operator may run the installed snapshot module with its recorded
+`--repo-root`/`--state-root` and `--resume docent` (or `laminar`/`all`) after fixing
+the cause. Resume still checks Signals and the byte cap; it never clears receipts
+or budget counters. A paused target gives exit status 2 while healthy targets
+can continue. `--uninstall` removes only this installer's owned job and plist,
+leaving receipts, runtime snapshots and logs intact.
+
+### Sync and fetch commands
+
+```bash
+keys run -- uv run evallab traces sync --target laminar
+keys run -- uv run --with docent==0.1.88 evallab traces sync \
+  --target docent --dataset goodfire-reward-hack-data --limit 16
+keys run -- uv run evallab traces fetch --source laminar --run-id '<DB trace_id>'
+keys run -- uv run --with docent==0.1.88 evallab traces fetch \
+  --source docent --run-id '<DB trace_id>' --dataset mimo-defect-map-v1
+keys run -- uv run evallab traces fetch --source laminar \
+  --query "SELECT COUNT(*) AS runs FROM traces WHERE JSONExtractString(metadata, 'source') = {dataset:String}" \
+  --dataset mimo-defect-map-v1
+keys run -- uv run --with docent==0.1.88 evallab traces fetch --source docent \
+  --query "SELECT COUNT(*) AS runs FROM agent_runs" --dataset mimo-defect-map-v1
+```
+
+`--run-id` is the opaque DB trace identity, not its source job name. Both fetch
+routes derive the remote UUID directly and need no local sync receipts or DB.
+Fetch returns JSON rows and server limit/truncation metadata, never a model
+answer. Raw Laminar SQL can use the bound `{dataset:String}` parameter; it is
+not rewritten into an unsafe generic outer filter. Docent DQL runs only in the
+selected owner-only source collections, checking collaborators on both sides.
+
+
 ## Incremental native ATIF (HAR-168)
 
 Native MiMo publishes `agent/trajectory.json` in ATIF-v1.8 after each completed

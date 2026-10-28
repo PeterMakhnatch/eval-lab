@@ -1,0 +1,17 @@
+{
+  "python": "3.13.17",
+  "packages": {
+    "inspect-scout": "0.5.4",
+    "inspect-ai": "0.3.285",
+    "metr-scanners": "0.1.11",
+    "duckdb": "1.5.5",
+    "pyarrow": "26.0.0",
+    "pandas": "3.1.0",
+    "numpy": "2.5.4",
+    "pydantic": "2.14.1"
+  },
+  "metr_git_cache_checkout": "54bfcbb2a3028d93/c12893d/packages/scanners",
+  "metr_revision": "c12893d1",
+  "project_python_floor": "3.12",
+  "project_dependencies_modified": false
+}

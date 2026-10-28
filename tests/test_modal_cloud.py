@@ -3195,3 +3195,40 @@ def test_trace_tool_run_lists_are_dev_only_by_trace_id_and_carry_no_labels(
     for text in (hit.text, json.dumps(unread), json.dumps(facets)):
         assert "outcome" not in text and "reward" not in text
         assert "primaryneedle" not in text and "witnessneedle" not in text
+
+
+def test_field_reliability_endpoint_says_not_measured_until_a_receipt_is_retained(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    url = "/api/cloud-db/atlas/field-reliability"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["measured"] is False
+    assert absent.json()["error"].startswith("not measured")
+
+    directory = runtime.data_root / "run-atlas"
+    directory.mkdir(exist_ok=True)
+    (directory / "field-reliability-v1.json").write_text(
+        json.dumps(
+            {
+                "schema": "evallab.field_reliability/v1",
+                "measured_at": "2026-10-28T03:42:26+00:00",
+                "source": "VF-11 blind re-rate",
+                "design": "5 runs per cluster, rated blind",
+                "sample_runs": 60,
+                "fields": [
+                    {"field": "goal", "agree_n": 35, "n": 40, "basis": None},
+                    {"field": "evidence_steps", "agree_n": 35, "n": 42, "basis": None},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH).json()
+    assert served["measured"] is True
+    assert [(row["field"], row["agree_n"], row["n"]) for row in served["reliability"]["fields"]] == [
+        ("goal", 35, 40),
+        ("evidence_steps", 35, 42),
+    ]

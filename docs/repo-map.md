@@ -639,7 +639,7 @@ inputs:
   - path: src/evallab/production/cross_test_sets.py
     digest: sha256:8738f4b1dc6d00f03f46bea94a3eb16fc7f4e37bf20614708a68c56c729b43b8
   - path: src/evallab/production/dashboard.py
-    digest: sha256:b0ba6b0261db54328f8fc042ecdbb42a7842a70e47fc1e09d295217f6b2714e7
+    digest: sha256:a779e6a08ed6a58f46c9dd9436012751c513a025d647532f0009895682ea261b
   - path: src/evallab/production/deploy_preflight.py
     digest: sha256:8d9939d3d6b738d932e4d9296bc70a565e8b9896f87e068479b8026765311fa6
   - path: src/evallab/production/detector_scope.py
@@ -695,7 +695,7 @@ inputs:
   - path: src/evallab/production/relay.py
     digest: sha256:1734d2d010cbcd84bac1ef59939f4d762786f0f8a0ca28a5b799dc589510ac57
   - path: src/evallab/production/repair_board.py
-    digest: sha256:ba3091827cf84a5cfafb9af0541dd35298aa2d7a5ca554cf54c474418844e890
+    digest: sha256:e0d78fb36252a9627e3e6f89255be604c0a1959383b1a114221535552c28d4c1
   - path: src/evallab/production/run_atlas.py
     digest: sha256:a80aa571abdce09ccdfafe08439e026d04d0aaf90ded3e2ab720d420993bd381
   - path: src/evallab/production/run_atlas_clusters.py

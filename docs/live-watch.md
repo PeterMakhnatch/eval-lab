@@ -1532,6 +1532,39 @@ modal run src/evallab/production/modal_cloud.py::run_cloud_supervisor_step \
   --approval 'Current scoped cloud offload approval' --max-usd 1
 ```
 
+#### SB-1 error-first seeker campaign (`evallab prod seeker-error-first`)
+
+One cell is one clean-cohort task x one OMP route, retained at
+`<out>/<dataset>/<task>/<route with "/" as "_">/{turn-1,turn-2}/{prompt.md,response.jsonl,result.json,submission/}`
+in the layout `ts4_executed_differentials` reads. Turn 1 is blind (`hide_tests`, strict blind
+prompt, no cues, retrieval or feedback). Turn 2 puts the **real ORIGINAL-grader runner error** of
+the turn-1 submission first (reward, status, sandbox exit codes, harness error, failing node names,
+verifier log tail and CTRF excerpts; free text is passed through `scrub_blind_task_text`, test file
+paths are dropped, the repaired grade is never fed back, 6000-character cap), then the blind
+prompt and DEV-only `CloudTraceRetriever` evidence (query enriched with the first failure token).
+
+```bash
+# free: counts, Modal upper bound, per-task cross-key DEV gate; writes <out>/plan.json
+uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out
+# paid, only under a current approval; refuses without all four authority flags
+uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out --execute \
+  --approval '<approval text>' --max-usd N --spend-ledger /path/to/ledger.json \
+  --modal-app-name NAME --cloud-trace-db /path/to/cloud-trace-db.sqlite [--resume]
+```
+
+- `--plan` (default) and `--summarize` make no model call and no grader run. Local Docker is
+  forced off for the whole process. `--workers` is at most 8; `--per-model-concurrency` bounds
+  concurrent calls per route.
+- A cell counts only when the served provider/model equals the requested route (a fallback
+  answer is never attributed to it), the digests bind `response.jsonl` and the executed
+  `solve.sh`, and both graders were `measured`. Unevaluated or missing cells are listed and never
+  counted as zeros; the summary pairs turn 2 against turn 1 over cells evaluated on both turns
+  (exact McNemar p on the discordant pairs).
+- `--resume` skips a turn only when its retained `result.json` passes that predicate; a failed
+  turn is renamed `turn-N.superseded-K`, never overwritten.
+- Model calls log `tool: omp`, `usd: 0` rows and Modal grades log `route: modal` rows to
+  `~/.local/state/evallab-failure-library/spend.jsonl` (`--spend-log` overrides it).
+
 #### Run Atlas (`/api/cloud-db/atlas`)
 
 The atlas is a read-only projection of two retained files under `<data_root>/run-atlas/`,

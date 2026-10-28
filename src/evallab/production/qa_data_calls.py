@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from evallab.hackbook.playbook_cards import list_playbook_cards, match_playbook_cards
-from evallab.production.cloud_trace_db import _sealed_pattern
+from evallab.production.cloud_trace_db import _facet_filters, _sealed_pattern
 from evallab.production.qa_data import UNAVAILABLE, QaContext, QaDataError, match_admitted_task
 
 # Facet fields a QA agent needs to triage a run. ``source`` and ``split`` stay out:
@@ -47,14 +47,6 @@ _TEXT_FIELDS = ("goal", "approach", "shortcut")
 # Step fields a QA agent reads. Raw ``flags_json``, ``flagged`` (derived from passage labels)
 # and CAS pointers are evaluator-side and stay out.
 _STEP_FIELDS = ("step_index", "role", "tool_name", "command_or_action", "content_text", "observation_preview")
-
-
-def _admitted_runs(ctx: QaContext) -> dict[str, dict[str, Any]]:
-    """Every stored facet row of a currently admitted, sealed-screened run, keyed by run id."""
-    rows = ctx.database.search_runs(
-        {}, registry=ctx.retriever.registry, sealed_task_ids=ctx.retriever._sealed_ids, limit=None,
-    )
-    return {row["run_id"]: row for row in rows}
 
 
 def _cluster_index(ctx: QaContext, visible: set[str]) -> list[dict[str, Any]]:
@@ -99,12 +91,15 @@ def runs(
     if task_id is not None:
         task_id = ctx.require_task(task_id)["task_id"]
     try:
-        pool = ctx.database.search_runs(
-            facets, registry=ctx.retriever.registry, sealed_task_ids=ctx.retriever._sealed_ids, limit=None,
-        )
+        filters = _facet_filters({} if facets is None else facets)
+        # One screened read of every admitted run: facet filters apply to it below, and the
+        # same rows decide the --like reference and which cluster members are visible.
+        with ctx.database._transaction():
+            rows, sealed_ids = ctx.database._admitted_facets(ctx.retriever)
     except ValueError as exc:
         raise QaDataError(str(exc)) from exc
-    everything = {row["run_id"]: row for row in pool} if not facets else _admitted_runs(ctx)
+    everything = {row["run_id"]: row for row in rows}
+    pool = [row for row in rows if all(row[field] in values for field, values in filters)]
     index = _cluster_index(ctx, set(everything))
     reference = None
     if like_run_id is not None:
@@ -118,7 +113,7 @@ def runs(
             raise QaDataError(UNAVAILABLE)
         members = set(match["members"])
     reference_cluster = _deepest(index, like_run_id) if like_run_id is not None else None
-    sealed = _sealed_pattern(frozenset(ctx.retriever._admitted_ids()[1]))
+    sealed = _sealed_pattern(frozenset(sealed_ids))
     scored = []
     for row in pool:
         if task_id is not None and row["task_id"] != task_id:
@@ -127,10 +122,12 @@ def runs(
             continue
         if reference is not None and row["run_id"] == reference["run_id"]:
             continue
-        words = set(_terms(" ".join(str(row[field]) for field in _TEXT_FIELDS)))
-        hits = sum(term in words for term in terms)
-        if terms and not hits:
-            continue
+        hits = 0
+        if terms:
+            words = set(_terms(" ".join(str(row[field]) for field in _TEXT_FIELDS)))
+            hits = sum(term in words for term in terms)
+            if not hits:
+                continue
         similarity = 0
         if reference is not None:
             similarity = sum(row[field] == reference[field] for field in _SIMILARITY_FIELDS)

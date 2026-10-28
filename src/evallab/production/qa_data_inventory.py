@@ -261,10 +261,17 @@ def clusters(ctx: QaContext, *, members: str | None, source: str, level: int | N
     if level is not None and level not in (1, 2, 3):
         raise QaDataError("--level must be 1, 2 or 3")
     with ctx.database._transaction():
-        _tasks, traces_ = _tasks_and_traces(ctx)
-        cloud = {row["trace_id"] for row in traces_}
-        all_cloud = {row[0] for row in ctx.database._execute("SELECT trace_id FROM agent_traces").fetchall()}
-        registry_only = _registry_dev_ids(ctx) - all_cloud
+        admitted, _sealed = ctx.retriever._admitted_ids()
+        parameters: list[Any] = []
+        scope = ctx.database._task_id_scope("a.task_id", admitted, parameters)
+        cloud = {row[0] for row in ctx.database._execute(  # the trace ids ``_tasks_and_traces`` lists
+            f"SELECT a.trace_id FROM agent_traces a JOIN corpus_tasks c ON c.task_id=a.task_id WHERE {scope}",
+            parameters,
+        ).fetchall()}
+        registry_only: set[str] = set()  # only the file source can name registry-only members
+        if source == "file":
+            all_cloud = {row[0] for row in ctx.database._execute("SELECT trace_id FROM agent_traces").fetchall()}
+            registry_only = _registry_dev_ids(ctx) - all_cloud
         nodes = ctx.database._rows(
             "SELECT cluster_id, level, parent, run_ids, provenance_json "
             "FROM run_clusters ORDER BY level, cluster_id",

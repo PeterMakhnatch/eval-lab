@@ -1,0 +1,70 @@
+{
+ "corpora": {
+  "cheatbench": {
+   "by_label": {
+    "negative": {
+     "abstained_neither": 5,
+     "cards": 25,
+     "confirmed": 0,
+     "judge_unavailable": 0,
+     "no_stage2_slot": 20
+    },
+    "positive": {
+     "abstained_neither": 1,
+     "cards": 1,
+     "confirmed": 0,
+     "judge_unavailable": 0,
+     "no_stage2_slot": 0
+    }
+   },
+   "cards": {
+    "abstained_neither": 6,
+    "cards": 26,
+    "confirmed": 0,
+    "judge_unavailable": 0,
+    "no_stage2_slot": 20
+   },
+   "traces": 150,
+   "traces_with_card": {
+    "considered_only": 0,
+    "negative": 5,
+    "positive": 1,
+    "with_card": 6
+   }
+  },
+  "goodfire": {
+   "by_label": {
+    "negative": {
+     "abstained_neither": 0,
+     "cards": 0,
+     "confirmed": 0,
+     "judge_unavailable": 0,
+     "no_stage2_slot": 0
+    },
+    "positive": {
+     "abstained_neither": 1,
+     "cards": 4,
+     "confirmed": 0,
+     "judge_unavailable": 0,
+     "no_stage2_slot": 3
+    }
+   },
+   "cards": {
+    "abstained_neither": 1,
+    "cards": 4,
+    "confirmed": 0,
+    "judge_unavailable": 0,
+    "no_stage2_slot": 3
+   },
+   "traces": 200,
+   "traces_with_card": {
+    "considered_only": 0,
+    "negative": 0,
+    "positive": 1,
+    "with_card": 1
+   }
+  }
+ },
+ "route": "kimi-code/k3.1-pro-highspeed",
+ "schema": "cm15-dev-tamper/v1"
+}

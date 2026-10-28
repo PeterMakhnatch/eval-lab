@@ -11,6 +11,8 @@ from typing import Any
 
 import pytest
 
+from evallab.cli import parser as cli_parser
+from evallab.production import qa_data
 from evallab.production.cloud_trace_db import (
     CloudTraceDatabase,
     CloudTraceRetriever,
@@ -19,7 +21,8 @@ from evallab.production.cloud_trace_db import (
 from evallab.production.cloud_trace_export import CHEATBENCH_DATASET
 from evallab.production.corpus_queue import CorpusItem, CorpusRegistry
 from evallab.production.qa_data import UNAVAILABLE, Budget, QaContext, QaDataError, estimate_tokens
-from evallab.production.qa_data_inventory import clusters, inventory, recount, traces
+from evallab.production.qa_data_inventory import NO_RESULTS, clusters, inventory, recount, traces
+from evallab.production.trace_findings import upsert_trace_findings
 
 
 class SyntheticRegistry(CorpusRegistry):
@@ -198,6 +201,139 @@ def test_trace_limit_and_budget_omit_whole_records_and_count_every_omission(ctx:
     assert payload["traces"] == full["traces"][:1]
     assert payload["omitted"] == small.budget.omitted == 2
     assert payload["truncated"] and estimate_tokens(payload) <= small.budget.limit
+
+
+def store_findings(ctx: QaContext, *pairs: tuple[str, str, str]) -> int:
+    """Store one trace-findings/v1 record per (run, detector, verdict) through the store's own admission."""
+    return upsert_trace_findings(ctx.database, [{
+        "run_id": run_id, "detector": detector, "detector_version": "v1", "reader_model": None, "verdict": verdict,
+        "score": None, "kind": "cheat", "evidence_steps": [], "summary": "a lead", "produced_at": "2026-10-28T10:00:00Z",
+    } for run_id, detector, verdict in pairs], registry=ctx.retriever.registry)["stored"]
+
+
+ACTOR_STEPS = [
+    {"step_index": 0, "role": "user", "content_text": "repair output"},
+    {"step_index": 1, "role": "assistant", "content_text": "editing", "tool_name": "bash", "command_or_action": "ls"},
+]
+
+
+def test_traces_sort_alarms_puts_the_most_alarmed_admitted_runs_first(ctx: QaContext) -> None:
+    ctx.database.replace_trace_steps("run-c", ACTOR_STEPS)
+    assert store_findings(
+        ctx, ("run-c", "tripwire", "alarm"), ("run-c", "run_health.loop", "alarm"),
+        ("run-b", "tripwire", "alarm"), ("run-b", "cascade", "abstain"),
+        # The store admits it under its registry, but the reader seals the task: never listed or counted.
+        ("sealed-run", "hidden_only", "alarm"), ("sealed-run", "tripwire", "alarm"),
+    ) == 6
+    payload = listing(ctx, sort="alarms")
+    assert [row["trace_id"] for row in payload["traces"]] == ["run-c", "run-b", "run-a"]
+    by_id = {row["trace_id"]: row for row in payload["traces"]}
+    assert {key: value for key, value in by_id["run-c"].items() if key != "step_count"} == {
+        "trace_id": "run-c", "task_id": "beta", "dataset_id": "dataset-b", "model_id": "model-a",
+        "outcome": "unknown", "faceted": True, "alarms": ["run_health.loop", "tripwire"], "detector_results": 2,
+        "actor_inputs_available": True,
+    }
+    assert (by_id["run-b"]["alarms"], by_id["run-b"]["detector_results"]) == (["tripwire"], 2)
+    # Nothing stored for run-a: zero results read, which is not a clean verdict.
+    assert (by_id["run-a"]["alarms"], by_id["run-a"]["detector_results"]) == ([], 0)
+    assert by_id["run-a"]["actor_inputs_available"] is False
+    summary = payload["alarms"]
+    assert {key: summary[key] for key in ("source", "runs_read", "runs_alarmed", "by_detector", "detectors_total")} == {
+        "source": "trace_findings", "runs_read": 2, "runs_alarmed": 2,
+        "by_detector": {"tripwire": 2, "run_health.loop": 1}, "detectors_total": 2,
+    }
+    assert "not clean" in summary["note"] and "never clean" in summary["note"]
+    assert "sealed" not in json.dumps(payload) and "hidden_only" not in json.dumps(payload)
+    assert listing(ctx, sort="alarms", limit=1, ids_only=True)["traces"] == ["run-c"]
+    # Without an alarm option the listing is exactly what it was.
+    plain = listing(ctx)
+    assert "alarms" not in plain and all("alarms" not in row for row in plain["traces"])
+
+
+def test_traces_alarmed_by_keeps_only_that_detectors_admitted_runs(ctx: QaContext) -> None:
+    store_findings(
+        ctx, ("run-c", "tripwire", "alarm"), ("run-c", "run_health.loop", "alarm"), ("run-a", "tripwire", "abstain"),
+        ("run-b", "tripwire", "alarm"), ("sealed-run", "hidden_only", "alarm"),
+    )
+    assert listing(ctx, alarmed_by="run_health.loop", ids_only=True)["traces"] == ["run-c"]
+    assert listing(ctx, alarmed_by="tripwire", ids_only=True)["traces"] == ["run-b", "run-c"]
+    tripwire = listing(ctx, alarmed_by="tripwire", sort="alarms", task_id="alpha")
+    assert [row["trace_id"] for row in tripwire["traces"]] == ["run-b"] and tripwire["matched"] == 1
+    # The summary covers the runs the other filters keep, before the detector filter.
+    assert tripwire["alarms"]["runs_read"] == 2 and tripwire["alarms"]["by_detector"] == {"tripwire": 1}
+    hidden = listing(ctx, alarmed_by="hidden_only")
+    assert (hidden["traces"], hidden["matched"]) == ([], 0)
+
+
+@pytest.mark.parametrize("store_state", ["empty", "hidden-only", "no-table"])
+def test_alarm_options_say_no_results_retained_rather_than_no_alarm(ctx: QaContext, store_state: str) -> None:
+    if store_state == "hidden-only":
+        assert store_findings(ctx, ("sealed-run", "tripwire", "alarm")) == 1
+    if store_state == "no-table":
+        ctx.database._execute("DROP TABLE trace_findings")
+    payload = listing(ctx, sort="alarms")
+    assert payload["alarms"] == {"source": NO_RESULTS}
+    assert payload["matched"] == 3 and all("alarms" not in row for row in payload["traces"])
+    assert listing(ctx, alarmed_by="tripwire")["matched"] == 0
+    with pytest.raises(QaDataError, match="--sort"):
+        listing(ctx, sort="newest")
+
+
+def write_interim_findings(ctx: QaContext, *pairs: tuple[str, str, str]) -> None:
+    path = ctx.state_dir / "trace-harness/findings-v1.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps({
+        "run_id": run_id, "detector": detector, "detector_version": "v1", "reader_model": None, "verdict": verdict,
+        "kind": "cheat", "evidence_steps": [], "produced_at": "2026-10-28T10:00:00Z",
+    }) + "\n" for run_id, detector, verdict in pairs), encoding="utf-8")
+
+
+def test_alarms_fall_back_to_the_interim_harness_file_only_when_the_store_keeps_none(ctx: QaContext) -> None:
+    write_interim_findings(ctx, ("sealed-run", "tripwire", "alarm"))
+    assert listing(ctx, sort="alarms")["alarms"] == {"source": NO_RESULTS}  # a hidden run's result is not retained
+    write_interim_findings(
+        ctx, ("run-b", "flags", "alarm"), ("run-b", "facets", "alarm"), ("run-a", "flags", "clear"),
+        ("sealed-run", "hidden_only", "alarm"), ("test-run", "hidden_only", "alarm"),
+    )
+    payload = listing(ctx, sort="alarms")
+    assert payload["alarms"]["source"] == "trace-harness/findings-v1.jsonl (interim)"
+    assert payload["alarms"]["by_detector"] == {"facets": 1, "flags": 1}
+    assert [(row["trace_id"], row["alarms"], row["detector_results"]) for row in payload["traces"]] == [
+        ("run-b", ["facets", "flags"], 2), ("run-a", [], 1), ("run-c", [], 0),
+    ]
+    assert "hidden_only" not in json.dumps(payload)
+    store_findings(ctx, ("run-c", "tripwire", "alarm"))  # stored results win over the interim file
+    stored = listing(ctx, alarmed_by="tripwire", ids_only=True)
+    assert stored["alarms"]["source"] == "trace_findings" and stored["traces"] == ["run-c"]
+
+
+def test_alarm_listing_stays_inside_the_budget_and_counts_what_it_omits(ctx: QaContext) -> None:
+    store_findings(ctx, *((run, f"detector_{index:02d}", "alarm") for run in ("run-a", "run-b") for index in range(12)))
+    full_ctx = replace(ctx, budget=Budget(10_000))
+    full = listing(full_ctx, sort="alarms")
+    framing = full_ctx.budget.used - sum(map(estimate_tokens, full["traces"]))
+    small = replace(ctx, budget=Budget(framing + estimate_tokens(full["traces"][0])))
+    payload = listing(small, sort="alarms")
+    assert payload["traces"] == full["traces"][:1] and payload["omitted"] == small.budget.omitted == 2
+    assert payload["truncated"] and estimate_tokens(payload) <= small.budget.limit
+
+
+def test_cli_lists_the_ten_most_alarmed_runs_in_one_command(
+    ctx: QaContext, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    store_findings(ctx, ("run-c", "tripwire", "alarm"), ("run-c", "cascade", "alarm"), ("run-b", "tripwire", "alarm"))
+    monkeypatch.setattr(qa_data, "_open", lambda _args, budget: replace(ctx, budget=budget))
+    monkeypatch.setattr(ctx.database, "close", lambda: None)  # the fixture owns the store
+    args = cli_parser().parse_args(["qa-data", "traces", "--sort", "alarms", "--limit", "10"])
+    assert args.func(args, Path.cwd(), harbor=None) == 0
+    reply = json.loads(capsys.readouterr().out)
+    assert [(row["trace_id"], row["alarms"]) for row in reply["data"]["traces"]] == [
+        ("run-c", ["cascade", "tripwire"]), ("run-b", ["tripwire"]), ("run-a", []),
+    ]
+    assert reply["meta"]["tokens_est"] <= reply["meta"]["budget"]
+    args = cli_parser().parse_args(["qa-data", "traces", "--alarmed-by", "cascade", "--ids-only"])
+    assert args.func(args, Path.cwd(), harbor=None) == 0
+    assert json.loads(capsys.readouterr().out)["data"]["traces"] == ["run-c"]
 
 
 def test_db_clusters_project_members_withhold_unsafe_names_and_bind_build(ctx: QaContext) -> None:

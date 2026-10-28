@@ -1963,10 +1963,11 @@ GitHub PR URLs leave the server: annotation text, key ids, answer-key paths and 
 the inventory. A task whose assignments are not all `dev` is dropped and counted.
 
 Status, strongest first: `native-validated` (a repair names a native receipt and claims native
-qualification; the only state shown green), `static only` (a delivered candidate with host
-checks and no sandbox run), `candidate` (a related candidate not bound to the exact package),
-`no repair`. A merged PR or a claim without a receipt never reaches `native-validated`, and every
-other status says "no native proof".
+qualification; the only state shown green), `static only` (a host-checked candidate without
+complete native qualification), `candidate` (a related candidate not bound to the exact package),
+or `no repair`. A merged PR, an oracle-only control, or a claim without a receipt never reaches
+`native-validated`. Each repair's verification can disclose measured controls or reference
+rejections without claiming a completed repair differential. Candidate links are batch-neutral.
 
 #### Cross-test sets (`/api/cloud-db/cross-test-sets`)
 

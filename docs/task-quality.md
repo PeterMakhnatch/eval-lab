@@ -453,6 +453,7 @@ reply that cannot fit becomes a bounded refusal, never an over-budget document.
 ```bash
 uv run evallab qa-data inventory [--ids-out FILE]                 # admitted task/run counts by dataset, outcome, model
 uv run evallab qa-data traces --task cad-model --outcome pass       # admitted runs, faceted or not (task id: bare or full)
+uv run evallab qa-data traces --sort alarms --limit 10           # the admitted runs most detectors alarm on (stored trace_findings); --alarmed-by DETECTOR
 uv run evallab qa-data task TASK_ID [--file REL] [--variant N --kind repaired_package]   # instruction, packages, issues, runs
 uv run evallab qa-data runs --facet outcome=pass --facet tests=modified,deleted,replaced --limit 10
 uv run evallab qa-data runs --cluster CLUSTER_ID | --like RUN_ID | --query "words" | --task TASK_ID

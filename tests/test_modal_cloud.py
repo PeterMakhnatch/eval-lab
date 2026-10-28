@@ -2984,3 +2984,86 @@ def test_trace_tool_scorecard_is_authenticated_dev_only_and_follows_retained_fil
     served = client.get("/api/cloud-db/trace-tools", headers=AUTH).json()
     docent = next(tool for tool in served["tools"] if tool["tool"] == "docent")
     assert docent["usage"]["usage_runs"] == 10 and docent["last_run_source"] == "spend ledger"
+
+
+def test_task_evidence_joins_one_admitted_task_and_never_returns_bodies(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    _write_atlas(
+        runtime,
+        [_atlas_facet(VERIFIED, suspicion=3, goal="Fix the parser"), _atlas_facet(PROVISIONAL)],
+        [
+            _atlas_cluster("root", [VERIFIED, PROVISIONAL], name="all runs"),
+            _atlas_cluster(
+                "leaf", [VERIFIED, PROVISIONAL], name="parsers", level=2, parent="root"
+            ),
+            _atlas_cluster(
+                "tip", [VERIFIED, PROVISIONAL], name="parser tips", level=3, parent="leaf"
+            ),
+        ],
+    )
+    results = runtime.data_root / "trace-tools"
+    results.mkdir()
+    (results / "results-v1.jsonl").write_text(
+        json.dumps(
+            {
+                "run_id": VERIFIED,
+                "tool": "scout",
+                "detector": "repeated_assistant_message",
+                "flag": True,
+                "at": "2026-10-27T22:00:00+00:00",
+                "evidence_steps": [2],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    assert client.get("/api/cloud-db/task-evidence", params={"task_id": PRIMARY}).status_code == 401
+    for split in ("test", "held"):
+        refused = client.get(
+            "/api/cloud-db/task-evidence", headers=AUTH, params={"task_id": PRIMARY, "split": split}
+        )
+        assert refused.status_code == 400
+    assert (
+        client.get(
+            "/api/cloud-db/task-evidence", headers=AUTH, params={"task_id": "no-such-task"}
+        ).status_code
+        == 404
+    )
+
+    response = client.get("/api/cloud-db/task-evidence", headers=AUTH, params={"task_id": PRIMARY})
+    assert response.status_code == 200, response.text
+    assert response.headers["cache-control"] == "no-store"
+    document = response.json()
+    assert document["task"]["task_id"] == PRIMARY
+    runs = {run["run_id"]: run for run in document["runs"]}
+    assert set(runs) == {VERIFIED, PROVISIONAL}
+    assert [run["run_id"] for run in document["runs"]][0] == VERIFIED  # most suspicious first
+    assert runs[VERIFIED]["facet"]["goal"] == "Fix the parser"
+    assert runs[VERIFIED]["clusters"] == [["all runs", "parsers", "parser tips"]]
+    assert runs[VERIFIED]["tools"]["scout"]["flagged"][0]["detector"] == "repeated_assistant_message"
+    assert runs[PROVISIONAL]["tools"] == {}  # no result is not a clean result
+    assert {issue["issue_id"] for issue in document["issues"]} == {
+        "issue-confirmed-primary",
+        "issue-provisional-primary",
+    }
+    assert document["summary"]["runs_n"] == 2 and document["summary"]["issues_confirmed_n"] == 1
+    assert document["seeker"] == [] and document["repairs"] == []
+    for secret in ("primaryneedle", "witnessneedle", "provisionalneedle", "instruction_text", "cas_uri"):
+        assert secret not in response.text
+    assert any(c["command"].startswith("uv run evallab task ") for c in document["commands"])
+
+
+def test_task_search_finds_only_admitted_tasks_and_treats_wildcards_literally(
+    client: TestClient, records: dict[str, Any]
+) -> None:
+    found = client.get("/api/cloud-db/task-evidence/search", headers=AUTH, params={"q": "cloud-pri"})
+    assert found.status_code == 200, found.text
+    assert [(row["task_id"], row["runs_n"], row["issues_n"]) for row in found.json()["tasks"]] == [
+        (PRIMARY, 2, 2)
+    ]
+    for query in ("%%", "c_ud"):
+        literal = client.get("/api/cloud-db/task-evidence/search", headers=AUTH, params={"q": query})
+        assert literal.status_code == 200 and literal.json()["tasks"] == []
+    short = client.get("/api/cloud-db/task-evidence/search", headers=AUTH, params={"q": "c"})
+    assert short.status_code == 400

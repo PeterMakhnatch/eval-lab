@@ -1532,6 +1532,39 @@ modal run src/evallab/production/modal_cloud.py::run_cloud_supervisor_step \
   --approval 'Current scoped cloud offload approval' --max-usd 1
 ```
 
+#### SB-1 error-first seeker campaign (`evallab prod seeker-error-first`)
+
+One cell is one clean-cohort task x one OMP route, retained at
+`<out>/<dataset>/<task>/<route with "/" as "_">/{turn-1,turn-2}/{prompt.md,response.jsonl,result.json,submission/}`
+in the layout `ts4_executed_differentials` reads. Turn 1 is blind (`hide_tests`, strict blind
+prompt, no cues, retrieval or feedback). Turn 2 puts the **real ORIGINAL-grader runner error** of
+the turn-1 submission first (reward, status, sandbox exit codes, harness error, failing node names,
+verifier log tail and CTRF excerpts; free text is passed through `scrub_blind_task_text`, test file
+paths are dropped, the repaired grade is never fed back, 6000-character cap), then the blind
+prompt and DEV-only `CloudTraceRetriever` evidence (query enriched with the first failure token).
+
+```bash
+# free: counts, Modal upper bound, per-task cross-key DEV gate; writes <out>/plan.json
+uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out
+# paid, only under a current approval; refuses without all four authority flags
+uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out --execute \
+  --approval '<approval text>' --max-usd N --spend-ledger /path/to/ledger.json \
+  --modal-app-name NAME --cloud-trace-db /path/to/cloud-trace-db.sqlite [--resume]
+```
+
+- `--plan` (default) and `--summarize` make no model call and no grader run. Local Docker is
+  forced off for the whole process. `--workers` is at most 8; `--per-model-concurrency` bounds
+  concurrent calls per route.
+- A cell counts only when the served provider/model equals the requested route (a fallback
+  answer is never attributed to it), the digests bind `response.jsonl` and the executed
+  `solve.sh`, and both graders were `measured`. Unevaluated or missing cells are listed and never
+  counted as zeros; the summary pairs turn 2 against turn 1 over cells evaluated on both turns
+  (exact McNemar p on the discordant pairs).
+- `--resume` skips a turn only when its retained `result.json` passes that predicate; a failed
+  turn is renamed `turn-N.superseded-K`, never overwritten.
+- Model calls log `tool: omp`, `usd: 0` rows and Modal grades log `route: modal` rows to
+  `~/.local/state/evallab-failure-library/spend.jsonl` (`--spend-log` overrides it).
+
 #### Run Atlas (`/api/cloud-db/atlas`)
 
 The atlas is a read-only projection of two retained files under `<data_root>/run-atlas/`,
@@ -1626,6 +1659,30 @@ degrades only its own columns and is listed under "Sources read". The response c
 and confidence intervals only: the browser derives every recall, false-alarm rate and cost per
 run, so the page never computes a score the producers did not record. Nothing is ranked, no
 label is joined, and `split` other than `dev` is refused.
+
+#### Task Evidence (`/api/cloud-db/task-evidence`)
+
+The **Task Evidence** tab answers "what is known about this task" in one view. `GET
+/api/cloud-db/task-evidence?task_id=` (always `split=dev`; any other split is refused with
+400, a task the registry does not admit with 404) returns `evallab.task_evidence/v1`:
+
+- `task` and `summary` — identity, grader digests (never the instruction text) and counts.
+- `runs[]` — every admitted run of the task (at most 100, most suspicious atlas facet first)
+  with its facet, cluster paths and, per whole-run trace tool, the detectors that flagged it
+  and how many read clean or abstained. A run with no tool result has `tools: {}`: no result
+  is not a clean result.
+- `issues[]`, `qa_findings[]`, `seeker[]`, `repairs[]` — the retained `task_issues` rows
+  without reproducers, and the journal's `qa.finding/v1`, blocked, seeker
+  (grader feedback, confirmed differentials, worker completion) and qualified-repair events.
+  Every record is bounded text and counts; exploit files and failure memory are never copied.
+- `commands[]` — copyable `curl`, `evallab task` and blinded `evallab prod export-runs
+  --format atif` commands, each with what it needs; ids are shell-quoted.
+
+`GET /api/cloud-db/task-evidence/search?q=` lists admitted DEV task ids containing the text
+(at least two characters, literal match, at most 25). The journal is read incrementally
+through `ContinuousWorkQueue.read_events_of_types`, and `trace-tools/results-v1.jsonl` only
+when the file changes. The page keeps the task in its address (`#task?task_id=`) and the
+Run Atlas run detail links to it. Nothing here calls a model, joins a label or writes.
 
 ### Production supervisor
 

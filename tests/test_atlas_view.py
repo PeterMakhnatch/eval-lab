@@ -14,6 +14,7 @@ from evallab.production.atlas_view import (
     CLUSTERS_FILE,
     FACETS_FILE,
     AtlasFilters,
+    RunCluster,
     RunClusters,
     RunFacets,
     atlas_listing,
@@ -49,6 +50,7 @@ def cluster(
     cluster_id: str, level: int, parent: str | None, runs: list[str], **fields: Any
 ) -> dict[str, Any]:
     return {
+        "cluster_version": "run-clusters/v1",
         "cluster_id": cluster_id,
         "name": f"cluster {cluster_id}",
         "level": level,
@@ -56,18 +58,22 @@ def cluster(
         "run_ids": runs,
         "centroid_text": "reads tests then edits",
         "size": len(runs),
-        "label_rates": [],
+        "label_rates": None,
+        "build_id": "synthetic-build",
+        "facet_count": len(runs),
+        "created_at": "2026-10-27T20:00:00Z",
     } | fields
 
 
-def clusters_document(*items: dict[str, Any], scored_at: str | None = None) -> dict[str, Any]:
-    return {
-        "schema": "run-clusters/v1",
-        "facet_version": "run-facets/v1",
-        "generated_at": "2026-10-27T20:00:00Z",
-        "scored_at": scored_at,
-        "clusters": list(items),
-    }
+def cluster_build(*items: dict[str, Any]) -> dict[str, Any]:
+    count = sum(item["size"] for item in items if item["parent"] is None)
+    return {"clusters": [dict(item, facet_count=count) for item in items]}
+
+
+def write_clusters(directory: Path, document: dict[str, Any]) -> None:
+    (directory / CLUSTERS_FILE).write_text(
+        "".join(json.dumps(row) + "\n" for row in document["clusters"]), encoding="utf-8"
+    )
 
 
 FACET_REJECTIONS: list[dict[str, Any]] = [
@@ -102,12 +108,8 @@ CLUSTER_REJECTIONS: list[tuple[str, Callable[[dict[str, Any]], None]]] = [
     ("skipped level", lambda doc: doc["clusters"][1].update(level=3)),
     ("child outside parent", lambda doc: doc["clusters"][1].update(run_ids=["z"], size=1)),
     ("duplicate ids", lambda doc: doc["clusters"][1].update(cluster_id="root")),
-    (
-        "rates before scoring",
-        lambda doc: doc["clusters"][0].update(
-            label_rates=[{"label": "cheat", "hits_n": 1, "of_n": 2}]
-        ),
-    ),
+    ("mixed builds", lambda doc: doc["clusters"][1].update(build_id="different-build")),
+    ("incomplete build", lambda doc: doc["clusters"].pop()),
     ("level 4", lambda doc: doc["clusters"][1].update(level=4)),
 ]
 
@@ -119,8 +121,10 @@ def test_cluster_tree_must_be_a_consistent_hierarchy(
     name: str, mutate: Callable[[dict[str, Any]], None]
 ) -> None:
     def document() -> dict[str, Any]:
-        return clusters_document(
-            cluster("root", 1, None, ["a", "b", "c"]), cluster("child", 2, "root", ["a", "b"])
+        return cluster_build(
+            cluster("root", 1, None, ["a", "b", "c"]),
+            cluster("child", 2, "root", ["a", "b", "c"]),
+            cluster("leaf", 3, "child", ["a", "b", "c"]),
         )
 
     RunClusters.model_validate(document())
@@ -130,21 +134,20 @@ def test_cluster_tree_must_be_a_consistent_hierarchy(
         RunClusters.model_validate(broken)
 
 
-def test_label_rates_cannot_exceed_their_cluster_or_their_hits() -> None:
-    def scored(rates: list[dict[str, Any]]) -> dict[str, Any]:
-        return clusters_document(
-            cluster("root", 1, None, ["a", "b"], label_rates=rates),
-            scored_at="2026-10-27T21:00:00Z",
-        )
+def test_label_rates_cannot_exceed_members_or_disagree_with_counts() -> None:
+    def scored(rates: dict[str, Any]) -> dict[str, Any]:
+        return cluster("root", 1, None, ["a", "b"], label_rates=rates)
 
-    RunClusters.model_validate(scored([{"label": "cheat", "hits_n": 1, "of_n": 2}]))
+    RunCluster.model_validate(scored({"labelled": 2, "positives": 1, "rate": 0.5}))
     for rates in (
-        [{"label": "cheat", "hits_n": 3, "of_n": 2}],
-        [{"label": "cheat", "hits_n": 1, "of_n": 3}],
-        [{"label": "cheat", "hits_n": 1, "of_n": 2}, {"label": "CHEAT", "hits_n": 0, "of_n": 2}],
+        {"labelled": 2, "positives": 3, "rate": 1.0},
+        {"labelled": 3, "positives": 1, "rate": 1 / 3},
+        {"labelled": 2, "positives": 1, "rate": 0.9},
+        {"labelled": 2, "positives": 1, "rate": None},
+        {"labelled": 0, "positives": 0, "rate": 0.0},
     ):
         with pytest.raises(ValidationError):
-            RunClusters.model_validate(scored(rates))
+            RunCluster.model_validate(scored(rates))
 
 
 def test_store_keeps_the_latest_record_per_run_and_counts_what_it_refuses(tmp_path: Path) -> None:
@@ -169,9 +172,7 @@ def test_store_keeps_the_latest_record_per_run_and_counts_what_it_refuses(tmp_pa
 
 def test_invalid_cluster_file_is_reported_without_hiding_the_facets(tmp_path: Path) -> None:
     (tmp_path / FACETS_FILE).write_text(json.dumps(facet("run-a")) + "\n", encoding="utf-8")
-    (tmp_path / CLUSTERS_FILE).write_text(
-        json.dumps(clusters_document(cluster("root", 1, None, ["a"], size=2))), encoding="utf-8"
-    )
+    write_clusters(tmp_path, cluster_build(cluster("root", 1, None, ["a"], size=2)))
     store = load_atlas_store(tmp_path)
     assert list(store.facets) == ["run-a"]
     assert store.clusters is None and "size" in (store.cluster_error or "")
@@ -188,27 +189,30 @@ def _store(tmp_path: Path) -> Any:
     (tmp_path / FACETS_FILE).write_text(
         "".join(json.dumps(row) + "\n" for row in facets), encoding="utf-8"
     )
-    document = clusters_document(
+    document = cluster_build(
         cluster(
             "root",
             1,
             None,
             ["run-a", "run-b", "run-c", "run-ghost"],
-            label_rates=[{"label": "cheat", "hits_n": 2, "of_n": 3}],
+            label_rates={"labelled": 3, "positives": 2, "rate": 2 / 3},
         ),
-        cluster("leaf", 2, "root", ["run-a", "run-c"]),
-        scored_at="2026-10-27T21:00:00Z",
+        cluster("middle", 2, "root", ["run-a", "run-b", "run-c", "run-ghost"]),
+        cluster("leaf", 3, "middle", ["run-a", "run-c"]),
+        cluster("other", 3, "middle", ["run-b", "run-ghost"]),
     )
-    (tmp_path / CLUSTERS_FILE).write_text(json.dumps(document), encoding="utf-8")
+    write_clusters(tmp_path, document)
     return load_atlas_store(tmp_path)
 
 
 TRACES = {
     f"run-{name}": {
         "task_id": f"task-{name}",
-        "dataset_id": "ds",
+        "dataset_id": "s2" if name == "b" else "s1",
         "trust_tier": "tier2_consensus_labeled",
         "step_count": 5,
+        "step_indices": frozenset(range(5)),
+        "outcome": "pass",
     }
     for name in ("a", "b", "c", "far")
 }
@@ -237,8 +241,11 @@ def test_listing_shows_only_admitted_runs_with_real_evidence_steps(tmp_path: Pat
         3,
         3,
     )
-    assert tree["root"]["label_rates"] == [{"label": "cheat", "hits_n": 2, "of_n": 3}]
-    assert listing["runs"][0]["cluster_ids"] == ["root", "leaf"]
+    assert tree["root"]["label_rates"] == [
+        {"label": "positive source label", "hits_n": 2, "of_n": 3}
+    ]
+    assert listing["scored_at"] is None
+    assert listing["runs"][0]["cluster_ids"] == ["root", "middle", "leaf"]
 
 
 def test_filters_narrow_runs_and_cluster_counts_together(tmp_path: Path) -> None:
@@ -260,7 +267,9 @@ def test_filters_narrow_runs_and_cluster_counts_together(tmp_path: Path) -> None
     narrowed = atlas_listing(store, TRACES, AtlasFilters(min_suspicion=3))
     assert {item["cluster_id"]: item["matching_n"] for item in narrowed["clusters"]} == {
         "root": 1,
+        "middle": 1,
         "leaf": 1,
+        "other": 0,
     }
     page = atlas_listing(store, TRACES, AtlasFilters(), limit=1, offset=1)
     assert (page["total"], [run["run_id"] for run in page["runs"]]) == (3, ["run-c"])
@@ -273,9 +282,80 @@ def test_filters_narrow_runs_and_cluster_counts_together(tmp_path: Path) -> None
 def test_cluster_paths_run_root_to_leaf(tmp_path: Path) -> None:
     store = _store(tmp_path)
     assert [[item["cluster_id"] for item in chain] for chain in cluster_paths(store, "run-a")] == [
-        ["root", "leaf"]
+        ["root", "middle", "leaf"]
     ]
     assert [[item["cluster_id"] for item in chain] for chain in cluster_paths(store, "run-b")] == [
-        ["root"]
+        ["root", "middle", "other"]
     ]
     assert cluster_paths(store, "run-far") == []
+
+
+def test_sparse_evidence_uses_actual_step_indices_and_database_metadata(tmp_path: Path) -> None:
+    rows = [
+        facet("real", source="forged-source", outcome="pass", evidence_steps=[9]),
+        facet("gap", evidence_steps=[1]),
+    ]
+    (tmp_path / FACETS_FILE).write_text(
+        "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+    )
+    identities = {
+        run_id: {
+            "task_id": "admitted-task",
+            "dataset_id": "database-source",
+            "trust_tier": "tier2_consensus_labeled",
+            "step_count": 3,
+            "step_indices": frozenset({0, 4, 9}),
+            "outcome": "fail",
+        }
+        for run_id in ("real", "gap")
+    }
+    listing = atlas_listing(load_atlas_store(tmp_path), identities, AtlasFilters())
+    assert [(row["run_id"], row["source"], row["outcome"]) for row in listing["runs"]] == [
+        ("real", "database-source", "fail")
+    ]
+    assert listing["store"]["evidence_outside_run_n"] == 1
+    assert listing["options"]["source"] == {"database-source": 1}
+
+
+def test_store_refuses_symlinked_directory_and_fifo(tmp_path: Path) -> None:
+    import os
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = tmp_path / "run-atlas"
+    link.symlink_to(outside, target_is_directory=True)
+    with pytest.raises(OSError):
+        load_atlas_store(link)
+    os.mkfifo(outside / FACETS_FILE)
+    with pytest.raises(ValueError, match="regular file"):
+        load_atlas_store(outside)
+
+
+def test_cluster_stream_selects_final_build_and_rejects_partial_tail(tmp_path: Path) -> None:
+    old = cluster_build(
+        cluster("old", 1, None, ["a"]),
+        cluster("old-middle", 2, "old", ["a"]),
+        cluster("old-leaf", 3, "old-middle", ["a"]),
+    )
+    latest = cluster_build(
+        cluster("new", 1, None, ["b"]),
+        cluster("new-middle", 2, "new", ["b"]),
+        cluster("new-leaf", 3, "new-middle", ["b"]),
+    )
+    for row in latest["clusters"]:
+        row.update(build_id="earlier-alphabetically", created_at="2026-10-26T20:00:00Z")
+    write_clusters(tmp_path, {"clusters": old["clusters"] + latest["clusters"]})
+    store = load_atlas_store(tmp_path)
+    assert store.cluster_error is None
+    assert store.clusters is not None
+    assert [node["cluster_id"] for node in store.clusters["clusters"]] == [
+        "new",
+        "new-middle",
+        "new-leaf",
+    ]
+    incomplete = dict(latest["clusters"][0], build_id="partial")
+    with (tmp_path / CLUSTERS_FILE).open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(incomplete) + "\n")
+    refused = load_atlas_store(tmp_path)
+    assert refused.clusters is None
+    assert "incomplete cluster build" in (refused.cluster_error or "")

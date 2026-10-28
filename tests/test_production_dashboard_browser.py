@@ -70,3 +70,4 @@ def test_dashboard_uses_text_dom_and_same_origin_without_dynamic_code() -> None:
         script,
     )
     assert not any(name.startswith("on") for _, attrs in page.elements for name in attrs)
+

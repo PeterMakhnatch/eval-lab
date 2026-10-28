@@ -151,18 +151,22 @@ case "$KEYS_BIN" in /*) ;; *) die "keys must resolve to an absolute path: $KEYS_
 [ -f "$KEYS_BIN" ] && [ -x "$KEYS_BIN" ] || die "keys is not an executable file: $KEYS_BIN"
 
 outside_worktrees() { # label path
-  case "$2/" in */.worktrees/*) die "$1 must not live in a worktree: $2" ;; esac
+  local resolved
+  resolved="$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve())' "$2")"
+  case "$resolved/" in */.worktrees/*) die "$1 must not live in a worktree: $2" ;; esac
   while IFS= read -r line; do
     case "$line" in
       "worktree "*)
         wt="${line#worktree }"
-        case "$2/" in "$wt"/*) die "$1 must not live inside checkout $wt: $2" ;; esac
+        case "$resolved/" in "$wt"/*) die "$1 must not live inside checkout $wt: $2" ;; esac
         ;;
     esac
   done < <(git -C "$REPO_ROOT" worktree list --porcelain)
 }
 outside_worktrees "--state-dir" "$STATE_DIR"
 outside_worktrees "--keys" "$KEYS_BIN"
+outside_worktrees "--db-path" "$DB_PATH"
+outside_worktrees "--sync-state-root" "$SYNC_STATE"
 
 COMMIT="$(git -C "$REPO_ROOT" rev-parse --verify --quiet "$REVISION^{commit}")" \
   || die "unknown revision: $REVISION"
@@ -225,8 +229,8 @@ PY
 
 verify_runtime() { # release pin
   uv pip check --python "$1/venv/bin/python" || return 1
-  ( cd "$1/source" && env -i HOME="$HOME" PATH="$SERVICE_PATH" \
-      "$1/venv/bin/python" -I -c "$CHECK_PY" "$1/source" "$2" )
+  # The built-in cannot be shadowed by a different "env" CLI on PATH.
+  ( cd "$1/source" && exec -c "$1/venv/bin/python" -I -c "$CHECK_PY" "$1/source" "$2" )
 }
 
 RELEASE=""
@@ -307,7 +311,7 @@ config = {
     "Label": label,
     "EvallabManagedBy": mark,
     "ProgramArguments": [
-        keys, "run", "--", python, "-m", "evallab.trace_store.watch",
+        keys, "run", "--", python, "-I", "-m", "evallab.trace_store.watch",
         "--repo-root", source,
         "--db-path", db_path,
         "--state-root", state_root,

@@ -2,7 +2,7 @@
 
 launchd schedules this command; each invocation is a single bounded pass. The
 existing ``sync`` is the only uploader, so source identity, DEV/admission gates,
-privacy/secret rejection, receipts, and the shared monthly byte cap stay there.
+privacy/secret rejection, receipts, and per-provider monthly byte caps stay there.
 This module only decides *whether* to call it, and latches a target when hosted
 work was refused so later ticks never repeat a refused upload.
 """
@@ -240,6 +240,7 @@ def _tick(
             todo = []
     for name in todo:
         try:
+            pass_signature = _signature(database, repo_root)
             report = run_sync(
                 name, repo_root=repo_root, db_path=database, root=root,
                 uploader=guard if name == "laminar" else None,
@@ -254,7 +255,7 @@ def _tick(
                 cursor=summary["cursor"],
             )
             continue
-        states[name] = _entry(signature=signature, last=summary, cursor=summary["cursor"], at=now())
+        states[name] = _entry(signature=pass_signature, last=summary, cursor=summary["cursor"], at=now())
         results[name] = {"status": "synced", **summary}
         _save_state(state_path, states)
     return {

@@ -279,7 +279,7 @@ def test_install_builds_durable_snapshot_and_plist(world: World) -> None:
     assert plist["Label"] == LABEL
     assert plist["ProgramArguments"] == [
         str(world.keys), "run", "--", str(venv / "bin/python"),
-        "-m", "evallab.trace_store.watch",
+        "-I", "-m", "evallab.trace_store.watch",
         "--repo-root", str(source),
         "--db-path", str(world.db),
         "--state-root", str(world.sync_state),
@@ -410,6 +410,10 @@ def test_failed_sdk_pin_check_leaves_loaded_job_and_plist_alone(world: World) ->
     before = world.dest.read_bytes()
     world.log.write_text("")
     world.commit_and_push("README.md", "changed\n")
+    # A user env-store command must not silently skip the validation subprocess.
+    shadowed_env = world.bin / "env"
+    shadowed_env.write_text("#!/bin/sh\nexit 0\n")
+    shadowed_env.chmod(0o755)
     done = world.run(env={"UV_STUB_LMNR_VERSION": "0.7.0"})
     assert done.returncode != 0
     assert "lmnr" in done.stderr
@@ -461,6 +465,23 @@ def test_state_dir_inside_a_worktree_is_refused(world: World) -> None:
     done = world.run("--state-dir", str(world.wt / "state"))
     assert done.returncode != 0
     assert not (world.wt / "state").exists()
+    assert world.calls("uv") == []
+
+
+@pytest.mark.parametrize("flag", ["--db-path", "--sync-state-root"])
+def test_scheduled_data_dependencies_cannot_live_in_worktree(world: World, flag: str) -> None:
+    done = world.run(flag, str(world.wt / "live-state"))
+    assert done.returncode != 0
+    assert "worktree" in done.stderr
+    assert world.calls("uv") == []
+
+
+def test_symlink_cannot_hide_disposable_runtime_dependency(world: World) -> None:
+    alias = world.tmp / "stable-looking-state"
+    alias.symlink_to(world.wt, target_is_directory=True)
+    done = world.run("--state-dir", str(alias / "runtime"))
+    assert done.returncode != 0
+    assert "worktree" in done.stderr
     assert world.calls("uv") == []
 
 

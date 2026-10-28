@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from evallab.production.cross_test_sets import load_registry, parse_registry
+from evallab.production.cross_test_sets import load_registry, parse_registry, project_registry
 
 PRIVATE = "private caveat naming a path /Users/someone/.local/state/evallab-cross-test/bundle"
 
@@ -181,3 +181,37 @@ def test_a_held_set_without_a_url_yet_is_still_listed_as_not_available() -> None
         ("org/gated", None),
         ("org/gated-2", "https://huggingface.co/datasets/org/gated"),
     ]
+
+
+def test_nested_counts_are_served_flattened_and_a_non_integer_leaf_is_malformed() -> None:
+    nested = {"rows": 300, "domains": {"finance": 100, "hr": {"open": 4}}}
+    board = _board(_registry(entries=[_entry(labels={"type": "t", "counts": nested})]))
+    assert board["entries"][0]["counts"] == {"rows": 300, "domains.finance": 100, "domains.hr.open": 4}
+    for bad in ({"domains": {"finance": "100"}}, {"a": {"b": {"c": {"d": {"e": 1}}}}}, {"x": [1]}):
+        board = _board(_registry(entries=[_entry(labels={"type": "t", "counts": bad})]))
+        assert board["entries"] == [] and "counts" in board["malformed"][0]["reason"]
+
+
+def test_status_is_optional_because_the_validator_does_not_require_it() -> None:
+    entry = _entry()
+    del entry["status"]
+    board = _board(_registry(entries=[entry]))
+    assert board["malformed"] == [] and board["entries"][0]["status"] == ""
+
+
+def test_the_staging_projection_drops_everything_the_page_does_not_read() -> None:
+    registry = _registry(
+        entries=[_entry(labels={"type": "t", "counts": {"rows": 3, "groups": {"a": 1}}})],
+        hold_licence_not_staged=[{"id": "x", "why": PRIVATE}],
+        lanes=[PRIVATE],
+    )
+    projected = project_registry(json.dumps(registry).encode())
+    blob = json.dumps(projected)
+    for private in (PRIVATE, "bundle_path", "b3d6f678", "caveats", "sources"):
+        assert private not in blob
+    assert projected["hold_licence_not_staged"] == [{"id": "x"}]
+    # The reduced file serves exactly what the full one does.
+    assert _board(projected) == _board(registry)
+    registry["entries"][0]["flags"]["eval_only"] = False
+    with pytest.raises(ValueError, match="malformed"):
+        project_registry(json.dumps(registry).encode())

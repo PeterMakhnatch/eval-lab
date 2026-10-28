@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.petermakhnatch.evallab.live-supervisor</string>
+	<!-- Render absolute paths before installation, like results-viewer:
+	     __EVALLAB__ is the installed release's venv/bin/evallab; __WORKDIR__
+	     is that immutable release; __HOME__ supplies omp's executable path;
+	     __LOG_DIR__ must already exist. Do not load this unrendered template.
+	     Every tick is one shadow-mode scan: decisions are recorded, nothing is acted
+	     on. The model reader runs only under the daily token cap below. -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>__EVALLAB__</string>
+		<string>live-supervisor</string>
+		<string>scan</string>
+		<string>--reader</string>
+		<string>model</string>
+		<string>--max-tokens-per-day</string>
+		<string>500000</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__WORKDIR__</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StartInterval</key>
+	<integer>120</integer>
+	<key>ProcessType</key>
+	<string>Standard</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>EVALLAB_DISABLE_LOCAL_DOCKER</key>
+		<string>1</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>__LOG_DIR__/live-supervisor.out</string>
+	<key>StandardErrorPath</key>
+	<string>__LOG_DIR__/live-supervisor.err</string>
+</dict>
+</plist>

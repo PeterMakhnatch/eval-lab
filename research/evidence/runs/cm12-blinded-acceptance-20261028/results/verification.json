@@ -35,6 +35,10 @@
       "command": "make docs && make prepush TESTS='tests/test_stage0_triage.py'",
       "result": "pass: static gates, ty, 85 focused tests; not full CI",
       "diagnostic": "lessons emitted a shared-derived-root ownership warning before reporting resolved lineage"
+    },
+    {
+      "command": "uv run python /tmp/cm12-fixed-controls.py /Users/petermakhnatch/Developer/eval-lab/.worktrees/cm12-blinded-acceptance-20261028",
+      "result": "pass: actual fixed theta-101 endpoints for two cascade versions and both corpora; no model calls"
     }
   ],
   "restrictions": {
@@ -60,6 +64,7 @@
   "sha256": {
     "results/blinded-acceptance.json": "a6287762f66d92b9b9acd781d408b5e3112f073c0af2a7d26ce9053a25954a38",
     "results/input-hash-audit.json": "7293dfd4a1e5c2ea7c0950c13d05e584406e52b379c61b9aac8683b2e24f37d8",
+    "results/recheck-controls.json": "55489f5d3bfe07c02bdfbd45bb167313ed4358f11d0ed35456110cd6b37bc54c",
     "results/recheck-freeze.json": "a44c14f51e32990859216a0247a73d79509c815036a681243808582cc0b1c01b",
     "results/recheck-frozen-extra-run.json": "a62ed32aff206f14f48b2550991f0550361227db4792f790a7692c74d9da79a7",
     "results/recheck-run.json": "61df75cd1b9ff9c0bda5fa70f7483e74177d49f0cbe4e773b1b70b57560d1161",

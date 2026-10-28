@@ -1,8 +1,8 @@
-# CM-12: the strong re-check does not establish the original union's low-FAR operating point
+# CM-12: the selected strong re-check does not establish the original union's low-FAR operating point
 
-**Decision:** do not promote a new monitor setting. The requested original-union acceptance remains
-unresolved: only 23 of 79 flagged runs have valid re-check judgments, and missing judgments leave its
-CheatBench false-alarm rate as high as 9.3%. The measured complete-case result is not a full-cohort result.
+**Decision:** do not promote a new monitor setting. Original-union acceptance of the Goodfire-selected
+strong-model operating point remains unresolved: only 23 of 79 flagged runs have valid re-check judgments,
+and missing judgments leave its CheatBench FAR as high as 9.3%. Complete cases are not the full cohort.
 All reachable frozen passes are complete; there were no fallback models, policy-refusal retries or further
 extraction calls. This is a fixed-policy DEV comparison, not an unseen holdout.
 
@@ -115,11 +115,11 @@ higher minimum recall includes unchecked agreement flags, not newly supplied mod
 are missingness bounds, not statistical confidence intervals. The paired CheatBench recall has Wilson 95%
 9.5–34.2%; its 0/68 FAR has Wilson upper bound 5.3%, so a zero point estimate is not a population guarantee.
 
-**Answer for the original 12%-FAR union:** paired recall is 18.9% at both targets, but **neither ≤3% nor ≤5%
-FAR is established for the original full CheatBench cohort**. On the same paired rows the old union was already
-2/68 FAR, not 12%; the re-check removes those two observed false alarms while seven of the original nine false
-alarms remain unknown. Goodfire's paired frozen-union recall falls from 11/74 to 4/74 under R-single, so the
-cost is seven observed enacted cases, not a free precision improvement.
+**Answer for the original 12%-FAR union at the selected θ = 86:** paired recall is 18.9% at both targets, but
+**neither ≤3% nor ≤5% FAR is established at that point for the original full CheatBench cohort**.
+On the same paired rows, the old union was already 2/68 FAR, not 12%. The re-check removes two known false
+alarms; seven of the original nine remain unknown. Goodfire's paired frozen-union recall falls from 11/74
+to 4/74 under R-single: seven observed enacted cases lost, not a free precision improvement.
 
 For the **shipping v8 union**, full CheatBench R-single recall is 10–44 / 75 (13.3–58.7%) and FAR is 0–3 / 75
 (0–4.0%). The empirical **≤5% bound survives worst-case missing negatives, but ≤3% does not**; this is the
@@ -127,6 +127,23 @@ already-demoted union, not validation that the re-check solved the original 12% 
 R-all recall range is 7–44 / 75. Registered-rule scoring selects the same threshold and gives identical
 CheatBench results; its Goodfire R-single paired recall is 4/68, with FAR 0/62 and full FAR bound 0–2/64,
 which itself does not establish a ≤3% point-estimate bound on that smaller named population.
+
+### Fixed endpoint control: agreement only, not a strong-model gain
+
+The predeclared grid also includes **θ = 101**, which rejects every re-checked flag without needing a
+judgment. R-single then becomes the plain F/cascade **intersection**. This fixed control gives a full-cohort
+empirical operating point meeting both requested FAR targets:
+
+| Agreement-only control | Full-cohort recall | Full-cohort FAR | Empirical ≤3% / ≤5% |
+|---|---:|---:|---|
+| Frozen cascade / Goodfire | 3/80 = 3.8% | 0/70 = 0.0% | both met |
+| v8 cascade / Goodfire | 2/80 = 2.5% | 0/70 = 0.0% | both met |
+| Either cascade / CheatBench | 5/75 = 6.7% | 0/75 = 0.0% | both met |
+
+R-all at this endpoint rejects every flag and has zero recall/FAR. No model judgment contributes to either
+endpoint. They are explicitly reported so “the selected nontrivial model point is not established” is not
+misread as “no low-FAR policy exists.” They are not the Goodfire-selected θ = 86 rule, are not promoted, and
+do not show a strong-reader improvement. See [recheck-controls.json](results/recheck-controls.json).
 
 Exact machine-readable scores: [frozen/all](results/recheck-score-frozen-all.json),
 [frozen/registered-rule](results/recheck-score-frozen-bound.json), [v8/all](results/recheck-score-v8-all.json),

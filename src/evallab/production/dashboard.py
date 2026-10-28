@@ -1109,7 +1109,7 @@ async function openAtlasRun(runId,opener){
   if(version!==atlasRunVersion)return;
   const run=data.run;
   parent.append(button('Open task evidence for '+text(run.task_id),()=>openTask(run.task_id)));
-  parent.append(button('Open combined evidence card',()=>openHarnessCard(runId)));
+  parent.append(harnessCardButton(runId));
   parent.append(atlasFacet(run),atlasFlagBadges(run),node('h3','Cluster paths'));
   const paths=list(run.cluster_paths);
   if(paths.length)for(const path of paths)parent.append(node('p',list(path).map(cluster=>cluster.name).join(' → ')));
@@ -1436,7 +1436,8 @@ function taskRuns(data){
   runs.map(run=>{
    const facet=run.facet,id=node('code',String(run.run_id).slice(0,22),'mono'),actions=node('div',undefined,'task-lines');
    id.title=run.run_id;
-   actions.append(button('Open in atlas',()=>openRunInAtlas(run.run_id)),button('Copy export command',()=>copyText(run.export_command,'the export command','task-status')));
+   actions.append(button('Open in atlas',()=>openRunInAtlas(run.run_id)),harnessCardButton(run.run_id),
+    button('Copy export command',()=>copyText(run.export_command,'the export command','task-status')));
    return [facet?badge(cloudCount(facet.suspicion),facet.suspicion>0?'warn':''):node('small','No facet'),id,run.model_id,run.outcome,
     facet?taskLines([facet.goal,facet.approach,'Shortcut: '+facet.shortcut]):node('small','No atlas facet'),
     facet?atlasFlagBadges(facet):'\u2014',
@@ -1676,6 +1677,11 @@ function harnessCard(data){
  }
  parent.append(node('small','Detector tokens '+cloudCount(data.totals.input_tokens)+' in / '+cloudCount(data.totals.output_tokens)+' out, $'+data.totals.cost_usd.toFixed(4)+' across the results above.'));
 }
+function harnessCardButton(runId){
+ const el=button('Open combined evidence card',()=>openHarnessCard(runId));
+ el.setAttribute('aria-label','Open combined evidence card for run '+runId);
+ return el;
+}
 async function openHarnessCard(runId){
  harnessRun=runId;$('harness-run').value=runId;
  if($('harness-tab').getAttribute('aria-selected')!=='true'){$('harness-tab').click();return;}
@@ -1897,7 +1903,7 @@ function renderToolsRuns(data){
   const id=node('code',String(run.run_id).slice(0,26),'mono'),actions=node('div',undefined,'task-lines');
   id.title=run.run_id;
   actions.append(run.faceted?button('Open in atlas',()=>openRunInAtlas(run.run_id)):node('small','No atlas facet yet'),
-   button('Open task evidence',()=>openTask(run.task_id)));
+   button('Open task evidence',()=>openTask(run.task_id)),harnessCardButton(run.run_id));
   const detectors=list(run.detectors).map(item=>item.detector+(list(item.evidence_steps).length?' (steps '+item.evidence_steps.join(', ')+')':''));
   return [id,run.task_id,detectors.length?taskLines(detectors):'\u2014',actions];
  })));

@@ -1635,7 +1635,7 @@ function harnessResult(item){
  if(item.hidden_steps)steps.append(node('small',cloudCount(item.hidden_steps)+' cited steps are not steps of this run and are hidden'));
  return [item.detector+' · '+item.detector_version,item.reader_model||'No reader model recorded',verdict,item.kind,
   typeof item.score==='number'?String(item.score):'Not recorded',steps,item.summary||'No summary',
-  cloudCount(item.input_tokens)+' in / '+cloudCount(item.output_tokens)+' out · $'+item.cost_usd.toFixed(4)+' · '+cloudCount(item.latency_ms)+' ms'];
+  cloudCount(item.input_tokens)+' in / '+cloudCount(item.output_tokens)+' out · $'+item.cost_usd.toFixed(4)+' · '+(Number.isInteger(item.latency_ms)?cloudCount(item.latency_ms)+' ms':'latency not recorded')];
 }
 function harnessCard(data){
  const parent=$('harness-card'),run=data.run;

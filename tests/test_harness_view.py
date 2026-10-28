@@ -105,6 +105,21 @@ def test_nothing_a_label_or_a_task_could_carry_reaches_the_card_or_the_overview(
     assert "outcome" not in card["facet_lead"]
 
 
+@pytest.mark.parametrize("version", [
+    "metr-scanners/0.1.11@c12893d1+scanner-v0+native-actor-v2",  # as the harness writes a pinned scanner
+    "tripwires/v3+window-cascade/v8+prefilter/7",
+    "run-health/3",
+])
+def test_the_versions_the_harness_writes_are_accepted(version: str) -> None:
+    assert harness.parse_finding(_finding(detector_version=version))["detector_version"] == version
+
+
+@pytest.mark.parametrize("version", ["v1; scanner", "a" * 81, "-v1", "v 1", ""])
+def test_a_version_that_is_not_an_identifier_is_refused(version: str) -> None:
+    with pytest.raises(harness.Refused, match="version"):
+        harness.parse_finding(_finding(detector_version=version))
+
+
 REFUSED: list[tuple[str, Callable[[dict[str, Any]], None]]] = [
     ("not a detector identifier", lambda r: r.update(detector="Facets Detector")),
     ("verdict outside the contract", lambda r: r.update(verdict="clean")),
@@ -226,3 +241,14 @@ def test_the_scorecard_states_absent_and_unreadable(tmp_path: Path) -> None:
     path = tmp_path / "scorecard.json"
     path.write_text('{"schema":"a","schema":"b"}', encoding="utf-8")
     assert harness.load_scorecard(path)["error"] == "unreadable scorecard"
+
+
+def test_a_latency_the_contract_stores_as_zero_is_not_recorded_rather_than_instant(tmp_path: Path) -> None:
+    assert _card([_finding(latency_ms=0)])["groups"][0]["results"][0]["latency_ms"] is None
+    rows = [_finding(run_id="r1", latency_ms=0), _finding(run_id="r2", latency_ms=0), _finding(run_id="r3", latency_ms=300)]
+    loaded = harness.load_findings(_write_lines(tmp_path / "findings.jsonl", rows))
+    admitted = {"r1": "t", "r2": "t", "r3": "t"}
+    detector = harness.build_overview(loaded, {"present": False}, admitted, set(admitted))["findings"]["detectors"][0]
+    assert detector["latency_ms_mean"] == 300 and detector["runs"] == 3  # only timed results are averaged
+    silent = harness.load_findings(_write_lines(tmp_path / "silent.jsonl", rows[:2]))
+    assert harness.build_overview(silent, {"present": False}, admitted, set(admitted))["findings"]["detectors"][0]["latency_ms_mean"] is None

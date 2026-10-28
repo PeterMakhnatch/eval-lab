@@ -47,7 +47,7 @@ MAX_FLAGGED = 50
 FAR_BUDGETS = (0.03, 0.05)
 
 _DETECTOR = re.compile(r"^[a-z][a-z0-9_]{0,30}(\.[a-z][a-z0-9_]{0,30})?$")
-_VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/+:-]{0,79}$")
+_VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/+:@-]{0,79}$")
 _READER = re.compile(r"^[A-Za-z0-9._-]{1,40}/[A-Za-z0-9][A-Za-z0-9._:+-]{0,79}$")
 _KEY = tuple[str, str, str]
 
@@ -317,7 +317,7 @@ def _public(record: Mapping[str, Any], steps: Collection[int], actor_inputs: boo
         "input_tokens": record["input_tokens"],
         "output_tokens": record["output_tokens"],
         "cost_usd": record["cost_usd"],
-        "latency_ms": record["latency_ms"],
+        "latency_ms": record["latency_ms"] or None,  # the contract stores an absent latency as 0
         "produced_at": record["produced_at"],
     }
 
@@ -408,7 +408,9 @@ def build_overview(
     """
     by_run: Mapping[str, Mapping[_KEY, Mapping[str, Any]]] = findings.get("by_run", {})
     detectors: dict[_KEY, Counter[str]] = defaultdict(Counter)
-    spend: dict[_KEY, dict[str, float]] = defaultdict(lambda: {"cost_usd": 0.0, "runs": 0, "latency_ms": 0})
+    spend: dict[_KEY, dict[str, float]] = defaultdict(
+        lambda: {"cost_usd": 0.0, "runs": 0, "latency_ms": 0, "timed": 0}
+    )
     flagged: list[dict[str, Any]] = []
     for run, task in admitted.items():
         records = by_run.get(run, {})
@@ -417,7 +419,9 @@ def build_overview(
             verdict = "unknown" if record["verdict"] == "clear" and run not in actor_runs else record["verdict"]
             detectors[key][verdict] += 1
             spend[key]["cost_usd"] += record["cost_usd"]
-            spend[key]["latency_ms"] += record["latency_ms"]
+            if record["latency_ms"]:
+                spend[key]["latency_ms"] += record["latency_ms"]
+                spend[key]["timed"] += 1
             spend[key]["runs"] += 1
             if verdict == "alarm":
                 alarms.append(record["detector"])
@@ -433,7 +437,7 @@ def build_overview(
             **{name: counts.get(name, 0) for name in VERDICTS},
             "runs": spend[key]["runs"],
             "cost_usd": round(spend[key]["cost_usd"], 6),
-            "latency_ms_mean": round(spend[key]["latency_ms"] / spend[key]["runs"]) if spend[key]["runs"] else None,
+            "latency_ms_mean": round(spend[key]["latency_ms"] / spend[key]["timed"]) if spend[key]["timed"] else None,
         }
         for key, counts in sorted(detectors.items())
     ]

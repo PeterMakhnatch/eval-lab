@@ -1,0 +1,108 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000872",
+  "variant_digest": "sha256:96a48698220cda4d3d905951fc9d42fc7ba7ad437f453e441291d9d2ff7f5439",
+  "variant_harbor_digest": "sha256:80fdd3710ef54ef5b52a08c217f64b3bc4b6d336813c09fe862520268f87b216",
+  "parent": {
+    "digest": "sha256:40dd20e981b4cfc30c5aae628b98462179f760d0e71315de62e9af03b1ec232e",
+    "harbor_digest": "sha256:e1ecbf98d4197e64621ab4a391c0670f96f8e4ac9e127874058fb204cfd7229d",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000872",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@ts11-1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:031c4bcd154da83a0dc9cb2b7b2a3f6c1e6fdfabcde8fafa3787ec1d6e66296e",
+      "after_sha256": "sha256:e85d6931bbcc60b27f2f4bffcc0c16279b04219b4fecd668e4f7446534c27900",
+      "content": "diff --git a/test_commands.json b/test_commands.json\nnew file mode 100644\nindex 000000000..dc833f19b\n--- /dev/null\n+++ b/test_commands.json\n@@ -0,0 +1,3 @@\n+{\n+  \"test_commands\": [\"node ./node_modules/mocha/bin/_mocha tests/unit/blueprints/adapter-test.js\"]\n+}\ndiff --git a/tests/unit/blueprints/adapter-test.js b/tests/unit/blueprints/adapter-test.js\nnew file mode 100644\nindex 000000000..22271ddbb\n--- /dev/null\n+++ b/tests/unit/blueprints/adapter-test.js\n@@ -0,0 +1,87 @@\n+'use strict';\n+\n+var Blueprint  = require('../../../lib/models/blueprint');\n+var stringUtil = require('../../../lib/utilities/string');\n+var assert     = require('assert');\n+\n+function callLocals(options) {\n+  var blueprint = Blueprint.lookup('adapter');\n+  try {\n+    return { locals: blueprint.locals(options), threw: false };\n+  } catch (e) {\n+    return { error: e, threw: true };\n+  }\n+}\n+\n+\n+function isSelfImport(locals, adapterName) {\n+  if (!locals || !locals.importStatement) return false;\n+  var importPattern = new RegExp(\"from\\\\s+['\\\"]\\\\./\" + adapterName + \"['\\\"]\");\n+  return importPattern.test(locals.importStatement);\n+}\n+\n+describe('blueprint - adapter', function() {\n+  describe('locals', function() {\n+\n+\n+\n+\n+    it('does not produce a self-import for the application adapter (CLI default form)', function() {\n+      var result = callLocals({\n+        entity: { name: 'application' },\n+        baseClass: 'application',\n+        target: __dirname\n+      });\n+\n+      assert.ok(!result.threw, 'should not throw for application adapter with default base-class');\n+      assert.ok(!isSelfImport(result.locals, 'application'),\n+        'Expected no self-import for application adapter, got: ' + JSON.stringify(result.locals));\n+    });\n+\n+    it('does not produce a self-import for the application adapter (no base-class form)', function() {\n+      var result = callLocals({\n+        entity: { name: 'application' },\n+        target: __dirname\n+      });\n+      assert.ok(!result.threw, 'should not throw for application adapter without a base-class');\n+      assert.ok(!isSelfImport(result.locals, 'application'),\n+        'Expected no self-import for application adapter, got: ' + JSON.stringify(result.locals));\n+    });\n+\n+    it('extends ApplicationAdapter for non-application adapters with default base-class', function() {\n+      var result = callLocals({\n+        entity: { name: 'post' },\n+        baseClass: 'application',\n+        target: __dirname\n+      });\n+      assert.ok(!result.threw, 'should not throw for post adapter with default base-class');\n+      assert.strictEqual(result.locals.baseClass, 'ApplicationAdapter');\n+      assert.strictEqual(result.locals.importStatement, \"import ApplicationAdapter from './application';\");\n+    });\n+\n+    it('extends from the specified base-class adapter', function() {\n+      var result = callLocals({\n+        entity: { name: 'post' },\n+        baseClass: 'user',\n+        target: __dirname\n+      });\n+      assert.ok(!result.threw);\n+      assert.strictEqual(result.locals.baseClass, 'UserAdapter');\n+      assert.strictEqual(result.locals.importStatement, \"import UserAdapter from './user';\");\n+    });\n+\n+\n+\n+    it('does not produce a self-import when adapter name equals base-class (user --base-class=user)', function() {\n+      var result = callLocals({\n+        entity: { name: 'user' },\n+        baseClass: 'user',\n+        target: __dirname\n+      });\n+      if (!result.threw) {\n+        assert.ok(!isSelfImport(result.locals, 'user'),\n+          'Expected no self-import for user adapter with base-class=user, got: ' + JSON.stringify(result.locals));\n+      }\n+    });\n+  });\n+});\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,8 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed\n+rc=0\n+node ./node_modules/mocha/bin/_mocha tests/unit/blueprints/adapter-test.js\n+rc=$(( rc | $? ))\n+exit $rc\n"
+    }
+  ],
+  "rationale": "Require successful locals generation in both already selected application-adapter tests, then execute their existing no-self-import assertions unconditionally. Generating an application adapter is the instruction's requested behavior; an exception cannot satisfy it. Preserve all five existing test cases, positive base-class assertions, and imported runner/image contracts. Static-only candidate; no native oracle or retained-shortcut trial executed.",
+  "inputs": {
+    "task_id": "format-code-task-000872",
+    "case_id": "D0252",
+    "expected_parent_digest": "sha256:40dd20e981b4cfc30c5aae628b98462179f760d0e71315de62e9af03b1ec232e",
+    "targeted_keys": [
+      "mimo-weak-tests-v2.1:format-code-task-000872:line-3cc7347924"
+    ],
+    "source_revision": "073bdd203ef8bec2db2169f70e214fcf1ad31779",
+    "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "validation_class": "static only",
+    "native_evidence": [],
+    "checks_run": [],
+    "qualifying_unique_run_count": 4,
+    "cluster_counts": [
+      {
+        "cluster_id": "L1-03",
+        "level": 1,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-03.1",
+        "level": 2,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-03.1.1",
+        "level": 3,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-09",
+        "level": 1,
+        "qualifying_run_count": 3
+      },
+      {
+        "cluster_id": "L1-09.1",
+        "level": 2,
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-09.1.2",
+        "level": 3,
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-09.2",
+        "level": 2,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-09.2.2",
+        "level": 3,
+        "qualifying_run_count": 1
+      }
+    ],
+    "observation_limit": "Supplied counts and cluster IDs only; co-occurrence, not causation or a native differential.",
+    "weak_checks": [
+      {
+        "path": "tests/test.patch",
+        "line": 51,
+        "native_path": "tests/unit/blueprints/adapter-test.js",
+        "native_line": 36
+      },
+      {
+        "path": "tests/test.patch",
+        "line": 62,
+        "native_path": "tests/unit/blueprints/adapter-test.js",
+        "native_line": 47
+      }
+    ],
+    "existing_semantic_candidate": null,
+    "evidence_note": "research/evidence/runs/ts11-facet-repairs-20261028/000872.md",
+    "scope_limit": "Close exception suppression in the two application-adapter cases only; do not certify complete rendered output or change the unrelated user-adapter case."
+  },
+  "created_by": "ts11-defensive-repair",
+  "created_at": "2026-10-28T06:35:42Z",
+  "status": "candidate",
+  "evidence": []
+}

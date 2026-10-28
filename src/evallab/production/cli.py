@@ -222,6 +222,22 @@ def register_parser(commands: Any) -> None:
     facets.add_argument("--jsonl", type=Path, required=True, help="Append-only facets JSONL keyed by run_id")
     facets.set_defaults(func=_command)
 
+    clusters = actions.add_parser(
+        "import-run-clusters",
+        help="Import the final complete Run Atlas run-clusters/v1 build (DEV-admitted, faceted runs only)",
+    )
+    clusters.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    clusters.add_argument(
+        "--cloud-database", required=True,
+        help="Cloud trace database: SQLite path/URL or PostgreSQL URL",
+    )
+    clusters.add_argument("--jsonl", type=Path, required=True, help="Append-only clusters JSONL")
+    clusters.add_argument(
+        "--drop-unfaceted", action="store_true",
+        help="Drop (and count) clustered runs with no stored admitted facets instead of refusing the build",
+    )
+    clusters.set_defaults(func=_command)
+
     once = actions.add_parser("run-once", help="Run selected live consumers, then relay once")
     _queue_options(once)
     _worker_options(once, WORKER_SYSTEMS)
@@ -622,6 +638,17 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             with CloudTraceDatabase(_database(root, args.cloud_database)) as database:
                 receipt = import_run_facets(
                     database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
+                )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "import-run-clusters":
+            from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_clusters
+            from evallab.production.corpus_queue import CorpusRegistry
+
+            with CloudTraceDatabase(_database(root, args.cloud_database)) as database:
+                receipt = import_run_clusters(
+                    database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
+                    drop_unfaceted=args.drop_unfaceted,
                 )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0

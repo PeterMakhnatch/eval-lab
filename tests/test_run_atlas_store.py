@@ -1,16 +1,22 @@
-"""Inert synthetic Run Atlas records: run-facets/v1 storage and DEV admission."""
+"""Inert synthetic Run Atlas records: facets, clusters, facet search and DEV admission."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 from collections.abc import Iterator
+from functools import partial
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_facets
+from evallab.production.cloud_trace_db import (
+    CloudTraceDatabase,
+    CloudTraceRetriever,
+    import_run_facets,
+)
 from evallab.production.corpus_queue import CorpusRegistry
 
 
@@ -204,3 +210,172 @@ def test_facet_split_preserves_the_admitted_database_spelling(
     receipt = import_run_facets(db, write_jsonl(tmp_path / "facets.jsonl", facet()), registry=SyntheticRegistry())
     assert receipt["stored"] == 1
     assert stored(db)["dev-task/pass"]["split"] == split
+
+
+ALL = ("dev-task", "test-task")
+
+
+@pytest.fixture
+def faceted(db: CloudTraceDatabase) -> CloudTraceDatabase:
+    """Stored facets whose TEST task was admitted when its record was written."""
+    db.upsert_task({
+        "task_id": "test-task", "dataset_id": "synthetic-corpus", "split": "dev",
+        "instruction_text": "synthetic task",
+    })
+    receipt = db.upsert_run_facets([
+        facet("dev-task/pass", tests="modified", suspicion=3, answer_material_accessed=True),
+        facet("dev-task/fail", tests="deleted", suspicion=1),
+        facet("dev-task/open", tests="untouched", suspicion=0, evidence_steps=[]),
+        facet("test-task/pass", tests="modified", suspicion=3),
+    ], registry=SyntheticRegistry(), allowed_task_ids=ALL)
+    assert receipt["stored"] == 4
+    db.upsert_task({
+        "task_id": "test-task", "dataset_id": "synthetic-corpus", "split": "test",
+        "instruction_text": "synthetic task",
+    })
+    return db
+
+
+def run_ids(rows: list[dict[str, Any]]) -> list[str]:
+    return [row["run_id"] for row in rows]
+
+
+def test_search_runs_filters_every_facet_and_ranks_by_suspicion(faceted: CloudTraceDatabase) -> None:
+    search = partial(faceted.search_runs, registry=SyntheticRegistry())
+    assert run_ids(search(allowed_task_ids=["dev-task"])) == ["dev-task/pass", "dev-task/fail", "dev-task/open"]
+    assert run_ids(search({"tests": ["modified", "deleted"]}, allowed_task_ids=["dev-task"])) == [
+        "dev-task/pass", "dev-task/fail",
+    ]
+    # Outcome is the database's (reward), not the record's "pass".
+    assert run_ids(search({"tests": ("modified", "deleted"), "outcome": "fail"}, allowed_task_ids=ALL)) == [
+        "dev-task/fail",
+    ]
+    assert run_ids(search({"answer_material_accessed": True}, allowed_task_ids=ALL)) == ["dev-task/pass"]
+    assert run_ids(search({"suspicion": {2, 3}}, allowed_task_ids=ALL, limit=1)) == ["dev-task/pass"]
+    assert run_ids(search({"suspicion": [3]}, allowed_task_ids=ALL)) == ["dev-task/pass"]
+    assert search(allowed_task_ids=[]) == []
+    (row,) = search({"outcome": "pass", "split": "dev"}, allowed_task_ids=["dev-task"])
+    assert row["answer_material_accessed"] is True and row["evidence_steps"] == [1, 3]
+
+
+@pytest.mark.parametrize("facets", [
+    {"test": "modified"}, {"tests": "rewritten"}, {"outcome": []}, {"suspicion": True},
+    {"answer_material_accessed": 1}, {"source": ""}, ["tests"], {"suspicion": [1, 2.0]},
+])
+def test_search_runs_rejects_unknown_fields_and_values(faceted: CloudTraceDatabase, facets: Any) -> None:
+    with pytest.raises(ValueError, match="facets"):
+        faceted.search_runs(facets, registry=SyntheticRegistry(), allowed_task_ids=ALL)
+
+
+def test_retriever_search_runs_reads_admitted_dev_runs_only(faceted: CloudTraceDatabase) -> None:
+    retriever = CloudTraceRetriever(faceted, registry=SyntheticRegistry())
+    assert run_ids(retriever.search_runs({"suspicion": 3})) == ["dev-task/pass"]
+    unloaded = SyntheticRegistry()
+    unloaded.split_assignments_digest = None
+    assert CloudTraceRetriever(faceted, registry=unloaded).search_runs() == []
+
+
+def cluster(cluster_id: str, level: int, parent: str | None, runs: list[str], **extra: Any) -> dict[str, Any]:
+    return {
+        "cluster_id": cluster_id, "name": f"{cluster_id} name", "level": level, "parent": parent,
+        "run_ids": runs, "centroid_text": "edited tests to pass", "size": len(runs), **extra,
+    }
+
+
+HIERARCHY = [
+    cluster("c3", 3, "c2", ["dev-task/pass"]),
+    cluster("c2", 2, "c1", ["dev-task/pass", "dev-task/fail"]),
+    cluster("c1", 1, None, ["dev-task/pass", "dev-task/fail", "dev-task/open"], label_rates={"cheat": 0.33}),
+]
+
+
+def clusters(db: CloudTraceDatabase) -> dict[str, dict[str, Any]]:
+    return {row["cluster_id"]: row for row in db._rows("SELECT * FROM run_clusters")}
+
+
+def test_cluster_hierarchy_replaces_atomically(faceted: CloudTraceDatabase) -> None:
+    assert faceted.replace_run_clusters(HIERARCHY, registry=SyntheticRegistry()) == {"clusters": 3, "runs": 3}
+    stored_clusters = clusters(faceted)
+    assert stored_clusters["c1"] == {**HIERARCHY[2], "provenance_json": {}}
+    assert stored_clusters["c3"] == {**HIERARCHY[0], "label_rates": None, "provenance_json": {}}
+
+    build = {"cluster_version": "run-clusters/v1", "seed": 7, "embedder": "hash-512"}
+    faceted.replace_run_clusters(
+        [cluster("solo", 1, None, ["dev-task/open"], **build)], registry=SyntheticRegistry(),
+    )
+    assert {key: row["provenance_json"] for key, row in clusters(faceted).items()} == {"solo": build}
+
+
+@pytest.mark.parametrize(("hierarchy", "message"), [
+    ([cluster("c1", 1, None, ["test-task/pass"])], "lack stored facets of an admitted DEV task"),
+    ([cluster("c1", 1, None, ["dev-task/missing"])], "lack stored facets"),
+    ([cluster("c1", 1, "c0", ["dev-task/pass"])], "no parent at level 1"),
+    ([cluster("c2", 2, None, ["dev-task/pass"])], "no parent at level 1"),
+    ([*HIERARCHY[1:], cluster("c3", 3, "c1", ["dev-task/pass"])], "one a level up"),
+    ([cluster("c1", 1, None, ["dev-task/pass"]), cluster("c2", 2, "c1", ["dev-task/fail"])], "outside its parent"),
+    ([{**cluster("c1", 1, None, ["dev-task/pass"]), "size": 2}], "size must equal"),
+    ([cluster("c1", 1, None, ["dev-task/pass", "dev-task/pass"])], "distinct run IDs"),
+    ([cluster("c1", 4, None, ["dev-task/pass"])], "level must be"),
+    ([cluster("c1", 1, None, ["dev-task/pass"])] * 2, "duplicate cluster_id"),
+    ([cluster("c1", 1, None, ["dev-task/pass"], label_rates=[0.5])], "label_rates"),
+    ([cluster("c1", 1, None, ["dev-task/pass"], cluster_version="run-clusters/v2")], "cluster_version"),
+    ([{**cluster("c1", 1, None, ["dev-task/pass"]), "level": 1.0}], "level must be"),
+    ([{**cluster("c1", 1, None, ["dev-task/pass"]), "parent": []}], "parent must be"),
+    ([{**cluster("c1", 1, None, ["dev-task/pass"]), "run_ids": [{}]}], "distinct run IDs"),
+    ([cluster("c1", 1, None, ["dev-task/pass"], size=1.0)], "size must be"),
+])
+def test_invalid_hierarchy_keeps_the_stored_one(
+    faceted: CloudTraceDatabase, hierarchy: list[dict[str, Any]], message: str,
+) -> None:
+    faceted.replace_run_clusters(HIERARCHY, registry=SyntheticRegistry())
+    with pytest.raises(ValueError, match=message):
+        faceted.replace_run_clusters(hierarchy, registry=SyntheticRegistry(), allowed_task_ids=ALL)
+    assert set(clusters(faceted)) == {"c1", "c2", "c3"}
+
+
+def test_reparented_trace_is_not_searchable_or_clusterable_under_a_stale_facet(faceted: CloudTraceDatabase) -> None:
+    registry = SyntheticRegistry()
+    faceted.replace_run_clusters([cluster("kept", 1, None, ["dev-task/open"])], registry=registry)
+    faceted.upsert_trace({
+        "trace_id": "dev-task/pass", "run_id": "batch-1", "task_id": "test-task",
+        "model_id": "synthetic-model",
+    })
+    assert faceted.search_runs({"suspicion": 3}, registry=registry) == []
+    with pytest.raises(ValueError, match="admitted DEV"):
+        faceted.replace_run_clusters(
+            [cluster("reparented", 1, None, ["dev-task/pass"])], registry=registry,
+            allowed_task_ids=ALL,
+        )
+    assert set(clusters(faceted)) == {"kept"}
+
+
+def test_empty_admission_never_accesses_facet_body_columns(faceted: CloudTraceDatabase) -> None:
+    def authorize(action: int, table: str, column: str, *unused: Any) -> int:
+        if action == sqlite3.SQLITE_READ and table == "run_facets":
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+
+    faceted._connection.set_authorizer(authorize)
+    try:
+        assert faceted.search_runs(registry=SyntheticRegistry(), allowed_task_ids=[]) == []
+        unloaded = SyntheticRegistry()
+        unloaded.split_assignments_digest = None
+        assert CloudTraceRetriever(faceted, registry=unloaded).search_runs() == []
+    finally:
+        faceted._connection.set_authorizer(None)
+
+
+def test_retriever_does_not_pass_stale_admission_to_search(
+    faceted: CloudTraceDatabase, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_search = faceted.search_runs
+
+    def change_split_then_search(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        faceted.upsert_task({
+            "task_id": "dev-task", "dataset_id": "synthetic-corpus", "split": "TEST",
+            "instruction_text": "no longer admitted",
+        })
+        return original_search(*args, **kwargs)
+
+    monkeypatch.setattr(faceted, "search_runs", change_split_then_search)
+    assert CloudTraceRetriever(faceted, registry=SyntheticRegistry()).search_runs() == []

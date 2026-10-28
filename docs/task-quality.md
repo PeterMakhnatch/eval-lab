@@ -236,6 +236,23 @@ JSONL with retrieval's own admission; the last fully valid record wins. Refused
 replacements cannot discard a valid prefix, and a torn UTF-8/JSON append is counted
 without losing the complete preceding records.
 
+`replace_run_clusters(clusters, registry=...)` atomically replaces the
+`run_clusters` (`run-clusters/v1`) hierarchy: levels 1–3, a level-1 cluster has no
+parent and every other one a parent one level up containing all its runs, `size`
+equals `len(run_ids)`, and every run has stored facets of its current,
+registry-admitted DEV task. `label_rates` stays null until scoring; other keys
+(build id, embedder, seed, samples) are kept verbatim as `provenance_json`. Any
+invalid cluster keeps the stored hierarchy; concurrent PostgreSQL replacements
+serialize under a table lock. `search_runs(facets, registry=..., limit=...)` returns
+stored facets matching every filter (`outcome`, `tests`, `eval_awareness`, the
+three booleans, `suspicion`, `source`, `split`, `facet_model`; one value or a
+collection), most suspicious first; unknown fields or values raise.
+Both operations recompute registry admission in the same snapshot as their
+reads/writes; an optional `allowed_task_ids` list only narrows it.
+`CloudTraceRetriever.search_runs(facets)` uses the same gate and withholds records
+naming a sealed identity, e.g.
+`retriever.search_runs({"outcome": "pass", "tests": ["modified", "deleted", "replaced"]})`.
+
 `evallab.production.CloudTraceRetriever` supplies a bounded, read-only DEV
 projection for consumers that need prior verified evidence. A local SQLite
 path is opened with `mode=ro`; SQL selects DEV tasks and their linked

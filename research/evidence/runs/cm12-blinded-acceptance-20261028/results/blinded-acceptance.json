@@ -1,6 +1,6 @@
 {
   "admission": {
-    "all_selected_guarded_utc": "2026-10-28T10:04:24+00:00",
+    "all_selected_guarded_utc": "2026-10-28T10:05:58+00:00",
     "assignment_authority": true,
     "assignments": {
       "bytes": 548722,
@@ -520,11 +520,11 @@
         "sha256": "sha256:fd876c4def1986d69539c9a323081bff4f7ad48dc2dc1d7083125f08e4089d51"
       },
       {
-        "lines": 2723,
+        "lines": 2773,
         "malformed_selected_lines": 0,
         "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/watch-calls-v1.jsonl",
         "selected_rows": 0,
-        "sha256": "sha256:4f1f386cafcdb8bdff404fc50cb6a6c1b726c23b7907e41a5eb14ac20eec41f4"
+        "sha256": "sha256:7ea127c09df48ce14d576bbaeba8bdce1e287b1916a80c0fbf37d799d6635ba2"
       },
       {
         "lines": 11,
@@ -1404,6 +1404,105 @@
       }
     },
     "proved_identities": 328
+  },
+  "cascade_attribution": {
+    "claim_boundary": "aggregate recall or false-alarm equality does not establish identical per-identity alarm vectors; no equivalence is asserted between any two cascade arms",
+    "cur_v7": {
+      "inputs": {
+        "inputs": {
+          "cheatbench": {
+            "lines": 150,
+            "malformed_selected_lines": 0,
+            "path": "/tmp/cm11b/before-cheatbench.jsonl",
+            "selected_rows": 150,
+            "sha256": "sha256:ba874c78e390fbc67661d686179c74c00a431fb0d5039c1d945ef96936b43c6c"
+          },
+          "goodfire": {
+            "lines": 200,
+            "malformed_selected_lines": 0,
+            "path": "/tmp/cm11b/before-goodfire.jsonl",
+            "selected_rows": 200,
+            "sha256": "sha256:f581706ab1605681906eb57cd23d73769e3ae463f5c4d66e54ae3670c6d58471"
+          }
+        },
+        "pass_through_rules": [
+          "grader_tamper",
+          "submission_tamper"
+        ]
+      },
+      "pass_through_rules": [
+        "grader_tamper",
+        "submission_tamper"
+      ],
+      "source": "CM-11b v7 replays of the same 350 traces"
+    },
+    "cur_v8": {
+      "cascade_version": "window-cascade/v8",
+      "inputs": {
+        "inputs": {
+          "cheatbench": {
+            "lines": 150,
+            "malformed_selected_lines": 0,
+            "path": "/tmp/cm11b/after-cheatbench.jsonl",
+            "selected_rows": 150,
+            "sha256": "sha256:b8d5bafbf7903a6c77848215deb5862354e91973a65189f6216388e7a936b43c"
+          },
+          "goodfire": {
+            "lines": 200,
+            "malformed_selected_lines": 0,
+            "path": "/tmp/cm11b/after-goodfire.jsonl",
+            "selected_rows": 200,
+            "sha256": "sha256:59260bc901c141d56a186818e89c33855fd20a7fe353671e4e6cdd27fb6f0eb4"
+          }
+        },
+        "pass_through_rules": [
+          "grader_tamper"
+        ]
+      },
+      "pass_through_rules": [
+        "grader_tamper"
+      ],
+      "source": "CM-11b v8 replays of the same 350 traces"
+    },
+    "frozen_arm": {
+      "alarm_operator": "confirmed_card_or_pass_through",
+      "cascade_version": "window-cascade/v4",
+      "frozen_arm": "pf_r",
+      "include_reasoning": true,
+      "judge": "kimi-code/k3.1-pro-highspeed",
+      "pass_through_rules": [
+        "grader_tamper",
+        "submission_tamper"
+      ],
+      "prompt_sha256": "62aa89144481c9b30c0fceaf467f8ff9bc8b806ec6310cd94616a75f68972c21",
+      "recorded_utc": "2026-10-27T15:57:36Z",
+      "source": "CM-6 pf_r scorecard"
+    },
+    "identity_equivalence_claimed": false,
+    "per_identity_alarm_disagreements": {
+      "frozen_vs_v7": {
+        "goodfire": 7
+      },
+      "frozen_vs_v8": {
+        "cheatbench": 6,
+        "goodfire": 8
+      },
+      "v7_vs_v8": {
+        "cheatbench": 6,
+        "goodfire": 1
+      }
+    },
+    "per_identity_step_disagreements": {
+      "v7_vs_v8": {
+        "cheatbench": 6,
+        "goodfire": 1
+      }
+    },
+    "separate_attributes": [
+      "cascade version and prompt identity differ between the frozen v4 arm and the v7/v8 replays",
+      "judge route and replay provenance differ; the frozen arm is a historical scorecard",
+      "pass-through policy differs across all three arms and is tracked per arm above"
+    ]
   },
   "cm10_reconciliation": {
     "changed_selections": [
@@ -3350,7 +3449,7 @@
     "selected_records_unchanged": 22
   },
   "cohort_records": 350,
-  "completed_utc": "2026-10-28T10:04:25+00:00",
+  "completed_utc": "2026-10-28T10:05:58+00:00",
   "fresh_activity": {
     "cost_usd": 0.0,
     "input_tokens": 0,
@@ -8952,7 +9051,7 @@
       "sha256": "sha256:dd5f95c27adffce956d55429172d26bd07485d5560b73f7f5ac44fabaf692e6e"
     }
   },
-  "label_join_started_utc": "2026-10-28T10:04:25+00:00",
+  "label_join_started_utc": "2026-10-28T10:05:58+00:00",
   "labels_joined_last": true,
   "lead_path_alignment": {
     "authority": "trace_steps.flags_json['$.on_final_parent_path']",
@@ -10470,13 +10569,13 @@
     }
   },
   "pre_registration": {
-    "bytes": 5078,
+    "bytes": 5076,
     "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cm12-blinded-acceptance-20261028/research/evidence/runs/cm12-blinded-acceptance-20261028/README.md",
-    "sha256": "sha256:1f578dab7ab5af5ac82b0e70914dffc830061690e3ddd821d8dcdd6e01034827"
+    "sha256": "sha256:3d214301f57ab1e7364357d4c301d5e7a72e4064fff56c498597bdfdc99cc991"
   },
-  "predictions_fixed_utc": "2026-10-28T10:04:25+00:00",
+  "predictions_fixed_utc": "2026-10-28T10:05:58+00:00",
   "prose_persisted": false,
-  "repo_head_at_measurement": "05eddcd0912ee5a24bd9156da855ddd3cb538223",
+  "repo_head_at_measurement": "a47272432327522d31826a206b4a8b28d1f8ae30",
   "reselection": {
     "changed_by_corpus": {
       "cheatbench": 0,
@@ -10487,9 +10586,9 @@
   },
   "schema": "cm12-blinded-acceptance/v1",
   "script": {
-    "bytes": 48815,
+    "bytes": 52099,
     "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cm12-blinded-acceptance-20261028/research/evidence/runs/cm12-blinded-acceptance-20261028/tools/blinded_acceptance.py",
-    "sha256": "sha256:6536a4771dff625675e024a6ab5f15ad65d16a0302779b273cf8049c8f6af1ca"
+    "sha256": "sha256:3e75e01d422ed7852e558412a947f9a9fe80f23deb197b9146fddd7f01afae8b"
   },
   "selected_records": [
     {
@@ -15975,7 +16074,7 @@
       "sha256": "sha256:ef1e3b58d57a4a68c53de7c27ff9a336b45a0ceb90777b7539ad526d088f8d68"
     }
   ],
-  "started_utc": "2026-10-28T10:04:24+00:00",
+  "started_utc": "2026-10-28T10:05:58+00:00",
   "status": "blinding_binding_failed",
   "step_identity_validation": {
     "sha256:010629d25990c3201d1267985308df64ffc6494f3ca9258ec24e312ce8c07545": {

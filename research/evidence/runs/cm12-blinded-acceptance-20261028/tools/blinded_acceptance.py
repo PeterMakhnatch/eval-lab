@@ -610,6 +610,75 @@ def frozen_extra_leads(
     }
 
 
+def cascade_attribution(
+    cohorts: dict[str, set[str]],
+    frozen: dict[str, bool],
+    v7: dict[str, bool],
+    v8: dict[str, bool],
+    steps_v7: dict[str, list[int]],
+    steps_v8: dict[str, list[int]],
+    inputs_v7: dict[str, Any],
+    inputs_v8: dict[str, Any],
+) -> dict[str, Any]:
+    """Attribute frozen and shipping arms separately; claim no identity equivalence."""
+    corpus_of = {run_id: c for c, ids in cohorts.items() for run_id in ids}
+    freeze = json.loads((run_atlas_score.DEFAULT_CM6_DIR / "freeze.json").read_text())
+
+    def disagreements(left: Mapping[str, bool], right: Mapping[str, bool]) -> dict[str, int]:
+        counts: Counter[str] = Counter()
+        for run_id in corpus_of:
+            if run_id in left and run_id in right and left[run_id] != right[run_id]:
+                counts[corpus_of[run_id]] += 1
+        return dict(counts)
+
+    return {
+        "identity_equivalence_claimed": False,
+        "claim_boundary": "aggregate recall or false-alarm equality does not establish identical "
+        "per-identity alarm vectors; no equivalence is asserted between any two cascade arms",
+        "frozen_arm": {
+            "source": "CM-6 pf_r scorecard",
+            "cascade_version": freeze.get("cascade_version"),
+            "frozen_arm": freeze.get("frozen_arm"),
+            "judge": freeze.get("judge"),
+            "prompt_sha256": freeze.get("prompt_sha256"),
+            "include_reasoning": freeze.get("include_reasoning"),
+            "recorded_utc": freeze.get("recorded_utc"),
+            "alarm_operator": "confirmed_card_or_pass_through",
+            "pass_through_rules": sorted(FROZEN_PASS_THROUGH),
+        },
+        "cur_v7": {
+            "source": "CM-11b v7 replays of the same 350 traces",
+            "pass_through_rules": sorted(window_cascade.PASS_THROUGH_RULES | {"submission_tamper"}),
+            "inputs": inputs_v7,
+        },
+        "cur_v8": {
+            "source": "CM-11b v8 replays of the same 350 traces",
+            "cascade_version": window_cascade.CASCADE_VERSION,
+            "pass_through_rules": sorted(window_cascade.PASS_THROUGH_RULES),
+            "inputs": inputs_v8,
+        },
+        "per_identity_alarm_disagreements": {
+            "frozen_vs_v7": disagreements(frozen, v7),
+            "frozen_vs_v8": disagreements(frozen, v8),
+            "v7_vs_v8": disagreements(v7, v8),
+        },
+        "per_identity_step_disagreements": {
+            "v7_vs_v8": dict(
+                Counter(
+                    corpus_of[run_id]
+                    for run_id in corpus_of
+                    if steps_v7.get(run_id, []) != steps_v8.get(run_id, [])
+                )
+            )
+        },
+        "separate_attributes": [
+            "cascade version and prompt identity differ between the frozen v4 arm and the v7/v8 replays",
+            "judge route and replay provenance differ; the frozen arm is a historical scorecard",
+            "pass-through policy differs across all three arms and is tracked per arm above",
+        ],
+    }
+
+
 def lead_path_alignment(
     lead_rows: list[dict[str, Any]], cohorts: dict[str, set[str]]
 ) -> dict[str, Any]:
@@ -968,7 +1037,7 @@ def main() -> None:
     cascade_frozen = run_atlas_score.load_cascade(run_atlas_score.DEFAULT_CM6_DIR)
     if not cascade_frozen.keys() <= selected:
         raise ValueError("frozen cascade contains noncohort predictions")
-    cascade_v7, _steps_v7, input_v7 = current_cascade("v7", cohorts, step_ids)
+    cascade_v7, steps_v7, input_v7 = current_cascade("v7", cohorts, step_ids)
     predictions = {
         "F": facet_alarms,
         "C_frozen": cascade_frozen,
@@ -1068,6 +1137,16 @@ def main() -> None:
             "populations": bound_populations,
         },
         "cm10_reconciliation": reconcile_cm10(cohorts, facets, selected_meta, predictions, labels),
+        "cascade_attribution": cascade_attribution(
+            cohorts,
+            cascade_frozen,
+            cascade_v7,
+            cascade_v8,
+            steps_v7,
+            steps_v8,
+            input_v7,
+            input_v8,
+        ),
         "lead_path_alignment": lead_path_alignment(lead_rows, cohorts),
         "inputs": {
             "facets": facet_input,

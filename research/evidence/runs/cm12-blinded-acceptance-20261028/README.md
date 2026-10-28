@@ -57,6 +57,6 @@ validation. The 3%/5% targets are empirical false-alarm point estimates, not con
 The assignment's CheatBench 12% FAR names U(F, C-frozen), whereas the shipping v8 union is already at
 5.3% after CM-11's separately measured tamper demotion. To answer the actual question rather than credit
 that demotion to a new model, re-check the original-union flags absent from v8 as a separately receipted
-supplement (seven runs across the same two cohorts). Keep the same frozen prompt, excerpt rules and model;
+supplement (ten runs across the same two cohorts). Keep the same frozen prompt, excerpt rules and model;
 do not alter or rerun the original 69-lead pass. Report both cascade versions and attribute reductions
 separately. This corrects lead-set scope, not settings, and does not select runs by their reference labels.

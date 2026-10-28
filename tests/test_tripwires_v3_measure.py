@@ -668,6 +668,23 @@ def test_catalog_registry_requires_v3_and_valid_metadata(monkeypatch: pytest.Mon
         run.catalog_registry()
 
 
+@pytest.mark.parametrize(
+    ("eligibility", "has_source"), [("verdict", True), ("diagnostic", False)]
+)
+def test_uncatalogued_rules_cannot_bypass_verdict_or_source_requirements(
+    monkeypatch: pytest.MonkeyPatch, eligibility: str, has_source: bool
+) -> None:
+    rule = {
+        **REGISTRY[0],
+        "eligibility": eligibility,
+        "entry_ids": [],
+        "source_links": REGISTRY[0]["source_links"] if has_source else [],
+    }
+    monkeypatch.setattr(tripwires, "HACKBOOK_RULES", (rule,))
+    with pytest.raises(ValueError):
+        run.catalog_registry()
+
+
 def _catalog_fields() -> dict[str, Any]:
     """Synthetic catalog metadata in the exact shape ``run_measure`` records."""
     return {

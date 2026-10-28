@@ -73,7 +73,7 @@ def refresh_usage(provider: str) -> dict[str, Any]:
         if time.time() * 1000 - fetched_at <= 120_000 and any(report.get("limits") for report in reports):
             break
         if attempt == 0:
-            subprocess.run(["omp", "usage", "invalidate", provider], capture_output=True,
+            subprocess.run(["omp", "usage", "invalidate", "--provider", provider], capture_output=True,
                            text=True, timeout=60, env=env, check=True)
     if time.time() * 1000 - fetched_at > 120_000:
         raise RouteError(f"{provider}: usage snapshot older than 120 seconds; fail closed")

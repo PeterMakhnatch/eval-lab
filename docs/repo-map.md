@@ -689,7 +689,7 @@ inputs:
   - path: src/evallab/production/ledger_split.py
     digest: sha256:4ef138913760e3262bfbdeac3d8b55e5d073cfff6bce54d27a729f5f7ef0b2d9
   - path: src/evallab/production/live_supervisor.py
-    digest: sha256:168841b8673fbd0e7d3bba63131d51d4bca37fb8b9dc913e3dcbae46e1f9817d
+    digest: sha256:990a797c59a9820583cd25c075f2094193a6a684c513b3d992a256bd3df66973
   - path: src/evallab/production/live_supervisor_adjudicate.py
     digest: sha256:2116622fdc4370e7cfbeb3352f68573e11e906d855f631dac1189396da692d62
   - path: src/evallab/production/live_supervisor_cheat.py
@@ -697,7 +697,7 @@ inputs:
   - path: src/evallab/production/live_supervisor_harbor.py
     digest: sha256:df5ad16be0cedf5b9e213adac93f62ead4b4c3fb29ce450448ef1f1b402242ac
   - path: src/evallab/production/live_supervisor_triage.py
-    digest: sha256:cb326b68852e6e2ec84d2ba4a6dc2d737701744fa6e7a0197062a0b0964926a9
+    digest: sha256:0a2037c6aff7fcc12ff9e84aedc5562bdc12f3bc9869805157c2fd9ccce88c55
   - path: src/evallab/production/modal_cloud.py
     digest: sha256:41d4b549233460d10d7f0dbc438e04124ba83e52481a85b6ed041b5ed11b83c1
   - path: src/evallab/production/monitor_worker.py

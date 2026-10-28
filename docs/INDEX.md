@@ -154,6 +154,8 @@ inputs:
     digest: sha256:87fa6aa8b5781e0ce661129149c9fbbbcee01013e8613436731af04ba5b2b51f
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
+  - path: docs/trace-harness.md
+    digest: sha256:6ca59c0445943832564cba9790a14014cf2239f79debf26f43fbf779d5abb266
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md
@@ -287,6 +289,7 @@ an operator can see what is archived.
 | `docs/task-quality.md` | Judging whether a task is good | `living` | `analyst, operator` |
 | `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
 | `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
+| `docs/trace-harness.md` | Trace harness: map of every trace component | `living` | `analyst, operator` |
 | `docs/trial-treatment.md` | Trial treatment keys and capture records | `living` | `analyst, runner` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 | `docs/verifier-calibration.md` | Verifier Calibration and Selection Lift | `living` | `builder, analyst` |
@@ -407,6 +410,7 @@ an operator can see what is archived.
 | `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
 | `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
+| `docs/trace-harness.md` | Trace harness: map of every trace component | `living` | `analyst, operator` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 | `docs/verifier-check.md` | VerifierCheck: red/blue verifier audits | `living` | `analyst, operator` |
 

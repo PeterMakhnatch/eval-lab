@@ -131,7 +131,7 @@ inputs:
   - path: docs/rollout.md
     digest: sha256:478b97b1ff840eb80549057203e5626209a4475c14c69aac9caf04fcf6298daf
   - path: docs/run-atlas.md
-    digest: sha256:d0c085f8030ec4c15af612f83e8dd621d00c71f3d44c2527bcd4ddffdb4f604b
+    digest: sha256:4a139e65b2adede59609ae5310538a930dc4cad77a96ff384bd2fd73b17653e9
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/run-health.md

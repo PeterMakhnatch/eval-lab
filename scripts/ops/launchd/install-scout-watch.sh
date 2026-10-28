@@ -1,5 +1,11 @@
 #!/bin/bash
 # Install credential-free incremental DEV scanning from a committed source snapshot.
+#
+# One authority for the paths: the LaunchAgent arguments are rendered by the
+# snapshot's own `evallab.readers.scout_watch.watch_arguments`, so the scheduled
+# job and the module defaults always name the same actor projection. Every
+# projection gets its own key map, result ledger, transcript cache and scan tree;
+# caches from another projection are left untouched and never read.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 LABEL=com.petermakhnatch.evallab.scout-watch
@@ -48,7 +54,7 @@ COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
 SNAPSHOT="$RUNTIME/runtime/$COMMIT"
 if [ ! -f "$SNAPSHOT/READY" ]; then
   mkdir -p "$SNAPSHOT"
-  ARCHIVE="$(mktemp -t evallab-scout-watch)"
+  ARCHIVE="$(mktemp "${TMPDIR:-/tmp}/evallab-scout-watch.XXXXXX")"
   trap 'rm -f "$ARCHIVE"' EXIT
   git -C "$ROOT" archive --format=tar --output="$ARCHIVE" "$COMMIT"
   tar -xf "$ARCHIVE" -C "$SNAPSHOT"
@@ -57,24 +63,29 @@ if [ ! -f "$SNAPSHOT/READY" ]; then
   printf '%s\n' "$COMMIT" > "$SNAPSHOT/READY"
 fi
 mkdir -p "$STATE" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/evallab"
-python3 - "$LABEL" "$DEST" "$SNAPSHOT" "$STATE" "$DB" "$PROJECT" "$INTERVAL" "$BATCH" <<'PY'
+"$SNAPSHOT/.venv/bin/python" -I - "$LABEL" "$DEST" "$SNAPSHOT" "$STATE" "$DB" "$PROJECT" "$INTERVAL" "$BATCH" <<'PY'
 import os
 from pathlib import Path
 import plistlib
 import sys
 
+from evallab.readers import ACTOR_PROJECTION_VERSION
+from evallab.readers.scout_watch import argument_argv, watch_arguments
+
 label, dest, runtime, state, db, project, interval, batch = sys.argv[1:]
 source, state, db, project = (str(Path(p).expanduser().resolve()) for p in (runtime, state, db, project))
 logs = Path.home() / "Library/Logs/evallab"
+# Resolved from the installed snapshot's own code, so code, admission authority
+# and cache paths are always the same committed revision.
+arguments = watch_arguments(
+    repo_root=Path(source), db_path=Path(db), trace_tools=Path(state),
+    viewer=Path(project), batch_size=int(batch),
+)
 config = {
     "Label": label,
     "ProgramArguments": [
         source + "/.venv/bin/python", "-I", "-m", "evallab.readers.scout_watch",
-        "--repo-root", source, "--db-path", db,
-        "--state-dir", state, "--keymap-path", state + "/keymap-v1.jsonl",
-        "--results-path", state + "/results-v1.jsonl",
-        "--transcripts-dir", project + "/data/transcripts_clouddb_dev",
-        "--scans-dir", project + "/scans/trace-tools/watch", "--batch-size", batch,
+        *argument_argv(arguments),
     ],
     "WorkingDirectory": source,
     "StartInterval": int(interval), "RunAtLoad": True, "ProcessType": "Background",
@@ -91,7 +102,12 @@ path = Path(dest)
 temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
 temporary.write_bytes(plistlib.dumps(config, sort_keys=False))
 temporary.replace(path)
-print(f"installed: {path}\nruntime: {source}\ninterval: {interval}s; batch: {batch}; no keys/model calls")
+print(
+    f"installed: {path}\nruntime: {source}\nprojection: {ACTOR_PROJECTION_VERSION}\n"
+    f"state: {arguments['state_dir']}\ntranscripts: {arguments['transcripts_dir']}\n"
+    f"scans: {arguments['scans_dir']}\n"
+    f"interval: {interval}s; batch: {batch}; no keys/model calls"
+)
 PY
 if [ "$LOAD" -eq 1 ]; then
   launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true

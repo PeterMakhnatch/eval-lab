@@ -1,0 +1,192 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000945",
+  "variant_digest": "sha256:c79b63a54b2178af8a3dc5d37112a37dfd31e7bc670b92751ddb7369e3ddf588",
+  "variant_harbor_digest": "sha256:38ae451b6185e699cf9260f8e8698d991f48b7b01151ebcc41984ae554dd7042",
+  "parent": {
+    "digest": "sha256:a3f7097996f74f5ccd18778d0af968ad8792dedb588f2db80ee07e82e3c8b575",
+    "harbor_digest": "sha256:62fe186d47256826e9041b86c8fdc8140cf3712d5fb86e1abca4bcfd92a80dfc",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000945",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@ts11-1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:6739d41e9192ece6900690fcdf66c00cd518b828b37385f61feddfa6f6f75924",
+      "after_sha256": "sha256:5d68cbd1128fcb74edb4c198f5995184a559838730dc2009d0edc70593574c41",
+      "content": "diff --git a/usaspending_api/etl/tests/test_load_submission.py b/usaspending_api/etl/tests/test_load_submission.py\nindex 7340c518d..557ba60ca 100644\n--- a/usaspending_api/etl/tests/test_load_submission.py\n+++ b/usaspending_api/etl/tests/test_load_submission.py\n@@ -195,6 +195,93 @@ def test_get_submission_attributes():\n         get_submission_attributes(11111, new_submission_data)\n \n \n+def _submission_data(cgac_code, fiscal_year, fiscal_period, is_quarter_format=True, frec_code='0000'):\n+    return {\n+        'cgac_code': cgac_code,\n+        'frec_code': frec_code,\n+        'reporting_fiscal_year': fiscal_year,\n+        'reporting_fiscal_period': fiscal_period,\n+        'is_quarter_format': is_quarter_format,\n+        'publishable': False,\n+        'number_of_errors': 0,\n+        'reporting_start_date': datetime.date(2017, 1, 1),\n+        'reporting_end_date': datetime.date(2017, 3, 31),\n+        'updated_at': datetime.datetime(2017, 4, 10, 12, 0, 0),\n+    }\n+\n+\n+def _submission_record(cgac_code, fiscal_year, fiscal_period, is_quarter_format=True):\n+    return SubmissionAttributes.objects.create(\n+        broker_submission_id=93000 + fiscal_period,\n+        cgac_code=cgac_code,\n+        reporting_fiscal_year=fiscal_year,\n+        reporting_fiscal_period=fiscal_period,\n+        quarter_format_flag=is_quarter_format,\n+    )\n+\n+\n+@pytest.mark.django_db\n+def test_get_submission_attributes_links_previous_quarter_with_unmatched_optional_fields():\n+    earlier = get_submission_attributes(\n+        91001,\n+        _submission_data(\n+            cgac_code='073',\n+            fiscal_year=2017,\n+            fiscal_period=3,\n+            is_quarter_format=True,\n+            frec_code='EARLY',\n+        ),\n+    )\n+\n+    later = get_submission_attributes(\n+        91002,\n+        _submission_data(\n+            cgac_code='073',\n+            fiscal_year=2017,\n+            fiscal_period=6,\n+            is_quarter_format=True,\n+            frec_code='LATER',\n+        ),\n+    )\n+\n+    assert later.previous_submission_id == earlier.submission_id\n+\n+\n+@pytest.mark.django_db\n+def test_get_submission_attributes_links_previous_quarter_for_another_reporting_series():\n+    earlier = get_submission_attributes(\n+        93001,\n+        _submission_data('020', 2018, 3, True, 'FIRST'),\n+    )\n+\n+    later = get_submission_attributes(\n+        93002,\n+        _submission_data('020', 2018, 6, True, 'SECOND'),\n+    )\n+\n+    assert later.previous_submission_id == earlier.submission_id\n+\n+\n+@pytest.mark.django_db\n+def test_previous_submission_uses_nearest_valid_quarter_in_reporting_sequence():\n+    first_quarter = get_submission_attributes(92001, _submission_data('073', 2017, 3, True, 'A001'))\n+    expected_previous = get_submission_attributes(92002, _submission_data('073', 2017, 6, True, 'A002'))\n+\n+    different_agency = _submission_record('097', 2017, 8, True)\n+    different_year = _submission_record('073', 2018, 8, True)\n+    non_quarter = _submission_record('073', 2017, 8, False)\n+    later_period = _submission_record('073', 2017, 12, True)\n+\n+    target = get_submission_attributes(92007, _submission_data('073', 2017, 9, True, 'A007'))\n+\n+    assert target.previous_submission_id == expected_previous.submission_id\n+    assert target.previous_submission_id != first_quarter.submission_id\n+    assert target.previous_submission_id != different_agency.submission_id\n+    assert target.previous_submission_id != different_year.submission_id\n+    assert target.previous_submission_id != non_quarter.submission_id\n+    assert target.previous_submission_id != later_period.submission_id\n+\n+\n @pytest.mark.django_db\n def test_load_submission_command_program_activity_uniqueness(endpoint_data, partially_flushed):\n     \"\"\"\ndiff --git a/usaspending_api/submissions/tests/test_submission_attributes_serializer.py b/usaspending_api/submissions/tests/test_submission_attributes_serializer.py\nnew file mode 100644\nindex 000000000..a5d16422a\n--- /dev/null\n+++ b/usaspending_api/submissions/tests/test_submission_attributes_serializer.py\n@@ -0,0 +1,28 @@\n+import pytest\n+from django.core.exceptions import FieldDoesNotExist\n+from model_mommy import mommy\n+\n+\n+@pytest.mark.django_db\n+def test_submissions_endpoint_omits_frec_code_from_output(client):\n+    submission_instance = mommy.make(\n+        'submissions.SubmissionAttributes',\n+        cgac_code='073',\n+        reporting_fiscal_year=2017,\n+        reporting_fiscal_quarter=2,\n+    )\n+\n+    response = client.get('/api/v1/submissions/')\n+\n+    assert response.status_code == 200\n+    assert len(response.data['results']) == 1\n+\n+    submission = response.data['results'][0]\n+    assert 'submission_id' in submission\n+    assert submission['cgac_code'] == '073'\n+    assert submission['reporting_fiscal_year'] == 2017\n+    assert submission['reporting_fiscal_quarter'] == 2\n+    assert 'frec_code' not in submission\n+\n+    with pytest.raises(FieldDoesNotExist):\n+        submission_instance._meta.get_field('frec_code')\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,41 @@\n+#!/bin/bash\n+set -uo pipefail\n+\n+cd /testbed\n+\n+\n+export PYENV_ROOT=\"$HOME/.pyenv\"\n+export PATH=\"$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH\"\n+eval \"$(pyenv init -)\"\n+\n+pg_isready -q 2>/dev/null || pg_ctlcluster 16 main start 2>/dev/null || true\n+for i in $(seq 1 10); do\n+    pg_isready -q && break\n+    sleep 1\n+done\n+\n+su - postgres -c \"psql -tc \\\"SELECT 1 FROM pg_database WHERE datname='usaspending_test'\\\" | grep -q 1\" 2>/dev/null \\\n+    || su - postgres -c \"createdb usaspending_test\" 2>/dev/null || true\n+\n+export DATABASE_URL=\"postgres://localhost/usaspending_test\"\n+\n+\n+case \"${1:-}\" in\n+  base)\n+    python3 -m pytest \\\n+      usaspending_api/submissions/tests/test_submissions.py::test_submissions_list \\\n+      -v\n+    ;;\n+  new)\n+    python3 -m pytest \\\n+      usaspending_api/etl/tests/test_load_submission.py::test_get_submission_attributes_links_previous_quarter_with_unmatched_optional_fields \\\n+      usaspending_api/etl/tests/test_load_submission.py::test_get_submission_attributes_links_previous_quarter_for_another_reporting_series \\\n+      usaspending_api/etl/tests/test_load_submission.py::test_previous_submission_uses_nearest_valid_quarter_in_reporting_sequence \\\n+      usaspending_api/submissions/tests/test_submission_attributes_serializer.py::test_submissions_endpoint_omits_frec_code_from_output \\\n+      -v\n+    ;;\n+  *)\n+    echo \"usage: $0 base|new\"\n+    exit 2\n+    ;;\n+esac\n"
+    }
+  ],
+  "rationale": "Enforce instruction.md:15 independently of serializer exclusion: public Django model field lookup for frec_code must raise FieldDoesNotExist on the instance already created by the selected endpoint test. Preserve all existing assertions, runner selection and image contract. Static only; no native oracle or retained-shortcut trial executed.",
+  "inputs": {
+    "task_id": "format-code-task-000945",
+    "case_id": "D0328",
+    "source_revision": "073bdd203ef8bec2db2169f70e214fcf1ad31779",
+    "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "expected_parent_digest": "sha256:a3f7097996f74f5ccd18778d0af968ad8792dedb588f2db80ee07e82e3c8b575",
+    "targeted_keys": [
+      "mimo-weak-tests-v2.1:format-code-task-000945:block"
+    ],
+    "weak_checks": [
+      {
+        "file": "tests/test.patch",
+        "line": 128,
+        "native_file": "usaspending_api/submissions/tests/test_submission_attributes_serializer.py",
+        "native_line": 24,
+        "description": "Endpoint output exclusion alone does not establish that frec_code is unavailable as a model field."
+      }
+    ],
+    "semantic_assertions": [
+      "The endpoint test retains the created SubmissionAttributes instance and requires its public Django _meta.get_field(\"frec_code\") call to raise FieldDoesNotExist.",
+      "All existing endpoint output assertions and previous-quarter linkage tests are retained."
+    ],
+    "runner_selection": {
+      "entry": "tests/test.sh:30-35 applies tests/test.patch and executes tests/test_command.sh",
+      "command": "tests/test_command.sh:1 invokes the original base then new commands",
+      "selected_node": "usaspending_api/submissions/tests/test_submission_attributes_serializer.py::test_submissions_endpoint_omits_frec_code_from_output",
+      "parent_selector_source": "tests/test.patch:162-168",
+      "selection_changed": false
+    },
+    "existing_candidate_relation": {
+      "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000945/1a8374fe3cbd.json",
+      "parent_digest": "sha256:7b9d174267bcc2d223d3f2a47adff651950637383608e2ef1d16d24b492643ea",
+      "variant_digest": "sha256:1a8374fe3cbd46f7197a09fa2f702b76abadb6b4c8341c607e17ab605d788a3f",
+      "qa_parent_binding": false,
+      "relation": "Related field-removal coverage belongs to a different parent; this repair extends the exact QA parent selected test without copying the extra migration-state test or runner changes.",
+      "exact_parent_existing_verifier_repair_found": false
+    },
+    "supplied_qualifying_run_count": 9,
+    "supplied_cluster_counts": [
+      {
+        "cluster_id": "L1-01",
+        "level": 1,
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-01.2",
+        "level": 2,
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-01.2.1",
+        "level": 3,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-01.2.2",
+        "level": 3,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-03",
+        "level": 1,
+        "qualifying_run_count": 3
+      },
+      {
+        "cluster_id": "L1-03.1",
+        "level": 2,
+        "qualifying_run_count": 3
+      },
+      {
+        "cluster_id": "L1-03.1.1",
+        "level": 3,
+        "qualifying_run_count": 3
+      },
+      {
+        "cluster_id": "L1-04",
+        "level": 1,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-04.2",
+        "level": 2,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-04.2.1",
+        "level": 3,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-05",
+        "level": 1,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-05.2",
+        "level": 2,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-05.2.1",
+        "level": 3,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-11",
+        "level": 1,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-11.1",
+        "level": 2,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-11.1.1",
+        "level": 3,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-12",
+        "level": 1,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-12.1",
+        "level": 2,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-12.1.1",
+        "level": 3,
+        "qualifying_run_count": 1
+      }
+    ],
+    "observation_limit": "Counts and cluster IDs are supplied co-occurrence only, not causal shortcut evidence or a measured original/repaired differential.",
+    "validation_class": "static only",
+    "checks_run": [],
+    "source_boundaries": {
+      "native_sources": [
+        "instruction.md",
+        "task.toml",
+        "tests/test.patch",
+        "tests/test.sh",
+        "tests/test_command.sh"
+      ],
+      "related_variant_access": "Only same-task lineage metadata and supplied related candidate tests overlays were inspected; no solution bytes were exposed.",
+      "package_copying_and_hashing": "Existing derive_task API only; explicit worktree-local variants_root.",
+      "excluded": [
+        "solution directories and patches",
+        "oracle patches",
+        "run transcripts",
+        "other native task source",
+        "TEST or held-out task content",
+        "remote sources"
+      ]
+    }
+  },
+  "created_by": "ts11-defensive-repair",
+  "created_at": "2026-10-28T06:25:28Z",
+  "status": "candidate",
+  "evidence": []
+}

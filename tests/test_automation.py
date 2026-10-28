@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import subprocess
+import time
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from evallab.automation import (
     DEFAULT_NIGHTLY_STEPS,
@@ -10,9 +15,13 @@ from evallab.automation import (
     NightlyCycle,
     NightlyStep,
     StepOutcome,
+    StepTimeout,
+    _process_table,
+    run_with_timeout,
 )
 from evallab.digest import DigestRenderer
-from evallab.queue import DirectoryQueue, Executor
+from evallab.queue import DirectoryQueue, Executor, load_events
+from evallab.researchers import DEFAULT_ROLE_LIMITS, pass_wall_clock_bound_seconds
 from evallab.schemas import (
     AutoRunRule,
     HeadlessDoctorChecks,
@@ -131,7 +140,6 @@ def test_registered_step_policies_and_metadata() -> None:
     for name in abort_steps:
         step = steps_by_name[name]
         assert step.on_fail == "abort", f"Expected step {name} to abort on failure"
-        assert step.timeout > 0
 
     continue_steps = (
         "analysis_staging",
@@ -143,7 +151,18 @@ def test_registered_step_policies_and_metadata() -> None:
     for name in continue_steps:
         step = steps_by_name[name]
         assert step.on_fail == "continue", f"Expected step {name} to continue on failure"
-        assert step.timeout > 0
+
+    # Every step is bounded except dispatch, whose executor watchdog ends each
+    # Harbor process group at the trial's own allowance.
+    for step in DEFAULT_NIGHTLY_STEPS:
+        if step.name == "dispatch":
+            assert step.timeout is None
+        else:
+            assert step.timeout is not None and step.timeout > 0, step.name
+    # The outer bound must not cut short a legitimate researcher pass.
+    researcher_timeout = steps_by_name["researcher_pass"].timeout
+    assert researcher_timeout is not None
+    assert researcher_timeout > pass_wall_clock_bound_seconds(DEFAULT_ROLE_LIMITS)
 
     # Idempotence declarations
     assert steps_by_name["doctor"].idempotent is True
@@ -373,3 +392,116 @@ def test_two_consecutive_cycles_over_unchanged_fixture_are_idempotent(tmp_path: 
     assert result_1.dispatched == result_2.dispatched
     assert [s.name for s in result_1.steps] == [s.name for s in result_2.steps]
     assert [s.status for s in result_1.steps] == [s.status for s in result_2.steps]
+
+
+def _alive(pid: int) -> bool:
+    return pid in _process_table()
+
+
+def _spawn_process_tree(pid_file: Path) -> subprocess.Popen[bytes]:
+    """A session-leading shell with a background grandchild, like Harbor's group."""
+    shell = subprocess.Popen(
+        ["/bin/sh", "-c", f"sleep 60 & echo $! > {pid_file}; wait"],
+        start_new_session=True,
+    )
+    deadline = time.monotonic() + 10
+    while not (pid_file.exists() and pid_file.read_text().strip()):
+        assert time.monotonic() < deadline, "fixture process tree did not start"
+        time.sleep(0.01)
+    return shell
+
+
+def test_run_with_timeout_terminates_the_whole_child_tree(tmp_path: Path) -> None:
+    pid_file = tmp_path / "grandchild.pid"
+    spawned: list[int] = []
+
+    def hang() -> None:
+        shell = _spawn_process_tree(pid_file)
+        spawned.extend([shell.pid, int(pid_file.read_text())])
+        shell.wait()  # Blocks until the expiry handler has killed the tree.
+
+    started = time.monotonic()
+    with pytest.raises(StepTimeout) as expired:
+        run_with_timeout(hang, 0.5, grace_seconds=2.0)
+
+    assert time.monotonic() - started < 10
+    assert expired.value.seconds == 0.5
+    assert set(spawned) <= set(expired.value.terminated)
+    assert not any(_alive(pid) for pid in spawned)
+
+
+def test_non_idempotent_step_timeout_fails_closed_without_retry(tmp_path: Path) -> None:
+    calls: list[str] = []
+    pid_file = tmp_path / "grandchild.pid"
+    spawned: list[int] = []
+
+    def slow_enqueuer(day: date) -> int:
+        calls.append("canary_enqueue")
+        shell = _spawn_process_tree(pid_file)
+        spawned.extend([shell.pid, int(pid_file.read_text())])
+        shell.wait()
+        return 1
+
+    def later(context: NightlyContext) -> None:
+        calls.append("later")
+
+    registered = next(step for step in DEFAULT_NIGHTLY_STEPS if step.name == "canary_enqueue")
+    assert registered.idempotent is False
+    steps = (
+        # The registered step, whose body catches ordinary errors, with a short bound.
+        replace(registered, timeout=0.5, on_fail="continue"),
+        NightlyStep(name="later", fn=later, on_fail="continue"),
+        NightlyStep(name="digest", fn=lambda ctx: calls.append("digest"), on_fail="abort"),
+    )
+    cycle, queue, _ = _setup_cycle(tmp_path, steps=steps, canary_enqueuer=slow_enqueuer)
+
+    result = cycle.run(report_date=date(2026, 10, 27))
+
+    # Ran exactly once, never replayed; even an on_fail=continue step fails
+    # closed because its side effects before expiry are unknown.
+    assert calls == ["canary_enqueue", "digest"]
+    outcome = result.step_by_name("canary_enqueue")
+    assert outcome is not None and outcome.status == "failed"
+    assert outcome.reason == "timeout_exceeded_non_idempotent_not_retried"
+    assert (outcome.error or "").startswith("StepTimeout: exceeded declared timeout of 0.5s")
+    assert result.step_by_name("later").reason == "quarantined_by_prior_step"
+    assert result.quarantined is True
+    events = [event for event in load_events(queue.events_path) if event.actor == "nightly"]
+    assert [(event.event, event.reason_code) for event in events] == [
+        (
+            "nightly_quarantined",
+            "timeout_exceeded_non_idempotent_not_retried:canary_enqueue",
+        )
+    ]
+    assert not any(_alive(pid) for pid in spawned)
+
+
+def test_idempotent_continue_step_timeout_lets_the_cycle_continue(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    def slow_compaction(context: NightlyContext) -> None:
+        calls.append("compaction")
+        time.sleep(30)
+
+    steps = (
+        NightlyStep(
+            name="parquet_compaction",
+            fn=slow_compaction,
+            timeout=0.3,
+            on_fail="continue",
+            idempotent=True,
+        ),
+        NightlyStep(name="later", fn=lambda ctx: calls.append("later"), on_fail="continue"),
+    )
+    cycle, queue, _ = _setup_cycle(tmp_path, steps=steps)
+
+    result = cycle.run(report_date=date(2026, 10, 27))
+
+    assert calls == ["compaction", "later"]
+    assert result.step_by_name("parquet_compaction").reason == "timeout_exceeded"
+    assert result.step_by_name("later").status == "ran"
+    assert result.quarantined is False
+    events = [event for event in load_events(queue.events_path) if event.actor == "nightly"]
+    assert [(event.event, event.reason_code) for event in events] == [
+        ("nightly_step_timed_out", "timeout_exceeded:parquet_compaction")
+    ]

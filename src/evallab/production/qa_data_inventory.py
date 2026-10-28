@@ -255,17 +255,26 @@ def _members(ctx: QaContext, payload: dict[str, Any], groups: dict[str, list[str
 
 
 def clusters(ctx: QaContext, *, members: str | None, source: str, level: int | None = None) -> dict[str, Any]:
-    """Project admitted members; listings sort by level, descending admitted size, then id, optionally at one level."""
+    """Project served members; listings sort by level, descending served size, then id, optionally at one level.
+
+    A member is a run ``runs`` would serve, so a record withheld for naming a sealed identity
+    neither counts nor appears here.
+    """
     if source not in ("db", "file"):
         raise QaDataError("--source must be db or file")
     if level is not None and level not in (1, 2, 3):
         raise QaDataError("--level must be 1, 2 or 3")
     with ctx.database._transaction():
+        # A cluster member is an admitted run `runs` would serve, faceted or not: a record whose
+        # facet row was withheld for naming a sealed identity is not one, and never counts.
+        served = {row["run_id"] for row in ctx.database._admitted_facets(ctx.retriever)[0]}
         admitted, _sealed = ctx.retriever._admitted_ids()
         parameters: list[Any] = []
         scope = ctx.database._task_id_scope("a.task_id", admitted, parameters)
-        cloud = {row[0] for row in ctx.database._execute(  # the trace ids ``_tasks_and_traces`` lists
-            f"SELECT a.trace_id FROM agent_traces a JOIN corpus_tasks c ON c.task_id=a.task_id WHERE {scope}",
+        cloud = served | {row[0] for row in ctx.database._execute(
+            "SELECT a.trace_id FROM agent_traces a JOIN corpus_tasks c ON c.task_id=a.task_id "
+            f"LEFT JOIN run_facets f ON f.run_id=a.trace_id AND f.task_id=a.task_id "
+            f"WHERE {scope} AND f.run_id IS NULL",
             parameters,
         ).fetchall()}
         registry_only: set[str] = set()  # only the file source can name registry-only members

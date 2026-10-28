@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from evallab.hackbook.playbook_cards import list_playbook_cards, match_playbook_cards
-from evallab.production.cloud_trace_db import _facet_filters, _sealed_pattern
+from evallab.production.cloud_trace_db import _facet_filters, _sealed_texts
 from evallab.production.qa_data import UNAVAILABLE, QaContext, QaDataError, match_admitted_task
 
 # Facet fields a QA agent needs to triage a run. ``source`` and ``split`` stay out:
@@ -44,15 +44,14 @@ _SIMILARITY_FIELDS = (
     "answer_material_accessed", "success_claim_without_evidence", "suspicion",
 )
 _TEXT_FIELDS = ("goal", "approach", "shortcut")
+_MAX_STEP_INDEX = 2**63 - 1  # the largest value SQLite binds as an INTEGER
 # Step fields a QA agent reads. Raw ``flags_json``, ``flagged`` (derived from passage labels)
 # and CAS pointers are evaluator-side and stay out.
 _STEP_FIELDS = ("step_index", "role", "tool_name", "command_or_action", "content_text", "observation_preview")
 
 
-def _cluster_index(ctx: QaContext, visible: set[str]) -> list[dict[str, Any]]:
+def _cluster_index(rows: Sequence[dict[str, Any]], visible: set[str]) -> list[dict[str, Any]]:
     """Stored clusters projected onto ``visible`` runs; hidden members never shape what is returned."""
-    with ctx.database._transaction():
-        rows = ctx.database._rows("SELECT cluster_id, level, run_ids FROM run_clusters")
     projected = []
     for row in rows:
         members = [run_id for run_id in row["run_ids"] if run_id in visible]
@@ -93,14 +92,16 @@ def runs(
     try:
         filters = _facet_filters({} if facets is None else facets)
         # One screened read of every admitted run: facet filters apply to it below, and the
-        # same rows decide the --like reference and which cluster members are visible.
+        # same rows decide the --like reference and which cluster members are visible. Cluster
+        # metadata is read under the same snapshot, so one admission decides everything here.
         with ctx.database._transaction():
             rows, sealed_ids = ctx.database._admitted_facets(ctx.retriever)
+            cluster_rows = ctx.database._rows("SELECT cluster_id, level, run_ids FROM run_clusters")
     except ValueError as exc:
         raise QaDataError(str(exc)) from exc
     everything = {row["run_id"]: row for row in rows}
     pool = [row for row in rows if all(row[field] in values for field, values in filters)]
-    index = _cluster_index(ctx, set(everything))
+    index = _cluster_index(cluster_rows, set(everything))
     reference = None
     if like_run_id is not None:
         reference = everything.get(like_run_id)
@@ -113,7 +114,7 @@ def runs(
             raise QaDataError(UNAVAILABLE)
         members = set(match["members"])
     reference_cluster = _deepest(index, like_run_id) if like_run_id is not None else None
-    sealed = _sealed_pattern(frozenset(sealed_ids))
+    sealed = frozenset(sealed_ids)
     scored = []
     for row in pool:
         if task_id is not None and row["task_id"] != task_id:
@@ -135,21 +136,25 @@ def runs(
                 similarity += 1
         scored.append((-similarity, -hits, -row["suspicion"], row["run_id"], row, similarity))
     scored.sort(key=lambda entry: entry[:4])
-    ranked = []
+    candidates = []
     for *_, row, similarity in scored[: max(limit, 0)]:
-        item: dict[str, Any] = {key: row[key] for key in _RUN_FIELDS}
-        cluster = _deepest(index, row["run_id"])
-        if cluster is not None and not ctx.retriever._sealed_text(cluster["id"], sealed):
-            # Names are model-written from a cluster's stored samples, which may include runs this
-            # caller cannot see, so only the identifier and level are given.
+        candidates.append(({key: row[key] for key in _RUN_FIELDS}, _deepest(index, row["run_id"]), similarity))
+    # Only the identifier and level are given: names are model-written from a cluster's stored
+    # samples, which may include runs this caller cannot see.
+    named = list(dict.fromkeys(cluster["id"] for _item, cluster, _similarity in candidates if cluster is not None))
+    withheld = dict(zip(named, _sealed_texts(named, sealed), strict=True))
+    ranked = []
+    for item, cluster, similarity in candidates:
+        if cluster is not None and not withheld[cluster["id"]]:
             item["cluster"] = {"id": cluster["id"], "level": cluster["level"]}
         if reference is not None:
             item["facet_similarity"] = similarity
         ranked.append(item)
     taken = [item for item in ranked if ctx.budget.take(item)]
+    ctx.budget.omitted += len(scored) - len(ranked)  # dropped by --limit, as ``traces`` reports
+    omitted = len(scored) - len(taken)
     return {
-        "runs": taken, "matched": len(scored), "omitted": len(ranked) - len(taken),
-        "truncated": len(taken) < len(scored),
+        "runs": taken, "matched": len(scored), "omitted": omitted, "truncated": omitted > 0,
     }
 
 
@@ -170,6 +175,10 @@ def window(
         last = first + 19
     if first < 0 or last < first:
         raise QaDataError("step range must satisfy 0 <= first <= last")
+    if not ctx.database._postgres and last > _MAX_STEP_INDEX:
+        # SQLite binds a step index as a signed 64-bit integer, so beyond this bound the query
+        # would raise instead of running; PostgreSQL adapts the value as a numeric bound.
+        raise QaDataError(f"step range must be at most {_MAX_STEP_INDEX}")
     try:
         result = ctx.retriever.expand_pointer(
             f"trace:{run_id}:{first}-{last}", include_provisional=True, max_steps=max(1, last - first + 1),

@@ -109,20 +109,20 @@ def _destination(path: str | Path, label: str) -> Path:
     destination = Path(path).expanduser()
     if destination.exists() or destination.is_symlink():
         raise ValueError(f"{label} already exists; refusing overwrite")
-    return destination.resolve()
+    return destination.parent.resolve() / destination.name
 
 
-def _requested_ids(trace_ids: Iterable[str] | None) -> frozenset[str] | None:
+def _requested_ids(trace_ids: Iterable[str] | None) -> tuple[str, ...] | None:
     if trace_ids is None:
         return None
     if isinstance(trace_ids, (str, bytes)):
         raise ValueError("trace_ids must be a collection of nonempty strings")
-    requested = set()
+    requested: dict[str, None] = {}
     for trace_id in trace_ids:
         if not isinstance(trace_id, str) or not trace_id.strip() or "\x00" in trace_id:
             raise ValueError("trace_ids must contain nonempty strings without NUL")
-        requested.add(trace_id)
-    return frozenset(requested)
+        requested[trace_id] = None
+    return tuple(requested)
 
 
 def _blind_id(trace_id: str) -> str:
@@ -167,6 +167,20 @@ def _atif(steps: Sequence[Mapping[str, Any]], blind_id: str) -> dict[str, Any]:
         "schema_version": "ATIF-v1.6", "session_id": blind_id,
         "agent": {"name": "agent", "version": "unknown"}, "steps": projected_steps,
     }
+
+
+def _actor_inputs_available(steps: Sequence[Mapping[str, Any]]) -> bool:
+    """Whether a blinded run holds anything an actor-reading monitor can scan.
+
+    True when some agent-authored step has message text or a tool call. Runs made only of
+    system events, replay receipts, tool output or user prompts (no model actor behind them)
+    give a monitor nothing to read: their answer is unknown, not clean. Derived from the
+    exported structure alone, never from a label, reward or source name.
+    """
+    return any(
+        step.get("source") == "agent" and (str(step.get("message") or "").strip() or bool(step.get("tool_calls")))
+        for step in steps
+    )
 
 
 def _redact_steps(document: dict[str, Any], identities: re.Pattern[str]) -> None:
@@ -304,6 +318,7 @@ def export_runs(
     trace_ids: Iterable[str] | None = None,
     limit: int | None = None,
     manifest: str | Path | None = None,
+    strict: bool = False,
 ) -> dict[str, Any]:
     """Atomically publish a blinded local run directory and a private join file.
 
@@ -311,7 +326,8 @@ def export_runs(
     Python callers; the CLI requires an explicit path. Neither destination may
     already exist. ``admitted`` counts candidate traces before ``limit``;
     ``refused`` counts candidates denied admission (plus missing requested IDs).
-    No limit-excluded run is counted as refused.
+    No limit-excluded run is counted as refused. ``strict`` validates every
+    requested id before creating output parents, then limits in request order.
     """
     if format not in _FORMATS:
         raise ValueError("format must be harbor, atif or scout")
@@ -328,8 +344,7 @@ def export_runs(
     source = Path(database_path).expanduser().resolve(strict=True)
     authority = registry if registry is not None else CorpusRegistry()
     scout_api = _scout_api() if format == "scout" else None
-    stage = _StagedExport(output, join_path)
-    staging = stage.directory
+    stage: _StagedExport | None = None
     joins: dict[str, Any] = {}
     try:
         with closing(sqlite3.connect(source_read_uri(source), uri=True)) as connection:
@@ -350,10 +365,17 @@ def export_runs(
             admitted_count = connection.execute(
                 f"SELECT count(*) FROM agent_traces WHERE {trace_scope}", parameters,
             ).fetchone()[0]
+            if strict and requested is not None and admitted_count != candidate_count:
+                raise ValueError("requested traces are missing or not admitted")
             query = (
                 "SELECT trace_id, task_id, run_id, model_id, reward FROM agent_traces WHERE "
-                + trace_scope + " ORDER BY trace_id"
+                + trace_scope
             )
+            if strict and requested is not None:
+                query += " ORDER BY (SELECT key FROM json_each(?) WHERE value = agent_traces.trace_id)"
+                parameters += (json.dumps(requested),)
+            else:
+                query += " ORDER BY trace_id"
             if limit is not None:
                 query += " LIMIT ?"
                 parameters += (limit,)
@@ -370,6 +392,8 @@ def export_runs(
             for trace in traces:
                 redactions.update(trace[key] for key in ("trace_id", "model_id", "run_id"))
             pattern = _redaction_pattern(redactions)
+            stage = _StagedExport(output, join_path)
+            staging = stage.directory
             if format == "scout":
                 _write_bytes(staging / "transcripts.jsonl", b"")
             for trace in traces:
@@ -394,6 +418,7 @@ def export_runs(
                     raise ValueError("blinded trajectory contains evaluator-only fields or text")
                 if not projected["steps"]:
                     raise ValueError("trace has no actor-visible steps")
+                actor_inputs = _actor_inputs_available(projected["steps"])
                 _redact_steps(projected, pattern)
                 if find_forbidden_json(projected):
                     raise ValueError("blinded trajectory contains evaluator-only fields or text")
@@ -405,6 +430,7 @@ def export_runs(
                 _write_run(staging, blind_id, projected, format=format, scout_api=scout_api)
                 joins[blind_id] = {
                     "trace_id": trace["trace_id"], "step_origin": origins, "reward": trace["reward"],
+                    "actor_inputs_available": actor_inputs,
                 }
         manifest_bytes = _json_bytes(joins)
         stage.link_manifest(manifest_bytes)
@@ -425,7 +451,8 @@ def export_runs(
         stage.publish()
         return receipt
     finally:
-        stage.close()
+        if stage is not None:
+            stage.close()
 
 
 _CLUSTER_SCOPE_SCHEMA = "evallab.cluster_scope/v1"
@@ -832,7 +859,7 @@ def export_cheatbench_runs(
             _write_run(stage.directory, blind_id, blinded, format=format, scout_api=scout_api)
             joins[blind_id] = {
                 "run_id": item.item_id, "trial_ref": reference, "view": view, "trajectory_sha256": observed,
-                "step_origin": origins, "reward": None,
+                "step_origin": origins, "reward": None, "actor_inputs_available": _actor_inputs_available(steps),
                 "answer_key": {key: item.metadata.get(key) for key in _CHEATBENCH_KEY_FIELDS},
             }
         manifest_bytes = _json_bytes(joins)

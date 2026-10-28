@@ -339,6 +339,59 @@ def _minimal(
     return payload
 
 
+def summary(ctx: QaContext) -> dict[str, Any]:
+    """Ledger metadata only: source-wide rows/runs and exact admitted cloud-trace joins, no findings."""
+    with ctx.database._transaction():
+        admitted, _sealed = ctx.retriever._admitted_ids()
+        parameters: list[Any] = []
+        scope = ctx.database._task_id_scope("a.task_id", admitted, parameters)
+        cloud = {row[0] for row in ctx.database._execute(
+            f"SELECT a.trace_id FROM agent_traces a WHERE {scope}", parameters,
+        ).fetchall()}
+    rows = 0
+    keys: set[str] = set()
+    per_tool: dict[str, dict[str, Any]] = {}
+    for item in _ledger_records(ctx.state_dir / "trace-tools/results-v1.jsonl", set()):
+        if item.oversized or item.raw is None:
+            continue
+        try:
+            row = json.loads(item.raw)
+        except (ValueError, UnicodeError, RecursionError, MemoryError):
+            continue
+        if not isinstance(row, dict) or row.get("schema") != _SCHEMA:
+            continue
+        tool, run_id = row.get("tool"), row.get("run_id")
+        if not isinstance(tool, str) or _TOKEN.fullmatch(tool) is None or not isinstance(run_id, str):
+            continue
+        rows += 1
+        keys.update(key for key in row if _TOKEN.fullmatch(key) is not None)
+        counts = per_tool.setdefault(tool, {"rows": 0, "runs": set(), "admitted_runs": set()})
+        counts["rows"] += 1
+        counts["runs"].add(run_id)
+        if row.get("source") == "cloud-trace-db" and run_id in cloud:
+            counts["admitted_runs"].add(run_id)
+    payload: dict[str, Any] = {
+        "rows": rows, "keys": [], "per_tool": {}, "omitted": 0, "truncated": False,
+    }
+    if not ctx.budget.take({**payload, "_framing": " " * 64}):
+        raise QaDataError("this call's summary does not fit; raise --budget")
+    for key in sorted(keys):
+        if ctx.budget.take([key]):
+            payload["keys"].append(key)
+        else:
+            payload["omitted"] += 1
+    for tool, counts in sorted(per_tool.items()):
+        value = {
+            "rows": counts["rows"], "runs": len(counts["runs"]), "admitted_runs": len(counts["admitted_runs"]),
+        }
+        if ctx.budget.take({tool: value}):
+            payload["per_tool"][tool] = value
+        else:
+            payload["omitted"] += 1
+    payload["truncated"] = payload["omitted"] > 0
+    return payload
+
+
 def findings(
     ctx: QaContext, *, run_id: str | None = None, task_id: str | None = None, limit: int = 20,
 ) -> dict[str, Any]:

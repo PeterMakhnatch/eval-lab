@@ -286,7 +286,7 @@ def _digests(paths: Iterable[Path], repo: Path) -> dict[str, str]:
 
 
 def catalog_registry() -> tuple[dict[str, Any], ...]:
-    """The hackbook rule metadata exported by core; v3 does not exist without it."""
+    """Read core metadata, allowing uncatalogued diagnostics but not verdicts."""
     if tripwires.RULES_VERSION != 3:
         raise ValueError(f"tripwires RULES_VERSION is {tripwires.RULES_VERSION}, v3 needs 3")
     registry = getattr(tripwires, "HACKBOOK_RULES", None)
@@ -299,8 +299,10 @@ def catalog_registry() -> tuple[dict[str, Any], ...]:
     for rule in registry:
         if rule.get("eligibility") not in ("verdict", "diagnostic"):
             raise ValueError(f"{rule['id']}: eligibility must be verdict or diagnostic")
-        if not rule.get("entry_ids") or not rule.get("source_links"):
-            raise ValueError(f"{rule['id']}: entry_ids and source_links are required")
+        if not rule.get("source_links"):
+            raise ValueError(f"{rule['id']}: source_links are required")
+        if rule["eligibility"] == "verdict" and not rule.get("entry_ids"):
+            raise ValueError(f"{rule['id']}: verdict rules require canonical entry_ids")
     return registry
 
 

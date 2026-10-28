@@ -390,6 +390,22 @@ default (`auto` for custom endpoints, `us-east-1` for AWS S3). `put_bytes` /
 an offline CAS, or alongside S3 configuration for an atomic local mirror.
 CAS references do not assert that the corresponding object has been ingested.
 
+**Metadata-only cluster scope.** `evallab prod export-cluster-scope --cluster-id ID
+--manifest PATH [--source-database DB]` (default: the live store) writes one new
+JSON file, never replacing one, for a stored Run Atlas cluster. It reads only
+`run_clusters`, `agent_traces`, `run_facets` and task identity columns, through a
+read-only connection: no step, label, reward, issue, facet text or cluster name.
+Each row is a member run that `admitted_cloud_task_ids` + `CorpusRegistry` admit as
+DEV (this includes the cross-key TEST check in `assignments.csv`): `trace_id`,
+`task_id`, `native_task_id` (the stored native name, or null),
+`canonical_task_id` (`CorpusRegistry.task_name`), `assignments_sha256`,
+`admission`, `facet_build_id` (the cluster build that covers the facets),
+`facet_producer_revision` (`run-facets/v1`) and `facet_served_model`. Members that
+are not admitted get no row; `counts.refused_by_reason` gives only totals
+(`db_non_dev_split`, `registry_cross_key_or_sealed`, `unstored_run`). Without a
+loaded `assignments.csv` it refuses rather than certify. The ids themselves may
+carry source names, so the file scopes orchestration; it is not a blinded-reader input.
+
 **QA data access (`evallab qa-data`).** One JSON document per call over the admitted
 DEV cloud trace store, sized for an agent's context. The store is opened
 **read-only** (`CloudTraceDatabase(read_only=True)`: SQLite `mode=ro`, no

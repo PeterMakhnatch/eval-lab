@@ -1,0 +1,66 @@
+{
+  "schema": "tt7.financial_basis/v1",
+  "at": "2026-10-28T04:35:05.258438+00:00",
+  "route": "openai-codex/gpt-6-luna",
+  "attested_provider": "openai-codex",
+  "attested_transport_api": "openai-codex-responses",
+  "attested_model": "gpt-6-luna",
+  "attested_successful_calls": 2,
+  "auth_class": "UNKNOWN: historical credential class was not retained",
+  "included_free_entitlement_verified": false,
+  "provider_billed_usd": null,
+  "marginal_usd": null,
+  "client_reported_usd": 0,
+  "list_price_equivalent_usd": 0.0136769,
+  "known_input_tokens": 136154,
+  "known_output_tokens": 123,
+  "median_observed_latency_s": 7.11,
+  "financial_status": "UNKNOWN; neither included/free entitlement nor any confirmed provider charge was established",
+  "basis": "Served route, stripped API-key environment, disabled fallback and client/counter0 do not prove included entitlement or no consumed credits",
+  "original_ledger_batch_ids": [
+    "tt7-omp-56a701b491b113de01dc5f324262526a1af91bdb85f866666b83aa2479d3513d"
+  ],
+  "ledger_annotation_batch_id": "tt7-luna-billing-basis-annotation-20261028",
+  "original_ledger_rows_unchanged": true,
+  "no_retained_billing_receipt_in_tt7_or_tt2": true,
+  "retained_usage_history_entries": 17,
+  "retained_usage_history_has_plan_auth_or_credit_entitlement_fields": false,
+  "offline_inspections": [
+    {
+      "command": [
+        "omp",
+        "usage",
+        "accounts",
+        "--provider",
+        "openai-codex",
+        "--json",
+        "--redact",
+        "--no-extensions"
+      ],
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 95
+    },
+    {
+      "command": [
+        "omp",
+        "usage",
+        "--history",
+        "--days",
+        "1",
+        "--provider",
+        "openai-codex",
+        "--json",
+        "--redact",
+        "--no-extensions"
+      ],
+      "returncode": 0,
+      "stdout_bytes": 5804,
+      "stderr_bytes": 0
+    }
+  ],
+  "offline_inspection_elapsed_s": 0.225,
+  "new_inference_calls": 0,
+  "account_changes": 0,
+  "unblock": "Verified route-specific entitlement/billing evidence is required before treating a future Luna continuation as included/free; no further account/model calls were made after the owner pause"
+}

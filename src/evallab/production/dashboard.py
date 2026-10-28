@@ -23,6 +23,7 @@ DASHBOARD: str = r"""<!doctype html>
 .tools-cohorts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.tools-table .cloud-table{min-width:1180px}.tools-table>.cloud-table-wrap>.cloud-table>tbody>tr>td:first-child{min-width:280px}.tools-table td>div{display:grid;gap:3px;min-width:0}.tools-table td small{color:var(--muted);overflow-wrap:anywhere}.tools-table details{margin-top:8px}.tools-table summary{cursor:pointer;color:var(--blue)}.tools-table details h4{margin:10px 0 0}.tools-table details .cloud-table{min-width:0}.tools-sources summary{cursor:pointer;color:var(--blue)}
 .task-section{margin-top:22px}.task-section h3{margin:0 0 8px}.task-section>p{margin:0 0 8px}.task-command{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--raised);font:12px var(--mono)}.task-command-row{margin:12px 0}.task-lines{display:grid;gap:3px;min-width:0}.task-lines small{color:var(--muted);overflow-wrap:anywhere}.task-runs .cloud-table{min-width:1280px}.task-qa .cloud-table,.task-seeker .cloud-table,.task-fixes .cloud-table{min-width:900px}
 .reliability-bar{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}.reliability-track{display:block;width:140px;height:6px;border-radius:3px;background:var(--line)}.atlas-tools .cloud-table.reliability-table{min-width:560px}
+.repairs-table .cloud-table{min-width:1100px}.repairs-table td>div{display:grid;gap:3px;min-width:0}.repairs-table td small{color:var(--muted);overflow-wrap:anywhere}.repairs-table td a{color:var(--blue);overflow-wrap:anywhere}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}.focus-step{animation:step-focus 1.5s ease-out}@keyframes step-focus{from{box-shadow:0 0 0 5px #6ce4b844}to{box-shadow:0 0 0 0 transparent}}}
@@ -46,6 +47,7 @@ DASHBOARD: str = r"""<!doctype html>
  <button id="atlas-tab" type="button" role="tab" aria-selected="false" aria-controls="atlas-view" tabindex="-1">Run Atlas</button>
  <button id="tools-tab" type="button" role="tab" aria-selected="false" aria-controls="tools-view" tabindex="-1">Trace Tools</button>
  <button id="task-tab" type="button" role="tab" aria-selected="false" aria-controls="task-view" tabindex="-1">Task Evidence</button>
+ <button id="repairs-tab" type="button" role="tab" aria-selected="false" aria-controls="repairs-view" tabindex="-1">Grader repairs</button>
  <button id="trust-tab" type="button" role="tab" aria-selected="false" aria-controls="trust-view" tabindex="-1">Trust &amp; QC</button>
 </nav>
 <div id="live-view" role="tabpanel" aria-labelledby="live-tab">
@@ -175,6 +177,18 @@ DASHBOARD: str = r"""<!doctype html>
  <p id="task-status" class="notice" role="status"></p>
  <div id="task-matches"></div>
  <div id="task-content"></div>
+</section>
+<section id="repairs-view" class="panel" role="tabpanel" aria-labelledby="repairs-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Keyed DEV tasks / counts and PR numbers only</div><h2>Grader repairs</h2></div><button id="repairs-refresh" type="button" class="small">Refresh board</button></div>
+ <p class="seal">Read-only. “Static only” means a candidate passed host checks and no native sandbox run happened. Nothing is called repaired without a native receipt.</p>
+ <p id="repairs-status" class="notice" role="status"></p>
+ <div id="repairs-summary" class="tools-cohorts"></div>
+ <form id="repairs-filters" class="cloud-filters">
+  <div><label for="repairs-status-filter">Status</label><select id="repairs-status-filter"><option value="">Any status</option></select></div>
+  <div><label for="repairs-defect-filter">Defect type</label><select id="repairs-defect-filter"><option value="">Any defect type</option></select></div>
+  <div><label for="repairs-task-filter">Task</label><input id="repairs-task-filter" type="search" maxlength="100" autocomplete="off" placeholder="Part of a task id"></div>
+ </form>
+ <div id="repairs-table" class="repairs-table"></div>
 </section>
 <section id="trust-view" class="panel" role="tabpanel" aria-labelledby="trust-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">Retained producer reports / counts and arithmetic only</div><h2>Trust tiers, Hackbook QC and cross-test</h2></div><button id="cloud-trust-refresh" type="button" class="small">Refresh retained reports</button></div>
@@ -1100,6 +1114,77 @@ async function loadAtlasTools(){
  }
 }
 $('atlas-tools-open').addEventListener('click',()=>$('tools-tab').click());
+let repairData=null,repairVersion=0;
+const repairTone=status=>status==='native-validated'?'good':status==='no repair'?'blue':'warn';
+function repairLink(repair){
+ const label='#'+repair.pr+' '+(repair.kind==='ts9-candidate'?'TS-9 candidate':'related candidate')+(repair.merged===true?' · merged':'');
+ const target=repair.pr_url?node('a',label):node('span',label);
+ if(repair.pr_url){target.href=repair.pr_url;target.target='_blank';target.rel='noopener noreferrer';}
+ const cell=node('div',undefined,'task-lines');
+ cell.append(target,node('small',repair.native_receipt?'Native receipt: '+repair.native_receipt:'Checked: '+repair.verification+' · no native proof'));
+ return cell;
+}
+function repairRow(row){
+ const status=node('div',undefined,'task-lines');
+ status.append(badge(row.status,repairTone(row.status)),node('small',row.status_note));
+ const defects=node('div',undefined,'task-lines');
+ for(const [kind,n] of Object.entries(row.defect_types))defects.append(node('span',kind+' × '+cloudCount(n)));
+ const repairs=node('div',undefined,'task-lines');
+ for(const repair of list(row.repairs))repairs.append(repairLink(repair));
+ repairs.append(node('small','Main repair: '+row.main_repair));
+ const runs=node('div',undefined,'task-lines');
+ runs.append(node('strong',cloudCount(row.passed_tests_modified)),node('small','of '+cloudCount(row.atlas_runs)+' atlas runs'));
+ const open=row.admitted?button('Task evidence',()=>openTask(row.task_id)):node('small','Not in the cloud database');
+ const id=node('div',undefined,'task-lines');
+ id.append(node('strong',row.task_id),node('small',row.dataset_id));
+ return [id,defects,cloudCount(row.annotations)+(row.targeted_annotations?' ('+cloudCount(row.targeted_annotations)+' targeted)':''),repairs,status,runs,open];
+}
+function renderRepairs(){
+ const data=repairData,body=$('repairs-table'),summary=$('repairs-summary');
+ body.replaceChildren();summary.replaceChildren();
+ if(!data)return;
+ if(!data.present){
+  body.append(node('p','No repair board to show: '+data.error+'. Set EVALLAB_REPAIR_INVENTORY to the TS-9 inventory, or place it at repair-board/inventory.json in the data root. Nothing has been fabricated.','empty'));
+  return;
+ }
+ const counts=data.counts;
+ for(const status of data.statuses)summary.append(badge(status+' · '+cloudCount(counts.by_status[status]),repairTone(status)));
+ summary.append(badge(cloudCount(counts.tasks)+' tasks · '+cloudCount(counts.annotations)+' annotations'),
+  badge('Passed with tests modified · '+cloudCount(counts.passed_tests_modified)),
+  badge('Inventory '+toolsTime(data.inventory.observed_at)));
+ const status=$('repairs-status-filter').value,defect=$('repairs-defect-filter').value,query=$('repairs-task-filter').value.trim().toLowerCase();
+ const rows=data.tasks.filter(row=>(!status||row.status===status)&&(!defect||defect in row.defect_types)&&(!query||row.task_id.toLowerCase().includes(query)));
+ if(!rows.length){body.append(node('p','No task matches these filters.','empty'));return;}
+ body.append(cloudTable(['Task','Defect types','Annotations','Repair','Status','Passed, tests modified','Evidence'],rows.map(repairRow)));
+ notice('repairs-status',data.notice+' Showing '+cloudCount(rows.length)+' of '+cloudCount(counts.tasks)+' tasks.');
+}
+function fillSelect(id,values,anyLabel){
+ const select=$(id),current=select.value;
+ select.replaceChildren(new Option(anyLabel,''),...values.map(value=>new Option(value,value)));
+ select.value=values.includes(current)?current:'';
+}
+async function loadRepairs(){
+ const version=++repairVersion;
+ $('repairs-refresh').disabled=true;
+ notice('repairs-status','Loading the grader repair board…');
+ try{
+  const data=await cloudApi('/api/cloud-db/repair-board?split=dev');
+  if(version!==repairVersion)return;
+  repairData=data;
+  fillSelect('repairs-status-filter',data.statuses,'Any status');
+  fillSelect('repairs-defect-filter',data.defect_types,'Any defect type');
+  renderRepairs();
+  if(!data.present)notice('repairs-status',data.error,String(data.error).startsWith('unreadable'));
+ }catch(error){
+  if(version===repairVersion){repairData=null;renderRepairs();notice('repairs-status',cloudError(error,'Grader repair board'),true);}
+ }finally{
+  if(version===repairVersion)$('repairs-refresh').disabled=false;
+ }
+}
+$('repairs-refresh').addEventListener('click',loadRepairs);
+$('repairs-filters').addEventListener('change',renderRepairs);
+$('repairs-filters').addEventListener('input',renderRepairs);
+$('repairs-filters').addEventListener('submit',event=>event.preventDefault());
 let taskId='',taskVersion=0,taskSearchVersion=0;
 const taskLink=id=>location.origin+location.pathname+'#task?task_id='+encodeURIComponent(id);
 const taskReward=value=>typeof value==='number'?String(value):'Not recorded';
@@ -1474,6 +1559,7 @@ for(const tab of viewTabs){
   if(tab.id==='seeker-tab')loadSeekerComparison();
   if(tab.id==='atlas-tab'){loadAtlas();loadAtlasTools();loadAtlasCoverage();loadAtlasReliability();}
   if(tab.id==='tools-tab')loadTraceTools();
+  if(tab.id==='repairs-tab')loadRepairs();
   if(tab.id==='task-tab'&&taskId)loadTask();
   if(tab.id==='trust-tab')loadTrustQc();
  });

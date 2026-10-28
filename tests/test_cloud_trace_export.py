@@ -9,6 +9,7 @@ import os
 import re
 import sqlite3
 import sys
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -1027,3 +1028,134 @@ def test_native_exports_refuse_traces_without_any_actor_visible_steps(
             source, directory / "runs", format=format, registry=registry, trace_ids=[trace_id],
         )
     assert _tree(directory) == {}
+
+
+CLUSTER_ID = "L1-synthetic"
+FACET_SECRETS = ("private-facet-goal-secret", "private-facet-approach-secret", "private-cluster-name-secret")
+SCOPE_ROW_KEYS = {
+    "trace_id", "task_id", "native_task_id", "canonical_task_id", "assignments_sha256", "admission",
+    "facet_build_id", "facet_producer_revision", "facet_served_model",
+}
+
+
+@pytest.fixture
+def clustered(source: Path) -> Path:
+    """The synthetic store plus facets for every stored run and one cluster over all of them."""
+    members = [*ADMITTED_TRACES, *REFUSED_TRACES, "trace-never-stored"]
+    with closing(sqlite3.connect(source)) as connection:
+        connection.execute(
+            "UPDATE corpus_tasks SET metadata_json = json_set(metadata_json, '$.native_identity',"
+            " json_object('task_name', 'native-' || task_id))"
+        )
+        for trace_id, task_id in {**ADMITTED_TRACES, **REFUSED_TRACES}.items():
+            connection.execute(
+                "INSERT INTO run_facets (run_id, task_id, source, split, outcome, facet_version, facet_model,"
+                " input_tokens, output_tokens, goal, approach, tests, grader_or_harness_touched,"
+                " answer_material_accessed, success_claim_without_evidence, eval_awareness, shortcut,"
+                " suspicion, evidence_steps) VALUES (?, ?, 'src', 'DEV', 'pass', 'run-facets/v1',"
+                " 'provider/facet-model', 1, 1, ?, ?, 'read', 0, 0, 0, 'none', 'none', 1, '[]')",
+                (trace_id, task_id, FACET_SECRETS[0], FACET_SECRETS[1]),
+            )
+        connection.execute(
+            "INSERT INTO run_clusters (cluster_id, name, level, parent, run_ids, centroid_text, size,"
+            " label_rates, provenance_json) VALUES (?, ?, 1, NULL, ?, 'centroid', ?, NULL, ?)",
+            (CLUSTER_ID, FACET_SECRETS[2], json.dumps(members), len(members), json.dumps({
+                "build_id": "build-abc", "cluster_version": "run-clusters/v1", "facet_count": 9,
+                "created_at": "2026-10-28T00:00:00+00:00", "embedder": "hashing", "embedder_digest": "d" * 8,
+            })),
+        )
+        connection.commit()
+    return source
+
+
+def test_cluster_scope_lists_only_admitted_runs_with_metadata_and_counts_the_refused(
+    clustered: Path, registry: SyntheticRegistry, tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "scope.json"
+    receipt = cloud_trace_export.export_cluster_scope(clustered, CLUSTER_ID, manifest, registry=registry, revision="rev1")
+    document = json.loads(manifest.read_text(encoding="utf-8"))
+    authority = str(registry.split_assignments_digest).removeprefix("sha256:")
+    assert [row["trace_id"] for row in document["rows"]] == sorted(ADMITTED_TRACES)
+    for row in document["rows"]:
+        assert set(row) == SCOPE_ROW_KEYS
+        assert row["task_id"] == ADMITTED_TRACES[row["trace_id"]]
+        assert row["native_task_id"] == "native-" + row["task_id"]
+        assert row["canonical_task_id"] == CorpusRegistry.task_name(row["task_id"])
+        assert (row["admission"], row["assignments_sha256"]) == ("dev-admitted", authority)
+        assert (row["facet_build_id"], row["facet_producer_revision"]) == ("build-abc", "run-facets/v1")
+        assert row["facet_served_model"] == "provider/facet-model"
+    # TEST and heldout carry a non-DEV split; the registry-sealed and source-key TEST tasks are
+    # labelled DEV in the store and are refused only by the assignments authority; one run has no trace.
+    assert document["counts"] == {
+        "members": 8, "admitted": 3, "refused": 5,
+        "refused_by_reason": {"db_non_dev_split": 2, "registry_cross_key_or_sealed": 2, "unstored_run": 1},
+    }
+    assert document["cluster"]["build_id"] == "build-abc" and document["export_revision"] == "rev1"
+    assert (receipt["admitted"], receipt["refused"]) == (3, 5)
+    assert receipt["manifest_sha256"] == hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+
+def test_cluster_scope_publishes_no_bodies_labels_rewards_facet_text_or_hidden_identities(
+    clustered: Path, registry: SyntheticRegistry, tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "scope.json"
+    cloud_trace_export.export_cluster_scope(clustered, CLUSTER_ID, manifest, registry=registry)
+    text = manifest.read_text(encoding="utf-8").casefold()
+    hidden = [
+        *REFUSED_TRACES, *REFUSED_TRACES.values(), "trace-never-stored",
+        *(item for _task, _split, item in TASKS), DATASET, SOURCE_KEY, PRIVATE_CAS, *DISCARDED_SECRETS,
+        *FACET_SECRETS, *(_run_id(trace) for trace in ADMITTED_TRACES), *(_model_id(trace) for trace in ADMITTED_TRACES),
+        "reward", "label", "tier1_container_verified", "native-synthetic/test-only",
+    ]
+    for token in hidden:
+        assert token.casefold() not in text, token
+
+
+def test_cluster_scope_reads_the_store_read_only_and_refuses_bad_requests_without_output(
+    clustered: Path, registry: SyntheticRegistry, tmp_path: Path,
+) -> None:
+    before = clustered.read_bytes()
+    manifest = tmp_path / "scope.json"
+    with pytest.raises(ValueError, match="no stored cluster"):
+        cloud_trace_export.export_cluster_scope(clustered, "L1-missing", manifest, registry=registry)
+    registry._assignments = {}
+    with pytest.raises(ValueError, match="authority"):
+        cloud_trace_export.export_cluster_scope(clustered, CLUSTER_ID, manifest, registry=registry)
+    assert not manifest.exists() and clustered.read_bytes() == before
+    registry.__init__()  # type: ignore[misc]
+    cloud_trace_export.export_cluster_scope(clustered, CLUSTER_ID, manifest, registry=registry)
+    published = manifest.read_bytes()
+    with pytest.raises(ValueError, match="already exists"):
+        cloud_trace_export.export_cluster_scope(clustered, CLUSTER_ID, manifest, registry=registry)
+    assert manifest.read_bytes() == published and clustered.read_bytes() == before
+    assert [path.name for path in tmp_path.glob(".cluster-scope-*")] == []
+
+
+def test_cluster_scope_membership_is_decided_by_current_admission_not_stored_cluster_state(
+    clustered: Path, registry: SyntheticRegistry, tmp_path: Path,
+) -> None:
+    first = tmp_path / "before.json"
+    cloud_trace_export.export_cluster_scope(clustered, CLUSTER_ID, first, registry=registry)
+    with closing(sqlite3.connect(clustered)) as connection:  # a later reclassification of an admitted task
+        connection.execute("UPDATE corpus_tasks SET split = 'test' WHERE task_id = ?", (TASKS[1][0],))
+        connection.commit()
+    second = tmp_path / "after.json"
+    cloud_trace_export.export_cluster_scope(clustered, CLUSTER_ID, second, registry=registry)
+    rows = json.loads(second.read_text(encoding="utf-8"))["rows"]
+    assert {row["task_id"] for row in rows} == {TASKS[0][0]}
+    assert len(json.loads(first.read_text(encoding="utf-8"))["rows"]) == 3
+
+
+def test_cli_exports_cluster_scope_from_an_explicit_database(
+    clustered: Path, tmp_path: Path, isolated_cli: Any, capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = tmp_path / "cli-scope.json"
+    code = isolated_cli.run_cli([
+        "prod", "export-cluster-scope", "--source-database", str(clustered),
+        "--cluster-id", CLUSTER_ID, "--manifest", str(manifest),
+    ], workspace=tmp_path)
+    assert code == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert (receipt["command"], receipt["admitted"], receipt["refused"]) == ("export-cluster-scope", 3, 5)
+    assert receipt["manifest_sha256"] == hashlib.sha256(manifest.read_bytes()).hexdigest()
+    assert not (tmp_path / "derived/production/prod-queue.sqlite").exists()

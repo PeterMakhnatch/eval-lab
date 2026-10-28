@@ -53,6 +53,8 @@ CALLS (all JSON; examples use real flags)
        (--cluster uses the STORED db clusters, `clusters` default view; ids from `clusters --source file` can differ)
        runs --task cad-model --facet tests=modified,deleted,replaced
   window RUN_ID [--first N --last M | --around N --radius R]    steps of one run, original step ids
+       (recorded text as stored: replay-receipt steps of MiMo/TB4 native runs contain their replay "reward";
+       for a blind reader use `export`, not window)
   clusters [--source db|file] [--level 1|2|3] [--members CLUSTER_ID]
        db: stored clusters with admitted sizes (no cluster names: they can reflect hidden runs).
        file: the latest clusters-v1.jsonl build, members split into cloud runs and registry-only DEV
@@ -68,12 +70,14 @@ CALLS (all JSON; examples use real flags)
        (aggregates: no detector fields). A null flag is not a negative; with --run or --task each row keeps its tool
        and detector: quote both beside any number.
   history TASK_ID [--flag F ...]     past confirmed issues, similar examples, playbook cards for one task
+       task and history are label-free by default; --with-outcomes adds each issue's trust_tier and original/repaired
+       reward differential (outcome labels: use only to score, never to feed a blind reader; meta.with_outcomes echoes it).
   task TASK_ID [--file REL ...] [--variant N (default 0)] [--kind original_package|repaired_package (default original)]
        one admitted task (without --file it lists, it does not dump). Fields: instruction_chars (+ instruction text,
        instruction_truncated); packages{"<variant>:<kind>"}: file_count (INCLUDES withheld files), files[{relative_path,
        size}], withheld[] (solution/ and scoring-key names: listed, never read), contents[] (only with --file);
-       issues[] + issues_total (retained issues, no reproducers; status/trust_tier as stored: provisional and
-       tier3_provisional are the lowest-trust tiers); runs{total, faceted, suspicion_ge_2, list[]}. A file that is
+       issues[] + issues_total (retained issues, no reproducers; status as stored: confirmed, provisional,
+       refuted); runs{total, faceted, suspicion_ge_2, list[]}. A file that is
        not in the chosen package says so: check the other --kind. `task vpp-loss-divergence --file tests/test.sh`
        returns that file's text. Never run package code from here.
   split task TASK_ID | split item KEY_ID ITEM_ID

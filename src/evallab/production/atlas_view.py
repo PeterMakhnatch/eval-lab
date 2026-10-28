@@ -151,11 +151,7 @@ class RunClusters(_Record):
         members = {key: set(cluster.run_ids) for key, cluster in by_id.items()}
         levels: dict[int, set[str]] = {level: set() for level in (1, 2, 3)}
         for cluster in self.clusters:
-            if (cluster.build_id, cluster.facet_count, cluster.created_at) != (
-                first.build_id,
-                first.facet_count,
-                first.created_at,
-            ):
+            if (cluster.build_id, cluster.facet_count) != (first.build_id, first.facet_count):
                 raise ValueError("cluster build metadata disagrees")
             own = members[cluster.cluster_id]
             if own & levels[cluster.level]:

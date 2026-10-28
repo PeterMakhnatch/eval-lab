@@ -9,6 +9,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from evallab.production.cloud_trace_db import _FACET_COLUMNS, _json_text, _sealed_pattern
 from evallab.production.cloud_trace_export import CHEATBENCH_DATASET, cheatbench_item_admitted
 from evallab.production.qa_data import UNAVAILABLE, QaContext, QaDataError
 from evallab.production.run_atlas import outcome_from_reward
@@ -235,24 +236,43 @@ def _facet_counts(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def recount(ctx: QaContext) -> dict[str, Any]:
-    """Bind append-only facet counts (last record wins) to a shared-lock SHA256 snapshot."""
+    """Bind append-only facet counts (last record wins) to a shared-lock SHA256 snapshot.
+
+    Records naming a sealed identity are left out of every count, exactly as ``runs`` withholds
+    them, so the two calls agree on which runs exist and no count reveals a withheld one.
+    """
     with ctx.database._transaction():
         _tasks, traces_ = _tasks_and_traces(ctx)
         cloud = {row["trace_id"] for row in traces_}
-        db_ids = {row[0] for row in ctx.database._execute("SELECT run_id FROM run_facets").fetchall()}
-        parameters: list[Any] = []
-        scope = ctx.database._task_id_scope("a.trace_id", sorted(cloud), parameters)
-        db = ctx.database._rows(
-            "SELECT f.run_id, f.tests, f.suspicion, f.answer_material_accessed "
-            "FROM run_facets f JOIN agent_traces a ON a.trace_id=f.run_id AND a.task_id=f.task_id "
-            f"WHERE {scope}", parameters,
-        )
+        sealed = _sealed_pattern(frozenset(ctx.retriever._admitted_ids()[1]))
+
+        def shown(record: dict[str, Any]) -> bool:
+            return not ctx.retriever._sealed_text(_json_text(record), sealed)
+
+        every = ctx.database._rows("SELECT * FROM run_facets")
+        stored = [row for row in every if shown(row)]
+        db_ids = {row["run_id"] for row in stored}
+        withheld = {row["run_id"] for row in every} - db_ids
+        owner = {(row["trace_id"], row["task_id"]) for row in traces_}
+        sources = {row["trace_id"]: (row["task_id"], row["dataset_id"]) for row in traces_}
+        db = [row for row in stored if (row["run_id"], row["task_id"]) in owner]
     try:
         with (ctx.state_dir / "run-atlas" / "facets-v1.jsonl").open("rb") as stream:
             fcntl.flock(stream, fcntl.LOCK_SH)
             raw = stream.read()
         lines = [json.loads(line) for line in raw.splitlines() if line.strip()]
-        latest = {row["run_id"]: row for row in lines}
+        latest = {row["run_id"]: row for row in lines}  # the newest record decides, then it is screened
+
+        def stored_view(run_id: str, row: dict[str, Any]) -> dict[str, Any]:
+            """What an import would persist: ledger-only fields drop, task and source come from the database."""
+            view = {column: row[column] for column in _FACET_COLUMNS if column in row}
+            task_id, dataset_id = sources[run_id]
+            return view | {"task_id": task_id, "source": dataset_id}
+
+        latest = {
+            run_id: row for run_id, row in latest.items()
+            if run_id not in withheld and (run_id not in cloud or shown(stored_view(run_id, row)))
+        }
         jsonl = [row for run_id, row in latest.items() if run_id in cloud]
         payload = {
             "jsonl_sha256": hashlib.sha256(raw).hexdigest(), "jsonl_lines": len(lines),

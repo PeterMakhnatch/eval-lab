@@ -353,3 +353,67 @@ def test_spend_recovery_is_idempotent_across_partial_dual_ledger_writes(monkeypa
     assert len(runner.jsonl(runner.RECEIPTS / "spend.jsonl")) == 1
     record = runner.jsonl(runner.SPEND)[1]
     assert (record["input_tokens"], record["output_tokens"], record["usd"]) == (30, 3, 0)
+
+
+@pytest.fixture
+def kimi_quota_report():
+    return {"reports": [{"provider": "kimi-code", "limits": [
+        {
+            "label": name, "status": "ok",
+            "amount": {"usedFraction": 0.2, "remainingFraction": 0.8},
+            "window": {"resetsAt": (index + 1) * 1000},
+        }
+        for index, name in enumerate(("5h", "Monthly total", "Monthly code"))
+    ]}]}
+
+
+@pytest.mark.parametrize("window_index", [0, 1, 2])
+@pytest.mark.parametrize("used,available", [(0.899999, True), (0.9, False), (1, False)])
+def test_quota_reserves_coding_headroom_in_every_window(
+    monkeypatch, tmp_path, kimi_quota_report, window_index, used, available,
+):
+    runner = load_runner(monkeypatch, tmp_path)
+    limit = kimi_quota_report["reports"][0]["limits"][window_index]
+    limit["amount"] = {"usedFraction": used, "remainingFraction": 1 - used}
+    calls = []
+
+    def usage(argv, **kwargs):
+        calls.append(argv)
+        return SimpleNamespace(stdout=json.dumps(kimi_quota_report))
+
+    monkeypatch.setattr(runner.subprocess, "run", usage)
+    result = runner.quota()
+    assert result["available"] is available
+    assert result["stop_used_fraction"] == 0.9
+    assert len(result["reset_at"]) == (not available)
+    assert calls == [
+        ["omp", "usage", "invalidate", "--provider", "kimi-code"],
+        ["omp", "usage", "--json", "--provider", "kimi-code", "--redact"],
+    ]
+
+
+@pytest.mark.parametrize("field", ["usedFraction", "remainingFraction"])
+@pytest.mark.parametrize("value", [None, True, "0.1", float("nan"), float("inf"), -0.1, 1.1])
+def test_quota_unknown_amount_is_fail_closed(
+    monkeypatch, tmp_path, kimi_quota_report, field, value,
+):
+    runner = load_runner(monkeypatch, tmp_path)
+    kimi_quota_report["reports"][0]["limits"][0]["amount"][field] = value
+    monkeypatch.setattr(
+        runner.subprocess, "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=json.dumps(kimi_quota_report)),
+    )
+    with pytest.raises(RuntimeError, match="unknown subscription allowance"):
+        runner.quota()
+
+
+@pytest.mark.parametrize("status", [None, "unknown"])
+def test_quota_unknown_status_is_fail_closed(monkeypatch, tmp_path, kimi_quota_report, status):
+    runner = load_runner(monkeypatch, tmp_path)
+    kimi_quota_report["reports"][0]["limits"][0]["status"] = status
+    monkeypatch.setattr(
+        runner.subprocess, "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=json.dumps(kimi_quota_report)),
+    )
+    with pytest.raises(RuntimeError, match="unknown subscription allowance"):
+        runner.quota()

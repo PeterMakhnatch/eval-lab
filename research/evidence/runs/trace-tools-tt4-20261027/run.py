@@ -155,11 +155,19 @@ def quota():
         limits = [limit for provider in report['reports'] for limit in provider.get('limits', [])]
         if not limits:
             raise RuntimeError('no subscription allowance available')
-        exhausted = [limit for limit in limits if limit.get('status') == 'exhausted'
-                     or limit.get('amount', {}).get('remainingFraction', 1) <= 0]
+        for limit in limits:
+            fractions = [limit.get('amount', {}).get(field)
+                         for field in ('usedFraction', 'remainingFraction')]
+            if (limit.get('status') not in ('ok', 'exhausted')
+                    or any(type(value) not in (int, float) or not 0 <= value <= 1
+                           for value in fractions)):
+                raise RuntimeError('unknown subscription allowance')
+        blocked = [limit for limit in limits if limit['status'] == 'exhausted'
+                   or limit['amount']['usedFraction'] >= 0.9
+                   or limit['amount']['remainingFraction'] <= 0.1]
         result = {
-            'at': now(), 'available': not exhausted,
-            'reset_at': sorted({datetime.fromtimestamp(limit['window']['resetsAt']/1000, UTC).isoformat() for limit in exhausted}),
+            'at': now(), 'available': not blocked, 'stop_used_fraction': 0.9,
+            'reset_at': sorted({datetime.fromtimestamp(limit['window']['resetsAt']/1000, UTC).isoformat() for limit in blocked}),
             'report': report,
         }
         append(RECEIPTS / 'quota.jsonl', [result])

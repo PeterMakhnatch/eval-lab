@@ -71,11 +71,12 @@ remain unfunded and are not used here.
   than an endless resubmission loop. Missing/unrun traces remain abstentions in
   aggregate scoring, never synthetic negatives or numeric scores.
 - Allowance is invalidated/refetched before each trace and watched every 30 seconds
-  during the native scan. Exhaustion or an unavailable quota check writes a halt
+  during the native scan. **At ≥90% used in the shared five-hour allowance or any
+  monthly allowance**, or on an unknown/unavailable quota check, it writes a halt
   file and interrupts the scan cleanly. The adapter checks that file **after
   acquiring its semaphore**, so already queued calls cannot start after a stop.
-  Already in-flight requests can finish; no new trace starts. Only a fresh positive
-  allowance permits clearing the campaign's own halt marker on the next launch.
+  Already in-flight requests can finish; no new trace starts. Only a fresh allowance
+  below the 90% ceiling in every window clears the campaign's own halt marker.
 - Per-call receipts survive interruption. Spend is recovered idempotently to the
   canonical **`~/.local/state/evallab-failure-library/spend.jsonl`**, with the
   trace-tools copy retained. Both ledgers carry the route, model, token totals,
@@ -183,7 +184,8 @@ usage on six failed calls is excluded from the observed token totals.
 
 Focused coverage includes fallback/model/refusal/truncation boundaries, lossless
 text rendering, environment stripping, four-process concurrency, queued-call halt,
-seeded round-robin ordering, model-isolated resumption and partial-ledger recovery.
+seeded round-robin ordering, model-isolated resumption, partial-ledger recovery,
+and the 90% five-hour/monthly headroom boundary with unknown-quota rejection.
 The base environment's optional Inspect test skips; the separate Python 3.13
 runtime exercises registration, schema instructions and native usage without a
 hosted model call. Exact exercised check results and the PR state are reported in

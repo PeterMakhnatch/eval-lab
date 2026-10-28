@@ -9,7 +9,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from evallab.production.cloud_trace_db import _json_text, _sealed_pattern
+from evallab.production.cloud_trace_db import _FACET_COLUMNS, _json_text, _sealed_pattern
 from evallab.production.cloud_trace_export import CHEATBENCH_DATASET, cheatbench_item_admitted
 from evallab.production.qa_data import UNAVAILABLE, QaContext, QaDataError
 from evallab.production.run_atlas import outcome_from_reward
@@ -254,13 +254,25 @@ def recount(ctx: QaContext) -> dict[str, Any]:
         db_ids = {row["run_id"] for row in stored}
         withheld = {row["run_id"] for row in every} - db_ids
         owner = {(row["trace_id"], row["task_id"]) for row in traces_}
+        sources = {row["trace_id"]: (row["task_id"], row["dataset_id"]) for row in traces_}
         db = [row for row in stored if (row["run_id"], row["task_id"]) in owner]
     try:
         with (ctx.state_dir / "run-atlas" / "facets-v1.jsonl").open("rb") as stream:
             fcntl.flock(stream, fcntl.LOCK_SH)
             raw = stream.read()
         lines = [json.loads(line) for line in raw.splitlines() if line.strip()]
-        latest = {row["run_id"]: row for row in lines if row["run_id"] not in withheld and shown(row)}
+        latest = {row["run_id"]: row for row in lines}  # the newest record decides, then it is screened
+
+        def stored_view(run_id: str, row: dict[str, Any]) -> dict[str, Any]:
+            """What an import would persist: ledger-only fields drop, task and source come from the database."""
+            view = {column: row[column] for column in _FACET_COLUMNS if column in row}
+            task_id, dataset_id = sources[run_id]
+            return view | {"task_id": task_id, "source": dataset_id}
+
+        latest = {
+            run_id: row for run_id, row in latest.items()
+            if run_id not in withheld and (run_id not in cloud or shown(stored_view(run_id, row)))
+        }
         jsonl = [row for run_id, row in latest.items() if run_id in cloud]
         payload = {
             "jsonl_sha256": hashlib.sha256(raw).hexdigest(), "jsonl_lines": len(lines),

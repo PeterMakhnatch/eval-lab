@@ -67,6 +67,7 @@ FROZEN_FILES = (
     "research/evidence/runs/corpus-expansion-lb6-20261027/tools/hackbench_adapter.py",
     "research/evidence/runs/corpus-expansion-lb6-20261027/README.md",
     "research/evidence/runs/cm11-hackbench-crosstest-20261028/tools/hackbench_cascade.py",
+    "research/evidence/runs/cm11-hackbench-crosstest-20261028/README.md",
 )
 
 

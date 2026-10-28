@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-27T22:24:21.454181+00:00",
+  "model": "xai-oauth/grok-4.3",
+  "reason": "Lane owner reported SuperGrok weekly quota 100% exhausted until October 30; running batch cancelled immediately; cached results retained.",
+  "calls": 56,
+  "successful_card_verdicts": 43,
+  "failed_calls": 13,
+  "raw_input_tokens_known": 139963,
+  "raw_output_tokens_known": 25302,
+  "failed_call_usage_unknown": 13,
+  "partial_run_rows_at_cancel": 28,
+  "determinate_run_alarms_at_cancel": 23,
+  "usd": 0.0,
+  "recovery": "cache-only; no additional hosted calls",
+  "next_route": "kimi-code/k3.1-pro-highspeed",
+  "next_reset_at": "2026-10-28T02:22:00Z"
+}

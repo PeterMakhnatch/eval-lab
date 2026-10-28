@@ -1,0 +1,119 @@
+{
+  "at": "2026-10-27T22:06:30.377755+00:00",
+  "runs": 169,
+  "cache_observations": 42,
+  "mapped_cache_ids": 94,
+  "queried_trace_ids": 181,
+  "present_cloud_trace_ids": 145,
+  "runs_present_in_cloud": 145,
+  "runs_with_determinate_result": 145,
+  "records": 608,
+  "conflicts": [],
+  "per_signal": {
+    "Failure Detector": {
+      "true": 102,
+      "false": 39,
+      "abstain": 2
+    },
+    "Friction Detector": {
+      "true": 1
+    },
+    "Hallucination Detector": {
+      "false": 1
+    },
+    "Intent Classifier": {
+      "true": 1
+    },
+    "Logic Analyzer": {
+      "true": 1
+    },
+    "Task Evaluator": {
+      "true": 1
+    },
+    "copied_upstream_fix": {
+      "false": 108,
+      "true": 35
+    },
+    "false_completion_claim": {
+      "false": 134,
+      "true": 8,
+      "abstain": 1
+    },
+    "infra_not_model": {
+      "false": 23,
+      "true": 8
+    },
+    "stuck_loop": {
+      "true": 39,
+      "false": 104
+    }
+  },
+  "enabled_realtime_evallab_signals": [
+    {
+      "id": "5c835d4f-783d-4bcb-a1de-b929ad1acbd4",
+      "name": "false_completion_claim",
+      "mode": "realtime",
+      "disabled": false,
+      "trigger": {
+        "type": "rootSpanFinished"
+      },
+      "model": "glm-5.3-flash",
+      "llmProfileId": "3979cb66-df7f-429b-9f43-cfa77edcd9cc",
+      "version": 3
+    },
+    {
+      "id": "87029992-9f37-4d2c-91b6-25368d4725f2",
+      "name": "stuck_loop",
+      "mode": "realtime",
+      "disabled": false,
+      "trigger": {
+        "type": "rootSpanFinished"
+      },
+      "model": "glm-5.3-flash",
+      "llmProfileId": "3979cb66-df7f-429b-9f43-cfa77edcd9cc",
+      "version": 3
+    },
+    {
+      "id": "26570c66-85c5-4d6f-8cb0-5f885ce81b28",
+      "name": "copied_upstream_fix",
+      "mode": "realtime",
+      "disabled": false,
+      "trigger": {
+        "type": "rootSpanFinished"
+      },
+      "model": "glm-5.3-flash",
+      "llmProfileId": "3979cb66-df7f-429b-9f43-cfa77edcd9cc",
+      "version": 3
+    }
+  ],
+  "backfill": {
+    "remaining_runs": 24,
+    "signals_per_run": 3,
+    "input_price_usd_per_million": "0.15",
+    "output_price_usd_per_million": "0.50",
+    "assumed_output_tokens_per_signal": 1000,
+    "input_tokens_once": "1708782.25",
+    "input_tokens_billed": "5126346.75",
+    "output_tokens": 72000,
+    "zai_usd": "0.8049520125",
+    "basis": "sum(raw ATIF + continuation document chars)/4 per Signal; no cache discount; exact arithmetic, estimated tokens",
+    "laminar_failure_detector": [
+      {
+        "name": "Failure Detector",
+        "disabled": false,
+        "mode": "realtime",
+        "filters": [
+          {
+            "value": "1000",
+            "column": "total_token_count",
+            "operator": "gt"
+          }
+        ],
+        "version": 3
+      }
+    ],
+    "additional_laminar_credits": "not priced; enabled realtime Failure Detector also fires on traces over 1,000 tokens; provider estimate is not an all-in bill",
+    "ingested": 0,
+    "usd_spent": 0
+  }
+}

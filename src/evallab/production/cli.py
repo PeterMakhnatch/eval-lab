@@ -145,6 +145,25 @@ def register_parser(commands: Any) -> None:
     )
     project.set_defaults(func=_command)
 
+    runs = actions.add_parser(
+        "export-runs",
+        help="Export blinded, registry-admitted DEV traces locally; never dispatch or upload",
+    )
+    runs.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    runs.add_argument("--source-database", type=Path, required=True)
+    runs.add_argument("--output-directory", type=Path, required=True)
+    runs.add_argument("--format", choices=("harbor", "atif", "scout"), required=True)
+    runs.add_argument(
+        "--manifest", type=Path, required=True,
+        help="New sealed identity/step join file outside the export directory",
+    )
+    runs.add_argument(
+        "--trace-id", dest="trace_ids", action="append",
+        help="Further restrict admitted traces; repeat to select several",
+    )
+    runs.add_argument("--limit", type=int, help="Maximum admitted traces to export")
+    runs.set_defaults(func=_command)
+
     export = actions.add_parser(
         "export-qc-reports",
         help="Write validated Trust & QC dashboard reports from a live database; never upload",
@@ -190,6 +209,18 @@ def register_parser(commands: Any) -> None:
     )
     export.add_argument("--generated-at", metavar="ISO", help="Census timestamp (default: now, UTC)")
     export.set_defaults(func=_command)
+
+    facets = actions.add_parser(
+        "import-run-facets",
+        help="Import Run Atlas run-facets/v1 JSONL into the cloud trace database (DEV-admitted runs only)",
+    )
+    facets.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    facets.add_argument(
+        "--cloud-database", required=True,
+        help="Cloud trace database: SQLite path/URL or PostgreSQL URL",
+    )
+    facets.add_argument("--jsonl", type=Path, required=True, help="Append-only facets JSONL keyed by run_id")
+    facets.set_defaults(func=_command)
 
     once = actions.add_parser("run-once", help="Run selected live consumers, then relay once")
     _queue_options(once)
@@ -440,6 +471,21 @@ def _local_path(root: Path, path: Path) -> Path:
     return path
 
 
+def _export_runs(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    from evallab.production.cloud_trace_export import export_runs
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    return export_runs(
+        _local_path(root, args.source_database),
+        _local_path(root, args.output_directory),
+        format=args.format,
+        registry=CorpusRegistry(root),
+        trace_ids=args.trace_ids,
+        limit=args.limit,
+        manifest=_local_path(root, args.manifest),
+    )
+
+
 def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     from evallab.production.qc_reports import export_qc_reports
 
@@ -563,8 +609,21 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
         if args.prod_command == "project-actor":
             _emit({"command": args.prod_command, **_project_actor(args, root)}, args)
             return 0
+        if args.prod_command == "export-runs":
+            _emit({"command": args.prod_command, **_export_runs(args, root)}, args)
+            return 0
         if args.prod_command == "export-qc-reports":
             _emit({"command": args.prod_command, **_export_qc_reports(args, root)}, args)
+            return 0
+        if args.prod_command == "import-run-facets":
+            from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_facets
+            from evallab.production.corpus_queue import CorpusRegistry
+
+            with CloudTraceDatabase(_database(root, args.cloud_database)) as database:
+                receipt = import_run_facets(
+                    database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
+                )
+            _emit({"command": args.prod_command, **receipt}, args)
             return 0
         with _open_queue(args, root) as connection:
             if args.prod_command == "ingest":

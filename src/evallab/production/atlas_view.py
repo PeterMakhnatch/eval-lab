@@ -1,12 +1,12 @@
 """Read-only Run Atlas view model: validated run facets and clusters on admitted DEV runs.
 
-Producers write two retained files under ``<data_root>/atlas/``:
+Producers write two retained files under ``<data_root>/run-atlas/``:
 
 * ``facets-v1.jsonl`` -- one ``run-facets/v1`` record per line, append-only; the latest
   line for a ``run_id`` wins. ``run_id`` is ``agent_traces.trace_id`` (the database's
   ``run_id`` column is shared by many traces and is never used to look a run up).
-* ``clusters-v1.json`` -- one ``run-clusters/v1`` document: a tree of named clusters over
-  those run ids, with label rates filled only after scoring.
+* ``clusters-v1.jsonl`` -- producer ``run-clusters/v1`` rows; the most recent
+  complete build supplies the tree, with label rates filled only after scoring.
 
 This module validates both strictly and joins them to the *admitted DEV* trace identities
 the caller supplies. A facet whose run is not admitted, or whose evidence step is not a
@@ -16,8 +16,10 @@ and nothing is recomputed: counts are the producer's, derived rates are the brow
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
+import math
 import os
 import stat
 from collections import Counter
@@ -30,7 +32,7 @@ from typing import Annotated, Any, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 FACETS_FILE = "facets-v1.jsonl"
-CLUSTERS_FILE = "clusters-v1.json"
+CLUSTERS_FILE = "clusters-v1.jsonl"
 MAX_FACET_BYTES = 128 * 1024 * 1024
 MAX_CLUSTER_BYTES = 64 * 1024 * 1024
 MAX_REJECTION_NOTES = 20
@@ -77,19 +79,32 @@ class RunFacets(_Record):
         return value
 
 
-class LabelRate(_Record):
-    label: _Label
-    hits_n: _Count
-    of_n: _Count
+class ClusterLabels(_Record):
+    """The producer's binary-label tally, not a model prediction or accuracy."""
+
+    labelled: _Count
+    positives: _Count
+    rate: Annotated[float, Field(ge=0, le=1)] | None
 
     @model_validator(mode="after")
     def validate_counts(self) -> Self:
-        if self.hits_n > self.of_n:
-            raise ValueError("label hits must not exceed the runs they are drawn from")
+        if self.positives > self.labelled:
+            raise ValueError("label hits must not exceed labelled runs")
+        if not self.labelled:
+            if self.rate is not None:
+                raise ValueError("an unlabelled cluster has no rate")
+        elif self.rate is None or not math.isclose(
+            self.rate, self.positives / self.labelled, rel_tol=1e-9, abs_tol=1e-12
+        ):
+            raise ValueError("label rate disagrees with its recorded counts")
         return self
 
 
 class RunCluster(_Record):
+    # Unused embedder/naming diagnostics and sample texts stay producer-owned.
+    model_config = ConfigDict(strict=True, extra="ignore", allow_inf_nan=False)
+
+    cluster_version: Literal["run-clusters/v1"]
     cluster_id: _Label
     name: _Text
     level: Annotated[int, Field(ge=1, le=3)]
@@ -97,7 +112,17 @@ class RunCluster(_Record):
     run_ids: list[_Label]
     centroid_text: str
     size: _Count
-    label_rates: list[LabelRate] = []
+    label_rates: ClusterLabels | None
+    build_id: _Label
+    facet_count: _Count
+    created_at: str
+
+    @field_validator("created_at")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        if datetime.fromisoformat(value).tzinfo is None or "T" not in value:
+            raise ValueError("timestamps must be ISO-8601 with a timezone")
+        return value
 
     @model_validator(mode="after")
     def validate_shape(self) -> Self:
@@ -105,46 +130,79 @@ class RunCluster(_Record):
             raise ValueError("only level-1 clusters have no parent")
         if len(set(self.run_ids)) != len(self.run_ids) or self.size != len(self.run_ids):
             raise ValueError("size must equal the number of distinct run ids")
-        if any(rate.of_n > self.size for rate in self.label_rates):
+        if self.label_rates is not None and self.label_rates.labelled > self.size:
             raise ValueError("a label rate cannot cover more runs than the cluster holds")
-        names = [rate.label.casefold() for rate in self.label_rates]
-        if len(set(names)) != len(names):
-            raise ValueError("a cluster reports each label once")
         return self
 
 
 class RunClusters(_Record):
-    schema_: Literal["run-clusters/v1"] = Field(alias="schema")
-    facet_version: Literal["run-facets/v1"]
-    generated_at: str
-    scored_at: str | None
-    clusters: list[RunCluster]
+    """One complete producer build selected from the append-only cluster stream."""
 
-    @field_validator("generated_at", "scored_at")
-    @classmethod
-    def validate_timestamp(cls, value: str | None) -> str | None:
-        if value is not None and (
-            datetime.fromisoformat(value).tzinfo is None or "T" not in value
-        ):
-            raise ValueError("timestamps must be ISO-8601 with a timezone")
-        return value
+    clusters: list[RunCluster]
 
     @model_validator(mode="after")
     def validate_tree(self) -> Self:
+        if not self.clusters:
+            return self
         by_id = {cluster.cluster_id: cluster for cluster in self.clusters}
         if len(by_id) != len(self.clusters):
-            raise ValueError("cluster ids must be unique")
+            raise ValueError("cluster ids must be unique within a build")
+        first = self.clusters[0]
+        members = {key: set(cluster.run_ids) for key, cluster in by_id.items()}
+        levels: dict[int, set[str]] = {level: set() for level in (1, 2, 3)}
         for cluster in self.clusters:
-            if cluster.label_rates and self.scored_at is None:
-                raise ValueError("label rates exist only after scoring, which needs scored_at")
-            if cluster.parent is None:
-                continue
-            parent = by_id.get(cluster.parent)
-            if parent is None or parent.level != cluster.level - 1:
-                raise ValueError("a parent must exist one level above its child")
-            if not set(cluster.run_ids) <= set(parent.run_ids):
-                raise ValueError("a child cluster's runs must all belong to its parent")
+            if (cluster.build_id, cluster.facet_count) != (first.build_id, first.facet_count):
+                raise ValueError("cluster build metadata disagrees")
+            own = members[cluster.cluster_id]
+            if own & levels[cluster.level]:
+                raise ValueError("a run belongs to only one cluster at each level")
+            levels[cluster.level].update(own)
+            if cluster.parent is not None:
+                parent = by_id.get(cluster.parent)
+                if parent is None or parent.level != cluster.level - 1:
+                    raise ValueError("a parent must exist one level above its child")
+                if not own <= members[parent.cluster_id]:
+                    raise ValueError("a child cluster's runs must all belong to its parent")
+        if len(levels[1]) != first.facet_count or not levels[1] == levels[2] == levels[3]:
+            raise ValueError(
+                "incomplete cluster build: each of three levels must cover facet_count"
+            )
         return self
+
+
+def _cluster_snapshot(raw: bytes) -> dict[str, Any]:
+    """Match the producer: final contiguous build in file order, not timestamp order."""
+    latest: list[dict[str, Any]] = []
+    build_id: str | None = None
+    for line in raw.decode("utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = strict_loads(line)
+        if not isinstance(row, dict) or row.get("cluster_version") != "run-clusters/v1":
+            raise ValueError("cluster stream contains an unknown record")
+        if row.get("build_id") != build_id:
+            latest = []
+            build_id = row.get("build_id")
+        latest.append(row)
+    validated = RunClusters.model_validate({"clusters": latest})
+    nodes = []
+    for cluster in validated.clusters:
+        node = cluster.model_dump()
+        labels = cluster.label_rates
+        node["label_rates"] = (
+            []
+            if labels is None
+            else [
+                {
+                    "label": "positive source label",
+                    "hits_n": labels.positives,
+                    "of_n": labels.labelled,
+                }
+            ]
+        )
+        nodes.append(node)
+    # Clustering time is not scoring time. The producer never records scored_at.
+    return {"clusters": nodes, "scored_at": None, "build_id": build_id}
 
 
 @dataclass(frozen=True)
@@ -160,16 +218,24 @@ class AtlasStore:
     sha256: dict[str, str] = field(default_factory=dict)
 
 
-def _read_regular(directory: Path, name: str, limit: int) -> bytes | None:
-    """Read one regular file without following links; ``None`` when it does not exist."""
+def read_regular(directory: Path, name: str, limit: int) -> bytes | None:
+    """Read a bounded regular file without following the directory or file link."""
     try:
-        descriptor = os.open(directory / name, os.O_RDONLY | os.O_NOFOLLOW)
+        parent = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     except FileNotFoundError:
         return None
-    with os.fdopen(descriptor, "rb") as stream:
-        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-            raise ValueError(f"{name} is not a regular file")
-        raw = stream.read(limit + 1)
+    try:
+        try:
+            descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        except FileNotFoundError:
+            return None
+        with os.fdopen(descriptor, "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise ValueError(f"{name} is not a regular file")
+            fcntl.flock(stream.fileno(), fcntl.LOCK_SH)
+            raw = stream.read(limit + 1)
+    finally:
+        os.close(parent)
     if len(raw) > limit:
         raise ValueError(f"{name} exceeds {limit} bytes")
     return raw
@@ -188,11 +254,11 @@ def _reject_constant(value: str) -> Any:
     raise ValueError(f"non-finite JSON number {value}")
 
 
-def _loads(text: str) -> Any:
+def strict_loads(text: str) -> Any:
     return json.loads(text, object_pairs_hook=_json_object, parse_constant=_reject_constant)
 
 
-def _reason(error: Exception) -> str:
+def json_reason(error: Exception) -> str:
     """One bounded, readable line: the first failing field and why."""
     if isinstance(error, ValidationError):
         first = error.errors()[0]
@@ -202,38 +268,36 @@ def _reason(error: Exception) -> str:
 
 
 def load_atlas_store(directory: Path) -> AtlasStore:
-    """Validate ``facets-v1.jsonl`` per line and ``clusters-v1.json`` as one document."""
+    """Validate facet JSONL and select the latest complete cluster JSONL build."""
     digests: dict[str, str] = {}
     facets: dict[str, dict[str, Any]] = {}
     rejected: list[dict[str, Any]] = []
     rejected_n = superseded_n = 0
-    raw = _read_regular(directory, FACETS_FILE, MAX_FACET_BYTES)
+    raw = read_regular(directory, FACETS_FILE, MAX_FACET_BYTES)
     if raw is not None:
         digests[FACETS_FILE] = hashlib.sha256(raw).hexdigest()
         for number, line in enumerate(raw.decode("utf-8").splitlines(), 1):
             if not line.strip():
                 continue
             try:
-                record = RunFacets.model_validate(_loads(line)).model_dump()
+                record = RunFacets.model_validate(strict_loads(line)).model_dump()
             except (ValueError, ValidationError) as error:
                 rejected_n += 1
                 if len(rejected) < MAX_REJECTION_NOTES:
-                    reason = _reason(error)
+                    reason = json_reason(error)
                     rejected.append({"line": number, "reason": reason})
                 continue
             superseded_n += record["run_id"] in facets
             facets[record["run_id"]] = record
     clusters: dict[str, Any] | None = None
     cluster_error: str | None = None
-    raw = _read_regular(directory, CLUSTERS_FILE, MAX_CLUSTER_BYTES)
+    raw = read_regular(directory, CLUSTERS_FILE, MAX_CLUSTER_BYTES)
     if raw is not None:
         digests[CLUSTERS_FILE] = hashlib.sha256(raw).hexdigest()
         try:
-            clusters = RunClusters.model_validate(_loads(raw.decode("utf-8"))).model_dump(
-                by_alias=True
-            )
+            clusters = _cluster_snapshot(raw)
         except (ValueError, ValidationError) as error:
-            cluster_error = _reason(error)
+            cluster_error = json_reason(error)
     return AtlasStore(facets, rejected, rejected_n, superseded_n, clusters, cluster_error, digests)
 
 
@@ -269,10 +333,15 @@ def visible_facets(
         identity = traces.get(run_id)
         if identity is None:
             unadmitted += 1
-        elif any(index >= identity["step_count"] for index in facet["evidence_steps"]):
+        elif not set(facet["evidence_steps"]).issubset(identity["step_indices"]):
             outside += 1
         else:
-            shown[run_id] = facet
+            shown[run_id] = {
+                **facet,
+                "source": identity["dataset_id"],
+                "outcome": identity["outcome"],
+                "split": "DEV",
+            }
     return shown, {"unadmitted_n": unadmitted, "evidence_outside_run_n": outside}
 
 
@@ -293,7 +362,13 @@ def _matches(facet: Mapping[str, Any], identity: Mapping[str, Any], filters: Atl
     needle = filters.q.strip().casefold()
     if needle:
         haystack = " ".join(
-            (facet["goal"], facet["approach"], facet["shortcut"], facet["run_id"], identity["task_id"])
+            (
+                facet["goal"],
+                facet["approach"],
+                facet["shortcut"],
+                facet["run_id"],
+                identity["task_id"],
+            )
         ).casefold()
         return needle in haystack
     return True

@@ -36,6 +36,13 @@ uv run evallab capture link <capture_dir> <job_dir> [--derived-root DIR]
 uv run evallab report run <trial_dir>
 ```
 
+`evallab capture smoke --upstream <base_url> [--out <dir>] [--model <selector>]`
+sends one real provider call through the secret proxy and capture server, so
+the usual execution and spend authorization applies. The smoke drains its
+request handler before validating `calls.jsonl`: receiving a complete HTTP body
+alone does not prove that the capture journal has finished writing. Its bound
+socket closes on success or failure; the long-running `serve` relay is unchanged.
+
 `serve` forwards OpenAI-compatible (`/v1/chat/completions`, `/v1/completions`,
 `/v1/responses`) and Anthropic (`/v1/messages`) requests, including streaming
 SSE, and appends one record per call to `<dir>/calls.jsonl` (append + flush per

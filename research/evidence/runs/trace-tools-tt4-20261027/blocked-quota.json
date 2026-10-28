@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-27T22:19:36.811Z",
+  "reason": "SuperGrok weekly subscription quota exhausted during ten-trace smoke; stopped active scan immediately; no paid fallback",
+  "model": "xai-oauth/grok-4.3",
+  "generated_at_epoch_ms": 1793139576811,
+  "fetched_at_epoch_ms": 1793139568497,
+  "cache_invalidated_before_fetch": true,
+  "limits": [
+    {"label":"SuperGrok Weekly Credits","status":"exhausted","used_fraction":1,"remaining_fraction":0},
+    {"label":"Grok Build (Weekly)","status":"exhausted","used_fraction":1,"remaining_fraction":0}
+  ],
+  "reset_at": ["2026-10-30T18:10:48.559Z"],
+  "usd": 0,
+  "basis": "Stored SuperGrok OAuth subscription; explicit $0-marginal lane approval"
+}

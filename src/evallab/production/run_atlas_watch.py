@@ -300,6 +300,9 @@ def watch_cycle(args: argparse.Namespace, root: Path) -> dict[str, Any]:
             if str(row.get("error", "")).startswith("DailyTokenBudgetExceeded:"):
                 result["failed"] -= 1
                 result["budget_skipped"] = result.get("budget_skipped", 0) + 1
+            elif row.get("quota_exhausted"):
+                result["failed"] -= 1
+                result["quota_skipped"] = result.get("quota_skipped", 0) + 1
             else:
                 failures[run_id] = failures.get(run_id, 0) + 1
     save_failures(state_path, failures)

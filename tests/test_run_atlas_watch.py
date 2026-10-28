@@ -177,6 +177,27 @@ def test_metadata_first_ingestion_waits_for_complete_steps(rig: SimpleNamespace)
     assert len(rig.calls) == 1
 
 
+def test_quota_exhaustion_defers_runs_without_consuming_failure_allowance(
+    rig: SimpleNamespace, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _insert_trace(rig.args.database, "first")
+    _insert_trace(rig.args.database, "second")
+
+    def exhausted(*_args: Any, **_kwargs: Any) -> Any:
+        raise run_atlas.TransportError("quota closed", quota=True)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(run_atlas, "GatewayTransport", lambda: SimpleNamespace(
+            complete=exhausted, close=lambda: None,
+        ))
+        for _ in range(rig.args.max_failures + 1):
+            result = _cycle(rig)
+            assert result["failed"] == 0
+            assert result["quota_skipped"] == 2
+    assert watch.load_failures(run_atlas.ATLAS_ROOT / "watch-state.json") == {}
+    assert _cycle(rig)["written"] == 2
+
+
 def test_existing_facets_test_and_cross_key_sealed_tasks_are_never_read(
     rig: SimpleNamespace, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

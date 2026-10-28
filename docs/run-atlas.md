@@ -164,8 +164,9 @@ uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-da
   step sets are deferred until their committed row count equals `step_count`.
 - Bounded: at most `--max-per-cycle` runs per cycle and an optional daily
   token budget summed from today's (UTC) call receipts. Providers whose
-  `omp usage --json` window is at or above 90% are skipped; without usage data,
-  `RoutePool` quota benching still applies.
+  `omp usage --json` window is at or above 90% are skipped. Quota exhaustion
+  yields the batch promptly and does not consume a trace's failure allowance;
+  the next cycle can resume after a reset.
 - One instance at a time (flock on `run-atlas/watch.lock`). The launchd
   template runs `--once` every five minutes, releasing the lock between cycles
   so a backfill driver can use the same lock. Render absolute paths to an

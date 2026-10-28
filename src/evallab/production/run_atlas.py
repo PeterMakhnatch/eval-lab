@@ -1007,6 +1007,10 @@ class RoutePool:
                     route = min(free, key=lambda r: (self.active[r], order.index(r)))
                     self.active[route] += 1
                     return route
+                if not any(route not in exclude and self.benched.get(route, 0.0) <= self.clock()
+                           for route in self.routes):
+                    # Let the quota-aware outer scheduler retry after a reset.
+                    return None
                 self.condition.wait(timeout=30)
 
     def release(self, route: str, *, quota: bool = False) -> None:
@@ -1081,8 +1085,12 @@ def extract_runs(
 
 def _record(outcome: ExtractOutcome, summary: dict[str, Any], lock: threading.Lock,
             facets_path: Path, calls_path: Path, log: Callable[[str], None]) -> None:
-    final = {"run_id": outcome.run_id, "status": "ok" if outcome.record else "failed",
-             "purpose": "run", "error": outcome.error}
+    final: dict[str, Any] = {"run_id": outcome.run_id, "status": "ok" if outcome.record else "failed",
+                             "purpose": "run", "error": outcome.error}
+    if outcome.record is None and (
+        outcome.error == "no route available" or (outcome.calls and outcome.calls[-1].get("quota"))
+    ):
+        final["quota_exhausted"] = True
     with lock:
         append_jsonl(calls_path, [*outcome.calls, final])
         summary["input_tokens"] += sum(c.get("input_tokens", 0) for c in outcome.calls)

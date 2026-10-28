@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import fcntl
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+import pytest
 
 from evallab.production import live_supervisor as ls
 from evallab.production import live_supervisor_cheat as cheat
@@ -220,3 +225,61 @@ def test_latency_study_measures_steps_from_onset_per_detector() -> None:
     assert (cascade["negatives_scored"], cascade["negative_alarms"]) == (1, 1)
     assert (rows["flags"]["alarms"], rows["flags"]["timed"], rows["flags"]["coverage"]) == (1, 0, 0.0)
     assert report["any"]["steps"]["p50"] == -2 and report["any"]["timed"] == 2
+
+
+def test_concurrent_router_channels_do_not_duplicate_the_daily_notice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first, second = _router(tmp_path), _router(tmp_path)
+    observation, decision = _obs(_trial()), _flag()
+    first_rendering = threading.Event()
+    second_attempt = threading.Event()
+    first_saved = threading.Event()
+    second_thread: list[int] = []
+    real_flock = fcntl.flock
+    first_card, first_save = first.card, first._save
+    second_load, second_card = second._load, second.card
+
+    def rendering_first(obs: ls.Observation, dec: ls.Decision) -> str:
+        first_rendering.set()
+        assert second_attempt.wait(10)
+        return first_card(obs, dec)
+
+    def saving_first(state: dict[str, object]) -> None:
+        first_save(state)
+        first_saved.set()
+
+    def loading_second() -> dict[str, object]:
+        state = second_load()
+        second_attempt.set()
+        return state
+
+    def rendering_second(obs: ls.Observation, dec: ls.Decision) -> str:
+        assert first_saved.wait(10)
+        return second_card(obs, dec)
+
+    def locking(fd: int, operation: int) -> None:
+        if second_thread == [threading.get_ident()] and operation & fcntl.LOCK_EX:
+            second_attempt.set()
+        real_flock(fd, operation)
+
+    monkeypatch.setattr(first, "card", rendering_first)
+    monkeypatch.setattr(first, "_save", saving_first)
+    monkeypatch.setattr(second, "_load", loading_second)
+    monkeypatch.setattr(second, "card", rendering_second)
+    monkeypatch.setattr(fcntl, "flock", locking)
+
+    def route_second() -> bool:
+        second_thread.append(threading.get_ident())
+        return second(observation, decision)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        a = pool.submit(first, observation, decision)
+        assert first_rendering.wait(10)
+        b = pool.submit(route_second)
+        outcomes = [a.result(timeout=15), b.result(timeout=15)]
+
+    assert outcomes == [True, False]
+    assert [row["id"] for row in _queue(tmp_path)] == ["LS-CHEAT-2026-10-28-1"]
+    state = json.loads(first.state_path.read_text())
+    assert set(state["routed"]) == {observation.subject.finding_run_id}

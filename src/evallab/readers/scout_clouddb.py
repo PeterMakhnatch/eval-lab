@@ -14,6 +14,20 @@ its flags are always null. Publisher labels never enter scanner inputs.
 
 The private key map is append-only and kept outside the Scout transcript DBs.
 ``sync`` inserts only ids absent from that map; content/reasoning are unbounded.
+Each trace is projected on its own: one whose source retains no actor chronology
+(``ActorHistoryUnavailable``) is quarantined and reported by run id and reason.
+It is never inserted as an empty transcript, never keyed, and never counted as a
+clean or scanned run; the other traces in its batch are unaffected. The sync
+report keeps full admission (``eligible``) separate from ``inserted``,
+``unchanged`` and ``unavailable``.
+
+Every transcript, key-map row, result row and default cache/scan/state path is
+versioned by ``ACTOR_PROJECTION_VERSION``. An unversioned transcript cache, key
+map or result ledger is refused with ``StaleProjectionError`` and never extended
+in place; a key map or transcript cache of another projection is refused too.
+Earlier-version result rows stay as retained lineage: they are never counted as
+current coverage and never rewritten.
+
 ``scan`` accepts only the four deterministic scanners; ``collect`` retains one
 record per scanner label (nine records per run with the default scanner set).
 Scheduled callers can pass a nonempty ``transcript_ids`` subset to ``scan``;
@@ -28,6 +42,7 @@ import csv
 import importlib.util
 import json
 import math
+import os
 import re
 import sqlite3
 import sys
@@ -37,9 +52,11 @@ from contextlib import closing
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
+from evallab.readers import ACTOR_PROJECTION_VERSION
 from evallab.readers.clouddb_blind import (
+    ActorHistoryUnavailable,
     atif_blind_messages,
     blind_messages,
     dev_trace_refs,
@@ -55,15 +72,60 @@ SCANNERS = (
     "restored_tool_calls",
 )
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_STATE = Path.home() / ".local/state/evallab-prod-live/trace-tools"
-DEFAULT_DB = DEFAULT_STATE.parent / "cloud-trace-db.sqlite"
+STATE_ROOT = Path.home() / ".local/state/evallab-prod-live"
+DEFAULT_DB = STATE_ROOT / "cloud-trace-db.sqlite"
+#: Shared trace-tool state. Unversioned scout files written here before the
+#: native actor projection are retained as read-only evidence; nothing reads or
+#: appends to them any more.
+TRACE_TOOLS_STATE = STATE_ROOT / "trace-tools"
 _VIEWER_ROOT = Path("/Users/petermakhnatch/Developer/eval-lab/derived/trace-lab/scout")
-DEFAULT_TRANSCRIPTS = _VIEWER_ROOT / "data/transcripts_clouddb_dev"
-DEFAULT_CHEATBENCH_TRANSCRIPTS = _VIEWER_ROOT / "data/transcripts_cheatbench_dev_blind"
-DEFAULT_SCANS = _VIEWER_ROOT / "scans/trace-tools"
-DEFAULT_KEYMAP = DEFAULT_STATE / "keymap-v1.jsonl"
-DEFAULT_RESULTS = DEFAULT_STATE / "results-v1.jsonl"
+PROJECTION_MARKER = "projection.json"
 _MESSAGE_STEP = re.compile(r"^step-(-?\d+)-message-\d+$")
+
+
+class StaleProjectionError(ValueError):
+    """A cache or ledger belongs to another actor projection and is never reused."""
+
+
+class ScoutPaths(NamedTuple):
+    """Every location one actor projection reads or writes."""
+
+    state: Path
+    keymap: Path
+    results: Path
+    transcripts: Path
+    cheatbench_transcripts: Path
+    scans: Path
+
+
+def scout_paths(
+    trace_tools: Path, viewer: Path, projection_version: str = ACTOR_PROJECTION_VERSION,
+) -> ScoutPaths:
+    """Version-suffixed siblings of the legacy paths.
+
+    Scout discovers Parquet files recursively, so a versioned transcript cache
+    must never be nested inside (or contain) another projection's cache.
+    """
+    state = trace_tools / f"scout-{projection_version}"
+    return ScoutPaths(
+        state=state,
+        keymap=state / "keymap-v1.jsonl",
+        results=state / "results-v1.jsonl",
+        transcripts=viewer / "data" / f"transcripts_clouddb_dev-{projection_version}",
+        cheatbench_transcripts=(
+            viewer / "data" / f"transcripts_cheatbench_dev_blind-{projection_version}"
+        ),
+        scans=viewer / "scans" / f"trace-tools-{projection_version}",
+    )
+
+
+DEFAULT_PATHS = scout_paths(TRACE_TOOLS_STATE, _VIEWER_ROOT)
+DEFAULT_STATE = DEFAULT_PATHS.state
+DEFAULT_TRANSCRIPTS = DEFAULT_PATHS.transcripts
+DEFAULT_CHEATBENCH_TRANSCRIPTS = DEFAULT_PATHS.cheatbench_transcripts
+DEFAULT_SCANS = DEFAULT_PATHS.scans
+DEFAULT_KEYMAP = DEFAULT_PATHS.keymap
+DEFAULT_RESULTS = DEFAULT_PATHS.results
 
 
 def _require_scout() -> None:
@@ -111,7 +173,7 @@ def to_transcript(opaque: str, messages: Sequence[dict[str, Any]]) -> Any:
     return Transcript(
         transcript_id=opaque,
         messages=projected,
-        metadata={"blind_schema": BLIND_SCHEMA},
+        metadata={"blind_schema": BLIND_SCHEMA, "projection_version": ACTOR_PROJECTION_VERSION},
     )
 
 
@@ -121,6 +183,76 @@ def _jsonl(path: Path) -> Iterator[dict[str, Any]]:
             for line in stream:
                 if line.strip():
                     yield json.loads(line)
+
+
+def read_keymap(path: str | Path) -> dict[str, dict[str, Any]]:
+    """Return the private key map, refusing rows written for another projection."""
+    path = Path(path)
+    keymap: dict[str, dict[str, Any]] = {}
+    for row in _jsonl(path):
+        if row.get("projection_version") != ACTOR_PROJECTION_VERSION:
+            raise StaleProjectionError(
+                f"{path} holds key-map rows outside projection {ACTOR_PROJECTION_VERSION}; "
+                "it is preserved unchanged, use a projection-versioned path",
+            )
+        keymap[row["opaque_id"]] = row
+    return keymap
+
+
+def require_current_results(path: str | Path) -> None:
+    """Refuse a results ledger holding Scout rows without a projection version.
+
+    Rows that name an earlier projection are retained lineage: they are appended
+    evidence, never counted as current coverage (``completed_runs`` requires an
+    exact version match), and never rewritten. An unversioned Scout row predates
+    the projection contract, so the ledger must not be extended in place.
+    """
+    path = Path(path)
+    for row in _jsonl(path):
+        if row.get("tool") == "scout" and "projection_version" not in row:
+            raise StaleProjectionError(
+                f"{path} holds unversioned Scout results; it is preserved unchanged, "
+                "use a projection-versioned path",
+            )
+
+
+def _check_transcripts(directory: Path, *, claim: bool = False) -> None:
+    """Refuse a transcript cache of another or no projection; optionally claim a new one."""
+    marker = directory / PROJECTION_MARKER
+    if marker.is_file():
+        try:
+            claimed = json.loads(marker.read_text(encoding="utf-8")).get("projection_version")
+        except (ValueError, AttributeError):
+            claimed = None
+        if claimed != ACTOR_PROJECTION_VERSION:
+            raise StaleProjectionError(
+                f"{directory} is a transcript cache for projection {claimed!r}, "
+                f"not {ACTOR_PROJECTION_VERSION}; it is preserved unchanged",
+            )
+        return
+    if directory.exists() and next(directory.rglob("*.parquet"), None) is not None:
+        raise StaleProjectionError(
+            f"{directory} is an unversioned transcript cache; it is preserved unchanged, "
+            "use a projection-versioned directory",
+        )
+    if claim:
+        directory.mkdir(parents=True, exist_ok=True)
+        temporary = marker.with_name(f".{marker.name}.{os.getpid()}.tmp")
+        temporary.write_text(
+            json.dumps({"projection_version": ACTOR_PROJECTION_VERSION}) + "\n", encoding="utf-8",
+        )
+        temporary.replace(marker)
+
+
+def _scanned_projection(metadata: Any) -> Any:
+    """Projection version recorded in a scanned transcript's metadata, if any."""
+    metadata = _clean(metadata)
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except ValueError:
+            return None
+    return metadata.get("projection_version") if isinstance(metadata, dict) else None
 
 
 def _cheatbench_items(repo_root: Path) -> list[dict[str, Any]]:
@@ -149,7 +281,7 @@ def _cheatbench_messages(item: dict[str, Any]) -> list[dict[str, Any]]:
 async def _insert(transcripts_dir: Path, transcripts: Iterable[Any]) -> None:
     from inspect_scout import transcripts_db  # ty: ignore[unresolved-import]
 
-    transcripts_dir.mkdir(parents=True, exist_ok=True)
+    _check_transcripts(transcripts_dir, claim=True)
     async with transcripts_db(str(transcripts_dir)) as db:
         await db.insert(transcripts)
 
@@ -167,23 +299,35 @@ def sync(
     Scout also deduplicates ids on insert, so retrying an interrupted insertion
     before its key-map append does not duplicate transcripts. The iterable keeps
     the full corpus out of memory; Scout writes its own bounded Parquet batches.
+
+    A trace whose source retains no actor history is quarantined individually
+    (``unavailable``/``quarantined``) and retried on the next sync; it is neither
+    inserted nor keyed. ``eligible`` is full admission and always equals
+    ``unchanged + inserted + unavailable``. A stale key map or transcript cache
+    raises ``StaleProjectionError`` before anything is written.
     """
     _require_scout()
     keymap_path, transcripts_dir = Path(keymap_path), Path(transcripts_dir)
-    keyed = {row["opaque_id"] for row in _jsonl(keymap_path)}
+    keyed = set(read_keymap(keymap_path))
+    _check_transcripts(transcripts_dir)
     added: list[dict[str, str]] = []
+    unavailable: list[dict[str, Any]] = []
     source = "cheatbench-actions-v1" if cheatbench else "cloud-trace-db"
 
     def transcripts(rows: Iterable[tuple[str, list[dict[str, Any]]]]) -> Iterator[Any]:
         for run_id, messages in rows:
             opaque = opaque_id(run_id)
-            added.append({"opaque_id": opaque, "run_id": run_id, "source": source})
-            yield to_transcript(opaque, messages)
+            transcript = to_transcript(opaque, messages)
+            added.append({
+                "opaque_id": opaque, "run_id": run_id, "source": source,
+                "projection_version": ACTOR_PROJECTION_VERSION,
+            })
+            yield transcript
 
     if cheatbench:
         items = _cheatbench_items(repo_root)
         pending = [item for item in items if opaque_id(item["item_id"]) not in keyed]
-        eligible = len(items)
+        eligible, pending_count = len(items), len(pending)
         if pending:
             asyncio.run(_insert(transcripts_dir, transcripts(
                 (item["item_id"], _cheatbench_messages(item)) for item in pending
@@ -193,19 +337,33 @@ def sync(
         with closing(sqlite3.connect(uri, uri=True)) as con:
             refs = dev_trace_refs(con, repo_root=repo_root)
             pending_refs = [ref for ref in refs if opaque_id(ref.trace_id) not in keyed]
-            eligible = len(refs)
+            eligible, pending_count = len(refs), len(pending_refs)
+
+            def actor_histories() -> Iterator[tuple[str, list[dict[str, Any]]]]:
+                for ref in pending_refs:
+                    try:
+                        messages = blind_messages(con, ref.trace_id)
+                    except ActorHistoryUnavailable as error:
+                        unavailable.append({
+                            "run_id": ref.trace_id, "opaque_id": opaque_id(ref.trace_id),
+                            "category": error.category, "step_index": error.step_index,
+                            "reason": error.reason,
+                        })
+                        continue
+                    yield ref.trace_id, messages
+
             if pending_refs:
-                asyncio.run(_insert(transcripts_dir, transcripts(
-                    (ref.trace_id, blind_messages(con, ref.trace_id)) for ref in pending_refs
-                )))
+                asyncio.run(_insert(transcripts_dir, transcripts(actor_histories())))
     if added:
         keymap_path.parent.mkdir(parents=True, exist_ok=True)
         with keymap_path.open("a", encoding="utf-8") as stream:
             for row in added:
                 stream.write(json.dumps(row) + "\n")
     return {
-        "source": source, "eligible": eligible, "inserted": len(added),
-        "skipped": eligible - len(added), "transcripts_dir": str(transcripts_dir),
+        "source": source, "projection_version": ACTOR_PROJECTION_VERSION,
+        "eligible": eligible, "inserted": len(added), "unchanged": eligible - pending_count,
+        "unavailable": len(unavailable), "quarantined": unavailable,
+        "transcripts_dir": str(transcripts_dir),
     }
 
 
@@ -242,6 +400,7 @@ def scan(
         raise ValueError(f"Choose deterministic scanners from {SCANNERS}; unsupported={unsupported}")
     if transcript_ids is not None and not transcript_ids:
         raise ValueError("transcript_ids must not be empty")
+    _check_transcripts(Path(transcripts_dir))
     transcripts = transcripts_from_db(str(transcripts_dir))
     if transcript_ids is not None:
         literals = ", ".join("'" + identifier.replace("'", "''") + "'" for identifier in transcript_ids)
@@ -283,40 +442,54 @@ def _evidence_steps(references: Any) -> list[int]:
 def collect(
     scan_location: str | Path, keymap_path: str | Path, results_path: str | Path,
 ) -> int:
-    """Append native results, mapping reference ids to original step indices."""
+    """Append native results, mapping reference ids to original step indices.
+
+    Every row must name a transcript in the current key map whose scanned
+    metadata carries the current projection; otherwise nothing is written.
+    """
     _require_scout()
     from inspect_scout import scan_results_df  # ty: ignore[unresolved-import]
 
-    keymap = {row["opaque_id"]: row for row in _jsonl(Path(keymap_path))}
+    keymap = read_keymap(keymap_path)
+    results_path = Path(results_path)
+    require_current_results(results_path)
     results = scan_results_df(str(scan_location), rows="results")
     at = datetime.now(UTC).isoformat()
-    results_path = Path(results_path)
+    lines = []
+    for scanner, frame in results.scanners.items():
+        for _, row in frame.iterrows():
+            identity = keymap.get(row["transcript_id"])
+            if (
+                identity is None
+                or _scanned_projection(row.get("transcript_metadata")) != ACTOR_PROJECTION_VERSION
+            ):
+                raise StaleProjectionError(
+                    f"{scan_location} scanned a transcript that is not a keyed "
+                    f"{ACTOR_PROJECTION_VERSION} actor history; nothing was collected",
+                )
+            label, value = _clean(row.get("label")), _clean(row.get("value"))
+            flag = None
+            if (
+                scanner != "restored_tool_calls" and not _clean(row.get("scan_error"))
+                and isinstance(value, int | float) and not isinstance(value, bool)
+            ):
+                flag = value >= 2 if scanner == "repeated_assistant_message" else value > 0
+            record = {
+                "schema": "evallab.trace_tool_result/v1",
+                "run_id": identity["run_id"], "source": identity["source"],
+                "projection_version": ACTOR_PROJECTION_VERSION,
+                "tool": "scout", "detector": f"{scanner}:{label}" if label else scanner,
+                "detector_version": f"inspect-scout/{SCOUT_VERSION}:"
+                f"{_clean(row.get('scanner_version')) or '1'}",
+                "value": value, "flag": flag,
+                "evidence_steps": _evidence_steps(row.get("message_references")),
+                "scan": str(scan_location), "at": at,
+            }
+            lines.append(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
     results_path.parent.mkdir(parents=True, exist_ok=True)
-    written = 0
     with results_path.open("a", encoding="utf-8") as stream:
-        for scanner, frame in results.scanners.items():
-            for _, row in frame.iterrows():
-                identity = keymap[row["transcript_id"]]
-                label, value = _clean(row.get("label")), _clean(row.get("value"))
-                flag = None
-                if (
-                    scanner != "restored_tool_calls" and not _clean(row.get("scan_error"))
-                    and isinstance(value, int | float) and not isinstance(value, bool)
-                ):
-                    flag = value >= 2 if scanner == "repeated_assistant_message" else value > 0
-                record = {
-                    "schema": "evallab.trace_tool_result/v1",
-                    "run_id": identity["run_id"], "source": identity["source"],
-                    "tool": "scout", "detector": f"{scanner}:{label}" if label else scanner,
-                    "detector_version": f"inspect-scout/{SCOUT_VERSION}:"
-                    f"{_clean(row.get('scanner_version')) or '1'}",
-                    "value": value, "flag": flag,
-                    "evidence_steps": _evidence_steps(row.get("message_references")),
-                    "scan": str(scan_location), "at": at,
-                }
-                stream.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
-                written += 1
-    return written
+        stream.writelines(lines)
+    return len(lines)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -12,7 +12,7 @@ from typing import Any
 
 from evallab.hackbook.playbook_cards import list_playbook_cards, match_playbook_cards
 from evallab.production.cloud_trace_db import _sealed_pattern
-from evallab.production.qa_data import UNAVAILABLE, QaContext, QaDataError
+from evallab.production.qa_data import UNAVAILABLE, QaContext, QaDataError, match_admitted_task
 
 # Facet fields a QA agent needs to triage a run. ``source`` and ``split`` stay out:
 # run records are routinely handed to blinded readers.
@@ -97,7 +97,7 @@ def runs(
     if not (facets or cluster_id is not None or like_run_id is not None or terms or task_id is not None):
         raise QaDataError("give at least one of --facet, --cluster, --like, --query, --task")
     if task_id is not None:
-        ctx.require_task(task_id)
+        task_id = ctx.require_task(task_id)["task_id"]
     try:
         pool = ctx.database.search_runs(
             facets, registry=ctx.retriever.registry, sealed_task_ids=ctx.retriever._sealed_ids, limit=None,
@@ -188,34 +188,40 @@ def window(
     }
 
 
-def history(ctx: QaContext, task_id: str, *, flags: Sequence[str], limit: int) -> dict[str, Any]:
-    """The task's own issues, similar past issues elsewhere, and matching playbook cards."""
+def history(
+    ctx: QaContext, task_id: str, *, flags: Sequence[str], limit: int, with_outcomes: bool = False,
+) -> dict[str, Any]:
+    """The task's own issues, similar past issues elsewhere, and matching playbook cards.
+
+    Trust tiers and original/repaired reward differentials are outcome labels: they are returned
+    only with ``with_outcomes`` (the CLI's ``--with-outcomes``), never by default.
+    """
     if limit < 1:
         raise QaDataError("--limit must be at least 1")
     if not isinstance(task_id, str):
         raise QaDataError(UNAVAILABLE)
     with ctx.database._transaction():  # admission, task row and issue rows share one snapshot
         admitted, _sealed = ctx.retriever._admitted_ids()
+        canonical = match_admitted_task(admitted, task_id)
         tasks = ctx.database._rows(
-            "SELECT instruction_text FROM corpus_tasks WHERE task_id = ?", (task_id,),
-        ) if task_id in admitted else []
+            "SELECT instruction_text FROM corpus_tasks WHERE task_id = ?", (canonical,),
+        ) if canonical is not None else []
         issue_rows = ctx.database._rows(
             "SELECT issue_id, defect_class, direction, status, trust_tier, citation_file, citation_line, "
             "original_reward, repaired_reward FROM task_issues WHERE task_id = ? ORDER BY issue_id",
-            (task_id,),
+            (canonical,),
         ) if tasks else []
-    if not tasks:
+    if not tasks or canonical is None:
         raise QaDataError(UNAVAILABLE)
+    task_id = canonical
     live = [row for row in issue_rows if row["status"] != "refuted"]
     own = []
     for row in live:
-        item = {
-            key: row[key] for key in ("issue_id", "defect_class", "direction", "status", "trust_tier")
-            if row[key] is not None
-        }
+        fields = ("issue_id", "defect_class", "direction", "status") + (("trust_tier",) if with_outcomes else ())
+        item = {key: row[key] for key in fields if row[key] is not None}
         if row["citation_file"]:
             item["citation"] = f"{row['citation_file']}:{row['citation_line']}"
-        if row["original_reward"] is not None and row["repaired_reward"] is not None:
+        if with_outcomes and row["original_reward"] is not None and row["repaired_reward"] is not None:
             item["differential"] = [row["original_reward"], row["repaired_reward"]]
         if row["status"] == "confirmed":
             item["expand"] = f"issue:{row['issue_id']}"
@@ -229,12 +235,13 @@ def history(ctx: QaContext, task_id: str, *, flags: Sequence[str], limit: int) -
     for example in examples:
         item = {
             "task_id": example.task_id, "issue_id": example.issue_id, "defect_class": example.defect_class,
-            "direction": example.direction, "trust_tier": example.trust_tier,
-            "expand": f"issue:{example.issue_id}",
+            "direction": example.direction, "expand": f"issue:{example.issue_id}",
         }
+        if with_outcomes:
+            item["trust_tier"] = example.trust_tier
         if example.citation:
             item["citation"] = example.citation
-        if example.differential:
+        if with_outcomes and example.differential:
             item["differential"] = example.differential
         if ctx.budget.take(item):
             similar.append(item)

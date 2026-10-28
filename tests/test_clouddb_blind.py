@@ -13,6 +13,7 @@ import pytest
 
 from evallab.readers.clouddb_blind import (
     ID_SALT,
+    ActorHistoryUnavailable,
     atif_blind_messages,
     blind_messages,
     dev_trace_refs,
@@ -27,6 +28,35 @@ FORBIDDEN = (
     "model-private", "run-private", "trace-goodfire", "trace-tb4", "trace-mimo", "trace-tb2",
     "DEV", "TEST", "fixture-metadata-source",
 )
+ACTOR_INPUT = json.dumps({
+    "prior_feedback": {"label": "previous attempt", "reward": 0.0, "is_exploit": False},
+    "source_label": "a field in the supplied configuration",
+    "receipt": {"message": "Keep the actual earlier feedback: café 完整."},
+    "answer_key": {"labels": ["input", "output"]},
+}, ensure_ascii=False)
+
+
+def insert_step(
+    con: sqlite3.Connection,
+    trace_id: str,
+    index: int,
+    role: str,
+    *,
+    content: str = "",
+    command: str | None = None,
+    observation: str | None = None,
+    flags: dict[str, Any] | None = None,
+) -> None:
+    con.execute(
+        "INSERT OR IGNORE INTO agent_traces "
+        "(trace_id, task_id, run_id, model_id, outcome, verified_receipt_json) "
+        "VALUES (?, 'task-goodfire', 'fixture-run', 'fixture/native-model', 'unknown', '{}')",
+        (trace_id,),
+    )
+    con.execute("INSERT INTO trace_steps VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (
+        trace_id, index, role, "bash", command, content, observation, None,
+        json.dumps(flags or {}),
+    ))
 
 
 @pytest.fixture
@@ -201,6 +231,199 @@ def test_native_residual_calls_and_non_object_arguments_are_preserved(corpus: tu
     projected = blind_messages(con, "trace-goodfire")[2]["tool_calls"]
     assert projected[0]["arguments"] == {"raw": "not JSON"}
     assert projected[1]["arguments"] == {"raw": [1, 2]}
+
+
+@pytest.mark.parametrize("trace_kind", [
+    "seeker_attempt_event_transcript",
+    "seeker_event_journal",
+    "historical_rejected_task_quality_journal",
+    "selected_task_quality_event_journal",
+    "native_execution_receipt_record",
+    "retained_differential_receipt",
+    "retained_native_artifact_observation",
+])
+@pytest.mark.parametrize("feedback", [1.0, "grader unavailable"])
+def test_wholly_nonmodel_control_history_is_explicitly_unavailable(
+    corpus: tuple, trace_kind: str, feedback: float | str,
+) -> None:
+    _, _, con = corpus
+    content = json.dumps({"event_type": "seeker.grader_feedback", "feedback": feedback})
+    for index, role in ((2, "system"), (9, "assistant"), (14, "tool")):
+        insert_step(
+            con, "control-only", index, role, content=content,
+            flags={"trace_kind": trace_kind, "is_model_message": False},
+        )
+    with pytest.raises(ActorHistoryUnavailable) as caught:
+        blind_messages(con, "control-only")
+    assert caught.value.category == "actor_history_unavailable"
+    assert caught.value.trace_id == "control-only"
+    assert caught.value.reason
+    assert content not in str(caught.value)
+
+
+def test_mixed_history_projects_only_actor_rows_with_original_indices(corpus: tuple) -> None:
+    _, _, con = corpus
+    con.execute(
+        "UPDATE trace_steps SET content_text = ? WHERE trace_id = ? AND step_index = 1",
+        (ACTOR_INPUT, "trace-goodfire"),
+    )
+    actor_messages = blind_messages(con, "trace-goodfire")
+    for index, role, trace_kind, content in (
+        (2, "system", "seeker_attempt_event_transcript", ACTOR_INPUT),
+        (5, "assistant", "seeker_event_journal", "controller-only numeric feedback: 1.0"),
+        (8, "tool", "native_execution_receipt_record", "controller-only unavailable feedback"),
+    ):
+        insert_step(
+            con, "trace-goodfire", index, role, content=content,
+            command='[{"id":"controller-only","name":"bash","arguments":{}}]',
+            flags={
+                "trace_kind": trace_kind, "is_model_message": False,
+                "reasoning_content": "controller-only reasoning",
+            },
+        )
+    projected = blind_messages(con, "trace-goodfire")
+    assert projected == actor_messages
+    assert [message["step_index"] for message in projected] == [0, 1, 3, 4]
+    assert projected[1]["content"] == ACTOR_INPUT
+    assert projected[2]["reasoning"] == REASONING
+    assert projected[3]["content"] == OBSERVATION
+    assert projected[3]["tool_call_id"] == projected[2]["tool_calls"][0]["id"]
+    assert "controller-only" not in json.dumps(projected)
+
+
+@pytest.mark.parametrize("role", ["system", "user", "assistant", "tool", "agent"])
+@pytest.mark.parametrize("is_model_message", [False, True])
+@pytest.mark.parametrize("provenance", [{}, {"trace_kind": None}], ids=["absent-kind", "null-kind"])
+def test_source_native_rows_do_not_depend_on_model_producer_marker(
+    corpus: tuple, role: str, is_model_message: bool, provenance: dict[str, Any],
+) -> None:
+    _, _, con = corpus
+    call = {"id": "actor-call", "name": "bash", "arguments": {"label": "output", "reward": 0}}
+    insert_step(
+        con, "native-provenance", 11, role, content=ACTOR_INPUT,
+        command=json.dumps([call]), observation=OBSERVATION if role == "agent" else None,
+        flags={
+            **provenance, "is_model_message": is_model_message,
+            "reasoning_content": REASONING, "tool_call_id": "actor-call",
+        },
+    )
+    messages = blind_messages(con, "native-provenance")
+    assert messages[0] == {
+        "step_index": 11, "role": "assistant" if role == "agent" else role,
+        "content": ACTOR_INPUT, "reasoning": REASONING,
+        "tool_calls": [{
+            "id": "actor-call", "function": "bash", "arguments": call["arguments"],
+        }] if role in {"assistant", "agent"} else [],
+        "tool_call_id": "actor-call" if role == "tool" else None,
+    }
+    if role == "agent":
+        assert len(messages) == 2
+        assert messages[1] == {
+            "step_index": 11, "role": "tool", "content": OBSERVATION,
+            "reasoning": None, "tool_calls": [], "tool_call_id": "actor-call",
+        }
+    else:
+        assert len(messages) == 1
+
+
+@pytest.mark.parametrize(("trace_kind", "role", "is_model_message"), [
+    ("retained_headless_prompt", "user", False),
+    ("retained_complete_headless_stdout", "assistant", False),
+    ("retained_model_message", "assistant", True),
+])
+def test_explicit_retained_actor_sources_preserve_supplied_feedback(
+    corpus: tuple, trace_kind: str, role: str, is_model_message: bool,
+) -> None:
+    _, _, con = corpus
+    reasoning = ACTOR_INPUT + "\n" + REASONING
+    insert_step(
+        con, "retained-actor", 17, role, content=ACTOR_INPUT,
+        flags={
+            "trace_kind": trace_kind, "is_model_message": is_model_message,
+            "reasoning_content": reasoning,
+        },
+    )
+    if trace_kind == "retained_headless_prompt":
+        insert_step(
+            con, "retained-actor", 18, "assistant", content="Complete retained actor response.",
+            flags={"trace_kind": "retained_complete_headless_stdout", "is_model_message": False},
+        )
+    elif trace_kind == "retained_complete_headless_stdout":
+        insert_step(
+            con, "retained-actor", 16, "user", content=ACTOR_INPUT,
+            flags={"trace_kind": "retained_headless_prompt", "is_model_message": False},
+        )
+    messages = blind_messages(con, "retained-actor")
+    assert next(message for message in messages if message["step_index"] == 17) == {
+        "step_index": 17, "role": role, "content": ACTOR_INPUT,
+        "reasoning": reasoning, "tool_calls": [], "tool_call_id": None,
+    }
+    assert len(messages) == (1 if trace_kind == "retained_model_message" else 2)
+
+
+@pytest.mark.parametrize(("trace_kind", "role"), [
+    ("retained_headless_prompt", "user"),
+    ("retained_complete_headless_stdout", "assistant"),
+])
+def test_incomplete_retained_headless_capture_is_unknown(
+    corpus: tuple, trace_kind: str, role: str,
+) -> None:
+    _, _, con = corpus
+    insert_step(
+        con, "incomplete-headless", 1, role, content=ACTOR_INPUT,
+        flags={"trace_kind": trace_kind},
+    )
+    with pytest.raises(ActorHistoryUnavailable) as caught:
+        blind_messages(con, "incomplete-headless")
+    assert caught.value.category == "actor_history_unavailable"
+
+
+@pytest.mark.parametrize("layers", [1, 2, 3])
+def test_quoted_actor_json_and_reasoning_are_not_censored(corpus: tuple, layers: int) -> None:
+    _, _, con = corpus
+    content = ACTOR_INPUT
+    for _ in range(layers):
+        content = json.dumps(content, ensure_ascii=False)
+    reasoning = content + "\n" + REASONING
+    insert_step(con, "quoted-actor", 4, "user", content=content)
+    insert_step(
+        con, "quoted-actor", 9, "assistant", content="Using the supplied prior feedback.",
+        flags={"reasoning_content": reasoning, "is_model_message": True},
+    )
+    insert_step(con, "quoted-actor", 12, "tool", content=content)
+    messages = blind_messages(con, "quoted-actor")
+    assert [message["step_index"] for message in messages] == [4, 9, 12]
+    assert messages[0]["content"] == messages[2]["content"] == content
+    assert messages[1]["reasoning"] == reasoning
+
+
+@pytest.mark.parametrize("is_model_message", [False, True])
+def test_unknown_source_kind_is_unavailable_even_among_valid_actor_rows(
+    corpus: tuple, is_model_message: bool,
+) -> None:
+    _, _, con = corpus
+    insert_step(
+        con, "trace-goodfire", 10, "system", content="unknown provenance body",
+        flags={"trace_kind": "future_unknown_source_kind", "is_model_message": is_model_message},
+    )
+    with pytest.raises(ActorHistoryUnavailable) as caught:
+        blind_messages(con, "trace-goodfire")
+    assert caught.value.category == "actor_history_unavailable"
+    assert caught.value.trace_id == "trace-goodfire"
+    assert caught.value.step_index == 10
+    assert caught.value.reason
+    assert "unknown provenance body" not in str(caught.value)
+
+
+@pytest.mark.parametrize("trace_id", ["trace-tb2", "no-such-trace"])
+def test_missing_actor_steps_do_not_become_an_empty_conversation(corpus: tuple, trace_id: str) -> None:
+    _, _, con = corpus
+    con.execute("DELETE FROM trace_steps WHERE trace_id = ?", (trace_id,))
+    with pytest.raises(ActorHistoryUnavailable) as caught:
+        blind_messages(con, trace_id)
+    assert caught.value.category == "actor_history_unavailable"
+    assert caught.value.trace_id == trace_id
+    assert caught.value.reason
 
 
 def test_atif_blinds_annotations_before_lossless_projection() -> None:

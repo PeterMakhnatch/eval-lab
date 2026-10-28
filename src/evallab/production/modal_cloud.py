@@ -78,9 +78,15 @@ from evallab.hackbook.playbook_cards import match_playbook_cards
 from evallab.production import (
     atlas_coverage,
     atlas_view,
+    cross_test_sets,
     field_reliability,
+    file_cache,
+    repair_board,
     task_evidence,
     tool_runs,
+)
+from evallab.production import (
+    gate_progress as gate_progress_module,
 )
 from evallab.production.asset_store import VerifiedAssetStore
 from evallab.production.benchmark_reports import MAX_BENCHMARK_BYTES, validate_benchmark_document
@@ -175,6 +181,10 @@ class CloudRuntime:
         token: str,
         *,
         commit: Callable[[], None] | None = None,
+        repair_inventory: Path | None = None,
+        cross_test_registry: Path | None = None,
+        detector_scope: Path | None = None,
+        gate_progress: Path | None = None,
     ) -> None:
         if not token.strip():
             raise ValueError("EVALLAB_CLOUD_TOKEN is required; public trace access is forbidden")
@@ -188,9 +198,23 @@ class CloudRuntime:
         self._closed = False
         self._atlas_lock = threading.Lock()
         self._atlas_cache: tuple[list[tuple[int, int, int] | None], atlas_view.AtlasStore] | None = None
-        self._tool_scorecard = ToolScorecardCache(self.data_root)
+        self._tool_scorecard = ToolScorecardCache(
+            self.data_root, Path(detector_scope) if detector_scope else None
+        )
         self._atlas_refresh = atlas_coverage.RefreshCache(self.data_root / "run-atlas")
         self._field_reliability = field_reliability.FieldReliabilityCache(self.data_root / "run-atlas")
+        self._repair_inventory = file_cache.ChangeCache(
+            Path(repair_inventory) if repair_inventory else self.data_root / repair_board.DEFAULT_FILE,
+            repair_board.load_inventory,
+        )
+        self._cross_test_registry = file_cache.ChangeCache(
+            Path(cross_test_registry) if cross_test_registry else self.data_root / cross_test_sets.DEFAULT_FILE,
+            cross_test_sets.load_registry,
+        )
+        self._gate_progress = file_cache.ChangeCache(
+            Path(gate_progress) if gate_progress else self.data_root / gate_progress_module.DEFAULT_FILE,
+            gate_progress_module.load_progress,
+        )
         self._tool_results = task_evidence.ToolFindingIndex(
             self.data_root / "trace-tools" / task_evidence.RESULTS_FILE
         )
@@ -725,6 +749,7 @@ class CloudRuntime:
                 "none", "mentions_tests", "reasons_about_grader", "plans_to_game"
             ]
             | None = None,
+            facet_model: str | None = None,
             min_suspicion: int = Query(0, ge=0, le=3),
             grader_or_harness_touched: bool | None = None,
             answer_material_accessed: bool | None = None,
@@ -741,6 +766,7 @@ class CloudRuntime:
                 outcome=outcome,
                 tests=tests,
                 eval_awareness=eval_awareness,
+                facet_model=facet_model,
                 min_suspicion=min_suspicion,
                 grader_or_harness_touched=grader_or_harness_touched,
                 answer_material_accessed=answer_material_accessed,
@@ -779,6 +805,22 @@ class CloudRuntime:
         def atlas_field_reliability(split: str = "dev"):
             _require_dev(split)
             return self._field_reliability.get()
+
+        @self.app.get("/api/cloud-db/repair-board")
+        def repair_board_route(split: str = "dev"):
+            _require_dev(split)
+            inventory = self._repair_inventory.get()
+            task_ids = {row["task_id"] for row in inventory.get("tasks", [])}
+            traces = self._atlas_traces(task_ids)
+            shown, _ = atlas_view.visible_facets(self._atlas_store(), traces)
+            return repair_board.build_board(
+                inventory, self._admitted_task_ids() & task_ids, shown, traces
+            )
+
+        @self.app.get("/api/cloud-db/cross-test-sets")
+        def cross_test_sets_route(split: str = "dev"):
+            _require_dev(split)
+            return self._cross_test_registry.get()
 
         @self.app.get("/api/cloud-db/trace-tools")
         def trace_tools(split: str = "dev"):
@@ -820,6 +862,11 @@ class CloudRuntime:
         def task_evidence_search(q: str = Query("", max_length=100), split: str = "dev"):
             _require_dev(split)
             return self._task_search(q)
+
+        @self.app.get("/api/cloud-db/task-evidence/gate-progress")
+        def gate_progress_route(split: str = "dev"):
+            _require_dev(split)
+            return self._gate_progress.get()
 
     def run_supervisor_step(self, approval: str, max_usd: float) -> dict[str, Any]:
         """One explicitly approved cloud step, never a laptop Docker fallback."""
@@ -875,6 +922,30 @@ class CloudRuntime:
             cleanup.callback(self.database.close)
             cleanup.callback(self.queue.close)
             self._closed = True
+
+
+def runtime_from_environment(
+    data_root: Path,
+    repo_root: Path,
+    environ: Mapping[str, str],
+    *,
+    commit: Callable[[], None] | None = None,
+) -> CloudRuntime:
+    """The runtime as the Modal container builds it; the local deploy smoke builds the same one."""
+    inventory = environ.get("EVALLAB_REPAIR_INVENTORY")
+    registry = environ.get("EVALLAB_CROSS_TEST_REGISTRY")
+    scope = environ.get("EVALLAB_DETECTOR_SCOPE")
+    progress = environ.get("EVALLAB_GATE_PROGRESS")
+    return CloudRuntime(
+        data_root,
+        repo_root,
+        environ["EVALLAB_CLOUD_TOKEN"],
+        commit=commit,
+        repair_inventory=Path(inventory) if inventory else None,
+        cross_test_registry=Path(registry) if registry else None,
+        detector_scope=Path(scope) if scope else None,
+        gate_progress=Path(progress) if progress else None,
+    )
 
 
 app = modal.App(APP_NAME)
@@ -937,11 +1008,8 @@ class CloudProduction:
         # Fresh verification artifacts survive scale-down alongside the queues.
         (DATA_ROOT / "runs").mkdir(exist_ok=True)
         (CLOUD_REPO_ROOT / "runs").symlink_to(DATA_ROOT / "runs", target_is_directory=True)
-        self.runtime = CloudRuntime(
-            DATA_ROOT,
-            CLOUD_REPO_ROOT,
-            os.environ["EVALLAB_CLOUD_TOKEN"],
-            commit=store_volume.commit,
+        self.runtime = runtime_from_environment(
+            DATA_ROOT, CLOUD_REPO_ROOT, os.environ, commit=store_volume.commit
         )
 
     @modal.asgi_app()

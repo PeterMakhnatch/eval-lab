@@ -2,7 +2,9 @@
 
 Raw queues/runs are read-only. Reports, projections, replay and task pages live
 under this service's state directory. No executor, model, cloud reader or network
-publisher is constructed here. The existing paid nightly cycle is separate.
+publisher is constructed here. The existing paid nightly cycle is separate. The
+database is touched only by the opt-in ``--backup`` dump; backup age is always
+reported from the verified dumps on disk.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from evallab.backups import backup_freshness, create_postgres_backup
 from evallab.harbor_watch_hooks import HOOK_JOURNAL
 from evallab.process_job import process_job
 from evallab.results import discover_job_dirs
@@ -53,6 +56,7 @@ class RefreshConfig:
     readers_store: Path | None = None
     data_root: Path | None = None
     verdict_root: Path | None = None
+    backup: bool = False
 
 
 def _json(path: Path) -> dict[str, Any]:
@@ -403,6 +407,84 @@ def write_facts(config: RefreshConfig, digest: dict[str, Any], now: datetime) ->
     return path
 
 
+def _vanished_source(error: FileNotFoundError, checkouts: tuple[Path, ...]) -> Path | None:
+    """The queue root whose evidence disappeared mid-refresh, if any."""
+    if error.filename is None:
+        return None
+    missing = Path(os.fsdecode(error.filename))
+    owners = [root for root in checkouts if missing.is_relative_to(root)]
+    # Worktrees live inside the primary checkout; the deepest root owns the path.
+    return max(owners, key=lambda root: len(root.parts)) if owners else None
+
+
+def backup_fact(config: RefreshConfig, moment: datetime) -> dict[str, Any]:
+    """Newest verified Postgres dump age, after the opt-in backup attempt."""
+    from evallab.automation import DEFAULT_NIGHTLY_STEPS, StepTimeout, run_with_timeout
+
+    primary = config.data_root or shared_checkout_root(config.repo_root)
+    attempt: dict[str, Any] | None = None
+    if config.backup:
+        # The registered postgres_backup step owns the bound for this attempt.
+        step = next(step for step in DEFAULT_NIGHTLY_STEPS if step.name == "postgres_backup")
+        day = moment.astimezone(ET).date()
+        try:
+            path = run_with_timeout(lambda: create_postgres_backup(primary, day), step.timeout)
+        except (Exception, StepTimeout) as exc:
+            attempt = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        else:
+            attempt = {"ok": True, "path": str(path)}
+    return {**backup_freshness(primary, now=moment), "attempt": attempt}
+
+
+def _backup_line(backup: dict[str, Any]) -> str:
+    if backup["newest_verified"] is None:
+        text = "Postgres backup MISSING (no verified dump)"
+    else:
+        text = (
+            f"Postgres backup {backup['status'].upper()}: newest verified "
+            f"{backup['created_at'][:10]}, {backup['age_hours']:g} h old"
+        )
+    attempt = backup["attempt"]
+    if attempt is not None and not attempt["ok"]:
+        text += f"; backup attempt FAILED ({attempt['error']})"
+    return text
+
+
+def _health_lines(
+    config: RefreshConfig,
+    moment: datetime,
+    checkouts: tuple[Path, ...],
+    source_failures: dict[str, dict[str, str]],
+    backup: dict[str, Any],
+    failed_jobs: dict[str, Any],
+) -> list[str]:
+    reasons = Counter(failure["reason_class"] for failure in failed_jobs.values())
+    refusal = ", ".join(f"{reason} ×{count}" for reason, count in sorted(reasons.items())) or "none"
+    failed_sources = ""
+    if source_failures:
+        details = "; ".join(
+            f"{item['path']}: {item['reason']}" for item in source_failures.values()
+        )
+        failed_sources = f" ({len(source_failures)} FAILED: {details})"
+    return [
+        f"- Refreshed: {moment.astimezone(ET).isoformat(timespec='seconds')} ET; "
+        f"refresh spend $0; {_backup_line(backup)}.",
+        f"- Queue roots: {len(checkouts) + len(source_failures)}{failed_sources}; "
+        f"outputs: {config.state_dir}; {len(failed_jobs)} jobs refused: {refusal}.",
+    ]
+
+
+def refresh_exit_code(result: dict[str, Any]) -> int:
+    """0: every source refreshed (or unchanged) and any requested backup succeeded.
+
+    1: the run finished but is incomplete: a source failed (``source_failures``)
+    or the requested backup attempt failed. Remaining sources were still
+    refreshed. Whole-run errors propagate and the CLI exits 2.
+    """
+    attempt = (result.get("backup") or {}).get("attempt") or {}
+    return 1 if result.get("source_failures") or attempt.get("ok") is False else 0
+
+
 def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[str, Any]:
     moment = now or datetime.now(UTC)
     if moment.tzinfo is None:
@@ -413,146 +495,204 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return {"status": "locked"}
-        state_path = config.state_dir / "state.json"
-        previous = _json(state_path)
-        checkouts = queue_roots(config)
-        roots = [
-            root / name for root in checkouts for name in ("runs", "jobs") if (root / name).is_dir()
-        ]
-        from evallab.live_watch import discover_trials
-
-        jobs = discover_job_dirs(roots)
-        completed = set(jobs)
-        observed = sorted(completed | {job for job, _ in discover_trials([*roots, *jobs])})
-        stamps = {str(job): _stamp_tree(job, raw_job=True) for job in observed}
-        fingerprints = {job: _fingerprint(value) for job, value in stamps.items()}
-        metadata = _metadata(config, checkouts)
-        selection = {
-            "schema": SCHEMA,
-            "producer": _fingerprint(_stamp_tree(config.repo_root / "src")),
-            "roots": [str(root) for root in roots],
-            "facts_root": str(config.facts_root),
-            "verdict_root": str(config.verdict_root),
-            "metadata": _fingerprint(metadata),
-            "jobs": fingerprints,
-        }
-        if previous.get("selection") == selection:
-            return {
-                "status": "noop",
-                "jobs": sum(str(job) not in previous.get("failed_jobs", {}) for job in observed),
-                "refused_jobs": len(previous.get("failed_jobs", {})),
-                "high_water_mark": previous["high_water_mark"],
-            }
-        old_jobs = (previous.get("selection") or {}).get("jobs", {})
-        changed = [job for job in observed if fingerprints[str(job)] != old_jobs.get(str(job))]
-        # Fail on missing or mismatched reviewed inputs before walking every run.
-        verdicts = refresh_verdicts(config)
-        # Completed jobs can be projected; ongoing trials are still replayed and
-        # included in the HAR-178 census and HAR-176 pages as evidence arrives.
-        failed_jobs = {
-            job: failure
-            for job, failure in previous.get("failed_jobs", {}).items()
-            if job in fingerprints
-        }
-        processed_jobs = {
-            job: stamp
-            for job, stamp in previous.get("processed_jobs", {}).items()
-            if job in fingerprints
-        }
-        for job in (job for job in changed if job in completed):
-            output = config.state_dir / "processed" / _key(job)
-            try:
-                process_job(
-                    job,
-                    root=config.repo_root,
-                    ingest=False,
-                    publish=False,
-                    output_dir=output,
-                    parquet_root=config.state_dir / "parquet",
-                )
-            except Exception as exc:
-                failed_jobs[str(job)] = {
-                    "reason_class": type(exc).__name__,
-                    "reason": str(exc),
-                    "input_fingerprint": fingerprints[str(job)],
-                }
-                processed_jobs.pop(str(job), None)
-                if output.exists():
-                    shutil.rmtree(output)  # Only this service's partial job reports.
+        previous = _json(config.state_dir / "state.json")
+        source_failures: dict[str, dict[str, str]] = {}
+        checkouts = []
+        for root in queue_roots(config):
+            if root.is_dir():
+                checkouts.append(root)
             else:
-                failed_jobs.pop(str(job), None)
-                processed_jobs[str(job)] = fingerprints[str(job)]
-        accepted = [job for job in observed if str(job) not in failed_jobs]
-        changed = [job for job in changed if str(job) not in failed_jobs]
-        new_runs = sum(
-            str(job) not in old_jobs or str(job) in previous.get("failed_jobs", {})
-            for job in changed
-        )
-        trials = refresh_trials(config, _accepted_roots(roots, {Path(job) for job in failed_jobs}))
-        replay = replay_history(config, changed)
-        pages = refresh_pages(config, accepted)
-        campaigns = campaign_spend(config, checkouts)
-        old_verdicts = previous.get("verdicts", {})
-        changes = sum(old_verdicts.get(task) != verdict for task, verdict in verdicts.items())
-        new_trials = sum(
-            1 for job in changed for child in job.iterdir() if (child / "result.json").is_file()
-        )
-        spending = {
-            name: {k: v for k, v in values.items() if k != "sources"}
-            for name, values in campaigns.items()
-        }
-        sources = {name: values["sources"] for name, values in campaigns.items()}
-        reasons = Counter(failure["reason_class"] for failure in failed_jobs.values())
-        refusal = (
-            ", ".join(f"{reason} ×{count}" for reason, count in sorted(reasons.items())) or "none"
-        )
-        digest = {
-            "schema": DIGEST_SCHEMA,
-            "generated_at": moment.isoformat(),
-            "campaigns": campaigns,
-            "failed_jobs": failed_jobs,
-            "lines": [
-                "## Eval Lab nightly",
-                f"- Refreshed: {moment.astimezone(ET).isoformat(timespec='seconds')} ET; refresh spend $0.",
-                f"- Queue roots: {len(checkouts)}; outputs: {config.state_dir}; "
-                f"{len(failed_jobs)} jobs refused: {refusal}.",
-                f"- New runs: {new_runs}; changed runs: {len(changed)}.",
-                f"- New/changed trial results: {new_trials}.",
-                f"- Legit trials: {trials['legit']} / {trials['total']} (HAR-178).",
-                f"- New verdict changes: {changes} (HAR-177; initial values count as new).",
-                f"- History-mining alerts on refreshed runs: {replay.get('history_mining', 0)} (HAR-184).",
-                "- Campaign spend to date (USD; each queue scoped separately): "
-                + json.dumps(spending, sort_keys=True),
-                "- Spend sources (USD): " + json.dumps(sources, sort_keys=True),
-            ],
-        }
-        digest_path = write_facts(config, digest, moment)
-        high_water = max(
-            [previous.get("high_water_mark", 0)]
-            + [stamp[1] for value in stamps.values() for stamp in value]
-            + [stamp[1] for stamp in metadata]
-        )
-        _atomic(
-            state_path,
-            {
-                "schema": SCHEMA,
-                "selection": selection,
-                "verdicts": verdicts,
-                "failed_jobs": failed_jobs,
-                "processed_jobs": processed_jobs,
-                "high_water_mark": high_water,
-                "refreshed_at": moment.isoformat(),
-            },
-        )
+                source_failures[str(root)] = {"path": str(root), "reason": "queue root missing"}
+        backup = backup_fact(config, moment)
+        remaining = tuple(checkouts)
+        while True:
+            try:
+                return _refresh_sources(
+                    config, previous, remaining, source_failures, backup, moment
+                )
+            except FileNotFoundError as exc:
+                # A worktree retired mid-run (observed 2026-10-26/27): drop only
+                # that source and refresh the rest from scratch.
+                vanished = _vanished_source(exc, remaining)
+                if vanished is None:
+                    raise
+                source_failures[str(vanished)] = {
+                    "path": os.fsdecode(exc.filename),
+                    "reason": (
+                        "queue root vanished during refresh"
+                        if not vanished.is_dir()
+                        else "source path vanished during refresh"
+                    ),
+                }
+                remaining = tuple(root for root in remaining if root != vanished)
+
+
+def _refresh_sources(
+    config: RefreshConfig,
+    previous: dict[str, Any],
+    checkouts: tuple[Path, ...],
+    source_failures: dict[str, dict[str, str]],
+    backup: dict[str, Any],
+    moment: datetime,
+) -> dict[str, Any]:
+    roots = [
+        root / name for root in checkouts for name in ("runs", "jobs") if (root / name).is_dir()
+    ]
+    from evallab.live_watch import discover_trials
+
+    jobs = discover_job_dirs(roots)
+    completed = set(jobs)
+    observed = sorted(completed | {job for job, _ in discover_trials([*roots, *jobs])})
+    stamps = {str(job): _stamp_tree(job, raw_job=True) for job in observed}
+    fingerprints = {job: _fingerprint(value) for job, value in stamps.items()}
+    metadata = _metadata(config, checkouts)
+    selection = {
+        "schema": SCHEMA,
+        "producer": _fingerprint(_stamp_tree(config.repo_root / "src")),
+        "roots": [str(root) for root in roots],
+        "facts_root": str(config.facts_root),
+        "verdict_root": str(config.verdict_root),
+        "metadata": _fingerprint(metadata),
+        "jobs": fingerprints,
+    }
+    if previous.get("selection") == selection:
+        facts_root = config.facts_root or Path.home() / ".local/state/daily-report"
+        digest = _json(facts_root / "inputs/evallab-nightly.json")
+        if digest and (
+            digest.get("backup") != backup or digest.get("source_failures") != source_failures
+        ):
+            # Health can change without new evidence. Publish it without
+            # replaying projections or advancing their high-water state.
+            digest.update(
+                generated_at=moment.isoformat(), backup=backup, source_failures=source_failures
+            )
+            digest["lines"][1:3] = _health_lines(
+                config, moment, checkouts, source_failures, backup, previous.get("failed_jobs", {})
+            )
+            digest["lines"][3:5] = [
+                "- New runs: 0; changed runs: 0.",
+                "- New/changed trial results: 0.",
+            ]
+            digest["lines"][6:8] = [
+                "- New verdict changes: 0 (HAR-177; initial values count as new).",
+                "- History-mining alerts on refreshed runs: 0 (HAR-184).",
+            ]
+            write_facts(config, digest, moment)
         return {
-            "status": "refreshed",
-            "new_runs": new_runs,
-            "changed_runs": len(changed),
-            "refused_jobs": len(failed_jobs),
-            "trials": trials,
-            "verdict_changes": changes,
-            "history": replay,
-            "pages": pages,
-            "digest": str(digest_path),
-            "high_water_mark": high_water,
+            "status": "noop",
+            "jobs": sum(str(job) not in previous.get("failed_jobs", {}) for job in observed),
+            "refused_jobs": len(previous.get("failed_jobs", {})),
+            "high_water_mark": previous["high_water_mark"],
+            "source_failures": source_failures,
+            "backup": backup,
         }
+    old_jobs = (previous.get("selection") or {}).get("jobs", {})
+    changed = [job for job in observed if fingerprints[str(job)] != old_jobs.get(str(job))]
+    # Fail on missing or mismatched reviewed inputs before walking every run.
+    verdicts = refresh_verdicts(config)
+    # Completed jobs can be projected; ongoing trials are still replayed and
+    # included in the HAR-178 census and HAR-176 pages as evidence arrives.
+    failed_jobs = {
+        job: failure
+        for job, failure in previous.get("failed_jobs", {}).items()
+        if job in fingerprints
+    }
+    processed_jobs = {
+        job: stamp
+        for job, stamp in previous.get("processed_jobs", {}).items()
+        if job in fingerprints
+    }
+    for job in (job for job in changed if job in completed):
+        output = config.state_dir / "processed" / _key(job)
+        try:
+            process_job(
+                job,
+                root=config.repo_root,
+                ingest=False,
+                publish=False,
+                output_dir=output,
+                parquet_root=config.state_dir / "parquet",
+            )
+        except Exception as exc:
+            failed_jobs[str(job)] = {
+                "reason_class": type(exc).__name__,
+                "reason": str(exc),
+                "input_fingerprint": fingerprints[str(job)],
+            }
+            processed_jobs.pop(str(job), None)
+            if output.exists():
+                shutil.rmtree(output)  # Only this service's partial job reports.
+        else:
+            failed_jobs.pop(str(job), None)
+            processed_jobs[str(job)] = fingerprints[str(job)]
+    accepted = [job for job in observed if str(job) not in failed_jobs]
+    changed = [job for job in changed if str(job) not in failed_jobs]
+    new_runs = sum(
+        str(job) not in old_jobs or str(job) in previous.get("failed_jobs", {}) for job in changed
+    )
+    trials = refresh_trials(config, _accepted_roots(roots, {Path(job) for job in failed_jobs}))
+    replay = replay_history(config, changed)
+    pages = refresh_pages(config, accepted)
+    campaigns = campaign_spend(config, checkouts)
+    old_verdicts = previous.get("verdicts", {})
+    changes = sum(old_verdicts.get(task) != verdict for task, verdict in verdicts.items())
+    new_trials = sum(
+        1 for job in changed for child in job.iterdir() if (child / "result.json").is_file()
+    )
+    spending = {
+        name: {k: v for k, v in values.items() if k != "sources"}
+        for name, values in campaigns.items()
+    }
+    sources = {name: values["sources"] for name, values in campaigns.items()}
+    digest = {
+        "schema": DIGEST_SCHEMA,
+        "generated_at": moment.isoformat(),
+        "campaigns": campaigns,
+        "failed_jobs": failed_jobs,
+        "source_failures": source_failures,
+        "backup": backup,
+        "lines": [
+            "## Eval Lab nightly",
+            *_health_lines(config, moment, checkouts, source_failures, backup, failed_jobs),
+            f"- New runs: {new_runs}; changed runs: {len(changed)}.",
+            f"- New/changed trial results: {new_trials}.",
+            f"- Legit trials: {trials['legit']} / {trials['total']} (HAR-178).",
+            f"- New verdict changes: {changes} (HAR-177; initial values count as new).",
+            f"- History-mining alerts on refreshed runs: {replay.get('history_mining', 0)} (HAR-184).",
+            "- Campaign spend to date (USD; each queue scoped separately): "
+            + json.dumps(spending, sort_keys=True),
+            "- Spend sources (USD): " + json.dumps(sources, sort_keys=True),
+        ],
+    }
+    digest_path = write_facts(config, digest, moment)
+    high_water = max(
+        [previous.get("high_water_mark", 0)]
+        + [stamp[1] for value in stamps.values() for stamp in value]
+        + [stamp[1] for stamp in metadata]
+    )
+    _atomic(
+        config.state_dir / "state.json",
+        {
+            "schema": SCHEMA,
+            "selection": selection,
+            "verdicts": verdicts,
+            "failed_jobs": failed_jobs,
+            "processed_jobs": processed_jobs,
+            "high_water_mark": high_water,
+            "refreshed_at": moment.isoformat(),
+        },
+    )
+    return {
+        "status": "partial" if source_failures else "refreshed",
+        "new_runs": new_runs,
+        "changed_runs": len(changed),
+        "refused_jobs": len(failed_jobs),
+        "trials": trials,
+        "verdict_changes": changes,
+        "history": replay,
+        "pages": pages,
+        "digest": str(digest_path),
+        "high_water_mark": high_water,
+        "source_failures": source_failures,
+        "backup": backup,
+    }

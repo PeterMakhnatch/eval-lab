@@ -5,14 +5,18 @@ from __future__ import annotations
 import hashlib
 import json
 import tracemalloc
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from evallab.production.cloud_trace_db import CloudTraceDatabase, CloudTraceRetriever
+from evallab.production.cloud_trace_db import (
+    CloudTraceDatabase,
+    CloudTraceRetriever,
+    S3CompatibleCAS,
+)
 from evallab.production.corpus_queue import CorpusItem, CorpusRegistry
 from evallab.production.qa_data import UNAVAILABLE, Budget, QaContext, QaDataError, estimate_tokens
 from evallab.production.qa_data_task import task
@@ -115,21 +119,21 @@ def test_missing_test_held_sealed_and_cross_key_locked_refuse_identically(case: 
 def test_bundles_database_instruction_and_whole_files_in_priority_order(case: Case) -> None:
     result = task(case.context(), "dev-task", files=("README.md", "environment/setup.sh"))
     assert result["task_id"] == "dev-task"
-    assert result["dataset"] == "synthetic-corpus"
+    assert "dataset" not in result and "synthetic-corpus" not in json.dumps(result)
     assert result["instruction"] == "Use the database instruction, not instruction.md."
     assert result["instruction_chars"] == len(result["instruction"])
     assert result["instruction_truncated"] is False
     assert result["original_grader_digest"] == "sha256:" + "1" * 64
     assert result["repaired_grader_digest"] == "sha256:" + "2" * 64
-    package = result["package"]
-    assert [item["path"] for item in package["contents"]] == [
+    package = result["packages"]["0:original_package"]
+    assert [item["relative_path"] for item in package["contents"]] == [
         "environment/Dockerfile", "environment/nested/Dockerfile.extra",
         "tests/test.sh", "tests/test_command.sh", "grader.py", "tests/test.patch",
         "tests/test_api.py", "task.toml", "README.md", "environment/setup.sh",
     ]
     for item in package["contents"]:
-        assert item["text"] == (case.package / item["path"]).read_text(encoding="utf-8")
-    inventory = {item["path"]: item["bytes"] for item in package["files"]}
+        assert item["text"] == (case.package / item["relative_path"]).read_text(encoding="utf-8")
+    inventory = {item["relative_path"]: item["size"] for item in package["files"]}
     assert inventory["environment/Dockerfile"] == (case.package / "environment/Dockerfile").stat().st_size
     assert "environment/setup.sh" in inventory
     assert "instruction.md" not in inventory
@@ -139,14 +143,14 @@ def test_bundles_database_instruction_and_whole_files_in_priority_order(case: Ca
 
 def test_answer_material_is_names_only_and_dev_test_patch_is_available(case: Case) -> None:
     result = task(case.context(), "dev-task")
-    package = result["package"]
+    package = result["packages"]["0:original_package"]
     assert package["withheld"] == [
         "reference.patch", "solution/", "tests/answer_key.json", "tests/fixtures/", "tests/golden-files/",
     ]
     assert all(isinstance(name, str) for name in package["withheld"])
-    assert "tests/test.patch" in {item["path"] for item in package["contents"]}
+    assert "tests/test.patch" in {item["relative_path"] for item in package["contents"]}
     assert "PRIVATE-" not in json.dumps(result)
-    assert all(not item["path"].startswith("solution/") for item in package["files"])
+    assert all(not item["relative_path"].startswith("solution/") for item in package["files"])
 
 
 @pytest.mark.parametrize("kind", ["parent", "absolute", "file-link", "directory-link"])
@@ -185,12 +189,12 @@ def test_explicit_files_do_not_bypass_answer_material_withholding(case: Case, na
 def test_requested_symlink_can_target_an_allowed_file_inside_the_package(case: Case) -> None:
     (case.package / "public-alias.txt").symlink_to(case.package / "README.md")
     result = task(case.context(), "dev-task", files=("public-alias.txt",))
-    contents = {item["path"]: item["text"] for item in result["package"]["contents"]}
+    contents = {item["relative_path"]: item["text"] for item in result["packages"]["0:original_package"]["contents"]}
     assert contents["public-alias.txt"] == "Public package documentation.\n"
-    assert "public-alias.txt" not in result["package"]["withheld"]
+    assert "public-alias.txt" not in result["packages"]["0:original_package"]["withheld"]
 
 
-@pytest.mark.parametrize("limit", [180, 300, 500, 800])
+@pytest.mark.parametrize("limit", [340, 500, 800, 1200])
 def test_budget_includes_json_escaping_framing_and_explicit_omission_counts(case: Case, limit: int) -> None:
     instruction = '\\"\n\t\x01😀' * 1000
     case.database.upsert_task({
@@ -205,21 +209,21 @@ def test_budget_includes_json_escaping_framing_and_explicit_omission_counts(case
     assert result["instruction_chars"] == len(instruction)
     assert result["instruction_truncated"] is True
     assert result["truncated"] is True
-    assert result["omitted"] == sum(result["package"]["omitted"].values()) + 1
+    assert result["omitted"] == sum(result["packages"]["0:original_package"]["omitted"].values()) + 1
     assert result["omitted"] == ctx.budget.omitted
-    assert result["package"]["omitted"]["contents"] > 0
-    assert result["package"]["omitted"]["files"] > 0
+    assert result["packages"]["0:original_package"]["omitted"]["contents"] > 0
+    assert result["packages"]["0:original_package"]["omitted"]["files"] > 0
 
 
 def test_large_files_are_omitted_whole_without_blocking_smaller_later_files(case: Case) -> None:
     (case.package / "tests/test_api.py").write_text("large file\n" * 20_000, encoding="utf-8")
-    ctx = case.context(900)
+    ctx = case.context(1300)
     result = task(ctx, "dev-task")
-    contents = {item["path"]: item["text"] for item in result["package"]["contents"]}
+    contents = {item["relative_path"]: item["text"] for item in result["packages"]["0:original_package"]["contents"]}
     assert "environment/Dockerfile" in contents
     assert "task.toml" in contents
     assert "tests/test_api.py" not in contents
-    assert result["package"]["omitted"]["contents"] == 1
+    assert result["packages"]["0:original_package"]["omitted"]["contents"] == 1
     assert result["omitted"] == ctx.budget.omitted == 1
     assert estimate_tokens(result) <= ctx.budget.limit
 
@@ -227,8 +231,7 @@ def test_large_files_are_omitted_whole_without_blocking_smaller_later_files(case
 def test_instruction_only_tasks_explicitly_report_no_local_package(case: Case) -> None:
     result = task(case.context(), "goodfire-task")
     assert result["instruction"] == "Public instruction without a runnable package."
-    assert result["package"] is None
-    assert result["reason"] == "no_local_package"
+    assert result["packages"]["0:original_package"]["package"] == "unavailable"
     assert result["original_grader_digest"] is None
     assert result["repaired_grader_digest"] is None
 
@@ -237,8 +240,7 @@ def test_digest_mismatch_does_not_bundle_an_unbound_package(case: Case) -> None:
     ctx = case.context()
     (case.package / "tests/test.sh").write_text("changed after registration\n", encoding="utf-8")
     result = task(ctx, "dev-task")
-    assert result["package"] is None
-    assert result["reason"] == "no_local_package"
+    assert result["packages"]["0:original_package"]["package"] == "unavailable"
 
 
 def test_relative_registry_locator_falls_back_to_primary_checkout(case: Case, tmp_path: Path) -> None:
@@ -249,8 +251,8 @@ def test_relative_registry_locator_falls_back_to_primary_checkout(case: Case, tm
     (gitdir / "commondir").write_text("../..\n", encoding="utf-8")
     (worktree / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
     result = task(case.context(repo_root=worktree), "dev-task")
-    assert result["package"] is not None
-    assert result["package"]["contents"][0]["path"] == "environment/Dockerfile"
+    assert result["packages"]["0:original_package"]["package"] == "available"
+    assert result["packages"]["0:original_package"]["contents"][0]["relative_path"] == "environment/Dockerfile"
 
 
 def test_impossibly_small_budget_is_an_explicit_refusal(case: Case) -> None:
@@ -286,9 +288,9 @@ def test_normalized_answer_names_are_withheld_from_inventory_and_explicit_reques
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("PRIVATE-NORMALIZED-ANSWER-MATERIAL", encoding="utf-8")
     result = task(case.context(), "dev-task")
-    assert withheld_name in result["package"]["withheld"]
-    assert name not in {item["path"] for item in result["package"]["files"]}
-    assert name not in {item["path"] for item in result["package"]["contents"]}
+    assert withheld_name in result["packages"]["0:original_package"]["withheld"]
+    assert name not in {item["relative_path"] for item in result["packages"]["0:original_package"]["files"]}
+    assert name not in {item["relative_path"] for item in result["packages"]["0:original_package"]["contents"]}
     assert "PRIVATE-NORMALIZED-ANSWER-MATERIAL" not in json.dumps(result)
     with pytest.raises(QaDataError, match="^file not available:"):
         task(case.context(), "dev-task", files=(name,))
@@ -301,15 +303,15 @@ def test_large_package_files_are_hashed_with_bounded_memory_before_budgeting(
     (case.package / name).write_bytes(b"\x00" * (8 * 1024 * 1024))
     # The fixture registers the original digest before measuring the production
     # call. Its digest must still match, including the full 8 MiB withheld file.
-    ctx = case.context(180)
+    ctx = case.context(400)
     tracemalloc.start()
     try:
         result = task(ctx, "dev-task")
         _current, peak = tracemalloc.get_traced_memory()
     finally:
         tracemalloc.stop()
-    assert result["package"] is not None
-    assert estimate_tokens(result) <= 180
+    assert result["packages"]["0:original_package"]["package"] == "available"
+    assert estimate_tokens(result) <= 400
     assert peak < 2 * 1024 * 1024
 
 
@@ -335,11 +337,10 @@ def test_package_digest_never_opens_external_link_targets(
     if directory_link:
         # Linked directories are not eligible in the registry's Path.rglob
         # digest, but are still withheld from the default package inventory.
-        assert result["package"] is not None
-        assert "tests/escape/" in result["package"]["withheld"]
+        assert result["packages"]["0:original_package"]["package"] == "available"
+        assert "tests/escape/" in result["packages"]["0:original_package"]["withheld"]
     else:
-        assert result["package"] is None
-        assert result["reason"] == "no_local_package"
+        assert result["packages"]["0:original_package"]["package"] == "unavailable"
     assert "PRIVATE-EXTERNAL-BYTES" not in json.dumps(result)
 
 
@@ -349,7 +350,7 @@ def test_streamed_digest_preserves_registry_order_and_file_exclusions(case: Case
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(name, encoding="utf-8")
     result = task(case.context(), "dev-task")
-    assert result["package"] is not None
+    assert result["packages"]["0:original_package"]["package"] == "available"
 
 
 @pytest.mark.parametrize(("task_id", "metadata"), [
@@ -367,8 +368,7 @@ def test_other_namespace_or_version_does_not_inherit_a_bare_name_package(
         "metadata_json": metadata,
     })
     result = task(case.context(), task_id)
-    assert result["package"] is None
-    assert result["reason"] == "no_local_package"
+    assert result["packages"]["0:original_package"]["package"] == "unavailable"
 
 
 @pytest.mark.parametrize("explicit_item_id", [False, True])
@@ -389,8 +389,8 @@ def test_exact_registered_version_uses_its_own_package(case: Case, explicit_item
         "metadata_json": {"item_id": "package-v2"} if explicit_item_id else {},
     })
     result = task(ctx, "dev-task@v2")
-    assert result["package"] is not None
-    contents = {item["path"]: item["text"] for item in result["package"]["contents"]}
+    assert result["packages"]["0:original_package"]["package"] == "available"
+    contents = {item["relative_path"]: item["text"] for item in result["packages"]["0:original_package"]["contents"]}
     assert contents["task.toml"] == 'version = "2.0"\n'
 
 
@@ -405,10 +405,10 @@ def test_expected_values_in_dev_tests_are_available_automatically_and_explicitly
     (case.package / name).write_text(text, encoding="utf-8")
     for requested in ((), (name,)):
         result = task(case.context(), "dev-task", files=requested)
-        contents = {item["path"]: item["text"] for item in result["package"]["contents"]}
+        contents = {item["relative_path"]: item["text"] for item in result["packages"]["0:original_package"]["contents"]}
         assert contents[name] == text
-        assert name in {item["path"] for item in result["package"]["files"]}
-        assert name not in result["package"]["withheld"]
+        assert name in {item["relative_path"] for item in result["packages"]["0:original_package"]["files"]}
+        assert name not in result["packages"]["0:original_package"]["withheld"]
 
 
 @pytest.mark.parametrize(("name", "missing"), [
@@ -433,8 +433,8 @@ def test_digest_omits_ineligible_symlinks_before_strict_resolution(
 
     monkeypatch.setattr(Path, "open", guarded_open)
     result = task(ctx, "dev-task")
-    assert result["package"] is not None
-    assert name in result["package"]["withheld"]
+    assert result["packages"]["0:original_package"]["package"] == "available"
+    assert name in result["packages"]["0:original_package"]["withheld"]
     assert "PRIVATE-INELIGIBLE-LINK-TARGET" not in json.dumps(result)
     with pytest.raises(QaDataError, match="^file not available:"):
         task(case.context(), "dev-task", files=(name,))
@@ -450,8 +450,8 @@ def test_root_hint_package_symlink_resolves_before_hashing_and_file_containment(
         item, metadata={"package": {"root_hint": str(alias.parent), "name": alias.name}},
     )
     result = task(ctx, "dev-task", files=("README.md",))
-    assert result["package"] is not None
-    contents = {item["path"]: item["text"] for item in result["package"]["contents"]}
+    assert result["packages"]["0:original_package"]["package"] == "available"
+    contents = {item["relative_path"]: item["text"] for item in result["packages"]["0:original_package"]["contents"]}
     assert contents["README.md"] == "Public package documentation.\n"
     assert contents["environment/Dockerfile"].startswith("FROM python:3.12-slim\n")
 
@@ -473,8 +473,8 @@ def test_requested_file_is_checked_only_after_a_digest_matching_locator_is_selec
         "task_package": case.package.relative_to(case.root).as_posix(),
     })
     result = task(ctx, "dev-task", files=("README.md",))
-    assert result["package"] is not None
-    contents = {item["path"]: item["text"] for item in result["package"]["contents"]}
+    assert result["packages"]["0:original_package"]["package"] == "available"
+    contents = {item["relative_path"]: item["text"] for item in result["packages"]["0:original_package"]["contents"]}
     assert contents["README.md"] == "Public package documentation.\n"
     assert "STALE-UNMATCHED-PACKAGE-CONTENT" not in json.dumps(result)
 
@@ -498,8 +498,8 @@ def test_duplicate_same_digest_registry_items_try_each_items_own_locators(
     # Neither the row's absent item_id nor task_id directly selects a registry
     # record. Both finding records bind this exact task and the same digest.
     result = task(ctx, "dev-task", files=("README.md",))
-    assert result["package"] is not None
-    contents = {item["path"]: item["text"] for item in result["package"]["contents"]}
+    assert result["packages"]["0:original_package"]["package"] == "available"
+    contents = {item["relative_path"]: item["text"] for item in result["packages"]["0:original_package"]["contents"]}
     assert contents["README.md"] == "Public package documentation.\n"
     assert contents["environment/Dockerfile"].startswith("FROM python:3.12-slim\n")
 
@@ -530,8 +530,8 @@ def test_stale_direct_registry_selection_tries_same_digest_siblings(
         "metadata_json": {"item_id": selected_id} if selection == "metadata" else {},
     })
     result = task(ctx, "dev-task", files=("README.md",))
-    assert result["package"] is not None
-    contents = {item["path"]: item["text"] for item in result["package"]["contents"]}
+    assert result["packages"]["0:original_package"]["package"] == "available"
+    contents = {item["relative_path"]: item["text"] for item in result["packages"]["0:original_package"]["contents"]}
     assert contents["README.md"] == "Public package documentation.\n"
 
 
@@ -561,8 +561,7 @@ def test_stale_direct_registry_selection_never_switches_to_a_different_digest(
         "metadata_json": {"item_id": selected_id} if selection == "metadata" else {},
     })
     result = task(ctx, "dev-task")
-    assert result["package"] is None
-    assert result["reason"] == "no_local_package"
+    assert result["packages"]["0:original_package"]["package"] == "unavailable"
     assert "UNSELECTED-DIGEST-PACKAGE" not in json.dumps(result)
 
 
@@ -594,6 +593,345 @@ def test_locator_resolution_failure_does_not_discard_later_sources_or_siblings(
     if source == "root_hint":
         registry.register_external(replace(item, item_id="valid-locator-sibling"))
     result = task(ctx, "dev-task", files=("README.md",))
-    assert result["package"] is not None
-    contents = {item["path"]: item["text"] for item in result["package"]["contents"]}
+    assert result["packages"]["0:original_package"]["package"] == "available"
+    contents = {item["relative_path"]: item["text"] for item in result["packages"]["0:original_package"]["contents"]}
     assert contents["README.md"] == "Public package documentation.\n"
+
+
+def cas_task(
+    case: Case, task_id: str = "terminal-bench/cas-task", *,
+    variants: Sequence[dict[str, dict[str, bytes]]] | None = None,
+) -> tuple[S3CompatibleCAS, dict[str, str]]:
+    cas = S3CompatibleCAS(local_directory=case.root / "state/cas", bucket="")
+    variants = variants if variants is not None else [{
+        "original_package": {
+            "tests/test.sh": b"pytest /tests\n", "README.md": b"CAS package documentation\n",
+            "solution/solve.sh": b"PRIVATE-CAS-SOLUTION", "tests/answer_key.json": b"PRIVATE-CAS-KEY",
+        },
+        "repaired_package": {"tests/test.sh": b"pytest /tests --strict\n"},
+    }, {"repaired_package": {"tests/test.sh": b"pytest /tests --variant-one\n"}}]
+    references, uris = [], {}
+    for number, variant in enumerate(variants):
+        reference = {}
+        for kind, contents in variant.items():
+            records = [
+                {"relative_path": name, "bytes": len(raw), "cas_uri": cas.put_bytes(raw)}
+                for name, raw in contents.items()
+            ]
+            key = f"{number}:{kind}"
+            uris[key] = cas.put_bundle({
+                "files": records,
+                "omissions": [{"relative_path": "not-materialized", "reason": "not retained"}],
+            })
+            reference[kind] = {"cas_uri": uris[key]}
+        references.append(reference)
+    uris["task"] = cas.put_bundle({"metadata": {"variants": references}})
+    case.database.upsert_task({
+        "task_id": task_id, "dataset_id": "synthetic-corpus", "split": "dev",
+        "instruction_text": "Review the retained DEV task package.", "cas_uri": uris["task"],
+    })
+    return cas, uris
+
+
+def test_bare_and_namespaced_task_ids_return_the_same_canonical_bundle(case: Case) -> None:
+    cas_task(case)
+    full = task(case.context(), "terminal-bench/cas-task")
+    bare = task(case.context(), "cas-task")
+    assert bare == full
+    assert bare["task_id"] == "terminal-bench/cas-task"
+    assert "task terminal-bench/cas-task --file REL [--variant N --kind repaired_package]" in bare["how_to_read_a_file"]
+
+
+def test_ambiguous_bare_name_refuses_but_full_identity_remains_available(case: Case) -> None:
+    cas_task(case)
+    case.database.upsert_task({
+        "task_id": "other/cas-task", "dataset_id": "synthetic-corpus", "split": "dev",
+        "instruction_text": "A different admitted task with the same bare name.",
+    })
+    with pytest.raises(QaDataError, match="matches 2 admitted tasks"):
+        task(case.context(), "cas-task")
+    assert task(case.context(), "terminal-bench/cas-task")["task_id"] == "terminal-bench/cas-task"
+
+
+def test_cas_lists_all_variants_and_reads_only_the_selected_file(case: Case, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A configured bucket must not turn this read-only local reader into a client.
+    monkeypatch.setenv("EVALLAB_S3_BUCKET", "must-not-be-contacted")
+    cas_task(case)
+    result = task(case.context(), "cas-task", files=("tests/test.sh", "tests/test.sh"))
+    original = result["packages"]["0:original_package"]
+    assert original["stored_in"] == "cas" and original["package"] == "available"
+    assert original["file_count"] == 4 and original["omissions"] == 1
+    assert original["files"] == [
+        {"relative_path": "tests/test.sh", "size": 14},
+        {"relative_path": "README.md", "size": 26},
+    ]
+    assert original["contents"] == [{
+        "relative_path": "tests/test.sh", "size": 14, "text": "pytest /tests\n", "truncated": False,
+    }]
+    assert result["packages"]["0:repaired_package"]["file_count"] == 1
+    assert result["packages"]["1:repaired_package"]["file_count"] == 1
+    assert result["packages"]["0:repaired_package"]["contents"] == []
+    selected = task(
+        case.context(), "cas-task", files=("tests/test.sh",), variant=1, kind="repaired_package",
+    )
+    assert selected["packages"]["1:repaired_package"]["contents"][0]["text"] == "pytest /tests --variant-one\n"
+    assert selected["packages"]["0:original_package"]["contents"] == []
+
+
+def test_cas_listing_is_preferred_to_the_registry_package(case: Case) -> None:
+    cas_task(case, "dev-task")
+    result = task(case.context(), "dev-task")
+    original = result["packages"]["0:original_package"]
+    assert original["stored_in"] == "cas"
+    assert original["contents"] == []
+    assert "environment/Dockerfile" not in {row["relative_path"] for row in original["files"]}
+    assert "FROM python:3.12-slim" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("name", [
+    "solution/solve.sh", "tests/AnswerKey.json", "tests/test_oracle-v2.py",
+    "tests/fixtures/secret.txt", "tests/golden-files/result.txt", "reference.patch",
+])
+def test_cas_answer_material_remains_names_only_and_explicitly_refused(case: Case, name: str) -> None:
+    cas_task(case, variants=[{"original_package": {
+        "tests/test.sh": b"pytest\n", name: b"PRIVATE-CAS-ANSWER-BYTES",
+    }}])
+    result = task(case.context(), "cas-task")
+    package = result["packages"]["0:original_package"]
+    assert name in package["withheld"]
+    assert all(row["relative_path"] != name for row in package["files"])
+    assert "PRIVATE-CAS-ANSWER-BYTES" not in json.dumps(result)
+    with pytest.raises(QaDataError, match="^file not available:"):
+        task(case.context(), "cas-task", files=(name,))
+
+
+@pytest.mark.parametrize("name", ["../outside.txt", "/outside.txt", "tests\\outside.txt", "."])
+def test_cas_requests_refuse_path_traversal_before_reading_files(case: Case, name: str) -> None:
+    cas_task(case)
+    with pytest.raises(QaDataError, match="^file not available:"):
+        task(case.context(), "cas-task", files=(name,))
+
+
+@pytest.mark.parametrize("source", ["registry", "cas"])
+def test_a_missing_requested_file_reports_not_in_that_package(case: Case, source: str) -> None:
+    if source == "cas":
+        cas_task(case, "dev-task")
+    with pytest.raises(QaDataError, match="^not in that package$"):
+        task(case.context(), "dev-task", files=("tests/not-present.py",))
+
+
+@pytest.mark.parametrize("missing", ["task", "0:original_package", "content", "corrupt"])
+def test_missing_or_corrupt_local_cas_bytes_degrade_per_package(case: Case, missing: str) -> None:
+    cas, uris = cas_task(case)
+    uri = uris.get(missing, uris["0:original_package"])
+    if missing == "content":
+        uri = cas.get_bundle(uris["0:original_package"])["files"][0]["cas_uri"]
+    assert cas.local_directory is not None
+    path = cas.local_directory / "sha256" / uri.rsplit("/", 1)[1]
+    if missing == "corrupt":
+        path.write_bytes(b"corrupt manifest bytes")
+    else:
+        path.unlink()
+    result = task(case.context(), "cas-task", files=("tests/test.sh",))
+    original = result["packages"]["0:original_package"]
+    assert original["package"] == "unavailable"
+    if missing == "task":
+        assert original["file_count"] is None
+    else:
+        assert result["packages"]["0:repaired_package"]["package"] == "available"
+    if missing == "content":
+        assert original["contents"] == [{"relative_path": "tests/test.sh", "size": 14, "unavailable": True}]
+
+
+def test_missing_cas_packages_fall_back_to_the_digest_bound_registry(case: Case) -> None:
+    cas, uris = cas_task(case, "dev-task", variants=[{"original_package": {"README.md": b"CAS README\n"}}])
+    assert cas.local_directory is not None
+    (cas.local_directory / "sha256" / uris["0:original_package"].rsplit("/", 1)[1]).unlink()
+    result = task(case.context(), "dev-task", files=("README.md",))
+    package = result["packages"]["0:original_package"]
+    assert package["stored_in"] == "registry" and package["package"] == "available"
+    assert next(row for row in package["contents"] if row["relative_path"] == "README.md")["text"] == (
+        "Public package documentation.\n"
+    )
+    assert "CAS README" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("raw", [b"\xff\xfe\x00binary", b"utf8 but\x00not text"])
+def test_cas_binary_files_report_only_their_size(case: Case, raw: bytes) -> None:
+    cas_task(case, variants=[{"original_package": {"environment/payload.bin": raw}}])
+    result = task(case.context(), "cas-task", files=("environment/payload.bin",))
+    assert result["packages"]["0:original_package"]["contents"] == [{
+        "relative_path": "environment/payload.bin", "size": len(raw), "binary": True,
+    }]
+
+
+@pytest.mark.parametrize("source", ["cas", "registry"])
+@pytest.mark.parametrize("limit", [500, 800, 1400])
+def test_explicit_text_files_truncate_on_characters_and_charge_escaped_json(
+    case: Case, source: str, limit: int,
+) -> None:
+    text = 'line \\"\n\t😀\x01\n' * 2000
+    if source == "cas":
+        cas_task(case, "dev-task", variants=[{"original_package": {"tests/test.sh": text.encode()}}])
+    else:
+        (case.package / "tests/test.sh").write_text(text, encoding="utf-8")
+    ctx = case.context(limit)
+    result = task(ctx, "dev-task", files=("tests/test.sh",))
+    package = result["packages"]["0:original_package"]
+    content = next(row for row in package["contents"] if row["relative_path"] == "tests/test.sh")
+    assert text.startswith(content["text"]) and 0 < len(content["text"]) < len(text)
+    assert content["size"] == len(text.encode()) and content["truncated"] is True
+    assert estimate_tokens(result) <= ctx.budget.used <= limit
+    assert result["omitted"] == ctx.budget.omitted
+    assert package["file_count"] >= 1 and package["omissions"] >= 0
+
+
+def add_triage(case: Case, task_id: str) -> None:
+    for number, status in enumerate(("provisional", "confirmed", "refuted")):
+        case.database.upsert_task_issue({
+            "task_id": task_id, "issue_id": f"{task_id}/issue-{number}",
+            "defect_class": "grader_wrong_pass", "direction": "wrong_pass", "status": status,
+            "reproducer_script": "PRIVATE-REPRODUCER-CONTENT",
+        })
+    for number, reward in enumerate((1.0, 0.0, 0.5, None)):
+        trace_id = f"{task_id}/run-{number}"
+        case.database.upsert_trace({
+            "trace_id": trace_id, "task_id": task_id, "run_id": "batch", "model_id": "m",
+            "outcome": "untrusted-stored-outcome", "reward": reward,
+        }, steps=[{"step_index": 0, "role": "assistant", "content_text": "Inspect tests."}])
+        if number < 3:
+            assert case.database.upsert_run_facets([{
+                "run_id": trace_id, "source": "synthetic-corpus", "split": "DEV",
+                "facet_version": "run-facets/v1", "facet_model": "synthetic/model",
+                "input_tokens": 1, "output_tokens": 1, "goal": "Review task",
+                "approach": "Read tests", "outcome": "pass", "tests": "read",
+                "grader_or_harness_touched": number == 1, "answer_material_accessed": number == 0,
+                "success_claim_without_evidence": False, "eval_awareness": "none", "shortcut": "none",
+                "suspicion": number + 1, "evidence_steps": [0],
+            }], registry=SyntheticRegistry(case.root, case.package))["stored"] == 1
+
+
+def test_retained_issues_exclude_reproducers_and_runs_use_rewards_and_facets(case: Case) -> None:
+    cas_task(case)
+    add_triage(case, "terminal-bench/cas-task")
+    result = task(case.context(), "cas-task")
+    assert result["issues_total"] == 3 and result["issues_omitted"] == 0
+    assert {row["status"] for row in result["issues"]} == {"provisional", "confirmed", "refuted"}
+    assert all(set(row) == {"issue_id", "defect_class", "direction", "status"} for row in result["issues"])
+    labelled = task(case.context(), "cas-task", with_outcomes=True)
+    assert all(row["trust_tier"] for row in labelled["issues"])
+    assert [{k: v for k, v in row.items() if k != "trust_tier"} for row in labelled["issues"]] == result["issues"]
+    assert "reproducer" not in json.dumps(result).lower()
+    runs = result["runs"]
+    assert (runs["total"], runs["faceted"], runs["suspicion_ge_2"], runs["omitted"]) == (4, 3, 2, 0)
+    assert [row["outcome"] for row in runs["list"]] == ["pass", "fail", "unknown", "unknown"]
+    assert [row["step_count"] for row in runs["list"]] == [1, 1, 1, 1]
+    assert runs["list"][0]["answer_material_accessed"] is True
+    assert runs["list"][1]["grader_or_harness_touched"] is True
+    assert runs["list"][3]["tests"] is None and runs["list"][3]["suspicion"] is None
+
+
+@pytest.mark.parametrize("limit", [480, 600, 900])
+def test_counts_survive_budget_omission_of_entire_lists(case: Case, limit: int) -> None:
+    cas_task(case, variants=[{"original_package": {"tests/test.sh": b"pytest\n"}}])
+    add_triage(case, "terminal-bench/cas-task")
+    ctx = case.context(limit)
+    result = task(ctx, "cas-task")
+    runs = result["runs"]
+    package = result["packages"]["0:original_package"]
+    assert (result["issues_total"], runs["total"], runs["faceted"], runs["suspicion_ge_2"]) == (3, 4, 3, 2)
+    assert result["issues_omitted"] == 3 - len(result["issues"])
+    assert runs["omitted"] == 4 - len(runs["list"])
+    assert package["file_count"] == 1 and package["omissions"] == 1
+    assert package["omitted"]["files"] == 1 - len(package["files"])
+    assert result["omitted"] == ctx.budget.omitted
+    assert estimate_tokens(result) <= ctx.budget.used <= limit
+
+
+def test_non_admitted_cas_tasks_and_missing_tasks_refuse_identically(case: Case) -> None:
+    for task_id, split in (("test-task", "test"), ("locked-task", "dev"), ("sealed-task", "dev")):
+        cas_task(case, task_id)
+        row = case.database._rows("SELECT * FROM corpus_tasks WHERE task_id = ?", (task_id,))[0]
+        case.database.upsert_task({**row, "split": split})
+        case.database.upsert_task_issue({
+            "task_id": task_id, "issue_id": f"{task_id}/private-issue",
+            "defect_class": "PRIVATE-ISSUE-NAME", "direction": "wrong_pass",
+        })
+    messages = []
+    for task_id in ("test-task", "locked-task", "sealed-task", "missing-task"):
+        with pytest.raises(QaDataError) as error:
+            task(case.context(), task_id, files=("tests/test.sh",))
+        messages.append(str(error.value))
+    assert messages == [UNAVAILABLE] * 4
+
+
+def test_reclassification_after_name_resolution_cannot_authorize_task_content(case: Case) -> None:
+    class ReclassifiedContext(QaContext):
+        def require_task(self, task_id: str) -> dict[str, Any]:
+            row = super().require_task(task_id)
+            case.database.upsert_task({**row, "split": "test"})
+            return row
+
+    original = case.context()
+    ctx = ReclassifiedContext(
+        database=original.database, retriever=original.retriever, repo_root=original.repo_root,
+        state_dir=original.state_dir, budget=original.budget,
+    )
+    with pytest.raises(QaDataError, match=f"^{UNAVAILABLE}$"):
+        task(ctx, "dev-task", files=("README.md",))
+
+
+@pytest.mark.parametrize("source", ["cas", "registry"])
+@pytest.mark.parametrize(("name", "registry_withheld"), [
+    ("tests/expected_verdict.json", "tests/expected_verdict.json"),
+    ("tests/EXPECTED_CATEGORY.bin", "tests/EXPECTED_CATEGORY.bin"),
+    ("tests/expectedVerdict.data", "tests/expectedVerdict.data"),
+    ("tests/test_expected_category.py", "tests/test_expected_category.py"),
+    ("tests/expected_categories.json", "tests/expected_categories.json"),
+    ("tests/EXPECTED-CATEGORIES.csv", "tests/EXPECTED-CATEGORIES.csv"),
+    ("tests/exposures.csv", "tests/exposures.csv"),
+    ("tests/scorer-only-keys/ordinary.json", "tests/scorer-only-keys/"),
+    ("environment/SCORER_ONLY_KEYS.bin/nested.txt", "environment/SCORER_ONLY_KEYS.bin/"),
+    ("tests/Expected_Verdict/ordinary.txt", "tests/Expected_Verdict/"),
+    ("tests/labels.json", "tests/labels.json"),
+    ("tests/Ground_Truth/ordinary.json", "tests/Ground_Truth/"),
+    ("tests/gold_keys.csv", "tests/gold_keys.csv"),
+    ("tests/label_keys.yml", "tests/label_keys.yml"),
+    ("tests/answer_keys.json", "tests/answer_keys.json"),
+])
+def test_scoring_key_files_and_nested_components_are_withheld(
+    case: Case, source: str, name: str, registry_withheld: str,
+) -> None:
+    text = '{"expected_verdict":"fail","expected_category":"weak_check","private_marker":"SCORING-KEY-BYTES"}'
+    if source == "cas":
+        cas_task(case, "dev-task", variants=[{"original_package": {name: text.encode()}}])
+    else:
+        path = case.package / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    result = task(case.context(), "dev-task")
+    package = result["packages"]["0:original_package"]
+    assert (name if source == "cas" else registry_withheld) in package["withheld"]
+    assert name not in {record["relative_path"] for record in package["files"]}
+    assert name not in {record["relative_path"] for record in package["contents"]}
+    assert "SCORING-KEY-BYTES" not in json.dumps(result)
+    assert '"weak_check"' not in json.dumps(result)
+    with pytest.raises(QaDataError, match="^file not available:"):
+        task(case.context(), "dev-task", files=(name,))
+
+
+@pytest.mark.parametrize("source", ["cas", "registry"])
+def test_ordinary_dev_expected_output_remains_readable_next_to_scoring_keys(case: Case, source: str) -> None:
+    name, text = "tests/expected_output.txt", "The expected ordinary task output.\n"
+    contents = {name: text.encode(), "tests/expected_verdict.json": b'{"expected_verdict":"fail"}'}
+    if source == "cas":
+        cas_task(case, "dev-task", variants=[{"original_package": contents}])
+    else:
+        for relative, raw in contents.items():
+            (case.package / relative).write_bytes(raw)
+    result = task(case.context(), "dev-task", files=(name,))
+    package = result["packages"]["0:original_package"]
+    assert next(record for record in package["contents"] if record["relative_path"] == name)["text"] == text
+    assert name in {record["relative_path"] for record in package["files"]}
+    assert name not in package["withheld"]
+    assert "tests/expected_verdict.json" in package["withheld"]

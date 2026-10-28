@@ -2795,7 +2795,7 @@ def test_atlas_filters_clusters_and_cache_follow_the_retained_files(
 ) -> None:
     facets = [
         _atlas_facet(VERIFIED, suspicion=3, answer_material_accessed=True, source="alpha"),
-        _atlas_facet(PROVISIONAL, suspicion=1, source="beta", tests="modified"),
+        _atlas_facet(PROVISIONAL, suspicion=1, source="beta", tests="modified", facet_model="other/reader"),
     ]
     root = _atlas_cluster(
         "root",
@@ -2850,6 +2850,10 @@ def test_atlas_filters_clusters_and_cache_follow_the_retained_files(
         narrowed["runs"]
     )
     assert get(cluster_id="leaf")["total"] == len(visible & {VERIFIED})
+    assert {run["run_id"] for run in get(facet_model="other/reader")["runs"]} == visible & {PROVISIONAL}
+    assert get(facet_model="provider/facet-model")["options"]["facet_model"] == {
+        model: len(visible & {run}) for model, run in (("other/reader", PROVISIONAL), ("provider/facet-model", VERIFIED)) if visible & {run}
+    }
     assert (
         client.get("/api/cloud-db/atlas", headers=AUTH, params={"outcome": "won"}).status_code
         == 422
@@ -3232,3 +3236,181 @@ def test_field_reliability_endpoint_says_not_measured_until_a_receipt_is_retaine
         ("goal", 35, 40),
         ("evidence_steps", 35, 42),
     ]
+
+
+def test_repair_board_endpoint_joins_atlas_counts_and_reports_absent_inventory(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    url = "/api/cloud-db/repair-board"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["present"] is False and absent.json()["tasks"] == []
+
+    _write_atlas(
+        runtime,
+        [
+            _atlas_facet(VERIFIED, tests="modified"),
+            _atlas_facet(PROVISIONAL, tests="modified"),
+            _atlas_facet(REFUTED, tests="modified", evidence_steps=[5]),
+        ],
+    )
+    inventory = runtime.data_root / "repair-board" / "inventory.json"
+    inventory.parent.mkdir()
+    inventory.write_text(
+        json.dumps(
+            {
+                "schema": "evallab.ts9_defensive_inventory/v1",
+                "observed_at": "2026-10-28T04:03:55+00:00",
+                "source_revision": "837dc7c",
+                "tasks": [
+                    {
+                        "task_id": task_id,
+                        "dataset_id": "tb4-audit-v1",
+                        "dev_assignments": [["tb4-audit-v1", "dev"]],
+                        "annotations": [{"defect_type": "weak_check", "weak_check": "private wording"}],
+                    }
+                    for task_id in (PRIMARY, "task-without-cloud-rows")
+                ],
+                "selected_repair_deliveries": [
+                    {
+                        "task": PRIMARY,
+                        "pr": 1326,
+                        "pr_url": "https://github.com/PeterMakhnatch/eval-lab/pull/1326",
+                        "delivery_status": "MERGED",
+                        "verification_class": "static-only",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH)
+    assert "private wording" not in served.text and VERIFIED not in served.text
+    board = served.json()
+    rows = {row["task_id"]: row for row in board["tasks"]}
+    assert board["present"] is True and board["counts"]["by_status"]["native-validated"] == 0
+    assert rows[PRIMARY]["status"] == "static only" and rows[PRIMARY]["admitted"] is True
+    # Of the task's two atlas runs only the passing one counts as passed with modified tests.
+    assert (rows[PRIMARY]["atlas_runs"], rows[PRIMARY]["passed_tests_modified"]) == (2, 1)
+    missing = rows["task-without-cloud-rows"]
+    assert (missing["admitted"], missing["atlas_runs"], missing["status"]) == (False, 0, "no repair")
+
+
+def test_cross_test_sets_endpoint_reads_the_registry_file_only(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    url = "/api/cloud-db/cross-test-sets"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["present"] is False
+
+    registry = runtime.data_root / "cross-test" / "registry.json"
+    registry.parent.mkdir()
+    entry = {
+        "id": "set-a", "name": "org/set-a", "source_url": "https://example.org/a", "unit": "run",
+        "status": "ready",
+        "flags": {
+            "eval_only": True, "local_only": True, "no_training": True, "no_rehosting": True,
+            "uploadable_to_vendor_projects": False, "hosted_model_api_for_evaluation": "allowed",
+        },
+        "licence": {"text": "mit", "redistributable": True},
+        "labels": {"type": "oracle", "counts": {"rows": 3}},
+        "scoring": {"command_level_localization_scorable": True},
+        "adapter": {"merge_state": "open-pr", "pr": 1302},
+        "caveats": ["recordtextneedle"],
+    }
+    registry.write_text(
+        json.dumps(
+            {
+                "schema_version": "cross-test-registry/v1",
+                "entries": [entry, {**entry, "id": "set-b", "flags": {**entry["flags"], "uploadable_to_vendor_projects": True}}],
+                "hold_access": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH)
+    assert "recordtextneedle" not in served.text
+    board = served.json()
+    assert board["present"] is True
+    assert [row["id"] for row in board["entries"]] == ["set-a"]
+    assert board["entries"][0]["uploadable"] is False and board["entries"][0]["adapter"]["merge_state"] == "open-pr"
+    assert [problem["id"] for problem in board["malformed"]] == ["set-b"]
+
+
+def test_gate_progress_endpoint_serves_the_retained_counts_and_refuses_other_splits(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    url = "/api/cloud-db/task-evidence/gate-progress"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert (absent.json()["present"], absent.json()["error"]) == (False, "not retained")
+
+    target = runtime.data_root / "task-qa" / "gate-progress-v1.json"
+    target.parent.mkdir()
+    row = {
+        "route": "anthropic/claude-sonnet-5-5", "arm": "A", "answered": 64, "consumed": 64, "quota_pending": 335,
+        "failed": 0, "scorer_quota_pending": 0, "fully_scored": 64, "baseline_answered": 44, "keys_read": 118,
+        "new_0_5": {"matched_keys": 4, "eligible_findings": 43}, "old_0_8": {"matched_keys": 0, "eligible_findings": 4},
+    }
+    document = {
+        "schema": "evallab.gate_progress/v1", "exported_at": "2026-10-28T12:00:00+00:00",
+        "source": {"coverage_sha256": "a" * 64, "checkpoint_sha256": "b" * 64},
+        "cohort": {"dev_tasks": 399, "keyed_tasks": 44, "unkeyed_tasks": 355, "planned_keys": 118},
+        "rows": [row],
+    }
+    target.write_text(json.dumps(document), encoding="utf-8")
+    served = client.get(url, headers=AUTH).json()
+    assert served["present"] is True and served["progress"]["all_answered"] is False
+    assert served["progress"]["rows"][0]["new_0_5"] == {"matched_keys": 4, "eligible_findings": 43}
+    target.write_text(json.dumps({**document, "rows": [{**row, "answered": 400}]}), encoding="utf-8")
+    assert client.get(url, headers=AUTH).json()["error"] == "invalid counts-only gate progress"
+
+
+def test_the_container_runtime_reads_data_files_from_the_volume_or_the_environment_settings(
+    modal_cloud: ModuleType, tmp_path: Path, repo_root: Path
+) -> None:
+    registry = {
+        "schema_version": "cross-test-registry/v1", "entries": [], "hold_access": [],
+    }
+    elsewhere = tmp_path / "elsewhere-registry.json"
+    elsewhere.write_text(json.dumps(registry), encoding="utf-8")
+    scope = tmp_path / "elsewhere-scope.json"
+    scope.write_text(json.dumps({"schema": "evallab.detector_scope/v1", "cells": [{
+        "detector": "cascade", "cohort": "hackbench_natural", "measure": "exact_command", "hits": 1,
+        "version": "window-cascade/v7", "note": "v7-to-v8 compatibility checked in the receipt",
+        "positives": 41, "route": "judge", "recorded_at": "2026-10-28T00:54:07+00:00", "date_basis": "freeze", "source": "receipt",
+    }]}), encoding="utf-8")
+    default = modal_cloud.runtime_from_environment(tmp_path / "default", repo_root, {"EVALLAB_CLOUD_TOKEN": TOKEN})
+    configured = modal_cloud.runtime_from_environment(
+        tmp_path / "configured", repo_root,
+        {"EVALLAB_CLOUD_TOKEN": TOKEN, "EVALLAB_CROSS_TEST_REGISTRY": str(elsewhere), "EVALLAB_DETECTOR_SCOPE": str(scope)},
+    )
+    try:
+        with TestClient(default.app, base_url="https://cloud.test") as plain, TestClient(
+            configured.app, base_url="https://cloud.test"
+        ) as set_up:
+            url = "/api/cloud-db/cross-test-sets"
+            assert plain.get(url, headers=AUTH).json()["present"] is False
+            assert set_up.get(url, headers=AUTH).json()["present"] is True
+            tools = "/api/cloud-db/trace-tools?split=dev"
+            assert plain.get(tools, headers=AUTH).json()["where_it_works"]["present"] is False
+            assert set_up.get(tools, headers=AUTH).json()["where_it_works"]["present"] is True
+            (tmp_path / "default/cross-test").mkdir()
+            (tmp_path / "default/cross-test/registry.json").write_text(json.dumps(registry), encoding="utf-8")
+            assert plain.get(url, headers=AUTH).json()["present"] is True  # the default is under the data root
+        with pytest.raises(KeyError):
+            modal_cloud.runtime_from_environment(tmp_path / "x", repo_root, {})
+    finally:
+        default.close()
+        configured.close()
+    from evallab.production import deploy_preflight
+
+    assert deploy_preflight.VOLUME_NAME == modal_cloud.VOLUME_NAME
+    assert (Path(modal_cloud.__file__).parents[3] / deploy_preflight.ENTRY).is_file()

@@ -86,8 +86,15 @@ including JSON embedded inside tool-message content. Raw-string hits are never
 lost by decoding. Laminar's generated input/output fields use the same logical
 gate. A hit rejects only its trace, including within a Docent batch, and the gate
 is checked before an unchanged-content receipt can skip a trace.
-Evaluator-field rejection also recursively decodes quoted JSON strings; ordinary
-actor prose and code stay intact rather than being scrubbed.
+The native actor boundary selects source conversation records, not keywords:
+retained event journals, receipts and unbound artifact sidecars are not actor
+trajectories. Missing actual actor history is an explicit
+`HydrationError(category="actor_history_unavailable")`, never an empty or clean
+run. A CAS digest or matching preview proves bytes, not actor visibility.
+Conversely, prior feedback genuinely supplied to an actor and native actor
+JSON containing keys such as `label` or `reward` are preserved exactly.
+See [Q26](../research/explorations/trace-lab/QUIRKS.md#q26-retained-control-journals-are-not-actor-trajectories)
+for the source-provenance correction and historical coverage limitation.
 
 Laminar uses the existing project and OTLP encoders, preserving text rather than
 the live watch exporter's clipped display values. Import sequence timestamps are
@@ -148,6 +155,29 @@ the cause. Resume still checks Signals and the byte cap; it never clears receipt
 or budget counters. A paused target gives exit status 2 while healthy targets
 can continue. `--uninstall` removes only this installer's owned job and plist,
 leaving receipts, runtime snapshots and logs intact.
+
+### Sync and fetch commands
+
+```bash
+keys run -- uv run evallab traces sync --target laminar
+keys run -- uv run --with docent==0.1.88 evallab traces sync \
+  --target docent --dataset goodfire-reward-hack-data --limit 16
+keys run -- uv run evallab traces fetch --source laminar --run-id '<DB trace_id>'
+keys run -- uv run --with docent==0.1.88 evallab traces fetch \
+  --source docent --run-id '<DB trace_id>' --dataset mimo-defect-map-v1
+keys run -- uv run evallab traces fetch --source laminar \
+  --query "SELECT COUNT(*) AS runs FROM traces WHERE JSONExtractString(metadata, 'source') = {dataset:String}" \
+  --dataset mimo-defect-map-v1
+keys run -- uv run --with docent==0.1.88 evallab traces fetch --source docent \
+  --query "SELECT COUNT(*) AS runs FROM agent_runs" --dataset mimo-defect-map-v1
+```
+
+`--run-id` is the opaque DB trace identity, not its source job name. Both fetch
+routes derive the remote UUID directly and need no local sync receipts or DB.
+Fetch returns JSON rows and server limit/truncation metadata, never a model
+answer. Raw Laminar SQL can use the bound `{dataset:String}` parameter; it is
+not rewritten into an unsafe generic outer filter. Docent DQL runs only in the
+selected owner-only source collections, checking collaborators on both sides.
 
 
 ## Incremental native ATIF (HAR-168)

@@ -33,13 +33,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from evallab.readers import ACTOR_PROJECTION_VERSION
+
 type Flag = bool | None
 type Detector = tuple[str, str]
 type Cascade = Mapping[str, Mapping[str, Flag]]
 
 _STATE = Path.home() / ".local/state/evallab-prod-live"
 DEFAULT_DB = _STATE / "cloud-trace-db.sqlite"
-DEFAULT_RESULTS = _STATE / "trace-tools/results-v1.jsonl"
+DEFAULT_RESULTS = _STATE / f"trace-tools/scout-{ACTOR_PROJECTION_VERSION}/results-v1.jsonl"
 DEFAULT_STAGE1 = _STATE / "trace-tools/cascade-stage1-goodfire-dev.jsonl"
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CM9_DIR = (

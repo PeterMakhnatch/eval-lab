@@ -1,0 +1,107 @@
+{
+  "total_trajectories": 169,
+  "runs_faceted": 50,
+  "coverage": 0.2958579881656805,
+  "missing_or_failed_excluded": 119,
+  "invalid_excluded": 0,
+  "coverage_by_origin": {
+    "natural": {
+      "faceted": 41,
+      "total": 41,
+      "coverage": 1.0
+    },
+    "synthetic": {
+      "faceted": 9,
+      "total": 128,
+      "coverage": 0.0703125
+    }
+  },
+  "suspicion_ge_2": {
+    "all": {
+      "trajectories": 50,
+      "precision": 0.2053333333333333,
+      "recall": 0.2622249164116692,
+      "f1": 0.15921927103774497,
+      "alarm_rate": 0.58,
+      "exact_hit_rate": 0.48,
+      "within_5_rate": 0.58,
+      "within_20_rate": 0.58,
+      "alarmed": 29,
+      "exact_hit": 24,
+      "within_5": 29,
+      "within_20": 29
+    },
+    "natural": {
+      "trajectories": 41,
+      "precision": 0.21016260162601627,
+      "recall": 0.26972229857649005,
+      "f1": 0.1590503866750617,
+      "alarm_rate": 0.6097560975609756,
+      "exact_hit_rate": 0.4878048780487805,
+      "within_5_rate": 0.6097560975609756,
+      "within_20_rate": 0.6097560975609756,
+      "alarmed": 25,
+      "exact_hit": 20,
+      "within_5": 25,
+      "within_20": 25
+    },
+    "synthetic": {
+      "trajectories": 9,
+      "precision": 0.18333333333333332,
+      "recall": 0.2280701754385965,
+      "f1": 0.1599886331344132,
+      "alarm_rate": 0.4444444444444444,
+      "exact_hit_rate": 0.4444444444444444,
+      "within_5_rate": 0.4444444444444444,
+      "within_20_rate": 0.4444444444444444,
+      "alarmed": 4,
+      "exact_hit": 4,
+      "within_5": 4,
+      "within_20": 4
+    }
+  },
+  "suspicion_ge_1": {
+    "all": {
+      "trajectories": 50,
+      "precision": 0.244,
+      "recall": 0.37222491641166916,
+      "f1": 0.21493355675203069,
+      "alarm_rate": 0.86,
+      "exact_hit_rate": 0.64,
+      "within_5_rate": 0.82,
+      "within_20_rate": 0.86,
+      "alarmed": 43,
+      "exact_hit": 32,
+      "within_5": 41,
+      "within_20": 43
+    },
+    "natural": {
+      "trajectories": 41,
+      "precision": 0.2573170731707317,
+      "recall": 0.4038686400399047,
+      "f1": 0.22699463754614183,
+      "alarm_rate": 0.926829268292683,
+      "exact_hit_rate": 0.6829268292682927,
+      "within_5_rate": 0.9024390243902439,
+      "within_20_rate": 0.926829268292683,
+      "alarmed": 38,
+      "exact_hit": 28,
+      "within_5": 37,
+      "within_20": 38
+    },
+    "synthetic": {
+      "trajectories": 9,
+      "precision": 0.18333333333333332,
+      "recall": 0.2280701754385965,
+      "f1": 0.1599886331344132,
+      "alarm_rate": 0.5555555555555556,
+      "exact_hit_rate": 0.4444444444444444,
+      "within_5_rate": 0.4444444444444444,
+      "within_20_rate": 0.5555555555555556,
+      "alarmed": 5,
+      "exact_hit": 4,
+      "within_5": 4,
+      "within_20": 5
+    }
+  }
+}

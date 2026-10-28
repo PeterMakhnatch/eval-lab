@@ -1,0 +1,98 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-002535",
+  "variant_digest": "sha256:dc220af666eb10c84efbecedbd406f467c0c523deca7a9330584d029ef6adcc8",
+  "variant_harbor_digest": "sha256:11f81d8e75fc2c92f0a4c241a48bf0370af187dd8b9d6b3727fd9170b22f3e09",
+  "parent": {
+    "digest": "sha256:fd333e994b23a897c58fc51d9d4fd515285b3ad2e007c7f3a73f2bd26702e18d",
+    "harbor_digest": "sha256:39d6815265ca8c841018ea0839e56a23882b2a42151710f515ed9a031988ef31",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002535",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@ts11-1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:adbf1292a52b8a2813cc9210eb3be36d8df6a6ce65b6a7c2d6378421916a6aa0",
+      "after_sha256": "sha256:dc5720d98c219ec3977a42bd14c14debd3f5eeb347308ae1d310cb6b5d52d785",
+      "content": "diff --git a/rotkehlchen/tests/fixtures/blockchain.py b/rotkehlchen/tests/fixtures/blockchain.py\nindex 867858a5d7..83df545fae 100644\n--- a/rotkehlchen/tests/fixtures/blockchain.py\n+++ b/rotkehlchen/tests/fixtures/blockchain.py\n@@ -671,7 +671,7 @@ def _make_substrate_manager(\n         rpc_endpoint if rpc_endpoint is not None else KUSAMA_DEFAULT_OWN_RPC_ENDPOINT\n     )\n     substrate_manager = SubstrateManager(\n-        chain=SupportedBlockchain.KUSAMA,\n+        chain=chain_type,\n         msg_aggregator=messages_aggregator,\n         greenlet_manager=greenlet_manager,\n         connect_at_start=connect_at_start,\ndiff --git a/rotkehlchen/tests/fixtures/greenlets.py b/rotkehlchen/tests/fixtures/greenlets.py\nindex 3de2f2140c..0004fca960 100644\n--- a/rotkehlchen/tests/fixtures/greenlets.py\n+++ b/rotkehlchen/tests/fixtures/greenlets.py\n@@ -3,6 +3,9 @@\n from rotkehlchen.greenlets.manager import GreenletManager\n \n \n-@pytest.fixture(scope='session')\n+@pytest.fixture\n def greenlet_manager(messages_aggregator):\n-    return GreenletManager(msg_aggregator=messages_aggregator)\n+    manager = GreenletManager(msg_aggregator=messages_aggregator)\n+    yield manager\n+    manager.clear()\n+    manager.greenlets.clear()\ndiff --git a/rotkehlchen/tests/unit/test_substrate_manager.py b/rotkehlchen/tests/unit/test_substrate_manager.py\nindex 55723842ac..3a0cb4f44c 100644\n--- a/rotkehlchen/tests/unit/test_substrate_manager.py\n+++ b/rotkehlchen/tests/unit/test_substrate_manager.py\n@@ -4,7 +4,12 @@\n import pytest\n \n from rotkehlchen.chain.substrate.manager import SubstrateManager\n-from rotkehlchen.chain.substrate.types import BlockNumber, KusamaNodeName, NodeNameAttributes\n+from rotkehlchen.chain.substrate.types import (\n+    BlockNumber,\n+    KusamaNodeName,\n+    NodeNameAttributes,\n+    PolkadotNodeName,\n+)\n from rotkehlchen.constants import ZERO\n from rotkehlchen.constants.assets import A_KSM\n from rotkehlchen.errors.misc import RemoteError\n@@ -144,3 +149,31 @@ def test_set_available_nodes_call_order(kusama_manager):\n ])\n def test_format_own_rpc_endpoint(endpoint, formatted_endpoint):\n     assert formatted_endpoint == SubstrateManager._format_own_rpc_endpoint(endpoint)\n+\n+\n+def test_connect_to_own_node(polkadot_manager: 'SubstrateManager', request):\n+    polkadot_manager.connect_at_start = [PolkadotNodeName.OWN, PolkadotNodeName.PARITY]\n+    polkadot_manager.own_rpc_endpoint = ''\n+    polkadot_manager.attempt_connections()\n+    assert [task.task_name for task in polkadot_manager.greenlet_manager.greenlets] == ['polkadot manager connection to parity node']  # noqa: E501\n+    polkadot_manager.greenlet_manager.clear()\n+    polkadot_manager.greenlet_manager.greenlets = []\n+    polkadot_manager.own_rpc_endpoint = 'http://localhost:1234'\n+    polkadot_manager.attempt_connections()\n+    assert [task.task_name for task in polkadot_manager.greenlet_manager.greenlets] == [\n+        'polkadot manager connection to own node node',\n+        'polkadot manager connection to parity node',\n+    ]\n+\n+    polkadot_manager.greenlet_manager.clear()\n+    polkadot_manager.greenlet_manager.greenlets = []\n+    kusama_manager = request.getfixturevalue('kusama_manager')\n+    kusama_manager.greenlet_manager.clear()\n+    kusama_manager.greenlet_manager.greenlets = []\n+    kusama_manager.connect_at_start = [KusamaNodeName.OWN]\n+    kusama_manager.own_rpc_endpoint = ''\n+    kusama_manager.attempt_connections()\n+    assert kusama_manager.greenlet_manager.greenlets == []\n+    kusama_manager.own_rpc_endpoint = 'http://localhost:1234'\n+    kusama_manager.attempt_connections()\n+    assert len(kusama_manager.greenlet_manager.greenlets) == 1\ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,5 @@\n+H4sIAAAAAAAAA+3SQW6DMBAFUNacwhcIsaEQKZexDB4F1MRG9gDN7evSVqkqtdkkqqL+txkjjD3i\n+T9FOw9FqcvM2uxeZ7Op6rcn3uq5VXSrVyJ2sy0y+rWQm6rt19MUU2QQhsuA9/7bv2vsHVVzyZ4qs\n+O386GWeL2N/ujmv5l2V1yV82Kf+nRqX85e1a+Nk/z7+zYg2+JZtbmjdxGbjrxXjm3rtKVIVS+edD\n+qmnngWZyvAQzjhSK8SyC52fqj11Pbj0qbic38Ps4xamNHAyTTlNlDusH+/3HpDlHHWv22i9OO29J\n+bF7mmP/1LwEAAAAAAAAAAAAAAAAAAAAAeBiv1OZm2wAoAAA=\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\n"
+    }
+  ],
+  "rationale": "Extend the already selected own-node test to Kusama: empty own endpoint schedules zero connection jobs; a configured own endpoint schedules exactly its one configured slot. Preserve all original Polkadot positive and fallback cases.",
+  "inputs": {
+    "qa_case_id": "D0260",
+    "qa_keys": [
+      "mimo-weak-tests-v2.1:format-code-task-002535:block",
+      "mimo-weak-tests-v2.1:format-code-task-002535:line-f8d3d543a2",
+      "mimo-weak-tests-v2.1:format-code-task-002535:line-1e37b064c2"
+    ],
+    "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "validation_class": "static only",
+    "checks_run": [],
+    "qualifying_unique_runs": 4,
+    "passing_tests_changed_runs": 4,
+    "passing_answer_material_runs": 0,
+    "cluster_counts": [
+      {
+        "cluster_id": "L1-01",
+        "level": 1,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-01.2",
+        "level": 2,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-01.2.1",
+        "level": 3,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-05",
+        "level": 1,
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-05.2",
+        "level": 2,
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-05.2.1",
+        "level": 3,
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-09",
+        "level": 1,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-09.2",
+        "level": 2,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-09.2.2",
+        "level": 3,
+        "qualifying_run_count": 1
+      }
+    ],
+    "source_boundary": "Only assigned original instruction/tests and same-task lineage identity/path metadata; no solution/oracle bytes exposed; bundled verifier command decoded as source only.",
+    "native_trials": 0,
+    "scope": "Kusama own-node empty/nonempty endpoint scheduling only; original Polkadot own/public positives retained; runner/image unchanged."
+  },
+  "created_by": "true-seeker-swarm-ts11",
+  "created_at": "2026-10-28T07:38:17Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -121,7 +121,7 @@ def register_parser(commands: Any) -> None:
     ingest.add_argument("--run-id", default="production-seed")
     ingest.set_defaults(func=_command)
 
-    status = actions.add_parser("status", help="Read persistent queue depth without dispatching")
+    status = actions.add_parser("status", help="Read an existing queue strictly read-only; never create or migrate it")
     _queue_options(status)
     status.set_defaults(func=_command)
 
@@ -163,6 +163,14 @@ def register_parser(commands: Any) -> None:
         "--trace-id", dest="trace_ids", action="append",
         help="Further restrict admitted traces; repeat to select several",
     )
+    runs.add_argument(
+        "--trace-ids-file", type=Path, metavar="FILE",
+        help="One trace id per line, merged with --trace-id; blank lines and # comments ignored",
+    )
+    runs.add_argument(
+        "--strict", action="store_true",
+        help="Fail before publication if any requested trace id is missing or not admitted",
+    )
     runs.add_argument("--limit", type=int, help="Maximum admitted traces to export")
     runs.set_defaults(func=_command)
 
@@ -183,6 +191,33 @@ def register_parser(commands: Any) -> None:
     scope.add_argument("--cluster-id", required=True)
     scope.add_argument("--manifest", type=Path, required=True, help="New scope file to publish")
     scope.set_defaults(func=_command)
+
+    cheatbench = actions.add_parser(
+        "export-cheatbench-runs",
+        help="Export blinded, registry-admitted DEV CheatBench runs that have no cloud trace; never uploads",
+        description=(
+            "Resolves facet run ids (cheatbench-actions-v1 item ids) through the answer-key registry's "
+            "pinned published trajectories, applies the per-item DEV admission, and writes the same "
+            "blinded formats as export-runs. The trial_ref and the expected-verdict fields stay in the "
+            "sealed manifest outside the export."
+        ),
+    )
+    cheatbench.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    cheatbench.add_argument("--output-directory", type=Path, required=True)
+    cheatbench.add_argument("--format", choices=("harbor", "atif", "scout"), required=True)
+    cheatbench.add_argument(
+        "--manifest", type=Path, required=True, help="New sealed join file outside the export directory",
+    )
+    cheatbench.add_argument(
+        "--run-id", dest="run_ids", action="append",
+        help="Facet run id (item id) to export; repeat to select several (default: every candidate)",
+    )
+    cheatbench.add_argument("--limit", type=int, help="Maximum admitted runs to export")
+    cheatbench.add_argument(
+        "--view", choices=("full", "actions_only"), default="full",
+        help="full = the trajectory the facets were produced from (default)",
+    )
+    cheatbench.set_defaults(func=_command)
 
     export = actions.add_parser(
         "export-qc-reports",
@@ -272,6 +307,67 @@ def register_parser(commands: Any) -> None:
         "--replace", action="store_true", help="Overwrite an existing, different file",
     )
     reliability.set_defaults(func=_command)
+
+    scope = actions.add_parser(
+        "export-detector-scope",
+        help="Write trace-tools/detector-scope-v1.json from retained CM-11, CM-11b and CM-9 receipts (counts only)",
+    )
+    scope.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    scope.add_argument("--hackbench-directory", type=Path, required=True, help="CM-11 receipt directory (union-command.json, freeze.json)")
+    scope.add_argument("--cascade-measurement", type=Path, required=True, help="CM-11b measurement.json (cascade v8 on DEV)")
+    scope.add_argument("--goodfire-scores", type=Path, required=True, help="CM-9 e2escore-*-g.json (Stage 1 per trace)")
+    scope.add_argument("--cheatbench-scores", type=Path, required=True, help="CM-9 e2escore-*-cb.json (Stage 1 per trace)")
+    scope.add_argument(
+        "--output-directory", type=Path, required=True,
+        help="The trace-tools state directory that receives detector-scope-v1.json",
+    )
+    scope.add_argument("--replace", action="store_true", help="Overwrite an existing, different file")
+    scope.set_defaults(func=_command)
+
+    progress = actions.add_parser(
+        "export-gate-progress",
+        help="Write task-qa/gate-progress-v1.json from the OQ-6 coverage summary and v4 checkpoint (counts only)",
+    )
+    progress.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    progress.add_argument(
+        "--coverage-summary", type=Path, required=True,
+        help="coverage.py --aggregate-only output (oq6.stage-continuation-coverage-summary/v1)",
+    )
+    progress.add_argument(
+        "--checkpoint-summary", type=Path, required=True,
+        help="checkpoint-v4-summary.json (oq6.v4-checkpoint-aggregate/v1)",
+    )
+    progress.add_argument(
+        "--output-directory", type=Path, required=True,
+        help="The task-qa state directory that receives gate-progress-v1.json",
+    )
+    progress.add_argument("--replace", action="store_true", help="Overwrite an existing, different file")
+    progress.set_defaults(func=_command)
+
+    preflight = actions.add_parser(
+        "deploy-preflight",
+        help="Read-only check of the data files the Modal cloud tabs need; prints, never runs, the deploy commands",
+    )
+    preflight.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    preflight.add_argument(
+        "--state-root", type=Path, default=Path("~/.local/state/evallab-prod-live"),
+        help="Live state directory holding run-atlas/ and trace-tools/",
+    )
+    preflight.add_argument(
+        "--inventory", type=Path,
+        default=Path("~/Developer/research-context/bridge/2026-10-27-run-atlas/ts9-defensive-inventory/inventory.json"),
+        help="TS-9 defensive inventory (staged reduced)",
+    )
+    preflight.add_argument(
+        "--registry", type=Path,
+        default=Path("~/Developer/research-context/bridge/2026-10-27-run-atlas/cross-test-registry.json"),
+        help="Cross-test registry (staged reduced)",
+    )
+    preflight.add_argument(
+        "--stage-directory", type=Path,
+        help="Keep the staged copies here (a new or empty directory); default: a temporary directory that is deleted",
+    )
+    preflight.set_defaults(func=_command)
 
     sb1 = actions.add_parser(
         "seeker-error-first",
@@ -369,6 +465,68 @@ def _open_queue(args: argparse.Namespace, root: Path) -> Any:
     return open_production_queue(
         _database(root, args.database), registry=CorpusRegistry(root), sqlite_fallback=fallback,
     )
+
+
+def _open_status_queue(args: argparse.Namespace, root: Path) -> Any:
+    """Reuse the queue's snapshot reader without invoking its migrating writer constructor."""
+    import sqlite3
+
+    from evallab.production.actor_projection import source_read_uri
+    from evallab.production.corpus_queue import ContinuousWorkQueue, ProductionQueueConnectionError
+    from evallab.production.relay import QueueConnection
+
+    class StatusQueue(ContinuousWorkQueue):
+        def __init__(self, database: str | Path) -> None:
+            self._lock = threading.RLock()
+            self._postgres = str(database).startswith(("postgresql://", "postgres://"))
+            if self._postgres:
+                import psycopg
+
+                try:
+                    self._connection = psycopg.connect(
+                        str(database), autocommit=True, connect_timeout=3,
+                        options="-c default_transaction_read_only=on",
+                    )
+                except psycopg.OperationalError:
+                    raise ProductionQueueConnectionError(
+                        "PostgreSQL production queue connection unavailable",
+                    ) from None
+            else:
+                path = Path(database)
+                if not path.is_file():
+                    raise ValueError("status requires an existing queue database")
+                sidecars = [path.with_name(path.name + suffix) for suffix in ("-wal", "-shm")]
+                if all(sidecar.is_file() for sidecar in sidecars):
+                    uri = path.as_uri() + "?mode=ro"
+                else:
+                    try:
+                        uri = source_read_uri(path)
+                    except ValueError as exc:
+                        raise ValueError(str(exc).replace("before projection", "before reading queue status")) from exc
+                self._connection = sqlite3.connect(uri, uri=True, isolation_level=None)
+            try:
+                if not self._postgres:
+                    self._connection.execute("PRAGMA query_only=ON")
+                tables = self._execute(
+                    "SELECT tablename FROM pg_tables WHERE schemaname = current_schema()"
+                    if self._postgres else "SELECT name FROM sqlite_schema WHERE type = 'table'",
+                ).fetchall()
+                if not {"queue_state", "events", "outbox", "consumer_cursors"} <= {row[0] for row in tables}:
+                    raise ValueError("status requires a queue database (missing queue tables)")
+            except BaseException:
+                self._connection.close()
+                raise
+
+    database = _database(root, args.database)
+    try:
+        queue = StatusQueue(database)
+    except ProductionQueueConnectionError:
+        fallback = _resolve(root, args.sqlite_fallback or Path("derived/production/prod-queue.sqlite"))
+        return QueueConnection(
+            StatusQueue(fallback), "sqlite",
+            "PostgreSQL initial connection unavailable; using the explicit SQLite fallback.",
+        )
+    return QueueConnection(queue, "postgresql" if queue._postgres else "sqlite")
 
 
 def _runtime(args: argparse.Namespace, root: Path, queue: Any) -> Any:
@@ -577,14 +735,37 @@ def _export_runs(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     from evallab.production.cloud_trace_export import export_runs
     from evallab.production.corpus_queue import CorpusRegistry
 
+    trace_ids = args.trace_ids
+    if args.trace_ids_file is not None:
+        lines = _local_path(root, args.trace_ids_file).read_text(encoding="utf-8").splitlines()
+        file_ids = [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
+        if not file_ids:
+            raise ValueError("no admitted runs selected")
+        trace_ids = [*(trace_ids or ()), *file_ids]
     return export_runs(
         _local_path(root, args.source_database),
         _local_path(root, args.output_directory),
         format=args.format,
         registry=CorpusRegistry(root),
-        trace_ids=args.trace_ids,
+        trace_ids=trace_ids,
         limit=args.limit,
         manifest=_local_path(root, args.manifest),
+        strict=args.strict,
+    )
+
+
+def _export_cheatbench_runs(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    from evallab.production.cloud_trace_export import export_cheatbench_runs
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    return export_cheatbench_runs(
+        _local_path(root, args.output_directory),
+        format=args.format,
+        registry=CorpusRegistry(root),
+        run_ids=args.run_ids,
+        limit=args.limit,
+        manifest=_local_path(root, args.manifest),
+        view=args.view,
     )
 
 
@@ -756,6 +937,9 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
         if args.prod_command == "export-runs":
             _emit({"command": args.prod_command, **_export_runs(args, root)}, args)
             return 0
+        if args.prod_command == "export-cheatbench-runs":
+            _emit({"command": args.prod_command, **_export_cheatbench_runs(args, root)}, args)
+            return 0
         if args.prod_command == "export-cluster-scope":
             _emit({"command": args.prod_command, **_export_cluster_scope(args, root)}, args)
             return 0
@@ -797,10 +981,50 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0
+        if args.prod_command == "export-detector-scope":
+            from evallab.production import detector_scope
+
+            document = detector_scope.build_scope([
+                *detector_scope.from_hackbench(_resolve(root, args.hackbench_directory)),
+                *detector_scope.from_cascade_measurement(_resolve(root, args.cascade_measurement)),
+                *detector_scope.from_stage1_scores(
+                    _resolve(root, args.goodfire_scores), _resolve(root, args.cheatbench_scores),
+                ),
+            ])
+            receipt = detector_scope.write_scope(
+                _resolve(root, args.output_directory), document, replace=args.replace,
+            )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "export-gate-progress":
+            from evallab.production import gate_progress
+
+            receipt = gate_progress.write_progress(
+                _resolve(root, args.output_directory),
+                gate_progress.export_progress(
+                    _resolve(root, args.coverage_summary), _resolve(root, args.checkpoint_summary)
+                ),
+                replace=args.replace,
+            )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "deploy-preflight":
+            from evallab.production.deploy_preflight import run_preflight
+
+            report = run_preflight(
+                args.state_root, repo_root=root, inventory=args.inventory.expanduser(),
+                registry=args.registry.expanduser(), stage_directory=args.stage_directory,
+            )
+            _emit({"command": args.prod_command, **report}, args)
+            return 0 if report["ok"] else 1
         if args.prod_command == "seeker-error-first":
             receipt, exit_code = _seeker_error_first(args, root)
             _emit({"command": args.prod_command, **receipt}, args)
             return exit_code
+        if args.prod_command == "status":
+            with _open_status_queue(args, root) as connection:
+                _emit({"command": args.prod_command, **_snapshot(connection)}, args)
+            return 0
         with _open_queue(args, root) as connection:
             if args.prod_command == "ingest":
                 from evallab.production.ingest import ingest_corpus
@@ -809,8 +1033,6 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                     connection.queue, dataset_ids=args.dataset_ids, run_id=args.run_id,
                 )
                 receipt: dict[str, Any] = {"ingest": result, **_snapshot(connection)}
-            elif args.prod_command == "status":
-                receipt = _snapshot(connection)
             elif args.prod_command == "run-once":
                 receipt = asyncio.run(_run_once(args, root, connection))
                 exit_code = 1 if receipt.get("runtime", {}).get("ok") is False else 0

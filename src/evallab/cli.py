@@ -1185,7 +1185,7 @@ def _nightly_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     if getattr(args, "refresh", False):
-        from evallab.nightly_refresh import RefreshConfig, run_refresh
+        from evallab.nightly_refresh import RefreshConfig, refresh_exit_code, run_refresh
 
         result = run_refresh(
             RefreshConfig(
@@ -1196,10 +1196,11 @@ def _nightly_command(
                 readers_store=args.readers_store,
                 data_root=args.data_root,
                 verdict_root=getattr(args, "verdict_root", None),
+                backup=getattr(args, "backup", False),
             )
         )
         print(json.dumps(result, indent=2, sort_keys=True))
-        return 0
+        return refresh_exit_code(result)
     executor = Executor.from_repo(root)
     researcher_loop: ResearcherLoop | None = None
     database_url = database_url_from_environment()
@@ -5410,6 +5411,11 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         help="Read-only checkout with real HAR-177 census/variant/oracle inputs; snapshotted under state",
     )
+    nightly.add_argument(
+        "--backup",
+        action="store_true",
+        help="With --refresh: also take the dated pg_dump under the postgres_backup step timeout",
+    )
     nightly.set_defaults(func=_nightly_command)
 
     research = commands.add_parser(
@@ -7608,6 +7614,10 @@ def parser() -> argparse.ArgumentParser:
     from evallab.production.qa_data import register_parser as register_qa_data_parser
 
     register_qa_data_parser(commands)
+
+    from evallab.trace_store.cli import register_traces
+
+    register_traces(commands)
     return root
 
 

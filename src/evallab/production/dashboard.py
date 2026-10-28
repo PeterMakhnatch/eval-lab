@@ -23,6 +23,10 @@ DASHBOARD: str = r"""<!doctype html>
 .tools-cohorts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.tools-table .cloud-table{min-width:1180px}.tools-table>.cloud-table-wrap>.cloud-table>tbody>tr>td:first-child{min-width:280px}.tools-table td>div{display:grid;gap:3px;min-width:0}.tools-table td small{color:var(--muted);overflow-wrap:anywhere}.tools-table details{margin-top:8px}.tools-table summary{cursor:pointer;color:var(--blue)}.tools-table details h4{margin:10px 0 0}.tools-table details .cloud-table{min-width:0}.tools-sources summary{cursor:pointer;color:var(--blue)}
 .task-section{margin-top:22px}.task-section h3{margin:0 0 8px}.task-section>p{margin:0 0 8px}.task-command{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--raised);font:12px var(--mono)}.task-command-row{margin:12px 0}.task-lines{display:grid;gap:3px;min-width:0}.task-lines small{color:var(--muted);overflow-wrap:anywhere}.task-runs .cloud-table{min-width:1280px}.task-qa .cloud-table,.task-seeker .cloud-table,.task-fixes .cloud-table{min-width:900px}
 .reliability-bar{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}.reliability-track{display:block;width:140px;height:6px;border-radius:3px;background:var(--line)}.atlas-tools .cloud-table.reliability-table{min-width:560px}
+.repairs-table .cloud-table{min-width:1100px}.repairs-table td>div{display:grid;gap:3px;min-width:0}.repairs-table td small{color:var(--muted);overflow-wrap:anywhere}.repairs-table td a{color:var(--blue);overflow-wrap:anywhere}
+.gate-table .cloud-table{min-width:1100px}.gate-table td>div{display:grid;gap:3px;min-width:0}.gate-table td small{color:var(--muted);overflow-wrap:anywhere}.gate-bar{display:block;height:6px;border-radius:3px;background:var(--line);width:140px}.gate-fill{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}
+.scope-box{margin:16px 0}.scope-box h3{margin:0 0 6px}.scope-lines{margin:0 0 10px;padding-left:18px;color:var(--muted)}.scope-lines li{margin:2px 0}.scope-box .cloud-table{min-width:1100px}
+.crosstest-table .cloud-table{min-width:1320px}.crosstest-table td>div{display:grid;gap:3px;min-width:0}.crosstest-table td small{color:var(--muted);overflow-wrap:anywhere}.crosstest-table td a{color:var(--blue);overflow-wrap:anywhere}.crosstest-table details .cloud-table{min-width:0}.crosstest-table summary{cursor:pointer;color:var(--blue)}.crosstest-hold{margin-top:22px}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}.focus-step{animation:step-focus 1.5s ease-out}@keyframes step-focus{from{box-shadow:0 0 0 5px #6ce4b844}to{box-shadow:0 0 0 0 transparent}}}
@@ -46,6 +50,8 @@ DASHBOARD: str = r"""<!doctype html>
  <button id="atlas-tab" type="button" role="tab" aria-selected="false" aria-controls="atlas-view" tabindex="-1">Run Atlas</button>
  <button id="tools-tab" type="button" role="tab" aria-selected="false" aria-controls="tools-view" tabindex="-1">Trace Tools</button>
  <button id="task-tab" type="button" role="tab" aria-selected="false" aria-controls="task-view" tabindex="-1">Task Evidence</button>
+ <button id="repairs-tab" type="button" role="tab" aria-selected="false" aria-controls="repairs-view" tabindex="-1">Grader repairs</button>
+ <button id="crosstest-tab" type="button" role="tab" aria-selected="false" aria-controls="crosstest-view" tabindex="-1">Cross-test sets</button>
  <button id="trust-tab" type="button" role="tab" aria-selected="false" aria-controls="trust-view" tabindex="-1">Trust &amp; QC</button>
 </nav>
 <div id="live-view" role="tabpanel" aria-labelledby="live-tab">
@@ -116,6 +122,11 @@ DASHBOARD: str = r"""<!doctype html>
   <div id="atlas-tools-table"></div>
   <div class="row"><button id="atlas-tools-open" type="button" class="small">Open Trace Tools for cost, detectors and sources</button></div>
  </details>
+<details id="atlas-readers" class="atlas-tools" open>
+ <summary>Reader mix · which model read each population's stored facets</summary>
+ <p id="atlas-readers-status" class="notice" role="status"></p>
+ <div id="atlas-readers-body"></div>
+</details>
 <details id="atlas-coverage" class="atlas-tools" open>
  <summary>Coverage · stored facets versus admitted runs, and what is not yet ready</summary>
  <p id="atlas-coverage-status" class="notice" role="status"></p>
@@ -132,6 +143,7 @@ DASHBOARD: str = r"""<!doctype html>
   <div><label for="atlas-outcome">Outcome</label><select id="atlas-outcome"><option value="">Any outcome</option></select></div>
   <div><label for="atlas-tests">Tests</label><select id="atlas-tests"><option value="">Any tests</option></select></div>
   <div><label for="atlas-eval_awareness">Eval awareness</label><select id="atlas-eval_awareness"><option value="">Any eval awareness</option></select></div>
+  <div><label for="atlas-facet_model">Reader (facet model)</label><select id="atlas-facet_model"><option value="">Any reader</option></select></div>
   <div><label for="atlas-min_suspicion">Min suspicion · counts at exact value</label><select id="atlas-min_suspicion"><option value="">Any suspicion</option></select></div>
   <div><label for="atlas-grader_or_harness_touched">Grader / harness touched</label><select id="atlas-grader_or_harness_touched"><option value="">Any</option></select></div>
   <div><label for="atlas-answer_material_accessed">Answer material accessed</label><select id="atlas-answer_material_accessed"><option value="">Any</option></select></div>
@@ -152,9 +164,15 @@ DASHBOARD: str = r"""<!doctype html>
 </section>
 <section id="tools-view" class="panel" role="tabpanel" aria-labelledby="tools-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">Whole-run tools / rule cascade / blinded facets</div><h2>Trace Tools</h2></div><button id="cloud-tools-refresh" type="button" class="small">Refresh scorecard</button></div>
- <p class="seal">Measured on labelled DEV and cross-test cohorts, never tuned on the cross-test. A tool that did not read a run abstained: that run is neither a miss nor a clean pass. Nothing is ranked.</p>
+ <p class="seal">Retained DEV and cross-test measurements, not a ranking. CheatBench DEV was already examined and is not held out. A tool that did not read a run abstained: that run is neither a miss nor a clean pass.</p>
  <p id="cloud-tools-status" class="notice" role="status"></p>
  <div id="cloud-tools-cohorts" class="tools-cohorts"></div>
+<section id="cloud-tools-scope" class="scope-box" aria-labelledby="cloud-tools-scope-title">
+ <h3 id="cloud-tools-scope-title">Where each detector works</h3>
+ <p id="cloud-tools-scope-status" class="notice" role="status"></p>
+ <ul id="cloud-tools-scope-lines" class="scope-lines"></ul>
+ <div id="cloud-tools-scope-table" class="tools-table"></div>
+</section>
  <div id="cloud-tools-table" class="tools-table"></div>
 <section id="tools-runs-panel" class="atlas-detail" tabindex="-1" aria-labelledby="tools-runs-title" hidden>
  <div class="panel-head"><div><div class="eyebrow">Admitted DEV runs by trace id / no labels</div><h2 id="tools-runs-title">Tool runs</h2></div><div class="actions"><button id="tools-runs-copy" type="button" class="small">Copy run IDs · this page</button><button id="tools-runs-close" type="button" class="small">Close</button></div></div>
@@ -168,6 +186,11 @@ DASHBOARD: str = r"""<!doctype html>
 <section id="task-view" class="panel" role="tabpanel" aria-labelledby="task-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">One admitted DEV task / runs, tool findings, Task QA, seeker differentials, grader fixes</div><h2>Task Evidence</h2></div><button id="task-refresh" type="button" class="small">Refresh task</button></div>
  <p class="seal">Retained records for one task, not a verdict. A tool that did not read a run abstained, which is neither a miss nor a clean pass; no finding recorded means none recorded.</p>
+<details id="task-gate" class="atlas-tools" open>
+ <summary>Gate rerun progress · the corrected Task QA gate on the DEV tasks, per model and arm</summary>
+ <p id="task-gate-status" class="notice" role="status"></p>
+ <div id="task-gate-body" class="gate-table"></div>
+</details>
  <form id="task-form" class="cloud-filters">
   <div class="cloud-query"><label for="task-query">Task id (two or more characters)</label><input id="task-query" type="search" autocomplete="off" maxlength="300" placeholder="e.g. terminal-bench/vf2-speedup-networkx"></div>
   <div class="actions"><button type="submit" class="primary">Find task</button><button id="task-copy-link" type="button">Copy link to this task</button></div>
@@ -175,6 +198,28 @@ DASHBOARD: str = r"""<!doctype html>
  <p id="task-status" class="notice" role="status"></p>
  <div id="task-matches"></div>
  <div id="task-content"></div>
+</section>
+<section id="repairs-view" class="panel" role="tabpanel" aria-labelledby="repairs-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Keyed DEV tasks / counts and PR numbers only</div><h2>Grader repairs</h2></div><button id="repairs-refresh" type="button" class="small">Refresh board</button></div>
+ <p class="seal">Read-only. “Static only” means a candidate passed host checks and no native sandbox run happened. Nothing is called repaired without a native receipt.</p>
+ <p id="repairs-status" class="notice" role="status"></p>
+ <div id="repairs-summary" class="tools-cohorts"></div>
+ <form id="repairs-filters" class="cloud-filters">
+  <div><label for="repairs-status-filter">Status</label><select id="repairs-status-filter"><option value="">Any status</option></select></div>
+  <div><label for="repairs-defect-filter">Defect type</label><select id="repairs-defect-filter"><option value="">Any defect type</option></select></div>
+  <div><label for="repairs-task-filter">Task</label><input id="repairs-task-filter" type="search" maxlength="100" autocomplete="off" placeholder="Part of a task id"></div>
+ </form>
+ <div id="repairs-table" class="repairs-table"></div>
+</section>
+<section id="crosstest-view" class="panel" role="tabpanel" aria-labelledby="crosstest-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Staged cross-test sets / registry metadata only</div><h2>Cross-test sets</h2></div><button id="crosstest-refresh" type="button" class="small">Refresh registry</button></div>
+ <p class="seal">Read-only. Frozen, one-shot, local evaluation sets: none is uploadable, none may be trained on, and no record text is shown here.</p>
+ <p id="crosstest-status" class="notice" role="status"></p>
+ <div id="crosstest-summary" class="tools-cohorts"></div>
+ <div id="crosstest-validator"></div>
+ <div id="crosstest-malformed"></div>
+ <div id="crosstest-table" class="crosstest-table"></div>
+ <div id="crosstest-hold" class="crosstest-table crosstest-hold"></div>
 </section>
 <section id="trust-view" class="panel" role="tabpanel" aria-labelledby="trust-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">Retained producer reports / counts and arithmetic only</div><h2>Trust tiers, Hackbook QC and cross-test</h2></div><button id="cloud-trust-refresh" type="button" class="small">Refresh retained reports</button></div>
@@ -715,7 +760,7 @@ function cloudSystemPlaybook(report,parent){
  parent.append(grid,flags);
 }
 const atlasCategories=[['source','Any source'],['outcome','Any outcome'],['tests','Any tests'],
- ['eval_awareness','Any eval awareness'],['min_suspicion','Any suspicion']];
+ ['eval_awareness','Any eval awareness'],['facet_model','Any reader'],['min_suspicion','Any suspicion']];
 const atlasBooleans=[['grader_or_harness_touched','Grader / harness'],
  ['answer_material_accessed','Answer material'],['success_claim_without_evidence','Unevidenced success claim']];
 let atlasOffset=0,atlasCluster='',atlasListVersion=0,atlasRunVersion=0,atlasRunId='',atlasRunOpener=null,atlasShownIds=[],atlasToolsVersion=0;
@@ -807,8 +852,8 @@ function atlasRuns(data){
    'No facets have been written yet. Nothing is fabricated.':
    'No admitted DEV runs match these filters. Reset filters or inspect store health.','empty'));return;
  }
- const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Dataset / task','Goal','Approach','Shortcut',
-  'Tests','Facet flags','Eval awareness','Tokens in / out','Clusters','Facet version · blinding'],runs.map(run=>{
+const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Dataset / task','Goal','Approach','Shortcut',
+  'Tests','Facet flags','Eval awareness','Tokens in / out','Clusters','Reader · facet version · blinding'],runs.map(run=>{
   const open=button(String(run.run_id).slice(0,20),()=>openAtlasRun(run.run_id,open),'link');
   open.title=run.run_id;open.setAttribute('aria-label','Open run '+run.run_id);open.dataset.runId=run.run_id;openers.push(open);
   const identity=node('span',run.dataset_id),chips=node('div',undefined,'chips');
@@ -855,7 +900,7 @@ const blindingText={refreshed:'Re-blinded',pending:'Re-blind pending',unlisted:'
 const blindingBadge=state=>state?badge(blindingText[state]??state,state==='pending'?'warn':''):node('small','Not recorded');
 function atlasVersion(run){
  const box=node('div',undefined,'task-lines');
- box.append(node('small',run.facet_version),blindingBadge(run.blinding));
+ box.append(node('small',run.facet_model,'mono'),node('small',run.facet_version),blindingBadge(run.blinding));
  return box;
 }
 function openRunInAtlas(runId){
@@ -875,14 +920,32 @@ function atlasCoverage(data){
  parent.append(tiles);
  if(data.refresh_error)parent.append(node('p','Blinding refresh list: '+data.refresh_error,'notice error'));
  else if(totals.refresh_listed_n!==null)parent.append(node('small','Re-blinding refresh list: '+cloudCount(totals.refresh_listed_n)+' runs listed, '+cloudCount(totals.refreshed_n)+' stored as the re-extraction.'));
- parent.append(cloudTable(['Population (dataset · trust tier)','Stored / admitted','Ready','Facet version','Facet model','Blinding'],
+ parent.append(cloudTable(['Population (dataset · trust tier)','Stored / admitted','Ready','Facet version','Blinding'],
   list(data.populations).map(row=>{
    const missing=row.admitted_n-row.stored_n,ready=node('div',undefined,'task-lines');
    ready.append(node('small',cloudRatio(row.stored_n,row.admitted_n)),missing>0?badge(cloudCount(missing)+' not ready','warn'):badge('All stored','good'));
    return [row.dataset_id+' · '+row.trust_tier,cloudCount(row.stored_n)+' / '+cloudCount(row.admitted_n),ready,
-    coverageLines(row.facet_versions,key=>key),coverageLines(row.facet_models,key=>key),
+    coverageLines(row.facet_versions,key=>key),
     coverageLines(row.blinding,key=>blindingText[key]??key)];
   })));
+}
+const readerKappa='Facets from different readers agree only at kappa 0.42 to 0.47 (RA-6, 92 runs read by every reader), so a score on a mixed population depends on who read the run. Compare within one reader, or filter the runs table to one.';
+function atlasReaders(data){
+ const parent=$('atlas-readers-body'),rows=list(data.populations),mixed=rows.filter(row=>row.mixed_readers);
+ parent.replaceChildren();
+ if(!rows.length){parent.append(node('p','No admitted DEV populations.','empty'));return;}
+ parent.append(mixed.length?node('p',cloudCount(mixed.length)+' of '+cloudCount(rows.length)+' populations mix more than one reader: '+
+   mixed.map(row=>row.dataset_id+' · '+row.trust_tier).join('; ')+'. '+readerKappa,'notice error'):
+  node('p','No population mixes readers. Each population with stored facets was read by a single model.','notice'));
+ parent.append(cloudTable(['Population (dataset · trust tier)','Stored facets','Readers'],rows.map(row=>{
+  const readers=Object.entries(row.facet_models||{}).filter(([,value])=>value>0).sort((left,right)=>right[1]-left[1]),cell=node('div',undefined,'task-lines');
+  if(!readers.length)cell.append(badge('No reader yet','warn'),node('small','Nothing stored, so no model has read this population.'));
+  else{
+   for(const [model,count] of readers)cell.append(node('small',model+' · '+cloudCount(count)+' ('+cloudRatio(count,row.stored_n)+')','mono'));
+   cell.append(row.mixed_readers?badge('Mixed readers','warn'):badge('One reader','good'));
+  }
+  return [row.dataset_id+' · '+row.trust_tier,cloudCount(row.stored_n)+' / '+cloudCount(row.admitted_n)+' admitted',cell];
+ })));
 }
 const reliabilityBasis={within_1:'within one level'};
 function atlasReliability(data){
@@ -927,12 +990,14 @@ async function loadAtlasCoverage(){
  try{
   const data=await cloudApi('/api/cloud-db/atlas/coverage?split=dev');
   if(version!==atlasCoverageVersion)return;
-  atlasCoverage(data);
+  atlasCoverage(data);atlasReaders(data);
   notice('atlas-coverage-status',data.notice);
+  notice('atlas-readers-status','Counts are stored facets on admitted DEV runs, by the model that read them. No labels are involved.');
  }catch(error){
   if(version===atlasCoverageVersion){
-   $('atlas-coverage-body').replaceChildren();
+   $('atlas-coverage-body').replaceChildren();$('atlas-readers-body').replaceChildren();
    notice('atlas-coverage-status',cloudError(error,'Atlas coverage'),true);
+   notice('atlas-readers-status',cloudError(error,'Reader mix'),true);
   }
  }
 }
@@ -941,7 +1006,7 @@ function atlasFacet(run){
  for(const [label,value] of [['Run ID',run.run_id],['Dataset / task',text(run.dataset_id)+' / '+text(run.task_id)],
   ['Source / split',text(run.source)+' / '+text(run.split)],['Goal',run.goal],['Approach',run.approach],
   ['Shortcut',run.shortcut],['Outcome',run.outcome],['Tests',run.tests],['Eval awareness',run.eval_awareness],
-  ['Suspicion',cloudCount(run.suspicion)],['Facet model',run.facet_model],['Facet version',run.facet_version],
+  ['Suspicion',cloudCount(run.suspicion)],['Reader (facet model)',run.facet_model],['Facet version',run.facet_version],
   ['Blinding',blindingText[run.blinding]??'Not recorded'],
   ['Tokens in / out',cloudCount(run.input_tokens)+' / '+cloudCount(run.output_tokens)],
   ['Trust tier',run.trust_tier],['Run steps',cloudCount(run.step_count)],
@@ -1100,6 +1165,152 @@ async function loadAtlasTools(){
  }
 }
 $('atlas-tools-open').addEventListener('click',()=>$('tools-tab').click());
+let repairData=null,repairVersion=0;
+const repairTone=status=>status==='native-validated'?'good':status==='no repair'?'blue':'warn';
+function repairLink(repair){
+ const label='#'+repair.pr+' '+(repair.kind==='ts9-candidate'?'TS-9 candidate':'related candidate')+(repair.merged===true?' · merged':'');
+ const target=repair.pr_url?node('a',label):node('span',label);
+ if(repair.pr_url){target.href=repair.pr_url;target.target='_blank';target.rel='noopener noreferrer';}
+ const cell=node('div',undefined,'task-lines');
+ cell.append(target,node('small',repair.native_receipt?'Native receipt: '+repair.native_receipt:'Checked: '+repair.verification+' · no native proof'));
+ return cell;
+}
+function repairRow(row){
+ const status=node('div',undefined,'task-lines');
+ status.append(badge(row.status,repairTone(row.status)),node('small',row.status_note));
+ const defects=node('div',undefined,'task-lines');
+ for(const [kind,n] of Object.entries(row.defect_types))defects.append(node('span',kind+' × '+cloudCount(n)));
+ const repairs=node('div',undefined,'task-lines');
+ for(const repair of list(row.repairs))repairs.append(repairLink(repair));
+ repairs.append(node('small','Main repair: '+row.main_repair));
+ const runs=node('div',undefined,'task-lines');
+ runs.append(node('strong',cloudCount(row.passed_tests_modified)),node('small','of '+cloudCount(row.atlas_runs)+' atlas runs'));
+ const open=row.admitted?button('Task evidence',()=>openTask(row.task_id)):node('small','Not in the cloud database');
+ const id=node('div',undefined,'task-lines');
+ id.append(node('strong',row.task_id),node('small',row.dataset_id));
+ return [id,defects,cloudCount(row.annotations)+(row.targeted_annotations?' ('+cloudCount(row.targeted_annotations)+' targeted)':''),repairs,status,runs,open];
+}
+function renderRepairs(){
+ const data=repairData,body=$('repairs-table'),summary=$('repairs-summary');
+ body.replaceChildren();summary.replaceChildren();
+ if(!data)return;
+ if(!data.present){
+  body.append(node('p','No repair board to show: '+data.error+'. Set EVALLAB_REPAIR_INVENTORY to the TS-9 inventory, or place it at repair-board/inventory.json in the data root. Nothing has been fabricated.','empty'));
+  return;
+ }
+ const counts=data.counts;
+ for(const status of data.statuses)summary.append(badge(status+' · '+cloudCount(counts.by_status[status]),repairTone(status)));
+ summary.append(badge(cloudCount(counts.tasks)+' tasks · '+cloudCount(counts.annotations)+' annotations'),
+  badge('Passed with tests modified · '+cloudCount(counts.passed_tests_modified)),
+  badge('Inventory '+toolsTime(data.inventory.observed_at)));
+ const status=$('repairs-status-filter').value,defect=$('repairs-defect-filter').value,query=$('repairs-task-filter').value.trim().toLowerCase();
+ const rows=data.tasks.filter(row=>(!status||row.status===status)&&(!defect||defect in row.defect_types)&&(!query||row.task_id.toLowerCase().includes(query)));
+ if(!rows.length){body.append(node('p','No task matches these filters.','empty'));return;}
+ body.append(cloudTable(['Task','Defect types','Annotations','Repair','Status','Passed, tests modified','Evidence'],rows.map(repairRow)));
+ notice('repairs-status',data.notice+' Showing '+cloudCount(rows.length)+' of '+cloudCount(counts.tasks)+' tasks.');
+}
+function fillSelect(id,values,anyLabel){
+ const select=$(id),current=select.value;
+ select.replaceChildren(new Option(anyLabel,''),...values.map(value=>new Option(value,value)));
+ select.value=values.includes(current)?current:'';
+}
+async function loadRepairs(){
+ const version=++repairVersion;
+ $('repairs-refresh').disabled=true;
+ notice('repairs-status','Loading the grader repair board…');
+ try{
+  const data=await cloudApi('/api/cloud-db/repair-board?split=dev');
+  if(version!==repairVersion)return;
+  repairData=data;
+  fillSelect('repairs-status-filter',data.statuses,'Any status');
+  fillSelect('repairs-defect-filter',data.defect_types,'Any defect type');
+  renderRepairs();
+  if(!data.present)notice('repairs-status',data.error,String(data.error).startsWith('unreadable'));
+ }catch(error){
+  if(version===repairVersion){repairData=null;renderRepairs();notice('repairs-status',cloudError(error,'Grader repair board'),true);}
+ }finally{
+  if(version===repairVersion)$('repairs-refresh').disabled=false;
+ }
+}
+$('repairs-refresh').addEventListener('click',loadRepairs);
+$('repairs-filters').addEventListener('change',renderRepairs);
+$('repairs-filters').addEventListener('input',renderRepairs);
+$('repairs-filters').addEventListener('submit',event=>event.preventDefault());
+let crosstestVersion=0;
+const crosstestFlags=[['eval_only','Eval only'],['local_only','Local only'],['no_training','No training'],['no_rehosting','No rehosting']];
+function crosstestLink(label,url){
+ if(!url)return node('span',label);
+ const link=node('a',label);link.href=url;link.target='_blank';link.rel='noopener noreferrer';return link;
+}
+function crosstestRow(entry){
+ const id=node('div',undefined,'task-lines');
+ id.append(node('strong',entry.name),node('small',entry.id+' · unit: '+entry.unit),crosstestLink('Source',entry.source_url));
+ const counts=Object.entries(entry.counts),details=node('details');
+ details.append(node('summary',cloudCount(counts.length)+' counts'),cloudTable(['Count','Value'],counts.map(([key,value])=>[key,cloudCount(value)])));
+ const scoring=node('div',undefined,'task-lines');
+ scoring.append(badge(entry.command_level.scorable?'Command-level scoring: possible':'Command-level scoring: not possible',entry.command_level.scorable?'blue':'warn'));
+ if(entry.command_level.reason)scoring.append(node('small',entry.command_level.reason));
+ const rights=node('div',undefined,'chips');
+ for(const [key,label] of crosstestFlags)rights.append(badge(label+': '+(entry.flags[key]?'yes':'no')));
+ rights.append(badge('Uploadable: no','warn'));
+ const licence=node('div',undefined,'task-lines');
+ licence.append(node('strong',entry.licence.text),node('small','Redistributable: '+(entry.licence.redistributable?'yes':'no')),node('small','Hosted model API for evaluation: '+entry.hosted_model_api.split('_').join(' ')));
+ const adapter=node('div',undefined,'task-lines');
+ adapter.append(badge(entry.adapter.merge_state,entry.adapter.merge_state==='merged'?'blue':'warn'),
+  entry.adapter.pr?crosstestLink('PR #'+entry.adapter.pr,entry.adapter.pr_url):node('small','No PR recorded'),node('small',entry.status||''));
+ return [id,entry.label_type,details,scoring,licence,rights,adapter];
+}
+function renderCrosstest(data){
+ for(const id of ['crosstest-summary','crosstest-validator','crosstest-malformed','crosstest-table','crosstest-hold'])$(id).replaceChildren();
+ if(!data.present){
+  $('crosstest-table').append(node('p','No cross-test sets to show: '+data.error+'. Set EVALLAB_CROSS_TEST_REGISTRY to cross-test-registry.json, or place it at cross-test/registry.json in the data root. Nothing has been fabricated.','empty'));
+  return;
+ }
+ $('crosstest-summary').append(badge(cloudCount(data.entries.length)+' staged sets'),badge(cloudCount(data.hold_access.length)+' need Peter, not available','warn'),
+  badge(cloudCount(data.malformed.length)+' malformed',data.malformed.length?'bad':''),badge('Uploadable · 0'),
+  badge(cloudCount(data.hold_licence_not_staged_n)+' more held for licence, not staged'),data.created?badge('Registry '+data.created):node('span'));
+ if(data.validator){
+  const box=node('div',undefined,'task-command-row');
+  box.append(node('strong','Validate the registry against the staged bundles'),node('small',' · reads manifests on this machine; no record text'));
+  for(const [label,command] of [['Full check',data.validator.command],['Quick check (no hashing, no adapter check)',data.validator.quick_command]]){
+   box.append(node('small',label),node('pre',command,'task-command'),button('Copy command',()=>copyText(command,'the validator command','crosstest-status')));
+  }
+  $('crosstest-validator').append(box);
+ }
+ for(const problem of data.malformed){
+  $('crosstest-malformed').append(node('p','Malformed '+problem.where+(problem.id?' ('+problem.id+')':'')+': '+problem.reason+'. Not shown as a usable set.','notice error'));
+ }
+ if(data.entries.length){
+  $('crosstest-table').append(cloudTable(['Set','Label type','Counts','Command-level scoring','Licence','Rights','Adapter'],data.entries.map(crosstestRow)));
+ }else $('crosstest-table').append(node('p','No valid staged set is listed.','empty'));
+ if(data.hold_access.length){
+  const hold=$('crosstest-hold');
+  hold.append(node('h3','Held: needs Peter, not available'),cloudTable(['Set','State','Why held'],data.hold_access.map(item=>{
+   const id=node('div',undefined,'task-lines');
+   id.append(node('strong',item.name),node('small',item.id),crosstestLink('Source',item.source_url));
+   return [id,badge(item.state,'warn'),item.why_held||'\u2014'];
+  })));
+ }
+}
+async function loadCrosstest(){
+ const version=++crosstestVersion;
+ $('crosstest-refresh').disabled=true;
+ notice('crosstest-status','Loading the cross-test registry…');
+ try{
+  const data=await cloudApi('/api/cloud-db/cross-test-sets?split=dev');
+  if(version!==crosstestVersion)return;
+  renderCrosstest(data);
+  notice('crosstest-status',data.present?data.notice:data.error,!data.present&&String(data.error).startsWith('unreadable'));
+ }catch(error){
+  if(version===crosstestVersion){
+   for(const id of ['crosstest-summary','crosstest-validator','crosstest-malformed','crosstest-table','crosstest-hold'])$(id).replaceChildren();
+   notice('crosstest-status',cloudError(error,'Cross-test registry'),true);
+  }
+ }finally{
+  if(version===crosstestVersion)$('crosstest-refresh').disabled=false;
+ }
+}
+$('crosstest-refresh').addEventListener('click',loadCrosstest);
 let taskId='',taskVersion=0,taskSearchVersion=0;
 const taskLink=id=>location.origin+location.pathname+'#task?task_id='+encodeURIComponent(id);
 const taskReward=value=>typeof value==='number'?String(value):'Not recorded';
@@ -1250,8 +1461,65 @@ async function searchTasks(){
   if(version===taskSearchVersion)notice('task-status',cloudError(error,'Task search'),true);
  }
 }
+const gateScope='keyed subset, not population false-alarm rate';
+function gateKeys(gate,row,planned){
+ const cell=node('div');
+ if(!gate){cell.append(node('span','Not read yet','muted'));return cell;}
+ cell.append(node('strong',cloudCount(gate.matched_keys)+' of '+cloudCount(row.keys_read)+' keys'));
+ if(row.keys_read<planned)cell.append(node('small',cloudCount(row.keys_read)+' of '+cloudCount(planned)+' keys read so far'));
+ cell.append(node('small',gateScope));
+ return cell;
+}
+function gatePrecision(gate){
+ const cell=node('div');
+ if(!gate){cell.append(node('span','Not read yet','muted'));return cell;}
+ if(!gate.eligible_findings)cell.append(node('strong','No eligible findings'),node('small','precision is undefined, not 100%'));
+ else cell.append(node('strong',cloudCount(gate.matched_keys)+' of '+cloudCount(gate.eligible_findings)+' findings'));
+ cell.append(node('small',gateScope));
+ return cell;
+}
+function taskGate(data){
+ const parent=$('task-gate-body'),progress=data.progress;
+ parent.replaceChildren();
+ if(!data.present)return;
+ const total=progress.cohort.dev_tasks,rows=list(progress.rows);
+ const answered=rows.reduce((sum,row)=>sum+row.answered,0),possible=rows.length*total;
+ const tiles=node('div',undefined,'metrics');
+ tiles.append(cloudTile(cloudCount(progress.cohort.dev_tasks),'DEV tasks per model and arm'),
+  cloudTile(cloudCount(progress.cohort.keyed_tasks)+' keyed / '+cloudCount(progress.cohort.unkeyed_tasks)+' unkeyed','Unkeyed tasks are not certified negatives'),
+  cloudTile(cloudCount(progress.cohort.planned_keys),'Keys across the keyed tasks'),
+  cloudTile(cloudCount(answered)+' / '+cloudCount(possible),'Tasks answered, all models and arms'));
+ parent.append(tiles,progress.all_answered?badge('Every model and arm has answered all DEV tasks','good'):badge('Partial: not every model and arm has answered all DEV tasks','warn'),
+  node('small','Exported '+scopeTime(progress.exported_at)+' from the retained OQ-6 coverage summary (sha256 '+progress.source.coverage_sha256.slice(0,12)+'); the checkpoint column is the v4 checkpoint.'));
+ parent.append(cloudTable(['Model · arm','Tasks answered','At v4 checkpoint','Consumed','Quota-pending','Failed','Keyed recall · 0.5 floor','Keyed recall · old 0.8 gate','Keyed precision · 0.5 floor','Keyed precision · old 0.8 gate'],
+  rows.map(row=>{
+   const done=node('div'),track=node('span',undefined,'gate-bar'),fill=node('span',undefined,'gate-fill');
+   fill.style.width=(100*row.answered/total)+'%';track.append(fill);
+   done.append(node('strong',cloudCount(row.answered)+' of '+cloudCount(total)+' tasks'),track);
+   if(row.scorer_quota_pending)done.append(node('small',cloudCount(row.scorer_quota_pending)+' answered tasks await their scorer (quota)'));
+   return [row.route+' · arm '+row.arm,done,cloudCount(row.baseline_answered)+' of '+cloudCount(total),cloudCount(row.consumed),
+    cloudCount(row.quota_pending),cloudCount(row.failed),gateKeys(row.new_0_5,row,progress.cohort.planned_keys),
+    gateKeys(row.old_0_8,row,progress.cohort.planned_keys),gatePrecision(row.new_0_5),gatePrecision(row.old_0_8)];
+  })));
+}
+let taskGateVersion=0;
+async function loadTaskGate(){
+ const version=++taskGateVersion;
+ notice('task-gate-status','Loading gate rerun progress\u2026');
+ try{
+  const data=await cloudApi('/api/cloud-db/task-evidence/gate-progress?split=dev');
+  if(version!==taskGateVersion)return;
+  taskGate(data);
+  notice('task-gate-status',data.present?data.notice:'No gate rerun progress is retained ('+data.error+'). Set EVALLAB_GATE_PROGRESS to gate-progress-v1.json or place it at task-qa/gate-progress-v1.json in the data root. Nothing is fabricated; a missing count is not zero.',!data.present&&data.error!=='not retained');
+ }catch(error){
+  if(version===taskGateVersion){
+   $('task-gate-body').replaceChildren();
+   notice('task-gate-status',cloudError(error,'Gate rerun progress'),true);
+  }
+ }
+}
 $('task-form').addEventListener('submit',event=>{event.preventDefault();searchTasks();});
-$('task-refresh').addEventListener('click',()=>{if(taskId)loadTask();else searchTasks();});
+$('task-refresh').addEventListener('click',()=>{loadTaskGate();if(taskId)loadTask();else searchTasks();});
 $('task-copy-link').addEventListener('click',()=>{
  if(taskId)copyText(taskLink(taskId),'the link to this task','task-status');
  else notice('task-status','Open a task first.',true);
@@ -1332,6 +1600,57 @@ function toolsRows(data){
   return cells;
  });
 }
+const scopePct=value=>value.toFixed(1)+'%';
+const scopeInterval=interval=>interval?'95% Wilson CI '+scopePct(interval[0])+' to '+scopePct(interval[1]):'';
+const scopeTime=value=>new Date(value).toLocaleString('en-US',{timeZone:'America/New_York',
+ year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET';
+function scopeCell(cell){
+ const box=node('div');
+ if(cell.state!=='measured'){box.append(node('span',cell.reason,'muted'));return box;}
+ const exact=cell.measure==='exact_command';
+ if(cell.read)box.append(node('strong',(exact?'Exact command named ':'Flagged ')+cloudCount(cell.hits)+' of '+cloudCount(cell.read)+
+  ' ('+scopePct(100*cell.hits/cell.read)+')'),node('small',scopeInterval(cell.hit_ci)));
+ else box.append(node('span','No cheating runs read','muted'));
+ if(cell.read<cell.positives)box.append(node('small','Read '+cloudCount(cell.read)+' of '+cloudCount(cell.positives)+' cheating runs'));
+ if(cell.negatives==null)box.append(node('small','All rows cheating: no false-alarm rate'));
+ else{
+  if(cell.negatives_read)box.append(node('strong','False alarms '+cloudCount(cell.false_alarms)+' of '+cloudCount(cell.negatives_read)+
+   ' ('+scopePct(100*cell.false_alarms/cell.negatives_read)+')'),node('small',scopeInterval(cell.false_alarm_ci)));
+  else box.append(node('span','No clean runs read','muted'));
+  if(cell.negatives_read<cell.negatives)box.append(node('small','Read '+cloudCount(cell.negatives_read)+' of '+cloudCount(cell.negatives)+' clean runs'));
+ }
+ if(cell.version)box.append(node('small','Version '+cell.version));
+ if(cell.note)box.append(node('small',cell.note));
+ if(cell.recorded_at){
+  const recorded=node('small',scopeTime(cell.recorded_at)+' · '+cell.date_basis);
+  recorded.title=cell.recorded_at+' · '+cell.source;box.append(recorded);
+ }
+ return box;
+}
+function renderToolsScope(scope){
+ const lines=$('cloud-tools-scope-lines'),holder=$('cloud-tools-scope-table');
+ lines.replaceChildren(...list(scope.lines).map(text=>node('li',text)));
+ notice('cloud-tools-scope-status',scope.present?'':'No detector scope receipt is retained ('+scope.error+
+  '). Set EVALLAB_DETECTOR_SCOPE to detector-scope-v1.json or place it at trace-tools/detector-scope-v1.json in the data root. '+
+  'Until then the frozen-cascade and Stage 1 DEV cells and every HackBench cell are blank; nothing is fabricated.',!scope.present);
+ const rows=list(scope.rows).map(row=>{
+  const name=node('div');name.append(node('strong',row.name));
+  return [name,row.reads,row.route,...['goodfire_dev','cheatbench_dev','hackbench_natural'].map(cohort=>scopeCell(row.cohorts[cohort]))];
+ });
+ const size=cohort=>{
+  for(const row of list(scope.rows)){
+   const cell=row.cohorts[cohort];
+   if(cell.state==='measured'&&cell.negatives!=null)return ' · '+cloudCount(cell.positives)+' cheating, '+cloudCount(cell.negatives)+' clean';
+  }
+  return '';
+ };
+ const table=cloudTable(['Detector','Reads','Reader or judge route','Goodfire DEV'+size('goodfire_dev'),
+  'CheatBench DEV'+size('cheatbench_dev')+' · examined in tuning, not held out','HackBench natural'+
+  (scope.hackbench_runs?' · '+cloudCount(scope.hackbench_runs)+' runs':'')+' · cross-test, all cheating'],rows);
+ const tools=list(scope.rows);
+ for(const [index,row] of Array.from(table.querySelector('table > tbody').children).entries())row.dataset.tool=tools[index].tool;
+ holder.replaceChildren(table);
+}
 function toolsSources(sources){
  const parent=$('cloud-tools-source-list'),items=node('ul',undefined,'cloud-issue-list');
  parent.replaceChildren(items);
@@ -1363,11 +1682,13 @@ async function loadTraceTools(){
   const tools=list(data.tools);
   for(const [index,row] of Array.from(table.querySelector('table > tbody').children).entries())row.dataset.tool=tools[index].tool;
   $('cloud-tools-table').replaceChildren(table);
+  renderToolsScope(data.where_it_works);
   toolsSources(data.sources);
   notice('cloud-tools-status',data.notice);
  }catch(error){
   if(version===toolsVersion){
    $('cloud-tools-table').replaceChildren();$('cloud-tools-cohorts').replaceChildren();
+   $('cloud-tools-scope-table').replaceChildren();$('cloud-tools-scope-lines').replaceChildren();
    notice('cloud-tools-status',cloudError(error,'Trace tool scorecard'),true);
   }
  }finally{
@@ -1474,7 +1795,9 @@ for(const tab of viewTabs){
   if(tab.id==='seeker-tab')loadSeekerComparison();
   if(tab.id==='atlas-tab'){loadAtlas();loadAtlasTools();loadAtlasCoverage();loadAtlasReliability();}
   if(tab.id==='tools-tab')loadTraceTools();
-  if(tab.id==='task-tab'&&taskId)loadTask();
+  if(tab.id==='repairs-tab')loadRepairs();
+  if(tab.id==='crosstest-tab')loadCrosstest();
+  if(tab.id==='task-tab'){loadTaskGate();if(taskId)loadTask();}
   if(tab.id==='trust-tab')loadTrustQc();
  });
  tab.addEventListener('keydown',event=>{

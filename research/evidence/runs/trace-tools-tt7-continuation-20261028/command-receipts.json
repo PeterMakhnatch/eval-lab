@@ -1,0 +1,74 @@
+{
+  "schema": "tt7.postmerge_commands/v1",
+  "namespace": "tt7-continuation-20261028",
+  "model_calls": 0,
+  "new_input_tokens": 0,
+  "new_output_tokens": 0,
+  "incremental_inference_usd": 0,
+  "old_study_billing_recertified": false,
+  "commands": [
+    {
+      "command": "uv sync --frozen --python 3.12",
+      "exit_code": 0,
+      "elapsed_s": 6.62,
+      "installed_packages": 120
+    },
+    {
+      "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-continuation-20261028/campaign.py prepare",
+      "exit_code": 0,
+      "elapsed_s": 19.77,
+      "audit_elapsed_s": 19.527,
+      "input_runs": 200,
+      "input_text_bytes": 45564204,
+      "input_steps": 13957,
+      "policy_flags": 4,
+      "eligible_new_positions_per_route": 125
+    },
+    {
+      "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-continuation-20261028/run_omp.py run --routes anthropic/claude-sonnet-5-5 anthropic/claude-opus-5-5 --max-runs 200 --stop-threshold 0.65 --concurrency 2 --batch-size 2",
+      "exit_code": 0,
+      "elapsed_s": 6.26,
+      "new_terminal_records_per_route": 0,
+      "unattempted_positions_per_route": 125,
+      "reason": "quota-telemetry-unknown; no machine-readable reports; raw guard reports TTL failure",
+      "quota_cli_reads": 4,
+      "cache_invalidations": 2,
+      "cumulative_route_tokens_in_runner_receipt_are_prior_measurements": true
+    },
+    {
+      "command": "omp usage --provider anthropic --json --redact",
+      "exit_code": 0,
+      "elapsed_s": 1.596,
+      "usage_reports": 0,
+      "accounts_without_usage": 1,
+      "disabled_credentials": 0,
+      "stdout_bytes": 328,
+      "stderr_bytes": 0,
+      "model_calls": 0,
+      "cache_invalidations": 0,
+      "http_or_auth_failure_cause": "not exposed; not inferred"
+    },
+    {
+      "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-continuation-20261028/campaign.py close",
+      "exit_code": 0,
+      "elapsed_s": null,
+      "elapsed_basis": "tool interrupt auto-backgrounded; no elapsed value retained",
+      "snapshot_bytes": 1256402,
+      "snapshot_sha256": "12865827a22c777ee32ce76c864dffdf1129c7e683adf2ab53b40b1ba693fbfc",
+      "baseline_snapshot_byte_identical": true
+    },
+    {
+      "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-continuation-20261028/finalize.py && uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-continuation-20261028/score.py --readings-closed",
+      "exit_code": 0,
+      "elapsed_s": 1.87,
+      "declared_reading_arms": 10,
+      "arm_views": 19,
+      "cartesian_pairs": 84,
+      "scored_replays": 82,
+      "same_measurement_policy_records": 2,
+      "replay_shards": 12,
+      "sample_runs": 200
+    }
+  ],
+  "spend_ledger_batch": "tt7-postmerge-guard-20261028"
+}

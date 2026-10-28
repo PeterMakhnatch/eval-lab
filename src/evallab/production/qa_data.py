@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sqlite3
 import sys
 import time
@@ -28,9 +29,19 @@ from typing import Any
 DEFAULT_DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
 DEFAULT_BUDGET = 4000
 ENVELOPE_TOKENS = 120  # reserved for ``ok``/``meta`` framing around ``data``
+FRAMING_TOKENS = 40  # held back inside ``data`` for its own keys; plus 5% of the room for commas
 MIN_BUDGET = 200
 UNAVAILABLE = "not available: not an admitted DEV task or run"
-CALLS = ("task", "runs", "window", "history", "findings")
+_WITH_OUTCOMES_HELP = (
+    "Also return outcome labels: each issue's trust_tier and original/repaired reward differential. "
+    "Off by default so QA reads stay label-free; the choice is recorded in meta.with_outcomes"
+)
+CALLS = (
+    "task", "runs", "window", "history", "findings", "inventory", "traces", "clusters", "recount",
+    "split", "export", "steps", "scan",
+)
+NO_STORE_CALLS = frozenset({"steps", "scan"})
+OUTCOME_CALLS = frozenset({"task", "history"})  # calls with a --with-outcomes gate
 
 
 class QaDataError(ValueError):
@@ -74,6 +85,30 @@ class Budget:
         return text[:room], True
 
 
+def bare_task_name(task_id: str) -> str:
+    """The name cohort and ledger files use: the last path segment without a version pin, case-folded."""
+    return task_id.split("@", 1)[0].rsplit("/", 1)[-1].casefold()
+
+
+def match_admitted_task(admitted: Any, wanted: str) -> str | None:
+    """An exact admitted id, else (for a BARE name only) the single admitted id with that bare name.
+
+    A qualified input (namespace ``/`` or version pin ``@``) names one identity and
+    matches only exactly: a denied ``test/alpha`` must never be served by an admitted ``dev/alpha``.
+    Several admitted ids sharing the bare name refuse with a short admitted-only candidate list;
+    no admitted match is the uniform refusal at the call site.
+    """
+    if wanted in admitted:
+        return wanted
+    if "/" in wanted or "@" in wanted:
+        return None
+    matches = sorted(task for task in admitted if bare_task_name(task) == bare_task_name(wanted))
+    if len(matches) > 1:
+        shown = ", ".join(matches[:3])
+        raise QaDataError(f"{wanted[:60]!r} matches {len(matches)} admitted tasks; give the full id, e.g. {shown}")
+    return matches[0] if matches else None
+
+
 @dataclass
 class QaContext:
     """Open read-only store, retriever and budget shared by the call implementations.
@@ -88,6 +123,7 @@ class QaContext:
     repo_root: Path
     state_dir: Path
     budget: Budget
+    database_path: str | None = None  # the SQLite path/URL this context opened (for readers that reopen it)
 
     def admitted_task_ids(self) -> frozenset[str]:
         """Registry-admitted DEV task ids now (own snapshot; do not call inside a transaction)."""
@@ -96,14 +132,20 @@ class QaContext:
         return frozenset(admitted)
 
     def require_task(self, task_id: str) -> dict[str, Any]:
-        """The stored row of an admitted task, admitted and read in one snapshot, else the uniform refusal."""
+        """The stored row of an admitted task, admitted and read in one snapshot, else the uniform refusal.
+
+        ``task_id`` may be the full namespaced id or the bare name cohort and ledger files use
+        (``cad-model`` for ``terminal-bench/cad-model``): an exact admitted id wins, otherwise
+        the one admitted task with that bare name. Use the returned row's ``task_id`` afterwards.
+        """
         if not isinstance(task_id, str):
             raise QaDataError(UNAVAILABLE)
         with self.database._transaction():
             admitted, _sealed = self.retriever._admitted_ids()
+            canonical = match_admitted_task(admitted, task_id)
             rows = (
-                self.database._rows("SELECT * FROM corpus_tasks WHERE task_id = ?", (task_id,))
-                if task_id in admitted else []
+                self.database._rows("SELECT * FROM corpus_tasks WHERE task_id = ?", (canonical,))
+                if canonical is not None else []
             )
         if not rows:
             raise QaDataError(UNAVAILABLE)
@@ -141,17 +183,39 @@ def _parse_facets(items: Sequence[str]) -> dict[str, Any]:
     return facets
 
 
-def _open(args: argparse.Namespace, budget: Budget) -> QaContext:
+def open_context(
+    cloud_database: str | Path = DEFAULT_DATABASE, *, repo_root: Path | None = None, budget: int = DEFAULT_BUDGET,
+) -> QaContext:
+    """A read-only context over ``cloud_database`` with its own token budget (caller closes ``.database``)."""
     from evallab.production.cloud_trace_db import CloudTraceDatabase, CloudTraceRetriever
     from evallab.production.corpus_queue import CorpusRegistry
 
-    repo_root = Path(args.repo_root).resolve() if getattr(args, "repo_root", None) else Path.cwd().resolve()
-    database = CloudTraceDatabase(args.cloud_database, read_only=True)
-    retriever = CloudTraceRetriever(database, registry=CorpusRegistry(repo_root))
+    root = Path(repo_root).resolve() if repo_root else Path.cwd().resolve()
+    database = CloudTraceDatabase(cloud_database, read_only=True)
+    retriever = CloudTraceRetriever(database, registry=CorpusRegistry(root))
     return QaContext(
-        database=database, retriever=retriever, repo_root=repo_root,
-        state_dir=DEFAULT_DATABASE.parent, budget=budget,
+        database=database, retriever=retriever, repo_root=root,
+        state_dir=Path(os.environ.get("EVALLAB_PROD_STATE") or DEFAULT_DATABASE.parent).expanduser(),
+        budget=Budget(max(1, budget - ENVELOPE_TOKENS)),
+        database_path=str(cloud_database),
     )
+
+
+def _open(args: argparse.Namespace, budget: Budget) -> QaContext:
+    context = open_context(args.cloud_database, repo_root=getattr(args, "repo_root", None))
+    context.budget = budget
+    return context
+
+
+def _dispatch_without_store(call: str, args: argparse.Namespace, budget: Budget) -> dict[str, Any]:
+    """Calls that never open the trace store: step maps and local scanners."""
+    if call == "steps":
+        from evallab.production.qa_data_export import steps
+
+        return steps(args.manifest, args.trace, original=args.original, blinded=args.blinded)
+    from evallab.production.qa_data_scan import scan
+
+    return scan(args.transcripts, args.scanner, budget)
 
 
 def _dispatch(call: str, context: QaContext, args: argparse.Namespace) -> dict[str, Any]:
@@ -159,11 +223,40 @@ def _dispatch(call: str, context: QaContext, args: argparse.Namespace) -> dict[s
     if call == "task":
         from evallab.production.qa_data_task import task
 
-        return task(context, args.task_id, files=args.file)
-    if call == "findings":
-        from evallab.production.qa_data_findings import findings
+        return task(
+            context, args.task_id, files=args.file, variant=args.variant, kind=args.kind,
+            with_outcomes=args.with_outcomes,
+        )
+    if call == "split":
+        from evallab.production.qa_data_split import split
 
-        return findings(context, run_id=args.run, task_id=args.task, limit=args.limit)
+        return split(context, args.mode, args.ids)
+    if call == "findings":
+        from evallab.production import qa_data_findings
+
+        if args.run is None and args.task is None:
+            return qa_data_findings.summary(context)
+        return qa_data_findings.findings(context, run_id=args.run, task_id=args.task, limit=args.limit)
+    if call in {"inventory", "traces", "clusters", "recount"}:
+        from evallab.production import qa_data_inventory
+
+        if call == "inventory":
+            return qa_data_inventory.inventory(context, ids_out=args.ids_out)
+        if call == "traces":
+            return qa_data_inventory.traces(
+                context, task_id=args.task, dataset=args.dataset, model=args.model, outcome=args.outcome,
+                limit=args.limit, ids_only=args.ids_only,
+            )
+        if call == "clusters":
+            return qa_data_inventory.clusters(context, members=args.members, source=args.source, level=args.level)
+        return qa_data_inventory.recount(context)
+    if call == "export":
+        from evallab.production.qa_data_export import export
+
+        return export(
+            context, facets=_parse_facets(args.facet), trace_ids=args.trace_id, ids_file=args.ids_file,
+            limit=args.limit, format=args.format, out=args.out,
+        )
     from evallab.production import qa_data_calls
 
     if call == "runs":
@@ -176,7 +269,9 @@ def _dispatch(call: str, context: QaContext, args: argparse.Namespace) -> dict[s
             context, args.run_id, first=args.first, last=args.last, around=args.around, radius=args.radius,
         )
     if call == "history":
-        return qa_data_calls.history(context, args.task_id, flags=args.flag, limit=args.limit)
+        return qa_data_calls.history(
+            context, args.task_id, flags=args.flag, limit=args.limit, with_outcomes=args.with_outcomes,
+        )
     raise QaDataError(f"unknown call {call!r}")
 
 
@@ -188,51 +283,76 @@ def run(args: argparse.Namespace, root: Path | None = None, *, harbor: Any = Non
     """
     out = out or sys.stdout
     call = args.qa_data_call
+    pretty = bool(getattr(args, "pretty", False))
+    # The outcome gate is recorded on every answer of the calls that have it; a refusal returns
+    # nothing, so it carries no flag and every refusal has one size.
+    extra_meta = {"with_outcomes": bool(args.with_outcomes)} if call in OUTCOME_CALLS else None
     started = time.perf_counter()
     if args.budget < MIN_BUDGET:
-        return _reply(out, call, args.budget, started, None, f"--budget must be at least {MIN_BUDGET}", 0)
+        return _reply(out, call, args.budget, started, None, f"--budget must be at least {MIN_BUDGET}", 0, pretty)
     room = args.budget - ENVELOPE_TOKENS
-    budget = Budget(room)
+    # Items are charged one by one; the reply also holds the keys around them and a comma per item.
+    # Hold back a share of the room for that framing so a list that fills the budget still fits.
+    budget = Budget(max(1, room - FRAMING_TOKENS - room // 20))
     context: QaContext | None = None
     data: dict[str, Any] | None = None
     error: str | None = None
     try:
-        context = _open(args, budget)
-        data = _dispatch(call, context, args)
+        if call in NO_STORE_CALLS:
+            data = _dispatch_without_store(call, args, budget)
+        else:
+            context = _open(args, budget)
+            data = _dispatch(call, context, args)
         needed = estimate_tokens(data)
         if needed > room:  # a section failed to charge something it returned
             data, error = None, f"this call needs about {needed} tokens for its smallest answer; raise --budget"
     except QaDataError as exc:
         data, error = None, str(exc)
-    except sqlite3.OperationalError as exc:
+    except sqlite3.Error as exc:
+        data, error = None, f"the store cannot answer this call: {str(exc)[:120]}"
+    except OSError as exc:
+        data, error = None, f"cannot read or write a path this call needs: {str(exc)[:160]}"
+    except Exception as exc:  # noqa: BLE001 - only a PostgreSQL driver error is converted; anything else propagates
+        import psycopg
+
+        if not isinstance(exc, psycopg.Error):
+            raise
         data, error = None, f"the store cannot answer this call: {str(exc)[:120]}"
     finally:
         if context is not None:
             context.database.close()
-    return _reply(out, call, args.budget, started, data, error, budget.omitted)
+    return _reply(out, call, args.budget, started, data, error, budget.omitted, pretty, None if error else extra_meta)
 
 
 def _reply(
     out: Any, call: str, limit: int, started: float, data: dict[str, Any] | None, error: str | None,
-    omitted: int,
+    omitted: int, pretty: bool = False, extra_meta: dict[str, Any] | None = None,
 ) -> int:
+    # The uniform refusal names no call, so one refusal is the same bytes (and token size) in every call.
     meta: dict[str, Any] = {
-        "call": call, "budget": limit, "omitted_items": omitted,
+        **({} if error == UNAVAILABLE else {"call": call}), "budget": limit, "omitted_items": omitted,
         "truncated": omitted > 0 or bool(data and data.get("truncated")), "tokens_est": 0, "latency_ms": 0.0,
+        **(extra_meta or {}),
     }
     payload: dict[str, Any] = {"ok": error is None, **({"data": data} if error is None else {"error": error})}
     payload["meta"] = meta
     meta["tokens_est"] = estimate_tokens(payload)
     meta["tokens_est"] = estimate_tokens(payload)  # the count's own digits can add a character
     meta["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
-    print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), file=out)
+    if pretty:
+        print(json.dumps(payload, ensure_ascii=False, indent=1), file=out)
+    else:
+        print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), file=out)
     return 0 if error is None else 2
 
 
 def register_parser(commands: Any) -> None:
     """Register ``qa-data`` without opening any database."""
+    from evallab.production.qa_data_guide import GUIDE
+
     parser = commands.add_parser(
         "qa-data", help="Token-budgeted JSON data access for QA agents over the admitted DEV trace store",
+        description=__doc__.split("\n\n")[0], epilog=GUIDE, formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     calls = parser.add_subparsers(dest="qa_data_call", required=True)
 
@@ -240,16 +360,28 @@ def register_parser(commands: Any) -> None:
         sub.add_argument("--repo-root", type=Path, default=None)
         sub.add_argument("--cloud-database", default=str(DEFAULT_DATABASE), help="SQLite path/URL or PostgreSQL URL")
         sub.add_argument("--budget", type=int, default=DEFAULT_BUDGET, help="Approximate token cap for the reply")
+        sub.add_argument("--pretty", action="store_true", help="Indent the JSON for readers that clip long lines (the budget applies to the compact form)")
         sub.set_defaults(func=run)
 
     task = calls.add_parser("task", help="Instruction, tests, grader and Dockerfile of one admitted task")
     common(task)
     task.add_argument("task_id")
     task.add_argument("--file", action="append", default=[], metavar="REL", help="Also return this task file (repeatable)")
+    task.add_argument("--variant", type=int, default=0, help="Task variant for package listings and --file (default 0)")
+    task.add_argument("--with-outcomes", action="store_true", help=_WITH_OUTCOMES_HELP)
+    task.add_argument(
+        "--kind", choices=("original_package", "repaired_package"), default="original_package",
+        help="Which package of the variant --file reads",
+    )
 
     runs = calls.add_parser("runs", help="Search runs by facets, cluster and similarity")
     common(runs)
-    runs.add_argument("--facet", action="append", default=[], metavar="KEY=V[,V]")
+    runs.add_argument(
+        "--facet", action="append", default=[], metavar="KEY=V[,V]",
+        help="Fields: outcome, tests, eval_awareness, grader_or_harness_touched, answer_material_accessed, "
+             "success_claim_without_evidence (true|false), suspicion (0-3). A comma list is OR within a field; "
+             "repeated --facet flags are ANDed (suspicion at least 2 is suspicion=2,3). Values: see qa-data --help",
+    )
     runs.add_argument("--cluster", default=None, metavar="CLUSTER_ID")
     runs.add_argument("--like", default=None, metavar="RUN_ID", help="Rank by similarity to this admitted run")
     runs.add_argument("--query", default="", help="Lexical terms")
@@ -269,12 +401,62 @@ def register_parser(commands: Any) -> None:
     history.add_argument("task_id")
     history.add_argument("--flag", action="append", default=[], help="Trigger flag for playbook cards (repeatable)")
     history.add_argument("--limit", type=int, default=5)
+    history.add_argument("--with-outcomes", action="store_true", help=_WITH_OUTCOMES_HELP)
 
     findings = calls.add_parser("findings", help="Scout, Laminar and Docent findings for one run or task")
     common(findings)
     findings.add_argument("--run", default=None, metavar="RUN_ID")
     findings.add_argument("--task", default=None, metavar="TASK_ID")
     findings.add_argument("--limit", type=int, default=20)
+
+    inventory = calls.add_parser("inventory", help="Counts of admitted tasks and runs by dataset, outcome and model")
+    common(inventory)
+    inventory.add_argument("--ids-out", type=Path, default=None, metavar="FILE", help="Also write every admitted trace id here (must not exist)")
+
+    traces = calls.add_parser("traces", help="List admitted runs (faceted or not) by task, dataset, model or outcome")
+    common(traces)
+    traces.add_argument("--task", default=None, metavar="TASK_ID", help="Full id or bare name (cad-model)")
+    traces.add_argument("--dataset", default=None)
+    traces.add_argument("--model", default=None)
+    traces.add_argument("--outcome", default=None, choices=("pass", "fail", "unknown"), help="From the verifier reward")
+    traces.add_argument("--limit", type=int, default=20)
+    traces.add_argument("--ids-only", action="store_true")
+
+    clusters = calls.add_parser("clusters", help="Run Atlas clusters: the database view or the latest build file")
+    common(clusters)
+    clusters.add_argument("--members", default=None, metavar="CLUSTER_ID", help="Admitted member ids of one cluster")
+    clusters.add_argument("--source", choices=("db", "file"), default="db")
+    clusters.add_argument("--level", type=int, choices=(1, 2, 3), default=None, help="List only this level")
+
+    recount = calls.add_parser("recount", help="Facets: the interim JSONL against the database, over admitted runs")
+    common(recount)
+
+    split = calls.add_parser("split", help="Confirm an admitted DEV task id or (key, item) pair; every other id is refused alike")
+    common(split)
+    split.add_argument("mode", choices=("task", "item"))
+    split.add_argument("ids", nargs="+", metavar="ID", help="task: TASK_ID (full or bare); item: KEY_ID ITEM_ID")
+
+    export = calls.add_parser("export", help="Blinded export of admitted runs chosen by facets or ids, with the step map")
+    common(export)
+    export.add_argument("--facet", action="append", default=[], metavar="KEY=V[,V]", help="Select runs by facet filter (most suspicious first)")
+    export.add_argument("--trace-id", action="append", default=[], metavar="ID", help="Select runs by id (repeatable)")
+    export.add_argument("--ids-file", type=Path, default=None, metavar="FILE", help="One trace id per line")
+    export.add_argument("--limit", type=int, default=None, help="At most this many runs")
+    export.add_argument("--format", choices=("atif", "harbor", "scout"), default="atif")
+    export.add_argument("--out", type=Path, required=True, help="NEW directory; the sealed manifest goes beside it as <name>.sealed-manifest.json")
+
+    steps = calls.add_parser("steps", help="Map original step ids to exported step numbers (and back) with a sealed manifest")
+    common(steps)
+    steps.add_argument("manifest", type=Path)
+    steps.add_argument("trace", help="Trace id or blind id")
+    which = steps.add_mutually_exclusive_group()
+    which.add_argument("--original", type=int, default=None)
+    which.add_argument("--blinded", type=int, default=None)
+
+    scan = calls.add_parser("scan", help="Deterministic Scout text scanners over a blinded scout export (no model call)")
+    common(scan)
+    scan.add_argument("transcripts", type=Path, help="transcripts.jsonl from `export --format scout`")
+    scan.add_argument("--scanner", action="append", default=None, help="Default: all four text scanners")
 
 
 __all__ = [

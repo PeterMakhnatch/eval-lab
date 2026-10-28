@@ -12,12 +12,14 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import BinaryIO, TextIO
+from typing import Any, BinaryIO, TextIO
 
 from evallab.runner import subscription_environment
 from evallab.storage.paths import shared_checkout_root
 
 POSTGRES_BACKUP_TIMEOUT_SECONDS = 600
+# One nightly cadence plus slack, matching the daily report's 36-hour window.
+BACKUP_MAX_AGE_HOURS = 36.0
 BackupRunner = Callable[[list[str], BinaryIO], subprocess.CompletedProcess[bytes]]
 BackupPublisher = Callable[[Path, Path], None]
 _BACKUP_THREAD_LOCK = threading.Lock()
@@ -87,6 +89,55 @@ def _fsync_directory(path: Path) -> None:
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
+
+
+def _created_at(manifest_path: Path, dump_path: Path) -> datetime:
+    try:
+        created = datetime.fromisoformat(json.loads(manifest_path.read_text())["created_at"])
+    except (OSError, KeyError, TypeError, ValueError):
+        return datetime.fromtimestamp(dump_path.stat().st_mtime, UTC)
+    return created if created.tzinfo else created.replace(tzinfo=UTC)
+
+
+def backup_freshness(repo_root: Path, *, now: datetime) -> dict[str, Any]:
+    """Read-only fact: the newest dump whose manifest checksum verifies, and its age.
+
+    Newer generations that fail verification are listed, never counted as fresh.
+    """
+    backup_dir = shared_checkout_root(repo_root) / "backups/postgres"
+    candidates: list[tuple[str, Path, Path]] = []
+    if backup_dir.is_dir():
+        for entry in backup_dir.iterdir():
+            if not entry.name.startswith("evallab-"):
+                continue
+            if entry.is_dir():
+                candidates.append((entry.name, entry / "database.dump", entry / "manifest.json"))
+            elif entry.suffix == ".dump":
+                candidates.append((entry.stem, entry, entry.with_suffix(".dump.json")))
+    unverified: list[str] = []
+    # Names embed the ISO report date, so reverse name order is newest first.
+    for _, dump_path, manifest_path in sorted(candidates, reverse=True):
+        if not _verify_backup(dump_path, manifest_path):
+            unverified.append(str(dump_path))
+            continue
+        created = _created_at(manifest_path, dump_path)
+        age_hours = (now - created).total_seconds() / 3600
+        return {
+            "status": "fresh" if age_hours <= BACKUP_MAX_AGE_HOURS else "stale",
+            "newest_verified": str(dump_path),
+            "created_at": created.astimezone(UTC).isoformat(),
+            "age_hours": round(age_hours, 1),
+            "max_age_hours": BACKUP_MAX_AGE_HOURS,
+            "unverified_newer": unverified,
+        }
+    return {
+        "status": "missing",
+        "newest_verified": None,
+        "created_at": None,
+        "age_hours": None,
+        "max_age_hours": BACKUP_MAX_AGE_HOURS,
+        "unverified_newer": unverified,
+    }
 
 
 def create_postgres_backup(

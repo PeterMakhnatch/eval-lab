@@ -1,0 +1,8 @@
+{
+ "plan_sha256": "c376a8ce9482c937c34fa849ed34c33f9c96ecc3561902cd826b580001d8d246",
+ "planned_at": "2026-10-28T11:48:48+00:00",
+ "prompts_sha256": "cfd0d8839604a6cfefa478bad0512879e935c21acef227f91e6fa69181d30e82",
+ "rule": "uniform random distinct actions, count equals B, seed sha256('cm13-control:'+run_id)[:16]",
+ "schema": "cm13-control/v1",
+ "unique_prompts": 260
+}

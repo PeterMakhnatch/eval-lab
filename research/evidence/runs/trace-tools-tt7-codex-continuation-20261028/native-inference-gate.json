@@ -1,0 +1,54 @@
+{
+  "admission_stop_scope": "TT7 owned forward-generation entrypoint; deny before archived runner, proof/prompt/quota reads, provider launch or handler dispatch",
+  "archived_executed_source": "continue_codex.py",
+  "archived_executed_source_sha256": "87c0d0bb6296b28d5a38804fdfc6211e5ad1a61ff8e926f43bf4b8aa811eca28",
+  "at": "2026-10-28T18:22:42.633814+00:00",
+  "cli_empty_or_hard_denied_dispatch_proven": false,
+  "cli_zero_offered_tools_proven": false,
+  "command": [
+    "uv",
+    "run",
+    "--no-sync",
+    "python",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-tt7-codex-continuation-20261028/research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/native_inference_gate.py",
+    "--entitlement",
+    "/private/tmp/tt7-native-gate-proof-is-not-read.json",
+    "run"
+  ],
+  "cwd": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-tt7-codex-continuation-20261028",
+  "elapsed_s": 4.453991334012244,
+  "existing_archived_sealed_attempt_guard_preserved": true,
+  "exit_code": 78,
+  "forward_entrypoint": "native_inference_gate.py",
+  "future_unblock_requires": [
+    "Separately reviewed hard-deny/empty-dispatch plus zero-offered-tools implementation and offline unsolicited-call/no-side-effect proof, or explicitly approved separately named alternative transport.",
+    "Separate authorization and fresh applicable entitlement/quota after capability gate; not a flag or status-file override."
+  ],
+  "hosted_calls": 0,
+  "model_calls": 0,
+  "observed_status": {
+    "cli_dispatch_denial_proven": false,
+    "model_calls": 0,
+    "native_generation_allowed": false,
+    "quota_queries": 0,
+    "reason": "TT-7 native generation BLOCKED: the frozen CLI has no verified empty dispatch registry plus zero offered tools. Flags and post-return parsing are not a pre-execution capability boundary. No model or quota call is authorized.",
+    "schema": "tt7.native_generation_gate/v1",
+    "status": "BLOCKED",
+    "tool_handlers_invoked": 0
+  },
+  "paid_calls": 0,
+  "preserved_offline_readers_usable": [
+    "score_delta.py --readings-closed --render-only",
+    "metadata audit of owned retained outer CLI events",
+    "reading already-preserved aggregate/private outputs"
+  ],
+  "public_unsafe_override": false,
+  "quota_queries": 0,
+  "schema": "tt7.forward_native_gate_receipt/v1",
+  "source_sha256": "1865d8d49f08afcc4b8a86df44ea97c6bf00b236b3efe20b36fe420c80bb2d1b",
+  "status": "BLOCKED",
+  "status_or_entitlement_can_enable_native": false,
+  "stderr_bytes": 0,
+  "stdout_bytes": 442,
+  "synthetic_test_claim_limit": "Admission-denied transport does not launch and its queued synthetic local-write handler cannot run; NOT proof that an enabled OMP CLI dispatch registry is safe."
+}

@@ -1,0 +1,49 @@
+{
+  "at": "2026-10-28T17:49:42.617241+00:00",
+  "canonical_gate_sha256": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f",
+  "categories_by_source": {
+    "cheatbench-actions-v1": {
+      "privacy_abstentions": 3,
+      "sample": 50,
+      "truly_unattempted": 41
+    },
+    "cloud-trace-db": {
+      "privacy_abstentions": 1,
+      "sample": 150,
+      "truly_unattempted": 140
+    }
+  },
+  "fixed_sample_accounting": {
+    "denominator": 200,
+    "historical_luna_terminal": 2,
+    "known_zero_call_privacy_abstentions": 4,
+    "new_protocol_abstentions": 1,
+    "new_schema_valid_as_measured": 12,
+    "sum": 200,
+    "truly_unattempted": 181
+  },
+  "future_inference_authorized": false,
+  "input_tokens": 0,
+  "labels_read": false,
+  "list_price_usd": 0,
+  "marginal_usd": 0,
+  "metrics_unchanged_by_construction": "All four cells were already non-decisions; explicit privacy abstentions remain non-decisions. No verdict, threshold, primary/secondary scoring rule or denominator changes.",
+  "model_calls": 0,
+  "namespace": "tt7-codex-continuation-20261028-privacy-closure",
+  "new_canonical_privacy_abstentions": 4,
+  "original_attempt_records_scores_and_measured_flagged_rows_rewritten": false,
+  "original_sealed_unattempted_included_privacy_vetoes": 185,
+  "original_two_and_anomalous_financial_unknowns_unchanged": true,
+  "output_tokens": 0,
+  "privacy_abstentions_by_source": {
+    "cheatbench-actions-v1": 3,
+    "cloud-trace-db": 1
+  },
+  "quota_queries": 0,
+  "records_sha256": "0213c0609b0af46ac132184e3ce83007fc14719e3070717ac75c62d69d3e2759",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "schema": "tt7.offline_privacy_closure/v1",
+  "source_sha256": "2d46931bac8b8f2707eaf57833ba10b779d6dc0dc6398e92ac5246e8adedc331",
+  "terminal_inventory_sha256": "a0812f29191be75cdbf94a8cc86b7df73ae3c4805d26b7c8932c6ccf7d8bda6f",
+  "uniform_audit_sha256": "92ff0fcbfa8efe813e7c990ac5940374db74ba2510ec25598fd76edbabf8c083"
+}

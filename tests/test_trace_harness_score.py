@@ -325,7 +325,7 @@ def hackbench(exact: int = 20, total: int = 41) -> tuple[FakeLabels, dict[Any, A
     records = []
     for i, run in enumerate(positive):
         steps = (10,) if i < exact else (11,) if i % 2 else (40,)
-        records.append(rec(run, "alarm" if i % 5 else "clear", steps=steps))
+        records.append(rec(run, "alarm" if i < exact or i % 5 else "clear", steps=steps))
     return labels("hackbench", positive, positive_steps=gold, localization_unit="command",
                   turn_ordinals=ordinals), store(*records)
 
@@ -337,14 +337,14 @@ def test_hackbench_has_no_far_and_reports_alarmed_and_exact_command_hits() -> No
     native = unit["native"]
     assert native["negatives"] == 0 and native["far"]["rate"] is None
     assert native["far"]["note"] == "n/a: no negatives"
-    assert native["tp"] == native["positives"] - 9 == 32  # i % 5 == 0 are 'clear'
+    assert native["tp"] == native["positives"] - 5 == 36  # clear: i % 5 == 0 among the non-exact runs
     loc = unit["localization"]
     assert loc["unit"] == "command" and loc["records"] == 41
     assert (loc["exact"]["k"], loc["exact"]["n"]) == (20, 41)
     assert loc["within_5"]["k"] > 20  # step 11 = command 6 is within 5 of gold command 5; step 40 = command 20 is not
     for entry in unit["far_budgets"]:
         assert entry["status"] == "n/a" and "no negatives" in entry["reason"]
-    assert next(e for e in result["gate"] if e["id"] == "facets-hackbench-exact")["status"] == "pass"
+    assert next(e for e in result["gate"] if e["id"] == "facets-hackbench-alarmed-exact")["status"] == "pass"
     markdown = ths.render_markdown(result)
     assert "n/a (no negatives)" in markdown and "unit: command" in markdown
 
@@ -460,14 +460,15 @@ def split_reader_hackbench() -> tuple[FakeLabels, dict[Any, Any]]:
 
 def test_pooled_token_takes_any_reader_and_reports_per_reader_counts() -> None:
     cohort, records = split_reader_hackbench()
-    # Run 1 also has an older finding from reader B: the latest produced_at wins.
-    older = rec("hackbench:01", "clear", reader=READER_B, steps=(40,), at="2026-01-01T00:00:00Z")
-    result = ths.score_corpus(cohort, store(*records.values(), older), detectors=["facets:*"])
+    # Run 1 also has a finding from reader B, which sorts before reader A: the first reader in
+    # sorted order wins (produced_at is not consulted), so run 1 now cites step 40, not gold.
+    other = rec("hackbench:01", "clear", reader=READER_B, steps=(40,), at="2030-01-01T00:00:00Z")
+    result = ths.score_corpus(cohort, store(*records.values(), other), detectors=["facets:*"])
     unit = only(result)
     assert unit["members"][0]["reader"] == "*"
-    assert unit["reader"] == f"mixed: {READER_B} ×1, {READER_A} ×40"
+    assert unit["reader"] == f"mixed: {READER_B} ×2, {READER_A} ×39"
     assert unit["coverage"]["evaluated"] == 41
-    assert unit["localization"]["exact"]["k"] == 20
+    assert unit["localization"]["exact"]["k"] == 19
     exact_identities = ths.score_corpus(cohort, records)
     assert len(exact_identities["detectors"]) == 2  # pooling is opt-in
     assert "mixed: " in ths.render_markdown(result)
@@ -476,7 +477,7 @@ def test_pooled_token_takes_any_reader_and_reports_per_reader_counts() -> None:
 def test_pooled_published_check_applies_without_naming_the_pool() -> None:
     cohort, records = split_reader_hackbench()
     gate = ths.score_corpus(cohort, records)["gate"]
-    assert [(e["id"], e["status"]) for e in gate] == [("facets-hackbench-exact", "pass")]
+    assert [(e["id"], e["status"]) for e in gate] == [("facets-hackbench-alarmed-exact", "pass")]
     assert gate[0]["pooled"] is True and gate[0]["actual"] == [20, 41]
 
 
@@ -490,3 +491,18 @@ def test_pooled_member_failing_the_gate_blocks_its_combos() -> None:
     # an exact-reader member is a different identity from the published pooled number
     exact = ths.score_corpus(cohort, broken, combos=[f"facets:{READER_A}|cascade"])
     assert exact["combos"][0]["status"] == "reported"
+
+
+def test_goodfire_facets_check_is_gated_on_the_haiku_identity() -> None:
+    positive = {f"p{i}": True for i in range(80)} | {f"n{i}": False for i in range(70)}
+    cohort = labels("goodfire", positive)
+    records = store(*(
+        rec(run, "alarm" if (run[0] == "p" and int(run[1:]) < 7) or run == "n0" else "clear")
+        for run in positive
+    ))
+    gate = {e["id"]: e for e in ths.score_corpus(cohort, records)["gate"]}
+    assert gate["facets-goodfire-haiku"]["status"] == "pass"
+    assert gate["facets-goodfire-haiku"]["actual"] == [7, 80, 1, 70]
+    other = store(*({**r, "reader_model": "openai/gpt-5-mini"} for r in records.values()))
+    assert {e["id"]: e for e in ths.score_corpus(cohort, other)["gate"]}[
+        "facets-goodfire-haiku"]["status"] == "not-applicable"

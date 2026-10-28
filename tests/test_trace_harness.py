@@ -146,3 +146,22 @@ def test_card_is_label_free_and_within_budget() -> None:
     assert "src" not in full.split("\n", 2)[1] and "outcome" not in full
     assert "ALARM" in full and "git_history_peek@5" in full
     assert "--around" in full
+
+
+def test_coverage_counts_findings_per_corpus_and_shows_detectors_that_never_ran(monkeypatch) -> None:
+    monkeypatch.setattr(th, "DETECTORS", {"cascade": "x:y", "facets": "x:y", "run_health": "x:y"})
+    records = {
+        th.cache_key(r): r for r in (
+            th.finding("a1", "cascade", detector_version="v8", reader_model=None, verdict="alarm", kind="cheat"),
+            th.finding("a2", "cascade", detector_version="v8", reader_model=None, verdict="clear", kind="cheat"),
+            th.finding("b1", "cascade", detector_version="v8", reader_model=None, verdict="abstain", kind="cheat"),
+            th.finding("x9", "cascade", detector_version="v8", reader_model=None, verdict="alarm", kind="cheat"),
+            th.finding("a1", "run_health.loop", detector_version="1", reader_model=None, verdict="clear", kind="loop"),
+        )
+    }
+    rows = th.coverage(records, {"A": frozenset({"a1", "a2", "a3"}), "B": frozenset({"b1"})})
+    by = {(r["detector"], r["corpus"]): r for r in rows}
+    assert (by["cascade", "A"]["findings"], by["cascade", "A"]["cohort"]) == (2, 3)
+    assert by["cascade", "A"]["verdicts"]["alarm"] == 1 and by["cascade", "B"]["verdicts"]["abstain"] == 1
+    assert by["facets", None]["findings"] == 0  # registered, never ran on these corpora
+    assert ("run_health", None) not in by  # covered through its run_health.* identities

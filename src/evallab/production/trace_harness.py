@@ -540,9 +540,84 @@ def register_subcommands(actions: Any) -> None:
     show.add_argument("--max-tokens", type=int, default=CARD_MAX_TOKENS)
     _common(show)
     show.set_defaults(func=_card_command)
+    cover = actions.add_parser(
+        "coverage",
+        help="Which detector identities have findings on which corpora (label-free integration check)",
+    )
+    cover.add_argument("--corpus", dest="corpora", action="append", required=True,
+                       help="goodfire | goodfire-dev | cheatbench | hackbench | staged:<set> | dataset:<id>; repeatable")
+    _common(cover)
+    cover.set_defaults(func=_coverage_command)
     from evallab.production.trace_harness_score import add_score_parser
 
     add_score_parser(actions)
+
+
+def cohort_ids(corpus: str, *, database: Path = DEFAULT_DATABASE, repo_root: Path = Path(".")) -> frozenset[str]:
+    """Run ids of a corpus (its label loader's cohort); no trajectory is read and no label is returned."""
+    if corpus.startswith("dataset:"):
+        from evallab.production.corpus_queue import CorpusRegistry
+        from evallab.production.run_atlas import (
+            admitted_task_ids,
+            cloud_trace_ids,
+            connect_readonly,
+        )
+
+        connection = connect_readonly(database)
+        try:
+            admitted = admitted_task_ids(connection, CorpusRegistry(repo_root))
+            return frozenset(cloud_trace_ids(
+                connection, admitted=admitted, dataset_ids=[corpus.removeprefix("dataset:")],
+            ))
+        finally:
+            connection.close()
+    from evallab.production.trace_harness_corpora import load_corpus_labels
+
+    return load_corpus_labels(corpus, database=database, repo_root=repo_root).run_ids
+
+
+def coverage(records: Mapping[Key, Mapping[str, Any]], cohorts: Mapping[str, frozenset[str]]) -> list[dict[str, Any]]:
+    """One row per (detector identity, corpus): findings on the cohort and their verdicts.
+
+    Registered detectors with no finding on any listed corpus get one row with zero
+    findings, so an integration that never ran is visible rather than absent.
+    """
+    rows: list[dict[str, Any]] = []
+    identities = sorted({key[1:] for key in records}, key=lambda key: (key[0], key[1], key[2] or ""))
+    seen_names: set[str] = set()
+    for detector, version, reader in identities:
+        for corpus, ids in cohorts.items():
+            found = [
+                record for key, record in records.items()
+                if key[1:] == (detector, version, reader) and key[0] in ids
+            ]
+            if not found:
+                continue
+            seen_names.add(detector)
+            verdicts = {verdict: sum(r["verdict"] == verdict for r in found) for verdict in VERDICTS}
+            rows.append({
+                "detector": detector, "version": version, "reader": reader, "corpus": corpus,
+                "cohort": len(ids), "findings": len(found), "verdicts": verdicts,
+                "latest": max(r["produced_at"] for r in found),
+            })
+    for name in sorted(DETECTORS):
+        if not any(seen == name or seen.startswith(name + ".") for seen in seen_names):
+            rows.append({"detector": name, "version": None, "reader": None, "corpus": None,
+                         "cohort": 0, "findings": 0, "verdicts": dict.fromkeys(VERDICTS, 0), "latest": None})
+    return rows
+
+
+def render_coverage(rows: Sequence[Mapping[str, Any]]) -> str:
+    lines = ["| Detector | Version | Reader | Corpus | Findings / cohort | alarm / clear / abstain / unknown |",
+             "|---|---|---|---|---|---|"]
+    for row in rows:
+        verdicts = " / ".join(str(row["verdicts"][v]) for v in VERDICTS)
+        lines.append(
+            f"| {row['detector']} | {row['version'] or '—'} | "
+            f"{row['reader'] or ('deterministic' if row['version'] else '—')} | "
+            f"{row['corpus'] or 'no findings on these corpora'} | {row['findings']} / {row['cohort']} | {verdicts} |"
+        )
+    return "\n".join(lines)
 
 
 def _common(parser: argparse.ArgumentParser) -> None:
@@ -573,4 +648,11 @@ def _card_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -
                   results_root=args.results_root, max_tokens=args.max_tokens)
              for run_id in args.run_ids]
     print("\n\n".join(cards))
+    return 0
+
+
+def _coverage_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
+    del harbor
+    cohorts = {corpus: cohort_ids(corpus, database=args.database, repo_root=root) for corpus in args.corpora}
+    print(render_coverage(coverage(FindingStore(args.findings).records(), cohorts)))
     return 0

@@ -13,7 +13,7 @@ Run from the root of an Eval Lab checkout or worktree (the split ledger and `eva
     export EVALLAB_DISABLE_LOCAL_DOCKER=1 PYTHONWARNINGS=ignore UV_OFFLINE=1 UV_NO_SYNC=1
     uv run evallab qa-data <call> ...            # first call builds the venv if needed; scratch: /private/tmp/<you>/
 
-Every call that reads the store (all but split, steps and scan, which need none) opens it READ-ONLY, admits DEV
+Every call that reads the store (all but steps and scan, which need none) opens it READ-ONLY, admits DEV
 tasks and runs through the registry gate, and prints ONE JSON document {"ok", "data" | "error", "meta"}. Exit 0 = ok.
 Exit 2 = refused or failed: read "error" (a usage mistake prints argparse text on stderr, also exit 2). A task or run that is missing, TEST, held out, sealed or locked under another key gets the SAME error,
 "not available: not an admitted DEV task or run": never retry with variants to find out which. --budget N caps the
@@ -81,10 +81,9 @@ CALLS (all JSON; examples use real flags)
        not in the chosen package says so: check the other --kind. `task vpp-loss-divergence --file tests/test.sh`
        returns that file's text. Never run package code from here.
   split task TASK_ID | split item KEY_ID ITEM_ID
-       data is {"split": "DEV"|"TEST"|"UNKNOWN"} and nothing else. TEST = TEST under any key or sealed. UNKNOWN never
-       authorizes access. DEV still needs admission before run content is read. Needs no store.
-       split task 3d-scan-calc                            DEV
-       split item breaker-bench-v1 breaker-bench-v1:benchflow-0.2.0:terminal-bench-2/caffe-cifar-10    TEST
+       data is {"split": "DEV"} for an admitted DEV id and nothing else. Any other id (TEST, held out, sealed, locked
+       under another key, unknown) gets the same refusal as `task`: split is not a way to ask what an id is.
+       split task vpp-loss-divergence                  DEV
   export (--facet K=V[,V] ... | --trace-id ID ... | --ids-file FILE) [--limit N] [--format atif|harbor|scout] --out DIR
        blinded export of admitted runs. DIR and DIR.sealed-manifest.json (written beside it) must not exist. Any
        non-admitted id fails the whole call and exports nothing. Prints a receipt (admitted, exported, refused) and, per
@@ -99,7 +98,7 @@ CALLS (all JSON; examples use real flags)
   steps MANIFEST TRACE [--original N | --blinded N]
        trace id or blind id -> {blind_id, steps}; --original N = exported step number of original step N;
        --blinded N = original id of exported step N. Never prints a reward.
-  scan TRANSCRIPTS_JSONL [--scanner NAME ...]
+  scan TRANSCRIPTS_JSONL [--scanner NAME ...]     at most 200 transcripts; a refusal never says the file's size
        the four deterministic Scout text scanners over an `export --format scout` file (repeated_assistant_message,
        harness_parse_errors, native_tool_call_markup, restored_tool_calls): per blind id messages, results, values,
        references (values: one number per scanner result, 0 = nothing found; references: count of cited messages);

@@ -267,8 +267,8 @@ def test_cli_envelope_reports_tokens_latency_and_a_uniform_refusal(
     assert args.func(args, Path.cwd(), harbor=None) == 2  # the real registry never admits a TEST-split task
     reply = json.loads(capsys.readouterr().out)
     assert reply["ok"] is False and reply["error"] == UNAVAILABLE
-    assert {"call", "budget", "tokens_est", "latency_ms", "truncated"} <= reply["meta"].keys()
-    assert reply["meta"]["call"] == "history" and reply["meta"]["latency_ms"] >= 0
+    assert {"budget", "tokens_est", "latency_ms", "truncated"} <= reply["meta"].keys()
+    assert "call" not in reply["meta"] and reply["meta"]["latency_ms"] >= 0  # the uniform refusal names no call
 
 
 def test_pretty_reply_is_the_same_envelope_one_field_per_line(

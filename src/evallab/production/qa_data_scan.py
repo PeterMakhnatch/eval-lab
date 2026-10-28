@@ -43,14 +43,22 @@ async def _scan(transcripts: Sequence[Any], module: Any, names: Sequence[str]) -
     return rows
 
 
+def _transcript_lines(path: Path) -> list[str]:
+    try:
+        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError, UnicodeDecodeError):
+        raise QaDataError("the transcripts file cannot be read as UTF-8 text") from None  # no byte offset or path
+    if len(lines) > MAX_TRANSCRIPTS:
+        raise QaDataError(f"at most {MAX_TRANSCRIPTS} transcripts per scan")  # no count: a size is a probe channel
+    return lines
+
+
 def _scan_here(path: Path, names: Sequence[str]) -> dict[str, Any]:
     from evallab.readers.scout_clouddb import _scanner_module
 
     transcript_type = importlib.import_module("inspect_scout").Transcript
 
-    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    if len(lines) > MAX_TRANSCRIPTS:
-        raise QaDataError(f"at most {MAX_TRANSCRIPTS} transcripts per scan; this file has {len(lines)}")
+    lines = _transcript_lines(path)
     transcripts = [transcript_type.model_validate_json(line) for line in lines]
     rows = asyncio.run(_scan(transcripts, _scanner_module(), names))
     return {
@@ -83,7 +91,8 @@ def scan(transcripts: Path, scanners: Sequence[str] | None, budget: Budget) -> d
         raise QaDataError(f"unknown scanner {unknown[0]!r}; choose from {', '.join(TEXT_SCANNERS)}")
     path = Path(transcripts).expanduser()
     if not path.is_file():
-        raise QaDataError(f"{path} is not a file; pass the transcripts.jsonl of an `export --format scout` directory")
+        raise QaDataError("pass the transcripts.jsonl file of an `export --format scout` directory")  # never echoes the input
+    _transcript_lines(path)  # the size refusal never depends on which runtime would scan
     if importlib.util.find_spec("inspect_scout") is not None:
         return _fit(_scan_here(path, names), budget)
     interpreter = _runtime_python()

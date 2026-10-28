@@ -16,6 +16,7 @@ import pytest
 from evallab.production.cloud_trace_db import (
     CloudTraceDatabase,
     CloudTraceRetriever,
+    import_run_clusters,
     import_run_facets,
 )
 from evallab.production.corpus_queue import CorpusRegistry
@@ -873,3 +874,58 @@ def test_facet_matching_trace_trust_controls_partial_match_widening(
     assert [example.task_id for example in retriever.retrieve_similar_examples(
         "alpha beta", top_k=1,
     )] == ["a-unreturnable"]
+
+
+def build(build_id: str, runs: list[str], **extra: Any) -> list[dict[str, Any]]:
+    """One producer build: a level-1 cluster holding every run, one child per level below."""
+    meta = {"cluster_version": "run-clusters/v1", "build_id": build_id, "facet_count": len(runs), **extra}
+    return [
+        {**cluster("l1", 1, None, runs), **meta},
+        {**cluster("l2", 2, "l1", runs), **meta},
+        {**cluster("l3", 3, "l2", runs[:1]), **meta},
+        {**cluster("l3b", 3, "l2", runs[1:]), **meta},
+    ]
+
+
+def test_cluster_import_stores_only_the_final_build_and_withholds_scoring_labels(
+    faceted: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    runs = ["dev-task/pass", "dev-task/fail"]
+    stale = build("old", runs[:1]) + build("old-2", runs)
+    final = build("final", runs, label_rates={"cheat": 0.5}, rule_recall=0.9, rule_fpr=0.1, samples=["edited tests"])
+    path = write_jsonl(tmp_path / "clusters.jsonl", *stale, *final, "{torn")
+    receipt = import_run_clusters(faceted, path, registry=SyntheticRegistry())
+    assert (receipt["build_id"], receipt["build_clusters"], receipt["invalid_json_lines"]) == ("final", 4, 1)
+    assert (receipt["clusters"], receipt["runs"], receipt["clusters_with_label_fields_withheld"]) == (4, 2, 4)
+    stored_clusters = clusters(faceted)
+    assert set(stored_clusters) == {"l1", "l2", "l3", "l3b"}
+    assert stored_clusters["l1"]["label_rates"] is None
+    assert stored_clusters["l1"]["provenance_json"]["samples"] == ["edited tests"]
+    assert {"rule_recall", "rule_fpr", "label_rates"}.isdisjoint(stored_clusters["l1"]["provenance_json"])
+
+
+def test_cluster_import_refuses_an_incomplete_build_and_keeps_the_stored_hierarchy(
+    faceted: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    faceted.replace_run_clusters(HIERARCHY, registry=SyntheticRegistry())
+    unfinished = build("half", ["dev-task/pass", "dev-task/fail"])[:2]  # level 3 not yet written
+    path = write_jsonl(tmp_path / "clusters.jsonl", *unfinished)
+    with pytest.raises(ValueError, match="incomplete cluster build"):
+        import_run_clusters(faceted, path, registry=SyntheticRegistry())
+    assert set(clusters(faceted)) == {"c1", "c2", "c3"}
+
+
+def test_cluster_import_refuses_unfaceted_runs_unless_asked_to_drop_and_count_them(
+    faceted: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    runs = ["dev-task/pass", "elsewhere/no-trace"]
+    path = write_jsonl(tmp_path / "clusters.jsonl", *build("mixed", runs))
+    with pytest.raises(ValueError, match="lack stored facets"):
+        import_run_clusters(faceted, path, registry=SyntheticRegistry())
+    assert clusters(faceted) == {}
+    receipt = import_run_clusters(faceted, path, registry=SyntheticRegistry(), drop_unfaceted=True)
+    assert (receipt["runs"], receipt["dropped_runs"], receipt["dropped_clusters"]) == (1, 1, 1)
+    stored_clusters = clusters(faceted)
+    # The level-3 cluster that held only the unstored run vanishes; the others shrink.
+    assert set(stored_clusters) == {"l1", "l2", "l3"}
+    assert stored_clusters["l1"]["run_ids"] == ["dev-task/pass"] and stored_clusters["l1"]["size"] == 1

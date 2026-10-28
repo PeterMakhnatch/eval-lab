@@ -49,6 +49,19 @@ stopped when done; never start one on a reserved port.
 Harbor job directories under `runs/` remain the immutable source of truth.
 Phoenix and Laminar are derived views; neither replaces those artifacts.
 
+## Laminar Signal spend guard
+
+The four Eval Lab Signal definitions in `src/evallab/laminar.py` are **paused**
+and require the explicit span tag `evallab.signals=on` if subsequently enabled.
+`evallab laminar signals apply` preserves both protections; ordinary traces and
+bulk cloud-store syncs never add the tag. Re-enabling paid, per-token Signals
+requires funded allowance and current authorization, not merely a stored BYOK key.
+The project Failure Detector and other presets must also be paused or opt-in
+filtered before historical ingestion. Before changing live definitions, retain a
+GET snapshot under `~/.local/state/evallab-prod-live/trace-store/`, then verify
+the stored definitions and a single trace's `signal_runs` via read-only SQL.
+
+
 ## Incremental native ATIF (HAR-168)
 
 Native MiMo publishes `agent/trajectory.json` in ATIF-v1.8 after each completed

@@ -745,7 +745,7 @@ inputs:
   - path: src/evallab/production/trace_harness_rules.py
     digest: sha256:5c6f1eeb485361246679d91eeed8324517b3a78a8e686d1d33ff361e850b0965
   - path: src/evallab/production/trace_harness_score.py
-    digest: sha256:626b87a77a74ac3c74bb79be622e3412450963caf72336ea520b902a21d69e0b
+    digest: sha256:33ab3d937db80d8961e69a564139fed35c53570470e96217cb972f246174517e
   - path: src/evallab/production/trace_harness_staged.py
     digest: sha256:8bd789c9aae04288a39de29e6062b3e6670bbc508702f2362c5cc86b7f047d2d
   - path: src/evallab/production/trace_harness_tools.py

@@ -68,6 +68,7 @@ DETECTORS: dict[str, str] = {
     "metr": "evallab.production.trace_harness_tools:MetrDetector",
     "laminar": "evallab.production.trace_harness_tools:LaminarDetector",
     "docent": "evallab.production.trace_harness_tools:DocentDetector",
+    "omp-form": "evallab.production.trace_harness_tools:OmpFormDetector",
 }
 
 Key = tuple[str, str, str, str | None]
@@ -285,12 +286,7 @@ def load_detectors(specs: Sequence[str], options: HarnessOptions) -> list[Detect
     for spec in names:
         name, reader = parse_detector_spec(spec)
         module_name, _, attribute = DETECTORS[name].partition(":")
-        try:
-            factory: Callable[..., Detector] = getattr(importlib.import_module(module_name), attribute)
-        except ModuleNotFoundError as error:
-            if error.name != module_name or list(specs) != ["all"]:
-                raise
-            continue  # adapter not installed yet; ``all`` means the installed set
+        factory: Callable[..., Detector] = getattr(importlib.import_module(module_name), attribute)
         detectors.append(factory(options if reader is None else HarnessOptions(
             options.database, options.repo_root, options.allow_model, reader,
         )))

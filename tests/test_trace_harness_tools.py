@@ -160,19 +160,10 @@ def test_metr_tokens_and_explanation_come_from_the_report_receipt(tmp_path: Path
 
 
 @pytest.mark.parametrize("cls", [tools.MetrDetector, tools.LaminarDetector])
-def test_paid_readers_refuse_to_generate_missing_runs(tmp_path: Path, cls: Any) -> None:
+def test_paid_readers_never_generate_missing_runs(tmp_path: Path, cls: Any) -> None:
     path = ledger(tmp_path / "r.jsonl", [])
-    with pytest.raises(tools.PaidReaderRefused, match="paid reader"):
-        list(cls(options(tmp_path, allow_model=True), results=path).detect([run("a")]))
-    # without the flag the missing run is simply omitted
-    assert list(cls(options(tmp_path), results=path).detect([run("a")])) == []
-
-
-def test_metr_allow_model_is_harmless_when_every_run_is_stored(tmp_path: Path) -> None:
-    path = ledger(tmp_path / "r.jsonl", metr_rows("a", KIMI, 1.0))
-    found = by_run(tools.MetrDetector(options(tmp_path, allow_model=True), results=path, tt4_root=tmp_path)
-                   .detect([run("a")]))
-    assert found["a"]["verdict"] == "clear"
+    for allow_model in (False, True):
+        assert list(cls(options(tmp_path, allow_model=allow_model), results=path).detect([run("a")])) == []
 
 
 def laminar_row(run_id: str, signal: str, flag: bool | None, payload: dict[str, Any] | None = None,

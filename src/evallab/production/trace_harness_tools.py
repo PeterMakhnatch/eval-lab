@@ -6,9 +6,9 @@
 ledgers under ``~/.local/state/evallab-prod-live/trace-tools/`` into
 ``trace-findings/v1`` records. Nothing here runs Scout, METR, Laminar, Docent or
 a model, and nothing reads labels: a run with no stored row is omitted, never
-``clear``. METR and Laminar Signals are paid readers, so with ``--allow-model``
-the two refuse (``PaidReaderRefused``) when a requested run has no stored result
-rather than generating one; the other three never generate under any flag.
+``clear``. ``--allow-model`` changes nothing here: METR and Laminar Signals are
+paid readers and the other three run in their own lanes, so missing runs are
+always omitted rather than generated.
 
 Verdicts follow the published Trace Tools scorecard (``tool_scorecard``): a
 flag is the tool's own flag, ``null`` abstains, and a multi-scanner tool is the
@@ -91,10 +91,6 @@ DOCENT_RH_VERSIONS = frozenset({"1", DOCENT_RH_VERSION})
 
 Row = Mapping[str, Any]
 Ledger = dict[tuple[str, str], Row]
-
-
-class PaidReaderRefused(RuntimeError):
-    """A paid reader would have to run; the harness only imports stored results."""
 
 
 # --------------------------------------------------------------------------- #
@@ -226,15 +222,6 @@ def _number(value: Any) -> float | None:
 
 def _tokens(value: Any) -> int:
     return int(value) if isinstance(value, int | float) and not isinstance(value, bool) and value >= 0 else 0
-
-
-def _refuse_paid(name: str, options: HarnessOptions, missing: int) -> None:
-    if options.allow_model and missing:
-        raise PaidReaderRefused(
-            f"{name} is a paid reader and the trace harness only imports results the Trace Tools "
-            f"lane already stored; {missing} requested run(s) have none, and --allow-model does not "
-            "authorise generating them here. Drop the detector or run it through the Trace Tools lane.",
-        )
 
 
 def _no_reader(name: str, options: HarnessOptions) -> None:
@@ -370,7 +357,6 @@ class MetrDetector:
             [run.run_id for run in runs],
         )
         stored = [run for run in runs if (METR_NATIVE, run.run_id) in ledger]
-        _refuse_paid(self.name, self.options, len(runs) - len(stored))
         for run in stored:
             native = ledger[METR_NATIVE, run.run_id]
             thresholds = [ledger[d, run.run_id] for d in METR_DETECTORS if (d, run.run_id) in ledger]
@@ -447,7 +433,6 @@ class LaminarDetector:
             if detector in flagging:
                 by_run[run_id].append(row)
         stored = [run for run in runs if by_run.get(run.run_id)]
-        _refuse_paid(self.name, self.options, len(runs) - len(stored))
         for run in stored:
             rows = sorted(by_run[run.run_id], key=lambda row: row["detector"])
             flag = union(row["flag"] for row in rows)

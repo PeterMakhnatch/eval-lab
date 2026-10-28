@@ -121,13 +121,11 @@ def test_store_refuses_corrupt_lines(tmp_path: Path) -> None:
         th.FindingStore(path).records()
 
 
-def test_load_detectors_all_skips_uninstalled_adapters_but_names_must_exist(monkeypatch) -> None:
-    monkeypatch.setattr(th, "DETECTORS", {"fake": "evallab.production.no_such_adapter:Fake"})
-    assert th.load_detectors(["all"], th.HarnessOptions()) == []
-    with pytest.raises(ModuleNotFoundError):
-        th.load_detectors(["fake"], th.HarnessOptions())
+def test_detector_specs_name_a_registered_detector_and_optional_reader() -> None:
+    assert th.parse_detector_spec("facets:anthropic/claude-haiku-5-5") == ("facets", "anthropic/claude-haiku-5-5")
+    assert th.parse_detector_spec("cascade") == ("cascade", None)
     with pytest.raises(ValueError):
-        th.load_detectors(["nope"], th.HarnessOptions())
+        th.parse_detector_spec("nope")
 
 
 def test_card_is_label_free_and_within_budget() -> None:

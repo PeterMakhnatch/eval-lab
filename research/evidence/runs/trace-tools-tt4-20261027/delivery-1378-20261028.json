@@ -1,0 +1,211 @@
+{
+  "schema": "evallab.trace_tools_tt4_source_delivery/v1",
+  "pr": 1378,
+  "premerge": {
+    "baseRefOid": "f5105c36a6a1ed082d2a4006d117388a9cd7c29b",
+    "headRefOid": "ded6a3b6e1da7906d7fc4ca0538303668b70593f",
+    "mergeStateStatus": "CLEAN",
+    "state": "OPEN",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:51:13Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937450/job/122927756188",
+        "name": "linux-cp312-wheelhouse",
+        "startedAt": "2026-10-28T15:50:04Z",
+        "status": "COMPLETED",
+        "workflowName": "mcp-wheelhouse-platform"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:50:19Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937705/job/122927758479",
+        "name": "scope",
+        "startedAt": "2026-10-28T15:50:04Z",
+        "status": "COMPLETED",
+        "workflowName": "perf"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:50:52Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937739/job/122927757820",
+        "name": "lint",
+        "startedAt": "2026-10-28T15:50:03Z",
+        "status": "COMPLETED",
+        "workflowName": "quality"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:50:34Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937527/job/122927755986",
+        "name": "ty",
+        "startedAt": "2026-10-28T15:50:03Z",
+        "status": "COMPLETED",
+        "workflowName": "typecheck"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:51:05Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937705/job/122927941067",
+        "name": "profile",
+        "startedAt": "2026-10-28T15:50:21Z",
+        "status": "COMPLETED",
+        "workflowName": "perf"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:57:24Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937739/job/122927758701",
+        "name": "test (3.12, 1/2)",
+        "startedAt": "2026-10-28T15:50:04Z",
+        "status": "COMPLETED",
+        "workflowName": "quality"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:50:41Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937527/job/122928093285",
+        "name": "typecheck-required",
+        "startedAt": "2026-10-28T15:50:37Z",
+        "status": "COMPLETED",
+        "workflowName": "typecheck"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:55:48Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937739/job/122927758291",
+        "name": "test (3.12, 2/2)",
+        "startedAt": "2026-10-28T15:50:03Z",
+        "status": "COMPLETED",
+        "workflowName": "quality"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:56:14Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937739/job/122927758624",
+        "name": "test (3.14, 1/2)",
+        "startedAt": "2026-10-28T15:50:04Z",
+        "status": "COMPLETED",
+        "workflowName": "quality"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:53:51Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937739/job/122927758299",
+        "name": "test (3.14, 2/2)",
+        "startedAt": "2026-10-28T15:50:04Z",
+        "status": "COMPLETED",
+        "workflowName": "quality"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-28T15:57:28Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40719937739/job/122932108467",
+        "name": "quality-required",
+        "startedAt": "2026-10-28T15:57:26Z",
+        "status": "COMPLETED",
+        "workflowName": "quality"
+      }
+    ]
+  },
+  "merged": {
+    "autoMergeRequest": null,
+    "headRefOid": "ded6a3b6e1da7906d7fc4ca0538303668b70593f",
+    "mergeCommit": {
+      "oid": "6fbe1acb33fa203d8420e047800f7650cbb56095"
+    },
+    "mergedAt": "2026-10-28T15:58:00Z",
+    "state": "MERGED"
+  },
+  "merged_main_checks": {
+    "merged_commit": "6fbe1acb33fa203d8420e047800f7650cbb56095",
+    "all11_success": true,
+    "checks": [
+      {
+        "name": "quality-required",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721265550/job/122936655831"
+      },
+      {
+        "name": "typecheck-required",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721264149/job/122932846804"
+      },
+      {
+        "name": "profile",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721265231/job/122932695229"
+      },
+      {
+        "name": "lint",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721265550/job/122932500897"
+      },
+      {
+        "name": "test (3.14, 2/2)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721265550/job/122932500690"
+      },
+      {
+        "name": "test (3.14, 1/2)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721265550/job/122932500687"
+      },
+      {
+        "name": "test (3.12, 1/2)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721265550/job/122932500596"
+      },
+      {
+        "name": "test (3.12, 2/2)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721265550/job/122932500216"
+      },
+      {
+        "name": "scope",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721265231/job/122932499985"
+      },
+      {
+        "name": "ty",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721264149/job/122932496063"
+      },
+      {
+        "name": "linux-cp312-wheelhouse",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/40721264276/job/122932494812"
+      }
+    ]
+  },
+  "verified_head_tree": "66ede95126b7fc8a0c5bc7d4a16bc4e57b19ebdb",
+  "merged_tree": "66ede95126b7fc8a0c5bc7d4a16bc4e57b19ebdb",
+  "whole_repository_tree_equal": true,
+  "verified_merge_ancestor_of_origin_main": true,
+  "local_and_remote_delivered_branches_retired": true,
+  "runtime_and_locked_worktree_preserved": true,
+  "paid_calls": 0,
+  "model_reruns_for_source_delivery": 0
+}

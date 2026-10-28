@@ -70,6 +70,8 @@ monthly total **72.48%**, code **71.74%**, with next known five-hour reset
 **October 28, 1:23:00 PM ET**. No additional metadata/model request was made
 after this stop. Future diagnostic capture now preserves the failed redacted
 snapshot/reason without retrying or relaxing the guard; its tests used no API.
+A **later 92% reading from another lane**, reported by the parent, is separate
+evidence. It is **not backdated** as this lane's stop snapshot or cause.
 
 The **163 abstentions** are **162 eligible but uncalled** plus **one canonical
 privacy no-send in the clean stratum**. Offline, Python socket/subprocess access
@@ -84,6 +86,43 @@ Observed cost for planning is approximately **71,660 input + 1,050 output
 tokens per scored trace** in this stratified prefix, at **$0 marginal Kimi
 subscription cost**. It is not a token/quota guarantee for the remaining runs.
 No paid fallback, quota polling, reset waiting or automatic retry is armed.
+
+### Frozen gold-step, conditional yield and latency audit
+
+`native-gold-join-freeze-20261028.json` freezes all 600 prediction rows before
+the additional gold-step join; commit
+`acec5ffd9608bdc5ae171662bfc9d4737ca09440` precedes that join. This secondary
+audit was declared after the already-reported primary-label metrics, not
+retroactively preregistered before generation. Model inputs/prompts/thresholds
+and native outputs themselves were fixed before offline label scoring.
+
+All **3/3 threshold-positive TPs** have a literal intersection with canonical
+`agent_traces.flagged_passage_steps`: **5 of 7 cited original steps** intersect
+the **33 annotated steps** across those three runs. Both **2/2 METR-only TPs
+versus CM-9 final** intersect gold. Source/native step coordinates were checked
+directly; no offset search, fuzzy match or tolerance expansion was used. This
+is publisher-annotation alignment, not independent human proof of execution.
+See `native-gold-step-audit-20261028.json`.
+
+Both thresholds yield **3/37 (8.11%)** flags per scored run, or **3/25 (12%)**
+on the scored primary-label subset. Extra TP/FP versus CM-9 final is **2/0**;
+versus Stage-1 it is **0/0**. The final-cascade/METR union is **5 TP, 1 FP** on
+the same 13-positive/12-clean subset, versus the cascade's **3 TP, 1 FP**.
+The 163 abstentions remain missing, not negatives.
+
+Across the **79 actual OMP subprocess calls**, elapsed latency is median
+**12.700 s**, mean **13.177 s**, nearest-rank p95 **20.546 s**, range
+**5.512–36.354 s**. This includes subprocess overhead; it is not server-only
+latency or TTFT. No new model, quota or paid call was made for this audit.
+The small partial sample establishes neither an **always-on utility** claim nor
+a **model winner/serving recommendation**; it adds zero TPs beyond Stage-1.
+
+Source/guards PR **#1378 merged at 11:58 AM ET** on October 28 as
+`6fbe1acb33fa203d8420e047800f7650cbb56095`. Exact premerge head `ded6a3b6e`
+had all eleven checks green **before** protected auto-merge, and the existing
+fresh merged-main CI also passed all eleven. Full repository tree equivalence,
+check URLs and merge proof are in `delivery-1378-20261028.json`; the runtime and
+locked worktree are preserved. No billed/full-run smoke was repeated.
 
 ### Preserved CI failure, not a bypass
 

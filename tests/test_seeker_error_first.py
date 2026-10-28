@@ -45,6 +45,12 @@ ENVIRONMENT = {
 # ----------------------------------------------------------------------- fixtures
 
 
+@pytest.fixture(autouse=True)
+def isolate_sealed_source_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Synthetic DEV fixtures must never inspect real sealed-split sources."""
+    monkeypatch.setattr(sef, "find_tb4_test_leaks", lambda *_args, **_kwargs: [])
+
+
 def _write_task(root: Path, name: str, *, repaired: bool) -> Path:
     task = root / name
     (task / "environment").mkdir(parents=True)
@@ -853,6 +859,9 @@ def test_feedback_block_is_bounded_and_scrubbed() -> None:
     assert "tests/test_" not in block and "secret = 1" not in block
     accepted = sef.RunnerError("measured", 1.0, None, (0,), (), (), "", ())
     assert "accepted the submission" in sef.render_feedback_block(accepted)
+    later = sef.render_feedback_block(accepted, attempt_index=4)
+    assert later.startswith("# Runner error from your turn-4 submission")
+    assert "Your turn-4 `solve.sh` was run" in later and "turn-1" not in later
     assert sef.RunnerError.from_json(error.to_json()) == error
 
 

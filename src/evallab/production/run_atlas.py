@@ -190,6 +190,19 @@ def cloud_trace_ids(
     return [row["trace_id"] for row in rows if row["task_id"] in admitted]
 
 
+def _arguments(value: Any) -> dict[str, Any]:
+    """ATIF tool-call arguments are objects; native rows often store JSON strings."""
+    if isinstance(value, Mapping):
+        return dict(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            return {"raw": value}
+        return dict(parsed) if isinstance(parsed, Mapping) else {"raw": value}
+    return {} if value is None else {"raw": value}
+
+
 def _tool_calls(tool_name: str | None, command: str | None) -> list[dict[str, Any]]:
     if not command and not tool_name:
         return []
@@ -205,11 +218,12 @@ def _tool_calls(tool_name: str | None, command: str | None) -> list[dict[str, An
                 {
                     "tool_call_id": str(call.get("id") or ""),
                     "function_name": str(call.get("name") or ""),
-                    "arguments": call.get("arguments"),
+                    "arguments": _arguments(call.get("arguments")),
                 }
                 for call in parsed
             ]
-    return [{"tool_call_id": "", "function_name": tool_name or "action", "arguments": command or ""}]
+    return [{"tool_call_id": "", "function_name": tool_name or "action",
+             "arguments": _arguments(command or "")}]
 
 
 def cloud_doc(connection: sqlite3.Connection, trace_id: str) -> dict[str, Any]:
@@ -403,7 +417,10 @@ def render_step(step: Mapping[str, Any], *, pattern: re.Pattern[str] = SOURCE_NA
         if not isinstance(call, Mapping):
             continue
         name = str(call.get("function_name") or call.get("name") or "tool")
-        lines += [f"<call {name}>", bound(_text(call.get("arguments")), ACTION_CHARS), "</call>"]
+        arguments = call.get("arguments")
+        if isinstance(arguments, Mapping) and set(arguments) == {"raw"}:
+            arguments = arguments["raw"]
+        lines += [f"<call {name}>", bound(_text(arguments), ACTION_CHARS), "</call>"]
     observation = step.get("observation")
     results = observation.get("results") if isinstance(observation, Mapping) else None
     if results:
@@ -1121,6 +1138,9 @@ def register_parser(commands: Any) -> None:
     from evallab.production.run_atlas_score import add_score_parser
 
     add_score_parser(actions)
+    from evallab.production.run_atlas_clusters import add_clusters_parser
+
+    add_clusters_parser(actions)
 
 
 def _run_ids(args: argparse.Namespace) -> list[str] | None:

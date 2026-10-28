@@ -1928,6 +1928,7 @@ def run_capture_smoke(
         server, recorder, _manifest = serve_capture(
             upstream=upstream, out_dir=directory, bind="127.0.0.1", port=0
         )
+        server.daemon_threads = False
         capture_thread = threading.Thread(target=server.serve_forever, daemon=True)
         capture_thread.start()
         capture_url = f"http://127.0.0.1:{server.server_address[1]}"
@@ -1974,6 +1975,11 @@ def run_capture_smoke(
             raise SmokeError(f"smoke call failed in transport ({type(exc).__name__})") from exc
         if status != 200:
             raise SmokeError(f"smoke call returned status {status}")
+        # A complete HTTP body can precede the handler's durable journal append.
+        # Drain this one-call server before validating its capture evidence.
+        server.shutdown()
+        server.server_close()
+        server = None
         calls_path = directory / "calls.jsonl"
         try:
             records = [
@@ -2014,6 +2020,7 @@ def run_capture_smoke(
         if server is not None:
             with contextlib.suppress(Exception):
                 server.shutdown()
+                server.server_close()
         if recorder is not None:
             with contextlib.suppress(Exception):
                 recorder.close()

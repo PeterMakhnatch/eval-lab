@@ -1,6 +1,27 @@
 {
   "actual_off_prompt_contains_packet": false,
   "actual_on_prompt_contains_exact_packet": true,
+  "canonical_record_admission": {
+    "after": "Rejected before model request by canonical record-digest comparison",
+    "before": "Fabricated finder with recomputed self-hashes admitted by dry-run",
+    "current_guard": "Current library authority, run manifest checksum, exact canonical record digest and split, no duplicate record aliases",
+    "historical_caveat": "The 12 archived model reviews predate this extra admission guard; all six frozen records were subsequently re-attested through the actual public dry-run CLI.",
+    "model_requests_during_attestation": 0,
+    "real_subjects_retrospectively_attested": [
+      {
+        "canonical_records_attested": 1,
+        "manifest": "pilot-task-20261027.manifest.json"
+      },
+      {
+        "canonical_records_attested": 1,
+        "manifest": "pilot-trace-20261027.manifest.json"
+      },
+      {
+        "canonical_records_attested": 4,
+        "manifest": "readonly-balanced-trace-20261028.manifest.json"
+      }
+    ]
+  },
   "completed_model_reviews": 12,
   "construct_alignment": "not_established: broad QA invalidation flags and publisher reward-hack labels are different targets",
   "created_at": "2026-10-28T00:36:41.312227+00:00",

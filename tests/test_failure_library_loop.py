@@ -760,6 +760,7 @@ def test_public_readonly_dryrun_uses_private_views_and_never_calls_model(
     record["collection"] = "pm-tb4-findings"
     record["summary"] = "PRIVATE_SOURCE_LABEL_DO_NOT_PROMPT"
     record["task"]["task_version_digest"] = task_directory_digest(source.parent)
+    store.write_findings("pm-tb4-findings", [Finding.model_validate(record)])
     subject = {
         "id": "S1",
         "kind": "task",

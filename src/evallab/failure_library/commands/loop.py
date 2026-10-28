@@ -30,6 +30,7 @@ def _run_readonly(args: argparse.Namespace, root: Path, **_: Any) -> int:
         args.manifest,
         args.pack_dir,
         args.output_dir,
+        repo_root=root,
         lane=args.lane,
         dry_run=args.dry_run,
         allow_paid=args.allow_paid,

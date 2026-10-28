@@ -13,6 +13,7 @@ import pytest
 from evallab.failure_library.loop.source_views import extract_documents
 from evallab.failure_library.records import Evidence, Finding, TaskRef, make_finding_id
 from evallab.failure_library.runs.published import olmo
+from evallab.failure_library.store import LibraryStore
 from evallab.registry import task_directory_digest
 
 
@@ -118,24 +119,36 @@ def test_trace_view_rejects_out_of_bounds_or_stale_message_spans(trace_view) -> 
         extract_documents(subject, record)
 
 
-def test_pilot_rejects_unrelated_documents_despite_valid_source_hashes(
-    task_view, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "mutation", ["documents", "source-label", "heldout", "missing", "duplicate"]
+)
+def test_pilot_rejects_unbound_views_claims_and_split_laundering(
+    task_view, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
 ) -> None:
     from evallab.failure_library.loop.readonly import diagnostic_pilot, source_view
     from evallab.failure_library.loop.selection import digest
 
     monkeypatch.setenv("HOME", str(tmp_path))
     subject, finding, instruction = task_view
+    canonical = (
+        finding.model_copy(update={"split": "heldout"}) if mutation == "heldout" else finding
+    )
+    if mutation != "missing":
+        LibraryStore.for_repo(tmp_path).write_findings(finding.collection, [canonical])
     subject["sources"][0]["sha256"] = hashlib.sha256(instruction.read_bytes()).hexdigest()
     subject.update(
         id="S1",
         kind="task",
         record=finding.model_dump(mode="json"),
         record_digest=digest(finding.model_dump(mode="json")),
-        documents=["A different problem paired with this task's real checksum."],
+        documents=["Unrelated view."] if mutation == "documents" else [instruction.read_text()],
     )
+    if mutation == "source-label":
+        subject["record"]["finder"] = "unattested-local-claim"
+        subject["record_digest"] = digest(subject["record"])
     subject["view_sha256"] = source_view(subject["documents"])["sha256"]
-    body = {"schema": "failure-library.readonly-pilot/v1", "subjects": [subject]}
+    subjects = [subject, {**subject, "id": "S2"}] if mutation == "duplicate" else [subject]
+    body = {"schema": "failure-library.readonly-pilot/v1", "subjects": subjects}
     manifest = tmp_path / "manifest.json"
     manifest.write_text(json.dumps({**body, "digest": digest(body)}))
     pack = tmp_path / "packet"
@@ -154,6 +167,14 @@ def test_pilot_rejects_unrelated_documents_despite_valid_source_hashes(
             }
         )
     )
-    with pytest.raises(ValueError, match="documents disagree with the pinned source"):
-        diagnostic_pilot(manifest, pack, tmp_path / "output", dry_run=True, allow_curated=True)
+    message = "documents disagree" if mutation == "documents" else "canonical"
+    with pytest.raises(ValueError, match=message):
+        diagnostic_pilot(
+            manifest,
+            pack,
+            tmp_path / "output",
+            repo_root=tmp_path,
+            dry_run=True,
+            allow_curated=True,
+        )
     assert not (tmp_path / "output").exists()

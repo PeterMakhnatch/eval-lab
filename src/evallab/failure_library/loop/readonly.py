@@ -145,6 +145,7 @@ def diagnostic_pilot(
     pack_dir: Path,
     output_dir: Path,
     *,
+    repo_root: Path,
     dry_run: bool = False,
     allow_paid: bool = False,
     allow_curated: bool = False,
@@ -164,7 +165,7 @@ def diagnostic_pilot(
     from evallab.failure_library.loop.selection import digest, run_label
     from evallab.failure_library.loop.source_views import extract_documents
     from evallab.failure_library.records import Finding, RunRecord
-    from evallab.failure_library.store import default_state_root
+    from evallab.failure_library.store import LibraryStore, default_state_root
 
     manifest = json.loads(manifest_path.read_text())
     body = {key: value for key, value in manifest.items() if key != "digest"}
@@ -198,6 +199,7 @@ def diagnostic_pilot(
     )
     prepared, identities, task_ids, record_ids = [], set(), set(), set()
     checked_files: dict[Path, str] = {}
+    canonical_targets: dict[tuple[str, str], dict[str, str]] = {}
     for subject in subjects:
         opaque = subject["id"]
         if (
@@ -228,6 +230,11 @@ def diagnostic_pilot(
             raise ValueError("trace needs unambiguous executed/human hacked or clean labels")
         if digest(subject["record"]) != subject["record_digest"]:
             raise ValueError("source record digest changed")
+        native_id = record.finding_id if isinstance(record, Finding) else record.run_id
+        targets = canonical_targets.setdefault((kind, record.collection), {})
+        if native_id in targets:
+            raise ValueError("duplicate canonical record in the frozen pilot")
+        targets[native_id] = subject["record_digest"]
         for source in subject["sources"]:
             path = Path(source["path"]).expanduser().resolve()
             if not any(path.is_relative_to(root.resolve()) for root in approved):
@@ -260,6 +267,30 @@ def diagnostic_pilot(
         task_ids.add(record.task.source_id + "/" + record.task.task_id)
         record_ids.add(subject["record"]["finding_id" if kind == "task" else "run_id"])
         prepared.append((opaque, kind, expected, view))
+    store = LibraryStore.for_repo(repo_root)
+    for (kind, collection), targets in canonical_targets.items():
+        path = store.findings_path(collection) if kind == "task" else store.runs_path(collection)
+        if not path.is_file() or (kind == "trace" and store.verify_runs(collection)):
+            raise ValueError(
+                "canonical source collection is missing or fails manifest verification"
+            )
+        candidates = (
+            store.iter_findings(collection) if kind == "task" else store.iter_runs(collection)
+        )
+        for candidate in candidates:
+            native_id = candidate.finding_id if isinstance(candidate, Finding) else candidate.run_id
+            expected_digest = targets.get(native_id)
+            if expected_digest is None:
+                continue
+            if expected_digest != digest(candidate.model_dump(mode="json")):
+                raise ValueError(
+                    "frozen source record disagrees with canonical library evidence or split"
+                )
+            del targets[native_id]
+            if not targets:
+                break
+        if targets:
+            raise ValueError("frozen source record is missing from the canonical library")
     metadata = json.loads((pack_dir / "pack.manifest.json").read_text())
     guidance = (pack_dir / "pack.md").read_text()
     if hashlib.sha256(guidance.encode()).hexdigest() != metadata["files"]["pack.md"]["sha256"]:
@@ -298,6 +329,7 @@ def diagnostic_pilot(
         "model": model,
         "lane": lane,
         "native_harbor_canary": False,
+        "canonical_records_attested": len(prepared),
         "independent_verification": False,
         "improvement_proven": False,
     }

@@ -131,6 +131,12 @@ plus an unrelated genuine source checksum is rejected. Private document-file
 checksums and parsed-view equality are both checked. `extract_pilot_views.py`
 uses the same production extractor; `--bind` regenerates metadata only after
 native reconstruction matches the frozen document and line-cited-view digests.
+Frozen records must also match the current canonical library's complete record
+digest and DEV split. Trace collection bytes must pass their committed manifest
+checksum. Self-hashed invented labels, relabelled heldout records, missing
+canonical records and duplicate record aliases are rejected before model calls.
+The repository root comes from the CLI, never the input manifest. Frozen studies
+fail closed on canonical drift; historical bytes remain recoverable in custody.
 
 From the integrated checkout, the owner can validate the frozen inputs offline:
 
@@ -202,4 +208,12 @@ diagnostics, not independent replays, an unseen-set estimate, or proof that the
 native Harbor QA seams are complete. OFF always precedes ON; default thinking
 and opaque native base prompts remain confounds. Recognizable benchmark content
 is retained even though source-label/identity sidecars are withheld.
+
+
+A final admission probe also reproduced acceptance of an invented source claim
+with recomputed self-hashes. Canonical record/split attestation now rejects it,
+along with heldout relabelling and duplicate aliases. All six historical subjects
+were subsequently re-attested through three actual public dry-runs, with zero new
+model requests; the 12 earlier reviews are not retroactively represented as having
+run behind this additional guard. The integration result records that distinction.
 

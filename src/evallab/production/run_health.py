@@ -202,6 +202,14 @@ _COMPLETION_RE = re.compile(
 _ERROR_LINE_RE = re.compile(r"^.*(?:error|exception|traceback|failed|fatal).*$", re.IGNORECASE | re.MULTILINE)
 _HEX_RE = re.compile(r"0x[0-9a-f]+|\b[0-9a-f]{8,}\b", re.IGNORECASE)
 _DIGITS_RE = re.compile(r"\d+")
+#: Per-call tokens in tool output (error codes, request and container ids): upper-case
+#: or digit runs of 6+ characters, replaced before outputs are compared.
+_CALL_TOKEN_RE = re.compile(r"\b[A-Z0-9_-]{6,}\b")
+
+
+def _output_fingerprint(text: str) -> str:
+    """Tool output with whitespace collapsed and per-call ids and numbers masked."""
+    return _DIGITS_RE.sub("#", _CALL_TOKEN_RE.sub("#", " ".join(text.split())))
 
 
 # --------------------------------------------------------------------------- input
@@ -378,7 +386,7 @@ def features(run: HealthRun) -> dict[str, Any]:
 
     signatures = [_signature(s) for s in agent]
     # A repeat is only a repeat when the environment answered the same way.
-    repeats = [f"{sig}\x00{' '.join(_observation_text(s).split())}" if sig else ""
+    repeats = [f"{sig}\x00{_output_fingerprint(_observation_text(s))}" if sig else ""
                for sig, s in zip(signatures, agent, strict=True)]
     edits = [_is_edit(dict(s))[0] for s in agent]
     messages = [str(s.get("message") or "").strip() for s in agent]

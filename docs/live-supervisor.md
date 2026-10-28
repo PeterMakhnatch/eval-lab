@@ -42,8 +42,10 @@ Problems already visible during the inventory, which the first shadow pass shoul
 - `sync-primary` has logged `Skipped: working tree dirty (2 files)` every 5 minutes since
   10-28 3:03 AM UTC. The primary checkout is 543 commits behind `origin/main`.
 - `run-atlas-watch` ends every cycle with `DailyTokenBudgetExceeded` (`written: 0`,
-  1,990 pending), and `docent-watch` with `hosted_free_allowance_exhausted` (778 pending).
-  Both are capped and spend nothing; they are stuck no-ops.
+  1,990 pending), and `docent-watch` with `hosted_free_allowance_exhausted`. Both are
+  capped and spend nothing; they are stuck no-ops. A denied `docent-watch` tick now
+  reports `inventory: "not_measured"` and omits `eligible`/`completed`/`pending`: it
+  checks the allowance before admission, and measured ticks report `inventory: "measured"`.
 - 44 `ts14-native-repairs-*` apps and older lab apps remain `deployed` with 0 tasks.
 - A local `docker compose` Harbor trial (`evallab hack run … --execute`) is running,
   although the wave contract sets `EVALLAB_DISABLE_LOCAL_DOCKER=1`.

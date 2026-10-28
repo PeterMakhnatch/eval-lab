@@ -152,7 +152,7 @@ Logic: `src/evallab/production/run_atlas_watch.py`. Tests:
 
 ```bash
 uv run evallab atlas watch --once --dry-run      # count pending runs; no lock, no gateway
-uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-day 250000
+uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-day 1000000
 ```
 
 - No ingestion path publishes a "trace committed" event (`upsert_trace`,
@@ -163,7 +163,10 @@ uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-da
   newest rows first (highest `rowid`). Metadata-only, empty, and incomplete
   step sets are deferred until their committed row count equals `step_count`.
 - Bounded: at most `--max-per-cycle` runs per cycle and an optional daily
-  token budget summed from today's (UTC) call receipts. Providers whose
+  token budget (one million in the service template). Its separate
+  `run-atlas/watch-calls-v1.jsonl` receipts prevent historical backfills from
+  exhausting the new-run allowance. Sum both receipt files for total Atlas
+  usage; each budget uses UTC days. Providers whose
   `omp usage --json` window is at or above 90% are skipped. Quota exhaustion
   yields the batch promptly and does not consume a trace's failure allowance;
   the next cycle can resume after a reset.

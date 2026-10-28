@@ -198,6 +198,35 @@ def test_quota_exhaustion_defers_runs_without_consuming_failure_allowance(
     assert _cycle(rig)["written"] == 2
 
 
+def test_backfill_usage_cannot_starve_a_new_watcher_run(
+    rig: SimpleNamespace, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed = datetime(2026, 1, 2, 12, tzinfo=UTC)
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return fixed
+
+    monkeypatch.setattr(watch, "datetime", FixedDatetime)
+    monkeypatch.setattr(run_atlas, "datetime", FixedDatetime)
+    backfill_calls = rig.root / "backfill-calls.jsonl"
+    monkeypatch.setattr(run_atlas, "DEFAULT_CALLS", backfill_calls)
+    run_atlas.append_jsonl(backfill_calls, [{
+        "at": fixed.isoformat(), "purpose": "form",
+        "input_tokens": 2_000_000, "output_tokens": 0,
+    }])
+    rig.args = _parser().parse_args([
+        "watch", "--database", str(rig.args.database), "--facets", str(rig.args.facets),
+        "--route", "openai-codex/fixture", "--once", "--max-tokens-per-day", "100000",
+    ])
+    _insert_trace(rig.args.database, "new")
+    result = _cycle(rig)
+    assert result["written"] == 1
+    assert result["tokens_today"] == 18
+    assert watch.tokens_used_today(backfill_calls) == 2_000_000
+
+
 def test_existing_facets_test_and_cross_key_sealed_tasks_are_never_read(
     rig: SimpleNamespace, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

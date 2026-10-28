@@ -368,7 +368,8 @@ def add_watch_parser(actions: Any) -> None:
     )
     parser.add_argument("--database", type=Path, default=run_atlas.DEFAULT_DATABASE)
     parser.add_argument("--facets", type=Path, default=run_atlas.DEFAULT_FACETS)
-    parser.add_argument("--calls", type=Path, default=run_atlas.DEFAULT_CALLS)
+    parser.add_argument("--calls", type=Path, default=run_atlas.ATLAS_ROOT / "watch-calls-v1.jsonl",
+                        help="Watcher-only receipts; backfills must not consume the new-run token allowance")
     parser.add_argument("--route", dest="routes", action="append", help="Subscription route; repeatable")
     parser.add_argument("--per-route", type=int, default=1, help="Concurrent runs per route (1-8)")
     parser.add_argument("--interval", type=float, default=300, help="Seconds between cycles (default: 300)")

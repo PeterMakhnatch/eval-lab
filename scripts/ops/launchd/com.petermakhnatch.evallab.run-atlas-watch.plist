@@ -18,7 +18,7 @@
 		<string>--max-per-cycle</string>
 		<string>25</string>
 		<string>--max-tokens-per-day</string>
-		<string>250000</string>
+		<string>1000000</string>
 	</array>
 	<key>WorkingDirectory</key>
 	<string>__WORKDIR__</string>

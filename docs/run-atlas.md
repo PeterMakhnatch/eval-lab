@@ -40,7 +40,9 @@ uv run evallab atlas facet --corpus cheatbench
   per-step `extra` removed, steps renumbered) and fails closed if
   `find_forbidden_json` still finds evaluator fields. Run ids, source, split,
   rewards and labels are never in the prompt; known source names are replaced
-  by `[source]` in rendered text.
+  by `[source]` in rendered text. The pattern also covers a bare family token
+  inside a task filename (`mimo_build_env.tar.gz.b64`), while a longer dataset
+  id such as `mimo-defect-map-v1` still matches whole so no fragment survives.
 - Agent reasoning and messages are never cut. Tool-call arguments (4,000
   chars) and observations (2,500 chars) are bounded head and tail with an
   explicit `[... N characters elided ...]` mark; task/system text is bounded at

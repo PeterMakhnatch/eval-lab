@@ -306,6 +306,24 @@ def test_default_rendering_redacts_benchmark_and_dataset_names(source_name: str)
     assert [segment.text for segment in segments] == [rendered]
 
 
+@pytest.mark.parametrize("filename", [
+    "mimo_build_env.tar.gz.b64", "mimo_test_command.sh", "MIMO_build_env.tar.gz.b64",
+])
+def test_bare_mimo_token_in_task_filenames_is_redacted(filename: str) -> None:
+    step = {
+        "step_id": 0, "source": "agent", "message": f"Extract {filename}",
+        "tool_calls": [{"function_name": "bash", "arguments": {"command": f"tar xf {filename}"}}],
+        "observation": {"results": [{"content": f"{filename}: OK"}]},
+    }
+    rendered = atlas.render_step(step)
+    assert "mimo" not in rendered.casefold()
+    assert rendered.count("[source]") == 3
+    # The longer dataset name still wins, so no fragment of it survives as a hint.
+    assert atlas.redact_sources("mimo-defect-map-v1") == "[source]-v1"
+    # A word that only starts with those letters is left alone.
+    assert atlas.redact_sources("mimosas and mimicry") == "mimosas and mimicry"
+
+
 def test_source_pattern_redacts_extra_ids_literally_and_before_shorter_source_names() -> None:
     pattern = atlas.source_pattern(["openai-swe-bench-annotations-2024", "my.dataset+v1"])
     text = (

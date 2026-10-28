@@ -144,6 +144,15 @@ declines it is `neither`. `window_cascade.CONTEXT_REASONING_CHARS` can add a sho
 reasoning excerpt (for example 300 characters) to every other window step; it is off
 because on Goodfire DEV it cost about a quarter more judge input and found nothing more.
 
+Hackbook's [source-only input-bound cues](../research/hackbook/README.md#source-only-runtime-diagnostics)
+emit low-severity `hackbook:hb_input_bound_clamp` and
+`hackbook:hb_input_domain_growth` cards at the authored edit's original step.
+These ordinary-code signatures have `eligibility: diagnostic`, `gate: false`
+and empty `entry_ids`; their `source_links` identify the DEV source rather than
+an unrelated catalog mechanism. They use the existing diagnostic-family budget,
+not a new escalation path. A card neither proves input-contract noncompliance
+nor establishes test tampering or a wrong reward.
+
 Stage 0 (`evallab.production.stage0_triage`, `stage0-triage/v1`) separately triages
 **whole runs** from Run Atlas's provisional, model-extracted `run-facets/v1`
 records, not causal prefixes. `load_facets` reads the interim append-only

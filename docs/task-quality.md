@@ -474,7 +474,7 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   candidates, and a qualified id never lands on a namesake.
 - `task` returns the instruction, every variant's original and repaired package file
   list (read from the local content-addressed store, hash-verified, never the
-  network), the retained issues without reproducer scripts, and run counts (total,
+  network), the retained issues without reproducer scripts or trust tiers, and run counts (total,
   faceted, suspicion >= 2). `--file REL [--variant N --kind repaired_package]` returns
   that file's text. Tasks without a CAS package use the registry's digest-matched
   locator (Dockerfile, test and grader files in priority order, within budget);
@@ -523,6 +523,25 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
 - `history` returns the task's own confirmed/provisional issues (refuted ones are
   counted), similar issues elsewhere with `issue:<id>` pointers, and the matching
   playbook cards (issue defect classes and `--flag` values are the triggers).
+- **Label-free by default (CE-19).** A default `task`, `history`, `runs`, `window` or
+  `findings` reply has no dataset, source, split, reward or label-tier field. That is a
+  statement about fields: recorded step text is served as recorded, so the 582 native
+  replay runs (565 MiMo, 17 TB4) show their replay `"reward"` inside the text of a
+  `window` step, and `window` text can name a benchmark. Hand a reader that must stay
+  blind an `export`, never `window`/`task` output. Decided per field: `dataset` is dropped from `task` and no opaque family tag replaces
+  it (a QA reader needs the task, not the benchmark it came from, and no QA job reads
+  it; the package summary key that said `source` is now `stored_in`). `trust_tier`
+  (on own and similar issues, in `task` and `history`) and the `differential`
+  `[original_reward, repaired_reward]` of an issue are outcome labels: they are returned
+  only with `--with-outcomes` on `task` or `history`, which is off by default and echoed
+  as `meta.with_outcomes` on every reply of those two calls, refusals included. Kept on
+  purpose: an issue's `status` (the review state of the thing under QA), the facet
+  `outcome` and the reward-derived `outcome` of a listed run (the same field `runs`
+  returns), and the `dataset_id` that `inventory` and `traces` print because they select
+  by it; those two are operator listings and their records must not go to a blind reader. Identifiers are not
+  changed: a run id can embed its dataset (`qa-trace-sft-v0:tb4:…`, `goodfire-reward-hack-data/…`)
+  in every call, `runs` included, and a task id can be namespaced; only a blinded export
+  renames them.
 - `findings` joins the local trace-tool ledgers to run ids that equal the store's
   trace ids, and returns the tools' own leads (not verdicts) with sealed-identity
   screening. No finding means the tool did not scan the run or found nothing.

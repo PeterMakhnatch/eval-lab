@@ -16,6 +16,8 @@ from evallab.production.live_supervisor_act import (
     MODAL_STOP,
     LabActuator,
     insert_alert,
+    register_app,
+    register_trial,
 )
 
 T0 = datetime(2026, 10, 28, 1, 0, tzinfo=UTC)
@@ -39,11 +41,21 @@ class FakeRunner:
         return self.code
 
 
+def _permit(observation: Observation, decision: Decision) -> bool:
+    return True
+
+
 def _actuator(tmp_path: Path, *, dry_run: bool = False, runner: FakeRunner | None = None,
-              clock: Clock | None = None, **kw) -> LabActuator:
+              clock: Clock | None = None, gate=_permit, **kw) -> LabActuator:
     return LabActuator(root=tmp_path / "ls", dry_run=dry_run, runner=runner or FakeRunner(),
                        queue_path=tmp_path / "queue-append.jsonl",
-                       alerts_path=tmp_path / "live-supervisor.md", clock=clock or Clock(), **kw)
+                       alerts_path=tmp_path / "live-supervisor.md", gate=gate,
+                       clock=clock or Clock(), **kw)
+
+
+def _register_apps(act: LabActuator, *app_ids: str) -> None:
+    for app_id in app_ids:
+        register_app(act.root, app_id, registered_by="test")
 
 
 def _obs(subject: Subject, *, events: tuple[Event, ...] = (), metrics: dict | None = None) -> Observation:
@@ -69,6 +81,7 @@ def _receipts(tmp_path: Path) -> list[dict]:
 def test_third_kill_in_an_hour_is_allowed_fourth_refused_until_the_first_ages_out(tmp_path: Path) -> None:
     clock, runner = Clock(), FakeRunner()
     act = _actuator(tmp_path, runner=runner, clock=clock)
+    _register_apps(act, "ap-0", "ap-1", "ap-2", "ap-3")
     for i in range(3):
         clock.at = T0 + timedelta(minutes=20 * i)
         assert act.act(_app(f"ap-{i}"), KILL) is True
@@ -83,6 +96,7 @@ def test_third_kill_in_an_hour_is_allowed_fourth_refused_until_the_first_ages_ou
 def test_tenth_kill_in_a_utc_day_is_allowed_eleventh_refused_next_day_allowed(tmp_path: Path) -> None:
     clock, runner = Clock(), FakeRunner()
     act = _actuator(tmp_path, runner=runner, clock=clock)
+    _register_apps(act, *(f"ap-{i}" for i in range(11)))
     for i in range(10):
         clock.at = T0 + timedelta(hours=2 * i)  # 01:00 .. 19:00 UTC, one per two hours
         assert act.act(_app(f"ap-{i}"), KILL) is True, i
@@ -97,6 +111,7 @@ def test_tenth_kill_in_a_utc_day_is_allowed_eleventh_refused_next_day_allowed(tm
 def test_second_kill_on_the_same_subject_is_refused_even_after_a_failed_first(tmp_path: Path) -> None:
     clock, runner = Clock(), FakeRunner(code=1)
     act = _actuator(tmp_path, runner=runner, clock=clock)
+    _register_apps(act, "ap-1")
     assert act.act(_app("ap-1"), KILL) is False  # attempted, exit 1: still counts
     clock.at = T0 + timedelta(days=3)
     runner.code = 0
@@ -109,6 +124,7 @@ def test_second_kill_on_the_same_subject_is_refused_even_after_a_failed_first(tm
 
 def test_kill_and_retry_records_retry_requested_only(tmp_path: Path) -> None:
     act = _actuator(tmp_path)
+    _register_apps(act, "ap-1", "ap-2")
     assert act.act(_app("ap-1"), KILL) is True
     assert act.act(_app("ap-2"), Decision("kill_and_mark_infra", "infra", "dead backend")) is True
     caps = json.loads((tmp_path / "ls" / CAPS_FILE).read_text())
@@ -145,6 +161,49 @@ def test_non_lab_subjects_are_refused_without_running_anything(tmp_path: Path) -
     assert runner.calls == []
     assert not (tmp_path / "queue-append.jsonl").exists()
     assert [r["status"] for r in _receipts(tmp_path)] == ["refused"] * 3
+
+
+def test_lab_looking_app_is_refused_without_an_operator_registration(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    act = _actuator(tmp_path, runner=runner)  # permissive gate: registration alone decides
+    assert act.act(_app("ap-lookalike", label="ts14-native-repairs-9"), KILL) is False
+    assert runner.calls == []
+    assert _receipts(tmp_path)[-1]["detail"].startswith("unregistered: modal_app:ap-lookalike")
+    dry = _actuator(tmp_path, dry_run=True, runner=runner)
+    assert dry.act(_app("ap-lookalike"), KILL) is False
+    assert "would kill (blocked: unregistered" in _receipts(tmp_path)[-1]["detail"]
+    assert not (tmp_path / "ls" / CAPS_FILE).exists()
+
+
+def test_real_kill_needs_the_adjudication_gate_even_when_registered(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    ungated = _actuator(tmp_path, runner=runner, gate=None)
+    _register_apps(ungated, "ap-1")
+    assert ungated.act(_app("ap-1"), KILL) is False
+    assert "no adjudication gate" in _receipts(tmp_path)[-1]["detail"]
+    declining = _actuator(tmp_path, runner=runner, gate=lambda obs, d: False)
+    assert declining.act(_app("ap-1"), KILL) is False
+    assert "adjudication gate declined" in _receipts(tmp_path)[-1]["detail"]
+
+    def broken(observation: Observation, decision: Decision) -> bool:
+        raise RuntimeError("evidence missing")
+
+    assert _actuator(tmp_path, runner=runner, gate=broken).act(_app("ap-1"), KILL) is False
+    assert "adjudication gate failed: RuntimeError" in _receipts(tmp_path)[-1]["detail"]
+    assert runner.calls == []
+    assert not (tmp_path / "ls" / CAPS_FILE).exists()
+
+
+def test_expired_or_mismatched_registration_is_refused(tmp_path: Path) -> None:
+    act = _actuator(tmp_path)
+    register_app(act.root, "ap-1", registered_by="test", expires_at=T0 - timedelta(minutes=1))
+    assert act.act(_app("ap-1"), KILL) is False
+    assert "registration expired" in _receipts(tmp_path)[-1]["detail"]
+    _job(tmp_path, hooks=[START])
+    trial_act = _actuator(tmp_path, harbor_roots=[tmp_path / "runs"])
+    register_trial(trial_act.root, "job-a", "task__b2", registered_by="test")
+    assert trial_act.act(_trial(), KILL) is False  # the registration names another trial
+    assert "unregistered: harbor_trial:job-a/task__a1" in _receipts(tmp_path)[-1]["detail"]
 
 
 # --------------------------------------------------------------------------- harbor
@@ -186,6 +245,7 @@ def test_harbor_stop_refused_once_verification_started_or_finished(tmp_path: Pat
 def test_harbor_stop_writes_the_watch_stop_request_once(tmp_path: Path) -> None:
     job = _job(tmp_path, hooks=[START])
     act = _actuator(tmp_path, harbor_roots=[tmp_path / "runs"])
+    register_trial(act.root, "job-a", "task__a1", registered_by="test")
     assert act.act(_trial(), KILL) is True
     request = json.loads((job / "watch" / "stop-requests" / "task__a1.json").read_text())
     assert (request["requested_by"], request["rule"], request["step_ref"]) == (

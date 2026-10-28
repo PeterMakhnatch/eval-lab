@@ -18,6 +18,17 @@ Kills are capped by a file-locked ledger under ``root``: one kill per subject ev
 rolling hour and ten per UTC day across the lab. Every real kill attempt counts. A dry run
 (the default) checks the same guards and caps, consumes nothing, runs nothing, and records the
 exact command it would have run. Every attempt appends one receipt row to ``actions-v1.jsonl``.
+
+A lab-looking name or path is not proof that this lab started the target, so a real kill needs
+two more things besides the guards and caps:
+
+- **Registration** (``registrations-v1.json`` under ``root``, written by an operator through
+  :func:`register_app` / :func:`register_trial`): the immutable identity — the Modal ``app_id``,
+  or the ``job/trial`` pair — must be registered by a named operator, with an optional expiry.
+  A prefix or label match never counts.
+- **An adjudication gate** (:class:`KillGate`, injected): LS-3's per-action precision evidence.
+  Without a gate nothing real is killed, so an unadjudicated rule fallback from ``scan_once``
+  can never execute. Dry runs report both conditions without consuming caps.
 """
 
 from __future__ import annotations
@@ -55,6 +66,7 @@ from evallab.watch_stop import (
 
 ACTIONS_FILE = "actions-v1.jsonl"
 CAPS_FILE = "caps-v1.json"
+REGISTRATIONS_FILE = "registrations-v1.json"
 LOCK_FILE = "actions.lock"
 RECEIPT_SCHEMA = "live-supervisor-actions/v1"
 REQUESTED_BY = "live_supervisor"
@@ -84,6 +96,8 @@ ET = ZoneInfo("America/New_York")
 Runner = Callable[[Sequence[str]], int]
 #: ``router(observation, decision) -> acted``; the LS-5 Trace Watcher router.
 CheatRouter = Callable[[Observation, Decision], bool]
+#: ``gate(observation, decision) -> bool``; the LS-3 adjudication gate, required for a real kill.
+KillGate = Callable[[Observation, Decision], bool]
 
 
 def run_command(argv: Sequence[str]) -> int:
@@ -155,6 +169,89 @@ class KillLedger:
                              "reason": reason, "at": _iso(now)})
 
 
+# --------------------------------------------------------------------------- registration
+
+
+def registrations_path(root: Path) -> Path:
+    return Path(root).expanduser() / REGISTRATIONS_FILE
+
+
+def _read_registrations(path: Path) -> dict[str, dict[str, Any]]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _write_registration(path: Path, key: str, entry: Mapping[str, Any]) -> None:
+    if not str(entry.get("registered_by") or "").strip():
+        raise ValueError("a registration needs a non-blank registered_by")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = _read_registrations(path)
+    payload[key] = dict(entry)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    tmp.replace(path)
+
+
+def register_app(root: Path, app_id: str, *, registered_by: str, note: str = "",
+                 expires_at: datetime | None = None) -> Path:
+    """Operator registration of one Modal app by its immutable ``app_id``; returns the file.
+
+    A prefix, label or description match is never a registration.
+    """
+    path = registrations_path(root)
+    entry: dict[str, Any] = {"kind": "modal_app", "app_id": app_id, "note": note,
+                             "registered_by": registered_by,
+                             "registered_at": _iso(datetime.now(UTC))}
+    if expires_at is not None:
+        entry["expires_at"] = _iso(expires_at)
+    _write_registration(path, _subject_key(Subject("modal_app", app_id, "lab")), entry)
+    return path
+
+
+def register_trial(root: Path, job: str, trial: str, *, registered_by: str, note: str = "",
+                   expires_at: datetime | None = None) -> Path:
+    """Operator registration of one Harbor trial by its ``job/trial`` identity; returns the file."""
+    path = registrations_path(root)
+    entry: dict[str, Any] = {"kind": "harbor_trial", "job": job, "trial": trial, "note": note,
+                             "registered_by": registered_by,
+                             "registered_at": _iso(datetime.now(UTC))}
+    if expires_at is not None:
+        entry["expires_at"] = _iso(expires_at)
+    _write_registration(path, _subject_key(Subject("harbor_trial", f"{job}/{trial}", "lab")), entry)
+    return path
+
+
+def registration_refusal(path: Path, subject: Subject, now: datetime) -> str | None:
+    """Why ``subject`` is not operator-registered (``None`` when it is)."""
+    entry = _read_registrations(path).get(_subject_key(subject))
+    if not isinstance(entry, dict):
+        return f"unregistered: {_subject_key(subject)} has no operator registration"
+    if not str(entry.get("registered_by") or "").strip():
+        return f"unregistered: {_subject_key(subject)} registration has no registered_by"
+    expected = {"modal_app": "app_id", "harbor_trial": "trial"}.get(subject.kind)
+    if expected is None:
+        return f"unregistered: {subject.kind} has no registration identity"
+    if str(entry.get("kind") or "") != subject.kind:
+        return f"unregistered: {_subject_key(subject)} registration is for {entry.get('kind')!r}"
+    if expected == "app_id" and str(entry.get("app_id")) != subject.id:
+        return f"unregistered: app_id mismatch for {subject.id}"
+    if expected == "trial":
+        job, _, trial = subject.id.partition("/")
+        if (str(entry.get("job")), str(entry.get("trial"))) != (job, trial):
+            return f"unregistered: job/trial mismatch for {subject.id}"
+    expires = entry.get("expires_at")
+    if isinstance(expires, str) and expires:
+        try:
+            if now >= _parse(expires):
+                return f"unregistered: {_subject_key(subject)} registration expired {expires}"
+        except ValueError:
+            return f"unregistered: {_subject_key(subject)} bad expires_at {expires!r}"
+    return None
+
+
 # --------------------------------------------------------------------------- outcomes
 
 
@@ -199,7 +296,7 @@ class LabActuator:
     def __init__(self, *, root: Path = DEFAULT_ROOT, dry_run: bool = True,
                  runner: Runner = run_command, harbor_roots: Sequence[Path] = (),
                  queue_path: Path = DEFAULT_QUEUE_APPEND, alerts_path: Path = DEFAULT_ALERTS_MD,
-                 cheat_router: CheatRouter | None = None,
+                 cheat_router: CheatRouter | None = None, gate: KillGate | None = None,
                  clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         self.root = root.expanduser()
         self.dry_run = dry_run
@@ -208,9 +305,12 @@ class LabActuator:
         self.queue_path = queue_path.expanduser()
         self.alerts_path = alerts_path.expanduser()
         self.cheat_router = cheat_router
+        #: LS-3's adjudication gate; none means no real kill can happen.
+        self.gate = gate
         self.clock = clock
         self.actions_path = self.root / ACTIONS_FILE
         self.caps_path = self.root / CAPS_FILE
+        self.registrations = registrations_path(self.root)
 
     @contextmanager
     def _locked(self) -> Iterator[None]:
@@ -262,15 +362,39 @@ class LabActuator:
         if not subject.killable or subject.owner != "lab":
             return _refused(plan.channel, f"not lab-killable ({subject.owner}-owned)",
                             command=plan.command, target=plan.target)
+        blockers = self._blockers(observation, decision, now)
         cap = ledger.refusal(subject, now)
+        if self.dry_run:
+            detail = "would kill"
+            if blockers:
+                detail += f" (blocked: {'; '.join(blockers)})"
+            if cap is not None:
+                detail += f" (blocked: {cap})"
+            return Outcome("dry_run", plan.channel, detail, plan.command, plan.target)
+        if blockers:
+            return _refused(plan.channel, blockers[0], command=plan.command, target=plan.target)
         if cap is not None:
             return _refused(plan.channel, cap, command=plan.command, target=plan.target)
-        if self.dry_run:
-            return Outcome("dry_run", plan.channel, "would kill", plan.command, plan.target)
         ledger.record_kill(subject, decision.action, plan.channel, now)
         if plan.channel == "harbor_stop_request":
             return self._harbor_stop(decision, plan, now)
         return self._modal_stop(subject, plan)
+
+    def _blockers(self, observation: Observation, decision: Decision, now: datetime) -> list[str]:
+        """Why a real kill would not be allowed: registration, then the LS-3 gate."""
+        out: list[str] = []
+        missing = registration_refusal(self.registrations, observation.subject, now)
+        if missing is not None:
+            out.append(missing)
+        if self.gate is None:
+            out.append("no adjudication gate: real kills need LS-3 precision evidence")
+        else:
+            try:
+                if not self.gate(observation, decision):
+                    out.append("adjudication gate declined: not an adjudicated kill case")
+            except Exception as exc:  # noqa: BLE001 - a broken gate must block, never allow
+                out.append(f"adjudication gate failed: {type(exc).__name__}: {exc}"[:200])
+        return out
 
     def _job_dir(self, observation: Observation, job: str) -> Path | None:
         hinted = observation.metrics.get("job_dir")

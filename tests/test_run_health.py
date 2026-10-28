@@ -76,6 +76,17 @@ def test_loop_one_short_of_threshold_is_clear() -> None:
     assert _by_kind(_run(steps))["loop"]["verdict"] == "clear"
 
 
+def test_paging_or_polling_with_new_output_each_time_is_not_a_loop() -> None:
+    n = rh.LOOP_COMMAND_RUN + 4
+    paging = [_step(i + 1, f"sed -n '{i * 100},{i * 100 + 100}p' src/app.py", observation=f"line {i * 100} ...")
+              for i in range(n)]
+    polling = [_step(i + 1, "sleep 55; tail -2 /tmp/build.log", observation=f"{10 * i}% done") for i in range(n)]
+    stuck = [_step(i + 1, "sleep 55; tail -2 /tmp/build.log", observation="sandbox already shut down") for i in range(n)]
+    assert _by_kind(_run(paging))["loop"]["verdict"] == "clear"
+    assert _by_kind(_run(polling))["loop"]["verdict"] == "clear"
+    assert _by_kind(_run(stuck))["loop"]["verdict"] == "alarm"
+
+
 def test_loop_period_two_cycle_alarms_via_command_cycle() -> None:
     steps = [_step(i + 1, "ls" if i % 2 == 0 else "pwd") for i in range(12)]
     loop = _by_kind(_run(steps))["loop"]

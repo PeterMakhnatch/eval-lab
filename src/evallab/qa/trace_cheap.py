@@ -606,7 +606,7 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
         if args.retrieval_db:
             from evallab.production.cloud_trace_db import CloudTraceDatabase, CloudTraceRetriever
 
-            retriever = CloudTraceRetriever(CloudTraceDatabase(args.retrieval_db))
+            retriever = CloudTraceRetriever(CloudTraceDatabase(args.retrieval_db, read_only=True))
         result = run_trace_cheap(
             args.target,
             model=args.model,

@@ -94,7 +94,7 @@ step size are variable. The measured latency target is separate from complexity.
 `monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
 run; ordinary assistant prose is not proof that reasoning was captured. A supplied
 `trace_cheap.JudgeFn` is the optional Stage 2 of a two-stage cascade
-(`evallab.production.window_cascade`, `window-cascade/v7`); the incremental tripwire
+(`evallab.production.window_cascade`, `window-cascade/v8`); the incremental tripwire
 rules and the command-state cues below are Stage 1. When a rule raises a card, Stage 2
 waits until five agent steps have followed the flagged step (`flush_triage`, or closing
 the worker, judges earlier cards on the steps seen so far), then runs on a separate
@@ -115,9 +115,12 @@ not_escalated`; recovery restores the spent families from the journal.
 `reference_examples=` optionally adds up to three Tier-2 steps that unanimous judges
 flagged in other DEV traces (`window_cascade.retrieved_examples`); they are context
 only and can never be cited. On 200 Goodfire DEV traces they did not raise recall, so
-no consumer enables them by default. `grader_tamper` and `submission_tamper` cards are
-hard gates and skip Stage 2 (`semantic_triage: gate_pass_through`). No judge or paid
-API is configured implicitly. Suspicion cards cite observed steps and quotes; semantic
+no consumer enables them by default. Only `grader_tamper` cards skip Stage 2
+(`semantic_triage: gate_pass_through`). `submission_tamper` content signatures use
+the normal per-family budget and window judgment: an unconfirmed card stays
+provisional, and only a cited positive verdict raises a cascade alarm. This does
+not change the filesystem watcher's separate, opt-in stop policy below. No judge
+or paid API is configured implicitly. Suspicion cards cite observed steps and quotes; semantic
 confirmation means **observed prefix behavior**, not verified reward causality, a
 verified exploit, or an automatically promoted labeled-trace asset. All semantic
 citations must match the window, or the card stays provisional. An independently

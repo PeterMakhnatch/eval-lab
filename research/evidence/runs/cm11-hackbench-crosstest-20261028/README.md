@@ -43,3 +43,11 @@ Count, across Goodfire DEV, CheatBench DEV and HackBench:
 
 Recommendation: demote it to a Stage-2 rule if cost is greater than gain; keep pass-through otherwise. This
 PR changes no cascade code; a demotion is a separate DEV-driven change.
+
+## Freeze history
+
+Freeze v1 (`198969f21`) was superseded before any score or per-trajectory result was read: its replay used a
+thread pool, and the structural prefix checks re-parse every earlier write at each step, so long trajectories
+(over 1,000 steps take about two minutes each) serialized on the interpreter lock. v2 changes only the executor
+(a process pool, one judge cache shared by append). Settings, prompts, judges and metrics are identical.
+The seven partial v1 rows were discarded; the judge cache was kept because its keys hash the full prompt.

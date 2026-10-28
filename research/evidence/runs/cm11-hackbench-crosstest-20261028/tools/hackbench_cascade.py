@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import itertools
 import json
 import os
 import random
@@ -27,9 +28,8 @@ import re
 import subprocess
 import sys
 import tempfile
-import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -326,6 +326,70 @@ def replay(spec: dict[str, Any], judge: Any) -> dict[str, Any]:
     }
 
 
+_G: dict[str, Any] = {}
+
+
+def _init_worker(model: str, cache_path: str) -> None:
+    cache: dict[str, dict[str, Any]] = {}
+    path = Path(cache_path)
+    if path.exists():
+        for line in path.read_text().splitlines():
+            row = json.loads(line)
+            if row.get("ok"):
+                cache[row["key"]] = row
+    _G.update(
+        model=model,
+        cache=cache,
+        fd=os.open(cache_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT),
+        calls={"hit": 0, "miss": 0, "failed": 0},
+    )
+
+
+def _judge(messages: list[dict[str, str]]) -> tuple[dict[str, Any], float]:
+    model, cache, calls = _G["model"], _G["cache"], _G["calls"]
+    system, user = messages[0]["content"], messages[-1]["content"]
+    key = cache_key(model, system, user)
+    row = cache.get(key)
+    calls["hit" if row else "miss"] += 1
+    if row is None:
+        if (STATE / "CANCEL").exists():
+            raise RuntimeError("run cancelled after a policy refusal")
+        row = {
+            "key": key,
+            "user_sha256": hashlib.sha256(user.encode()).hexdigest(),
+            "prompt_sha256": hashlib.sha256(system.encode()).hexdigest(),
+            **call(model, system, user),
+        }
+        os.write(_G["fd"], (json.dumps(row) + "\n").encode())  # one append per row: atomic enough
+        if row.get("ok"):
+            cache[key] = row
+        else:
+            calls["failed"] += 1
+            if "cyber_policy" in " ".join(row.get("errors") or []):
+                (STATE / "CANCEL").write_text("policy refusal\n")
+    if not row.get("ok"):
+        raise RuntimeError("; ".join(row.get("errors") or ["judge call failed"])[:200])
+    return row["answer"], float(row.get("notional_usd") or 0.0)
+
+
+def spec_at(layout: str, index: int) -> dict[str, Any]:
+    """The ``index``-th spec, parsing only that row of the data file."""
+    with hb.DATA.open(encoding="utf-8") as stream:
+        line = next(itertools.islice(stream, index, index + 1))
+    row = json.loads(line)
+    steps, cmd_to_step = hb.to_steps(row, layout)
+    return {
+        "trace_key": hashlib.sha256(row["id"].encode()).hexdigest()[:16],
+        "_steps": steps,
+        "cmd_to_step": cmd_to_step,
+    }
+
+
+def _job(args: tuple[str, int]) -> tuple[dict[str, Any], dict[str, int]]:
+    layout, index = args
+    return replay(spec_at(layout, index), _judge), dict(_G["calls"])
+
+
 def run(layout: str, model: str, jobs: int, limit: int | None, out_name: str) -> None:
     check_freeze(model)
     out = STATE / out_name
@@ -334,63 +398,21 @@ def run(layout: str, model: str, jobs: int, limit: int | None, out_name: str) ->
         for line in out.read_text().splitlines():
             row = json.loads(line)
             done[row["trace_key"]] = row
-    cache_path = STATE / f"judge-cache-{model.replace('/', '_')}.jsonl"
-    cache: dict[str, dict[str, Any]] = {}
-    if cache_path.exists():
-        for line in cache_path.read_text().splitlines():
-            row = json.loads(line)
-            if row.get("ok"):
-                cache[row["key"]] = row
-    lock = threading.Lock()
-    sink = cache_path.open("a")
-    calls = {"hit": 0, "miss": 0, "failed": 0}
-    cancel = threading.Event()
-
-    def judge(messages: list[dict[str, str]]) -> tuple[dict[str, Any], float]:
-        system, user = messages[0]["content"], messages[-1]["content"]
-        key = cache_key(model, system, user)
-        with lock:
-            row = cache.get(key)
-            calls["hit" if row else "miss"] += 1
-        if row is None:
-            if cancel.is_set():
-                raise RuntimeError("run cancelled after a policy refusal")
-            row = {
-                "key": key,
-                "user_sha256": hashlib.sha256(user.encode()).hexdigest(),
-                "prompt_sha256": hashlib.sha256(system.encode()).hexdigest(),
-                **call(model, system, user),
-            }
-            with lock:
-                sink.write(json.dumps(row) + "\n")
-                sink.flush()
-                if row.get("ok"):
-                    cache[key] = row
-                else:
-                    calls["failed"] += 1
-                    if "cyber_policy" in " ".join(row.get("errors") or []):
-                        cancel.set()
-        if not row.get("ok"):
-            raise RuntimeError("; ".join(row.get("errors") or ["judge call failed"])[:200])
-        return row["answer"], float(row.get("notional_usd") or 0.0)
-
-    todo = [s for s in hb.specs(layout) if s["trace_key"] not in done]
+    keys = [hashlib.sha256(r["id"].encode()).hexdigest()[:16] for r in hb.iter_rows()]
+    todo = [(layout, i) for i, k in enumerate(keys) if k not in done]
     if limit:
         todo = todo[:limit]
-
-    def one(spec: dict[str, Any]) -> None:
-        result = replay(spec, judge)
-        with lock:
-            done[spec["trace_key"]] = result
+    cache_path = STATE / f"judge-cache-{model.replace('/', '_')}.jsonl"
+    with ProcessPoolExecutor(
+        max_workers=jobs, initializer=_init_worker, initargs=(model, str(cache_path))
+    ) as pool:
+        for result, calls in pool.map(_job, todo):
+            done[result["trace_key"]] = result
             with out.open("a") as stream:
                 stream.write(json.dumps(result) + "\n")
-            print(len(done), spec["trace_key"], result["layout_steps"], len(result["cards"]),
+            print(len(done), result["trace_key"], result["layout_steps"], len(result["cards"]),
                   result["elapsed_s"], calls, flush=True)  # fmt: skip
-
-    with ThreadPoolExecutor(max_workers=jobs) as pool:
-        list(pool.map(one, todo))
-    sink.close()
-    print("done", len(done), calls)
+    print("done", len(done))
 
 
 def wilson(k: int, n: int, z: float = 1.96) -> list[float | None]:

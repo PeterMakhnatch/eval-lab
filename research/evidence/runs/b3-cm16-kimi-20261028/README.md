@@ -30,7 +30,8 @@ are read by `score` only. Results: `results/score.json`, `RESULTS.md`.
 
 `tools/hackbench_prefix.py` is the conditional branch the gate's pass requires: the same schedule on the 41 natural HackBench
 trajectories (command layout from the LB-6 adapter, cross-test, recall/localization only, counts and indices only). It has
-`read`, `score` and a no-model-call `cost`; it streams trajectories (four in flight) because they reach 3.8M characters. It was
-attempted once and stopped by the usage gate before its first call; `results/hackbench-cost.json` holds the measured size of the
-preregistered schedule. Nothing with HackBench text is written to this directory.
+`read`, `score` and a `cost` that makes no model call; it streams trajectories (four in flight) because they reach 3.8M
+characters. The hosted read was attempted once and stopped by the usage gate before its first call, so there were zero HackBench
+model reads; `cost` parses and renders the staged corpus locally to measure its size (no text retained, no model) and
+`results/hackbench-cost.json` holds that measurement. Nothing with HackBench text is written to this directory.
 

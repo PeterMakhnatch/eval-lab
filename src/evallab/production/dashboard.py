@@ -22,6 +22,7 @@ DASHBOARD: str = r"""<!doctype html>
 .atlas-tools{margin:12px 0;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--raised)}.atlas-tools summary{cursor:pointer;color:var(--blue);font-weight:600}.atlas-tools .cloud-table{min-width:760px}.atlas-tools .row{margin-top:8px}
 .tools-cohorts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.tools-table .cloud-table{min-width:1180px}.tools-table>.cloud-table-wrap>.cloud-table>tbody>tr>td:first-child{min-width:280px}.tools-table td>div{display:grid;gap:3px;min-width:0}.tools-table td small{color:var(--muted);overflow-wrap:anywhere}.tools-table details{margin-top:8px}.tools-table summary{cursor:pointer;color:var(--blue)}.tools-table details h4{margin:10px 0 0}.tools-table details .cloud-table{min-width:0}.tools-sources summary{cursor:pointer;color:var(--blue)}
 .task-section{margin-top:22px}.task-section h3{margin:0 0 8px}.task-section>p{margin:0 0 8px}.task-command{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--raised);font:12px var(--mono)}.task-command-row{margin:12px 0}.task-lines{display:grid;gap:3px;min-width:0}.task-lines small{color:var(--muted);overflow-wrap:anywhere}.task-runs .cloud-table{min-width:1280px}.task-qa .cloud-table,.task-seeker .cloud-table,.task-fixes .cloud-table{min-width:900px}
+.reliability-bar{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}.reliability-track{display:block;width:140px;height:6px;border-radius:3px;background:var(--line)}.atlas-tools .cloud-table.reliability-table{min-width:560px}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}.focus-step{animation:step-focus 1.5s ease-out}@keyframes step-focus{from{box-shadow:0 0 0 5px #6ce4b844}to{box-shadow:0 0 0 0 transparent}}}
@@ -119,6 +120,11 @@ DASHBOARD: str = r"""<!doctype html>
  <summary>Coverage · stored facets versus admitted runs, and what is not yet ready</summary>
  <p id="atlas-coverage-status" class="notice" role="status"></p>
  <div id="atlas-coverage-body"></div>
+</details>
+<details id="atlas-reliability" class="atlas-tools" open>
+ <summary>Field reliability · how often a blind re-rating agreed with each facet field</summary>
+ <p id="atlas-reliability-status" class="notice" role="status"></p>
+ <div id="atlas-reliability-body"></div>
 </details>
  <div id="cloud-atlas-health"></div>
  <form id="cloud-atlas-filters" class="cloud-filters">
@@ -878,6 +884,42 @@ function atlasCoverage(data){
     coverageLines(row.blinding,key=>blindingText[key]??key)];
   })));
 }
+const reliabilityBasis={within_1:'within one level'};
+function atlasReliability(data){
+ const parent=$('atlas-reliability-body');
+ parent.replaceChildren();
+ if(!data.measured){
+  parent.append(node('p',data.error||'Not measured.','empty'));
+  return;
+ }
+ const item=data.reliability,meta=node('small',text(item.source)+' · measured '+toolsTime(item.measured_at)+' · '+cloudCount(item.sample_runs)+' runs sampled · '+item.design);
+ parent.append(meta);
+ const table=cloudTable(['Field','Agreement','Agreed / rated','95% interval','Basis'],item.fields.map(row=>{
+  const track=node('span',undefined,'reliability-track'),bar=node('span',undefined,'reliability-bar'),cell=node('div',undefined,'task-lines');
+  bar.style.width=row.agreement+'%';track.append(bar);
+  cell.append(node('strong',row.agreement.toFixed(1)+'%'),track);
+  return [row.field,cell,cloudCount(row.agree_n)+' / '+cloudCount(row.n),row.ci95[0].toFixed(1)+'% to '+row.ci95[1].toFixed(1)+'%',
+   row.basis?reliabilityBasis[row.basis]??row.basis:'Not stated'];
+ }));
+ table.classList.add('reliability-table');
+ parent.append(table);
+}
+let atlasReliabilityVersion=0;
+async function loadAtlasReliability(){
+ const version=++atlasReliabilityVersion;
+ notice('atlas-reliability-status','Loading field reliability…');
+ try{
+  const data=await cloudApi('/api/cloud-db/atlas/field-reliability?split=dev');
+  if(version!==atlasReliabilityVersion)return;
+  atlasReliability(data);
+  notice('atlas-reliability-status',data.measured?data.notice:'No agreement was measured, so nothing here says any field is reliable or unreliable.',!data.measured&&String(data.error).startsWith('unreadable'));
+ }catch(error){
+  if(version===atlasReliabilityVersion){
+   $('atlas-reliability-body').replaceChildren();
+   notice('atlas-reliability-status',cloudError(error,'Field reliability'),true);
+  }
+ }
+}
 let atlasCoverageVersion=0;
 async function loadAtlasCoverage(){
  const version=++atlasCoverageVersion;
@@ -987,7 +1029,7 @@ async function openAtlasRun(runId,opener){
   if(version===atlasRunVersion){$('atlas-run-refresh').disabled=false;panel.setAttribute('aria-busy','false');}
  }
 }
-$('cloud-atlas-refresh').addEventListener('click',()=>{loadAtlas();loadAtlasTools();loadAtlasCoverage();});
+$('cloud-atlas-refresh').addEventListener('click',()=>{loadAtlas();loadAtlasTools();loadAtlasCoverage();loadAtlasReliability();});
 $('cloud-atlas-filters').addEventListener('change',()=>{atlasOffset=0;loadAtlas();});
 $('cloud-atlas-filters').addEventListener('submit',event=>{event.preventDefault();atlasOffset=0;loadAtlas();});
 $('atlas-reset').addEventListener('click',()=>{
@@ -1430,7 +1472,7 @@ for(const tab of viewTabs){
   if(tab.id==='benchmark-tab')loadCloudBenchmarks();
   if(tab.id==='corpus-tab')loadCloudCorpus();
   if(tab.id==='seeker-tab')loadSeekerComparison();
-  if(tab.id==='atlas-tab'){loadAtlas();loadAtlasTools();loadAtlasCoverage();}
+  if(tab.id==='atlas-tab'){loadAtlas();loadAtlasTools();loadAtlasCoverage();loadAtlasReliability();}
   if(tab.id==='tools-tab')loadTraceTools();
   if(tab.id==='task-tab'&&taskId)loadTask();
   if(tab.id==='trust-tab')loadTrustQc();

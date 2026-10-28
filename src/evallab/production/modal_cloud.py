@@ -75,7 +75,13 @@ from pydantic import BaseModel, ValidationError
 
 from evallab.execution_backend import ExecutionBackendConfig
 from evallab.hackbook.playbook_cards import match_playbook_cards
-from evallab.production import atlas_coverage, atlas_view, task_evidence, tool_runs
+from evallab.production import (
+    atlas_coverage,
+    atlas_view,
+    field_reliability,
+    task_evidence,
+    tool_runs,
+)
 from evallab.production.asset_store import VerifiedAssetStore
 from evallab.production.benchmark_reports import MAX_BENCHMARK_BYTES, validate_benchmark_document
 from evallab.production.cloud_trace_db import (
@@ -184,6 +190,7 @@ class CloudRuntime:
         self._atlas_cache: tuple[list[tuple[int, int, int] | None], atlas_view.AtlasStore] | None = None
         self._tool_scorecard = ToolScorecardCache(self.data_root)
         self._atlas_refresh = atlas_coverage.RefreshCache(self.data_root / "run-atlas")
+        self._field_reliability = field_reliability.FieldReliabilityCache(self.data_root / "run-atlas")
         self._tool_results = task_evidence.ToolFindingIndex(
             self.data_root / "trace-tools" / task_evidence.RESULTS_FILE
         )
@@ -767,6 +774,11 @@ class CloudRuntime:
             return atlas_coverage.build_coverage(
                 store, traces, shown, withheld, self._atlas_refresh.get()
             )
+
+        @self.app.get("/api/cloud-db/atlas/field-reliability")
+        def atlas_field_reliability(split: str = "dev"):
+            _require_dev(split)
+            return self._field_reliability.get()
 
         @self.app.get("/api/cloud-db/trace-tools")
         def trace_tools(split: str = "dev"):

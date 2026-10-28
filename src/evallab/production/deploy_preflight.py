@@ -34,6 +34,7 @@ from evallab.production import (
     cross_test_sets,
     detector_scope,
     gate_progress,
+    harness_view,
     repair_board,
 )
 from evallab.production.field_reliability import FILE as FIELD_RELIABILITY_FILE
@@ -60,7 +61,7 @@ ENTRY = "src/evallab/production/modal_cloud.py"
 DEPLOY = f"modal deploy --strategy recreate {ENTRY}"
 DATABASE_FILE = "cloud-trace-db.sqlite"
 DEFAULT_STATE_ROOT = Path("~/.local/state/evallab-prod-live")
-Policy = Literal["record", "aggregate"]
+Policy = Literal["record", "aggregate", "findings"]
 
 #: Per-run label or reward fields. A file holding one is refused.
 RECORD_FORBIDDEN = frozenset(
@@ -71,6 +72,8 @@ RECORD_FORBIDDEN = frozenset(
 )
 #: Aggregate files (scorecards, the registry) legitimately hold label *counts*; per-run fields are still refused.
 AGGREGATE_FORBIDDEN = RECORD_FORBIDDEN - {"label", "labels", "verdict"}
+#: Detector findings carry a detector ``verdict`` (alarm, clear, abstain, unknown), not a ground-truth one.
+FINDINGS_FORBIDDEN = RECORD_FORBIDDEN - {"verdict"}
 _BENCH_LABEL = re.compile(r"(hackbench|cheatbench)[_-]?labels?", re.IGNORECASE)
 
 #: Names that must never be copied to the cloud volume, with why. Matched against file names.
@@ -123,6 +126,10 @@ ITEMS: tuple[Item, ...] = (
          False, MAX_DOCUMENT_BYTES, "aggregate", False, "cascade and Stage 1 DEV counts and the HackBench cross-test counts"),
     Item("gate_progress", gate_progress.DEFAULT_FILE, ("Task Evidence",),
          False, gate_progress.MAX_BYTES, "aggregate", False, "Task QA gate rerun progress: counts per model and arm"),
+    Item("harness_findings", harness_view.FINDINGS_FILE, ("Harness",),
+         False, harness_view.MAX_FINDINGS_BYTES, "findings", True, "trace-findings/v1 records: every detector's result per run"),
+    Item("harness_scorecard", harness_view.SCORECARD_FILE, ("Harness",),
+         False, harness_view.MAX_SCORECARD_BYTES, "aggregate", False, "combined scorecard: counts per corpus, detector combination and reader"),
     Item("results", f"{TOOLS_DIR}/{RESULTS_FILE}", ("Trace Tools", "Task Evidence"),
          True, MAX_STREAM_BYTES, "record", True, "per-run tool results behind the run lists"),
     Item("atlas_scorecard", f"{ATLAS_DIR}/{ATLAS_SCORECARD_DIR}/<newest>.json", ("Trace Tools",),
@@ -144,10 +151,10 @@ TAB_NEEDS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
     ("Task Evidence", ("facets", "results"), ("gate_progress",)),
     ("Trace Tools", ("tool_scorecard", "results"), ("atlas_scorecard", "spend", "accounting", "detector_scope")),
     ("Grader repairs", ("repair_inventory",), ("facets",)),
-    ("Cross-test sets", ("cross_test_registry",), ()),
+    ("Harness", (), ("harness_findings", "harness_scorecard", "facets")),
 )
 #: Tabs that also read the cloud trace database on the volume (not staged here).
-NEEDS_DATABASE = ("Run Atlas", "Coverage", "Task Evidence", "Trace Tools", "Grader repairs")
+NEEDS_DATABASE = ("Run Atlas", "Coverage", "Task Evidence", "Trace Tools", "Grader repairs", "Harness")
 ENVIRONMENT = (
     ("EVALLAB_CLOUD_TOKEN", "required; Modal secret evallab-cloud-production-auth (not checked here)"),
     ("EVALLAB_REPAIR_INVENTORY", f"optional; default /data/{repair_board.DEFAULT_FILE}"),
@@ -167,7 +174,7 @@ class _Scan:
 
 
 def _forbidden(key: str, policy: Policy) -> bool:
-    names = RECORD_FORBIDDEN if policy == "record" else AGGREGATE_FORBIDDEN
+    names = {"record": RECORD_FORBIDDEN, "findings": FINDINGS_FORBIDDEN}.get(policy, AGGREGATE_FORBIDDEN)
     return key.lower() in names or bool(_BENCH_LABEL.search(key))
 
 
@@ -248,6 +255,8 @@ def _sources(state: Path, inventory: Path | None, registry: Path | None) -> dict
         "tool_scorecard": tools / TOOL_SCORECARD_FILE,
         "results": tools / RESULTS_FILE,
         "detector_scope": tools / detector_scope.FILE,
+        "harness_findings": state / harness_view.FINDINGS_FILE,
+        "harness_scorecard": state / harness_view.SCORECARD_FILE,
         "gate_progress": state / gate_progress.DEFAULT_FILE,
         "atlas_scorecard": scorecards[0] if scorecards else None,
         "spend": tools / SPEND_FILE,
@@ -355,6 +364,12 @@ def _loader_checks(stage: Path, staged: dict[str, str]) -> dict[str, str | None]
     if "gate_progress" in staged:
         loaded = gate_progress.load_progress(stage / gate_progress.DEFAULT_FILE)
         errors["gate_progress"] = None if loaded["present"] else loaded["error"]
+    if "harness_findings" in staged:
+        loaded = harness_view.load_findings(stage / harness_view.FINDINGS_FILE)
+        errors["harness_findings"] = loaded["error"] or (None if loaded["by_run"] else "no finding validated")
+    if "harness_scorecard" in staged:
+        loaded = harness_view.load_scorecard(stage / harness_view.SCORECARD_FILE)
+        errors["harness_scorecard"] = None if loaded["present"] else loaded["error"]
     scorecard = build_tool_scorecard(stage)
     by_file = {source["file"]: source["error"] for source in scorecard["sources"]}
     for key in ("tool_scorecard", "results", "atlas_scorecard", "spend", "accounting", "detector_scope"):

@@ -3373,6 +3373,66 @@ def test_gate_progress_endpoint_serves_the_retained_counts_and_refuses_other_spl
     assert client.get(url, headers=AUTH).json()["error"] == "invalid counts-only gate progress"
 
 
+def _harness_finding(run_id: str, **fields: Any) -> dict[str, Any]:
+    return {
+        "run_id": run_id, "detector": "facets", "detector_version": "run-facets/v1", "reader_model": "provider/reader",
+        "verdict": "alarm", "score": 0.8, "kind": "cheat", "evidence_steps": [2, 77], "summary": "Read the hidden tests.",
+        "input_tokens": 900, "output_tokens": 120, "cost_usd": 0.01, "latency_ms": 1500,
+        "produced_at": "2026-10-28T10:00:00+00:00", "label": "harnessneedle", "reward": 1.0,
+    } | fields
+
+
+def test_harness_endpoints_serve_the_combined_card_and_overview_for_admitted_runs_only(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    overview_url, card_url = "/api/cloud-db/harness", "/api/cloud-db/harness/card"
+    assert client.get(overview_url).status_code == 401 and client.get(card_url, params={"run_id": VERIFIED}).status_code == 401
+    assert client.get(overview_url, headers=AUTH, params={"split": "test"}).status_code == 400
+    assert client.get(card_url, headers=AUTH, params={"run_id": VERIFIED, "split": "held"}).status_code == 400
+    absent = client.get(overview_url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["findings"]["present"] is False and absent.json()["scorecard"]["error"] == "not retained"
+    empty = client.get(card_url, headers=AUTH, params={"run_id": VERIFIED})
+    assert empty.status_code == 200 and "not a clean result" in empty.json()["headline"]
+
+    _write_atlas(runtime, [_atlas_facet(VERIFIED, suspicion=3, goal="Fix the parser")])
+    directory = runtime.data_root / "trace-harness"
+    directory.mkdir()
+    rows = [
+        _harness_finding(VERIFIED),
+        _harness_finding(VERIFIED, detector="run_health.loop", detector_version="rh/v1", reader_model=None, kind="loop", evidence_steps=[9]),
+        _harness_finding(PROVISIONAL, verdict="clear"),
+        _harness_finding("not-a-trace"),
+    ]
+    (directory / "findings-v1.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+    card = client.get(card_url, headers=AUTH, params={"run_id": VERIFIED})
+    assert card.status_code == 200, card.text
+    document = card.json()
+    groups = {group["family"]: group["results"] for group in document["groups"]}
+    assert [item["detector"] for item in groups["trace"]] == ["facets"] and [item["detector"] for item in groups["run_health"]] == ["run_health.loop"]
+    assert groups["trace"][0]["evidence_steps"] == [2] and groups["trace"][0]["hidden_steps"] == 1  # step 77 is not in the run
+    assert document["run"]["actor_inputs_available"] is True and document["facet_lead"]["goal"] == "Fix the parser"
+    assert "outcome" not in document["facet_lead"]
+    for secret in ("harnessneedle", "synthetic-source", "provider/facet-model"):
+        assert secret not in card.text
+
+    silent = client.get(card_url, headers=AUTH, params={"run_id": PROVISIONAL}).json()
+    assert silent["run"]["actor_inputs_available"] is False  # only a tool step: nothing an actor wrote
+    assert silent["groups"][0]["results"][0]["verdict"] == "unknown" and silent["groups"][0]["results"][0]["recorded_verdict"] == "clear"
+    assert silent["no_result"] == ["run_health.loop rh/v1"]
+    unread = client.get(card_url, headers=AUTH, params={"run_id": REFUTED}).json()
+    assert "not a clean result" in unread["headline"] and unread["tally"]["results"] == 0
+    assert client.get(card_url, headers=AUTH, params={"run_id": "no-such-run"}).status_code == 404
+
+    overview = client.get(overview_url, headers=AUTH).json()["findings"]
+    assert (overview["runs_admitted"], overview["runs_outside"]) == (2, 1)
+    assert [item["run_id"] for item in overview["flagged"]] == [VERIFIED] and overview["flagged"][0]["alarms"] == ["facets", "run_health.loop"]
+    assert "harnessneedle" not in json.dumps(overview)
+    facets = next(row for row in client.get(overview_url, headers=AUTH).json()["findings"]["detectors"] if row["detector"] == "facets")
+    assert (facets["alarm"], facets["clear"], facets["unknown"]) == (1, 0, 1)  # PROVISIONAL has no actor transcript
+
+
 def test_the_container_runtime_reads_data_files_from_the_volume_or_the_environment_settings(
     modal_cloud: ModuleType, tmp_path: Path, repo_root: Path
 ) -> None:

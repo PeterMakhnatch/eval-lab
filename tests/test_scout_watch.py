@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import plistlib
 import shutil
 import subprocess
 import sys
+import types
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -16,12 +18,15 @@ import pytest
 from test_clouddb_blind import corpus as corpus
 
 from evallab.readers import ACTOR_PROJECTION_VERSION, scout_clouddb
-from evallab.readers.clouddb_blind import opaque_id
+from evallab.readers.clouddb_blind import ActorHistoryUnavailable, opaque_id
 from evallab.readers.scout_clouddb import StaleProjectionError
 from evallab.readers.scout_watch import (
+    LEDGER_INDEX_NAME,
+    LEDGER_INDEX_SCHEMA,
     argument_argv,
     build_parser,
     completed_runs,
+    ledger_coverage,
     run_once,
     watch_arguments,
 )
@@ -41,6 +46,26 @@ def _row(run: str, scanner: str, **changes: object) -> dict:
         "value": 0, "flag": None if scanner == "restored_tool_calls" else False,
         **changes,
     }
+
+
+def _keymap_row(trace_id: str) -> dict:
+    return {
+        "opaque_id": opaque_id(trace_id), "run_id": trace_id, "source": "cloud-trace-db",
+        "projection_version": VERSION,
+    }
+
+
+def _complete_rows(runs: Any) -> list[dict]:
+    return [_row(run, scanner) for run in runs for scanner in SCANNERS]
+
+
+def _lines(rows: Any) -> str:
+    return "".join(json.dumps(row) + "\n" for row in rows)
+
+
+@pytest.fixture
+def scout_runtime() -> Any:
+    return pytest.importorskip("inspect_scout")
 
 
 def test_imported_or_partially_scanned_runs_remain_pending(tmp_path: Path) -> None:
@@ -103,6 +128,90 @@ def test_missing_ledger_means_nothing_has_been_scanned(tmp_path: Path) -> None:
         )
 
 
+def test_coverage_index_tracks_exact_ledger_bytes_not_length_or_mtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    results, index = tmp_path / "results-v1.jsonl", tmp_path / LEDGER_INDEX_NAME
+    results.write_text(_lines(_complete_rows(["run-a"])), encoding="utf-8")
+    arguments = {
+        "index_path": index, "scanners": SCANNERS, "scout_version": "0.5.4",
+        "projection_version": VERSION,
+    }
+    assert ledger_coverage(results, **arguments) == {"run-a"}
+    stored = json.loads(index.read_text())
+    assert stored["ledger_sha256"] == hashlib.sha256(results.read_bytes()).hexdigest()
+    assert stored["runs"] == ["run-a"]
+
+    # The stored index answers an unchanged ledger without re-parsing it.
+    def refuse(*_: Any, **__: Any) -> set[str]:
+        raise AssertionError("coverage recomputed for unchanged ledger bytes")
+
+    monkeypatch.setattr("evallab.readers.scout_watch._coverage", refuse)
+    assert ledger_coverage(results, **arguments) == {"run-a"}
+    monkeypatch.undo()
+
+    # Same byte length, earlier Scout version. Restoring the mtime proves the
+    # index is keyed by content, not by size or timestamp.
+    original = results.read_text()
+    rewritten = original.replace("inspect-scout/0.5.4:1", "inspect-scout/0.5.3:1")
+    assert len(rewritten) == len(original)
+    stamp = results.stat().st_mtime_ns
+    results.write_text(rewritten, encoding="utf-8")
+    os.utime(results, ns=(stamp, stamp))
+    assert ledger_coverage(results, **arguments) == set()
+    assert json.loads(index.read_text())["ledger_sha256"] == hashlib.sha256(
+        rewritten.encode()
+    ).hexdigest()
+
+
+def test_coverage_index_is_scoped_to_projection_scanners_and_schema(tmp_path: Path) -> None:
+    results, index = tmp_path / "results-v1.jsonl", tmp_path / LEDGER_INDEX_NAME
+    results.write_text(_lines(_complete_rows(["run-a"])), encoding="utf-8")
+    assert ledger_coverage(
+        results, index_path=index, scanners=SCANNERS, scout_version="0.5.4",
+        projection_version=VERSION,
+    ) == {"run-a"}
+    # Another projection or a larger scanner set never inherits stored coverage.
+    assert ledger_coverage(
+        results, index_path=index, scanners=SCANNERS, scout_version="0.5.4",
+        projection_version=STALE,
+    ) == set()
+    assert ledger_coverage(
+        results, index_path=index, scanners=(*SCANNERS, "new_rule"), scout_version="0.5.4",
+        projection_version=VERSION,
+    ) == set()
+    # A foreign, unreadable or malformed index is ignored rather than trusted.
+    for payload in (
+        json.dumps({"schema": "other", "runs": ["ghost"]}),
+        "not json",
+        json.dumps({"schema": LEDGER_INDEX_SCHEMA, "runs": [1, 2]}),
+    ):
+        index.write_text(payload, encoding="utf-8")
+        assert ledger_coverage(
+            results, index_path=index, scanners=SCANNERS, scout_version="0.5.4",
+            projection_version=VERSION,
+        ) == {"run-a"}
+
+
+def test_unversioned_scout_rows_refuse_before_the_index_is_replaced(tmp_path: Path) -> None:
+    results, index = tmp_path / "results-v1.jsonl", tmp_path / LEDGER_INDEX_NAME
+    rows = _complete_rows(["run-a"]) + [
+        {"tool": "scout", "run_id": "legacy", "value": 0},
+    ]
+    before = _lines(rows)
+    results.write_text(before, encoding="utf-8")
+    index.write_text(_lines([{"schema": LEDGER_INDEX_SCHEMA, "runs": ["stale"]}]))
+    stored = index.read_bytes()
+    with pytest.raises(StaleProjectionError, match="unversioned Scout results"):
+        ledger_coverage(
+            results, index_path=index, scanners=SCANNERS, scout_version="0.5.4",
+            projection_version=VERSION,
+        )
+    # The ledger and any pre-existing index are evidence: neither is rewritten.
+    assert results.read_text() == before
+    assert index.read_bytes() == stored
+
+
 class Pipeline:
     """A stand-in import/scan/collect pair over one synthetic projection."""
 
@@ -118,6 +227,7 @@ class Pipeline:
         self.synced: list[Path] = []
         self.scanned: list[list[str]] = []
         self.locations: dict[str, list[str]] = {}
+        self.refs: Any = None
 
     def arguments(self, db_path: Path, repo_root: Path, batch_size: int = 128) -> dict[str, Any]:
         return {
@@ -127,8 +237,10 @@ class Pipeline:
         }
 
     def sync(self, db_path: Path, transcripts_dir: Path, keymap_path: Path, *,
-             repo_root: Path, cheatbench: bool = False) -> dict[str, Any]:
+             repo_root: Path, cheatbench: bool = False,
+             refs: Any = None) -> dict[str, Any]:
         assert cheatbench is False
+        self.refs = refs
         self.synced.append(keymap_path)
         keymap_path.parent.mkdir(parents=True, exist_ok=True)
         keyed = {row["opaque_id"] for row in scout_clouddb._jsonl(keymap_path)}
@@ -257,6 +369,119 @@ def test_new_arrivals_are_scanned_within_the_batch_limit(corpus: tuple, pipeline
     assert len({row["run_id"] for row in pipeline.ledger()}) == 4
     third = run_once(**pipeline.arguments(db_path, root, batch_size=2))
     assert (third["status"], third["scanned"], third["pending"]) == ("idle", 0, 0)
+
+
+def test_unavailable_remainder_never_imports_or_opens_the_scout_database(
+    corpus: tuple, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, db_path, _ = corpus
+    pipeline = Pipeline(tmp_path)
+    monkeypatch.setattr(scout_clouddb, "scan", pipeline.scan)
+    monkeypatch.setattr(scout_clouddb, "collect", pipeline.collect)
+    monkeypatch.setattr(scout_clouddb, "_require_scout", lambda: None)
+    real = scout_clouddb.blind_messages
+
+    def unavailable(con: Any, trace_id: str) -> list[dict[str, Any]]:
+        if trace_id == "trace-mimo":
+            raise ActorHistoryUnavailable(trace_id)
+        return real(con, trace_id)
+
+    monkeypatch.setattr(scout_clouddb, "blind_messages", unavailable)
+    opened: list[str] = []
+    module = types.ModuleType("inspect_scout")
+    module.transcripts_db = lambda path: opened.append(str(path))
+    monkeypatch.setitem(sys.modules, "inspect_scout", module)
+    keyed = ("trace-goodfire", "trace-tb2", "trace-tb4")
+    pipeline.state.mkdir(parents=True, exist_ok=True)
+    pipeline.keymap.write_text(_lines([_keymap_row(trace) for trace in keyed]), encoding="utf-8")
+    pipeline.results.write_text(_lines(_complete_rows(keyed)), encoding="utf-8")
+
+    report = run_once(**pipeline.arguments(db_path, root))
+
+    # The steady state: every available actor history is keyed and complete, the
+    # one unkeyed run still has no history, and the transcript database is never
+    # opened or imported for the empty insert.
+    assert (report["status"], report["scanned"], report["pending"]) == ("idle", 0, 0)
+    assert (report["admitted"], report["actor_available"]) == (4, 3)
+    assert report["actor_missing"] == ["trace-mimo"]
+    assert (report["inserted"], report["unavailable"]) == (0, 1)
+    assert opened == []
+    index = json.loads((pipeline.state / LEDGER_INDEX_NAME).read_text())
+    assert index["runs"] == sorted(keyed)
+    assert len(pipeline.keymap.read_text().splitlines()) == 3
+
+
+def test_new_actor_history_is_inserted_and_scanned_on_the_next_sweep(
+    corpus: tuple, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scout_runtime: Any,
+) -> None:
+    root, db_path, _ = corpus
+    pipeline = Pipeline(tmp_path)
+    monkeypatch.setattr(scout_clouddb, "scan", pipeline.scan)
+    monkeypatch.setattr(scout_clouddb, "collect", pipeline.collect)
+    real = scout_clouddb.blind_messages
+
+    def unavailable(con: Any, trace_id: str) -> list[dict[str, Any]]:
+        if trace_id == "trace-mimo":
+            raise ActorHistoryUnavailable(trace_id)
+        return real(con, trace_id)
+
+    monkeypatch.setattr(scout_clouddb, "blind_messages", unavailable)
+    keyed = ("trace-goodfire", "trace-tb2", "trace-tb4")
+    pipeline.state.mkdir(parents=True, exist_ok=True)
+    pipeline.keymap.write_text(_lines([_keymap_row(trace) for trace in keyed]), encoding="utf-8")
+    pipeline.results.write_text(_lines(_complete_rows(keyed)), encoding="utf-8")
+    idle = run_once(**pipeline.arguments(db_path, root))
+    assert (idle["status"], idle["actor_missing"], pipeline.scanned) == (
+        "idle", ["trace-mimo"], [],
+    )
+
+    # The source later retains trace-mimo's actor chronology: the next sweep
+    # imports it, keys it, and scans exactly it, preserving the earlier key map.
+    monkeypatch.setattr(scout_clouddb, "blind_messages", real)
+    prior = pipeline.keymap.read_bytes()
+    report = run_once(**pipeline.arguments(db_path, root))
+    assert (report["status"], report["scanned"]) == ("scanned", 1)
+    assert (report["actor_available"], report["actor_missing"]) == (4, [])
+    assert pipeline.scanned == [[opaque_id("trace-mimo")]]
+    assert pipeline.keymap.read_bytes().startswith(prior)
+    assert json.loads(pipeline.keymap.read_text().splitlines()[-1])["run_id"] == "trace-mimo"
+
+
+def test_partial_detector_coverage_keeps_only_the_unfinished_run(
+    corpus: tuple, pipeline: Pipeline,
+) -> None:
+    root, db_path, _ = corpus
+    available = ["trace-goodfire", "trace-tb2", "trace-tb4"]
+    pipeline.eligible = 4
+    pipeline.available = available
+    pipeline.state.mkdir(parents=True, exist_ok=True)
+    pipeline.keymap.write_text(_lines([_keymap_row(trace) for trace in available]))
+    rows = _complete_rows(["trace-goodfire", "trace-tb2"])
+    rows += [_row("trace-tb4", scanner) for scanner in SCANNERS[:-1]]
+    pipeline.results.write_text(_lines(rows))
+    report = run_once(**pipeline.arguments(db_path, root))
+    assert (report["pending"], report["scanned"]) == (1, 1)
+    assert pipeline.scanned == [[opaque_id("trace-tb4")]]
+
+
+def test_admission_is_redecided_every_sweep_never_reused(
+    corpus: tuple, pipeline: Pipeline,
+) -> None:
+    root, db_path, _ = corpus
+    pipeline.available = ["trace-goodfire", "trace-tb2"]
+    first = run_once(**pipeline.arguments(db_path, root))
+    assert (first["admitted"], first["actor_available"], first["scanned"]) == (4, 2, 2)
+
+    assignments = root / "research/answer-keys/splits/assignments.csv"
+    assignments.write_text(
+        assignments.read_text(encoding="utf-8") + "tb2-to-tb21-v1,task-tb2,task-tb2,test\n",
+        encoding="utf-8",
+    )
+    second = run_once(**pipeline.arguments(db_path, root))
+    # A newly TEST-assigned task is dropped even though its transcript is keyed
+    # and already covered: admission has no cache to go stale.
+    assert (second["admitted"], second["actor_available"]) == (3, 1)
+    assert second["scanned"] == 0
 
 
 def test_stale_projection_results_never_mark_a_run_complete(

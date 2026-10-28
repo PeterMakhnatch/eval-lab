@@ -32,6 +32,18 @@ current coverage and never rewritten.
 record per scanner label (nine records per run with the default scanner set).
 Scheduled callers can pass a nonempty ``transcript_ids`` subset to ``scan``;
 unselected transcript content is not loaded again.
+
+An unchanged sweep must stay cheap. ``_insert`` opens the Parquet transcript
+database only once a transcript actually exists, so a sweep whose unkeyed
+remainder is entirely unavailable never imports or opens Scout at all. A caller
+that already computed this DB snapshot's admission refs passes them to ``sync``,
+so one sweep makes one admission decision. The scheduled watcher's
+``ledger_coverage`` reuses a coverage index bound to the SHA-256 of the exact
+result-ledger bytes: any content change (including a same-length rewrite)
+recomputes coverage, and no index is trusted for a ledger holding unversioned
+Scout rows. Admission itself is never cached: its authoritative inputs are the
+whole task-identity and split-registry set, and a content digest of those inputs
+costs as much as re-deciding admission.
 """
 
 from __future__ import annotations
@@ -40,6 +52,7 @@ import argparse
 import asyncio
 import csv
 import importlib.util
+import itertools
 import json
 import math
 import os
@@ -47,7 +60,7 @@ import re
 import sqlite3
 import sys
 import time
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import closing
 from datetime import UTC, datetime
 from importlib.metadata import version
@@ -57,6 +70,7 @@ from typing import Any, NamedTuple
 from evallab.readers import ACTOR_PROJECTION_VERSION
 from evallab.readers.clouddb_blind import (
     ActorHistoryUnavailable,
+    TraceRef,
     atif_blind_messages,
     blind_messages,
     dev_trace_refs,
@@ -199,6 +213,25 @@ def read_keymap(path: str | Path) -> dict[str, dict[str, Any]]:
     return keymap
 
 
+def versioned_rows(
+    rows: Iterable[Mapping[str, Any]], path: Path,
+) -> Iterator[Mapping[str, Any]]:
+    """Yield ledger rows, refusing an unversioned Scout row as it is reached.
+
+    Rows that name an earlier projection are retained lineage: they are appended
+    evidence, never counted as current coverage and never rewritten. An
+    unversioned Scout row predates the projection contract, so the ledger must
+    not be extended in place.
+    """
+    for row in rows:
+        if row.get("tool") == "scout" and "projection_version" not in row:
+            raise StaleProjectionError(
+                f"{path} holds unversioned Scout results; it is preserved unchanged, "
+                "use a projection-versioned path",
+            )
+        yield row
+
+
 def require_current_results(path: str | Path) -> None:
     """Refuse a results ledger holding Scout rows without a projection version.
 
@@ -208,12 +241,8 @@ def require_current_results(path: str | Path) -> None:
     the projection contract, so the ledger must not be extended in place.
     """
     path = Path(path)
-    for row in _jsonl(path):
-        if row.get("tool") == "scout" and "projection_version" not in row:
-            raise StaleProjectionError(
-                f"{path} holds unversioned Scout results; it is preserved unchanged, "
-                "use a projection-versioned path",
-            )
+    for _ in versioned_rows(_jsonl(path), path):
+        pass
 
 
 def _check_transcripts(directory: Path, *, claim: bool = False) -> None:
@@ -279,11 +308,35 @@ def _cheatbench_messages(item: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 async def _insert(transcripts_dir: Path, transcripts: Iterable[Any]) -> None:
+    """Insert yielded transcripts, opening Scout only once one actually exists.
+
+    A sweep whose unkeyed remainder is entirely unavailable yields nothing.
+    Opening the Parquet transcript database (which imports Scout's Arrow stack
+    and rewrites its manifest index) for an empty insert is pure cost, so the
+    session starts on the first real transcript and stays memory bounded.
+    """
+    _check_transcripts(transcripts_dir, claim=True)
+    iterator = iter(transcripts)
+    first = next(iterator, None)
+    if first is None:
+        return
     from inspect_scout import transcripts_db  # ty: ignore[unresolved-import]
 
-    _check_transcripts(transcripts_dir, claim=True)
     async with transcripts_db(str(transcripts_dir)) as db:
-        await db.insert(transcripts)
+        await db.insert(itertools.chain([first], iterator))
+
+
+def admitted_refs(db_path: str | Path, *, repo_root: Path) -> list[TraceRef]:
+    """Authoritative admitted DEV refs from one read-only DB snapshot.
+
+    Admission is a function of the stored task identities and the split
+    registry, both of which can tighten between sweeps, so it is recomputed on
+    every sweep rather than cached. ``sync`` accepts these refs so one sweep
+    projects and decides coverage against exactly one admission decision.
+    """
+    uri = Path(db_path).expanduser().resolve().as_uri() + "?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as con:
+        return dev_trace_refs(con, repo_root=repo_root)
 
 
 def sync(
@@ -293,6 +346,7 @@ def sync(
     *,
     repo_root: Path,
     cheatbench: bool = False,
+    refs: Sequence[TraceRef] | None = None,
 ) -> dict[str, Any]:
     """Insert unseen opaque ids, then append their private source mappings.
 
@@ -305,6 +359,9 @@ def sync(
     inserted nor keyed. ``eligible`` is full admission and always equals
     ``unchanged + inserted + unavailable``. A stale key map or transcript cache
     raises ``StaleProjectionError`` before anything is written.
+
+    A caller that already computed this DB snapshot's admission refs passes
+    them in, so one sweep makes one admission decision for both import and scan.
     """
     _require_scout()
     keymap_path, transcripts_dir = Path(keymap_path), Path(transcripts_dir)
@@ -333,26 +390,26 @@ def sync(
                 (item["item_id"], _cheatbench_messages(item)) for item in pending
             )))
     else:
-        uri = Path(db_path).expanduser().resolve().as_uri() + "?mode=ro"
-        with closing(sqlite3.connect(uri, uri=True)) as con:
-            refs = dev_trace_refs(con, repo_root=repo_root)
-            pending_refs = [ref for ref in refs if opaque_id(ref.trace_id) not in keyed]
-            eligible, pending_count = len(refs), len(pending_refs)
+        resolved = admitted_refs(db_path, repo_root=repo_root) if refs is None else list(refs)
+        pending_refs = [ref for ref in resolved if opaque_id(ref.trace_id) not in keyed]
+        eligible, pending_count = len(resolved), len(pending_refs)
+        if pending_refs:
+            uri = Path(db_path).expanduser().resolve().as_uri() + "?mode=ro"
+            with closing(sqlite3.connect(uri, uri=True)) as con:
 
-            def actor_histories() -> Iterator[tuple[str, list[dict[str, Any]]]]:
-                for ref in pending_refs:
-                    try:
-                        messages = blind_messages(con, ref.trace_id)
-                    except ActorHistoryUnavailable as error:
-                        unavailable.append({
-                            "run_id": ref.trace_id, "opaque_id": opaque_id(ref.trace_id),
-                            "category": error.category, "step_index": error.step_index,
-                            "reason": error.reason,
-                        })
-                        continue
-                    yield ref.trace_id, messages
+                def actor_histories() -> Iterator[tuple[str, list[dict[str, Any]]]]:
+                    for ref in pending_refs:
+                        try:
+                            messages = blind_messages(con, ref.trace_id)
+                        except ActorHistoryUnavailable as error:
+                            unavailable.append({
+                                "run_id": ref.trace_id, "opaque_id": opaque_id(ref.trace_id),
+                                "category": error.category, "step_index": error.step_index,
+                                "reason": error.reason,
+                            })
+                            continue
+                        yield ref.trace_id, messages
 
-            if pending_refs:
                 asyncio.run(_insert(transcripts_dir, transcripts(actor_histories())))
     if added:
         keymap_path.parent.mkdir(parents=True, exist_ok=True)

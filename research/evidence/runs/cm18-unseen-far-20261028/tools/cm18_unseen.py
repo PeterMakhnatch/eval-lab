@@ -365,7 +365,9 @@ def cascade(jobs: int, limit: int | None) -> None:
     done = {}
     if out.exists():
         done = {r["trace_key"]: r for r in map(json.loads, out.read_text().splitlines())}
-    todo = [r["key"] for r in load_runs() if r["key"] not in done]
+    todo = sorted(
+        (r["key"] for r in load_runs() if r["key"] not in done), key=lambda k: sha(f"order:{k}")
+    )
     if limit:
         todo = todo[:limit]
     cache_path = STATE / f"judge-cache-{MODEL.replace('/', '_')}.jsonl"
@@ -395,7 +397,9 @@ def facets(jobs: int, limit: int | None) -> None:
         done = {
             r["key"]: r for r in map(json.loads, store.read_text().splitlines()) if r.get("record")
         }
-    runs = [r for r in load_runs() if r["key"] not in done]
+    runs = sorted(
+        (r for r in load_runs() if r["key"] not in done), key=lambda r: sha(f"order:{r['key']}")
+    )
     if limit:
         runs = runs[:limit]
     transport = ra.GatewayTransport()

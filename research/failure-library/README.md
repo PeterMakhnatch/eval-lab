@@ -67,6 +67,27 @@ evidence limits and deterministic rebuild command. Large normalized runs and raw
 transcripts stay outside Git. Ingestion parses data; it does not execute imported
 patches or test bodies.
 
+## One empirical QC system
+
+The source ingestors preserve observations; the [knowledge compiler](knowledge/README.md)
+turns admissible DEV evidence into target-excluded Task QA rubrics and Trace QA
+priors. Unknown identity groups withhold empirical retrieval rather than guessing
+a cross-publisher match. Generic taxonomy guidance is labelled separately.
+
+The [read-only analysis loop](loop/README.md) consumes those actual packets and
+retains source-bound inputs, requested/served models, citations, usage, OFF/ON
+scores and missing-control denominators. Its measured archived-source run is in
+[`loop/readonly-integration-result.json`](loop/readonly-integration-result.json).
+It is separate from the native Harbor canary, whose unsupported seams remain
+explicit; no autonomous runner or production rollout is implied.
+
+Reviewer disagreements return to candidate evidence, not directly to Findings or
+training retrieval. The first balanced Trace probe produced two such
+[unadjudicated cases](candidates/readonly-disagreements-20261028.json), so simply
+adding more generic guidance is not treated as a demonstrated QC improvement.
+Model agreement cannot certify a broken task, a repair, or a source-negative
+control's correctness.
+
 ## Defensive scope
 
 Knowledge exports support read-only Task QA and Trace QA. They must distinguish

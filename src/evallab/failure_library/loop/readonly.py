@@ -121,6 +121,25 @@ def review_once(
     }
 
 
+def _source_label_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Stratify observations, without equating a broad QA flag to a hack label."""
+    counts = {
+        "positives_reviewed": 0,
+        "controls_reviewed": 0,
+        "source_positive_flags": 0,
+        "source_negative_flags": 0,
+    }
+    for row in rows:
+        if not row["result"]["reviewed"]:
+            continue
+        positive = row["expected"]
+        counts["positives_reviewed" if positive else "controls_reviewed"] += 1
+        counts["source_positive_flags" if positive else "source_negative_flags"] += bool(
+            row["result"]["flagged"]
+        )
+    return counts
+
+
 def diagnostic_pilot(
     manifest_path: Path,
     pack_dir: Path,
@@ -378,8 +397,6 @@ def diagnostic_pilot(
         for arm in ("off", "on"):
             selected = [row for row in rows if row["kind"] == kind and row["knowledge"] == arm]
             measured = [row for row in selected if row["result"]["reviewed"]]
-            positives = [row for row in measured if row["expected"]]
-            negatives = [row for row in measured if not row["expected"]]
             scores.append(
                 {
                     "agent": f"qa-{kind}-source-readonly",
@@ -394,13 +411,7 @@ def diagnostic_pilot(
                         row["result"]["reason"] for row in selected if not row["result"]["reviewed"]
                     )
                     or ("source-label diagnostic only" if measured else "no model request made"),
-                    "recall": sum(bool(row["result"]["flagged"]) for row in positives)
-                    / len(positives)
-                    if positives
-                    else "",
-                    "false_alarms": sum(bool(row["result"]["flagged"]) for row in negatives)
-                    if negatives
-                    else "",
+                    **_source_label_counts(selected),
                     "cost_usd": sum(row["cost_usd"] for row in selected),
                     "tokens": sum(
                         sum(
@@ -423,9 +434,8 @@ def diagnostic_pilot(
                     else "",
                     "selected": len(selected),
                     "reviewed": len(measured),
-                    "positives_reviewed": len(positives),
-                    "controls_reviewed": len(negatives),
-                    "score_kind": "source_label_diagnostic_not_independent_verification",
+                    "score_kind": "source_label_stratified_observation_not_quality",
+                    "construct_alignment": "not_established",
                     "treatment": treatment,
                 }
             )

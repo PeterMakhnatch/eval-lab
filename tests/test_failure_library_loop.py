@@ -832,3 +832,20 @@ def test_public_readonly_dryrun_uses_private_views_and_never_calls_model(
     (packet / "pack.manifest.json").write_text(json.dumps(metadata))
     with pytest.raises(ValueError, match="exclusion seal"):
         args.func(args, root=root)
+
+
+def test_source_strata_do_not_turn_broad_qa_flags_into_hack_accuracy() -> None:
+    from evallab.failure_library.loop.readonly import _source_label_counts
+
+    rows = [
+        {"expected": True, "result": {"reviewed": True, "flagged": True}},
+        {"expected": True, "result": {"reviewed": True, "flagged": False}},
+        {"expected": False, "result": {"reviewed": True, "flagged": True}},
+        {"expected": False, "result": {"reviewed": False, "flagged": None}},
+    ]
+    assert _source_label_counts(rows) == {
+        "positives_reviewed": 2,
+        "controls_reviewed": 1,
+        "source_positive_flags": 1,
+        "source_negative_flags": 1,
+    }

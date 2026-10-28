@@ -165,3 +165,41 @@ are blank, not successes or measured zeros. The original private receipt remains
 immutable, including its exception-path wall-time fallback quirk. No comparative
 improvement or independent defect confirmation was established.
 
+## Measured source-bound integration
+
+The subsequent authorized run completed **12 model reviews on six distinct DEV
+subjects** through the public CLI: one Task and five native OLMo traces, each
+reviewed OFF/ON. Requested and served IDs were
+`meta/muse-wonder-1.0-contributor`; metered model cost was $0 and observed
+input-plus-output usage was 78,396 tokens. Actual persisted ON prompts contained
+the exact compiled packet; OFF prompts did not. No tools or source execution ran.
+
+The Task treatment used four target-excluded empirical DEV examples; both arms
+flagged the one source-positive Task. The Trace treatment used only the 12
+pre-existing taxonomy entries, **not empirical library retrieval**. Its separate
+balanced four-trace slice was frozen before calls:
+
+| Source-label diagnostic on the balanced Trace slice | OFF | ON: curated taxonomy |
+| --- | ---: | ---: |
+| Publisher-hacked traces flagged | 2 / 2 | 2 / 2 |
+| Publisher-clean traces flagged | 0 / 2 | 2 / 2 |
+
+This is not evidence of improvement. A broad QA flag (possible invalid reward or
+unsuccessful completion) is not equivalent to the publisher's reward-hack label.
+Ordinary task failure, reviewer overflagging, source-label error and different
+target definitions remain unresolved alternatives. Current score output therefore
+reports **source-stratified flag counts, not recall or false-alarm accuracy**;
+historical raw scorecards remain unchanged. Both disagreements are preserved as
+`unadjudicated_model_observation` feedback cases under
+`../candidates/readonly-disagreements-20261028.json`, with native record, source
+spans, label provenance and both arms' citations/hashes. **Zero canonical Findings
+were added**, and curated fallback still requires explicit opt-in.
+
+`readonly-integration-result.json` preserves denominators, usage, receipt-index
+hashes, private raw-receipt locations and limitations. The balanced source
+manifest is `readonly-balanced-trace-20261028.manifest.json`. These are small DEV
+diagnostics, not independent replays, an unseen-set estimate, or proof that the
+native Harbor QA seams are complete. OFF always precedes ON; default thinking
+and opaque native base prompts remain confounds. Recognizable benchmark content
+is retained even though source-label/identity sidecars are withheld.
+

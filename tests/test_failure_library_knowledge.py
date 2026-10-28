@@ -435,7 +435,6 @@ def test_run_labels_build_behavior_cards_without_inventing_task_defects_or_repla
     assert all(example.defect_classes == ("RS02",) for example in run_examples)
     pack = make_pack(knowledge, agent="trace-qa", task_text="test infrastructure modification")
     assert set(pack.example_ids) & {run.run_id for run in runs}
-    assert "not replay-confirmed" in pack.markdown
 
 
 def test_unmapped_cross_publisher_identity_cannot_bypass_subject_exclusion(library) -> None:

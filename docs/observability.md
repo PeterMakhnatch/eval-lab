@@ -382,9 +382,9 @@ Phoenix volume so a catalog rebuild cannot delete them.
 1. Convert + ship a trial or job:
 
    ```bash
-   uv run evallab trace runs/<job>/<trial> --include-controls
-   uv run evallab trace runs/<job>
-   uv run evallab trace research/explorations/harbor-021/fixtures/trajectory.json --dry-run
+   uv run evallab trace otel runs/<job>/<trial> --include-controls
+   uv run evallab trace otel runs/<job>
+   uv run evallab trace otel research/explorations/harbor-021/fixtures/trajectory.json --dry-run
    ```
 
 2. Open `http://127.0.0.1:6006`. The root span is `openinference.span.kind=AGENT`

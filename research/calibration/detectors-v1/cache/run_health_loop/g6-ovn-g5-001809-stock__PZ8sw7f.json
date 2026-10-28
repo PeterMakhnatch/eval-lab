@@ -6,7 +6,7 @@
   75,
   58
  ],
- "explanation": "identical_message_run=21 (>= 10); completion_claims=49 (>= 5); command_cycle=2 (>= 3)",
+ "explanation": "identical_message_run=21 (>= 10); completion_claims=49 (>= 5); command_cycle=2 (<= 3)",
  "flagged": true,
  "id": "g6-ovn-g5-001809-stock__PZ8sw7f",
  "schema": "evallab.detector_verdict/v1",

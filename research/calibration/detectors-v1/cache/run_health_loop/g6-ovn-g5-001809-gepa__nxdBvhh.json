@@ -5,7 +5,7 @@
  "evidence_steps": [
   29
  ],
- "explanation": "stop:loop_break=1 (>= 1); identical_message_run=90 (>= 10); completion_claims=95 (>= 5); repeated_error=90 (>= 10)",
+ "explanation": "stop:loop_break; identical_message_run=90 (>= 10); completion_claims=95 (>= 5); repeated_error=90 (>= 10)",
  "flagged": true,
  "id": "g6-ovn-g5-001809-gepa__nxdBvhh",
  "schema": "evallab.detector_verdict/v1",

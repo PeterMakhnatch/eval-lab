@@ -552,10 +552,12 @@ def _decide(run_id: str, kind: str, components: list[dict[str, Any]], started: f
     fired = [c for c in components if c["ratio"] >= 1.0]
     score = max((c["ratio"] for c in components), default=0.0)
     if forced is not None:
-        fired.insert(0, {"name": forced, "value": 1, "threshold": 1, "ratio": max(score, 1.0), "step": None})
+        fired.insert(0, {"name": forced, "value": 1, "threshold": 1, "ratio": max(score, 1.0), "step": None,
+                         "op": None})
         score = max(score, 1.0)
     if fired:
-        summary = "; ".join(f"{c['name']}={c['value']} (>= {c['threshold']})" for c in fired)
+        summary = "; ".join(c["name"] if c.get("op", ">=") is None
+                            else f"{c['name']}={c['value']} ({c.get('op', '>=')} {c['threshold']})" for c in fired)
         return _finding(run_id, kind, "alarm", score, [c["step"] for c in fired], summary, started)
     top = max(components, key=lambda c: c["ratio"], default=None)
     summary = "no component at threshold" + (f"; max {top['name']}={top['value']}" if top else "")
@@ -580,7 +582,7 @@ def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[
     started = time.perf_counter()
     f = dict(feats) if feats is not None else features(run)
     rid = run.run_id
-    tail = [{"name": f"tail:{name}", "value": 1, "threshold": 1, "ratio": 1.0, "step": steps[0]}
+    tail = [{"name": f"tail:{name}", "value": 1, "threshold": 1, "ratio": 1.0, "step": steps[0], "op": None}
             for name, steps in f["infra_tail"].items()]
     if not f["actor_inputs_available"]:
         reason = "no actor transcript (actor_inputs_available=false): unknown, not clear"
@@ -606,7 +608,7 @@ def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[
     if f["cycle_step"] is not None and f["cycle_min_distinct"]:
         # fewer distinct commands in the window is worse: ratio = threshold / distinct
         loop.append({"name": "command_cycle", "value": f["cycle_min_distinct"], "threshold": LOOP_CYCLE_DISTINCT,
-                     "ratio": LOOP_CYCLE_DISTINCT / f["cycle_min_distinct"], "step": f["cycle_step"]})
+                     "op": "<=", "ratio": LOOP_CYCLE_DISTINCT / f["cycle_min_distinct"], "step": f["cycle_step"]})
     out.append(_decide(rid, "loop", loop, started, forced=_run_level(f, "loop")))
 
     runaway = _components([

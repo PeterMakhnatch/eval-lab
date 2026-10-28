@@ -6,7 +6,7 @@
   27,
   12
  ],
- "explanation": "identical_command_run=64 (>= 8); repeated_error=11 (>= 10); command_cycle=1 (>= 3)",
+ "explanation": "identical_command_run=64 (>= 8); repeated_error=11 (>= 10); command_cycle=1 (<= 3)",
  "flagged": true,
  "id": "g6-ovn-g5-001136-tuned__QTMzsEL",
  "schema": "evallab.detector_verdict/v1",

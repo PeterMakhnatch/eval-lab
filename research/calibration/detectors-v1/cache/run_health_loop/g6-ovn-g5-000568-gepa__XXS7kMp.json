@@ -6,7 +6,7 @@
   77,
   74
  ],
- "explanation": "identical_command_run=10 (>= 8); command_cycle=2 (>= 3)",
+ "explanation": "identical_command_run=10 (>= 8); command_cycle=2 (<= 3)",
  "flagged": true,
  "id": "g6-ovn-g5-000568-gepa__XXS7kMp",
  "schema": "evallab.detector_verdict/v1",

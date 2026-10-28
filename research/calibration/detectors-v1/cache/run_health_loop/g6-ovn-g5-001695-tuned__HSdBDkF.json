@@ -6,7 +6,7 @@
   112,
   102
  ],
- "explanation": "identical_command_run=9 (>= 8); repeated_error=46 (>= 10); command_cycle=3 (>= 3)",
+ "explanation": "identical_command_run=9 (>= 8); repeated_error=46 (>= 10); command_cycle=3 (<= 3)",
  "flagged": true,
  "id": "g6-ovn-g5-001695-tuned__HSdBDkF",
  "schema": "evallab.detector_verdict/v1",

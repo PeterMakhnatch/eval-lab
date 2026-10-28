@@ -5,7 +5,7 @@
  "evidence_steps": [
   63
  ],
- "explanation": "identical_command_run=27 (>= 8); command_cycle=1 (>= 3)",
+ "explanation": "identical_command_run=27 (>= 8); command_cycle=1 (<= 3)",
  "flagged": true,
  "id": "g6-ovn-g5-001797-stock__yGw88CW",
  "schema": "evallab.detector_verdict/v1",

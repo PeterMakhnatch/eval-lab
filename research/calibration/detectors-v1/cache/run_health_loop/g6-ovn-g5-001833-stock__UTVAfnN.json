@@ -5,7 +5,7 @@
  "evidence_steps": [
   51
  ],
- "explanation": "stop:loop_break=1 (>= 1); identical_message_run=62 (>= 10); completion_claims=64 (>= 5); repeated_error=62 (>= 10)",
+ "explanation": "stop:loop_break; identical_message_run=62 (>= 10); completion_claims=64 (>= 5); repeated_error=62 (>= 10)",
  "flagged": true,
  "id": "g6-ovn-g5-001833-stock__UTVAfnN",
  "schema": "evallab.detector_verdict/v1",

@@ -3,7 +3,7 @@
  "detector": "run_health_infra",
  "detector_version": "run-health/3",
  "evidence_steps": [],
- "explanation": "exception:DaytonaNotFoundError=1 (>= 1)",
+ "explanation": "exception:DaytonaNotFoundError",
  "flagged": true,
  "id": "g6-ovn-g5-001241-stock__FGtdyNH",
  "schema": "evallab.detector_verdict/v1",

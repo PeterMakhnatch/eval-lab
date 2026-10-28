@@ -132,6 +132,8 @@ inputs:
     digest: sha256:193c0cbd80a94083eea56172e3b2498c76e1ce243aeed042a4fd6cb210929d9a
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
+  - path: docs/run-health.md
+    digest: sha256:42d1b2b8148bb3a8bee46c026df7b992442b45eed347561e3dca8961d2fdfc1c
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/storm-alarms.md
@@ -282,6 +284,7 @@ an operator can see what is archived.
 | `docs/research/trajectory-intelligence.md` | Trajectory intelligence: metrics and failure signals | `living` | `analyst` |
 | `docs/run-atlas.md` | Run Atlas | `living` | `analyst, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
+| `docs/run-health.md` | Run Health | `living` | `analyst, operator` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-quality.md` | Judging whether a task is good | `living` | `analyst, operator` |
@@ -397,6 +400,7 @@ an operator can see what is archived.
 | `docs/rollout.md` | Rollout engine (`evallab rollout`) | `living` | `builder, operator` |
 | `docs/run-atlas.md` | Run Atlas | `living` | `analyst, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
+| `docs/run-health.md` | Run Health | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |

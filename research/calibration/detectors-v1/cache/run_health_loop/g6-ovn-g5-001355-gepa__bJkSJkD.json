@@ -5,7 +5,7 @@
  "evidence_steps": [
   10
  ],
- "explanation": "command_cycle=3 (>= 3)",
+ "explanation": "command_cycle=3 (<= 3)",
  "flagged": true,
  "id": "g6-ovn-g5-001355-gepa__bJkSJkD",
  "schema": "evallab.detector_verdict/v1",

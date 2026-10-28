@@ -5,7 +5,7 @@
  "evidence_steps": [
   77
  ],
- "explanation": "completion_claims=14 (>= 5); command_cycle=3 (>= 3)",
+ "explanation": "completion_claims=14 (>= 5); command_cycle=3 (<= 3)",
  "flagged": true,
  "id": "g6-ovn-g5-002302-gepa__sFGLATE",
  "schema": "evallab.detector_verdict/v1",

@@ -15,8 +15,9 @@ the cloud trace database and :func:`trial_run` for a Harbor trial directory.
 Neither reads labels, rewards or publisher judgments, so the same record is safe
 to score against any label set later.
 
-Thresholds are fixed constants (``run-health/2``) set from the unlabelled DEV
-distribution before scoring; scores are continuous so a scorer can still sweep
+Thresholds are fixed constants set from the unlabelled DEV distribution before
+scoring (``run-health/2``); ``run-health/4`` then narrowed the loop rule after a
+blind DEV precision audit. Scores are continuous so a scorer can still sweep
 operating points. A run without an actor transcript is ``unknown`` for every
 kind, never ``clear``; it can still alarm on a run-level exception or stop reason.
 """
@@ -39,7 +40,7 @@ from typing import Any
 from evallab.token_flow import _is_edit, _step_calls, _stitched_steps, normalized_command
 
 FINDING_SCHEMA = "trace-findings/v1"
-DETECTOR_VERSION = "run-health/3"
+DETECTOR_VERSION = "run-health/4"
 KINDS = ("loop", "runaway", "latency", "infra")
 AGENT_SOURCES = frozenset({"agent", "assistant"})
 
@@ -50,22 +51,22 @@ AGENT_SOURCES = frozenset({"agent", "assistant"})
 # already does. A component fires when its value reaches the threshold; a
 # detector's score is its largest value/threshold, so >= 1.0 is an alarm.
 
-#: Consecutive agent steps with one normalized command and no edit (DEV p99 6; the
-#: live watch ``repetition_run`` and the agent's ``loop_command_run_min`` are 8).
+#: Consecutive agent steps with one normalized command, the same tool output and no
+#: edit (DEV p99 6; the live watch ``repetition_run`` and the agent's
+#: ``loop_command_run_min`` are 8). run-health/4 requires the same output too:
+#: on DEV the normalizer maps file paging (``sed -n '1,300p'``, ``'300,600p'``) and
+#: log polling to one command, and blind raters judged 13 of 13 such alarms progress.
 LOOP_COMMAND_RUN = 8
 #: Consecutive byte-identical agent messages (probe03 ``LOOP_MIN_RUN``; DEV p99 1).
 LOOP_MESSAGE_RUN = 10
 #: Completion claims (live watch ``completion_claims``; DEV p99 1).
 LOOP_COMPLETION_CLAIMS = 5
 #: Any window of this many agent steps with at most ``LOOP_CYCLE_DISTINCT`` distinct
-#: commands and no edit (18 of the 1,998 DEV runs with a full edit-free window).
+#: (command, output) pairs and no edit.
 LOOP_CYCLE_WINDOW = 12
 LOOP_CYCLE_DISTINCT = 3
-#: Explicit undo commands after an edit (``git checkout --``, ``git restore``,
-#: ``git reset --hard``, ``patch -R``, restoring a ``.bak``/``.orig`` copy).
-LOOP_EDIT_UNDO = 3
-#: The same normalized error output fed back this many times (DEV p99 8, p99.5 10).
-LOOP_REPEATED_ERROR = 10
+# Explicit undo commands and repeated error output stay features only: blind raters
+# judged 0 of 21 undo-only and 1 of 24 repeated-error DEV alarms to be loops.
 
 #: DEV p99.5 is 250 agent steps (also a common max-turns budget); DEV wall p99 is 1.6 h.
 RUNAWAY_AGENT_STEPS = 250
@@ -201,6 +202,14 @@ _COMPLETION_RE = re.compile(
 _ERROR_LINE_RE = re.compile(r"^.*(?:error|exception|traceback|failed|fatal).*$", re.IGNORECASE | re.MULTILINE)
 _HEX_RE = re.compile(r"0x[0-9a-f]+|\b[0-9a-f]{8,}\b", re.IGNORECASE)
 _DIGITS_RE = re.compile(r"\d+")
+#: Per-call tokens in tool output (error codes, request and container ids): upper-case
+#: or digit runs of 6+ characters, replaced before outputs are compared.
+_CALL_TOKEN_RE = re.compile(r"\b[A-Z0-9_-]{6,}\b")
+
+
+def _output_fingerprint(text: str) -> str:
+    """Tool output with whitespace collapsed and per-call ids and numbers masked."""
+    return _DIGITS_RE.sub("#", _CALL_TOKEN_RE.sub("#", " ".join(text.split())))
 
 
 # --------------------------------------------------------------------------- input
@@ -376,11 +385,14 @@ def features(run: HealthRun) -> dict[str, Any]:
     available = actor_inputs_available(steps) if available is None else bool(available)
 
     signatures = [_signature(s) for s in agent]
+    # A repeat is only a repeat when the environment answered the same way.
+    repeats = [f"{sig}\x00{_output_fingerprint(_observation_text(s))}" if sig else ""
+               for sig, s in zip(signatures, agent, strict=True)]
     edits = [_is_edit(dict(s))[0] for s in agent]
     messages = [str(s.get("message") or "").strip() for s in agent]
-    cmd_run, cmd_at = _longest_run(signatures, edits)
+    cmd_run, cmd_at = _longest_run(repeats, edits)
     msg_run, msg_at = _longest_run(messages)
-    cycle_distinct, cycle_at = _cycle(signatures, edits)
+    cycle_distinct, cycle_at = _cycle(repeats, edits)
     undo_at, repeat_at = _edit_undo(signatures, edits)
     nonempty = [s for s in signatures if s]
     commands = Counter(nonempty)
@@ -601,9 +613,6 @@ def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[
         ("identical_command_run", f["max_identical_command_run"], LOOP_COMMAND_RUN, f["identical_command_run_step"]),
         ("identical_message_run", f["max_identical_message_run"], LOOP_MESSAGE_RUN, f["identical_message_run_step"]),
         ("completion_claims", f["completion_claims"], LOOP_COMPLETION_CLAIMS, None),
-        ("edit_undo_cycles", f["edit_undo_cycles"], LOOP_EDIT_UNDO,
-         f["edit_undo_steps"][0] if f["edit_undo_steps"] else None),
-        ("repeated_error", f["max_repeated_error"], LOOP_REPEATED_ERROR, None),
     ])
     if f["cycle_step"] is not None and f["cycle_min_distinct"]:
         # fewer distinct commands in the window is worse: ratio = threshold / distinct

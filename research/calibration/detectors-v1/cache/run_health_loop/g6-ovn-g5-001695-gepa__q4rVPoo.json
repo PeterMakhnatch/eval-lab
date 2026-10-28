@@ -1,14 +1,11 @@
 {
  "cost_usd": 0.0,
  "detector": "run_health_loop",
- "detector_version": "run-health/3",
- "evidence_steps": [
-  38,
-  72
- ],
- "explanation": "identical_command_run=9 (>= 8); repeated_error=19 (>= 10); command_cycle=3 (<= 3)",
- "flagged": true,
+ "detector_version": "run-health/4",
+ "evidence_steps": [],
+ "explanation": "no component at threshold; max identical_command_run=6",
+ "flagged": false,
  "id": "g6-ovn-g5-001695-gepa__q4rVPoo",
  "schema": "evallab.detector_verdict/v1",
- "score": 1.9
+ "score": 0.75
 }

@@ -1,13 +1,11 @@
 {
  "cost_usd": 0.0,
  "detector": "run_health_loop",
- "detector_version": "run-health/3",
- "evidence_steps": [
-  16
- ],
- "explanation": "identical_command_run=12 (>= 8); command_cycle=1 (<= 3)",
- "flagged": true,
+ "detector_version": "run-health/4",
+ "evidence_steps": [],
+ "explanation": "no component at threshold; max identical_command_run=2",
+ "flagged": false,
  "id": "g6-ovn-g5-001136-stock__jjgSG57",
  "schema": "evallab.detector_verdict/v1",
- "score": 3.0
+ "score": 0.25
 }

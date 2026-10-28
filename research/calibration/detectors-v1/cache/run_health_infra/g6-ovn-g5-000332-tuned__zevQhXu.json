@@ -1,7 +1,7 @@
 {
  "cost_usd": 0.0,
  "detector": "run_health_infra",
- "detector_version": "run-health/3",
+ "detector_version": "run-health/4",
  "evidence_steps": [],
  "explanation": "exception:ServiceUnavailableError",
  "flagged": true,

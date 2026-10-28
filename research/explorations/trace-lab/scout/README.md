@@ -268,7 +268,7 @@ clickable message links — references alone do not render as links.
 The credential-free watcher imports new admitted DEV runs from
 `~/.local/state/evallab-prod-live/cloud-trace-db.sqlite`, runs the four
 message-only deterministic scanners, and appends `evallab.trace_tool_result/v1`
-records to `~/.local/state/evallab-prod-live/trace-tools/results-v1.jsonl`.
+records to `~/.local/state/evallab-prod-live/trace-tools/scout-native-actor-v2/results-v1.jsonl`.
 These are harness-health leads, not confirmed reward-hacking verdicts.
 The six `rule_*` scanners require full Harbor trial directories and are not
 part of this database timer. No hosted reader, model or upload is enabled.
@@ -282,9 +282,19 @@ bash scripts/ops/launchd/install-scout-watch.sh --load
 The LaunchAgent `com.petermakhnatch.evallab.scout-watch` runs at load and every
 300 seconds, scanning at most 128 pending runs per invocation. It checks the
 current snapshot's cross-key admission authority before reading trace bodies.
-Already-imported transcripts are not enough to count as scanned: all four
-scanners must have current-version non-null values. Partial/error scans remain
-pending. Informational null flags do not cause rescanning.
+Admission is not actor-history coverage. Retained control/event journals and
+unbound artifact evidence are quarantined as `actor_history_unavailable`; they
+are never imported as empty conversations or counted clean. Already-imported
+transcripts are not enough to count as scanned: all four scanners must have
+current-projection, current-scanner, non-null values. Partial/error scans remain
+pending; unavailable actor histories remain explicitly unknown. Informational
+null flags do not cause rescanning.
+
+The `native-actor-v2` transcript, key-map, scan and result paths are versioned
+siblings of the old caches. Old transcripts/results are immutable historical
+evidence, not corrected actor coverage. Reusing an unchanged native Goodfire or
+CheatBench measurement requires exact input/step equivalence and explicit
+measurement lineage; it is not a fresh scan. See [Q26](../QUIRKS.md#q26-retained-control-journals-are-not-actor-trajectories).
 
 The installer snapshots the committed repository and its split authority to
 `~/Library/Application Support/evallab/scout-watch/runtime/<commit>/`, with its
@@ -292,12 +302,12 @@ own environment pinned to Inspect Scout 0.5.4 and DuckDB 1.5.5. It does not depe
 on the dirty primary checkout or a disposable worktree. Reinstall from a newer
 merged commit to update code and admission rules; evidence stays in place.
 
-Health is in `~/.local/state/evallab-prod-live/trace-tools/watch-last.json`
+Health is in `~/.local/state/evallab-prod-live/trace-tools/scout-native-actor-v2/watch-last.json`
 (`scanned`, `idle`, `incomplete`, or `error`), with logs under
 `~/Library/Logs/evallab/com.petermakhnatch.evallab.scout-watch*.log`.
 An idle invocation writes a fresh receipt without creating another scan.
 New scan folders are under the existing viewer's
-`derived/trace-lab/scout/scans/trace-tools/watch/` tree at
+`derived/trace-lab/scout/scans/trace-tools-native-actor-v2/watch/` tree at
 <http://127.0.0.1:7576>; no viewer restart is necessary.
 
 For a bounded manual invocation, use

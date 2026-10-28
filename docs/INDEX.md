@@ -93,7 +93,7 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
-    digest: sha256:df9bacf7f5dc9df05cab42825b1a20ea5028cb705a82081b0b9d517dbf3982d2
+    digest: sha256:9d80b98194b4f5b98c6abd0963d73489127313cea08992025cb4164f99ee9640
   - path: docs/open-qa-harness.md
     digest: sha256:cf0a4da37baa714c321301e312826782948bc011e6840a16474f903fe6344b6f
   - path: docs/operating-manual.md
@@ -143,7 +143,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:c815d2b2c26d9b022cc7e0b6fedb33ce5488c83138f5926aaa583c5015f49f5d
+    digest: sha256:92d4d180cbf1fdc7e1af4a13233fbf1660aeb82414ccd93f985813b735a1f28a
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

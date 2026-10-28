@@ -594,6 +594,8 @@ inputs:
     digest: sha256:8d9b4a839b8cb0484ad6bad3d46867b7c83761b4376cd8dc586c140e993764c2
   - path: src/evallab/production/inspector.py
     digest: sha256:5c0f81d453e402c96cc870bbdf53a47fa7a220609556a379220a3b878cd28fbf
+  - path: src/evallab/production/ledger_split.py
+    digest: sha256:4ef138913760e3262bfbdeac3d8b55e5d073cfff6bce54d27a729f5f7ef0b2d9
   - path: src/evallab/production/modal_cloud.py
     digest: sha256:18947556ea27a0c011d9ee10878292478c1a0de0fa08822ac27c25b30e3f9f8f
   - path: src/evallab/production/monitor_worker.py
@@ -603,7 +605,7 @@ inputs:
   - path: src/evallab/production/public_corpus_loader.py
     digest: sha256:6dd834cea54b40d742bb4289f1a7ac2b1586197b27483d1e6b1112095adde01f
   - path: src/evallab/production/qa_data.py
-    digest: sha256:cf7916488ac67e8b6f7b45d5a3d34ec6fcc82cc47d5f6a9dda8152dac9ba05b5
+    digest: sha256:7382871dc87992af951119a3cde88933ff35aab20d1ea2c188f337eaba38189a
   - path: src/evallab/production/qa_data_calls.py
     digest: sha256:5793c936388a304db4061fcd213f4fd76da85c64e13f9e671c73034f80d7ce12
   - path: src/evallab/production/qa_data_export.py
@@ -611,13 +613,13 @@ inputs:
   - path: src/evallab/production/qa_data_findings.py
     digest: sha256:7b2e3eeed802ebe29807a08318c1fe54f5af8626927f4f8ebfaff4af58ce3cbb
   - path: src/evallab/production/qa_data_guide.py
-    digest: sha256:825f0768100bee1d78328614c3f0562ad731fbde3121e191874173d65dc859c2
+    digest: sha256:820c20cd4a50f359cf3cd3e6b3bb8dc4d30451f4de191e37ce4c08bdeb50c34d
   - path: src/evallab/production/qa_data_inventory.py
     digest: sha256:881e34ffbd8f2eceb8d2e069ab0872bfc6f3c492685ec345a8e7563ba0e62b56
   - path: src/evallab/production/qa_data_scan.py
-    digest: sha256:09a1fa7a956303f49745e920914398687720087dac7b01df8698682dd4be3e81
+    digest: sha256:e95c3a94704393eb9a7f30eb8d624f872e6715c295d50ccce0f2329bb0e79292
   - path: src/evallab/production/qa_data_split.py
-    digest: sha256:00c5bae0bcd3ef192ec0d4a5e682353d6fafbf41f9f5f2c9fa0980c6b52f0863
+    digest: sha256:81e212eeb86ac2f7eb58dcc80150c8c0f31b2eb88dbe79a5aee65aa2ae3798a2
   - path: src/evallab/production/qa_data_task.py
     digest: sha256:3b62ccf588d6f89a79743947c752a5c5e4b96457029323a697a1e05acebd8faa
   - path: src/evallab/production/qc_reports.py
@@ -735,9 +737,13 @@ inputs:
   - path: src/evallab/quota.py
     digest: sha256:79b798c4710583be8c809fa7b01a158f52d06f0f3a6f5263ea2ac621befcb43c
   - path: src/evallab/readers/__init__.py
-    digest: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    digest: sha256:57cbc86307fd4f4fb6ef2394550a3fdcad65edf1ab656dab192951608f46534c
   - path: src/evallab/readers/clouddb_blind.py
-    digest: sha256:bda373f3a0c18f7f83ce9699cc3e906d731e8786bbf89dfe3b6025959efbff69
+    digest: sha256:e904ea1e6511df700536a8dd4b778c4c56ad16643890a919e2272e6e9fc5a8f4
+  - path: src/evallab/readers/docent_reading.py
+    digest: sha256:67e2b2bf37fc75dbdd6202ab3d173448741e214021892933f6eb0ee3db662d5e
+  - path: src/evallab/readers/docent_watch.py
+    digest: sha256:b83f90378411b883a25905aef473c66955a409366fff5c856a61d9dd70c9de7b
   - path: src/evallab/readers/harbor_analyze.py
     digest: sha256:7171fd87c259eb50dd986968392bbac7fa212f5dd3a817b3581fca934e8e88d2
   - path: src/evallab/readers/laminar_import.py
@@ -747,13 +753,13 @@ inputs:
   - path: src/evallab/readers/omp_model.py
     digest: sha256:c0e64ac5d9d2943bc387b699fc8b9769dcdf04c49697f8f74034225383a55f35
   - path: src/evallab/readers/scout_clouddb.py
-    digest: sha256:55ca7060a11b1a00fbb49bcb3ae4ee8a48473bbde181beaca82c0ff37564b0f5
+    digest: sha256:0ebbc80dfa66e398cf3e86a26f09bf3e8b52d679519da49e61fe2c8657141876
   - path: src/evallab/readers/scout_metr.py
     digest: sha256:2eb327cf49557ebdf8470d3d4fb9def637ebccab524b45d34794d5164c376315
   - path: src/evallab/readers/scout_watch.py
-    digest: sha256:7b2d6827194c85a2f1b356d24072faabc0a9908e42e7909bdcc29e7c1d2df543
+    digest: sha256:f4f6f07aa55e8d77f03a179dcf470fba0b12896bf2287515319e763965bfbb04
   - path: src/evallab/readers/tool_scorecard.py
-    digest: sha256:ee2318f7464ddfcda59e18c932575545a82f661918fb2664182f9268a96d623f
+    digest: sha256:391ca07a84b148476a1f5ae0e660e28e818434975c741f4ebd67ae7729bd2bc1
   - path: src/evallab/recovery/__init__.py
     digest: sha256:7d1cf972820e3632cf8efc788c6528d630030ddf73a1cc50c5b6ec889cb615dc
   - path: src/evallab/recovery/bundle.py
@@ -959,7 +965,7 @@ inputs:
   - path: src/evallab/trace_store/cli.py
     digest: sha256:1c757506ffa122df8a52b55bac082c65843a1e7cc715d7a640e0d09b5cc1f9ce
   - path: src/evallab/trace_store/core.py
-    digest: sha256:4d361a7c49e651b7b94e87dd28ca13ea53a6d74e3c272d795c9957c1ebce789f
+    digest: sha256:5a37f17f16dcdece35b5b01922a563933d06ca7f3fbcbed57790cff2c0aa9ec9
   - path: src/evallab/trace_store/docent.py
     digest: sha256:0a51e1db7a2c0f39a011d9025732e5015da95c0405fcc11c858f500d02cabf86
   - path: src/evallab/trace_store/fetch.py
@@ -973,7 +979,7 @@ inputs:
   - path: src/evallab/trace_store/sync.py
     digest: sha256:a9c709533cf78be51169ba8d0d9a42a19ee889199cc75de4fcbe2978c90a580c
   - path: src/evallab/trace_store/watch.py
-    digest: sha256:b0808cba25ece6fd1ec0f6780cb54f67d322a458b95f8b49df51da03042b122e
+    digest: sha256:c5bf9d6960e25a7fa5cff1911755c678443b5f8f47474731fd05e4cc4e33fa9b
   - path: src/evallab/tracing.py
     digest: sha256:5166b3122ef3afbd2d6cf937d941bd7b6a7e53ba6063a050a4734b43b3492a58
   - path: src/evallab/training_eligibility.py
@@ -1354,6 +1360,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.gate_progress` | 300 | Task QA gate-rerun progress for the dashboard: counts from the OQ-6 coverage summaries. | — |
 | `production.ingest` | 600 | Admit public DEV corpus records without inventing executable work. | — |
 | `production.inspector` | 900 | Bounded trace projections and root-confined DEV-only grader comparisons. | — |
+| `production.ledger_split` | 100 | Ledger-side split lookup for a Verifier: DEV / TEST / UNKNOWN for a task or a (key, item) pair. | — |
 | `production.modal_cloud` | 1000 | Authenticated Modal production control plane, durable stores, and CPU workers. | — |
 | `production.monitor_worker` | 2600 | Causal trace monitoring and executor-acknowledged run control. | — |
 | `production.outbox_relay` | 1200 | Publish durable production journal envelopes to scoped JetStream subjects. | — |
@@ -1362,10 +1369,10 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.qa_data_calls` | 300 | ``qa-data`` calls over runs and history: run search, step windows, past issues and cards. | — |
 | `production.qa_data_export` | 200 | Admission-first blinded exports and reward-free joins between original and exported steps. | — |
 | `production.qa_data_findings` | 600 | Read-only, admitted-DEV findings from the local trace-tool result ledgers. | — |
-| `production.qa_data_guide` | 100 | The text of ``evallab qa-data --help``: what an agent with no other documentation needs. | — |
+| `production.qa_data_guide` | 200 | The text of ``evallab qa-data --help``: what an agent with no other documentation needs. | — |
 | `production.qa_data_inventory` | 300 | Admission-first QA listings and source-snapshot counts, never blind-reader inputs. | — |
 | `production.qa_data_scan` | 100 | ``qa-data scan``: deterministic Scout text scanners over a blinded ``export --format scout`` file. | — |
-| `production.qa_data_split` | 100 | ``qa-data split``: a label-free DEV / TEST / UNKNOWN lookup for a task or a (key, item) pair. | — |
+| `production.qa_data_split` | 100 | ``qa-data split``: confirms DEV for an admitted id, and refuses every other id the same way. | — |
 | `production.qa_data_task` | 500 | Read-only task packages for the admitted DEV ``qa-data`` surface. | — |
 | `production.qc_reports` | 1400 | Export the Trust & QC retained reports as exact-byte, validated artifacts. | — |
 | `production.relay` | 300 | Initial-open database failover and an acknowledged, at-least-once outbox relay. | — |
@@ -1424,15 +1431,17 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `quality_audit` | 300 | HAR-25 harness-first cohort quality audit. | — |
 | `queue` | 3700 | The refusal an operator reads — in `submit` output and in queue/reasons/. | `submit`, `approve`, `reject`, `stop`, `resume`, `ingest`, `trajectories` |
 | `quota` | 1300 | Subscription-quota accounting for paid agents, measured instead of estimated. | — |
-| `readers` | 100 | Package `evallab.readers`. | — |
+| `readers` | 100 | Shared reader contracts without optional SDK imports. | — |
 | `readers.clouddb_blind` | 200 | Lossless, label-free conversation projections for the admitted DEV corpus. | — |
+| `readers.docent_reading` | 200 | Pinned Docent hosted-only, literal-context readings for admitted own runs. | — |
+| `readers.docent_watch` | 300 | Periodic hosted-free Docent triage of attested, admitted own DEV actors. | — |
 | `readers.harbor_analyze` | 500 | Run Harbor's native readers on writable copies and normalize real outputs. | — |
 | `readers.laminar_import` | 300 | Score imported Harbor-shaped trials with Laminar Signals (HAR-187). | — |
 | `readers.laminar_signals` | 100 | Laminar Signals as a trace reader: one ``evallab.reader_verdict/v1`` per trial. | — |
 | `readers.omp_model` | 300 | Opt-in Inspect provider backed by OMP's stored provider credentials. | — |
-| `readers.scout_clouddb` | 400 | Blinded DEV DB/ATIF conversations through Inspect Scout 0.5.4, entirely local. | — |
+| `readers.scout_clouddb` | 600 | Blinded DEV DB/ATIF conversations through Inspect Scout 0.5.4, entirely local. | — |
 | `readers.scout_metr` | 400 | METR reward_hacking scanner (native prompts; Z.ai transport shim). | — |
-| `readers.scout_watch` | 100 | Scan newly admitted DEV traces locally on a periodic, credential-free timer. | — |
+| `readers.scout_watch` | 200 | Scan newly admitted DEV traces locally on a periodic, credential-free timer. | — |
 | `readers.tool_scorecard` | 400 | Join blinded whole-run detector results to DEV labels and cascade decisions. | — |
 | `recovery` | 100 | Package `evallab.recovery`. | — |
 | `recovery.bundle` | 200 | Defines `RecoveryContractModel`, `CommandOutcome`, `FileEntry`, `FilesystemManifest`, …. | — |
@@ -1536,7 +1545,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `trace_query` | 1300 | Read-only trace query interface over evaluated Harbor trials (HAR-131). | — |
 | `trace_store` | 100 | Private, label-free, incremental cloud storage for admitted DEV traces. | — |
 | `trace_store.cli` | 100 | Lazy JSON CLI registration for private trace storage and retrieval. | — |
-| `trace_store.core` | 400 | Read-only, admitted trace payloads for the private trace stores. | — |
+| `trace_store.core` | 300 | Read-only, admitted trace payloads for the private trace stores. | — |
 | `trace_store.docent` | 300 | Private, deterministic Docent ingestion using the pinned 0.1.88 wire format. | — |
 | `trace_store.fetch` | 200 | Read stored Laminar spans or private Docent runs without model calls. | — |
 | `trace_store.laminar` | 200 | Lossless DB-message projection through Eval Lab's existing OTLP encoders. | — |
@@ -1813,8 +1822,8 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 
 | Name | Location | Written by |
 |---|---|---|
-| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
-| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
+| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `readers.scout_clouddb`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
+| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `readers.scout_clouddb`, `report`, `rl_rollouts`, `seeker.confine`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
 | `acceptance_decisions.parquet` | `acceptance_decisions/acceptance_decisions.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime` |
 | `action_effects.parquet` | `derived/parquet/**/action_effects.parquet` | `evidence.atif` |
 | `action_transition_edges.parquet` | `derived/parquet/**/action_transition_edges.parquet` | `interpretation.trajectory_sequence` |

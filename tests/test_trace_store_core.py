@@ -32,6 +32,19 @@ TB2 = "tb2-to-tb21-v1"
 TB4 = "tb4-audit-v1"
 SOURCE_RUNS = ("mimo30", "muse-r1", "muse-r2", "muse-w5", "tb2-to-tb21", "kimi-tb4")
 ANNOTATION = "synthetic-evaluator-annotation-not-actor-content"
+ACTOR_JSON = json.dumps({
+    "prior_feedback": {"label": "previous attempt", "reward": 0.0, "is_exploit": False},
+    "label": "actor configuration", "labels": ["input", "output"],
+    "source_label": "a user-supplied field", "is_exploit": False,
+    "trust_tier": "local", "flagged_passage_steps": [2],
+    "receipt": {"message": "Keep the actual earlier feedback: café 完整."},
+    "verified_receipt_json": {"reward": 0}, "answer-key": {"name": "configuration"},
+    "answer_key": "actor data", "generation_receipt": {"status": "retry"},
+    "source_receipt": "earlier actor input", "flags_json": {"label": "configuration"},
+    "source_passages": ["prior feedback supplied to the actor"],
+    "source_judge_flags": {"note": "supplied context"}, "passage_positive": False,
+    "reward": 1, "rewards": [0, 1],
+}, ensure_ascii=False)
 
 
 @dataclass
@@ -307,6 +320,120 @@ def test_loading_rejects_missing_and_mismatched_identity(corpus: Corpus) -> None
                    cas_root=corpus.cas_root)
 
 
+@pytest.mark.parametrize("trace_kind", [
+    "seeker_attempt_event_transcript",
+    "seeker_event_journal",
+    "historical_rejected_task_quality_journal",
+    "selected_task_quality_event_journal",
+    "native_execution_receipt_record",
+    "retained_differential_receipt",
+    "retained_native_artifact_observation",
+])
+@pytest.mark.parametrize("feedback", [1.0, "grader unavailable"])
+def test_wholly_nonmodel_control_history_is_quarantined_without_hiding_candidates(
+    corpus: Corpus, trace_kind: str, feedback: float | str,
+) -> None:
+    candidates = corpus.select()
+    corpus.con.execute("DELETE FROM trace_steps WHERE trace_id = ?", ("z-own-mimo",))
+    content = json.dumps({"event_type": "seeker.grader_feedback", "feedback": feedback})
+    for index, role in ((2, "system"), (9, "assistant"), (14, "tool")):
+        corpus.step(
+            "z-own-mimo", index, role, content=content, uri="cas://private",
+            flags={"trace_kind": trace_kind, "is_model_message": False},
+        )
+    with pytest.raises(HydrationError) as caught:
+        corpus.load()
+    assert caught.value.category == "actor_history_unavailable"
+    assert caught.value.trace_id == "z-own-mimo"
+    assert content not in str(caught.value)
+    assert corpus.select() == candidates
+    assert not corpus.cas_root.exists()
+
+
+def test_mixed_history_hydrates_only_original_actor_indices_and_preserves_evidence(
+    corpus: Corpus,
+) -> None:
+    candidates = corpus.select()
+    corpus.con.execute(
+        "UPDATE trace_steps SET content_text = ? WHERE trace_id = ? AND step_index = 0",
+        (ACTOR_JSON, "z-own-mimo"),
+    )
+    reasoning = ACTOR_JSON + "\n" + "完整 reasoning\n" * 20_000
+    call = {"id": "actor-call", "name": "bash", "arguments": json.loads(ACTOR_JSON)}
+    corpus.step(
+        "z-own-mimo", 3, "assistant", content=ACTOR_JSON, command=json.dumps([call]),
+        flags={
+            "trace_kind": "retained_model_message", "is_model_message": True,
+            "reasoning_content": reasoning,
+        },
+    )
+    full = ACTOR_JSON + "\n" + "完整 observation\n" * 20_000
+    preview = full[:97]
+    corpus.step(
+        "z-own-mimo", 7, "tool", content=preview,
+        uri=corpus.put_bytes(full.encode("utf-8")),
+        flags={"is_model_message": False, "tool_call_id": "actor-call"},
+    )
+    for index, role, trace_kind, uri, content in (
+        (1, "system", "seeker_attempt_event_transcript", "cas://private", ACTOR_JSON),
+        (4, "tool", "native_execution_receipt_record", "cas://sha256/" + "0" * 64,
+         "controller-only numeric feedback: 1.0"),
+        (9, "system", "retained_native_artifact_observation", None,
+         "controller-only nonnumeric feedback: grader unavailable"),
+    ):
+        corpus.step(
+            "z-own-mimo", index, role, content=content, uri=uri,
+            command='[{"id":"controller-only","name":"bash","arguments":{}}]',
+            flags={
+                "trace_kind": trace_kind, "is_model_message": False,
+                "reasoning_content": "controller-only reasoning",
+            },
+        )
+    payload = corpus.load()
+    assert [message["step_index"] for message in payload.messages] == [0, 3, 7]
+    assert [message["role"] for message in payload.messages] == ["user", "assistant", "tool"]
+    assert payload.messages[0]["content"] == payload.messages[1]["content"] == ACTOR_JSON
+    assert payload.messages[1]["reasoning"] == reasoning
+    assert payload.messages[1]["tool_calls"] == [{
+        "id": "actor-call", "function": "bash", "arguments": call["arguments"],
+    }]
+    assert payload.messages[2]["content"] == full
+    assert payload.messages[2]["tool_call_id"] == "actor-call"
+    assert payload.hydrated_bytes == len(full.encode("utf-8")) - len(preview.encode("utf-8"))
+    assert "controller-only" not in json.dumps(payload.messages)
+    assert ANNOTATION not in json.dumps(payload.messages)
+    assert set(payload.metadata) == METADATA_FIELDS
+    assert corpus.select() == candidates
+
+
+@pytest.mark.parametrize("is_model_message", [False, True])
+def test_unknown_source_kind_is_quarantined_instead_of_partially_exported(
+    corpus: Corpus, is_model_message: bool,
+) -> None:
+    candidates = corpus.select()
+    corpus.step(
+        "z-own-mimo", 8, "system", content="unknown provenance body", uri="cas://private",
+        flags={"trace_kind": "future_unknown_source_kind", "is_model_message": is_model_message},
+    )
+    with pytest.raises(HydrationError) as caught:
+        corpus.load()
+    assert caught.value.category == "actor_history_unavailable"
+    assert caught.value.trace_id == "z-own-mimo"
+    assert caught.value.step_index == 8
+    assert "unknown provenance body" not in str(caught.value)
+    assert corpus.select() == candidates
+
+
+def test_no_actor_steps_is_unavailable_not_an_empty_payload(corpus: Corpus) -> None:
+    candidates = corpus.select()
+    corpus.con.execute("DELETE FROM trace_steps WHERE trace_id = ?", ("z-own-mimo",))
+    with pytest.raises(HydrationError) as caught:
+        corpus.load()
+    assert caught.value.category == "actor_history_unavailable"
+    assert caught.value.trace_id == "z-own-mimo"
+    assert corpus.select() == candidates
+
+
 def test_raw_observation_hydrates_all_utf8_bytes_and_preserves_pairing(corpus: Corpus) -> None:
     full = "café 完整 observation\n" * 20_000
     preview = full[:131]
@@ -387,20 +514,32 @@ def test_observation_without_inline_preview_is_still_hydrated(corpus: Corpus) ->
 def test_all_pointers_including_raw_system_artifacts_are_hydrated(corpus: Corpus) -> None:
     full = "Synthetic actor-visible system context.\n" * 500
     corpus.step("z-own-mimo", 4, "system", content=full[:30],
-                uri=corpus.put_bytes(full.encode("utf-8")))
+                uri=corpus.put_bytes(full.encode("utf-8")),
+                flags={"trace_kind": None, "is_model_message": False})
     payload = corpus.load()
     assert payload.messages[-1]["role"] == "system"
     assert payload.messages[-1]["content"] == full
     assert payload.hydrated_bytes == len(full.encode("utf-8")) - 30
 
 
-def test_preview_bound_raw_json_artifacts_remain_exact(corpus: Corpus) -> None:
-    raw = b'{\n  "tool_output": ["one", "two"],\n  "count": 2\n}\n'
-    preview = raw[:18].decode()
+@pytest.mark.parametrize("raw", [
+    b'{\n  "tool_output": ["one", "two"],\n  "count": 2\n}\n',
+    (ACTOR_JSON + "\n").encode("utf-8"),
+    b'{"results":[{"content":"actor-supplied result"}],"reward":1}\n',
+    b'{"results": invalid}',
+    b'{"source_label":"clipped',
+    rb'{"sour\u0063e_label":"clipped',
+    b' [ {"label": "unterminated actor output',
+])
+@pytest.mark.parametrize("binding", ["prefix", "exact"])
+def test_preview_bound_raw_actor_bytes_remain_exact_even_when_json_is_malformed(
+    corpus: Corpus, raw: bytes, binding: str,
+) -> None:
+    preview = (raw[:17] if binding == "prefix" else raw).decode("utf-8")
     corpus.step("z-own-mimo", 1, "tool", content=preview, uri=corpus.put_bytes(raw))
     payload = corpus.load()
-    assert payload.messages[-1]["content"] == raw.decode()
-    assert payload.hydrated_bytes == len(raw) - len(preview.encode())
+    assert payload.messages[-1]["content"].encode("utf-8") == raw
+    assert payload.hydrated_bytes == len(raw) - len(preview.encode("utf-8"))
 
 
 def test_raw_json_message_field_does_not_discard_other_actor_fields(corpus: Corpus) -> None:
@@ -409,64 +548,68 @@ def test_raw_json_message_field_does_not_discard_other_actor_fields(corpus: Corp
     assert corpus.load().messages[-1]["content"] == raw.decode()
 
 
-@pytest.mark.parametrize("field", [
-    "source_label", "is_exploit", "trust_tier", "flagged_passage_steps", "receipt",
-    "verified_receipt_json", "answer-key", "labels", "reward", "flags_json",
-    "generation_receipt", "source_receipt",
-])
-def test_raw_evaluator_json_is_rejected_even_with_exact_preview_binding(
-    corpus: Corpus, field: str,
-) -> None:
-    raw = json.dumps({"nested": {field: ANNOTATION}}).encode()
-    corpus.step("z-own-mimo", 2, "tool", content=raw.decode(), uri=corpus.put_bytes(raw))
-    with pytest.raises(HydrationError) as caught:
-        corpus.load()
-    assert caught.value.category == "evaluator_fields"
-    assert ANNOTATION not in str(caught.value)
-
-
 @pytest.mark.parametrize(("role", "slot"), [
     ("system", "content"), ("user", "content"), ("assistant", "content"),
     ("tool", "content"), ("agent", "content"), ("agent", "preview"),
 ])
-@pytest.mark.parametrize("field", [
-    "source_label", "is_exploit", "trust_tier", "answer-key", "flags_json", "generation_receipt",
-])
-def test_inline_evaluator_envelopes_fail_without_cas(
-    corpus: Corpus, role: str, slot: str, field: str,
+@pytest.mark.parametrize("provenance", [
+    {}, {"trace_kind": None, "is_model_message": False}, {"is_model_message": True},
+], ids=["source-native", "nonmodel-native", "model-native"])
+def test_actor_json_keys_and_actual_prior_feedback_survive_in_all_native_slots(
+    corpus: Corpus, role: str, slot: str, provenance: dict[str, Any],
 ) -> None:
-    envelope = json.dumps({"nested": {field: ANNOTATION}})
+    reasoning = ACTOR_JSON + "\n" + "完整 reasoning\n" * 20_000
+    call = {"id": "actor-call", "name": "bash", "arguments": json.loads(ACTOR_JSON)}
     corpus.step(
         "z-own-mimo", 3, role,
-        content=envelope if slot == "content" else "Inspecting.",
-        preview=envelope if slot == "preview" else None,
+        content=ACTOR_JSON if slot == "content" else "Inspecting.",
+        preview=ACTOR_JSON if slot == "preview" else None,
+        command=json.dumps([call]),
+        flags={**provenance, "reasoning_content": reasoning, "tool_call_id": "actor-call"},
     )
-    with pytest.raises(HydrationError) as caught:
-        corpus.load()
-    assert caught.value.category == "evaluator_fields"
-    assert caught.value.trace_id == "z-own-mimo"
-    assert caught.value.step_index == 3
-    assert ANNOTATION not in str(caught.value)
+    payload = corpus.load()
+    projected = [message for message in payload.messages if message["step_index"] == 3]
+    assert len(projected) == (2 if slot == "preview" else 1)
+    assert projected[0]["role"] == ("assistant" if role == "agent" else role)
+    assert projected[0]["content"] == (ACTOR_JSON if slot == "content" else "Inspecting.")
+    assert projected[0]["reasoning"] == reasoning
+    assert projected[0]["tool_calls"] == ([{
+        "id": "actor-call", "function": "bash", "arguments": call["arguments"],
+    }] if role in {"assistant", "agent"} else [])
+    if slot == "preview":
+        assert projected[1]["role"] == "tool"
+        assert projected[1]["content"] == ACTOR_JSON
+        assert projected[1]["tool_call_id"] == "actor-call"
+    elif role == "tool":
+        assert projected[0]["tool_call_id"] == "actor-call"
+    assert payload.hydrated_bytes == 0
     assert not corpus.cas_root.exists()
 
 
 @pytest.mark.parametrize("layers", [1, 2, 3])
-def test_quoted_evaluator_json_is_rejected_recursively(corpus: Corpus, layers: int) -> None:
-    content = json.dumps({"is_exploit": ANNOTATION})
+@pytest.mark.parametrize("role", ["user", "assistant", "tool"])
+def test_quoted_actor_json_is_preserved_without_recursive_censorship(
+    corpus: Corpus, layers: int, role: str,
+) -> None:
+    content = ACTOR_JSON
     for _ in range(layers):
-        content = json.dumps(content)
-    corpus.step("z-own-mimo", 2, "tool", content=content)
-    with pytest.raises(HydrationError) as caught:
-        corpus.load()
-    assert caught.value.category == "evaluator_fields"
-    assert ANNOTATION not in str(caught.value)
+        content = json.dumps(content, ensure_ascii=False)
+    reasoning = content + "\n" + "完整 reasoning\n" * 20_000
+    corpus.step("z-own-mimo", 2, role, content=content, flags={"reasoning_content": reasoning})
+    payload = corpus.load()
+    assert payload.messages[-1]["content"] == content
+    assert payload.messages[-1]["reasoning"] == reasoning
+    assert payload.hydrated_bytes == 0
 
 
-def test_goodfire_inline_evaluator_envelope_is_also_rejected(corpus: Corpus) -> None:
-    corpus.step("a-goodfire", 2, "tool", content='{"source_label":"not actor content"}')
-    with pytest.raises(HydrationError) as caught:
-        corpus.load("a-goodfire")
-    assert caught.value.category == "evaluator_fields"
+def test_goodfire_inline_actor_json_is_preserved(corpus: Corpus) -> None:
+    corpus.step(
+        "a-goodfire", 2, "tool", content=ACTOR_JSON,
+        flags={"trace_kind": None, "is_model_message": False},
+    )
+    payload = corpus.load("a-goodfire")
+    assert payload.messages[-1]["content"] == ACTOR_JSON
+    assert payload.hydrated_bytes == 0
 
 
 @pytest.mark.parametrize("content", [
@@ -492,28 +635,48 @@ def test_inline_actor_prose_and_code_are_preserved_verbatim(
     '{"source_label":"clipped',
     r'{"sour\u0063e_label":"clipped',
 ])
-def test_clipped_evaluator_json_preview_cannot_be_silently_scrubbed(
+def test_known_actor_envelope_hydration_is_not_blocked_by_key_named_preview(
     corpus: Corpus, preview: str,
 ) -> None:
-    uri = corpus.put_bundle({"content": "otherwise safe actor output", "source_label": ANNOTATION})
+    uri = corpus.put_bundle({"content": ACTOR_JSON, "source_label": ANNOTATION})
     corpus.step("z-own-mimo", 2, "tool", content=preview, uri=uri)
-    with pytest.raises(HydrationError) as caught:
-        corpus.load()
-    assert caught.value.category == "evaluator_fields"
+    payload = corpus.load()
+    assert payload.messages[-1]["content"] == ACTOR_JSON
+    assert ANNOTATION not in json.dumps(payload.messages)
+    assert payload.hydrated_bytes == len(ACTOR_JSON.encode("utf-8")) - len(preview.encode("utf-8"))
 
 
 @pytest.mark.parametrize("content", [
-    {"source_label": ANNOTATION}, '{"source_label":"synthetic-annotation"}',
+    json.loads(ACTOR_JSON), ACTOR_JSON, [json.loads(ACTOR_JSON)], json.dumps(ACTOR_JSON),
 ])
-def test_annotations_nested_in_projected_content_fail(corpus: Corpus, content: Any) -> None:
-    uri = corpus.put_bundle({"results": [{"content": content}]})
-    corpus.step("z-own-mimo", 2, "tool", content="preview", uri=uri)
-    with pytest.raises(HydrationError):
-        corpus.load()
+def test_known_observation_fields_preserve_actor_data_and_exclude_all_envelope_siblings(
+    corpus: Corpus, content: Any,
+) -> None:
+    uri = corpus.put_bundle({
+        "results": [{
+            "content": content, "source_call_id": "actor-call",
+            "source_label": ANNOTATION, "future_envelope_sibling": ANNOTATION,
+        }],
+        "reward": ANNOTATION, "future_envelope_sibling": ANNOTATION,
+    })
+    corpus.step("z-own-mimo", 2, "tool", content="preview", uri=uri,
+                flags={"tool_call_id": "actor-call"})
+    payload = corpus.load()
+    expected = (
+        content if isinstance(content, str)
+        else json.dumps(content, ensure_ascii=False, sort_keys=True)
+    )
+    assert payload.messages[-1]["content"] == expected
+    assert payload.messages[-1]["tool_call_id"] == "actor-call"
+    assert ANNOTATION not in json.dumps(payload.messages)
+    assert "future_envelope_sibling" not in json.dumps(payload.messages)
 
 
 @pytest.mark.parametrize(("raw", "category"), [
     (b'{"results": invalid}', "malformed_json"),
+    (b'{"source_label":"unbound controller-looking JSON"}', "unsupported_schema"),
+    (b'{"source_label":"clipped', "malformed_json"),
+    (rb'{"sour\u0063e_label":"clipped', "malformed_json"),
     (b'{"results":[{"not_content":"annotation"}]}', "malformed_observation"),
     (b'{"results":[]}', "malformed_observation"),
     (b'{"unknown_envelope":"not actor content"}', "unsupported_schema"),
@@ -553,7 +716,7 @@ def test_missing_and_digest_mismatched_cas_fail(corpus: Corpus) -> None:
     assert caught.value.category == "digest_mismatch"
 
 
-def test_every_pointer_is_checked_even_after_successful_hydration(corpus: Corpus) -> None:
+def test_every_actor_pointer_is_checked_even_after_successful_hydration(corpus: Corpus) -> None:
     corpus.step("z-own-mimo", 1, "tool", content="preview",
                 uri=corpus.put_bytes(b"preview full actor output"))
     corpus.step("z-own-mimo", 5, "tool", content="second preview",

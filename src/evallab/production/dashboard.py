@@ -24,6 +24,7 @@ DASHBOARD: str = r"""<!doctype html>
 .task-section{margin-top:22px}.task-section h3{margin:0 0 8px}.task-section>p{margin:0 0 8px}.task-command{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--raised);font:12px var(--mono)}.task-command-row{margin:12px 0}.task-lines{display:grid;gap:3px;min-width:0}.task-lines small{color:var(--muted);overflow-wrap:anywhere}.task-runs .cloud-table{min-width:1280px}.task-qa .cloud-table,.task-seeker .cloud-table,.task-fixes .cloud-table{min-width:900px}
 .reliability-bar{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}.reliability-track{display:block;width:140px;height:6px;border-radius:3px;background:var(--line)}.atlas-tools .cloud-table.reliability-table{min-width:560px}
 .repairs-table .cloud-table{min-width:1100px}.repairs-table td>div{display:grid;gap:3px;min-width:0}.repairs-table td small{color:var(--muted);overflow-wrap:anywhere}.repairs-table td a{color:var(--blue);overflow-wrap:anywhere}
+.gate-table .cloud-table{min-width:1100px}.gate-table td>div{display:grid;gap:3px;min-width:0}.gate-table td small{color:var(--muted);overflow-wrap:anywhere}.gate-bar{display:block;height:6px;border-radius:3px;background:var(--line);width:140px}.gate-fill{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}
 .scope-box{margin:16px 0}.scope-box h3{margin:0 0 6px}.scope-lines{margin:0 0 10px;padding-left:18px;color:var(--muted)}.scope-lines li{margin:2px 0}.scope-box .cloud-table{min-width:1100px}
 .crosstest-table .cloud-table{min-width:1320px}.crosstest-table td>div{display:grid;gap:3px;min-width:0}.crosstest-table td small{color:var(--muted);overflow-wrap:anywhere}.crosstest-table td a{color:var(--blue);overflow-wrap:anywhere}.crosstest-table details .cloud-table{min-width:0}.crosstest-table summary{cursor:pointer;color:var(--blue)}.crosstest-hold{margin-top:22px}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
@@ -185,6 +186,11 @@ DASHBOARD: str = r"""<!doctype html>
 <section id="task-view" class="panel" role="tabpanel" aria-labelledby="task-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">One admitted DEV task / runs, tool findings, Task QA, seeker differentials, grader fixes</div><h2>Task Evidence</h2></div><button id="task-refresh" type="button" class="small">Refresh task</button></div>
  <p class="seal">Retained records for one task, not a verdict. A tool that did not read a run abstained, which is neither a miss nor a clean pass; no finding recorded means none recorded.</p>
+<details id="task-gate" class="atlas-tools" open>
+ <summary>Gate rerun progress · the corrected Task QA gate on the DEV tasks, per model and arm</summary>
+ <p id="task-gate-status" class="notice" role="status"></p>
+ <div id="task-gate-body" class="gate-table"></div>
+</details>
  <form id="task-form" class="cloud-filters">
   <div class="cloud-query"><label for="task-query">Task id (two or more characters)</label><input id="task-query" type="search" autocomplete="off" maxlength="300" placeholder="e.g. terminal-bench/vf2-speedup-networkx"></div>
   <div class="actions"><button type="submit" class="primary">Find task</button><button id="task-copy-link" type="button">Copy link to this task</button></div>
@@ -1455,8 +1461,65 @@ async function searchTasks(){
   if(version===taskSearchVersion)notice('task-status',cloudError(error,'Task search'),true);
  }
 }
+const gateScope='keyed subset, not population false-alarm rate';
+function gateKeys(gate,row,planned){
+ const cell=node('div');
+ if(!gate){cell.append(node('span','Not read yet','muted'));return cell;}
+ cell.append(node('strong',cloudCount(gate.matched_keys)+' of '+cloudCount(row.keys_read)+' keys'));
+ if(row.keys_read<planned)cell.append(node('small',cloudCount(row.keys_read)+' of '+cloudCount(planned)+' keys read so far'));
+ cell.append(node('small',gateScope));
+ return cell;
+}
+function gatePrecision(gate){
+ const cell=node('div');
+ if(!gate){cell.append(node('span','Not read yet','muted'));return cell;}
+ if(!gate.eligible_findings)cell.append(node('strong','No eligible findings'),node('small','precision is undefined, not 100%'));
+ else cell.append(node('strong',cloudCount(gate.matched_keys)+' of '+cloudCount(gate.eligible_findings)+' findings'));
+ cell.append(node('small',gateScope));
+ return cell;
+}
+function taskGate(data){
+ const parent=$('task-gate-body'),progress=data.progress;
+ parent.replaceChildren();
+ if(!data.present)return;
+ const total=progress.cohort.dev_tasks,rows=list(progress.rows);
+ const answered=rows.reduce((sum,row)=>sum+row.answered,0),possible=rows.length*total;
+ const tiles=node('div',undefined,'metrics');
+ tiles.append(cloudTile(cloudCount(progress.cohort.dev_tasks),'DEV tasks per model and arm'),
+  cloudTile(cloudCount(progress.cohort.keyed_tasks)+' keyed / '+cloudCount(progress.cohort.unkeyed_tasks)+' unkeyed','Unkeyed tasks are not certified negatives'),
+  cloudTile(cloudCount(progress.cohort.planned_keys),'Keys across the keyed tasks'),
+  cloudTile(cloudCount(answered)+' / '+cloudCount(possible),'Tasks answered, all models and arms'));
+ parent.append(tiles,progress.all_answered?badge('Every model and arm has answered all DEV tasks','good'):badge('Partial: not every model and arm has answered all DEV tasks','warn'),
+  node('small','Exported '+scopeTime(progress.exported_at)+' from the retained OQ-6 coverage summary (sha256 '+progress.source.coverage_sha256.slice(0,12)+'); the checkpoint column is the v4 checkpoint.'));
+ parent.append(cloudTable(['Model · arm','Tasks answered','At v4 checkpoint','Consumed','Quota-pending','Failed','Keyed recall · 0.5 floor','Keyed recall · old 0.8 gate','Keyed precision · 0.5 floor','Keyed precision · old 0.8 gate'],
+  rows.map(row=>{
+   const done=node('div'),track=node('span',undefined,'gate-bar'),fill=node('span',undefined,'gate-fill');
+   fill.style.width=(100*row.answered/total)+'%';track.append(fill);
+   done.append(node('strong',cloudCount(row.answered)+' of '+cloudCount(total)+' tasks'),track);
+   if(row.scorer_quota_pending)done.append(node('small',cloudCount(row.scorer_quota_pending)+' answered tasks await their scorer (quota)'));
+   return [row.route+' · arm '+row.arm,done,cloudCount(row.baseline_answered)+' of '+cloudCount(total),cloudCount(row.consumed),
+    cloudCount(row.quota_pending),cloudCount(row.failed),gateKeys(row.new_0_5,row,progress.cohort.planned_keys),
+    gateKeys(row.old_0_8,row,progress.cohort.planned_keys),gatePrecision(row.new_0_5),gatePrecision(row.old_0_8)];
+  })));
+}
+let taskGateVersion=0;
+async function loadTaskGate(){
+ const version=++taskGateVersion;
+ notice('task-gate-status','Loading gate rerun progress\u2026');
+ try{
+  const data=await cloudApi('/api/cloud-db/task-evidence/gate-progress?split=dev');
+  if(version!==taskGateVersion)return;
+  taskGate(data);
+  notice('task-gate-status',data.present?data.notice:'No gate rerun progress is retained ('+data.error+'). Set EVALLAB_GATE_PROGRESS to gate-progress-v1.json or place it at task-qa/gate-progress-v1.json in the data root. Nothing is fabricated; a missing count is not zero.',!data.present&&data.error!=='not retained');
+ }catch(error){
+  if(version===taskGateVersion){
+   $('task-gate-body').replaceChildren();
+   notice('task-gate-status',cloudError(error,'Gate rerun progress'),true);
+  }
+ }
+}
 $('task-form').addEventListener('submit',event=>{event.preventDefault();searchTasks();});
-$('task-refresh').addEventListener('click',()=>{if(taskId)loadTask();else searchTasks();});
+$('task-refresh').addEventListener('click',()=>{loadTaskGate();if(taskId)loadTask();else searchTasks();});
 $('task-copy-link').addEventListener('click',()=>{
  if(taskId)copyText(taskLink(taskId),'the link to this task','task-status');
  else notice('task-status','Open a task first.',true);
@@ -1734,7 +1797,7 @@ for(const tab of viewTabs){
   if(tab.id==='tools-tab')loadTraceTools();
   if(tab.id==='repairs-tab')loadRepairs();
   if(tab.id==='crosstest-tab')loadCrosstest();
-  if(tab.id==='task-tab'&&taskId)loadTask();
+  if(tab.id==='task-tab'){loadTaskGate();if(taskId)loadTask();}
   if(tab.id==='trust-tab')loadTrustQc();
  });
  tab.addEventListener('keydown',event=>{

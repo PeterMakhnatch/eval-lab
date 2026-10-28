@@ -1,8 +1,8 @@
 """Read-only, admitted trace payloads for the private trace stores.
 
-Selection shares the blind reader's exact DEV/cross-key gate. Observation CAS
-objects are verified before actor text is projected; evaluator envelopes are
-never exported wholesale, even when their previews were stored as messages.
+Selection shares the blind reader's exact DEV/cross-key gate and native actor
+provenance boundary. Verified CAS observations preserve exact actor bytes;
+control/event journals are not reconstructed as conversations.
 """
 
 from __future__ import annotations
@@ -16,7 +16,12 @@ from pathlib import Path
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
-from evallab.readers.clouddb_blind import TraceRef, blind_messages, dev_trace_refs
+from evallab.readers.clouddb_blind import (
+    ActorHistoryUnavailable,
+    TraceRef,
+    blind_messages,
+    dev_trace_refs,
+)
 
 GOODFIRE_DATASET = "goodfire-reward-hack-data"
 ALLOWED_DATASETS = frozenset({
@@ -31,16 +36,6 @@ _OWN_RUNS = {
     "tb4-audit-v1": frozenset({"kimi-tb4", "muse-r1"}),
 }
 _CAS_URI = re.compile(r"cas://sha256/([0-9a-f]{64})\Z")
-# These are evaluator/source annotations, not actor-visible observation fields.
-# Normalize hyphens only so answer-key and answer_key have the same boundary.
-_EVALUATOR_FIELDS = frozenset({
-    "label", "labels", "source_label", "is_exploit", "trust_tier",
-    "flagged_passage_steps", "receipt", "verified_receipt_json", "answer_key",
-    "generation_receipt", "source_receipt",
-    "flags_json", "source_passages", "source_judge_flags", "passage_positive",
-    "reward", "rewards",
-})
-_JSON_KEY = re.compile(r'"(?:[^"\\]|\\.)*"\s*:')
 
 
 @dataclass(frozen=True)
@@ -122,43 +117,6 @@ def select_traces(
     return sorted(selected, key=lambda ref: (ref.dataset_id == GOODFIRE_DATASET, ref.trace_id))
 
 
-def _has_evaluator_fields(value: Any) -> bool:
-    if isinstance(value, dict):
-        return any(
-            str(key).casefold().replace("-", "_") in _EVALUATOR_FIELDS
-            or _has_evaluator_fields(item)
-            for key, item in value.items()
-        )
-    if isinstance(value, list):
-        return any(_has_evaluator_fields(item) for item in value)
-    if isinstance(value, str):
-        return _unsafe_actor_text(value)
-    return False
-
-
-def _unsafe_actor_text(text: str) -> bool:
-    stripped = text.lstrip()
-    if not stripped.startswith(("{", "[", '"')):
-        return False
-    try:
-        return _has_evaluator_fields(json.loads(text))
-    except ValueError:
-        # Only objects/arrays have a meaningful clipped-key fallback. An
-        # invalid quoted string is ordinary prose/code, not a JSON envelope.
-        if stripped.startswith('"'):
-            return False
-        # A clipped JSON preview must not hide an evaluator-only key that is
-        # already visible. This check does not inspect arbitrary prose/code.
-        for match in _JSON_KEY.finditer(text):
-            try:
-                key = json.loads(match[0].rsplit(":", 1)[0])
-            except ValueError:
-                continue
-            if key.casefold().replace("-", "_") in _EVALUATOR_FIELDS:
-                return True
-        return False
-
-
 def _content(value: Any) -> str:
     if value is None:
         return ""
@@ -236,30 +194,22 @@ def _hydrate(
         text = raw.decode("utf-8")
     except UnicodeError as exc:
         raise fail("invalid_utf8") from exc
-    if _unsafe_actor_text(preview):
-        raise fail("evaluator_fields")
+    # The reader has already established that this slot belongs to the actor
+    # chronology. A matching stored prefix binds the exact raw observation,
+    # including ordinary JSON/configuration and malformed JSON-looking output.
+    if (preview and text.startswith(preview)) or text == preview:
+        return [(text, None)]
     try:
         bundle = json.loads(text)
     except ValueError as exc:
-        if text.lstrip().startswith(("{", "[")):
-            raise fail("malformed_json") from exc
-        bundle = None
-    # Prefer exact raw actor bytes when a nonempty stored prefix binds them.
-    # This also preserves JSON tool output whose ordinary keys happen to be
-    # named "message" or "content". Evaluator JSON never takes this raw path.
-    bound_raw = (preview and text.startswith(preview)) or text == preview
-    if bound_raw and not _has_evaluator_fields(bundle):
-        observations = [(text, None)]
-    else:
-        try:
-            observations = _observations(bundle)
-        except ValueError as exc:
-            raise fail("malformed_observation") from exc
-        if observations is None:
-            category = "evaluator_fields" if _has_evaluator_fields(bundle) else "unsupported_schema"
-            raise fail(category)
-    if any(_unsafe_actor_text(content) for content, _ in observations):
-        raise fail("evaluator_fields")
+        category = "malformed_json" if text.lstrip().startswith(("{", "[")) else "unsupported_schema"
+        raise fail(category) from exc
+    try:
+        observations = _observations(bundle)
+    except ValueError as exc:
+        raise fail("malformed_observation") from exc
+    if observations is None:
+        raise fail("unsupported_schema")
     return observations
 
 
@@ -328,13 +278,14 @@ def load_trace(
         "run_id": trace_id, "source": dataset_id, "benchmark": task_id.partition("/")[0],
         "model": model_id, "task_id": task_id, "outcome": outcome, "split": split,
     }
-    messages = blind_messages(con, trace_id)
+    try:
+        messages = blind_messages(con, trace_id)
+    except ActorHistoryUnavailable as exc:
+        raise HydrationError(
+            exc.category, trace_id=trace_id, step_index=exc.step_index,
+        ) from exc
     groups: dict[int, list[dict[str, Any]]] = {}
     for message in messages:
-        if _unsafe_actor_text(message["content"]):
-            raise HydrationError(
-                "evaluator_fields", trace_id=trace_id, step_index=message["step_index"],
-            )
         groups.setdefault(message["step_index"], []).append(message)
     root = cas_root if cas_root is not None else (
         Path.home() / ".local/state/evallab-prod-live/cas"
@@ -345,6 +296,8 @@ def load_trace(
         "FROM trace_steps WHERE trace_id = ? AND observation_cas_uri IS NOT NULL ORDER BY step_index",
         (trace_id,),
     ):
+        if index not in groups:
+            continue
         observation_slot = role == "agent" or (role != "tool" and preview is not None)
         stored = preview if observation_slot else content if content is not None else preview
         stored = _content(stored)

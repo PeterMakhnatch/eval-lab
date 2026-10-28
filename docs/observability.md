@@ -86,8 +86,15 @@ including JSON embedded inside tool-message content. Raw-string hits are never
 lost by decoding. Laminar's generated input/output fields use the same logical
 gate. A hit rejects only its trace, including within a Docent batch, and the gate
 is checked before an unchanged-content receipt can skip a trace.
-Evaluator-field rejection also recursively decodes quoted JSON strings; ordinary
-actor prose and code stay intact rather than being scrubbed.
+The native actor boundary selects source conversation records, not keywords:
+retained event journals, receipts and unbound artifact sidecars are not actor
+trajectories. Missing actual actor history is an explicit
+`HydrationError(category="actor_history_unavailable")`, never an empty or clean
+run. A CAS digest or matching preview proves bytes, not actor visibility.
+Conversely, prior feedback genuinely supplied to an actor and native actor
+JSON containing keys such as `label` or `reward` are preserved exactly.
+See [Q26](../research/explorations/trace-lab/QUIRKS.md#q26-retained-control-journals-are-not-actor-trajectories)
+for the source-provenance correction and historical coverage limitation.
 
 Laminar uses the existing project and OTLP encoders, preserving text rather than
 the live watch exporter's clipped display values. Import sequence timestamps are

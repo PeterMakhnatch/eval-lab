@@ -381,9 +381,7 @@ def publish_leads(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return atomic_jsonl(path, rows) | {"preserved_existing_lead_steps": False}
 
 
-def bind_blinding(
-    selected: set[str], facets: dict[str, Any], calls: dict[str, list[Any]]
-) -> tuple[dict[str, Any], set[str]]:
+def bind_blinding(selected: set[str], facets: dict[str, Any]) -> tuple[dict[str, Any], set[str]]:
     refreshed_rows, refreshed_input = selected_jsonl(REFRESHED, selected)
     refreshed = {}
     failures = []
@@ -410,71 +408,105 @@ def bind_blinding(
     others = selected - refreshed_rows.keys()
     if len(others) != 24:
         failures.append({"reason": "nonrefresh_identity_count_not_24"})
+    stores = [
+        run_atlas.DEFAULT_CALLS,
+        run_atlas.ATLAS_ROOT / "watch-calls-v1.jsonl",
+        *sorted((run_atlas.ATLAS_ROOT / "comparisons").rglob("calls*.jsonl")),
+    ]
+    store_inputs = []
+    store_rows = {}
+    for store in stores:
+        rows, metadata = selected_jsonl(store, set(others))
+        store_inputs.append(metadata)
+        store_rows[store] = rows
     other_checks = []
     for run_id in sorted(others):
         facet = facets.get(run_id)
-        entries = calls.get(run_id, [])
-        groups = []
-        pending = []
-        for _line, _digest, call in entries:
-            if call is None:
-                continue
-            if call.get("purpose") == "run":
-                if call.get("status") == "ok":
-                    groups.append(pending)
-                pending = []
-            else:
-                pending.append(call)
-        matches = []
+        hits = []
         if facet is not None:
-            for group in groups:
-                served = {c.get("served_model") for c in group if c.get("status") == "ok"}
-                if served == {facet["facet_model"]} and all(
-                    sum(c.get(name, 0) for c in group) == facet[name]
-                    for name in ("input_tokens", "output_tokens")
-                ):
-                    matches.append(group)
-        detail = {"run_hash": run_hash(run_id), "matching_successful_extractions": len(matches)}
-        if len(matches) != 1:
-            failures.append(
-                {"run_hash": run_hash(run_id), "reason": "selected_form_call_binding_not_unique"}
-            )
-        forms = [
-            c
-            for group in matches
-            for c in group
-            if c.get("purpose") == "form" and c.get("status") == "ok"
-        ]
-        detail["successful_form_calls"] = len(forms)
-        bad = 0
-        timestamps = []
-        for call in forms:
-            try:
-                at = datetime.fromisoformat(str(call.get("at", "")).replace("Z", "+00:00"))
-                if at.tzinfo is None:
-                    raise ValueError("naive timestamp")
-                timestamps.append(at.isoformat())
-                bad += at <= CUTOFF
-            except ValueError:
-                bad += 1
-        detail.update(
-            {"form_calls_not_after_cutoff_or_missing_time": bad, "form_call_times_utc": timestamps}
+            for store, rows in store_rows.items():
+                groups: list[list[Any]] = []
+                pending: list[Any] = []
+                for _line, _digest, call in rows.get(run_id, []):
+                    if call is None:
+                        continue
+                    if call.get("purpose") == "run":
+                        if call.get("status") == "ok":
+                            groups.append(pending)
+                        pending = []
+                    else:
+                        pending.append(call)
+                for group in groups:
+                    served = {c.get("served_model") for c in group if c.get("status") == "ok"}
+                    if served != {facet["facet_model"]} or not all(
+                        sum(c.get(name, 0) for c in group) == facet[name]
+                        for name in ("input_tokens", "output_tokens")
+                    ):
+                        continue
+                    forms = [
+                        c for c in group if c.get("purpose") == "form" and c.get("status") == "ok"
+                    ]
+                    bad = 0
+                    timestamps = []
+                    for call in forms:
+                        try:
+                            at = datetime.fromisoformat(
+                                str(call.get("at", "")).replace("Z", "+00:00")
+                            )
+                            if at.tzinfo is None:
+                                raise ValueError("naive timestamp")
+                            timestamps.append(at.isoformat())
+                            bad += at <= CUTOFF
+                        except ValueError:
+                            bad += 1
+                    hits.append(
+                        {
+                            "store": str(store.relative_to(run_atlas.ATLAS_ROOT)),
+                            "successful_form_calls": len(forms),
+                            "form_calls_not_after_cutoff_or_missing_time": bad,
+                            "form_call_times_utc": timestamps,
+                        }
+                    )
+        unique = len(hits) == 1
+        passes = (
+            unique
+            and bool(hits[0]["successful_form_calls"])
+            and not hits[0]["form_calls_not_after_cutoff_or_missing_time"]
         )
-        if not forms:
+        other_checks.append(
+            {
+                "run_hash": run_hash(run_id),
+                "matching_successful_extractions": len(hits),
+                "store_hits": hits,
+                "passes_strict_gate": passes,
+            }
+        )
+        if not hits:
+            failures.append(
+                {"run_hash": run_hash(run_id), "reason": "no_unique_successful_extraction_group"}
+            )
+            continue
+        if not unique:
+            failures.append(
+                {
+                    "run_hash": run_hash(run_id),
+                    "reason": "selected_form_call_binding_not_unique",
+                    "groups": len(hits),
+                }
+            )
+        if not any(hit["successful_form_calls"] for hit in hits):
             failures.append(
                 {"run_hash": run_hash(run_id), "reason": "selected_successful_form_call_missing"}
             )
-        if bad:
+        if any(hit["form_calls_not_after_cutoff_or_missing_time"] for hit in hits) and not passes:
             failures.append(
                 {
                     "run_hash": run_hash(run_id),
                     "reason": "form_call_not_after_cutoff_or_missing_time",
-                    "calls": bad,
                 }
             )
-        if len(matches) == 1 and forms and not bad:
+        if passes:
             bound.add(run_id)
-        other_checks.append(detail)
     return {
         "accepted": not failures,
         "refreshed_input": refreshed_input,
@@ -484,12 +516,115 @@ def bind_blinding(
         "refreshed_selected_records_equal": sum(facets.get(i) == r for i, r in refreshed.items()),
         "other_identities": len(others),
         "strict_form_call_after_utc": CUTOFF.isoformat(),
-        "selected_form_binding": "successful_extraction_group_plus_route_and_exact_token_totals",
+        "selected_form_binding": "unique_successful_extraction_group_across_producer_receipt_stores"
+        "_plus_route_and_exact_token_totals",
+        "receipt_stores_searched": store_inputs,
         "other_checks": other_checks,
         "failures": failures,
         "bound_records": len(bound),
+        "proved_by_rule": {
+            "refreshed_record_equality": len(refreshed),
+            "nonrefresh_unique_form_after_cutoff": len(bound) - len(refreshed),
+        },
         "unbound_run_hashes": sorted(run_hash(i) for i in selected - bound),
     }, bound
+
+
+def lead_path_alignment(
+    lead_rows: list[dict[str, Any]], cohorts: dict[str, set[str]]
+) -> dict[str, Any]:
+    """Metadata-only check: are cited lead steps inside Atlas's causal population?"""
+    db = run_atlas.connect_readonly(run_atlas.DEFAULT_DATABASE)
+    try:
+        flags = {}
+        for run_id in sorted(cohorts["goodfire"]):
+            rows = db.execute(
+                "SELECT step_index, CASE WHEN json_valid(flags_json) THEN "
+                "json_extract(flags_json,'$.on_final_parent_path') END AS p "
+                "FROM trace_steps WHERE trace_id=?",
+                (run_id,),
+            ).fetchall()
+            if rows:
+                flags[run_id] = {row[0]: row[1] is not False for row in rows}
+        coverage = db.execute(
+            "SELECT COUNT(*) AS steps, SUM(CASE WHEN json_valid(t.flags_json) AND "
+            "json_type(t.flags_json,'$.on_final_parent_path')='false' THEN 1 ELSE 0 END) AS off, "
+            "SUM(CASE WHEN json_valid(t.flags_json) AND "
+            "json_extract(t.flags_json,'$.on_final_parent_path') IS NULL THEN 1 ELSE 0 END) AS absent "
+            "FROM trace_steps t WHERE t.trace_id IN ("
+            + ",".join("?" for _ in cohorts["goodfire"])
+            + ")",
+            sorted(cohorts["goodfire"]),
+        ).fetchone()
+    finally:
+        db.close()
+    summary = Counter()
+    rows_out = []
+    for lead in lead_rows:
+        run_id = lead["run_id"]
+        cited = list(lead["facet_steps"]) + list(lead["cascade_steps"])
+        if run_id not in flags:
+            summary["projection_unavailable"] += 1
+            rows_out.append(
+                {
+                    "run_hash": run_hash(run_id),
+                    "corpus": lead["corpus"],
+                    "detectors": lead["detectors"],
+                    "projection": "unavailable",
+                }
+            )
+            continue
+        known = flags[run_id]
+        off_cited = sum(known.get(step) is False for step in cited)
+        absent_cited = sum(step not in known for step in cited)
+        near = [i for i in known if cited and min(cited) - 5 <= i <= max(cited) + 5]
+        off_near = sum(known[i] is False for i in near)
+        summary["projection_available"] += 1
+        summary["cited_steps"] += len(cited)
+        summary["cited_steps_off_final_parent_path"] += off_cited
+        summary["cited_steps_absent_from_projection"] += absent_cited
+        summary["context_steps_within_5_off_final_parent_path"] += off_near
+        if off_cited or absent_cited:
+            summary["leads_with_mismatched_citations"] += 1
+        rows_out.append(
+            {
+                "run_hash": run_hash(run_id),
+                "corpus": lead["corpus"],
+                "detectors": lead["detectors"],
+                "projection": "authenticated_trace_steps",
+                "cited_steps": len(cited),
+                "cited_off_path": off_cited,
+                "cited_absent": absent_cited,
+                "context_off_path_within_5": off_near,
+            }
+        )
+    return {
+        "authority": "trace_steps.flags_json['$.on_final_parent_path']",
+        "goodfire_step_flags": {
+            "steps": coverage["steps"],
+            "explicit_off_path": coverage["off"] or 0,
+            "flag_absent": coverage["absent"] or 0,
+        },
+        "summary": dict(summary),
+        "detector_evidence_inclusion": {
+            "cascade_only_leads": sum(r["detectors"] == ["cascade"] for r in lead_rows),
+            "cascade_only_with_facet_steps": sum(
+                1 for r in lead_rows if r["detectors"] == ["cascade"] and r["facet_steps"]
+            ),
+            "facet_only_leads": sum(r["detectors"] == ["facet"] for r in lead_rows),
+            "facet_only_with_cascade_steps": sum(
+                1 for r in lead_rows if r["detectors"] == ["facet"] and r["cascade_steps"]
+            ),
+            "both_detector_leads": sum(len(r["detectors"]) == 2 for r in lead_rows),
+            "unused_detector_steps_present": False,
+        },
+        "classification": "invalid_facet_citation_count="
+        + str(summary["cited_steps_absent_from_projection"])
+        + "; off_path_citation_count="
+        + str(summary["cited_steps_off_final_parent_path"])
+        + "; CheatBench has no cloud projection rows and is reported unavailable",
+        "leads": rows_out,
+    }
 
 
 def rate(k: int, n: int) -> dict[str, Any]:
@@ -742,8 +877,8 @@ def main() -> None:
         "U_F_C_v8": current_union,
         "U_F_C_v7": stage0_triage.union_alarms(facet_alarms, cascade_v7),
     }
-    calls, calls_input = selected_jsonl(run_atlas.DEFAULT_CALLS, selected)
-    binding, bound = bind_blinding(selected, facets, calls)
+    _, calls_input = selected_jsonl(run_atlas.DEFAULT_CALLS, selected)
+    binding, bound = bind_blinding(selected, facets)
     predictions_fixed = now()
     # Labels are joined only here, after admission, predictions, binding, and
     # the atomic label-free lead artifact. They never reach any model.
@@ -774,6 +909,7 @@ def main() -> None:
                 else "negative"
             ),
             **{k: predictions[k].get(i) for k in ("F", "C_frozen", "C_v8", "C_v7")},
+            "blinding_verified": i in bound,
             "facet_route": facets[i]["facet_model"] if i in facets else "unknown",
             "facet_steps": facets[i]["evidence_steps"] if facet_alarms.get(i) else [],
             "cascade_steps_v8": steps_v8.get(i, []),
@@ -807,6 +943,10 @@ def main() -> None:
         "bound_only": {
             "definition": "326_refreshed_equal_selected_plus_nonrefreshed_passing_form_cutoff",
             "bound_records": len(bound),
+            "proved_identities": len(bound),
+            "not_proved_identities": len(selected - bound),
+            "not_proved_boundary": "not proved is not known unblinded; each unproved record binds "
+            "uniquely to a successful extraction whose form calls precede the merge cutoff",
             "complete_intersection": len(bound & complete),
             "excluded_by_corpus": {
                 c: {"total": len(ids - bound), **label_counts(ids - bound, labels)}
@@ -815,6 +955,7 @@ def main() -> None:
             "populations": bound_populations,
         },
         "cm10_reconciliation": reconcile_cm10(cohorts, facets, selected_meta, predictions, labels),
+        "lead_path_alignment": lead_path_alignment(lead_rows, cohorts),
         "inputs": {
             "facets": facet_input,
             "facet_calls": calls_input,

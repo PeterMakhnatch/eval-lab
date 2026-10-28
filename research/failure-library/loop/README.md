@@ -100,5 +100,63 @@ and HackBench data are not uploaded to Laminar or Docent.
 Cross-lane integration requests are recorded in the mission bridge's
 `2026-10-27-failure-library/requests.md`. The first real receipt must be read as
 its measured result—including failure—not as proof that all three agents have
-improved. Subscription stages and offline commands are the only enabled routes;
-this command launches no paid API calls or sandboxes.
+improved. The native `canary` command enables only subscription/offline stages
+and launches no paid API calls or sandboxes.
+
+## Repeatable archived-source diagnostic pilot
+
+`evallab failures loop readonly-pilot` is a separate text-only diagnostic, not
+the native Harbor Task/Trace pipeline and never a Reward Seeker runner. It uses
+the existing QA `make_driver` factory. Each subject/arm gets one fresh isolated
+conversation; tools, rules, skills, extensions, retries and fallback are disabled
+by the existing OMP driver. The supported zero-dollar pilot is explicitly pinned
+to `meta/muse-wonder-1.0-contributor`; usage remains visible despite zero charge.
+The direct OpenAI-compatible lane requires explicit keys, positive prices,
+`--allow-paid`, and caps no greater than $0.50 total / $0.05 per request.
+
+The committed `pilot-{task,trace}-20261027.manifest.json` files contain source
+records, pins, hashes, exact extraction locators/spans and private document
+references, **not raw transcripts**. Task source is the pinned instruction,
+grader source and environment Dockerfile. Trace source is a bounded native
+Parquet role/content view, not a fabricated Harbor/ATIF trajectory. Only cited
+document contents enter the prompt; row grading columns and identity/label
+sidecars do not. `extract_pilot_views.py` preserves the offline reconstruction
+method, including the package digest versus exact-row/span distinction.
+
+**Admission gap remains parent-owned:** the current public runner separately
+checks source and view hashes; it does not yet enforce reconstruction or the
+whole task-package digest at admission. Bind the reconstruction checks before
+the next model calls. The extraction helper is evidence, not a claimed fix.
+
+From the integrated checkout, the owner can validate the frozen inputs offline:
+
+```sh
+STATE="${EVALLAB_FAILURE_LIBRARY_STATE:-$HOME/.local/state/evallab-failure-library}"
+TASK=research/failure-library/loop/pilot-task-20261027.manifest.json
+TRACE=research/failure-library/loop/pilot-trace-20261027.manifest.json
+python research/failure-library/loop/extract_pilot_views.py "$TASK"
+python research/failure-library/loop/extract_pilot_views.py "$TRACE"
+evallab failures loop readonly-pilot --dry-run --lane omp \
+  --model meta/muse-wonder-1.0-contributor --manifest "$TASK" \
+  --pack-dir "$STATE/integration-smoke-20261028/task-empirical" \
+  --output-dir "$STATE/loop/readonly-task-NEXT"
+evallab failures loop readonly-pilot --dry-run --lane omp \
+  --model meta/muse-wonder-1.0-contributor --manifest "$TRACE" \
+  --pack-dir "$STATE/integration-smoke-20261028/trace-curated" \
+  --output-dir "$STATE/loop/readonly-trace-NEXT" --allow-curated-fallback
+```
+
+Only after closing the admission gap and a manual route decision may the owner
+remove `--dry-run`, using **new** output directories. The empirical Task packet
+must seal every frozen record/task exclusion. Curated Trace guidance is labelled
+`preexisting_curated_defensive_taxonomy`, never evidence-retrieved knowledge.
+
+The first real public CLI attempt reached Muse on October 27 at about 8:05 PM ET.
+Its first Trace OFF request failed with quota HTTP 429 before generation; the
+provider reported all-zero usage and a reset at **8:21:23 PM ET**. No retry,
+fallback, ON request or Task model request followed. `heartbeat.json` and
+`scoreboard.csv` preserve that failure; accuracy and missing wall measurements
+are blank, not successes or measured zeros. The original private receipt remains
+immutable, including its exception-path wall-time fallback quirk. No comparative
+improvement or independent defect confirmation was established.
+

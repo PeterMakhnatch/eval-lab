@@ -1,0 +1,88 @@
+{
+  "canonical_parent_pack_dir": "/Users/petermakhnatch/.local/state/evallab-failure-library/integration-smoke-20261028/task-empirical",
+  "created_at": "2026-10-28T00:04:28.432783+00:00",
+  "digest": "sha256:222bd9c3eafc0843bf3254200993e6fcd47678003ad54e6fc74e32aed9135d7d",
+  "reconstruction": {
+    "admission_gap": "Helper is offline evidence; parent must bind reconstruction/package checks in the public driver before next model calls.",
+    "script": "research/failure-library/loop/extract_pilot_views.py",
+    "sha256": "3b64a5eb796e576d156e5b246a4029470dbd2e72a6d1ce30db7956e5594b8207"
+  },
+  "schema": "failure-library.readonly-pilot/v1",
+  "subjects": [
+    {
+      "blinding": "only source document contents enter model prompt; filenames, task/source IDs, finding summaries and source labels stay in private sidecar",
+      "documents_digest": "sha256:020ae226ba98c2a1f28339df4004fadf272714c94276cf9a12bfed0feecab95a",
+      "documents_file_sha256": "cc9f6b2accf2c34bc7ff53d31f07086b6ae3441ee9d403348de97c70ce09d843",
+      "documents_ref": "loop/readonly-pilot-20261027/task-documents.json",
+      "extraction_method": "UTF-8 universal-newline read_text of sources in declared order; full package digest checked by preparer",
+      "id": "S1",
+      "kind": "task",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/kev/raw/terminal-bench-v4.0.0/tasks/html-js-filter",
+      "record": {
+        "collection": "pm-tb4-findings",
+        "defect_class": "TS04",
+        "direction": "wrong_pass",
+        "evidence": [
+          {
+            "fix_diff_digest": null,
+            "fix_revision": null,
+            "kind": "human_label",
+            "label_source": "Preference Model",
+            "note": "Historical Preference Model label; source execution assertions alone are not independent verification or grounds for tier upgrades.",
+            "receipt_ref": null,
+            "reproducer_ref": null,
+            "url": "https://preferencemodel.com/blog/terminal-bench-4-is-saturated/issues/#html-js-filter"
+          },
+          {
+            "fix_diff_digest": null,
+            "fix_revision": null,
+            "kind": "static_finding",
+            "label_source": null,
+            "note": "Historical Karotte port status=fixed; fix/port pin=a3ec9e22725b490a30b35d127bc9e7ac8a28de82. This is a different repository, not a confirmed repair of the pinned Harbor task or its current upstream head.",
+            "receipt_ref": null,
+            "reproducer_ref": null,
+            "url": "https://github.com/preferencemodel/terminal-bench-4-karotte-port/tree/a3ec9e22725b490a30b35d127bc9e7ac8a28de82"
+          }
+        ],
+        "finder": "Preference Model",
+        "finding_id": "fl-215a4657118e2136",
+        "fixed_in_revision": null,
+        "license": null,
+        "locator": "pm-tb4:html-js-filter:82bd5d4c45",
+        "observed_at": "2026-10-20",
+        "schema_version": "failure-library/v1",
+        "source_url": "https://preferencemodel.com/blog/terminal-bench-4-is-saturated/issues/#html-js-filter",
+        "split": "DEV",
+        "status_now": "unknown",
+        "summary": "Source-reported label or consensus assessment; it is not independent execution evidence. Task execution may affect the integrity of verification or scoring. Reported direction: acceptance despite a requirement mismatch. Validate results in a protected verification environment with immutable scoring inputs. Use the pinned source and independent validation before asserting current behavior.",
+        "task": {
+          "source_id": "terminal-bench",
+          "task_id": "html-js-filter",
+          "task_path": "tasks/html-js-filter",
+          "task_version_digest": "sha256:98af5839aff49be89cb30a997c5fac192c6f3fb6a3380fae7e3c40a85cfec08c",
+          "upstream_repo": "https://github.com/harbor-framework/terminal-bench",
+          "upstream_revision": "452bf305c6daa62fc59061d22133a7cbc7c1572e"
+        },
+        "tier": "V1_external_label"
+      },
+      "record_digest": "sha256:dc5a711ca2e46551f7681bce171906e2ec8a5c3703787f01500914e1fba5baa7",
+      "sources": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/kev/raw/terminal-bench-v4.0.0/tasks/html-js-filter/instruction.md",
+          "sha256": "bb76e0fdffe2b3ebf4f458729ab3b3e5a2360f593d24cd06f9235a111dce8a82"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/kev/raw/terminal-bench-v4.0.0/tasks/html-js-filter/tests/test_outputs.py",
+          "sha256": "e95d10a2541b328a94181a614cd6319a0f5bf20ecb4946069b7f20c0d81cd699"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/kev/raw/terminal-bench-v4.0.0/tasks/html-js-filter/environment/Dockerfile",
+          "sha256": "3e5dec7c555b1ace7ebacf0fd57a6575760084e6c47f7c1dfc3064accca72dbb"
+        }
+      ],
+      "view_scope": "pinned instruction, grader source and environment Dockerfile; read-only source review, NO execution",
+      "view_sha256": "abd8fb5fb55a21de289286280e934dce2d389d0d3cc6accc9581aff4a32d90f4"
+    }
+  ],
+  "validated_source_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/fl-core-20261027"
+}

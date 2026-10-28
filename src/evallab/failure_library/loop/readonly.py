@@ -223,7 +223,16 @@ def diagnostic_pilot(
                 raise ValueError("native source bytes drifted")
         if not subject["sources"]:
             raise ValueError("every view requires a pinned native source reference")
-        view = source_view(subject["documents"])
+        documents = subject.get("documents")
+        if "documents_ref" in subject:
+            private_root = (default_state_root() / "loop").resolve()
+            document_path = (default_state_root() / subject["documents_ref"]).resolve()
+            if not document_path.is_relative_to(private_root):
+                raise ValueError("private source views must stay under library state/loop")
+            documents = json.loads(document_path.read_text())
+            if digest(documents) != subject["documents_digest"]:
+                raise ValueError("private document bytes changed")
+        view = source_view(documents)
         if view["sha256"] != subject["view_sha256"] or len(view["text"]) > 60000:
             raise ValueError("source view drifted or exceeds the bounded pilot input")
         task_ids.add(record.task.source_id + "/" + record.task.task_id)
@@ -314,12 +323,18 @@ def diagnostic_pilot(
                 input_usd_per_million=input_price,
                 output_usd_per_million=output_price,
             )
+            request_start = time.monotonic()
             try:
                 result = review_once(
                     driver, view, kind=kind, guidance=guidance if arm == "on" else None
                 )
             except Exception as exc:  # no retry or replacement call after an ambiguous request
-                result = {"reviewed": False, "flagged": None, "reason": type(exc).__name__}
+                result = {
+                    "reviewed": False,
+                    "flagged": None,
+                    "reason": f"{type(exc).__name__}: {exc}",
+                    "wall_seconds": time.monotonic() - request_start,
+                }
                 stopped = True
             accounting = driver.accounting()
             cost = accounting.get("metered_usd")
@@ -333,7 +348,9 @@ def diagnostic_pilot(
                 "cost_usd": charge or 0,
                 "route": (endpoint or lane) + "/" + model,
                 "job": "fl-loop-readonly-pilot",
-                "note": f"{directory}; reported-usage estimate at uncached configured prices; "
+                "note": f"{directory}; OMP contributor route, zero metered charge, quota/usage retained"
+                if lane == "omp"
+                else f"{directory}; reported-usage estimate at uncached configured prices; "
                 f"requests_sent={accounting.get('requests_sent')}; reservation upper bound if usage unknown",
             }
             with spend_path.open("a", encoding="utf-8") as handle:
@@ -364,6 +381,16 @@ def diagnostic_pilot(
                 {
                     "agent": f"qa-{kind}-source-readonly",
                     "knowledge": arm,
+                    "planned": sum(item[1] == kind for item in prepared),
+                    "status": "ok"
+                    if measured and len(measured) == sum(item[1] == kind for item in prepared)
+                    else "failed"
+                    if selected
+                    else "not_run",
+                    "reason": "; ".join(
+                        row["result"]["reason"] for row in selected if not row["result"]["reviewed"]
+                    )
+                    or ("source-label diagnostic only" if measured else "no model request made"),
                     "recall": sum(bool(row["result"]["flagged"]) for row in positives)
                     / len(positives)
                     if positives
@@ -388,7 +415,9 @@ def diagnostic_pilot(
                         for row in selected
                     )
                     else "",
-                    "wall_seconds": sum(row["result"].get("wall_seconds", 0) for row in selected),
+                    "wall_seconds": sum(row["result"]["wall_seconds"] for row in selected)
+                    if selected
+                    else "",
                     "selected": len(selected),
                     "reviewed": len(measured),
                     "positives_reviewed": len(positives),

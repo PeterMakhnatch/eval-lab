@@ -1,0 +1,125 @@
+{
+  "actual_curated_packet_sha256": "9eba9de11c833a56321f84f39110e49d3364d4ff8817c4251105e3ee31c8557e",
+  "admission_gap": "Public pilot currently binds file/view hashes separately. Parent owns wiring offline exact-row/span reconstruction and task package digest checks before another model call.",
+  "cli_wall_seconds": 5.09,
+  "collections": {
+    "olmo-reward-hacking": {
+      "label_kind": "publisher_executed",
+      "planned": 1,
+      "requests": 1,
+      "split": "DEV"
+    },
+    "pm-tb4-findings": {
+      "planned": 1,
+      "requests": 0,
+      "split": "DEV",
+      "tier": "V1_external_label"
+    }
+  },
+  "completed_reviews": 0,
+  "executed_checkout_head": "9cd7f4e62c73d5b17500159a859b1472141a1bd9",
+  "executed_code_commit": "182d25002",
+  "feedback": {
+    "reason": "Model signals are proposals only; no independent finding was confirmed or ingested.",
+    "status": "not_run"
+  },
+  "generations_completed": 0,
+  "immutable_receipt_ref": "/Users/petermakhnatch/.local/state/evallab-failure-library/loop/readonly-pilot-20261027/trace-receipt",
+  "improvement_proven": false,
+  "independent_verification": false,
+  "matching_code_committed_after_attempt": true,
+  "measurement_note": "Original exception path did not retain the per-arm wall measurement; its private CSV fallback zero is not interpreted as a measured zero. Public score fields stay blank. Code now retains exception wall time.",
+  "next_call_owner": "Main; manual explicit route/reset decision and NEW immutable output directories; no automatic retry",
+  "original_input_manifest_digest": "sha256:b2104db6d80d508bb2848f821e4c73c09a3105f4111ef5cdf26f54649447da5a",
+  "per_arm_wall_seconds": null,
+  "provider_error": "429 Subscription quota exhausted. Usage window resets at 2026-10-28T00:21:23Z.",
+  "provider_reported_usage": {
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "input": 0,
+    "output": 0,
+    "totalTokens": 0
+  },
+  "provider_stop_reason": "error",
+  "public_command": "evallab failures loop readonly-pilot --lane omp --model meta/muse-wonder-1.0-contributor",
+  "receipt_digest": "sha256:ef997793d99b4292f141cc89ee1574d1f228f8521718121761e562aa1416f9be",
+  "recorded_at": "2026-10-28T00:15:25.527961+00:00",
+  "requested_model": "meta/muse-wonder-1.0-contributor",
+  "requests_attempted": 1,
+  "reward_seeker": {
+    "reason": "No attacks, replay, re-break or offensive enhancement authorized.",
+    "status": "unsupported"
+  },
+  "schema": "failure-library.heartbeat/v1",
+  "scope": "real public CLI attempt; no completed paired diagnostic and no native Harbor canary",
+  "served_model": "meta/muse-wonder-1.0-contributor",
+  "source_label_caveat": "Task positives are publisher human labels; run executed labels describe publisher-reported execution, not independent local reproduction. No clean-control certification is inferred.",
+  "spend_usd": 0,
+  "stages": [
+    {
+      "agent": "qa-task-source-readonly",
+      "cost_usd": 0,
+      "false_alarms": "",
+      "knowledge": "off",
+      "planned": 1,
+      "provider_reported_tokens": "",
+      "reason": "Stopped after first route failure; no retry or fallback",
+      "recall": "",
+      "requests_attempted": 0,
+      "reviewed": 0,
+      "status": "not_run",
+      "tokens": "",
+      "treatment": "empirical_packet_pending_parent_call",
+      "wall_seconds": ""
+    },
+    {
+      "agent": "qa-task-source-readonly",
+      "cost_usd": 0,
+      "false_alarms": "",
+      "knowledge": "on",
+      "planned": 1,
+      "provider_reported_tokens": "",
+      "reason": "Stopped after first route failure; no retry or fallback",
+      "recall": "",
+      "requests_attempted": 0,
+      "reviewed": 0,
+      "status": "not_run",
+      "tokens": "",
+      "treatment": "empirical_packet_pending_parent_call",
+      "wall_seconds": ""
+    },
+    {
+      "agent": "qa-trace-source-readonly",
+      "cost_usd": 0,
+      "false_alarms": "",
+      "knowledge": "off",
+      "planned": 1,
+      "provider_reported_tokens": 0,
+      "reason": "Muse HTTP429 subscription quota exhausted before generation",
+      "recall": "",
+      "requests_attempted": 1,
+      "reviewed": 0,
+      "status": "failed",
+      "tokens": "",
+      "treatment": "curated_taxonomy_not_empirical",
+      "wall_seconds": ""
+    },
+    {
+      "agent": "qa-trace-source-readonly",
+      "cost_usd": 0,
+      "false_alarms": "",
+      "knowledge": "on",
+      "planned": 1,
+      "provider_reported_tokens": "",
+      "reason": "Stopped after first route failure; no retry or fallback",
+      "recall": "",
+      "requests_attempted": 0,
+      "reviewed": 0,
+      "status": "not_run",
+      "tokens": "",
+      "treatment": "curated_taxonomy_not_empirical",
+      "wall_seconds": ""
+    }
+  ],
+  "status": "failed"
+}

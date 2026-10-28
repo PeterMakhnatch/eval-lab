@@ -417,9 +417,17 @@ def run_once(
 ) -> dict[str, Any]:
     """One locked refresh tick; a refused, incomplete, busy or failed run raises nothing."""
     state = Path(state_dir).expanduser()
-    state.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
-    with (state / LOCK).open("a") as lock:
+    try:
+        state.mkdir(parents=True, exist_ok=True)
+        lock_handle = (state / LOCK).open("a")
+    except OSError as error:
+        # No receipt is possible here: the state directory itself is unusable.
+        return {
+            "at": _now(), "status": "error", "error_type": type(error).__name__,
+            "detail": str(error), "wall_seconds": round(time.monotonic() - started, 3),
+        }
+    with lock_handle as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:

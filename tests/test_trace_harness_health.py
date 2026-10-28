@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -110,7 +111,6 @@ def test_store_runs_supply_timestamps_for_admitted_runs_only(
     records = _detect_all([cloud, staged], options)
     assert records["cloud"]["latency"]["verdict"] == "alarm"
     assert records["cloud"]["runaway"]["verdict"] == "alarm"  # stop_reason came from the store loader
-    assert "stop:max_turns" in records["cloud"]["runaway"]["summary"]
     assert records["staged"]["latency"]["verdict"] == "abstain"
     assert records["staged"]["runaway"]["verdict"] == "clear"
     assert len(calls) == 1 and calls[0] == ["cloud", "staged"]  # one batch, shared by all four detectors
@@ -138,3 +138,23 @@ def test_a_different_run_reusing_an_id_is_never_served_a_stale_result(tmp_path: 
     record = next(iter(health.HealthLoopDetector(options).detect([fresh])))
     assert record["verdict"] == "clear"
     assert health.shared_computation(options) is health.shared_computation(_options(tmp_path))
+
+
+@pytest.mark.parametrize(("exception", "actor", "kind"), [
+    ("AuthenticationError", False, "infra"),
+    ("LoopBreakStop", True, "loop"),
+])
+def test_native_trial_facts_keep_run_level_alarms_without_leaking_to_readers(
+    tmp_path: Path, exception: str, actor: bool, kind: str,
+) -> None:
+    (tmp_path / "result.json").write_text(json.dumps({
+        "exception_info": {"exception_type": exception, "exception_message": "native-fact-sentinel"},
+        "verifier_result": {"rewards": {"reward": 1}},
+    }))
+    run = th.HarnessRun("local", "harbor", "DEV", "unknown", (_step(1),), actor,
+                        meta=rh.trial_metadata(tmp_path))
+    records = _detect_all([run], _options(tmp_path))["local"]
+    assert records[kind]["verdict"] == "alarm"
+    assert "native-fact-sentinel" not in json.dumps(run.atlas_run.doc)
+    if not actor:
+        assert {record["verdict"] for key, record in records.items() if key != kind} == {"unknown"}

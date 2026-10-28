@@ -16,8 +16,8 @@ changes, because the harness input is a blinded transcript and a detector must n
   literals (Kev / Sol) are model scores: both are named under *unmeasured* in the summary, never
   treated as fired or as clear evidence.
 
-A run where no measurable literal fired is ``clear`` exactly as ``t0_detector_verdict`` reports
-``flagged: False``; the summary carries the unmeasured literals so the gap is visible.
+When an unmeasured OR literal could still fire, no observed hit means ``abstain``,
+not ``clear``. A positive measured literal can alarm without the missing features.
 """
 
 from __future__ import annotations
@@ -131,13 +131,13 @@ class QaTraceT0Detector:
                 verdict = "alarm"
                 summary = f"{self.rule_source} literals fired: " + ", ".join(names)
             else:
-                verdict = "clear"
+                verdict = "abstain" if self.unmeasured else "clear"
                 summary = f"no {self.rule_source} flag literal fired"
                 if self.unmeasured:
                     summary += "; unmeasured: " + ", ".join(self.unmeasured)
             yield finding(
                 run.run_id, self.name, detector_version=self.version, reader_model=None,
-                verdict=verdict, kind="cheat", score=len(names),
+                verdict=verdict, kind="cheat", score=len(names) if verdict != "abstain" else None,
                 evidence_steps=[step for name in names for step in fired[name]], summary=summary,
                 latency_ms=round((time.perf_counter() - started) * 1000),
             )

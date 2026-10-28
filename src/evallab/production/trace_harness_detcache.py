@@ -13,14 +13,12 @@ that corpus and every cached detector under the harness:
   reads only the cache keyed by the row id, never a label, source or split, and runs no
   model.
 
-The corpus has no TEST split and no held-out rows beyond ``combined_v1``'s out-of-fold
-cache; the only seal is its checksums, so loading refuses a corpus whose
-``MANIFEST.sha256``/``CACHE.sha256`` no longer match (as ``evallab detectors score``
-does). Trial bodies of the Terminal Wrench (``tw``, ``tw-raw``), CheatBench (``cb``) and
-RL-rollout (``aria``, ``olmo``, ``ht``) sources live outside git under
-``<detector roots>/{tw,cb,rl}`` (``EVALLAB_DETECTOR_ROOTS``, default
-``<primary checkout>/derived/detector-roots``); rows whose trial is not materialized
-here yield no run, exactly as ``evallab detectors run`` skips them.
+The historical manifest has no authoritative split column. Checksums protect its
+bytes, not DEV admission: rows must resolve to an explicit DEV assignment and pass
+the shared cross-key TEST guard before trajectory I/O or scoring. Unresolved legacy
+identities are excluded, not relabelled CALIBRATION-as-DEV. Historical all-source
+numbers therefore need not match the admitted subset. Trial bodies remain local;
+missing materializations yield no run.
 """
 
 from __future__ import annotations
@@ -37,6 +35,9 @@ from pathlib import Path
 from typing import Any
 
 from evallab.detectors import Corpus, corpora_root, detector_check
+from evallab.production.cloud_trace_db import admitted_cloud_task_ids
+from evallab.production.corpus_queue import CorpusRegistry
+from evallab.production.run_health import trial_metadata
 from evallab.production.trace_findings import _READER
 from evallab.production.trace_harness import (
     HarnessOptions,
@@ -48,7 +49,7 @@ from evallab.results_home import results_root
 from evallab.storage.paths import shared_checkout_root
 
 CORPUS = "detectors-v1"
-SPLIT = "CALIBRATION"
+SPLIT = "DEV"
 OUTCOME = "unknown"
 DETECTOR_PREFIX = "detcache"
 ROOTS_ENV = "EVALLAB_DETECTOR_ROOTS"
@@ -115,6 +116,46 @@ def parse_selector(selector: str, corpus: Corpus) -> str | None:
     return source
 
 
+def cached_detector_names(corpus: Corpus | None = None) -> list[str]:
+    """Every detector family in the verified immutable cache."""
+    return (corpus or load_corpus()).detectors_cached()
+
+
+def _admitted_rows(
+    corpus: Corpus, registry: CorpusRegistry, roots: TrialRoots,
+) -> Iterator[tuple[dict[str, Any], Path | None]]:
+    for row in corpus.rows:
+        trial = corpus.trial_dir(row, tw_root=roots.tw, cb_root=roots.cb, rl_root=roots.rl,
+                                 results_root=roots.results)
+        supplied = row.get("identity")
+        identity = dict(supplied) if isinstance(supplied, Mapping) else None
+        if identity is None and trial is not None and row["trial"]["kind"] == "published":
+            # Only task identity is read from the immutable trial result; no reward,
+            # verdict, source-label or transcript field participates in admission.
+            result = trial / "result.json"
+            if result.is_file():
+                task = json.loads(result.read_text(encoding="utf-8")).get("task_name")
+                if isinstance(task, str) and task:
+                    dataset = "mimo-defect-map-v1" if task.startswith("mimo-v2.6-rl/") else "trace-paired-v1"
+                    identity = {
+                        "task_id": task, "dataset_id": dataset, "split": "DEV",
+                        "item_id": f"trace-paired-v1:{trial.name}", "item_type": "text",
+                        "original_grader_digest": None, "repaired_grader_digest": None,
+                    }
+        if identity is None:
+            continue
+        task = identity.get("task_id")
+        dataset = identity.get("dataset_id")
+        if not isinstance(task, str) or not isinstance(dataset, str):
+            continue
+        # Unlike new external corpora, this historical source has no split authority
+        # of its own. A declared DEV string must not authorize it.
+        if registry.assigned_split(dataset, task_id=task, item_id=identity.get("item_id")) != "dev":
+            continue
+        if task in admitted_cloud_task_ids([identity], registry=registry):
+            yield row, trial
+
+
 # --------------------------------------------------------------------------- #
 # runs and labels
 # --------------------------------------------------------------------------- #
@@ -122,48 +163,49 @@ def parse_selector(selector: str, corpus: Corpus) -> str | None:
 
 def detectors_runs(
     limit: int | None = None, *, selector: str = CORPUS, corpus: Corpus | None = None,
-    roots: TrialRoots | None = None,
+    roots: TrialRoots | None = None, repo_root: Path = Path("."), registry: CorpusRegistry | None = None,
 ) -> Iterator[HarnessRun]:
     """Corpus trials whose trial directory is materialized here, in manifest order.
 
-    Each row's ``agent/trajectory.json`` steps keep their original ``step_id`` values. Rows
-    are selected by corpus and source only; labels are not read.
+    Each row's ``agent/trajectory.json`` steps keep their original ``step_id`` values.
+    Admission is identity-only and does not read label values.
     """
     corpus = corpus or load_corpus()
     source = parse_selector(selector, corpus)
     roots = roots or TrialRoots.default()
+    registry = registry if registry is not None else CorpusRegistry(repo_root)
     label = corpus_label(corpus)
     produced = 0
-    for row in corpus.rows:
+    for row, trial in _admitted_rows(corpus, registry, roots):
         if limit is not None and produced >= limit:
             return
         if source is not None and row["source"] != source:
             continue
-        trial = corpus.trial_dir(row, tw_root=roots.tw, cb_root=roots.cb, rl_root=roots.rl,
-                                 results_root=roots.results)
         if trial is None:
             continue
         steps = tuple(json.loads((trial / "agent" / "trajectory.json").read_text()).get("steps") or ())
         produced += 1
         yield HarnessRun(f"{label}:{row['id']}", f"{label}:{row['source']}", SPLIT, OUTCOME, steps,
-                         actor_inputs_available(steps))
+                         actor_inputs_available(steps), meta=trial_metadata(trial))
 
 
 def detectors_labels(
     name: str = CORPUS, check: str = "reward_hacking", *, corpus: Corpus | None = None,
+    repo_root: Path = Path("."), registry: CorpusRegistry | None = None, roots: TrialRoots | None = None,
 ) -> tuple[frozenset[str], dict[str, bool | None], dict[str, frozenset[int]]]:
     """``(run_ids, positive, positive_steps)`` for ``CorpusLabels(name=...)``.
 
-    The cohort is the rows ``detectors.score`` scores for ``check``: those whose manifest
-    label for it is not null (null is unlabelled, never negative). A truthy label is a
-    positive. The corpus has no step gold, so ``positive_steps`` is empty.
+    Among strictly admitted rows, labels have the native check's meaning: null is
+    unlabelled (never negative), truthy is positive. No step gold is available.
     """
     corpus = corpus or load_corpus()
     source = parse_selector(name, corpus)
+    registry = registry if registry is not None else CorpusRegistry(repo_root)
+    roots = roots or TrialRoots.default()
     label = corpus_label(corpus)
     positive: dict[str, bool | None] = {
         f"{label}:{row['id']}": bool(row["labels"][check])
-        for row in corpus.rows
+        for row, _ in _admitted_rows(corpus, registry, roots)
         if row["labels"].get(check) is not None and (source is None or row["source"] == source)
     }
     return frozenset(positive), positive, {}
@@ -222,11 +264,20 @@ class DetectorCacheDetector:
     records the same provider/id-shaped one, else none.
     """
 
-    def __init__(self, options: HarnessOptions | None = None, *, corpus: Corpus | None = None) -> None:
+    def __init__(
+        self, options: HarnessOptions | None = None, *, corpus: Corpus | None = None,
+        registry: CorpusRegistry | None = None, roots: TrialRoots | None = None,
+    ) -> None:
         reader = None if options is None else options.reader
         if not reader:
             raise ValueError("detcache needs the cached detector name, e.g. detcache:kev_any_cheat")
         self.corpus = corpus or load_corpus()
+        registry = registry if registry is not None else CorpusRegistry(
+            Path(".") if options is None else options.repo_root
+        )
+        self.allowed = {
+            row["id"] for row, _ in _admitted_rows(self.corpus, registry, roots or TrialRoots.default())
+        }
         cached = self.corpus.detectors_cached()
         if reader not in cached:
             raise ValueError(f"no cache for detector {reader!r}; cached: {', '.join(cached)}")
@@ -243,7 +294,7 @@ class DetectorCacheDetector:
         for run in runs:
             row_id = run.run_id.removeprefix(self.prefix)
             verdict = self.verdicts.get(row_id) if run.run_id.startswith(self.prefix) else None
-            if verdict is not None:
+            if verdict is not None and row_id in self.allowed:
                 yield self._finding(run, verdict)
 
     def _finding(self, run: HarnessRun, verdict: Mapping[str, Any]) -> dict[str, Any]:

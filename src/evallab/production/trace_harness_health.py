@@ -11,11 +11,11 @@ facts Run Health uses (step timestamps and token counts live in the cloud store'
 ``flags_json``, the run status in ``agent_traces``). Runs the cloud DB admits are
 therefore passed through :func:`evallab.production.run_health.store_runs` once per
 batch, the same loader behind ``evallab run-health detect --db``, so their findings
-are identical to that command's. Every other run (CheatBench, HackBench, staged
-sets) is judged on its steps alone with no run-level facts: its latency reads only
-the step timestamps the trajectory itself carries and abstains below
-``LATENCY_MIN_TIMESTAMPS``, and its wall time, exceptions and stop reason are
-unknown. Run Health's own rules decide every verdict; nothing here sets a threshold.
+are identical to that command's. Local Harbor trial loaders retain the same
+allowlisted health facts via ``trial_metadata``. Sources with only trajectories
+(CheatBench, HackBench, most staged sets) have no run-level facts: their latency
+uses only timestamps in the trajectory and abstains below the native minimum;
+their wall time, exceptions and stop reason remain unknown.
 
 Labels, splits and source names are never read.
 """
@@ -38,10 +38,10 @@ STORE_CHUNK = 10_000
 
 
 def _health_run(run: HarnessRun) -> run_health.HealthRun:
-    """The steps-only view: no run facts, so wall time and run-level stops are unknown."""
+    """Retained native health facts, or steps-only when the source has no facts."""
     return run_health.HealthRun(
         run_id=run.run_id, source=run.source, steps=run.steps,
-        meta={"actor_inputs_available": run.actor_inputs_available},
+        meta={**run.meta, "actor_inputs_available": run.actor_inputs_available},
     )
 
 

@@ -9,6 +9,7 @@ import pytest
 
 from evallab import detectors
 from evallab.production import trace_harness_detcache as dc
+from evallab.production.corpus_queue import CorpusRegistry
 from evallab.production.trace_harness import FindingStore, HarnessOptions, run_detectors
 from evallab.production.trace_harness_corpora import CorpusLabels
 from evallab.production.trace_harness_score import score_corpus
@@ -28,6 +29,30 @@ ROWS = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def local_split_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    keys = tmp_path / "research/answer-keys"
+    for name in ("tb4-audit-v1", "cheatbench-actions-v1", "hacktrace-act-v1"):
+        (keys / name).mkdir(parents=True)
+        (keys / name / "items.jsonl").write_text("")
+    (keys / "tb4-audit-v1/tasks.jsonl").write_text("")
+    (keys / "splits").mkdir()
+    (keys / "splits/assignments.csv").write_text(
+        "key_id,item_id,task,split\n"
+        + "".join(f"detectors-fixture,{row_id},task-{row_id},dev\n" for row_id, *_ in ROWS)
+        + "another-key,elsewhere,task-sealed,test\n"
+    )
+    inventory = tmp_path / "research/experiments/mimo-defect-map-v1/inventory.json"
+    inventory.parent.mkdir(parents=True)
+    inventory.write_text(json.dumps({
+        "dataset_id": "mimo-defect-map-v1", "tasks": [],
+        "heldout_task_ids_excluded_from_training_all_versions": [],
+    }))
+    registry = CorpusRegistry(tmp_path)
+    monkeypatch.setattr(dc, "CorpusRegistry", lambda _root: registry)
+    monkeypatch.setattr(dc.TrialRoots, "default", classmethod(lambda cls: roots(tmp_path / "results")))
+
+
 def make_corpus(tmp_path: Path, *, trials: set[str] | None = None) -> tuple[detectors.Corpus, Path]:
     root = tmp_path / "detectors-v1"
     results = tmp_path / "results"
@@ -41,6 +66,11 @@ def make_corpus(tmp_path: Path, *, trials: set[str] | None = None) -> tuple[dete
             "id": row_id, "source": source, "families": [],
             "labels": {"reward_hacking": hack, "stuck_loop": loop},
             "trial": {"kind": "published", "path": f"t/{row_id}"},
+            "identity": {
+                "task_id": f"task-{row_id}", "dataset_id": "detectors-fixture", "split": "DEV",
+                "item_id": row_id, "item_type": "text",
+                "original_grader_digest": None, "repaired_grader_digest": None,
+            },
         })
         if trials is None or row_id in trials:
             trial = results / "t" / row_id / "agent"
@@ -172,3 +202,18 @@ def test_harness_score_reproduces_detectors_score_counts(tmp_path):
     kev = score_corpus(labels, store.records(), detectors=["detcache.kev_any_cheat"])
     assert kev["detectors"][0]["coverage"]["excluded"]["abstain"] == 6  # score-only: no native verdict
 
+
+
+def test_legacy_ids_and_cross_key_test_rows_are_excluded_from_runs_labels_and_cache(tmp_path):
+    corpus, results = make_corpus(tmp_path)
+    corpus.rows[0]["identity"]["task_id"] = "task-sealed"
+    corpus.rows[1].pop("identity")
+    admitted = list(dc.detectors_runs(corpus=corpus, roots=roots(results)))
+    denied = {"detectors-v1:a-1", "detectors-v1:a-2"}
+    assert not denied.intersection(run.run_id for run in admitted)
+    ids, _, _ = dc.detectors_labels(corpus=corpus)
+    assert not denied.intersection(ids)
+    from evallab.production.trace_harness import HarnessRun
+
+    injected = [HarnessRun(run_id, "x", "DEV", "unknown", (AGENT,), True) for run_id in denied]
+    assert list(detector(corpus, "rules").detect(injected)) == []

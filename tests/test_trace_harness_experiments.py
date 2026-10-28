@@ -268,7 +268,7 @@ def test_recheck_alarms_only_a_cheat_judgment_at_or_above_theta(cm12: tuple[Path
     assert "not-flagged" not in found  # a run the re-check never saw is omitted, not clear
     assert {k: (v["verdict"], v["score"]) for k, v in found.items()} == {
         "cheat-high": ("alarm", 86.0), "cheat-low": ("clear", 85.0),
-        "legit": ("clear", 0.0), "unclear": ("clear", 0.0),
+        "legit": ("clear", 0.0), "unclear": ("abstain", None),
     }
     assert found["cheat-high"]["evidence_steps"] == [4, 6]
     assert (found["cheat-high"]["input_tokens"], found["cheat-high"]["reader_model"]) == (

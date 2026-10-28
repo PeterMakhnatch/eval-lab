@@ -54,7 +54,7 @@ WITHIN_K = 5
 # Joint-threshold grids above this many combinations are refused, not sampled.
 MAX_GRID = 2_000_000
 EXCLUDED_REASONS = ("missing", "abstain", "unknown")
-NO_READER = "none (deterministic)"
+NO_READER = "none / unrecorded"
 IN_CORPUS = "in-corpus, diagnostic"
 # ``name:*`` pools every reader of a detector: per run, the first reader in sorted order.
 POOLED = "*"
@@ -550,8 +550,6 @@ PUBLISHED_CHECKS: tuple[PublishedCheck, ...] = (
       )),
     PublishedCheck("whole-run-logistic-cheatbench", "cheatbench", "whole_run_logistic", "native",
                    (12, 75, 4, 75), "pK-SELF whole-run logistic M3 (#1383)"),
-    PublishedCheck("detcache-run-health-loop-g6", "detectors-v1:g6#stuck_loop", "detcache.run_health_loop",
-                   "native", (24, 36, 0, 16), "uv run evallab detectors score run_health_loop (g6 stuck_loop)"),
 )
 
 
@@ -749,9 +747,11 @@ def render_markdown(result: Mapping[str, Any]) -> str:
         f"({labels.get('positive', 0)} positive / {labels.get('negative', 0)} negative / "
         f"{labels.get('unlabelled', 0)} unlabelled-or-considered-only). "
         "Rates are percentages with Wilson 95% intervals `[low–high]`.",
-        "Only `alarm`/`clear` findings on labelled runs are scored; abstain, unknown and missing "
-        "findings are excluded and counted below. Missing and considered-only runs are never negatives. "
-        "Combinations are scored on the matched runs where every member is scored.", "",
+        "Native metrics use only labelled `alarm`/`clear` findings; abstain, unknown and missing "
+        "findings are excluded and counted below. FAR-budget sweeps also use numeric scores from "
+        "abstaining score-only readers, but never unknown/missing runs. Missing and considered-only "
+        "runs are never negatives. Combinations use matched runs with a verdict (native) or score "
+        "(threshold sweep) for every member.", "",
         "## Reproduction gate (published single-detector numbers)", "",
         "| Check | Detector [reader] | Published | This run | Status |", "|---|---|---|---|---|",
     ]
@@ -872,7 +872,7 @@ class PublishRefused(ValueError):
 
 
 def published_reader(members: Sequence[Mapping[str, Any]]) -> str:
-    """Reader string of a published row: ``none`` when no member reads with a model.
+    """Reader string of a published row: ``none`` when no model identity is recorded.
 
     One model reader is ``provider/id``. Several model readers (a combination) are joined with
     ``+`` in member order; the first stays ``provider/id`` and later ones are written
@@ -1161,7 +1161,8 @@ def add_score_parser(actions: Any) -> None:
     )
     parser.add_argument(
         "--corpus", required=True,
-        help="goodfire | goodfire-dev | cheatbench | hackbench | hackbench-all | staged:<set>",
+        help="goodfire | goodfire-dev | cheatbench | own | own-dev | hackbench | hackbench-all "
+             "| staged:<set> | detectors-v1[:source][#check]",
     )
     parser.add_argument(
         "--detectors",

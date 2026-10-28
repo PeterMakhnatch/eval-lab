@@ -91,6 +91,10 @@ DETECTORS: dict[str, str] = {
     "whole_run_logistic": "evallab.production.trace_harness_experiments:WholeRunLogisticDetector",
     "detcache": "evallab.production.trace_harness_detcache:DetectorCacheDetector",
     "qa_trace_t0": "evallab.production.trace_harness_qa:QaTraceT0Detector",
+    "run_health.loop": "evallab.production.trace_harness_health:HealthLoopDetector",
+    "run_health.runaway": "evallab.production.trace_harness_health:HealthRunawayDetector",
+    "run_health.latency": "evallab.production.trace_harness_health:HealthLatencyDetector",
+    "run_health.infra": "evallab.production.trace_harness_health:HealthInfraDetector",
 }
 
 Key = tuple[str, str, str, str | None]
@@ -123,6 +127,8 @@ class HarnessRun:
     outcome: str
     steps: tuple[Mapping[str, Any], ...]
     actor_inputs_available: bool
+    # Health facts only: never included in atlas_run/blind() or model prompts.
+    meta: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
     _blind: list[BlindRun] = field(default_factory=list, repr=False, compare=False)
 
     @classmethod
@@ -257,6 +263,31 @@ class FindingStore:
         append_jsonl(self.path, records)
 
 
+def merge_findings(paths: Sequence[Path], store: FindingStore) -> dict[str, int]:
+    """Validate all inputs before appending newer findings, preserving version/reader identities.
+
+    Newest ``produced_at`` wins across stores; equal timestamps use input order.
+    An older import can never replace a newer finding already in the target.
+    """
+    existing = store.records()
+    merged = dict(existing)
+    read = 0
+    for path in paths:
+        if not path.is_file():
+            raise FileNotFoundError(f"findings input not found: {path}")
+        for key, record in FindingStore(path).records().items():
+            read += 1
+            previous = merged.get(key)
+            if previous is None or datetime.fromisoformat(record["produced_at"]) >= datetime.fromisoformat(
+                previous["produced_at"]
+            ):
+                merged[key] = record
+    changes = [record for key, record in merged.items() if existing.get(key) != record]
+    if changes:
+        store.append(changes)
+    return {"read": read, "written": len(changes), "findings": len(merged)}
+
+
 # --------------------------------------------------------------------------- #
 # detectors
 # --------------------------------------------------------------------------- #
@@ -295,12 +326,19 @@ def parse_detector_spec(spec: str) -> tuple[str, str | None]:
     return name, reader or None
 
 
-# Families that only exist per named reader (``detcache:<cached detector>``); ``all`` skips them.
-NEEDS_READER = frozenset({"detcache"})
 
 
-def load_detectors(specs: Sequence[str], options: HarnessOptions) -> list[Detector]:
-    names = [name for name in DETECTORS if name not in NEEDS_READER] if list(specs) == ["all"] else list(specs)
+def load_detectors(
+    specs: Sequence[str], options: HarnessOptions, *, include_cached: bool = False,
+) -> list[Detector]:
+    names = list(specs)
+    if names == ["all"]:
+        names = [name for name in DETECTORS if name != "detcache"]
+        names.extend(("docent:rh_reading_v1", "cascade_own:xai-oauth/grok-4.3"))
+        if include_cached:
+            from evallab.production.trace_harness_detcache import cached_detector_names
+
+            names.extend(f"detcache:{name}" for name in cached_detector_names())
     detectors: list[Detector] = []
     for spec in names:
         name, reader = parse_detector_spec(spec)
@@ -397,7 +435,8 @@ def resolve_runs(
     if selector in CORPUS_LOADERS:
         module_name, _, attribute = CORPUS_LOADERS[selector].partition(":")
         loader = getattr(importlib.import_module(module_name), attribute)
-        return list(_limited(loader(limit=limit), limit))
+        kwargs = {"repo_root": repo_root} if selector in ("own", "own-dev") else {}
+        return list(_limited(loader(limit=limit, **kwargs), limit))
     if selector.startswith("staged:"):
         from evallab.production.trace_harness_staged import staged_runs
 
@@ -405,7 +444,7 @@ def resolve_runs(
     if selector.split(":", 1)[0] == "detectors-v1":
         from evallab.production.trace_harness_detcache import detectors_runs
 
-        return list(detectors_runs(limit, selector=selector))
+        return list(detectors_runs(limit, selector=selector, repo_root=repo_root, registry=registry))
     if selector == "cheatbench":
         atlas: Iterator[AtlasRun] = cheatbench_runs(registry, results_root or default_results_root())
     elif selector == "goodfire":
@@ -543,7 +582,7 @@ def card(
 
 
 def register_subcommands(actions: Any) -> None:
-    """``evallab trace run|card|score``; registration opens no database or model."""
+    """Register trace commands without opening databases or reader transports."""
     run = actions.add_parser(
         "run", help="Run trace detectors on one shared blinded input; cache trace-findings/v1",
         description=__doc__.split("\n\n")[1] if __doc__ else None,
@@ -564,6 +603,10 @@ def register_subcommands(actions: Any) -> None:
     show.add_argument("--max-tokens", type=int, default=CARD_MAX_TOKENS)
     _common(show)
     show.set_defaults(func=_card_command)
+    merge = actions.add_parser("merge", help="Merge findings stores, keeping the newest result per identity")
+    merge.add_argument("inputs", nargs="+", type=Path)
+    merge.add_argument("--findings", type=Path, default=DEFAULT_FINDINGS, help="Destination findings store")
+    merge.set_defaults(func=_merge_command)
     cover = actions.add_parser(
         "coverage",
         help="Which detector identities have findings on which corpora (label-free integration check)",
@@ -658,7 +701,10 @@ def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) ->
     import sys
 
     options = HarnessOptions(database=args.database, repo_root=root, allow_model=args.allow_model)
-    detectors = load_detectors([part.strip() for part in args.detectors.split(",") if part.strip()], options)
+    detectors = load_detectors(
+        [part.strip() for part in args.detectors.split(",") if part.strip()], options,
+        include_cached=args.runs.split(":", 1)[0] == "detectors-v1",
+    )
     runs = resolve_runs(args.runs, database=args.database, repo_root=root,
                         results_root=args.results_root, limit=args.limit)
     summary = run_detectors(runs, detectors, FindingStore(args.findings), refresh=args.refresh,
@@ -682,4 +728,10 @@ def _coverage_command(args: argparse.Namespace, root: Path, *, harbor: Any = Non
     del harbor
     cohorts = {corpus: cohort_ids(corpus, database=args.database, repo_root=root) for corpus in args.corpora}
     print(render_coverage(coverage(FindingStore(args.findings).records(), cohorts)))
+    return 0
+
+
+def _merge_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
+    del root, harbor
+    print(json.dumps(merge_findings(args.inputs, FindingStore(args.findings)), sort_keys=True))
     return 0

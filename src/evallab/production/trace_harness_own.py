@@ -13,9 +13,9 @@ supplies the missing pieces; the Laminar and Docent (``rh_reading_v1``) detector
     ``agent/trajectory.json`` is read exactly as the TT-3 replay and Docent upload did:
     ATIF continuation chains followed, copied-context steps omitted, steps renumbered
     consecutively from 1 across the chain (single-document trials keep their own step
-    ids). Only the actor fields are kept. ``split`` is ``DEV`` for the trace-paired DEV
-    stratum and ``UNSPLIT`` otherwise; ``outcome`` is ``unknown``. The cohort file is
-    read for ``run_id``, ``trial_dir`` and the stratum only; no label file is opened.
+    ids). Admission is resolved from the canonical split registry, with the strict
+    cross-key TEST guard, before any trajectory is opened. A cohort's own DEV tag
+    is never authority; unsplit or unresolved rows are omitted.
 
 ``LaminarCopyDetector`` (``laminar_copy``)
     The one Laminar Signal the Trace Tools lane published for the own cohort,
@@ -50,6 +50,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from evallab.production.cloud_trace_db import admitted_cloud_task_ids
+from evallab.production.corpus_queue import CorpusRegistry
+from evallab.production.run_health import trial_metadata
 from evallab.production.trace_harness import (
     HarnessOptions,
     HarnessRun,
@@ -80,7 +83,7 @@ CASCADE_ROWS = TRACE_TOOLS / "cascade-own.jsonl"
 DEV_STRATUM = "trace-paired-v1:dev"
 GROK_MODEL = "xai-oauth/grok-4.3"
 OWN_ROUTES = (JUDGE_MODEL, GROK_MODEL)
-ACTOR_FIELDS = ("source", "message", "reasoning_content", "tool_calls", "observation")
+ACTOR_FIELDS = ("source", "message", "reasoning_content", "tool_calls", "observation", "timestamp", "metrics")
 
 
 # --------------------------------------------------------------------------- #
@@ -95,10 +98,13 @@ class OwnTrial:
     dev: bool
 
 
-def cohort_trials(path: Path | None = None) -> list[OwnTrial]:
+def cohort_trials(
+    path: Path | None = None, *, repo_root: Path = Path("."), registry: CorpusRegistry | None = None,
+) -> list[OwnTrial]:
     """The frozen own cohort, in file order; a repeated run id is refused."""
     path = COHORT if path is None else path
     trials: list[OwnTrial] = []
+    registry = registry if registry is not None else CorpusRegistry(repo_root)
     seen: set[str] = set()
     with path.open(encoding="utf-8") as handle:
         for number, line in enumerate(handle, 1):
@@ -109,6 +115,16 @@ def cohort_trials(path: Path | None = None) -> list[OwnTrial]:
             if run_id in seen:
                 raise ValueError(f"{path}:{number}: repeated run {run_id}")
             seen.add(run_id)
+            task_name = row.get("task_name")
+            if not isinstance(task_name, str) or not task_name:
+                continue
+            identity = {
+                "task_id": task_name, "dataset_id": "trace-paired-v1", "split": "DEV",
+                "item_id": f"trace-paired-v1:{run_id}", "item_type": "text",
+                "original_grader_digest": None, "repaired_grader_digest": None,
+            }
+            if task_name not in admitted_cloud_task_ids([identity], registry=registry):
+                continue
             trials.append(OwnTrial(run_id, Path(row["trial_dir"]), row.get("cohort") == DEV_STRATUM))
     return trials
 
@@ -144,9 +160,12 @@ def stitched_steps(trial_dir: Path) -> list[dict[str, Any]]:
         path = agent / reference
 
 
-def _runs(path: Path | None, limit: int | None, *, dev_only: bool) -> Iterator[HarnessRun]:
+def _runs(
+    path: Path | None, limit: int | None, *, dev_only: bool,
+    repo_root: Path, registry: CorpusRegistry | None,
+) -> Iterator[HarnessRun]:
     count = 0
-    for trial in cohort_trials(path):
+    for trial in cohort_trials(path, repo_root=repo_root, registry=registry):
         if dev_only and not trial.dev:
             continue
         if limit is not None and count >= limit:
@@ -154,19 +173,25 @@ def _runs(path: Path | None, limit: int | None, *, dev_only: bool) -> Iterator[H
         count += 1
         steps = tuple(stitched_steps(trial.trial_dir))
         yield HarnessRun(
-            trial.run_id, OWN_SOURCE, DEV_SPLIT if trial.dev else UNSPLIT, OUTCOME, steps,
-            actor_inputs_available(steps),
+            trial.run_id, OWN_SOURCE, DEV_SPLIT, OUTCOME, steps,
+            actor_inputs_available(steps), meta=trial_metadata(trial.trial_dir),
         )
 
 
-def own_runs(limit: int | None = None, *, cohort: Path | None = None) -> Iterator[HarnessRun]:
-    """All 169 own-cohort runs (DEV and unsplit strata)."""
-    return _runs(cohort, limit, dev_only=False)
+def own_runs(
+    limit: int | None = None, *, cohort: Path | None = None, repo_root: Path = Path("."),
+    registry: CorpusRegistry | None = None,
+) -> Iterator[HarnessRun]:
+    """Own-cohort runs admitted DEV by the strict split registry."""
+    return _runs(cohort, limit, dev_only=False, repo_root=repo_root, registry=registry)
 
 
-def own_dev_runs(limit: int | None = None, *, cohort: Path | None = None) -> Iterator[HarnessRun]:
-    """The trace-paired-v1 DEV stratum of the own cohort (25 runs)."""
-    return _runs(cohort, limit, dev_only=True)
+def own_dev_runs(
+    limit: int | None = None, *, cohort: Path | None = None, repo_root: Path = Path("."),
+    registry: CorpusRegistry | None = None,
+) -> Iterator[HarnessRun]:
+    """The trace-paired DEV stratum, additionally checked against cross-key seals."""
+    return _runs(cohort, limit, dev_only=True, repo_root=repo_root, registry=registry)
 
 
 # --------------------------------------------------------------------------- #

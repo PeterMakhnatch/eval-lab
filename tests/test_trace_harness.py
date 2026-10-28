@@ -165,3 +165,35 @@ def test_coverage_counts_findings_per_corpus_and_shows_detectors_that_never_ran(
     assert by["cascade", "A"]["verdicts"]["alarm"] == 1 and by["cascade", "B"]["verdicts"]["abstain"] == 1
     assert by["facets", None]["findings"] == 0  # registered, never ran on these corpora
     assert ("run_health", None) not in by  # covered through its run_health.* identities
+
+
+def test_merge_preserves_reader_identity_and_does_not_replace_newer_results(tmp_path: Path) -> None:
+    target = th.FindingStore(tmp_path / "target.jsonl")
+    first = th.finding("run", "facets", detector_version="v1", reader_model="provider/a",
+                       verdict="alarm", kind="cheat", produced_at="2026-10-28T18:00:00Z")
+    older = {**first, "verdict": "clear", "produced_at": "2026-10-28T12:00:00-04:00"}
+    other = {**first, "reader_model": "provider/b", "verdict": "clear"}
+    target.append([first])
+    source = th.FindingStore(tmp_path / "source.jsonl")
+    source.append([older, other])
+    assert th.merge_findings([source.path], target) == {"read": 2, "written": 1, "findings": 2}
+    assert target.records()[th.cache_key(first)] == first
+    assert target.records()[th.cache_key(other)] == other
+    before = target.path.read_bytes()
+    assert th.merge_findings([source.path], target)["written"] == 0
+    assert target.path.read_bytes() == before
+
+
+def test_invalid_merge_input_leaves_target_unchanged(tmp_path: Path) -> None:
+    target = th.FindingStore(tmp_path / "target.jsonl")
+    target.append([th.finding("a", "rules", detector_version="v1", reader_model=None,
+                              verdict="clear", kind="cheat")])
+    source = th.FindingStore(tmp_path / "valid.jsonl")
+    source.append([th.finding("b", "rules", detector_version="v1", reader_model=None,
+                              verdict="alarm", kind="cheat")])
+    corrupt = tmp_path / "bad.jsonl"
+    corrupt.write_text('{"run_id":"c"}\n')
+    before = target.path.read_bytes()
+    with pytest.raises(ValueError):
+        th.merge_findings([source.path, corrupt], target)
+    assert target.path.read_bytes() == before

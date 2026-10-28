@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from evallab.production import trace_harness_own as own
+from evallab.production.corpus_queue import CorpusRegistry
 from evallab.production.trace_harness import (
     FindingStore,
     HarnessOptions,
@@ -18,6 +19,31 @@ from evallab.production.trace_harness import (
 KIMI = own.JUDGE_MODEL
 GROK = own.GROK_MODEL
 
+
+
+@pytest.fixture(autouse=True)
+def local_split_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    keys = tmp_path / "research/answer-keys"
+    for name in ("tb4-audit-v1", "cheatbench-actions-v1", "hacktrace-act-v1"):
+        (keys / name).mkdir(parents=True)
+        (keys / name / "items.jsonl").write_text("")
+    (keys / "tb4-audit-v1/tasks.jsonl").write_text("")
+    (keys / "splits").mkdir()
+    (keys / "splits/assignments.csv").write_text(
+        "key_id,item_id,task,split\n"
+        "trace-paired-v1,trace-paired-v1:plain-run,t,dev\n"
+        "trace-paired-v1,trace-paired-v1:chained-run,u,dev\n"
+        "trace-paired-v1,trace-paired-v1:sealed-run,sealed,dev\n"
+        "another-key,elsewhere,sealed,test\n"
+    )
+    inventory = tmp_path / "research/experiments/mimo-defect-map-v1/inventory.json"
+    inventory.parent.mkdir(parents=True)
+    inventory.write_text(json.dumps({
+        "dataset_id": "mimo-defect-map-v1", "tasks": [],
+        "heldout_task_ids_excluded_from_training_all_versions": [],
+    }))
+    registry = CorpusRegistry(tmp_path)
+    monkeypatch.setattr(own, "CorpusRegistry", lambda _root: registry)
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
@@ -61,7 +87,8 @@ def cohort(tmp_path: Path) -> Path:
     path = tmp_path / "cohort.jsonl"
     _write_jsonl(path, [
         {"run_id": "plain-run", "trial_dir": str(plain), "cohort": "trace-paired-v1:dev", "task_name": "t"},
-        {"run_id": "chained-run", "trial_dir": str(chained), "cohort": "contamination-audit:unsplit"},
+        {"run_id": "chained-run", "trial_dir": str(chained), "task_name": "u",
+         "cohort": "contamination-audit:unsplit"},
     ])
     return path
 
@@ -72,7 +99,7 @@ def test_loader_stitches_continuations_and_keeps_only_actor_fields(cohort: Path)
     assert [step["step_id"] for step in chained.steps] == [1, 2, 3, 4, 5]  # copied-context step omitted
     assert chained.steps[1]["source"] == "agent" and chained.steps[1]["reasoning_content"] == "r"
     assert all(set(step) <= {"step_id", *own.ACTOR_FIELDS} for step in chained.steps)
-    assert (plain.split, chained.split) == ("DEV", "UNSPLIT")
+    assert (plain.split, chained.split) == ("DEV", "DEV")
     assert plain.source == own.OWN_SOURCE and plain.outcome == "unknown" and plain.actor_inputs_available
 
 
@@ -95,6 +122,17 @@ def test_repeated_cohort_run_is_refused(tmp_path: Path) -> None:
     _write_jsonl(path, [{"run_id": "a", "trial_dir": "/x"}, {"run_id": "a", "trial_dir": "/y"}])
     with pytest.raises(ValueError, match="repeated"):
         own.cohort_trials(path)
+
+
+def test_cohort_claims_do_not_override_test_or_missing_assignments(tmp_path: Path) -> None:
+    path = tmp_path / "cohort.jsonl"
+    _write_jsonl(path, [
+        {"run_id": "sealed-run", "task_name": "sealed", "trial_dir": "/never-open",
+         "cohort": "trace-paired-v1:dev"},
+        {"run_id": "unassigned", "task_name": "unknown", "trial_dir": "/never-open",
+         "cohort": "trace-paired-v1:dev"},
+    ])
+    assert list(own.own_runs(cohort=path)) == []
 
 
 def _run(run_id: str, steps: int) -> HarnessRun:
@@ -212,3 +250,21 @@ def test_laminar_copy_reads_only_the_copy_signal(tmp_path: Path) -> None:
     assert found["hit"]["evidence_steps"] == [2]
     assert (found["hit"]["input_tokens"], found["hit"]["output_tokens"]) == (50, 5)
     assert found["quiet"]["evidence_steps"] == []
+
+
+def test_own_score_joins_only_admitted_labels_and_keeps_unreviewed_runs_unknown(
+    tmp_path: Path, cohort: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from evallab.production.trace_harness_corpora import load_corpus_labels
+
+    monkeypatch.setattr(own, "COHORT", cohort)
+    labels = tmp_path / "research/answer-keys/trace-paired-v1/items.jsonl"
+    labels.parent.mkdir()
+    _write_jsonl(labels, [
+        {"subject": {"trial_id": "plain-run"}, "expected_category": "reward_hacking", "expected_fault": "agent"},
+        {"subject": {"trial_id": "chained-run"}, "expected_category": "reward_hacking", "expected_fault": None},
+        {"subject": {"trial_id": "sealed-run"}, "expected_category": "reward_hacking", "expected_fault": "agent"},
+    ])
+    result = load_corpus_labels("own", repo_root=tmp_path, database=tmp_path / "absent.sqlite")
+    assert result.run_ids == frozenset({"plain-run", "chained-run"})
+    assert result.positive == {"plain-run": True}

@@ -160,7 +160,13 @@ def test_apply_signals_creates_missing_and_patches_existing() -> None:
     assert ("PATCH", "/v1/signals/s-1", "stuck_loop") in writes
     created = {name for method, _, name in writes if method == "POST"}
     assert created == {d["name"] for d in SIGNALS} - {"stuck_loop"}
-    assert all(body["filters"] == [] for _, _, body in calls[1:]), "every trace must be evaluated"
+    expected_filter = {
+        "column": "tags", "operator": "includes", "value": ["evallab.signals=on"]
+    }
+    assert all(body["filters"] == [expected_filter] for _, _, body in calls[1:])
+    assert all(body["disabled"] is True for _, _, body in calls[1:]), (
+        "applying definitions must not reactivate per-token judges"
+    )
     for _, _, body in calls[1:]:
         schema = body["structuredOutput"]
         assert schema["required"] == list(schema["properties"]), (

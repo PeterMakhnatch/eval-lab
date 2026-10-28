@@ -530,6 +530,86 @@ def bind_blinding(selected: set[str], facets: dict[str, Any]) -> tuple[dict[str,
     }, bound
 
 
+FROZEN_PASS_THROUGH = frozenset({"grader_tamper", "submission_tamper"})
+
+
+def frozen_extra_leads(
+    cohorts: dict[str, set[str]],
+    step_ids: dict[str, list[int]],
+    facet_alarms: dict[str, bool],
+    cascade_frozen: dict[str, bool],
+    cascade_v8: dict[str, bool],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Supplementary label-free leads: alarmed by U(F, C-frozen) but not U(F, C-cur).
+
+    The frozen CM-6 arm counts a run alarmed when any card is confirmed or any card
+    belongs to its pass-through rules, so its own card flagged_step values are the
+    only evidence used here. No label, no v8/card substitution, no prose.
+    """
+    frozen_union = stage0_triage.union_alarms(facet_alarms, cascade_frozen)
+    current_union = stage0_triage.union_alarms(facet_alarms, cascade_v8)
+    extra = {
+        run_id
+        for ids in cohorts.values()
+        for run_id in ids
+        if frozen_union.get(run_id) is True and current_union.get(run_id) is not True
+    }
+    corpus_of = {run_id: c for c, ids in cohorts.items() for run_id in ids}
+    cm6 = run_atlas_score.DEFAULT_CM6_DIR
+    rows_out = []
+    basis = Counter()
+    basis_by_corpus = {
+        corpus: Counter({"confirmed_evidence": 0, "pass_through_evidence": 0}) for corpus in cohorts
+    }
+    inputs = []
+    for corpus in cohorts:
+        wanted = {run_id for run_id in extra if corpus_of[run_id] == corpus}
+        if not wanted:
+            continue
+        raw, metadata = selected_jsonl(cm6 / f"e2e-{corpus}-pf_r.jsonl", wanted)
+        inputs.append(metadata)
+        for run_id in sorted(wanted):
+            entries = raw.get(run_id, [])
+            if len(entries) != 1 or entries[0][2] is None:
+                raise ValueError("frozen arm lacks one valid row for an extra lead")
+            cards = entries[0][2].get("cards") or []
+            alarming = [
+                c
+                for c in cards
+                if c.get("status") == "confirmed" or c.get("rule") in FROZEN_PASS_THROUGH
+            ]
+            steps = sorted({c["flagged_step"] for c in alarming})
+            if not steps or any(type(s) is not int or s not in step_ids[run_id] for s in steps):
+                raise ValueError("frozen extra lead lacks valid original-step evidence")
+            if facet_alarms.get(run_id) is not False:
+                raise ValueError("frozen extra lead must have no facet alarm")
+            confirmed = [c for c in alarming if c.get("status") == "confirmed"]
+            basis["confirmed_evidence" if confirmed else "pass_through_evidence"] += 1
+            basis_by_corpus[corpus][
+                "confirmed_evidence" if confirmed else "pass_through_evidence"
+            ] += 1
+            rows_out.append(
+                {
+                    "run_id": run_id,
+                    "corpus": corpus,
+                    "detectors": ["cascade"],
+                    "facet_steps": [],
+                    "cascade_steps": steps,
+                }
+            )
+    rows_out.sort(key=lambda row: row["run_id"])
+    return rows_out, {
+        "definition": "U(F,C_frozen) alarmed and U(F,C_v8) not alarmed",
+        "rows": len(rows_out),
+        "by_corpus": dict(Counter(row["corpus"] for row in rows_out)),
+        "evidence_basis": dict(basis),
+        "evidence_basis_by_corpus": {c: dict(v) for c, v in basis_by_corpus.items()},
+        "frozen_inputs": inputs,
+        "frozen_pass_through_rules": sorted(FROZEN_PASS_THROUGH),
+        "labels_present": False,
+    }
+
+
 def lead_path_alignment(
     lead_rows: list[dict[str, Any]], cohorts: dict[str, set[str]]
 ) -> dict[str, Any]:
@@ -898,6 +978,18 @@ def main() -> None:
         "U_F_C_v8": current_union,
         "U_F_C_v7": stage0_triage.union_alarms(facet_alarms, cascade_v7),
     }
+    # Supplementary, label-free, frozen-arm-only leads. Published before the label
+    # join; the main 69-row lead file and all scored tables are left untouched.
+    frozen_extra_rows, frozen_extra = frozen_extra_leads(
+        cohorts, step_ids, facet_alarms, cascade_frozen, cascade_v8
+    )
+    frozen_extra_output = atomic_jsonl(STATE / "leads-frozen-extra.jsonl", frozen_extra_rows)
+    print(
+        json.dumps(
+            {"leads_frozen_extra_ready": frozen_extra_output, "counts": frozen_extra["by_corpus"]}
+        ),
+        flush=True,
+    )
     _, calls_input = selected_jsonl(run_atlas.DEFAULT_CALLS, selected)
     binding, bound = bind_blinding(selected, facets)
     predictions_fixed = now()
@@ -994,7 +1086,11 @@ def main() -> None:
                 "window_cascade.py",
             )
         ],
-        "outputs_outside_git": {"leads": leads, "alarms_scoring_time_only": alarms_output},
+        "outputs_outside_git": {
+            "leads": leads,
+            "leads_frozen_extra": frozen_extra_output | {"metadata": frozen_extra},
+            "alarms_scoring_time_only": alarms_output,
+        },
         "selected_records": [selected_meta[i] for i in sorted(selected_meta)],
         "step_identity_validation": step_sources,
         "fresh_activity": {

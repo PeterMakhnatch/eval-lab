@@ -1604,6 +1604,7 @@ the environment settings, and the commands. Nothing it prints has been run.
 | `run-atlas/field-reliability-v1.json` | state root | Field reliability | "not measured" |
 | `trace-tools/tt1-scorecard.json` | state root | Trace Tools | detector rows missing |
 | `trace-tools/detector-scope-v1.json` (`EVALLAB_DETECTOR_SCOPE`) | state root, counts-only receipt | Trace Tools: Where each detector works | scope notice; frozen-cascade and Stage 1 DEV cells and HackBench cells absent, not zero (optional) |
+| `task-qa/gate-progress-v1.json` (`EVALLAB_GATE_PROGRESS`) | state root, counts-only export | Task Evidence: Gate rerun progress | notice naming the setting; no count shown, none invented (optional) |
 | `trace-tools/results-v1.jsonl` | state root | Trace Tools run lists, Task Evidence | Task Evidence shows "Trace-tool results: not retained" |
 | `run-atlas/scorecards/<newest>.json`, `trace-tools/spend.jsonl`, `run-atlas/per-run-accounting-<newest>.jsonl` | state root | Trace Tools facet rows, cost | those columns blank (optional) |
 | `repair-board/inventory.json` (`EVALLAB_REPAIR_INVENTORY`) | TS-9 inventory, **reduced** | Grader repairs | empty state |
@@ -1616,9 +1617,10 @@ the environment settings, and the commands. Nothing it prints has been run.
 | `EVALLAB_REPAIR_INVENTORY` | Optional; `/data/repair-board/inventory.json` |
 | `EVALLAB_CROSS_TEST_REGISTRY` | Optional; `/data/cross-test/registry.json` |
 | `EVALLAB_DETECTOR_SCOPE` | Optional; `/data/trace-tools/detector-scope-v1.json` |
+| `EVALLAB_GATE_PROGRESS` | Optional; `/data/task-qa/gate-progress-v1.json` |
 
-The three path overrides are optional because their defaults sit under the volume's data root.
-Preflight stages a valid optional detector scope at the same relative path; its absence degrades
+The four path overrides are optional because their defaults sit under the volume's data root.
+Preflight stages a valid optional detector scope or gate progress file at the same relative path; its absence degrades
 only the scope-dependent cells. It stages only that counts-only file, never the raw CM receipts
 used to build it. The inventory and registry are staged as reduced projections that keep only
 the fields the pages read: annotation wording, key ids, answer-key paths, digests, bundle paths,
@@ -1943,6 +1945,41 @@ The **Task Evidence** tab answers "what is known about this task" in one view. `
 through `ContinuousWorkQueue.read_events_of_types`, and `trace-tools/results-v1.jsonl` only
 when the file changes. The page keeps the task in its address (`#task?task_id=`) and the
 Run Atlas run detail links to it. Nothing here calls a model, joins a label or writes.
+
+**Gate rerun progress** (`GET /api/cloud-db/task-evidence/gate-progress`, `split=dev` only) is the
+panel above the task search: how far the corrected Task QA gate rerun (OQ-6) has got on the
+DEV tasks, per auditor model and arm. It reads one retained file,
+`<data_root>/task-qa/gate-progress-v1.json` (`evallab.gate_progress/v1`, path override
+`EVALLAB_GATE_PROGRESS`, re-read only when it changes), which holds integers and route names
+only. Each row gives tasks **answered** of the cohort (399: 44 keyed, 355 unkeyed) with the
+count at the v4 checkpoint, tasks **consumed**, **quota-pending** (unsent, waiting for a quota
+reset: not a failure and not a zero) and **failed**, then the keyed recall as "k of n keys" and
+the keyed precision as "k of m findings" at the fixed 0.5 floor, with the old 0.8 gate beside
+each. A gate no task has been read for shows "Not read yet", never 0. Every recall and
+precision is labelled **keyed subset, not population false-alarm rate**: unkeyed tasks are
+not certified negatives. Eligible findings include findings on answered unkeyed tasks, which
+have no key to match, so precision is not comparable with the keyed-only denominators at the
+v4 checkpoint. An absent file shows a notice naming the setting; an invalid or unreadable one
+shows a generic reason that never repeats the file's contents.
+
+Build the file locally from the two retained, aggregate-only summaries (no model call, no
+provider call, nothing uploaded; the coverage run only reads the OQ-6 evidence roots):
+
+```bash
+uv run python -B research/experiments/oq6-task-quality-gate-rerun/coverage.py --aggregate-only \
+  --parent-protocol ~/Developer/eval-lab-results/2026-10-27/oq6-tq-gate-rerun-v4/freeze.json \
+  --continuation-protocol ~/Developer/eval-lab-results/2026-10-28/oq6-tq-gate-rerun-v5/dev/routes/<route>/protocol.json \
+  --continuation-protocol ... > coverage-summary.json   # one per v5 route and stage
+EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run evallab prod export-gate-progress \
+  --coverage-summary coverage-summary.json \
+  --checkpoint-summary research/experiments/oq6-task-quality-gate-rerun/checkpoint-v4-summary.json \
+  --output-directory ~/.local/state/evallab-prod-live/task-qa
+```
+
+The exporter copies named integer fields from DEV, active, unique-union rows only and checks that
+the cohort matches the checkpoint; task and case ids, findings, key text and every other field
+are never read into the output. An existing different file needs `--replace`. Generating or
+staging the file is not permission to deploy.
 
 ### Production supervisor
 

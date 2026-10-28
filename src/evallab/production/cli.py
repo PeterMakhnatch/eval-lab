@@ -293,6 +293,18 @@ def register_parser(commands: Any) -> None:
     )
     clusters.set_defaults(func=_command)
 
+    findings = actions.add_parser(
+        "import-trace-findings",
+        help="Import trace-findings/v1 JSONL (one detector verdict per line) into the cloud trace database (DEV-admitted runs only)",
+    )
+    findings.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    findings.add_argument(
+        "--cloud-database", required=True,
+        help="Cloud trace database: SQLite path/URL or PostgreSQL URL",
+    )
+    findings.add_argument("--jsonl", type=Path, required=True, help="Append-only findings JSONL")
+    findings.set_defaults(func=_command)
+
     reliability = actions.add_parser(
         "import-field-reliability",
         help="Write run-atlas/field-reliability-v1.json from a VF-11 blind re-rate receipt (agreement and n only)",
@@ -976,6 +988,17 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
 
             with CloudTraceDatabase(_database(root, args.cloud_database)) as database:
                 receipt = import_run_facets(
+                    database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
+                )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "import-trace-findings":
+            from evallab.production.cloud_trace_db import CloudTraceDatabase
+            from evallab.production.corpus_queue import CorpusRegistry
+            from evallab.production.trace_findings import import_trace_findings
+
+            with CloudTraceDatabase(_database(root, args.cloud_database)) as database:
+                receipt = import_trace_findings(
                     database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
                 )
             _emit({"command": args.prod_command, **receipt}, args)

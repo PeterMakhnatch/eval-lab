@@ -25,6 +25,7 @@ DASHBOARD: str = r"""<!doctype html>
 .reliability-bar{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}.reliability-track{display:block;width:140px;height:6px;border-radius:3px;background:var(--line)}.atlas-tools .cloud-table.reliability-table{min-width:560px}
 .repairs-table .cloud-table{min-width:1100px}.repairs-table td>div{display:grid;gap:3px;min-width:0}.repairs-table td small{color:var(--muted);overflow-wrap:anywhere}.repairs-table td a{color:var(--blue);overflow-wrap:anywhere}
 .gate-table .cloud-table{min-width:1100px}.gate-table td>div{display:grid;gap:3px;min-width:0}.gate-table td small{color:var(--muted);overflow-wrap:anywhere}.gate-bar{display:block;height:6px;border-radius:3px;background:var(--line);width:140px}.gate-fill{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}
+.harness-table .cloud-table{min-width:1200px}.harness-table td>div{display:grid;gap:3px;min-width:0}.harness-table td small{color:var(--muted);overflow-wrap:anywhere}.harness-card h3{margin:18px 0 8px}.harness-card .cloud-table{min-width:1000px}.harness-form{margin:12px 0}
 .scope-box{margin:16px 0}.scope-box h3{margin:0 0 6px}.scope-lines{margin:0 0 10px;padding-left:18px;color:var(--muted)}.scope-lines li{margin:2px 0}.scope-box .cloud-table{min-width:1100px}
 .crosstest-table .cloud-table{min-width:1320px}.crosstest-table td>div{display:grid;gap:3px;min-width:0}.crosstest-table td small{color:var(--muted);overflow-wrap:anywhere}.crosstest-table td a{color:var(--blue);overflow-wrap:anywhere}.crosstest-table details .cloud-table{min-width:0}.crosstest-table summary{cursor:pointer;color:var(--blue)}.crosstest-hold{margin-top:22px}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
@@ -49,6 +50,7 @@ DASHBOARD: str = r"""<!doctype html>
  <button id="seeker-tab" type="button" role="tab" aria-selected="false" aria-controls="seeker-view" tabindex="-1">Reward Seeker</button>
  <button id="atlas-tab" type="button" role="tab" aria-selected="false" aria-controls="atlas-view" tabindex="-1">Run Atlas</button>
  <button id="tools-tab" type="button" role="tab" aria-selected="false" aria-controls="tools-view" tabindex="-1">Trace Tools</button>
+ <button id="harness-tab" type="button" role="tab" aria-selected="false" aria-controls="harness-view" tabindex="-1">Harness</button>
  <button id="task-tab" type="button" role="tab" aria-selected="false" aria-controls="task-view" tabindex="-1">Task Evidence</button>
  <button id="repairs-tab" type="button" role="tab" aria-selected="false" aria-controls="repairs-view" tabindex="-1">Grader repairs</button>
  <button id="crosstest-tab" type="button" role="tab" aria-selected="false" aria-controls="crosstest-view" tabindex="-1">Cross-test sets</button>
@@ -182,6 +184,24 @@ DASHBOARD: str = r"""<!doctype html>
  <div class="row"><button id="tools-runs-prev" type="button" class="small">Previous</button> <span id="tools-runs-page"></span> <button id="tools-runs-next" type="button" class="small">Next</button></div>
 </section>
  <details id="cloud-tools-sources" class="tools-sources"><summary>Sources read</summary><div id="cloud-tools-source-list"></div></details>
+</section>
+<section id="harness-view" class="panel" role="tabpanel" aria-labelledby="harness-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Every trace detector merged per run / retained files only, DEV runs</div><h2>Harness</h2></div><button id="harness-refresh" type="button" class="small">Refresh harness</button></div>
+ <p class="seal">Read-only. A card lists every detector's newest result for one run, including run health, and merges nothing into a verdict. A detector that recorded nothing is not a clean pass, and a run with no actor transcript is unknown, never clean. Scorecard numbers are counts on the named corpus with the reader model stated.</p>
+ <p id="harness-status" class="notice" role="status"></p>
+ <div id="harness-summary"></div>
+ <h3>Combined scorecard</h3>
+ <div id="harness-scorecard" class="harness-table"></div>
+ <h3>Detector coverage on DEV runs</h3>
+ <div id="harness-detectors" class="harness-table"></div>
+ <h3>Runs with an alarm</h3>
+ <div id="harness-flagged" class="harness-table"></div>
+ <form id="harness-form" class="cloud-filters harness-form">
+  <div class="cloud-query"><label for="harness-run">Run id</label><input id="harness-run" type="search" autocomplete="off" maxlength="200" placeholder="e.g. retained-trace:…"></div>
+  <button type="submit">Open evidence card</button>
+ </form>
+ <p id="harness-card-status" class="notice" role="status"></p>
+ <div id="harness-card" class="harness-card" tabindex="-1"></div>
 </section>
 <section id="task-view" class="panel" role="tabpanel" aria-labelledby="task-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">One admitted DEV task / runs, tool findings, Task QA, seeker differentials, grader fixes</div><h2>Task Evidence</h2></div><button id="task-refresh" type="button" class="small">Refresh task</button></div>
@@ -1078,6 +1098,7 @@ async function openAtlasRun(runId,opener){
   if(version!==atlasRunVersion)return;
   const run=data.run;
   parent.append(button('Open task evidence for '+text(run.task_id),()=>openTask(run.task_id)));
+  parent.append(button('Open combined evidence card',()=>openHarnessCard(runId)));
   parent.append(atlasFacet(run),atlasFlagBadges(run),node('h3','Cluster paths'));
   const paths=list(run.cluster_paths);
   if(paths.length)for(const path of paths)parent.append(node('p',list(path).map(cluster=>cluster.name).join(' → ')));
@@ -1524,6 +1545,143 @@ $('task-copy-link').addEventListener('click',()=>{
  if(taskId)copyText(taskLink(taskId),'the link to this task','task-status');
  else notice('task-status','Open a task first.',true);
 });
+let harnessRun='',harnessVersion=0,harnessCardVersion=0;
+const harnessLink=id=>location.origin+location.pathname+'#harness?run_id='+encodeURIComponent(id);
+const harnessPct=(part,whole)=>whole>0?(100*part/whole).toFixed(1)+'%':'no runs';
+const harnessTone=verdict=>verdict==='alarm'?'bad':verdict==='clear'?'good':'warn';
+function applyHarnessLink(){
+ if(!location.hash.startsWith('#harness'))return false;
+ const id=new URLSearchParams(location.hash.slice(9)).get('run_id');
+ if(id){harnessRun=id.slice(0,200);$('harness-run').value=harnessRun;}
+ return true;
+}
+function harnessMeasure(budget,row){
+ const cell=node('div');
+ if(!budget){cell.append(node('span','Not measured','muted'));return cell;}
+ cell.append(node('strong',cloudCount(budget.hits)+' of '+cloudCount(row.positives)+' positives ('+harnessPct(budget.hits,row.positives)+')'),
+  node('small',cloudCount(budget.false_alarms)+' of '+cloudCount(row.negatives)+' clean runs flagged ('+harnessPct(budget.false_alarms,row.negatives)+')'));
+ return cell;
+}
+function harnessPublished(row){
+ const cell=node('div');
+ if(row.published)cell.append(badge(row.published.reproduced?'Reproduces':'Does not reproduce',row.published.reproduced?'good':'bad'),node('small',row.published.check));
+ else if(list(row.unreproduced_parts).length)cell.append(badge('A part does not reproduce','bad'),node('small',list(row.unreproduced_parts).join(', ')));
+ else cell.append(node('span','No published number to check','muted'));
+ return cell;
+}
+function harnessScorecard(data){
+ const parent=$('harness-scorecard');parent.replaceChildren();
+ if(!data.present){
+  const absent=data.error==='not retained';
+  parent.append(node('p',absent?'No combined scorecard is retained. Place scorecard-v1.json from evallab trace score at trace-harness/ in the data root. Nothing has been fabricated.':'The combined scorecard cannot be shown ('+data.error+'). Replace scorecard-v1.json with a valid counts-only file.',absent?'empty':'notice error'));return;
+ }
+ parent.append(node('small','Generated '+scopeTime(data.generated_at)+'. Positives and clean runs are the corpus label counts; each row names its reader model.'),
+  cloudTable(['Corpus','Detector · rule','Reader model','Recall at a 3% false-alarm budget','Recall at a 5% false-alarm budget','Localization','Cost per 1,000 runs','Median latency','Published number'],
+   list(data.rows).map(row=>{
+    const budget=far=>list(row.budgets).find(item=>item.far_budget===far);
+    return [row.corpus,row.detectors.join(' + ')+' · '+row.rule,row.reader_model==='none'?'No reader model':row.reader_model,
+     harnessMeasure(budget(0.03),row),harnessMeasure(budget(0.05),row),
+     row.localization?cloudCount(row.localization.hits)+' of '+cloudCount(row.localization.scored):'Not measured',
+     typeof row.cost_usd_per_1k_runs==='number'?'$'+row.cost_usd_per_1k_runs.toFixed(2):'Not recorded',
+     Number.isInteger(row.latency_ms_median)?cloudCount(row.latency_ms_median)+' ms':'Not recorded',harnessPublished(row)];
+   })));
+}
+function harnessOverview(data){
+ const found=data.findings,summary=$('harness-summary'),detectors=$('harness-detectors'),flagged=$('harness-flagged');
+ summary.replaceChildren();detectors.replaceChildren();flagged.replaceChildren();
+ harnessScorecard(data.scorecard);
+ if(!found.present){
+  const absent=found.error==='not retained';
+  detectors.append(node('p',absent?'No detector findings are retained. Place findings-v1.jsonl at trace-harness/ in the data root. Nothing has been fabricated; no result is not a clean pass.':'The detector findings cannot be shown ('+found.error+'). Replace findings-v1.jsonl with a valid file.',absent?'empty':'notice error'));
+  flagged.append(node('p','No runs to list.','empty'));return;
+ }
+ const tiles=node('div',undefined,'metrics');
+ tiles.append(cloudTile(cloudCount(found.runs_admitted),'DEV runs with a recorded result'),
+  cloudTile(cloudCount(found.alarmed_runs),'Runs with at least one alarm'),
+  cloudTile(cloudCount(found.detectors.length),'Detector, version and reader combinations'),
+  cloudTile(cloudCount(found.runs_outside),'Recorded runs not admitted DEV runs (not shown)'));
+ summary.append(tiles);
+ const refused=Object.entries(found.refused||{});
+ if(refused.length)summary.append(node('p',cloudCount(refused.reduce((sum,item)=>sum+item[1],0))+' lines were refused: '+refused.map(item=>item[0]+' ×'+item[1]).join('; ')+'.','notice error'));
+ detectors.append(cloudTable(['Detector · version','Group','Reader model','Runs read','Alarm','Clear','Abstain','Unknown','Cost','Mean latency'],
+  list(found.detectors).map(row=>[row.detector+' · '+row.detector_version,row.family==='run_health'?'Run health':'Trace detector',row.reader_model||'No reader model recorded',
+   cloudCount(row.runs),cloudCount(row.alarm),cloudCount(row.clear),cloudCount(row.abstain),cloudCount(row.unknown),
+   '$'+row.cost_usd.toFixed(4),Number.isInteger(row.latency_ms_mean)?cloudCount(row.latency_ms_mean)+' ms':'Not recorded'])));
+ if(!list(found.flagged).length){flagged.append(node('p','No DEV run has an alarm.','empty'));return;}
+ flagged.append(node('small','Most alarming detectors first; showing '+cloudCount(list(found.flagged).length)+' of '+cloudCount(found.alarmed_runs)+'.'),
+  cloudTable(['Run','Task','Alarming detectors','Results',''],list(found.flagged).map(row=>[row.run_id,row.task_id,row.alarms.join(', '),cloudCount(row.results),
+   button('Open card',()=>openHarnessCard(row.run_id))])));
+}
+async function loadHarness(){
+ const version=++harnessVersion;
+ notice('harness-status','Loading the retained harness files…');
+ try{
+  const data=await cloudApi('/api/cloud-db/harness?split=dev');
+  if(version!==harnessVersion)return;
+  harnessOverview(data);notice('harness-status',data.notice);
+ }catch(error){
+  if(version===harnessVersion){
+   for(const id of ['harness-summary','harness-scorecard','harness-detectors','harness-flagged'])$(id).replaceChildren();
+   notice('harness-status',cloudError(error,'Harness'),true);
+  }
+ }
+}
+function harnessResult(item){
+ const verdict=node('div');
+ verdict.append(badge(item.verdict,harnessTone(item.verdict)));
+ if(item.recorded_verdict)verdict.append(node('small','Recorded '+item.recorded_verdict+', shown unknown: this run has no actor transcript.'));
+ const steps=node('div');
+ steps.append(node('span',list(item.evidence_steps).length?list(item.evidence_steps).join(', '):'None cited'));
+ if(item.hidden_steps)steps.append(node('small',cloudCount(item.hidden_steps)+' cited steps are not steps of this run and are hidden'));
+ return [item.detector+' · '+item.detector_version,item.reader_model||'No reader model recorded',verdict,item.kind,
+  typeof item.score==='number'?String(item.score):'Not recorded',steps,item.summary||'No summary',
+  cloudCount(item.input_tokens)+' in / '+cloudCount(item.output_tokens)+' out · $'+item.cost_usd.toFixed(4)+' · '+(Number.isInteger(item.latency_ms)?cloudCount(item.latency_ms)+' ms':'latency not recorded')];
+}
+function harnessCard(data){
+ const parent=$('harness-card'),run=data.run;
+ parent.replaceChildren();
+ const head=node('div',undefined,'row');
+ head.append(node('strong','Run '+run.run_id),badge(run.actor_inputs_available?'Actor transcript present':'No actor transcript: unknown, never clean',run.actor_inputs_available?'good':'warn'),
+  node('span',cloudCount(run.step_count)+' steps'),button('Task '+run.task_id,()=>openTask(run.task_id)),
+  button('Open in Run Atlas',()=>openRunInAtlas(run.run_id)),button('Copy link',()=>copyText(harnessLink(run.run_id),'the link to this card','harness-card-status')));
+ parent.append(head,node('p',data.headline,'seal'));
+ const tally=node('div',undefined,'chips');
+ for(const name of ['alarm','clear','abstain','unknown'])tally.append(badge(name+' '+cloudCount(data.tally[name]),harnessTone(name)));
+ parent.append(tally);
+ const titles={trace:'Trace detectors',run_health:'Run health'};
+ for(const group of list(data.groups)){
+  parent.append(node('h3',titles[group.family]));
+  if(list(group.results).length)parent.append(cloudTable(['Detector · version','Reader model','Verdict','Kind','Score','Cited steps','Summary','Tokens · cost · latency'],list(group.results).map(harnessResult)));
+  else parent.append(node('p','No '+titles[group.family].toLowerCase()+' result is recorded for this run. That is not a clean result.','empty'));
+ }
+ if(list(data.no_result).length)parent.append(node('p','No result for this run from: '+list(data.no_result).join('; ')+'. Not a clean result.','notice'));
+ if(data.facet_lead){
+  const lead=data.facet_lead,box=node('details'),summary=node('summary','Run Atlas facet lead (suspicion '+text(lead.suspicion)+' of 3)'),grid=node('dl',undefined,'atlas-facet');
+  for(const [name,value] of Object.entries(lead)){const item=node('div');item.append(node('dt',name.replaceAll('_',' ')),node('dd',value));grid.append(item);}
+  box.append(summary,grid);parent.append(box);
+ }
+ parent.append(node('small','Detector tokens '+cloudCount(data.totals.input_tokens)+' in / '+cloudCount(data.totals.output_tokens)+' out, $'+data.totals.cost_usd.toFixed(4)+' across the results above.'));
+}
+async function openHarnessCard(runId){
+ harnessRun=runId;$('harness-run').value=runId;
+ if($('harness-tab').getAttribute('aria-selected')!=='true'){$('harness-tab').click();return;}
+ const version=++harnessCardVersion;
+ $('harness-card').replaceChildren();notice('harness-card-status','Loading the evidence card…');
+ try{
+  const data=await cloudApi('/api/cloud-db/harness/card?'+new URLSearchParams({run_id:runId,split:'dev'}));
+  if(version!==harnessCardVersion)return;
+  harnessCard(data);history.replaceState(null,'',harnessLink(runId));notice('harness-card-status',data.notice);
+  $('harness-card').focus();
+ }catch(error){
+  if(version===harnessCardVersion)notice('harness-card-status',error.status===404?'This run is not an admitted DEV run (404).':cloudError(error,'Harness card'),true);
+ }
+}
+$('harness-form').addEventListener('submit',event=>{
+ event.preventDefault();
+ const id=$('harness-run').value.trim();
+ if(id)openHarnessCard(id);else notice('harness-card-status','Type a run id first.',true);
+});
+$('harness-refresh').addEventListener('click',()=>{loadHarness();if(harnessRun)openHarnessCard(harnessRun);});
 const toolsPct=value=>(value*100).toFixed(1)+'%';
 const toolsTokens=new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
 function toolsTime(value){
@@ -1798,6 +1956,7 @@ for(const tab of viewTabs){
   if(tab.id==='repairs-tab')loadRepairs();
   if(tab.id==='crosstest-tab')loadCrosstest();
   if(tab.id==='task-tab'){loadTaskGate();if(taskId)loadTask();}
+  if(tab.id==='harness-tab'){loadHarness();if(harnessRun)openHarnessCard(harnessRun);}
   if(tab.id==='trust-tab')loadTrustQc();
  });
  tab.addEventListener('keydown',event=>{
@@ -2454,6 +2613,7 @@ stream.onopen=()=>{$('connection').textContent='Live · connected';$('connection
 stream.onerror=()=>{$('connection').textContent='Reconnecting · journal replay enabled';$('connection').className='disconnected';};
 window.addEventListener('pagehide',()=>{stream.close();clearTimeout(stateTimer);clearTimeout(timelineTimer);});
 if(applyTaskLink())$('task-tab').click();
+else if(applyHarnessLink())$('harness-tab').click();
 else if(applyAtlasLink()||document.body.dataset.home==='atlas')$('atlas-tab').click();
 refresh();
 </script>

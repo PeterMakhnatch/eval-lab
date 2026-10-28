@@ -144,6 +144,66 @@ uv run evallab atlas clusters show --with-labels      # label and rule rates at 
   at least five labelled runs, a positive rate of at least 50% and rule recall
   of at most 20%, with their three most central member texts.
 
+### Work queues written by every build
+
+A build is not finished until it has written the two files the downstream lanes
+read. Both are written from the scored clusters, so labels are joined only after
+clustering and naming; neither the embedder nor the namer ever sees a label.
+`--no-queues` skips them (only for a clustering-only build);
+`atlas clusters queues` rewrites them from the stored latest build without
+re-embedding.
+
+| Reader | Path | Schema | Content |
+|---|---|---|---|
+| Tripwires (`w1C:pG`) | `~/.local/state/evallab-prod-live/run-atlas/tripwires-clusters-v1.json` | `run-atlas-tripwires/v1` | The selected uncovered high-cheat clusters, ranked by positive runs |
+| Task QA (`w1C:pJ`) | `~/.local/state/evallab-prod-live/run-atlas/task-qa-audit-queue-v1.jsonl` | `run-atlas-task-audit/v1` | One JSON line per cluster-task pair behind those clusters |
+
+```bash
+uv run evallab atlas clusters build --replay-rules   # clusters + both queue files
+uv run evallab atlas clusters queues --replay-rules  # rewrite the queues only
+```
+
+- **Selection** is exactly `uncovered_clusters`: at least `--min-labelled`
+  labelled members (default 5), a positive rate of at least `--min-rate`
+  (default 0.5) and rule recall of at most `--max-rule-recall` (default 0.2).
+  The thresholds that produced a file are recorded in its `selection` block, so
+  a reader can tell which filter admitted the cluster.
+- **Unknown is not clean.** `--coverage` decides what a rule hit means:
+  `stage1` counts any current stage-1 rule firing, `alarm` counts only the
+  cascade's confirmed alarm. A positive with no known coverage makes the
+  cluster's `rule_recall` null, and such a cluster is *not* selected.
+  `--replay-rules` fills coverage for labelled runs the frozen CM-6 receipt does
+  not cover, using the current deterministic rules and no judge.
+- **Identity only.** Every run and task in either file is DEV-admitted under
+  `assignments.csv`: Task identities come from the same gate as the database
+  export (`admitted_cloud_task_ids` plus the registry's cross-key TEST check),
+  and CheatBench items use `cheatbench_item_admitted`. Without assignment
+  authority the command refuses rather than certifying anything. A member with
+  no admitted identity is counted in `unknown_members` and contributes no task
+  row; per-run labels are never written, only cluster-level rates and per-task
+  counts.
+- **Both files are replaced atomically** (write to a sibling temporary file, then
+  `os.replace`), so a reader never sees a partial queue, and an empty selection
+  still writes a file with `clusters: []` — the absence of work is stated, not
+  left as a stale earlier file.
+
+The Tripwires entry carries `cluster_id`, `name`, `level`, `parent`, `size`,
+`dev_members`, `unknown_members`, `positive_runs`, `dev_members_by_dataset`,
+`labelled_by_dataset`, `positive_runs_by_dataset`, `label_rates`, `rule_recall`,
+`rule_fpr`, `rule_labelled`, `task_ids` and the admitted `member_run_ids`.
+The dataset breakdown exists because a cluster whose cheat rate rests only on
+CheatBench labels is not a DEV tripwire target — that is what sank the earlier
+three-cluster port (`#1385`) — so a reader can tell which corpus supplied the
+positives before building a rule.
+Tripwires can then pull member metadata per cluster with
+`evallab prod export-cluster-scope --cluster-id ID --manifest PATH` (CE-15)
+and derive rules without ever reading this file's aggregates. Each Task QA row
+carries `cluster_id`, `cluster_name`, `cluster_level`, `cluster_size`,
+`cluster_rate`, `cluster_rule_recall`, `task_id`, `canonical_task_id`,
+`native_task_id`, `dataset_id`, `positive_runs`, `dev_members` and `run_ids`,
+ordered by positive runs within the cluster ranking, so the densest
+cluster-task pairs are read first.
+
 ## Always on (`evallab atlas watch`)
 
 Logic: `src/evallab/production/run_atlas_watch.py`. Tests:
@@ -152,7 +212,8 @@ Logic: `src/evallab/production/run_atlas_watch.py`. Tests:
 
 ```bash
 uv run evallab atlas watch --once --dry-run      # count pending runs; no lock, no gateway
-uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-day 1000000
+uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-day 1000000 \
+  --route anthropic/claude-haiku-5-5
 ```
 
 - No ingestion path publishes a "trace committed" event (`upsert_trace`,
@@ -170,6 +231,12 @@ uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-da
   `omp usage --json` window is at or above 90% are skipped. Quota exhaustion
   yields the batch promptly and does not consume a trace's failure allowance;
   the next cycle can resume after a reset.
+- One reader route. Facets from different models disagree more than one model
+  disagrees with its own re-read (cross-model kappa 0.42-0.47 on
+  `suspicion >= 2`, against 0.64 for a Haiku retest, on 100 DEV runs), so mixing
+  readers confounds population scores. The service template pins
+  `anthropic/claude-haiku-5-5`, the reader of the stored DEV pass; when its
+  provider is above the headroom gate, new runs wait rather than switch models.
 - One instance at a time (flock on `run-atlas/watch.lock`). The launchd
   template runs `--once` every five minutes, releasing the lock between cycles
   so a backfill driver can use the same lock. Render absolute paths to an

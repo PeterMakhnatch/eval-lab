@@ -1670,6 +1670,8 @@ the environment settings, and the commands. Nothing it prints has been run.
 | `trace-tools/tt1-scorecard.json` | state root | Trace Tools | detector rows missing |
 | `trace-tools/detector-scope-v1.json` (`EVALLAB_DETECTOR_SCOPE`) | state root, counts-only receipt | Trace Tools: Where each detector works | scope notice; frozen-cascade and Stage 1 DEV cells and HackBench cells absent, not zero (optional) |
 | `task-qa/gate-progress-v1.json` (`EVALLAB_GATE_PROGRESS`) | state root, counts-only export | Task Evidence: Gate rerun progress | notice naming the setting; no count shown, none invented (optional) |
+| `trace-harness/findings-v1.jsonl` | state root, `trace-findings/v1` records | Harness: evidence card, detector coverage | notice naming the file; no result is not a clean pass (optional) |
+| `trace-harness/scorecard-v1.json` | state root, counts-only `evallab trace score` output | Harness: combined scorecard | notice naming the file (optional) |
 | `trace-tools/results-v1.jsonl` | state root | Trace Tools run lists, Task Evidence | Task Evidence shows "Trace-tool results: not retained" |
 | `run-atlas/scorecards/<newest>.json`, `trace-tools/spend.jsonl`, `run-atlas/per-run-accounting-<newest>.jsonl` | state root | Trace Tools facet rows, cost | those columns blank (optional) |
 | `repair-board/inventory.json` (`EVALLAB_REPAIR_INVENTORY`) | TS-9 inventory, **reduced** | Grader repairs | empty state |
@@ -2046,6 +2048,46 @@ The exporter copies named integer fields from DEV, active, unique-union rows onl
 the cohort matches the checkpoint; task and case ids, findings, key text and every other field
 are never read into the output. An existing different file needs `--replace`. Generating or
 staging the file is not permission to deploy.
+
+#### Harness (`/api/cloud-db/harness`, `/api/cloud-db/harness/card`)
+
+The **Harness** tab puts every trace detector's result for one run in one card and the combined
+scorecard beside it. It is read-only: nothing on it runs a detector, calls a model or writes, and
+both endpoints are DEV only (`split=dev`; any other split is refused with 400). Two retained files
+under `<data_root>/trace-harness/` feed it, both optional and both re-read only when they change:
+
+- `findings-v1.jsonl`: `trace-findings/v1` records (CONTRACT section 3b), the interim file that
+  `evallab trace run` and every detector adapter append to, `run_health.*` included. The newest
+  record per run, detector, detector version and reader model wins. A line that breaks the contract
+  (unknown verdict or kind, a non-identifier detector, version or reader, a negative or non-finite
+  number, more than 20 evidence steps, a summary over 40 words, a time with no zone, a duplicate
+  JSON key) is counted by reason on the page and never shown; no reason repeats the line. A version
+  may use letters, digits and `. _ / + : @ -` (up to 80 characters). The contract stores an absent
+  latency as 0, so a latency of 0 is shown as not recorded and left out of the mean.
+- `scorecard-v1.json`: `evallab.trace_scorecard/v1`, counts only: per corpus and detector
+  combination, the reader model (`none` for a deterministic detector), recall hits and false alarms
+  at the 3% and 5% false-alarm budgets, localization, cost per 1,000 runs, median latency and, for a
+  single detector, whether it reproduced its published number. A combination built on a detector
+  that did not reproduce is flagged. Unknown fields, hits above positives and a missing reader are
+  refused; an invalid file shows a generic reason that never repeats its contents.
+
+`GET /api/cloud-db/harness` returns the scorecard, counts per detector over admitted DEV runs
+(runs read, alarm, clear, abstain, unknown, cost, mean latency), and the up to 50 runs with the
+most alarming detectors. `GET /api/cloud-db/harness/card?run_id=` returns `evallab.harness_card/v1`
+for one admitted DEV run (404 otherwise): one row per detector, version and reader, grouped as
+trace detectors and run health, each with verdict, kind, score, cited steps (steps that are not
+steps of the run are hidden and counted), summary, tokens, cost and latency; the detectors that
+recorded nothing for this run; and the Run Atlas facet lead. Nothing is merged into one verdict.
+
+A run with no actor transcript (no agent step with text or a tool call) is unknown, never clean: a
+recorded `clear` for it is shown as `unknown`, and a run no detector read says so rather than
+reading as clean. The card holds no outcome, reward, model or dataset field. The page keeps the run
+in its address (`#harness?run_id=`), and Run Atlas run detail links to the card.
+
+Deploy-preflight lists both files as optional for the Harness tab and stages them at the same
+relative path after the cloud loaders accept them. A findings record may carry a detector
+`verdict`, but any per-run label or reward field still refuses the file. Staging is not
+permission to deploy.
 
 ### Production supervisor
 

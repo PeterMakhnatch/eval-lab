@@ -262,3 +262,46 @@ clickable message links — references alone do not render as links.
 - Time taken: ~1.5 h active (imports ~5 min for 54+54, scans ~10 s each,
   most of the rest interactive screenshot-driving and one cite-linkify
   rescan). Credits: analysts are deterministic code; $0 spent.
+
+## Always-on DEV database scans
+
+The credential-free watcher imports new admitted DEV runs from
+`~/.local/state/evallab-prod-live/cloud-trace-db.sqlite`, runs the four
+message-only deterministic scanners, and appends `evallab.trace_tool_result/v1`
+records to `~/.local/state/evallab-prod-live/trace-tools/results-v1.jsonl`.
+These are harness-health leads, not confirmed reward-hacking verdicts.
+The six `rule_*` scanners require full Harbor trial directories and are not
+part of this database timer. No hosted reader, model or upload is enabled.
+
+From a clean, committed checkout containing the watcher:
+
+```sh
+bash scripts/ops/launchd/install-scout-watch.sh --load
+```
+
+The LaunchAgent `com.petermakhnatch.evallab.scout-watch` runs at load and every
+300 seconds, scanning at most 128 pending runs per invocation. It checks the
+current snapshot's cross-key admission authority before reading trace bodies.
+Already-imported transcripts are not enough to count as scanned: all four
+scanners must have current-version non-null values. Partial/error scans remain
+pending. Informational null flags do not cause rescanning.
+
+The installer snapshots the committed repository and its split authority to
+`~/Library/Application Support/evallab/scout-watch/runtime/<commit>/`, with its
+own environment pinned to Inspect Scout 0.5.4 and DuckDB 1.5.5. It does not depend
+on the dirty primary checkout or a disposable worktree. Reinstall from a newer
+merged commit to update code and admission rules; evidence stays in place.
+
+Health is in `~/.local/state/evallab-prod-live/trace-tools/watch-last.json`
+(`scanned`, `idle`, `incomplete`, or `error`), with logs under
+`~/Library/Logs/evallab/com.petermakhnatch.evallab.scout-watch*.log`.
+An idle invocation writes a fresh receipt without creating another scan.
+New scan folders are under the existing viewer's
+`derived/trace-lab/scout/scans/trace-tools/watch/` tree at
+<http://127.0.0.1:7576>; no viewer restart is necessary.
+
+For a bounded manual invocation, use
+`python -m evallab.readers.scout_watch --batch-size 1` in that environment.
+The installer also accepts isolated `--label`, `--db-path`, `--state-dir`,
+`--runtime-dir`, and `--project` paths for real scheduler smokes.
+`--uninstall` removes only its LaunchAgent, preserving data and runtime snapshots.

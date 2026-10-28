@@ -89,6 +89,7 @@ DETECTORS: dict[str, str] = {
     "facets_prefix100": "evallab.production.trace_harness_experiments:FacetsPrefix100Detector",
     "recheck_sol": "evallab.production.trace_harness_experiments:RecheckSolDetector",
     "whole_run_logistic": "evallab.production.trace_harness_experiments:WholeRunLogisticDetector",
+    "detcache": "evallab.production.trace_harness_detcache:DetectorCacheDetector",
 }
 
 Key = tuple[str, str, str, str | None]
@@ -293,8 +294,12 @@ def parse_detector_spec(spec: str) -> tuple[str, str | None]:
     return name, reader or None
 
 
+# Families that only exist per named reader (``detcache:<cached detector>``); ``all`` skips them.
+NEEDS_READER = frozenset({"detcache"})
+
+
 def load_detectors(specs: Sequence[str], options: HarnessOptions) -> list[Detector]:
-    names = list(DETECTORS) if list(specs) == ["all"] else list(specs)
+    names = [name for name in DETECTORS if name not in NEEDS_READER] if list(specs) == ["all"] else list(specs)
     detectors: list[Detector] = []
     for spec in names:
         name, reader = parse_detector_spec(spec)
@@ -396,6 +401,10 @@ def resolve_runs(
         from evallab.production.trace_harness_staged import staged_runs
 
         return list(staged_runs(selector.removeprefix("staged:"), limit, repo_root=repo_root))
+    if selector.split(":", 1)[0] == "detectors-v1":
+        from evallab.production.trace_harness_detcache import detectors_runs
+
+        return list(detectors_runs(limit, selector=selector))
     if selector == "cheatbench":
         atlas: Iterator[AtlasRun] = cheatbench_runs(registry, results_root or default_results_root())
     elif selector == "goodfire":

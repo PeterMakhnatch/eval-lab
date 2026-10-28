@@ -253,7 +253,17 @@ def load_corpus_labels(
 
         run_ids, positive, steps = staged_labels(name.removeprefix("staged:"), repo_root=repo_root)
         return CorpusLabels(name, run_ids, positive, steps, "step", {})
-    raise ValueError(f"unknown corpus {name!r}; known: {', '.join(CORPORA)}, staged:<set>")
+    if name.split(":", 1)[0].split("#", 1)[0] == "detectors-v1":
+        # ``detectors-v1[:<source>][#<check>]``: labels exactly as ``evallab detectors score``
+        # defines them for that check (default reward_hacking).
+        from evallab.production.trace_harness_detcache import detectors_labels
+
+        selector, _, check = name.partition("#")
+        run_ids, positive, steps = detectors_labels(selector, check or "reward_hacking")
+        return CorpusLabels(name, run_ids, positive, steps, "step", {})
+    raise ValueError(
+        f"unknown corpus {name!r}; known: {', '.join(CORPORA)}, staged:<set>, detectors-v1[:<source>][#<check>]"
+    )
 
 
 def _goodfire_sample_ids(path: Path | None) -> list[str]:

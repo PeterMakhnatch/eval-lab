@@ -550,6 +550,8 @@ PUBLISHED_CHECKS: tuple[PublishedCheck, ...] = (
       )),
     PublishedCheck("whole-run-logistic-cheatbench", "cheatbench", "whole_run_logistic", "native",
                    (12, 75, 4, 75), "pK-SELF whole-run logistic M3 (#1383)"),
+    PublishedCheck("detcache-run-health-loop-g6", "detectors-v1:g6#stuck_loop", "detcache.run_health_loop",
+                   "native", (24, 36, 0, 16), "uv run evallab detectors score run_health_loop (g6 stuck_loop)"),
 )
 
 

@@ -1,0 +1,70 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000232",
+  "variant_digest": "sha256:fb00505ebac8b48c500a70d42ddf177bd9bc776877344273dbc7791f340f0eb4",
+  "variant_harbor_digest": "sha256:e1530bceff55b484dd83cd3844be0270f7a96c86535e19e978a7080913f7bb7f",
+  "parent": {
+    "digest": "sha256:627d6082cbe17636ef46359720c693ceb22983935209f0d3928ef00998c64fda",
+    "harbor_digest": "sha256:4e8009eae686a06aaa0cad772078387647ab4c060d0c77addd37da02bf85cbbc",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-code",
+      "revision": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000232",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@ts9-1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:001a14324d1710198cd68e0b83307fe6792bcfbeea14aabdae67e37ce56745f6",
+      "after_sha256": "sha256:1b4c756e15821647171b77e2eebb59333922ffc594e98c3ed10f0a3f2ff15b7e",
+      "content": "diff --git a/quantecon/tests/test_gridtools.py b/quantecon/tests/test_gridtools.py\nindex 4e965c151..938379352 100644\n--- a/quantecon/tests/test_gridtools.py\n+++ b/quantecon/tests/test_gridtools.py\n@@ -5,11 +5,14 @@\n import numpy as np\n import time\n import pytest\n+import quantecon as qe\n-from numpy.testing import assert_array_equal, assert_, assert_raises\n+from numpy.testing import (\n+    assert_array_equal, assert_equal, assert_, assert_raises\n+)\n \n from quantecon.gridtools import (\n     cartesian, mlinspace, _repeat_1d, simplex_grid, simplex_index,\n-    num_compositions, num_compositions_jit\n+    num_compositions, num_compositions_jit, cartesian_nearest_index\n )\n \n \n@@ -165,6 +168,74 @@ def test_repeat():\n     assert_(abs(t_numpy-t_repeat).max())\n \n \n+class TestCartesianNearestIndex:\n+    def setup_method(self):\n+        nums = (5, 6)\n+        self.nodes = [list(range(nums[0])), np.linspace(0, 1, nums[1])]\n+        self.orders = ['C', 'F']\n+        self.prod_dict = \\\n+            {order:cartesian(self.nodes, order=order) for order in self.orders}\n+\n+    def linear_search(self, x, order='C'):\n+        x = np.asarray(x)\n+        return ((self.prod_dict[order] - x)**2).sum(1).argmin()\n+\n+    def test_1d(self):\n+        x = (1.2, 0.3)\n+        for order in self.orders:\n+            ind_expected = self.linear_search(x, order)\n+            ind_computed = cartesian_nearest_index(x, self.nodes, order)\n+            assert_equal(ind_computed, ind_expected)\n+\n+        assert_raises(\n+            ValueError, cartesian_nearest_index, x, self.prod_dict['C']\n+        )\n+\n+    def test_2d(self):\n+        T = 10\n+        rng = np.random.default_rng(1234)\n+        X = np.column_stack((\n+            rng.uniform(self.nodes[0][0]-1, self.nodes[0][-1]+1, size=T),\n+            rng.standard_normal(T) + 0.5\n+        ))\n+        ind_expected = np.empty(T, dtype=np.intp)\n+\n+        for order in self.orders:\n+            for t in range(T):\n+                ind_expected[t] = self.linear_search(X[t], order)\n+            ind_computed = cartesian_nearest_index(X, self.nodes, order)\n+            assert_array_equal(ind_computed, ind_expected)\n+\n+        assert_raises(\n+            ValueError, cartesian_nearest_index, X, self.prod_dict['C']\n+        )\n+\n+    @pytest.mark.parametrize(\"order\", [\"C\", \"F\"])\n+    @pytest.mark.parametrize(\"nodes\", [\n+        ([2.0], [-3.0, 1.0, 6.0], [0.0, 4.0]),\n+        ([-3.0, 1.0, 6.0], [2.0], [0.0, 4.0]),\n+        ([-3.0, 1.0, 6.0], [0.0, 4.0], [2.0]),\n+        ([2.0], [4.0], [-1.0]),\n+        ([2.0],),\n+    ])\n+    def test_public_api_singleton_dimensions(self, nodes, order):\n+        X = np.asarray([\n+            [grid[0] - 1.0 for grid in nodes],\n+            [np.mean(grid) + 0.25 for grid in nodes],\n+            [grid[-1] + 1.0 for grid in nodes],\n+        ])\n+        prod = cartesian(nodes, order=order)\n+        ind_expected = np.asarray([\n+            np.argmin(np.sum((prod - x)**2, axis=1)) for x in X\n+        ], dtype=np.intp)\n+\n+        for x, ind in zip(X, ind_expected):\n+            assert_equal(qe.cartesian_nearest_index(x, nodes, order), ind)\n+        assert_array_equal(\n+            qe.cartesian_nearest_index(X, nodes, order), ind_expected\n+        )\n+\n+\n class TestSimplexGrid:\n     def setup_method(self):\n         self.simplex_grid_3_4 = np.array([[0, 0, 4],\ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,5 @@\n+H4sIAAAAAAAAA+3S32rCMBQG8Fz3KY54bZKqaR9H0iSsBZu4Ji369qYdY2PgvFHGtu93cwL5z3d4\n+M3ZHe3B+EuxZZFYrtdTsa13GpdrKbb2rZLlnsixzZaSe9qJPxpj0QMSGENJ36+7N/1L8I//kYjqY\n+0PfaWx7bx91xL/+c9nv+qqrrnP++2klG8nFPuO2f579eiabzotGxLYylpQkaZ4sYxsE4EvO3BZ/m\n+/pjXaZO6SSdXnC6pDZ42PeVR3kOb8xTpddQ+ORP8ck58a6mXobMphGPkp0vx0/8FAAAAAAAAAAAA\n+AAAAAAAAAPhLrvYHyi8AKAAA\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\n"
+    }
+  ],
+  "rationale": "The assigned instruction demonstrates import quantecon as qe and asks for single and batched nearest indices matching Cartesian enumeration in both C and F orders. Extend the existing TestCartesianNearestIndex class with public qe.cartesian_nearest_index calls on tiny grids with leading, middle and trailing singleton dimensions, all-singleton dimensions, and a one-dimensional singleton grid. Compute expected indices independently using np.argmin of squared distances over each tiny Cartesian product. Exercise each query singly and as a batch, including interior and out-of-range coordinates. This tests public export and valid degenerate grid behavior without timing, source inspection or implementation fingerprints; the original selected test-file command remains unchanged.",
+  "inputs": {
+    "mission": "TS-9",
+    "eligible_case_id": "D0399",
+    "qa_keys": [
+      "mimo-weak-tests-v2.1:format-code-task-000232:block",
+      "mimo-weak-tests-v2.1:format-code-task-000232:line-57a0b56cc6"
+    ],
+    "original_package_digest": "sha256:627d6082cbe17636ef46359720c693ceb22983935209f0d3928ef00998c64fda",
+    "original_source_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-27/oq6-tq-gate-rerun/inputs/dev/D0399/source.txt",
+    "original_source_sha256": "sha256:0e3ebcbe9a9f2f4858b7a9c2d92da37eb1276f42dcf2ca5efea79e57ba8649f8",
+    "qa_keys_sha256": "sha256:cadb8a02bd2dadd26e0c93afb7ed9e8a9c14ed16cb82a9b3562bb5617f1a18c1",
+    "source_record_sha256": [
+      "sha256:c13f265097e666b1ca600489a4febc1d14ddf31d0b8007ed09ec63f6b8f86a49",
+      "sha256:3ba4474e3090f82b43f797f635c50a6ac055cfae63b0fd474d0d37f7b705ea0a"
+    ],
+    "assignment_sha256": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "dev_assignments": [
+      [
+        "mimo-weak-tests-v2",
+        "dev"
+      ],
+      [
+        "mimo-weak-tests-v2.1",
+        "dev"
+      ]
+    ],
+    "semantic_rationale": "The assigned instruction demonstrates import quantecon as qe and asks for single and batched nearest indices matching Cartesian enumeration in both C and F orders. Extend the existing TestCartesianNearestIndex class with public qe.cartesian_nearest_index calls on tiny grids with leading, middle and trailing singleton dimensions, all-singleton dimensions, and a one-dimensional singleton grid. Compute expected indices independently using np.argmin of squared distances over each tiny Cartesian product. Exercise each query singly and as a batch, including interior and out-of-range coordinates. This tests public export and valid degenerate grid behavior without timing, source inspection or implementation fingerprints; the original selected test-file command remains unchanged.",
+    "validation_mode": "static-only",
+    "native_trials_executed": [],
+    "native_qualification": false,
+    "changed_native_files": [
+      "quantecon/tests/test_gridtools.py"
+    ],
+    "preserved_native_command": "python -m pytest -xvs quantecon/tests/test_gridtools.py",
+    "source_boundary": "Assigned instruction and test.patch only; no solution, solution.patch, oracle patch, TEST or heldout source read."
+  },
+  "created_by": "ts9-cartesian-api",
+  "created_at": "2026-10-28T04:02:58Z",
+  "status": "candidate",
+  "evidence": []
+}

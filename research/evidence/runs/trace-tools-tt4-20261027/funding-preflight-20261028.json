@@ -1,0 +1,36 @@
+{
+  "schema": "evallab.tt4_funding_preflight/v1",
+  "at": "2026-10-28T10:00:44.730738+00:00",
+  "route": "openrouter/google/gemini-2.5-flash-lite",
+  "requested_provider": "google-ai-studio",
+  "approved_cap_usd": "14.85",
+  "other_arm_earmark_usd": "35.00",
+  "credits": {
+    "source": "GET https://openrouter.ai/api/v1/credits",
+    "http_status": 200,
+    "total_credits": "75",
+    "total_usage": "25.148707405",
+    "available_usd": "49.851292595"
+  },
+  "byok_metadata": {
+    "source": "GET https://openrouter.ai/api/v1/byok",
+    "http_status": 401,
+    "applicable_google_byok": null,
+    "management_credential_available": false,
+    "inference_probe_used": false
+  },
+  "decision": "blocked-before-inference",
+  "reason": "Funded OpenRouter credits do not establish that Google BYOK is absent. The documented provider order/only controls do not disable stored upstream credentials. The current key cannot read authoritative integration metadata; no credential or account settings were changed.",
+  "owner_action": "Supply authoritative read-only active provider-integration metadata proving no applicable Google AI Studio BYOK, or a dedicated OpenRouter-credit-only key policy. This is an authorization/metadata action, not a payment request.",
+  "model_calls": 0,
+  "native_scans": 0,
+  "served_models": [],
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "usd": 0,
+  "source_documents": [
+    "https://openrouter.ai/docs/guides/overview/auth/byok.md#byok-with-provider-ordering",
+    "https://openrouter.ai/docs/guides/routing/provider-selection.md",
+    "https://openrouter.ai/api/v1/models/google/gemini-2.5-flash-lite/endpoints"
+  ]
+}

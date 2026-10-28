@@ -1,0 +1,46 @@
+{
+  "freeze_sha256": "7ef9411ed2c8af2c10b0eb4fe549a88137b33417deca218054d0670d6ad8b371",
+  "frozen_utc": "2026-10-28T09:49:38+00:00",
+  "spec": {
+    "blinding_dependencies_sha256": {
+      "evallab.cheatbench_fidelity": "d27581f459ec14d5e1fee0c0fb3861b532e154eb5c07e5cb57748ad5434f7f49",
+      "evallab.production.run_atlas": "608877e475eb6a9be118c6631236a22ffb22e693b457e77972dcf5a51deb66df"
+    },
+    "excerpt_implementation_sha256": "df38abd467459356a2af3ad945647a3b62cd3bddbfc87300a8bf0db367a01c0a",
+    "excerpt_rules": {
+      "agent_radius": 5,
+      "cap_characters": 60000,
+      "cap_policy": "remove entire steps farthest from a lead first; later step wins distance ties; task retained",
+      "citations": "validate against retained neutral indices, then map to original run step IDs",
+      "lead_mapping": "original run step IDs mapped through BlindRun.origins; missing IDs fail closed",
+      "model_input": "generic prompt and redacted excerpt only; no identities, leads, detectors or labels",
+      "nonagent_lead": "anchor at the number of preceding agent steps",
+      "omissions": "all missing neutral-index ranges explicitly marked; no partial step truncation",
+      "projection": "run_atlas.blind_run, steps allowlist, outcome unknown",
+      "redaction": "run_atlas.render_segments with database_source_pattern",
+      "selection": "first user/task step plus agent steps at agent-rank distance <=5 of a lead",
+      "step_bounds": {
+        "action": 4000,
+        "agent_message_and_reasoning": "whole, as in Atlas",
+        "context": 12000,
+        "observation": 2500
+      }
+    },
+    "excerpt_rules_sha256": "821feeeae32fd95988e69c4e8538561639f21b97170abb663945ae2e14287d9b",
+    "model": "openai-codex/gpt-6.1-sol",
+    "prompt_sha256": "3cf2a36b1cbfa69fb29635af8e86f8042874c35b7d48ab47f919866fad7502e1",
+    "reference_labels_loaded": false,
+    "schema": "cm12-recheck-freeze/v1",
+    "system_sha256": "ad376291f0e3040aa29d780f07b9b8df0e5484c859e7af18220b06fe6d76ffdf",
+    "thinking": "medium",
+    "transport": {
+      "cache": "sha256(canonical([model, system, user]))",
+      "concurrency": 4,
+      "fallback": false,
+      "max_transport_attempts": 3,
+      "quota_stop_fraction": 0.85,
+      "semantic_retries": false,
+      "tools": false
+    }
+  }
+}

@@ -774,6 +774,10 @@ uv run evallab schedule install
   Set `--verdict-root <checkout>` when the primary lacks the real HAR-177 census/variant/oracle files (on this host: `.worktrees/har177-verdicts-20261006`). The service records per-file SHA-256/source provenance and snapshots only those inputs under `state/evidence`; retiring that source checkout does not lose the reviewed evidence. A present source missing required inputs fails closed.
   Per-job projection refusals retain the original guard and exact reason in `state.json` and the digest JSON; the ten-line summary lists reason classes. Refused jobs are excluded from run/trial/legit/history/page counts and never marked processed. Only changed source inputs retry them; unchanged input is a no-op even when refusals remain.
   Source `watch/hooks.jsonl` changes refresh the run and replay; generated `watch` and `processed` outputs do not trigger another refresh.
+  Each queue root is an independent source. A configured `--queue-root` that is missing, or a root whose evidence vanishes mid-run (a worktree retired while the refresh walks it), is recorded under `source_failures` as `{path, reason}` in the result and digest JSON and on the digest's queue-roots line; the run restarts without that root and the remaining sources still refresh (`status: partial`). A missing path outside every source still fails the whole run. An auto-discovered worktree retired *before* the run is simply no longer discovered.
+  Every result also carries `backup`: the newest dump under the primary's `backups/postgres/` whose manifest checksum verifies, its `created_at`, `age_hours`, `status` (`fresh` ≤36 h, `stale`, `missing`) and newer generations that failed verification. The digest's first status line shows it. `--backup` (installer: `install-nightly-refresh.sh --backup`) additionally runs the existing `create_postgres_backup` every night, noop or not, bounded by the registered `postgres_backup` step timeout, and records `attempt: {ok, path|error}`; without the flag `attempt` is `null` and the refresh never touches Docker or PostgreSQL.
+  Exit status: `0` all sources refreshed or unchanged and any requested backup succeeded (also `status: locked`, when another refresh holds the lock); `1` the run finished but is incomplete: `source_failures` is non-empty (also on a noop) or the backup attempt failed; `2` the whole refresh failed and `state.json` did not advance.
+  Unchanged evidence does not replay projections or advance their high-water state. If backup health or source failures changed, the digest health lines are still republished so a successful backup or retired-source recovery cannot leave yesterday's failure visible.
 
 For a dispatch-only schedule that checks the approved queue every minute:
 
@@ -931,8 +935,8 @@ Steps run in the exact order below:
 | 4 | `parquet_compaction` | 300s | `continue` | Yes | Consolidate granular Parquet partitions for closed days into `compact/dt=YYYY-MM-DD/` and prune old files |
 | 5 | `postgres_backup` | 120s | `abort` | Yes | Create an atomic, timestamped `pg_dump` backup before dispatch |
 | 6 | `canary_enqueue` | 60s | `abort` | No | Enqueue version-pinned canary evaluation specs for the day |
-| 7 | `dispatch` | 600s | `abort` | No | Execute approved queue specs via `Executor.tick()` |
-| 8 | `researcher_pass` | 300s | `continue` | No | Run unattended researcher loop iterations if budget and credentials allow |
+| 7 | `dispatch` | executor-owned | `abort` | No | Execute approved queue specs via `Executor.tick()` |
+| 8 | `researcher_pass` | 1860s | `continue` | No | Run unattended researcher loop iterations if budget and credentials allow |
 | 9 | `lessons` | 120s | `continue` | Yes | Materialize statistical lesson views and regenerate `research/lessons.md` |
 | 10 | `digest` | 60s | `abort` | Yes | Render, enrich with fleet telemetry, and commit the daily Markdown digest |
 | 11 | `status_update` | 30s | `continue` | Yes | Generate and update the `STATUS.md` operator surface |
@@ -960,6 +964,30 @@ For telemetry surfaces, span tracing with Phoenix, and diagnostic entry points, 
 - **Inherently stateful / non-idempotent steps** (`canary_enqueue`, `dispatch`, `researcher_pass`):
   These steps advance the queue, execute trials, or consume daily researcher quotas. They mutate queue
   directories and consume execution allowances.
+
+### Timeout enforcement
+
+`NightlyCycle.run` enforces each declared `timeout` with a main-thread `SIGALRM`
+(`run_with_timeout`). On expiry it terminates every child process started since
+the cycle began (SIGTERM to each child and to any process group it leads, SIGKILL
+after 5 s) *before* unwinding the step, so cleanup that waits on a child cannot
+hang and nothing is orphaned. `StepTimeout` is a `BaseException`, so step bodies'
+`except Exception` bookkeeping cannot swallow it. Detached Docker containers are
+outside the process tree; the executor's own cleanup still owns those.
+
+No step is ever retried. The outcome is `failed` with the error
+`StepTimeout: exceeded declared timeout of …` and reason `timeout_exceeded`
+(idempotent) or `timeout_exceeded_non_idempotent_not_retried`. An idempotent
+step then follows its `on_fail` policy and records `nightly_step_timed_out`; a
+non-idempotent step fails closed regardless of `on_fail` (its side effects
+before expiry are unknown) and records `nightly_quarantined`, which the digest
+renders as quarantine.
+
+`dispatch` declares no outer timeout: `Executor.tick()` already terminates each
+Harbor process group at `timeout_seconds` + 600 s per trial (see the executor
+resilience boundary below), and a shorter outer alarm would kill paid trials.
+`researcher_pass` is bounded by two attempts of every role's own limit plus 60 s
+(`pass_wall_clock_bound_seconds`).
 
 ### How to add or substitute a step
 
@@ -1002,7 +1030,8 @@ To add a new step or customize the pipeline:
 - `status`: `"ran"`, `"skipped"`, or `"failed"`.
 - `duration_s`: Wall-clock execution time in seconds.
 - `reason`: Explanation when `status == "skipped"` (e.g., `"no_backup_configured"`,
-  `"quarantined_by_prior_step"`).
+  `"quarantined_by_prior_step"`) or when a step timed out (`"timeout_exceeded"`,
+  `"timeout_exceeded_non_idempotent_not_retried"`).
 - `error`: Error string when `status == "failed"` (e.g., `"RuntimeError: ..."`).
 
 Use `result.format_step_report()` to format the summary:

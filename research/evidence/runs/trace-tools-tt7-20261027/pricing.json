@@ -1,0 +1,94 @@
+{
+  "schema": "tt7.laminar_flow1_pricing/v1",
+  "as_of_date": "2026-10-27",
+  "currency": "USD",
+  "model": "Laminar flow-1 Signals agent",
+  "execution_status": "unfunded_deferred",
+  "paid_calls_issued_for_this_estimate": 0,
+  "actual_incremental_spend_usd": 0,
+  "why_no_paid_run": [
+    "This TT-7 assignment explicitly prohibits paid Signals calls and cloud-setting changes; the existing subscription is not authorization for per-token inference.",
+    "Signals usage is billed separately from the Starter subscription. No remaining credit or account budget is assumed.",
+    "The frozen sample contains 50 CheatBench runs that are not on the private Laminar upload allow-list. The per-200 calculation is a hypothetical token-budget comparison, not an executable upload plan."
+  ],
+  "subscription": {
+    "plan": "Starter",
+    "usd_per_month": "30.00",
+    "already_authorized_separately": true,
+    "included_in_incremental_inference_estimate": false,
+    "one_time_signals_credit_usd": "5.00",
+    "remaining_credit_usd": null,
+    "credit_applied_to_estimate_usd": "0.00",
+    "source": "https://laminar.sh/pricing"
+  },
+  "inference_rates_usd_per_million_tokens": {
+    "uncached_input": "0.05",
+    "cached_input": "0.01",
+    "output": "0.30",
+    "applies_to": "Tokens consumed by the internal Signals agent, including its retrieval/analysis calls; not the monitored coding agent's token count.",
+    "source": "https://laminar.sh/pricing",
+    "corroborating_primary_source": "https://laminar.sh/blog/flow-1"
+  },
+  "token_assumptions": {
+    "basis": "Explicit hypothetical per-run Signals-agent token budget; not a measurement or exact prediction of this sample.",
+    "run_count": 200,
+    "signals_per_run": 1,
+    "uncached_input_tokens_per_run": 100000,
+    "cached_input_tokens_per_run": 0,
+    "output_tokens_per_run": 1000,
+    "additional_retries_or_chunk_calls_budgeted": 0,
+    "why_not_claimed_as_exact_tokenization": "common.load_run provides the blinded trace text, but Laminar's retrieval agent decides which spans to inspect and may reread them. Local trace tokenization cannot determine its future billable input, cache hits, output, or extra calls. No provider tokenizer or future usage receipt is available for an exact billable-token prediction.",
+    "unknown_actual_output_tokens": true,
+    "unknown_actual_analysis_input_tokens": true
+  },
+  "exact_arithmetic_under_assumptions": {
+    "formula_usd": "200 * ((100000 * 0.05 + 0 * 0.01 + 1000 * 0.30) / 1000000)",
+    "uncached_input_tokens": 20000000,
+    "cached_input_tokens": 0,
+    "output_tokens": 200000,
+    "uncached_input_cost_usd": "1.00",
+    "cached_input_cost_usd": "0.00",
+    "output_cost_usd": "0.06",
+    "per_run_inference_usd": "0.00530",
+    "per_200_inference_usd": "1.06000",
+    "per_1000_inference_usd": "5.30000",
+    "starter_month_plus_hypothetical_200_run_inference_usd": "31.06000",
+    "starter_month_total_is_not_incremental_run_cost": true,
+    "eligible_goodfire_150_only_same_budget_usd": "0.79500",
+    "ineligible_cheatbench_50_hypothetical_only_usd": "0.26500",
+    "storage_overage_usd": null,
+    "storage_note": "No ingest occurred; compression and existing workspace usage are unknown. Storage overage is not silently treated as zero."
+  },
+  "vendor_population_estimate_not_sample_prediction": {
+    "usd_per_1000_traces_at_100000_trace_tokens": "3.50",
+    "scaled_to_200_usd": "0.70",
+    "source": "https://laminar.sh/docs/signals/introduction.md",
+    "caveat": "Vendor measured-median trace-size estimate, not a per-token invoice or this frozen sample's predicted cost. It differs from the explicit 100000 analysis-input plus 1000 analysis-output token scenario because trace tokens and internal Signals-agent analysis tokens are different quantities."
+  },
+  "sources": [
+    {
+      "url": "https://laminar.sh/pricing",
+      "archive": "research-context/sources/links/laminar.sh/2026-10-27-pricing-laminargithub.md",
+      "observed": "Starter $30/month; $5 one-time credit; Signals $0.05/input Mtok, $0.01/cached Mtok, $0.30/output Mtok; calculator estimates use measured median flow-1 costs and actual billing can differ."
+    },
+    {
+      "url": "https://laminar.sh/docs/signals/introduction.md",
+      "archive": "research-context/sources/links/laminar.sh/2026-10-27-https-laminar-sh-docs-signals-introduction-md.md",
+      "observed": "Cloud uses its own flow-1 model and bills every triggered/backfill run by internal input, cached-input, and output tokens. Quoted $3.50 per 1000 traces of 100000 trace tokens is an average, not exact sample billing."
+    },
+    {
+      "url": "https://laminar.sh/blog/flow-1",
+      "archive": "research-context/sources/links/laminar.sh/2026-10-09-flow-1-frontier-trace-intelligence-at-1-20th-of-the-cost-lam.md",
+      "observed": "Primary product announcement explicitly states all three token rates and that analysis cost includes the full Signals-agent run and retrieval steps."
+    }
+  ],
+  "research_commands_observed": [
+    "kb Laminar flow-1 Signals pricing",
+    "kb bookmarks Laminar",
+    "kb Laminar Signals token cost flow",
+    "link-archive get https://laminar.sh/pricing",
+    "link-archive get https://laminar.sh/docs/signals/introduction.md",
+    "link-archive get https://laminar.sh/blog/flow-1"
+  ],
+  "research_method": "Read-only local prior receipts and official public documents; no account API writes, model calls, uploads, or paid searches."
+}

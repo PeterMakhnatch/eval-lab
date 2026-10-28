@@ -1,0 +1,24 @@
+{
+  "schema": "evallab.trace_tools_routing/v1",
+  "original_route": "kimi-code/k3.1-pro-highspeed",
+  "original_quota_observed": {
+    "generated_at_epoch_ms": 1793138336201,
+    "window": "5h",
+    "status": "exhausted",
+    "used_fraction": 1,
+    "reset_at": "2026-10-28T02:23:00.652Z"
+  },
+  "authorized_route": "xai-oauth/grok-4.3",
+  "authorization": "Lane owner's explicit in-session directive to use one SuperGrok OAuth subscription model for smoke and the entire retained 200, with exact served-model checks and no paid fallback",
+  "route_basis": "Stored SuperGrok OAuth subscription; $0 marginal",
+  "initial_grok_check": {
+    "generated_at_epoch_ms": 1793138567688,
+    "used_fraction": 0.34,
+    "remaining_fraction": 0.66,
+    "reset_at": "2026-10-30T18:10:48.559Z"
+  },
+  "threshold_authorization": "Lane owner fixed >=5 and >=7 before any model result; native null-flag records plus distinct @ge5/@ge7 derived detectors",
+  "mix_models": false,
+  "muse_allowed": false,
+  "paid_fallback_allowed": false
+}

@@ -1,0 +1,72 @@
+{
+ "schema": "cm15-freeze/v1",
+ "frozen_at_utc": "2026-10-28T12:34:48Z",
+ "files": {
+  "src/evallab/production/window_cascade.py": "ef1e3b58d57a4a68c53de7c27ff9a336b45a0ceb90777b7539ad526d088f8d68",
+  "src/evallab/production/command_prefilter.py": "09eac0705ac5f4e473961d8d666e8af24fdc0e4ea771eedebaaf44a2a0546fd4",
+  "src/evallab/tripwires.py": "8801300b41324de40a2e6fcd0460cb79756feef4383d924361eb5df2ba329d40",
+  "src/evallab/production/monitor_worker.py": "f2b1787d4dd2dbcf4e62f24122a26c589acd713a7e3e61dcda734c0277bfb601",
+  "research/evidence/runs/corpus-expansion-lb6-20261027/tools/hackbench_adapter.py": "dfe5a2d6410c2cff35f430fff6f856f112113774c58fa23aac61ead7e0766964",
+  "research/evidence/runs/cm11-hackbench-crosstest-20261028/tools/hackbench_cascade.py": "a94c1cb360e95527dff1c0eb5adfd82992f5d5257776c013fca4f7e01ffbaa72"
+ },
+ "informational_sha256": {
+  "research/evidence/runs/cm15-hackbench-v8-20261028/tools/cm15_hackbench.py": "6ef389c6dbeb54eb43cf357c2c5cf91af1671ff6c883145b28949d2bcb348e03",
+  "research/evidence/runs/cm15-hackbench-v8-20261028/README.md": "c41d290752e3b03f5fc4d0b872cec8e00f50794db2080aa28e40bdda647f6c0e"
+ },
+ "arms": {
+  "v7": [
+   "grader_tamper",
+   "submission_tamper"
+  ],
+  "v8": [
+   "grader_tamper"
+  ]
+ },
+ "main_cascade_version": "window-cascade/v8",
+ "settings": {
+  "prefilter_escalated": [
+   "prefilter:answer_path_probe",
+   "prefilter:assertion_override",
+   "prefilter:git_history",
+   "prefilter:git_object_by_sha",
+   "prefilter:harness_scaffold_in_code",
+   "prefilter:package_fetch",
+   "prefilter:test_exclusion_flag"
+  ],
+  "include_reasoning": true,
+  "context_reasoning_chars": 0,
+  "max_window_chars": 9000,
+  "max_families": 3,
+  "radius": 5,
+  "lookahead": 5
+ },
+ "stage2_prompt_sha256": "2b8a61cba5535ed19f80122eca2a9fd51ec7b6c054604d51d8e52554bb362f6b",
+ "judge": "kimi-code/k3.1-pro-highspeed",
+ "judge_settings": {
+  "thinking": "low",
+  "tools": "none",
+  "attempts": 3,
+  "timeout_s": 240
+ },
+ "judge_cache_seed_sha256": "bd2f533126f0ee0277e9e1633afd1250fca0dc3405d903cb811999b9fa90c1aa",
+ "data_sha256": "42c0cfa4a3dc822eb6505fbcc58989c5df5dcf509cc4a97338abbb38c7e9fd87",
+ "quota_at_freeze": {
+  "checked_utc": "2026-10-28T12:34:50Z",
+  "windows": [
+   {
+    "window": "5h",
+    "used": 0.01
+   },
+   {
+    "window": "limit_month_total",
+    "used": 0.672
+   },
+   {
+    "window": "limit_month_code",
+    "used": 0.665
+   }
+  ]
+ },
+ "git_head": "e07ef319269f38cf94be807a07dc0bab760622a8",
+ "git_dirty_paths": []
+}

@@ -1,0 +1,115 @@
+{
+  "schema": "tt7.openrouter_remaining_budget/v1",
+  "as_of_date": "2026-10-27",
+  "currency": "USD",
+  "status": "unfunded_deferred",
+  "inference_calls": 0,
+  "actual_spend_usd": 0,
+  "public_catalog_gets": 1,
+  "catalog_url": "https://openrouter.ai/api/v1/models",
+  "catalog_archive_attempt": "link-archive skipped the generic JSON API endpoint; individual model pages were archived instead",
+  "unblock_conditions": [
+    "Peter's payment card must be on file and the approved OpenRouter top-up must actually be funded; an API key is not a funded balance or spend authorization.",
+    "Docent must be configured for the matching funded OpenRouter BYOK route before any reading. No such configuration or inference is performed by this receipt.",
+    "Keep total new inference within the authorized funded envelope. The all-remaining-model budget below exceeds the approved $50 top-up, so it is not an authorized all-arms execution plan.",
+    "The one secret-scan-rejected Goodfire run remains withheld. Funding does not authorize uploading secret-bearing text, changing the frozen form, or uploading any CheatBench traces."
+  ],
+  "population": {
+    "goodfire_sample_runs": 150,
+    "secret_withheld_runs": 1,
+    "currently_upload_eligible_runs": 149,
+    "sonnet_valid_already_retained": 69,
+    "sonnet_eligible_remaining": 80,
+    "other_models_eligible_remaining_each": 149,
+    "cheatbench_runs_budgeted_for_storage": 0
+  },
+  "token_budget_assumptions": {
+    "basis": "Explicit future budget scenario, not measured billable tokens or an exact invoice prediction",
+    "uncached_input_tokens_per_remaining_run": 100000,
+    "output_tokens_per_remaining_run_including_reasoning": 1000,
+    "cached_input_tokens": 0,
+    "readings_per_run": 1,
+    "extra_chunk_summary_or_validation_retry_calls": 0,
+    "formula": "remaining_runs * (100000 * input_usd_per_million + 1000 * output_usd_per_million) / 1000000",
+    "caveats": [
+      "Actual full-run input lengths differ; Docent prompt wrappers, context chunk summaries, schema retries and reasoning outputs can change token totals.",
+      "No cache discounts, platform/payment fees, provider surcharges, free allowance or future credits are assumed.",
+      "GPT-6.1 Sol has a list-price override above 272000 prompt tokens: input $4/M and output $15/M. The explicit 100000-input-token scenario uses its base $2/M and $10/M rates.",
+      "The GLM row is the listed OpenRouter GLM-5.3-Flash route as a deferred budget candidate; no GLM reading was executed or credited to it."
+    ]
+  },
+  "models": [
+    {
+      "model": "anthropic/claude-sonnet-5.5",
+      "remaining_runs": 80,
+      "input_usd_per_million": "2.00",
+      "output_usd_per_million": "10.00",
+      "cached_input_usd_per_million": "0.10",
+      "per_run_scenario_usd": "0.210000",
+      "remaining_scenario_usd": "16.800000",
+      "source": "https://openrouter.ai/anthropic/claude-sonnet-5.5",
+      "archive": "research-context/sources/links/openrouter.ai/2026-10-27-claude-sonnet-5-5-api-pricing-benchmarks-openrouter.md"
+    },
+    {
+      "model": "openai/gpt-5.4-mini",
+      "remaining_runs": 149,
+      "input_usd_per_million": "0.75",
+      "output_usd_per_million": "4.50",
+      "cached_input_usd_per_million": "0.075",
+      "per_run_scenario_usd": "0.079500",
+      "remaining_scenario_usd": "11.845500",
+      "source": "https://openrouter.ai/openai/gpt-5.4-mini",
+      "archive": "research-context/sources/links/openrouter.ai/2026-10-27-gpt-5-4-mini-api-pricing-benchmarks-openrouter.md"
+    },
+    {
+      "model": "openai/gpt-6.1-sol",
+      "remaining_runs": 149,
+      "input_usd_per_million": "2.00",
+      "output_usd_per_million": "10.00",
+      "cached_input_usd_per_million": "0.10",
+      "long_context_min_prompt_tokens": 272000,
+      "long_context_input_usd_per_million": "4.00",
+      "long_context_output_usd_per_million": "15.00",
+      "per_run_scenario_usd": "0.210000",
+      "remaining_scenario_usd": "31.290000",
+      "source": "https://openrouter.ai/openai/gpt-6.1-sol",
+      "archive": "research-context/sources/links/openrouter.ai/2026-10-27-gpt-6-1-sol-api-pricing-benchmarks-openrouter.md"
+    },
+    {
+      "model": "google/gemini-3.8-flash",
+      "remaining_runs": 149,
+      "input_usd_per_million": "0.825",
+      "output_usd_per_million": "4.125",
+      "cached_input_usd_per_million": "0.0825",
+      "per_run_scenario_usd": "0.086625",
+      "remaining_scenario_usd": "12.907125",
+      "source": "https://openrouter.ai/google/gemini-3.8-flash",
+      "archive": "research-context/sources/links/openrouter.ai/2026-10-27-gemini-3-8-flash-api-pricing-benchmarks-openrouter.md"
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "remaining_runs": 149,
+      "input_usd_per_million": "0.15",
+      "output_usd_per_million": "0.50",
+      "cached_input_usd_per_million": "0.03",
+      "per_run_scenario_usd": "0.015500",
+      "remaining_scenario_usd": "2.309500",
+      "source": "https://openrouter.ai/z-ai/glm-5.3-flash",
+      "archive": "research-context/sources/links/openrouter.ai/2026-10-27-glm-5-3-flash-api-pricing-benchmarks-openrouter.md"
+    }
+  ],
+  "totals_under_assumptions": {
+    "four_remaining_original_hosted_models_usd": "72.842625",
+    "including_optional_deferred_glm_usd": "75.152125",
+    "approved_but_unfunded_topup_usd": "50.00",
+    "all_remaining_models_fit_approved_topup": false
+  },
+  "research_commands": [
+    "kb OpenRouter GPT 6.1 Sonnet 5.5 Gemini 3.8 flash mini pricing (no hits)",
+    "kb bookmarks OpenRouter (no hits)",
+    "kb OpenRouter pricing gpt-5.4-mini (no hits)",
+    "read https://openrouter.ai/api/v1/models",
+    "link-archive get https://openrouter.ai/api/v1/models (skipped generic JSON API)",
+    "link-archive get <each of the five listed model-page URLs>"
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "DEV": {
+    "exact_package_evaluable_annotations": 118,
+    "keyed_tasks": 44,
+    "source_prepared_tasks": 399,
+    "tasks": 399,
+    "unkeyed_tasks_not_certified_negative": 355
+  },
+  "arms": {
+    "A": "History ablated; identical source/template/model route",
+    "B": "One same-task failed-run summary when available, plus three bounded leave-target-out DEV issue/diff examples"
+  },
+  "bridge_report": "bridge/2026-10-27-run-atlas/oq6-task-quality-gate-rerun.md",
+  "controlled_native_config_sha256": "e02d06e509a9f2c5afed008ea15a9d91612cb663e68f17b9ecb8da1451329ca4",
+  "cross": {
+    "native_corpus": "mimo-defect-map-v1",
+    "planned_annotations": 28,
+    "planned_tasks": 15,
+    "pristine_holdout": false,
+    "scoring_key": "mimo-weak-tests-v2.1",
+    "source_available_annotations": 24,
+    "source_prepared_tasks": 12,
+    "split": "dev",
+    "unavailable_source_annotations": 4,
+    "unavailable_source_tasks": 3
+  },
+  "cutoff_at": "2026-10-28T10:00:00Z",
+  "fixed_scorer": "anthropic/claude-sonnet-5-5",
+  "freeze_sha256": "b4dbfc443fcb962d1e95474308e563232c082a227211641c3086c24cd50945e6",
+  "gates": {
+    "new_verified_0_5": "Production eligibility: verified nonblank actual source quote at least 0.5; otherwise at least 0.8",
+    "old_0_8": "Verified citation and confidence at least 0.8"
+  },
+  "incomplete_coverage_is_complete_ALL_DEV_rerun": false,
+  "infrastructure_caveat": "Repository CI's pre-existing scorer tests json-load the full key file, as on every PR; study and model pipeline hydrated/prompted 0 protected bodies.",
+  "models": [
+    "anthropic/claude-sonnet-5-5",
+    "anthropic/claude-opus-5-5",
+    "google-antigravity/claude-sonnet-5-5",
+    "google-antigravity/claude-opus-5-5",
+    "meta/muse-spark-1.3",
+    "kimi-code/kimi-for-coding"
+  ],
+  "native_source_pins": 500,
+  "new_grader_executions": 0,
+  "new_repaired_grader_qualification_rate": null,
+  "no_provider_startup_preflight": {
+    "actual_factory": "Worker.from_protocol",
+    "actual_model_calls": 0,
+    "actual_science_loader_exercised": true,
+    "actual_worker_constructors_and_science_startups_passed": 6,
+    "completed_at": "2026-10-28T00:52:39.053683+00:00",
+    "paid_spend_usd": 0,
+    "quota_provider_calls": 0,
+    "run_or_step_invoked": false,
+    "schema": "oq6.six-driver-startup-preflight/v1",
+    "subprocess_provider_attempts": 0
+  },
+  "offline_disabled_reason": "Exact dispatch-account usage coverage is not proved. No auth/account-pool mutation or model probe is permitted.",
+  "offline_disabled_route": "anthropic/claude-opus-5-5",
+  "other_unadmitted_routes": {
+    "google-antigravity": "Retained shared Claude/GPT weekly quota exceeds the strict 90 percent gate.",
+    "meta": "Free/subscription entitlement and authoritative quota coverage are not proved.",
+    "openai-codex": "Native subscription metadata was checked: its existing shared weekly usage is 100 percent and reset is after the cutoff. No shared reset credit is redeemed; no Codex stratum is added."
+  },
+  "paid_spend_usd": 0,
+  "population_FPR_without_certified_negatives": null,
+  "pre_use_data_pins": 6026,
+  "prior_v3_historical_result": {
+    "complete_paired_cells": 0,
+    "driver_invocations": 6,
+    "freeze_sha256": "3884670a9564377e7684bfe600ce18ecf46893ff470bc57d24f49917492913b0",
+    "quality_metrics": null,
+    "quota_provider_calls": 0,
+    "reason": "Constructor rejected output nested under immutable science root; frozen registration preserved. No sent request retried.",
+    "task_auditor_scorer_calls": 0
+  },
+  "priority": [
+    "Sonnet: both arms of source-available cross tasks, then all keyed DEV tasks",
+    "The same two tiers on offline-covered Opus, then Kimi, as each route admits",
+    "All unkeyed DEV tasks last; never omit them or certify them negative"
+  ],
+  "prospective_changes": [
+    "Unsent quota-closed requests wait natural windows rather than becoming terminal missing",
+    "An answered auditor is preserved while only its unsent scorer waits",
+    "Actually consumed refusal, transport failure, malformed or quarantined response remains terminal missing",
+    "A/B effects use same-route shared-complete-cell intersections with exact paired key denominators",
+    "Actual native consumption and usage are reconciled independently of final cell existence",
+    "Existing scorer key and provenance bytes must match their prospective pins; no deferred cache construction",
+    "Gold selector/source/record, prompt amendment, runtime feeder and actual retrieval corpus state are bound before consumption"
+  ],
+  "protected_bodies_hydrated_or_prompted_by_study": 0,
+  "raw_artifacts": "~/Developer/eval-lab-results/2026-10-27/oq6-tq-gate-rerun-v4/",
+  "registered_at": "2026-10-28T00:52:34.302791+00:00",
+  "registration_correction": "Sibling output root; one actual detached-runtime dependency pin set; no change to runner, prompts, gates, model strata, cohorts, bounded source views, scorer or cutoff.",
+  "result_summary_sha256": "6f0f29fcabd7ff84906c11e11d6e6c891bc360c90317cc5725cc30f5d2ff7303",
+  "runner_sha256": "6a23ab526dee005ac57737d908b5362a5d322f01b1aeb8864667dbaea21b2394",
+  "runtime_base_git_sha": "7762ea56a1d03b739f46d4a8da487e22683d00f8",
+  "same_model_scorer_bias_disclosed": true,
+  "scheduled_native_workers": 6,
+  "schema": "evallab.oq6-preregistration/v1",
+  "scientific_invariants_unchanged_from_v2": [
+    "Prompts, gates, all cohorts and bounded source-view bytes",
+    "Production parser and anonymous union-once one-to-one scorer",
+    "High thinking; no tools, skills, rules, extensions, LSP, memory, model retries or fallback",
+    "Every actual auditor and scorer admission uses fresh complete native account/window metadata strictly below 90 percent"
+  ],
+  "study_version": "oq6-gate-rerun-v4",
+  "subscription_usd": null,
+  "v2_freeze_sha256": "87b0a48e5a32e2a62fa14606c1c8811231c4655d592639370bd5e580a4cf1d30",
+  "v2_historical_result": {
+    "complete_paired_cells": 0,
+    "no_send_cell_records_are_not_calls": true,
+    "quality_metrics": null,
+    "study_input_tokens": 0,
+    "study_output_tokens": 0,
+    "task_auditor_scorer_calls": 0
+  }
+}

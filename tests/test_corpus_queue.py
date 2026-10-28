@@ -1017,3 +1017,22 @@ def test_sqlite_url_and_raw_sqlite_immutability(tmp_path: Path, registry: Corpus
         with pytest.raises(sqlite3.IntegrityError, match="append-only"):
             connection.execute("DELETE FROM events")
         assert connection.execute("SELECT COUNT(*) FROM outbox").fetchone()[0] == 1
+
+
+def test_read_events_of_types_filters_orders_and_pages_by_sequence(
+    queue: ContinuousWorkQueue,
+) -> None:
+    kept = [
+        queue.append_event(_event("task_quality.observed", {"index": index}, event_id=f"keep-{index}"))
+        for index in range(3)
+    ]
+    queue.append_event(_event("task_quality.other", {"index": 9}))
+    wanted = ("task_quality.observed",)
+    assert queue.read_events_of_types(wanted) == kept
+    assert queue.read_events_of_types(wanted, after_seq=kept[0]["seq"], limit=1) == [kept[1]]
+    assert queue.read_events_of_types(("task_quality.absent",)) == []
+    for bad in ((), "task_quality.observed"):
+        with pytest.raises(ValueError, match="event_types"):
+            queue.read_events_of_types(bad)
+    with pytest.raises(ValueError, match="after_seq"):
+        queue.read_events_of_types(wanted, after_seq=-1)

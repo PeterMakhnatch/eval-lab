@@ -190,6 +190,7 @@ def test_dashboard_serves_all_production_parts_without_exposing_operator_token(a
         assert label in response.text
     assert "new EventSource('/api/stream')" in response.text
     assert TOKEN not in response.text
+    assert '<body data-home="live">' in response.text
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
     assert response.headers["cache-control"] == "no-store"
 

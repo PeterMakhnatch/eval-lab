@@ -1,7 +1,7 @@
 """Lossless, label-free conversation projections for the admitted DEV corpus.
 
-Only actor-visible step columns and three explicitly allowed flags are read.
-Dataset/task identities are used by the admission gate, never by the messages.
+Actor content is projected from native conversation columns and retained actor
+record types. Source/control provenance selects rows; actor text is never censored.
 
 TB4/MiMo observations may be previews when the DB holds an observation CAS
 pointer. This projection preserves stored text without truncation; it does not
@@ -23,6 +23,31 @@ from evallab.production.cloud_trace_db import admitted_cloud_task_ids
 from evallab.production.corpus_queue import CorpusRegistry
 
 ID_SALT = "trace-tools/v1"
+_RETAINED_ACTOR_KINDS = frozenset({
+    "retained_headless_prompt", "retained_complete_headless_stdout", "retained_model_message",
+})
+# These are source codec record types, not patterns searched inside actor text.
+# production.run_catalog._has_trace likewise excludes seeker phase telemetry.
+_RETAINED_EVIDENCE_KINDS = frozenset({
+    "seeker_attempt_event_transcript", "seeker_event_journal",
+    "historical_rejected_task_quality_journal", "selected_task_quality_event_journal",
+    "native_execution_receipt_record", "retained_differential_receipt",
+    "retained_native_artifact_observation",
+})
+
+
+class ActorHistoryUnavailable(ValueError):
+    """The source does not retain a supported actor chronology for this run."""
+
+    category = "actor_history_unavailable"
+
+    def __init__(
+        self, trace_id: str, *, step_index: int = -1, reason: str = "actor_history_not_retained",
+    ) -> None:
+        self.trace_id = trace_id
+        self.step_index = step_index
+        self.reason = reason
+        super().__init__(f"Actor history unavailable: trace {trace_id}, step {step_index}: {reason}")
 
 
 @dataclass(frozen=True)
@@ -120,24 +145,49 @@ def _message(
 
 
 def blind_messages(con: sqlite3.Connection, trace_id: str) -> list[dict[str, Any]]:
-    """Project Goodfire, TB4 agent rows, and MiMo/TB2 conversation rows.
+    """Project source-native actor rows, excluding unbound retained evidence.
 
-    TB4's action/observation pair becomes two messages with the same step index.
-    No flags other than reasoning, call id, and native message calls are selected.
-    Content and reasoning are never clipped, including very large tool results.
+    System/user inputs and tool observations are actor history even though their
+    producer is not a model. Explicit retained source kinds distinguish actual
+    messages from event journals, receipts and artifact sidecars. No content,
+    reasoning or prior feedback is filtered by its words or JSON key names.
     """
+    header = con.execute(
+        "SELECT model_id FROM agent_traces WHERE trace_id = ?", (trace_id,),
+    ).fetchone()
+    if header is None:
+        raise ActorHistoryUnavailable(trace_id, reason="source_trace_missing")
     rows = con.execute(
         "SELECT step_index, role, tool_name, command_or_action, content_text, "
         "observation_preview, json_extract(flags_json, '$.reasoning_content'), "
         "json_extract(flags_json, '$.tool_call_id'), "
-        "json_extract(flags_json, '$.native_node_residual.message.tool_calls') "
+        "json_extract(flags_json, '$.native_node_residual.message.tool_calls'), "
+        "json_extract(flags_json, '$.trace_kind'), "
+        "json_extract(flags_json, '$.is_model_message') "
         "FROM trace_steps WHERE trace_id = ? ORDER BY step_index",
         (trace_id,),
     )
     messages = []
-    for index, role, tool_name, command, content, observation, reasoning, call_id, native in rows:
+    actor_kinds = set()
+    for (
+        index, role, tool_name, command, content, observation, reasoning, call_id, native,
+        kind, model_message,
+    ) in rows:
+        if kind in _RETAINED_EVIDENCE_KINDS:
+            continue
+        if kind is not None and kind not in _RETAINED_ACTOR_KINDS:
+            raise ActorHistoryUnavailable(
+                trace_id, step_index=index, reason="unsupported_source_record_type",
+            )
+        if kind is None and header[0] == "retained-event-journal/no-model" and model_message != 1:
+            raise ActorHistoryUnavailable(
+                trace_id, step_index=index, reason="unbound_event_journal_record",
+            )
         if role not in {"system", "user", "assistant", "tool", "agent"}:
-            raise ValueError(f"Unsupported conversation role: {role!r}")
+            raise ActorHistoryUnavailable(
+                trace_id, step_index=index, reason="unsupported_actor_role",
+            )
+        actor_kinds.add(kind)
         calls = []
         if role in {"assistant", "agent"}:
             calls = _calls(command, step_index=index) or _calls(native, step_index=index)
@@ -155,6 +205,13 @@ def blind_messages(con: sqlite3.Connection, trace_id: str) -> list[dict[str, Any
             messages.append(_message(
                 index, "tool", observation, tool_call_id=calls[0]["id"] if calls else None,
             ))
+    if not messages:
+        raise ActorHistoryUnavailable(trace_id)
+    if (
+        ("retained_headless_prompt" in actor_kinds)
+        != ("retained_complete_headless_stdout" in actor_kinds)
+    ):
+        raise ActorHistoryUnavailable(trace_id, reason="incomplete_headless_actor_capture")
     return messages
 
 

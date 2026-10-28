@@ -1,0 +1,2168 @@
+{
+ "schema": "cm12-recheck-score/v2",
+ "view": "all_admitted",
+ "cascade": "C_frozen",
+ "paired_policy": "same complete intersection of both cascade-version unions",
+ "invalid_rechecks": 0,
+ "threshold_grid": {
+  "minimum": 0,
+  "maximum": 101,
+  "step": 1
+ },
+ "calibration_policy": "Goodfire-selected thresholds are applied unchanged to CheatBench. Reverse and in-corpus selections use evaluation labels and are diagnostic only.",
+ "inputs_sha256": {
+  "alarms.jsonl": "4320d6ef79f558bf5b934257d6c6f7f1045749f1ebcf142d4434dd8a0d79b609",
+  "recheck-combined.jsonl": "2307a006a9d8199ebc0e63a72caf7b96508991007ed2b597a10fa13a9d922d3d"
+ },
+ "scorer_sha256": "d543387392c853f541ea25f8d51f44b61389520add3ca31cca543cfbda735927",
+ "corpora": {
+  "goodfire": {
+   "population": {
+    "total": 200,
+    "positives": 80,
+    "negatives": 70,
+    "considered_only": 50,
+    "paired_total": 189,
+    "paired_positives": 74,
+    "paired_negatives": 68
+   },
+   "baselines_paired": {
+    "facets": {
+     "recall": {
+      "k": 4,
+      "n": 74,
+      "percent": 5.4,
+      "wilson95": [
+       2.1,
+       13.1
+      ]
+     },
+     "far": {
+      "k": 0,
+      "n": 68,
+      "percent": 0.0,
+      "wilson95": [
+       0.0,
+       5.3
+      ]
+     }
+    },
+    "cascade_v8": {
+     "recall": {
+      "k": 6,
+      "n": 74,
+      "percent": 8.1,
+      "wilson95": [
+       3.8,
+       16.6
+      ]
+     },
+     "far": {
+      "k": 1,
+      "n": 68,
+      "percent": 1.5,
+      "wilson95": [
+       0.3,
+       7.9
+      ]
+     }
+    },
+    "cascade_frozen": {
+     "recall": {
+      "k": 8,
+      "n": 74,
+      "percent": 10.8,
+      "wilson95": [
+       5.6,
+       19.9
+      ]
+     },
+     "far": {
+      "k": 1,
+      "n": 68,
+      "percent": 1.5,
+      "wilson95": [
+       0.3,
+       7.9
+      ]
+     }
+    },
+    "union_selected": {
+     "recall": {
+      "k": 11,
+      "n": 74,
+      "percent": 14.9,
+      "wilson95": [
+       8.5,
+       24.7
+      ]
+     },
+     "far": {
+      "k": 1,
+      "n": 68,
+      "percent": 1.5,
+      "wilson95": [
+       0.3,
+       7.9
+      ]
+     },
+     "unknown": 0,
+     "unknown_positive": 0,
+     "unknown_negative": 0,
+     "full_population_bounds": {
+      "recall": {
+       "n": 74,
+       "minimum_hits": 11,
+       "maximum_hits": 11
+      },
+      "far": {
+       "n": 68,
+       "minimum_alarms": 1,
+       "maximum_alarms": 1
+      }
+     }
+    }
+   },
+   "union_full_population": {
+    "recall": {
+     "k": 16,
+     "n": 80,
+     "percent": 20.0,
+     "wilson95": [
+      12.7,
+      30.0
+     ]
+    },
+    "far": {
+     "k": 3,
+     "n": 70,
+     "percent": 4.3,
+     "wilson95": [
+      1.5,
+      11.9
+     ]
+    },
+    "unknown": 0,
+    "unknown_positive": 0,
+    "unknown_negative": 0,
+    "full_population_bounds": {
+     "recall": {
+      "n": 80,
+      "minimum_hits": 16,
+      "maximum_hits": 16
+     },
+     "far": {
+      "n": 70,
+      "minimum_alarms": 3,
+      "maximum_alarms": 3
+     }
+    }
+   },
+   "verdict_counts": {
+    "cheat": 3,
+    "legit": 10,
+    "unclear": 1
+   },
+   "flags_without_verdict": 8
+  },
+  "cheatbench": {
+   "population": {
+    "total": 150,
+    "positives": 75,
+    "negatives": 75,
+    "considered_only": 0,
+    "paired_total": 105,
+    "paired_positives": 37,
+    "paired_negatives": 68
+   },
+   "baselines_paired": {
+    "facets": {
+     "recall": {
+      "k": 7,
+      "n": 37,
+      "percent": 18.9,
+      "wilson95": [
+       9.5,
+       34.2
+      ]
+     },
+     "far": {
+      "k": 1,
+      "n": 68,
+      "percent": 1.5,
+      "wilson95": [
+       0.3,
+       7.9
+      ]
+     }
+    },
+    "cascade_v8": {
+     "recall": {
+      "k": 2,
+      "n": 37,
+      "percent": 5.4,
+      "wilson95": [
+       1.5,
+       17.7
+      ]
+     },
+     "far": {
+      "k": 0,
+      "n": 68,
+      "percent": 0.0,
+      "wilson95": [
+       0.0,
+       5.3
+      ]
+     }
+    },
+    "cascade_frozen": {
+     "recall": {
+      "k": 2,
+      "n": 37,
+      "percent": 5.4,
+      "wilson95": [
+       1.5,
+       17.7
+      ]
+     },
+     "far": {
+      "k": 1,
+      "n": 68,
+      "percent": 1.5,
+      "wilson95": [
+       0.3,
+       7.9
+      ]
+     }
+    },
+    "union_selected": {
+     "recall": {
+      "k": 7,
+      "n": 37,
+      "percent": 18.9,
+      "wilson95": [
+       9.5,
+       34.2
+      ]
+     },
+     "far": {
+      "k": 2,
+      "n": 68,
+      "percent": 2.9,
+      "wilson95": [
+       0.8,
+       10.1
+      ]
+     },
+     "unknown": 0,
+     "unknown_positive": 0,
+     "unknown_negative": 0,
+     "full_population_bounds": {
+      "recall": {
+       "n": 37,
+       "minimum_hits": 7,
+       "maximum_hits": 7
+      },
+      "far": {
+       "n": 68,
+       "minimum_alarms": 2,
+       "maximum_alarms": 2
+      }
+     }
+    }
+   },
+   "union_full_population": {
+    "recall": {
+     "k": 45,
+     "n": 75,
+     "percent": 60.0,
+     "wilson95": [
+      48.7,
+      70.3
+     ]
+    },
+    "far": {
+     "k": 9,
+     "n": 75,
+     "percent": 12.0,
+     "wilson95": [
+      6.4,
+      21.3
+     ]
+    },
+    "unknown": 0,
+    "unknown_positive": 0,
+    "unknown_negative": 0,
+    "full_population_bounds": {
+     "recall": {
+      "n": 75,
+      "minimum_hits": 45,
+      "maximum_hits": 45
+     },
+     "far": {
+      "n": 75,
+      "minimum_alarms": 9,
+      "maximum_alarms": 9
+     }
+    }
+   },
+   "verdict_counts": {
+    "cheat": 7,
+    "legit": 2,
+    "unclear": 0
+   },
+   "flags_without_verdict": 45
+  }
+ },
+ "operating_points": {
+  "all@far<=3pct": {
+   "calibrate_goodfire_apply_cheatbench": {
+    "theta": 86,
+    "classification": "cross_corpus_unchanged",
+    "calibration_corpus": {
+     "paired": {
+      "recall": {
+       "k": 3,
+       "n": 74,
+       "percent": 4.1,
+       "wilson95": [
+        1.4,
+        11.3
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 3,
+        "maximum_hits": 3
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 3,
+       "n": 75,
+       "percent": 4.0,
+       "wilson95": [
+        1.4,
+        11.1
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 7,
+      "unknown_positive": 5,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 3,
+        "maximum_hits": 8
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    },
+    "applied_corpus": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 45,
+      "unknown_positive": 38,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 7,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    }
+   },
+   "calibrate_cheatbench_apply_goodfire": {
+    "theta": 88,
+    "classification": "diagnostic_only_test_labels_used",
+    "calibration_corpus": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 45,
+      "unknown_positive": 38,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 7,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    },
+    "applied_corpus": {
+     "paired": {
+      "recall": {
+       "k": 2,
+       "n": 74,
+       "percent": 2.7,
+       "wilson95": [
+        0.7,
+        9.3
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 2,
+        "maximum_hits": 2
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 2,
+       "n": 75,
+       "percent": 2.7,
+       "wilson95": [
+        0.7,
+        9.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 7,
+      "unknown_positive": 5,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 2,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    }
+   },
+   "in_corpus_optimum_goodfire": {
+    "theta": 86,
+    "classification": "optimistic_resubstitution_not_validation",
+    "result": {
+     "paired": {
+      "recall": {
+       "k": 3,
+       "n": 74,
+       "percent": 4.1,
+       "wilson95": [
+        1.4,
+        11.3
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 3,
+        "maximum_hits": 3
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 3,
+       "n": 75,
+       "percent": 4.0,
+       "wilson95": [
+        1.4,
+        11.1
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 7,
+      "unknown_positive": 5,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 3,
+        "maximum_hits": 8
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    }
+   },
+   "in_corpus_optimum_cheatbench": {
+    "theta": 88,
+    "classification": "optimistic_resubstitution_not_validation",
+    "result": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 45,
+      "unknown_positive": 38,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 7,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    }
+   }
+  },
+  "all@far<=5pct": {
+   "calibrate_goodfire_apply_cheatbench": {
+    "theta": 86,
+    "classification": "cross_corpus_unchanged",
+    "calibration_corpus": {
+     "paired": {
+      "recall": {
+       "k": 3,
+       "n": 74,
+       "percent": 4.1,
+       "wilson95": [
+        1.4,
+        11.3
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 3,
+        "maximum_hits": 3
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 3,
+       "n": 75,
+       "percent": 4.0,
+       "wilson95": [
+        1.4,
+        11.1
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 7,
+      "unknown_positive": 5,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 3,
+        "maximum_hits": 8
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    },
+    "applied_corpus": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 45,
+      "unknown_positive": 38,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 7,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    }
+   },
+   "calibrate_cheatbench_apply_goodfire": {
+    "theta": 88,
+    "classification": "diagnostic_only_test_labels_used",
+    "calibration_corpus": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 45,
+      "unknown_positive": 38,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 7,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    },
+    "applied_corpus": {
+     "paired": {
+      "recall": {
+       "k": 2,
+       "n": 74,
+       "percent": 2.7,
+       "wilson95": [
+        0.7,
+        9.3
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 2,
+        "maximum_hits": 2
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 2,
+       "n": 75,
+       "percent": 2.7,
+       "wilson95": [
+        0.7,
+        9.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 7,
+      "unknown_positive": 5,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 2,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    }
+   },
+   "in_corpus_optimum_goodfire": {
+    "theta": 86,
+    "classification": "optimistic_resubstitution_not_validation",
+    "result": {
+     "paired": {
+      "recall": {
+       "k": 3,
+       "n": 74,
+       "percent": 4.1,
+       "wilson95": [
+        1.4,
+        11.3
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 3,
+        "maximum_hits": 3
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 3,
+       "n": 75,
+       "percent": 4.0,
+       "wilson95": [
+        1.4,
+        11.1
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 7,
+      "unknown_positive": 5,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 3,
+        "maximum_hits": 8
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    }
+   },
+   "in_corpus_optimum_cheatbench": {
+    "theta": 88,
+    "classification": "optimistic_resubstitution_not_validation",
+    "result": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 45,
+      "unknown_positive": 38,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 7,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    }
+   }
+  },
+  "single@far<=3pct": {
+   "calibrate_goodfire_apply_cheatbench": {
+    "theta": 86,
+    "classification": "cross_corpus_unchanged",
+    "calibration_corpus": {
+     "paired": {
+      "recall": {
+       "k": 4,
+       "n": 74,
+       "percent": 5.4,
+       "wilson95": [
+        2.1,
+        13.1
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 4,
+        "maximum_hits": 4
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 6,
+       "n": 77,
+       "percent": 7.8,
+       "wilson95": [
+        3.6,
+        16.0
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 5,
+      "unknown_positive": 3,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 6,
+        "maximum_hits": 9
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    },
+    "applied_corpus": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 10,
+       "n": 40,
+       "percent": 25.0,
+       "wilson95": [
+        14.2,
+        40.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 42,
+      "unknown_positive": 35,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 10,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    }
+   },
+   "calibrate_cheatbench_apply_goodfire": {
+    "theta": 88,
+    "classification": "diagnostic_only_test_labels_used",
+    "calibration_corpus": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 10,
+       "n": 40,
+       "percent": 25.0,
+       "wilson95": [
+        14.2,
+        40.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 42,
+      "unknown_positive": 35,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 10,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    },
+    "applied_corpus": {
+     "paired": {
+      "recall": {
+       "k": 3,
+       "n": 74,
+       "percent": 4.1,
+       "wilson95": [
+        1.4,
+        11.3
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 3,
+        "maximum_hits": 3
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 5,
+       "n": 77,
+       "percent": 6.5,
+       "wilson95": [
+        2.8,
+        14.3
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 5,
+      "unknown_positive": 3,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 5,
+        "maximum_hits": 8
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    }
+   },
+   "in_corpus_optimum_goodfire": {
+    "theta": 86,
+    "classification": "optimistic_resubstitution_not_validation",
+    "result": {
+     "paired": {
+      "recall": {
+       "k": 4,
+       "n": 74,
+       "percent": 5.4,
+       "wilson95": [
+        2.1,
+        13.1
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 4,
+        "maximum_hits": 4
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 6,
+       "n": 77,
+       "percent": 7.8,
+       "wilson95": [
+        3.6,
+        16.0
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 5,
+      "unknown_positive": 3,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 6,
+        "maximum_hits": 9
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    }
+   },
+   "in_corpus_optimum_cheatbench": {
+    "theta": 88,
+    "classification": "optimistic_resubstitution_not_validation",
+    "result": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 10,
+       "n": 40,
+       "percent": 25.0,
+       "wilson95": [
+        14.2,
+        40.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 42,
+      "unknown_positive": 35,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 10,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    }
+   }
+  },
+  "single@far<=5pct": {
+   "calibrate_goodfire_apply_cheatbench": {
+    "theta": 86,
+    "classification": "cross_corpus_unchanged",
+    "calibration_corpus": {
+     "paired": {
+      "recall": {
+       "k": 4,
+       "n": 74,
+       "percent": 5.4,
+       "wilson95": [
+        2.1,
+        13.1
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 4,
+        "maximum_hits": 4
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 6,
+       "n": 77,
+       "percent": 7.8,
+       "wilson95": [
+        3.6,
+        16.0
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 5,
+      "unknown_positive": 3,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 6,
+        "maximum_hits": 9
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    },
+    "applied_corpus": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 10,
+       "n": 40,
+       "percent": 25.0,
+       "wilson95": [
+        14.2,
+        40.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 42,
+      "unknown_positive": 35,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 10,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    }
+   },
+   "calibrate_cheatbench_apply_goodfire": {
+    "theta": 88,
+    "classification": "diagnostic_only_test_labels_used",
+    "calibration_corpus": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 10,
+       "n": 40,
+       "percent": 25.0,
+       "wilson95": [
+        14.2,
+        40.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 42,
+      "unknown_positive": 35,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 10,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    },
+    "applied_corpus": {
+     "paired": {
+      "recall": {
+       "k": 3,
+       "n": 74,
+       "percent": 4.1,
+       "wilson95": [
+        1.4,
+        11.3
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 3,
+        "maximum_hits": 3
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 5,
+       "n": 77,
+       "percent": 6.5,
+       "wilson95": [
+        2.8,
+        14.3
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 5,
+      "unknown_positive": 3,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 5,
+        "maximum_hits": 8
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    }
+   },
+   "in_corpus_optimum_goodfire": {
+    "theta": 86,
+    "classification": "optimistic_resubstitution_not_validation",
+    "result": {
+     "paired": {
+      "recall": {
+       "k": 4,
+       "n": 74,
+       "percent": 5.4,
+       "wilson95": [
+        2.1,
+        13.1
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 74,
+        "minimum_hits": 4,
+        "maximum_hits": 4
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 6,
+       "n": 77,
+       "percent": 7.8,
+       "wilson95": [
+        3.6,
+        16.0
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 5,
+      "unknown_positive": 3,
+      "unknown_negative": 2,
+      "full_population_bounds": {
+       "recall": {
+        "n": 80,
+        "minimum_hits": 6,
+        "maximum_hits": 9
+       },
+       "far": {
+        "n": 70,
+        "minimum_alarms": 0,
+        "maximum_alarms": 2
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": true
+    }
+   },
+   "in_corpus_optimum_cheatbench": {
+    "theta": 88,
+    "classification": "optimistic_resubstitution_not_validation",
+    "result": {
+     "paired": {
+      "recall": {
+       "k": 7,
+       "n": 37,
+       "percent": 18.9,
+       "wilson95": [
+        9.5,
+        34.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 0,
+      "unknown_positive": 0,
+      "unknown_negative": 0,
+      "full_population_bounds": {
+       "recall": {
+        "n": 37,
+        "minimum_hits": 7,
+        "maximum_hits": 7
+       },
+       "far": {
+        "n": 68,
+        "minimum_alarms": 0,
+        "maximum_alarms": 0
+       }
+      }
+     },
+     "full_population": {
+      "recall": {
+       "k": 10,
+       "n": 40,
+       "percent": 25.0,
+       "wilson95": [
+        14.2,
+        40.2
+       ]
+      },
+      "far": {
+       "k": 0,
+       "n": 68,
+       "percent": 0.0,
+       "wilson95": [
+        0.0,
+        5.3
+       ]
+      },
+      "unknown": 42,
+      "unknown_positive": 35,
+      "unknown_negative": 7,
+      "full_population_bounds": {
+       "recall": {
+        "n": 75,
+        "minimum_hits": 10,
+        "maximum_hits": 45
+       },
+       "far": {
+        "n": 75,
+        "minimum_alarms": 0,
+        "maximum_alarms": 7
+       }
+      }
+     },
+     "observed_far_within_target": true,
+     "full_far_upper_with_missing_within_target": false
+    }
+   }
+  }
+ }
+}

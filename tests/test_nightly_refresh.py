@@ -6,9 +6,10 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -242,7 +243,11 @@ def test_second_refresh_is_noop_and_preserves_mtimes(
         "jobs": 1,
         "refused_jobs": 0,
         "high_water_mark": first["high_water_mark"],
+        "source_failures": {},
+        "backup": first["backup"],
     }
+    assert first["backup"]["status"] == "missing"
+    assert first["backup"]["attempt"] is None  # No attempt unless --backup.
     assert seams.process == []
     assert seams.trials == []
     assert seams.verdicts == []
@@ -994,3 +999,161 @@ def test_real_artifact_guard_refusal_is_excluded_from_census(
     assert not (config.state_dir / "processed" / _stable_key(bad)).exists()
     assert _tree(checkout) == before
     assert _refresh(config, seams)["status"] == "noop"
+
+
+def _installed_layout(tmp_path: Path) -> tuple[RefreshConfig, Path, Path]:
+    """The installed service's shape: --data-root primary, worktrees auto-discovered."""
+    config = replace(_config(tmp_path), queue_roots=())
+    primary = config.data_root
+    assert primary is not None
+    for directory in (primary / "queue", primary / "runs"):
+        directory.mkdir()
+    worktree = primary / ".worktrees" / "breaker-bench-dev-20261015"
+    (worktree / "queue").mkdir(parents=True)
+    (worktree / "runs").mkdir()
+    return config, primary, worktree
+
+
+def test_worktree_retired_mid_refresh_is_a_source_failure_and_the_rest_refresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Replays 2026-10-26/27: a discovered worktree vanished during the refresh."""
+    config, primary, worktree = _installed_layout(tmp_path)
+    kept = _completed_job(primary / "runs", "primary-job")
+    gone = _completed_job(worktree / "runs", "qa-replay-01m5a0qeatxxvpa7488vgzm4d9")
+    seams = Seams()
+    seams.install(monkeypatch)
+    pages = nightly_refresh.refresh_pages
+
+    def retire_then_sync(config: RefreshConfig, jobs: list[Path]) -> dict[str, Any]:
+        if worktree.exists():
+            shutil.rmtree(worktree)  # The janitor/tidy retirement racing the refresh.
+        return pages(config, jobs)
+
+    monkeypatch.setattr(nightly_refresh, "refresh_pages", retire_then_sync)
+
+    result = run_refresh(config, now=NOW)
+
+    assert result["status"] == "partial"
+    assert result["source_failures"] == {
+        str(worktree): {
+            "path": str(gone),
+            "reason": "queue root vanished during refresh",
+        }
+    }
+    assert nightly_refresh.refresh_exit_code(result) == 1
+    # The surviving source refreshed completely on the retry.
+    assert result["new_runs"] == result["changed_runs"] == 1
+    assert seams.pages[-1] == [kept.resolve()]
+    state = _load(config.state_dir / "state.json")
+    assert list(state["selection"]["jobs"]) == [str(kept.resolve())]
+    digest = _load(config.facts_root / "inputs/evallab-nightly.json")
+    assert digest["source_failures"] == result["source_failures"]
+    assert (
+        f"- Queue roots: 2 (1 FAILED: {gone}: queue root vanished during refresh); "
+        in digest["lines"][2]
+    )
+    # Retirement is not a lasting failure: the next night no longer discovers it.
+    again = _refresh(config, seams)
+    assert again["status"] == "noop"
+    assert again["source_failures"] == {}
+    assert nightly_refresh.refresh_exit_code(again) == 0
+    cleared = _load(config.facts_root / "inputs/evallab-nightly.json")
+    assert cleared["source_failures"] == {}
+    assert "FAILED:" not in cleared["lines"][2]
+
+
+def test_missing_path_outside_every_source_still_fails_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, primary, _ = _installed_layout(tmp_path)
+    _completed_job(primary / "runs", "primary-job")
+    seams = Seams()
+    seams.install(monkeypatch)
+
+    def lost_state(config: RefreshConfig, jobs: list[Path]) -> dict[str, Any]:
+        raise FileNotFoundError(2, "No such file or directory", str(tmp_path / "elsewhere"))
+
+    monkeypatch.setattr(nightly_refresh, "refresh_pages", lost_state)
+
+    with pytest.raises(FileNotFoundError):
+        run_refresh(config, now=NOW)
+    assert not (config.state_dir / "state.json").exists()
+
+
+def test_configured_queue_root_missing_fails_every_run_until_fixed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkout = _checkout(tmp_path)
+    _completed_job(checkout / "runs", "harbor-job")
+    missing = tmp_path.resolve() / "retired-checkout"
+    config = _config(tmp_path, checkout, missing)
+    seams = Seams()
+    seams.install(monkeypatch)
+    expected = {str(missing): {"path": str(missing), "reason": "queue root missing"}}
+
+    first = run_refresh(config, now=NOW)
+    second = _refresh(config, seams)
+
+    assert first["status"] == "partial"
+    assert first["source_failures"] == expected
+    assert seams.spend == []  # Unchanged sources stay a no-op...
+    assert second["status"] == "noop"
+    assert second["source_failures"] == expected  # ...but the failure stays visible.
+    assert nightly_refresh.refresh_exit_code(second) == 1
+
+
+def test_backup_attempt_outcome_and_freshness_are_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab import backups
+
+    checkout = _checkout(tmp_path)
+    _completed_job(checkout / "runs", "harbor-job")
+    config = replace(_config(tmp_path, checkout), backup=True)
+    assert config.data_root is not None
+    (config.data_root / "compose.yaml").write_text("name: eval-lab\n")
+    seams = Seams()
+    seams.install(monkeypatch)
+    days: list[str] = []
+
+    def down(root: Path, day: Any) -> Path:
+        days.append(day.isoformat())
+        raise RuntimeError("pg_dump exited 1: postgres is not running")
+
+    monkeypatch.setattr(nightly_refresh, "create_postgres_backup", down)
+    failed = run_refresh(config, now=NOW)
+
+    assert days == [REPORT_DAY]
+    assert failed["status"] == "refreshed"
+    assert failed["backup"]["status"] == "missing"
+    assert failed["backup"]["attempt"] == {
+        "ok": False,
+        "error": "RuntimeError: pg_dump exited 1: postgres is not running",
+    }
+    assert nightly_refresh.refresh_exit_code(failed) == 1
+    digest = _load(config.facts_root / "inputs/evallab-nightly.json")
+    assert "Postgres backup MISSING (no verified dump); backup attempt FAILED" in digest["lines"][1]
+
+    def dump(command: list[str], output: Any) -> subprocess.CompletedProcess[bytes]:
+        output.write(b"PGDMP fixture")
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    monkeypatch.setattr(
+        nightly_refresh,
+        "create_postgres_backup",
+        lambda root, day: backups.create_postgres_backup(root, day, runner=dump, now=lambda: NOW),
+    )
+    # A backup runs even when the evidence selection is unchanged.
+    succeeded = _refresh(config, seams)
+
+    assert succeeded["status"] == "noop"
+    assert succeeded["backup"]["attempt"]["ok"] is True
+    assert succeeded["backup"]["status"] == "fresh"
+    assert succeeded["backup"]["age_hours"] == 0.0
+    assert succeeded["backup"]["newest_verified"] == succeeded["backup"]["attempt"]["path"]
+    assert nightly_refresh.refresh_exit_code(succeeded) == 0
+    current_digest = _load(config.facts_root / "inputs/evallab-nightly.json")
+    assert current_digest["backup"] == succeeded["backup"]
+    assert "Postgres backup FRESH" in current_digest["lines"][1]
+    assert "backup attempt FAILED" not in current_digest["lines"][1]

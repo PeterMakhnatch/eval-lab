@@ -1,0 +1,134 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-002160",
+  "variant_digest": "sha256:189d482a8b64b167ea840d371bd6eb3081fdd3d743c11bcdc7582ce239d6d9fc",
+  "variant_harbor_digest": "sha256:3d87bfcc9f20d793b6de83a2c51b8acb79e53b2302c533ebeab9dbaa04267cc5",
+  "parent": {
+    "digest": "sha256:77151b17b06d370bbfd813e2c0495e3002ad257ad89e456fe1cc6ebf1cd70597",
+    "harbor_digest": "sha256:23160fbf7038042e6f8528b06f650bd907d976964b6741c32a7f31d96af195b9",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002160",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@ts11-1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:82c6629a7709320202750a7fd44e3f42f41c9634045b45116112237a066091e5",
+      "after_sha256": "sha256:1458701faaf1e85f1b22ab8e85b507a8847b3000b26192a478b68e01ca0b752d",
+      "content": "diff --git a/openwisp_radius/tests/test_commands.py b/openwisp_radius/tests/test_commands.py\nindex 22fce5ef..f28a9504 100644\n--- a/openwisp_radius/tests/test_commands.py\n+++ b/openwisp_radius/tests/test_commands.py\n@@ -291,7 +291,7 @@ def test_convert_called_station_id_command(self, *args):\n         radius_acc = self._create_radius_accounting(**options)\n \n         with self.subTest('Test telnet connection error'):\n-            with patch('logging.Logger.error') as mocked_logger:\n+            with patch('logging.Logger.warning') as mocked_logger:\n                 call_command('convert_called_station_id')\n                 mocked_logger.assert_called_once_with(\n                     'Unable to establish telnet connection to 127.0.0.1 on 7505. '\n@@ -299,7 +299,7 @@ def test_convert_called_station_id_command(self, *args):\n                 )\n \n         with self.subTest('Test telnet raises OSError'):\n-            with patch('logging.Logger.error') as mocked_logger, patch(\n+            with patch('logging.Logger.warning') as mocked_logger, patch(\n                 'openwisp_radius.management.commands.base.convert_called_station_id'\n                 '.BaseConvertCalledStationIdCommand._get_raw_management_info',\n                 side_effect=OSError('[Errno 113] No route to host'),\n@@ -311,14 +311,15 @@ def test_convert_called_station_id_command(self, *args):\n                 )\n \n         with self.subTest('Test telnet connection timed out'):\n-            with patch('logging.Logger.exception') as mocked_logger, patch(\n+            with patch('logging.Logger.warning') as mocked_logger, patch(\n                 'openwisp_radius.management.commands.base.convert_called_station_id'\n                 '.BaseConvertCalledStationIdCommand._get_raw_management_info',\n-                side_effect=EOFError,\n+                side_effect=EOFError('EOFError'),\n             ):\n                 call_command('convert_called_station_id')\n                 mocked_logger.assert_called_once_with(\n-                    'Error encountered while connecting to 127.0.0.1:7505. ' 'Skipping!'\n+                    'Error encountered while connecting to 127.0.0.1:7505: '\n+                    'EOFError. Skipping!'\n                 )\n \n         with self.subTest('Test telnet password incorrect'):\n@@ -354,7 +355,11 @@ def test_convert_called_station_id_command(self, *args):\n                 'openwisp_radius.management.commands.base.convert_called_station_id'\n                 '.BaseConvertCalledStationIdCommand._get_openvpn_routing_info',\n                 return_value={options['calling_station_id']: dummy_routing_obj},\n-            ), patch('logging.Logger.warn') as mocked_logger:\n+            ), patch('logging.Logger.warning') as mocked_logger:\n-                call_command('convert_called_station_id')\n+                import warnings\n+\n+                with warnings.catch_warnings():\n+                    warnings.simplefilter('error', DeprecationWarning)\n+                    call_command('convert_called_station_id')\n                 mocked_logger.assert_called_once_with(\n                     f'Failed to find a MAC address in \"{dummy_routing_obj.common_name}\"'\n@@ -366,7 +371,11 @@ def test_convert_called_station_id_command(self, *args):\n                 'openwisp_radius.management.commands.base.convert_called_station_id'\n                 '.BaseConvertCalledStationIdCommand._get_openvpn_routing_info',\n                 return_value={'dd:dd:dd:dd:dd:dd': Routing()},\n-            ), patch('logging.Logger.warn') as mocked_logger:\n+            ), patch('logging.Logger.warning') as mocked_logger:\n-                call_command('convert_called_station_id')\n+                import warnings\n+\n+                with warnings.catch_warnings():\n+                    warnings.simplefilter('error', DeprecationWarning)\n+                    call_command('convert_called_station_id')\n                 mocked_logger.assert_called_once_with(\n                     f'Failed to find routing information for {radius_acc.session_id}.'\ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,6 @@\n+H4sIAAAAAAAAA+3SUWvCMBAHcJ/9FIcM34ymtgqCD4KiDldFq7CnUm3RjpmUJrrt268G6kTYfKmM\n+sf/vJe3lehd6YetD/Br6kTjWS/fSyLQdx6yZ69U8c8fivG1zp5nFOW9lIXLudqILB6WDlKiUSql/\n+yru1/0exr/nrSGl/I/f7QIRM7YrrcWv+Tad9nr9tZ3ncblmtEjWKO8L3/vn8NyGZwa+jsBy9JzLV\n+NOt5o24lj9bZ8XQ51rHoPJx2Knnaajz3lr2JP3BX19mVclb2FFFUrVL/secOp/5i4Hljd7jwn6b9\n+5WTQlUkk3mKVWExFWsdiq2j27I2mrul/LmjKdPJXSj70Tgqq7Sl8CcRWmjaU1/LTIIwPipmP2OWF\n+VlQ7klX+7d8NAAAAAAAAAAAAAAAAAAAAAFCoT494HDcAKAAA\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\n"
+    }
+  ],
+  "rationale": "Require the two existing routing-error subcases of test_convert_called_station_id_command to execute without DeprecationWarning, as required by instruction.md section 3. Temporarily promote that warning category to an exception around each existing call_command invocation; retain existing log expectations, all other test hunks, the encoded Django test runner and pinned image. Static-only candidate, not a native qualification.",
+  "inputs": {
+    "task_id": "format-code-task-002160",
+    "case_id": "D0287",
+    "targeted_keys": [
+      "mimo-weak-tests-v2.1:format-code-task-002160:block"
+    ],
+    "expected_parent_digest": "sha256:77151b17b06d370bbfd813e2c0495e3002ad257ad89e456fe1cc6ebf1cd70597",
+    "source_revision": "073bdd203ef8bec2db2169f70e214fcf1ad31779",
+    "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "qualifying_unique_run_count": 5,
+    "cluster_counts": [
+      {
+        "cluster_id": "L1-01",
+        "level": 1,
+        "qualifying_run_count": 3
+      },
+      {
+        "cluster_id": "L1-01.2",
+        "level": 2,
+        "qualifying_run_count": 3
+      },
+      {
+        "cluster_id": "L1-01.2.2",
+        "level": 3,
+        "qualifying_run_count": 3
+      },
+      {
+        "cluster_id": "L1-03",
+        "level": 1,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-03.1",
+        "level": 2,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-03.1.1",
+        "level": 3,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-07",
+        "level": 1,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-07.2",
+        "level": 2,
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-07.2.2",
+        "level": 3,
+        "qualifying_run_count": 1
+      }
+    ],
+    "observation_limit": "Counts and cluster IDs only; co-occurrence is not causal evidence.",
+    "existing_candidate_relation": {
+      "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002160/3dbcd92aaa1c.json",
+      "parent_digest": "sha256:4ab85771b18c65cbe15dbc7bdf5a2d612a49277101780300baac5fe10f65579b",
+      "variant_digest": "sha256:3dbcd92aaa1c0d65a2febb9409f1d1e50b3cf29b5d13e7fa13956fbb258b3b0f",
+      "relation": "Same-task earlier semantic candidate, bound to a different parent; not inherited."
+    },
+    "weak_checks": [
+      {
+        "file": "tests/test.patch",
+        "line": 47,
+        "native_target": "openwisp_radius/tests/test_commands.py:358-361",
+        "description": "The missing-MAC routing subcase mocks warning but does not make deprecated-logging warnings fail."
+      },
+      {
+        "file": "tests/test.patch",
+        "line": 56,
+        "native_target": "openwisp_radius/tests/test_commands.py:370-373",
+        "description": "The missing-client-route subcase mocks warning but does not make deprecated-logging warnings fail."
+      }
+    ],
+    "semantic_assertions": [
+      "The existing no-MAC routing case must finish without DeprecationWarning.",
+      "The existing missing-client-route case must finish without DeprecationWarning."
+    ],
+    "runner_selection": {
+      "entrypoint": "tests/test_command.sh:1",
+      "wrapper": "tests/test.patch:71-81",
+      "embedded_member": ".build_env/test_command.sh",
+      "selected_module": "openwisp_radius.tests.test_commands",
+      "extended_method": "test_convert_called_station_id_command",
+      "new_nodes": false,
+      "runner_changed": false
+    },
+    "validation_class": "static only",
+    "checks_run": [],
+    "limitations": [
+      "No native oracle or retained-shortcut trial executed.",
+      "No patch-application, build, test, smoke, formatter, lint or CI checks run.",
+      "No causal shortcut or original/repaired differential established.",
+      "Candidate status and empty native evidence are retained."
+    ]
+  },
+  "created_by": "ts11-defensive-repair",
+  "created_at": "2026-10-28T06:35:06Z",
+  "status": "candidate",
+  "evidence": []
+}

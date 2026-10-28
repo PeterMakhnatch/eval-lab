@@ -107,6 +107,27 @@ Before/after alert unions cover Hackbook verdict rules only, not the complete li
 Stage-1 monitor with legacy alerts and citable-evidence filtering. Candidate-alert
 eligibility is also distinct from pre-action DENY (`gate=True`).
 
+### Source-only runtime diagnostics
+
+The runtime scanner can retain a measured DEV-derived lead without assigning it
+an unrelated Hackbook mechanism. Such rules have empty canonical `entry_ids`
+and explicit `source_links`; they do not expand the catalog's entry coverage.
+
+- `hb_input_bound_clamp` finds authored Python self-rebinding through `min` or
+  `max` against another named expression's `len`.
+- `hb_input_domain_growth` finds an input-parameter-seeded local bound enlarged
+  from another direct input's elements and immediately used for range or storage
+  sizing. It conservatively rejects parameter rebinding, including a nested
+  declaration's default expression evaluated in the enclosing scope.
+
+Both inspect executable Python in structured write/edit arguments only, not
+shell bodies, displayed examples, prose or tool output. Hits preserve the
+authored step and are causal, non-gating `diagnostic` leads. Legitimate robustness
+code can match; neither cue is a cheating verdict, a confirmed grader defect
+or evidence of harness mutation. Score them separately from verdict-eligible
+rules and report the actual positive/clean denominators, marginal hits and
+unchanged cross-test results rather than inferring intent from a label.
+
 ## Rebuilding and Validating
 
 ```bash

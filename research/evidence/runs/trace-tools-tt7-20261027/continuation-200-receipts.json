@@ -1,0 +1,101 @@
+{
+  "schema": "tt7.subscription_continuation_admission/v1",
+  "recorded_at": "2026-10-28T02:07:49.840828+00:00",
+  "status": "deferred",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "requested_run_count": 200,
+  "completed_prefix_count": 60,
+  "continuation_start_zero_based": 60,
+  "continuation_end_exclusive": 200,
+  "authority": "Main lane-owner full-200 clarification, unchanged fixed continuation after prefix-60",
+  "prefix_reading_receipt": "omp-receipts.json",
+  "prefix_readings_finished_at": "2026-10-28T00:06:17.902740+00:00",
+  "protocol_changed": false,
+  "model_routes_changed": false,
+  "decision_rules_changed": false,
+  "execution_read_labels": false,
+  "read_trace_content": false,
+  "canonical_rows_appended": 0,
+  "admission_fraction": 0.65,
+  "hard_fraction_ceiling": 0.7,
+  "concurrency_per_route": 2,
+  "freshness_max_seconds": 120,
+  "result": "unknown_quota",
+  "quota_probe_returncode": 1,
+  "quota_probe_error": "run_omp.RouteError: anthropic: usage snapshot older than 120 seconds; fail closed",
+  "quota_probe_command": [
+    "uv",
+    "run",
+    "--locked",
+    "--python",
+    "3.12",
+    "python",
+    "-c",
+    "import json,sys;sys.path.insert(0,'research/evidence/runs/trace-tools-tt7-20261027');import run_omp;print(json.dumps(run_omp.refresh_usage('anthropic')))"
+  ],
+  "quota_cli_calls": 3,
+  "quota_cli_sequence": [
+    [
+      "omp",
+      "usage",
+      "--provider",
+      "anthropic",
+      "--json",
+      "--redact"
+    ],
+    [
+      "omp",
+      "usage",
+      "invalidate",
+      "anthropic"
+    ],
+    [
+      "omp",
+      "usage",
+      "--provider",
+      "anthropic",
+      "--json",
+      "--redact"
+    ]
+  ],
+  "paid_keys_stripped": true,
+  "foreground_auth_calls": 0,
+  "model_calls": 0,
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "marginal_cost_usd": 0,
+  "elapsed_seconds": null,
+  "timing_note": "Probe wall time was not captured; no inference was admitted",
+  "execution_code_sha256": {
+    "common.py": "538c8004f2544ed2919602f4e184c6025af73d0b506883b1f07a9280bf640f40",
+    "run_omp.py": "47bda9d83b9cd040994f0e7512473ca9de9a7ca1a21c1a651df0fe94617c7cf3"
+  },
+  "routes": {
+    "anthropic/claude-sonnet-5-5": {
+      "status": "deferred",
+      "requested_run_count": 200,
+      "completed_prefix_positions": 60,
+      "unattempted_positions": 140,
+      "unattempted_by_source": {
+        "cheatbench-actions-v1": 25,
+        "cloud-trace-db": 115
+      },
+      "unattempted_reason": "unknown_quota_unattempted",
+      "new_model_calls": 0,
+      "provider_refusals_retried": 0
+    },
+    "anthropic/claude-opus-5-5": {
+      "status": "deferred",
+      "requested_run_count": 200,
+      "completed_prefix_positions": 60,
+      "unattempted_positions": 140,
+      "unattempted_by_source": {
+        "cheatbench-actions-v1": 25,
+        "cloud-trace-db": 115
+      },
+      "unattempted_reason": "unknown_quota_unattempted",
+      "new_model_calls": 0,
+      "provider_refusals_retried": 0
+    }
+  }
+}

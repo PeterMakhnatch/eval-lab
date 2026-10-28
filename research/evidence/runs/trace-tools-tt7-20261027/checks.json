@@ -39,7 +39,7 @@
     "ci_green_claim": false
   },
   "publication_constraints": {
-    "public_data_files_checked": 21,
+    "public_data_files_checked": 22,
     "original_sample_run_id_hit_files": 0,
     "aggregate_score_contains_raw_label_field": false,
     "aggregate_score_contains_per_run_evidence_steps": false,
@@ -49,7 +49,7 @@
     "private_failure_credential_key_hit_records": 0
   },
   "spend_ledger": {
-    "tt7_batch_lines": 70,
+    "tt7_batch_lines": 71,
     "marginal_usd": 0,
     "known_input_tokens": 14913822,
     "known_output_tokens": 14488,
@@ -74,6 +74,32 @@
     "focused_tests_selected": 1,
     "static_passed": true,
     "model_calls": 0
+  },
+  "full_200_continuation": {
+    "receipt": "continuation-200-receipts.json",
+    "requested_runs_per_claude": 200,
+    "completed_prefix_positions_per_claude": 60,
+    "unknown_quota_unattempted_positions_per_claude": 140,
+    "unknown_quota_unattempted_goodfire_positions_per_claude": 115,
+    "unknown_quota_unattempted_cheatbench_positions_per_claude": 25,
+    "new_inference_calls": 0,
+    "canonical_rows_appended": 0,
+    "provider_refusals_retried": 0,
+    "common_and_run_omp_match_prelabel_commit": "67ff0c4c5",
+    "all_16_standalone_numeric_metrics_unchanged": true,
+    "all_68_prefix60_replay_metrics_unchanged_both_forms": true,
+    "full200_replay_pairs_updated_for_cheap_negative_exits": 10,
+    "raw_id_or_label_field_hit_files": 0,
+    "index_bytes": 1031898,
+    "largest_replay_shard_bytes": 651850,
+    "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-20261027/finalize.py && uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-20261027/score.py --readings-finalized research/evidence/runs/trace-tools-tt7-20261027/readings-finalized.json --out research/evidence/runs/trace-tools-tt7-20261027/score.json && env EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run --locked --python 3.12 pytest -q -n0 tests/test_repository_contract.py::test_curated_evidence_files_remain_reviewable && make check",
+    "observed_exit_code": 0,
+    "combined_elapsed_s": 64.25,
+    "focused_test_passed": true,
+    "focused_tests_selected": 1,
+    "static_passed": true,
+    "runtime_smoke_run": false,
+    "ci_green_claim": false
   },
   "src_package_changes": false,
   "ci_claim": "No CI-green claim is made by this local checkpoint. Exact-head required GitHub checks and merge evidence are separate."

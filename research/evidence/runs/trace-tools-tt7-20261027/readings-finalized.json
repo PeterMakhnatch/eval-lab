@@ -1,7 +1,7 @@
 {
   "schema": "tt7.readings_finalized/v1",
   "finalized": true,
-  "at": "2026-10-28T00:06:31.429400+00:00",
+  "at": "2026-10-28T02:11:43.842103+00:00",
   "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
   "arms": [
     {
@@ -130,22 +130,24 @@
       "detector": "tt7_form:anthropic/claude-sonnet-5-5",
       "model": "anthropic/claude-sonnet-5-5",
       "status": "partial",
-      "reason": "all scoped runs attempted; one or more transport/schema/context abstentions",
+      "reason": "all scoped runs attempted; one or more transport/schema/context abstentions; fixed positions 60..199 unattempted: subscription quota unknown (snapshot stale >120s)",
       "scan": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-bakeoff-20261027/research/evidence/runs/trace-tools-tt7-20261027/omp-receipts.json",
       "roles": [
         "cheap",
         "frontier"
       ],
       "subscription": true,
-      "scope": "prefix-60",
-      "target_run_count": 60,
+      "scope": "full-200",
+      "target_run_count": 200,
       "expected_runs": 200,
       "total_sample": 200,
+      "observed_batch_scope": "prefix-60",
+      "unattempted_reason": "unknown_quota_unattempted",
       "threshold": 0.7,
       "effective_admission_threshold": 0.65,
       "expected_by_source": {
-        "cloud-trace-db": 35,
-        "cheatbench-actions-v1": 25
+        "cloud-trace-db": 150,
+        "cheatbench-actions-v1": 50
       },
       "list_price_usd_per_million_input": 2.0,
       "list_price_usd_per_million_output": 10.0
@@ -155,21 +157,23 @@
       "detector": "tt7_form:anthropic/claude-opus-5-5",
       "model": "anthropic/claude-opus-5-5",
       "status": "partial",
-      "reason": "all scoped runs attempted; one or more transport/schema/context abstentions",
+      "reason": "all scoped runs attempted; one or more transport/schema/context abstentions; fixed positions 60..199 unattempted: subscription quota unknown (snapshot stale >120s)",
       "scan": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-bakeoff-20261027/research/evidence/runs/trace-tools-tt7-20261027/omp-receipts.json",
       "roles": [
         "frontier"
       ],
       "subscription": true,
-      "scope": "prefix-60",
-      "target_run_count": 60,
+      "scope": "full-200",
+      "target_run_count": 200,
       "expected_runs": 200,
       "total_sample": 200,
+      "observed_batch_scope": "prefix-60",
+      "unattempted_reason": "unknown_quota_unattempted",
       "threshold": 0.7,
       "effective_admission_threshold": 0.65,
       "expected_by_source": {
-        "cloud-trace-db": 35,
-        "cheatbench-actions-v1": 25
+        "cloud-trace-db": 150,
+        "cheatbench-actions-v1": 50
       },
       "list_price_usd_per_million_input": 4.0,
       "list_price_usd_per_million_output": 20.0
@@ -189,6 +193,8 @@
       "target_run_count": 200,
       "expected_runs": 200,
       "total_sample": 200,
+      "observed_batch_scope": "initial-stopped-coverage",
+      "unattempted_reason": "missing_record",
       "threshold": 0.9,
       "effective_admission_threshold": 0.9,
       "expected_by_source": {
@@ -228,8 +234,10 @@
   "main_comparison": "all 150 Goodfire DEV hosted readings; CheatBench cross-test never used to choose",
   "supplemental_comparison": "identical sample[:60], 35 Goodfire and 25 CheatBench, every arm/baseline restricted identically",
   "labels_read": false,
-  "subscription_scope_authority": "Main lane-owner direction 2026-10-27 after initial quota stop",
+  "subscription_scope_authority": "Main lane-owner full-200 clarification, unchanged fixed continuation after prefix-60",
   "subscription_admission_fraction": 0.65,
+  "subscription_completed_batch_receipt": "omp-receipts.json",
+  "subscription_continuation_receipt": "continuation-200-receipts.json",
   "privacy_receipt": "docent-receipts.json",
   "pricing_receipt": "pricing.json"
 }

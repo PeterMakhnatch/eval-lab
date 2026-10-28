@@ -96,6 +96,7 @@ class Arm:
     marginal_per_run: float | None = None
     scope: str = "full-200"
     target_run_count: int = 200
+    unattempted_reason: str = "missing_record"
 
 
 @dataclass(frozen=True)
@@ -206,7 +207,7 @@ def _manifest(path: Path) -> tuple[dict[str, Any], bytes, list[Arm]]:
             or sum(expected.values()) not in {target, 200}
         ):
             raise ValueError(f"reading arm {index} must account for both frozen sources")
-        for selector in ("scan", "detector_version"):
+        for selector in ("scan", "detector_version", "unattempted_reason"):
             if row.get(selector) is not None and not isinstance(row[selector], str):
                 raise ValueError(f"reading arm {index} has invalid {selector}")
         kind = row.get("kind", "model")
@@ -227,6 +228,7 @@ def _manifest(path: Path) -> tuple[dict[str, Any], bytes, list[Arm]]:
             cached_rate=_number(row.get("list_price_usd_per_million_cached_input")),
             marginal_per_run=_number(row.get("marginal_cost_usd_per_run")),
             scope=scope, target_run_count=target,
+            unattempted_reason=row.get("unattempted_reason") or "missing_record",
         ))
     if len({arm.id for arm in arms}) != len(arms):
         raise ValueError("finalized manifest contains duplicate arm IDs")
@@ -447,7 +449,7 @@ def _select_predictions(arm: Arm, index: dict[tuple[Key, str, str], list[dict[st
                       if (arm.detector_version is None or row.get("detector_version") == arm.detector_version)
                       and (arm.scan is None or row.get("scan") == arm.scan)]
         if not candidates:
-            predictions[key] = _missing(arm)
+            predictions[key] = _missing(arm, arm.unattempted_reason)
             continue
         versions = {row.get("detector_version") for row in candidates}
         scans = {row.get("scan") for row in candidates}
@@ -972,6 +974,7 @@ def main() -> None:
             "kind": arm.kind, "status": arm.status, "roles": list(arm.roles),
             "subscription": arm.subscription,
             "scope": arm.scope, "target_run_count": arm.target_run_count,
+            "unattempted_reason": arm.unattempted_reason,
             "decision_semantics": ("frozen primary and secondary forms" if arm.detector.startswith("tt7_form:")
                                    else "binary primary baseline; secondary form unavailable"),
             "by_source": {cohort: {form: _metrics(keys, labels, predictions[arm.id], form, retained, gold)

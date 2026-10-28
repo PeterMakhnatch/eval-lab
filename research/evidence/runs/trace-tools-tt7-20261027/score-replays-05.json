@@ -5871,8 +5871,7 @@
             "abstain_neg": 95,
             "abstain_pos": 105,
             "abstention_reasons": {
-              "cheap_abstention": 60,
-              "outside_declared_pipeline_scope": 140
+              "cheap_abstention": 200
             },
             "abstentions": 200,
             "confirmed_detection_rate": 0.0,
@@ -5999,8 +5998,7 @@
               "abstain_neg": 25,
               "abstain_pos": 25,
               "abstention_reasons": {
-                "cheap_abstention": 25,
-                "outside_declared_pipeline_scope": 25
+                "cheap_abstention": 50
               },
               "abstentions": 50,
               "confirmed_detection_rate": 0.0,
@@ -6123,8 +6121,7 @@
               "abstain_neg": 70,
               "abstain_pos": 80,
               "abstention_reasons": {
-                "cheap_abstention": 35,
-                "outside_declared_pipeline_scope": 115
+                "cheap_abstention": 150
               },
               "abstentions": 150,
               "confirmed_detection_rate": 0.0,
@@ -6735,59 +6732,59 @@
           },
           "workload": {
             "available": false,
-            "cheap_abstention_slots": 60,
-            "cheap_evaluation_slots": 60,
-            "cheap_nominal_model_calls": 60,
+            "cheap_abstention_slots": 200,
+            "cheap_evaluation_slots": 200,
+            "cheap_nominal_model_calls": 200,
             "decision_rule": "cheap false => false; cheap true => frontier; cheap null => null",
             "evaluation_run_count": 200,
             "extra_inference_calls_executed": 0,
             "frontier_evaluation_slots": 0,
             "frontier_nominal_model_calls": 0,
             "latency_policy": "sum observed component latencies on triggered runs; replay estimate, not executed-pipeline latency",
-            "nominal_total_model_calls_lower_bound": 60,
-            "nominal_total_model_calls_upper_bound": 120,
+            "nominal_total_model_calls_lower_bound": 200,
+            "nominal_total_model_calls_upper_bound": 400,
             "observed_cheap_component": {
               "cached_input_tokens": null,
               "cached_input_tokens_known_total": 0,
               "cached_input_tokens_missing_observed_readings": 0,
-              "cached_input_tokens_missing_runs": 60,
+              "cached_input_tokens_missing_runs": 200,
               "cached_input_tokens_observed_total": null,
               "input_tokens": null,
               "input_tokens_known_total": 0,
               "input_tokens_missing_observed_readings": 0,
-              "input_tokens_missing_runs": 60,
+              "input_tokens_missing_runs": 200,
               "input_tokens_observed_total": null,
               "latency_observed_runs": 0,
               "latency_s_median_observed": null,
               "list_price_usd": null,
               "list_price_usd_known_total": 0,
               "list_price_usd_missing_observed_readings": 0,
-              "list_price_usd_missing_runs": 60,
+              "list_price_usd_missing_runs": 200,
               "list_price_usd_observed_total": null,
               "list_price_usd_per_1000_observed_readings": null,
               "list_price_usd_per_1000_runs": null,
               "marginal_usd": null,
               "marginal_usd_known_total": 0,
               "marginal_usd_missing_observed_readings": 0,
-              "marginal_usd_missing_runs": 60,
+              "marginal_usd_missing_runs": 200,
               "marginal_usd_observed_total": null,
               "marginal_usd_per_1000_observed_readings": null,
               "marginal_usd_per_1000_runs": null,
               "model_calls": null,
               "model_calls_known_total": 0,
               "model_calls_missing_observed_readings": 0,
-              "model_calls_missing_runs": 60,
+              "model_calls_missing_runs": 200,
               "model_calls_observed_total": null,
               "observed_reading_coverage": 0.0,
               "observed_readings": 0,
               "output_tokens": null,
               "output_tokens_known_total": 0,
               "output_tokens_missing_observed_readings": 0,
-              "output_tokens_missing_runs": 60,
+              "output_tokens_missing_runs": 200,
               "output_tokens_observed_total": null,
-              "run_count": 60,
+              "run_count": 200,
               "unknown_usage_policy": "known_total sums observed eligible readings only; observed_total is null if any observed reading lacks that field; full-cohort total and per_1000_runs stay null unless every run is observed; no sparse-prefix extrapolation",
-              "unobserved_runs": 60
+              "unobserved_runs": 200
             },
             "observed_component_known_totals": {
               "input_tokens": 0,
@@ -6840,7 +6837,7 @@
               "unobserved_runs": 0
             },
             "secondary_retained_cheap_is_gate_only": false,
-            "target_run_count": 60,
+            "target_run_count": 200,
             "unavailable_pair_policy": "cheap negatives need no frontier call; cheap flags with unavailable frontier abstain",
             "usage_policy": "component totals include observed cheap attempts plus observed frontier attempts at known cheap flags within the declared common scope; composed per-1k observed costs use only rows with observed required components; no projection to unobserved runs"
           }
@@ -6854,8 +6851,7 @@
             "abstain_neg": 95,
             "abstain_pos": 105,
             "abstention_reasons": {
-              "cheap_abstention": 60,
-              "outside_declared_pipeline_scope": 140
+              "cheap_abstention": 200
             },
             "abstentions": 200,
             "confirmed_detection_rate": 0.0,
@@ -6982,8 +6978,7 @@
               "abstain_neg": 25,
               "abstain_pos": 25,
               "abstention_reasons": {
-                "cheap_abstention": 25,
-                "outside_declared_pipeline_scope": 25
+                "cheap_abstention": 50
               },
               "abstentions": 50,
               "confirmed_detection_rate": 0.0,
@@ -7106,8 +7101,7 @@
               "abstain_neg": 70,
               "abstain_pos": 80,
               "abstention_reasons": {
-                "cheap_abstention": 35,
-                "outside_declared_pipeline_scope": 115
+                "cheap_abstention": 150
               },
               "abstentions": 150,
               "confirmed_detection_rate": 0.0,
@@ -7718,59 +7712,59 @@
           },
           "workload": {
             "available": false,
-            "cheap_abstention_slots": 60,
-            "cheap_evaluation_slots": 60,
-            "cheap_nominal_model_calls": 60,
+            "cheap_abstention_slots": 200,
+            "cheap_evaluation_slots": 200,
+            "cheap_nominal_model_calls": 200,
             "decision_rule": "cheap false => false; cheap true => frontier; cheap null => null",
             "evaluation_run_count": 200,
             "extra_inference_calls_executed": 0,
             "frontier_evaluation_slots": 0,
             "frontier_nominal_model_calls": 0,
             "latency_policy": "sum observed component latencies on triggered runs; replay estimate, not executed-pipeline latency",
-            "nominal_total_model_calls_lower_bound": 60,
-            "nominal_total_model_calls_upper_bound": 120,
+            "nominal_total_model_calls_lower_bound": 200,
+            "nominal_total_model_calls_upper_bound": 400,
             "observed_cheap_component": {
               "cached_input_tokens": null,
               "cached_input_tokens_known_total": 0,
               "cached_input_tokens_missing_observed_readings": 0,
-              "cached_input_tokens_missing_runs": 60,
+              "cached_input_tokens_missing_runs": 200,
               "cached_input_tokens_observed_total": null,
               "input_tokens": null,
               "input_tokens_known_total": 0,
               "input_tokens_missing_observed_readings": 0,
-              "input_tokens_missing_runs": 60,
+              "input_tokens_missing_runs": 200,
               "input_tokens_observed_total": null,
               "latency_observed_runs": 0,
               "latency_s_median_observed": null,
               "list_price_usd": null,
               "list_price_usd_known_total": 0,
               "list_price_usd_missing_observed_readings": 0,
-              "list_price_usd_missing_runs": 60,
+              "list_price_usd_missing_runs": 200,
               "list_price_usd_observed_total": null,
               "list_price_usd_per_1000_observed_readings": null,
               "list_price_usd_per_1000_runs": null,
               "marginal_usd": null,
               "marginal_usd_known_total": 0,
               "marginal_usd_missing_observed_readings": 0,
-              "marginal_usd_missing_runs": 60,
+              "marginal_usd_missing_runs": 200,
               "marginal_usd_observed_total": null,
               "marginal_usd_per_1000_observed_readings": null,
               "marginal_usd_per_1000_runs": null,
               "model_calls": null,
               "model_calls_known_total": 0,
               "model_calls_missing_observed_readings": 0,
-              "model_calls_missing_runs": 60,
+              "model_calls_missing_runs": 200,
               "model_calls_observed_total": null,
               "observed_reading_coverage": 0.0,
               "observed_readings": 0,
               "output_tokens": null,
               "output_tokens_known_total": 0,
               "output_tokens_missing_observed_readings": 0,
-              "output_tokens_missing_runs": 60,
+              "output_tokens_missing_runs": 200,
               "output_tokens_observed_total": null,
-              "run_count": 60,
+              "run_count": 200,
               "unknown_usage_policy": "known_total sums observed eligible readings only; observed_total is null if any observed reading lacks that field; full-cohort total and per_1000_runs stay null unless every run is observed; no sparse-prefix extrapolation",
-              "unobserved_runs": 60
+              "unobserved_runs": 200
             },
             "observed_component_known_totals": {
               "input_tokens": 0,
@@ -7823,7 +7817,7 @@
               "unobserved_runs": 0
             },
             "secondary_retained_cheap_is_gate_only": false,
-            "target_run_count": 60,
+            "target_run_count": 200,
             "unavailable_pair_policy": "cheap negatives need no frontier call; cheap flags with unavailable frontier abstain",
             "usage_policy": "component totals include observed cheap attempts plus observed frontier attempts at known cheap flags within the declared common scope; composed per-1k observed costs use only rows with observed required components; no projection to unobserved runs"
           }
@@ -7833,7 +7827,7 @@
       "frontier": "omp:tt7_form:anthropic/claude-opus-5-5",
       "id": "docent:tt7_form:openai/gpt-5.4-mini -> omp:tt7_form:anthropic/claude-opus-5-5",
       "kind": "replayed_not_executed",
-      "scope": "prefix-60"
+      "scope": "full-200"
     },
     {
       "by_form": {
@@ -7846,8 +7840,7 @@
             "abstain_neg": 95,
             "abstain_pos": 105,
             "abstention_reasons": {
-              "cheap_abstention": 60,
-              "outside_declared_pipeline_scope": 140
+              "cheap_abstention": 200
             },
             "abstentions": 200,
             "confirmed_detection_rate": 0.0,
@@ -7974,8 +7967,7 @@
               "abstain_neg": 25,
               "abstain_pos": 25,
               "abstention_reasons": {
-                "cheap_abstention": 25,
-                "outside_declared_pipeline_scope": 25
+                "cheap_abstention": 50
               },
               "abstentions": 50,
               "confirmed_detection_rate": 0.0,
@@ -8098,8 +8090,7 @@
               "abstain_neg": 70,
               "abstain_pos": 80,
               "abstention_reasons": {
-                "cheap_abstention": 35,
-                "outside_declared_pipeline_scope": 115
+                "cheap_abstention": 150
               },
               "abstentions": 150,
               "confirmed_detection_rate": 0.0,
@@ -8710,59 +8701,59 @@
           },
           "workload": {
             "available": false,
-            "cheap_abstention_slots": 60,
-            "cheap_evaluation_slots": 60,
-            "cheap_nominal_model_calls": 60,
+            "cheap_abstention_slots": 200,
+            "cheap_evaluation_slots": 200,
+            "cheap_nominal_model_calls": 200,
             "decision_rule": "cheap false => false; cheap true => frontier; cheap null => null",
             "evaluation_run_count": 200,
             "extra_inference_calls_executed": 0,
             "frontier_evaluation_slots": 0,
             "frontier_nominal_model_calls": 0,
             "latency_policy": "sum observed component latencies on triggered runs; replay estimate, not executed-pipeline latency",
-            "nominal_total_model_calls_lower_bound": 60,
-            "nominal_total_model_calls_upper_bound": 120,
+            "nominal_total_model_calls_lower_bound": 200,
+            "nominal_total_model_calls_upper_bound": 400,
             "observed_cheap_component": {
               "cached_input_tokens": null,
               "cached_input_tokens_known_total": 0,
               "cached_input_tokens_missing_observed_readings": 0,
-              "cached_input_tokens_missing_runs": 60,
+              "cached_input_tokens_missing_runs": 200,
               "cached_input_tokens_observed_total": null,
               "input_tokens": null,
               "input_tokens_known_total": 0,
               "input_tokens_missing_observed_readings": 0,
-              "input_tokens_missing_runs": 60,
+              "input_tokens_missing_runs": 200,
               "input_tokens_observed_total": null,
               "latency_observed_runs": 0,
               "latency_s_median_observed": null,
               "list_price_usd": null,
               "list_price_usd_known_total": 0,
               "list_price_usd_missing_observed_readings": 0,
-              "list_price_usd_missing_runs": 60,
+              "list_price_usd_missing_runs": 200,
               "list_price_usd_observed_total": null,
               "list_price_usd_per_1000_observed_readings": null,
               "list_price_usd_per_1000_runs": null,
               "marginal_usd": null,
               "marginal_usd_known_total": 0,
               "marginal_usd_missing_observed_readings": 0,
-              "marginal_usd_missing_runs": 60,
+              "marginal_usd_missing_runs": 200,
               "marginal_usd_observed_total": null,
               "marginal_usd_per_1000_observed_readings": null,
               "marginal_usd_per_1000_runs": null,
               "model_calls": null,
               "model_calls_known_total": 0,
               "model_calls_missing_observed_readings": 0,
-              "model_calls_missing_runs": 60,
+              "model_calls_missing_runs": 200,
               "model_calls_observed_total": null,
               "observed_reading_coverage": 0.0,
               "observed_readings": 0,
               "output_tokens": null,
               "output_tokens_known_total": 0,
               "output_tokens_missing_observed_readings": 0,
-              "output_tokens_missing_runs": 60,
+              "output_tokens_missing_runs": 200,
               "output_tokens_observed_total": null,
-              "run_count": 60,
+              "run_count": 200,
               "unknown_usage_policy": "known_total sums observed eligible readings only; observed_total is null if any observed reading lacks that field; full-cohort total and per_1000_runs stay null unless every run is observed; no sparse-prefix extrapolation",
-              "unobserved_runs": 60
+              "unobserved_runs": 200
             },
             "observed_component_known_totals": {
               "input_tokens": 0,
@@ -8815,7 +8806,7 @@
               "unobserved_runs": 0
             },
             "secondary_retained_cheap_is_gate_only": false,
-            "target_run_count": 60,
+            "target_run_count": 200,
             "unavailable_pair_policy": "cheap negatives need no frontier call; cheap flags with unavailable frontier abstain",
             "usage_policy": "component totals include observed cheap attempts plus observed frontier attempts at known cheap flags within the declared common scope; composed per-1k observed costs use only rows with observed required components; no projection to unobserved runs"
           }
@@ -8829,8 +8820,7 @@
             "abstain_neg": 95,
             "abstain_pos": 105,
             "abstention_reasons": {
-              "cheap_abstention": 60,
-              "outside_declared_pipeline_scope": 140
+              "cheap_abstention": 200
             },
             "abstentions": 200,
             "confirmed_detection_rate": 0.0,
@@ -8957,8 +8947,7 @@
               "abstain_neg": 25,
               "abstain_pos": 25,
               "abstention_reasons": {
-                "cheap_abstention": 25,
-                "outside_declared_pipeline_scope": 25
+                "cheap_abstention": 50
               },
               "abstentions": 50,
               "confirmed_detection_rate": 0.0,
@@ -9081,8 +9070,7 @@
               "abstain_neg": 70,
               "abstain_pos": 80,
               "abstention_reasons": {
-                "cheap_abstention": 35,
-                "outside_declared_pipeline_scope": 115
+                "cheap_abstention": 150
               },
               "abstentions": 150,
               "confirmed_detection_rate": 0.0,
@@ -9693,59 +9681,59 @@
           },
           "workload": {
             "available": false,
-            "cheap_abstention_slots": 60,
-            "cheap_evaluation_slots": 60,
-            "cheap_nominal_model_calls": 60,
+            "cheap_abstention_slots": 200,
+            "cheap_evaluation_slots": 200,
+            "cheap_nominal_model_calls": 200,
             "decision_rule": "cheap false => false; cheap true => frontier; cheap null => null",
             "evaluation_run_count": 200,
             "extra_inference_calls_executed": 0,
             "frontier_evaluation_slots": 0,
             "frontier_nominal_model_calls": 0,
             "latency_policy": "sum observed component latencies on triggered runs; replay estimate, not executed-pipeline latency",
-            "nominal_total_model_calls_lower_bound": 60,
-            "nominal_total_model_calls_upper_bound": 120,
+            "nominal_total_model_calls_lower_bound": 200,
+            "nominal_total_model_calls_upper_bound": 400,
             "observed_cheap_component": {
               "cached_input_tokens": null,
               "cached_input_tokens_known_total": 0,
               "cached_input_tokens_missing_observed_readings": 0,
-              "cached_input_tokens_missing_runs": 60,
+              "cached_input_tokens_missing_runs": 200,
               "cached_input_tokens_observed_total": null,
               "input_tokens": null,
               "input_tokens_known_total": 0,
               "input_tokens_missing_observed_readings": 0,
-              "input_tokens_missing_runs": 60,
+              "input_tokens_missing_runs": 200,
               "input_tokens_observed_total": null,
               "latency_observed_runs": 0,
               "latency_s_median_observed": null,
               "list_price_usd": null,
               "list_price_usd_known_total": 0,
               "list_price_usd_missing_observed_readings": 0,
-              "list_price_usd_missing_runs": 60,
+              "list_price_usd_missing_runs": 200,
               "list_price_usd_observed_total": null,
               "list_price_usd_per_1000_observed_readings": null,
               "list_price_usd_per_1000_runs": null,
               "marginal_usd": null,
               "marginal_usd_known_total": 0,
               "marginal_usd_missing_observed_readings": 0,
-              "marginal_usd_missing_runs": 60,
+              "marginal_usd_missing_runs": 200,
               "marginal_usd_observed_total": null,
               "marginal_usd_per_1000_observed_readings": null,
               "marginal_usd_per_1000_runs": null,
               "model_calls": null,
               "model_calls_known_total": 0,
               "model_calls_missing_observed_readings": 0,
-              "model_calls_missing_runs": 60,
+              "model_calls_missing_runs": 200,
               "model_calls_observed_total": null,
               "observed_reading_coverage": 0.0,
               "observed_readings": 0,
               "output_tokens": null,
               "output_tokens_known_total": 0,
               "output_tokens_missing_observed_readings": 0,
-              "output_tokens_missing_runs": 60,
+              "output_tokens_missing_runs": 200,
               "output_tokens_observed_total": null,
-              "run_count": 60,
+              "run_count": 200,
               "unknown_usage_policy": "known_total sums observed eligible readings only; observed_total is null if any observed reading lacks that field; full-cohort total and per_1000_runs stay null unless every run is observed; no sparse-prefix extrapolation",
-              "unobserved_runs": 60
+              "unobserved_runs": 200
             },
             "observed_component_known_totals": {
               "input_tokens": 0,
@@ -9798,7 +9786,7 @@
               "unobserved_runs": 0
             },
             "secondary_retained_cheap_is_gate_only": false,
-            "target_run_count": 60,
+            "target_run_count": 200,
             "unavailable_pair_policy": "cheap negatives need no frontier call; cheap flags with unavailable frontier abstain",
             "usage_policy": "component totals include observed cheap attempts plus observed frontier attempts at known cheap flags within the declared common scope; composed per-1k observed costs use only rows with observed required components; no projection to unobserved runs"
           }
@@ -9808,7 +9796,7 @@
       "frontier": "omp:tt7_form:anthropic/claude-sonnet-5-5",
       "id": "docent:tt7_form:openai/gpt-5.4-mini -> omp:tt7_form:anthropic/claude-sonnet-5-5",
       "kind": "replayed_not_executed",
-      "scope": "prefix-60"
+      "scope": "full-200"
     },
     {
       "by_form": {

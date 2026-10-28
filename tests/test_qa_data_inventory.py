@@ -396,3 +396,18 @@ def test_recount_hashes_locked_snapshot_deduplicates_last_and_histograms_admitte
         "admitted_cloud_runs": 2, "answer_material_accessed": 1, "suspicion": {1: 2}, "tests": {"read": 2},
     }
     assert "test-run" not in json.dumps(payload) and "locked-run" not in json.dumps(payload)
+
+
+def test_recount_universe_is_the_runs_universe_and_a_withheld_run_leaves_no_count_behind(ctx: QaContext) -> None:
+    named = facet("run-c", approach="Compared with sealed-task", suspicion=3, answer_material_accessed=True)
+    assert ctx.database.upsert_run_facets([named], registry=ctx.retriever.registry)["stored"] == 1
+    path = ctx.state_dir / "run-atlas/facets-v1.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_text("".join(json.dumps(row) + "\n" for row in (facet("run-a"), facet("run-b"), named)))
+    shown = ctx.database.search_runs({}, registry=ctx.retriever.registry, sealed_task_ids=ctx.retriever._sealed_ids)
+    assert "run-c" not in {row["run_id"] for row in shown}  # `runs` withholds it
+    payload = recount(ctx)
+    assert payload["db"]["admitted_cloud_runs"] == len(shown) == payload["db_facets"]
+    assert payload["jsonl"]["admitted_cloud_runs"] == payload["jsonl_unique_runs"] == 2  # run-a and run-b
+    assert payload["jsonl_only_runs"] == 1  # run-b alone; the withheld run-c is not counted as missing
+    assert payload["db"]["suspicion"].get(3) is None and payload["db"]["answer_material_accessed"] == 0

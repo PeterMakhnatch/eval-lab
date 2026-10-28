@@ -482,6 +482,12 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   scoring-key-named files (answer keys, `expected_verdict`, `exposures`, scorer-only
   keys) are listed by name under `withheld`, never read; ordinary DEV test content,
   including expected values inside tests, is returned.
+- Start-up: `evallab qa-data` runs through `evallab.entry`, which builds only the `qa-data`
+  parser instead of the whole CLI (about 0.2 s instead of 1.2 s of CPU before the first
+  query on the live store); every other command still goes to `evallab.cli`. Importing
+  one `evallab.production.*` module no longer imports the worker stack either.
+- `recount` counts the same runs as `runs` (facets naming a sealed identity are left out of
+  both the database and the JSONL counts), so their totals agree.
 - `inventory`, `traces`, `clusters`, `recount` and `findings` (no argument) are
   aggregate and list views over admitted runs; only source-wide totals (ledger rows,
   JSONL lines) are not admission-restricted, and they carry no identities or values.

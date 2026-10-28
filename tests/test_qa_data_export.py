@@ -122,6 +122,7 @@ def test_facets_export_most_suspicious_first_with_original_and_blinded_evidence(
         entry = manifest[run["blind_id"]]
         assert entry["trace_id"] == run["trace_id"]
         assert entry["step_origin"] == [2, 9, 13]
+        assert run["actor_inputs_available"] is True
         assert run["evidence_steps_original"] == [2, 5, 9, 99]
         assert run["evidence_steps_blinded"] == [1, None, 2, None]
         document = json.loads(Path(run["file"]).read_text())
@@ -237,7 +238,8 @@ def test_other_formats_report_paths_without_an_atif_step_map(ctx: QaContext, tmp
     data = _export(ctx, out, format=format, limit=2)
     assert data["step_map"] == "atif only" and data["receipt"]["exported"] == 2
     for run in data["runs"]:
-        assert set(run) == {"trace_id", "blind_id", "path"}
+        assert set(run) == {"trace_id", "blind_id", "path", "actor_inputs_available"}
+        assert run["actor_inputs_available"] is True
         path = Path(run["path"])
         if format == "harbor":
             assert (path / "agent/trajectory.json").is_file()

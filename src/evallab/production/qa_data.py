@@ -38,7 +38,7 @@ _WITH_OUTCOMES_HELP = (
 )
 CALLS = (
     "task", "runs", "window", "history", "findings", "inventory", "traces", "clusters", "recount",
-    "split", "export", "steps", "scan",
+    "split", "export", "steps", "scan", "trace-card",
 )
 NO_STORE_CALLS = frozenset({"steps", "scan"})
 OUTCOME_CALLS = frozenset({"task", "history"})  # calls with a --with-outcomes gate
@@ -227,6 +227,10 @@ def _dispatch(call: str, context: QaContext, args: argparse.Namespace) -> dict[s
             context, args.task_id, files=args.file, variant=args.variant, kind=args.kind,
             with_outcomes=args.with_outcomes,
         )
+    if call == "trace-card":
+        from evallab.production.qa_data_card import build_card
+
+        return build_card(context, args.run_id, ledgers=not args.no_ledgers)
     if call == "split":
         from evallab.production.qa_data_split import split
 
@@ -452,6 +456,13 @@ def register_parser(commands: Any) -> None:
     which = steps.add_mutually_exclusive_group()
     which.add_argument("--original", type=int, default=None)
     which.add_argument("--blinded", type=int, default=None)
+
+    card = calls.add_parser(
+        "trace-card", help="One compact evidence card for one run: every detector verdict, cited steps, flags, playbook cards",
+    )
+    common(card)
+    card.add_argument("run_id")
+    card.add_argument("--no-ledgers", action="store_true", help="Skip the trace-tool ledger counts (they read the ledger files)")
 
     scan = calls.add_parser("scan", help="Deterministic Scout text scanners over a blinded scout export (no model call)")
     common(scan)

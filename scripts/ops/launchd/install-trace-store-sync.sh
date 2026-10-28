@@ -19,7 +19,9 @@
 #   install-trace-store-sync.sh [--load] [--uninstall] [--label L] [--dest PATH]
 #       [--state-dir DIR] [--interval SECONDS] [--db-path PATH]
 #       [--sync-state-root DIR] [--repo-root DIR] [--revision REV] [--keys PATH]
+#       [--target {laminar,docent}]
 #
+# --target selects one provider; omit it to sync both Laminar and Docent.
 # --revision (default origin/main) must be merged into the locally fetched
 # origin/main. --keys defaults to `command -v keys`. The job is bootstrapped only
 # with --load or when this installer's own job was already loaded; otherwise the
@@ -37,11 +39,12 @@ die2() { echo "install-trace-store-sync: $*" >&2; exit 2; }
 
 LOAD=0
 UNINSTALL=0
+TARGET=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --load) LOAD=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
-    --label|--dest|--state-dir|--interval|--db-path|--sync-state-root|--repo-root|--revision|--keys)
+    --label|--dest|--state-dir|--interval|--db-path|--sync-state-root|--repo-root|--revision|--keys|--target)
       [ "$#" -ge 2 ] || die2 "$1 requires a value"
       case "$1" in
         --label) LABEL="$2" ;;
@@ -53,6 +56,11 @@ while [ "$#" -gt 0 ]; do
         --repo-root) REPO_ROOT="$2" ;;
         --revision) REVISION="$2" ;;
         --keys) KEYS_BIN="$2" ;;
+        --target)
+          case "$2" in
+            laminar|docent) TARGET="$2" ;;
+            *) die2 "--target must be laminar or docent" ;;
+          esac ;;
       esac
       shift 2 ;;
     *) die2 "unknown argument: $1" ;;
@@ -262,7 +270,7 @@ if [ -z "$RELEASE" ]; then
   PIN="$(lmnr_pin "$REQ")" || die "uv.lock exports no lmnr pin"
   uv venv --python 3.12 "$VENV"
   uv pip install --python "$VENV/bin/python" -r "$REQ"
-  # Both scheduled targets must be installed, without moving any locked pin.
+  # Keep both target SDKs installed, without moving any locked pin.
   uv pip install --python "$VENV/bin/python" -c "$REQ" "$DOCENT_PIN"
   # Editable install of the SNAPSHOT (not the caller): evallab resolves repository
   # files relative to its own source.
@@ -299,14 +307,14 @@ cat "$RELEASE/INSTALLED"
 mkdir -p "$LOGS" "$(dirname "$DEST")"
 if [ "$WAS_LOADED" -eq 1 ]; then stop_job; fi
 python3 - "$DEST" "$LABEL" "$OWNER_MARK" "$KEYS_BIN" "$VENV/bin/python" "$SOURCE" \
-  "$DB_PATH" "$SYNC_STATE" "$INTERVAL" "$HOME" "$SERVICE_PATH" "$LOGS" <<'PY'
+  "$DB_PATH" "$SYNC_STATE" "$INTERVAL" "$HOME" "$SERVICE_PATH" "$LOGS" "$TARGET" <<'PY'
 import os
 import plistlib
 import sys
 from pathlib import Path
 
 (destination, label, mark, keys, python, source, db_path, state_root,
- interval, home, service_path, logs) = sys.argv[1:]
+ interval, home, service_path, logs, target) = sys.argv[1:]
 config = {
     "Label": label,
     "EvallabManagedBy": mark,
@@ -324,6 +332,8 @@ config = {
     "StandardOutPath": str(Path(logs) / "trace-store-sync.log"),
     "StandardErrorPath": str(Path(logs) / "trace-store-sync.error.log"),
 }
+if target:
+    config["ProgramArguments"].extend(["--target", target])
 path = Path(destination)
 temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
 temporary.write_bytes(plistlib.dumps(config, sort_keys=False))

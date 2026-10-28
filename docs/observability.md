@@ -129,6 +129,16 @@ git fetch origin
 scripts/ops/launchd/install-trace-store-sync.sh --load
 ```
 
+Omitting `--target` preserves the default of syncing both providers. An explicit
+`--target docent` or `--target laminar` restricts the installed native watch.
+For an independently authorized Docent-only job while Laminar remains stopped:
+
+```bash
+scripts/ops/launchd/install-trace-store-sync.sh --load --target docent \
+  --label com.petermakhnatch.evallab.trace-store-docent-sync \
+  --state-dir "$HOME/Library/Application Support/evallab/trace-store-docent-sync"
+```
+
 The separate `com.petermakhnatch.evallab.trace-store-sync` LaunchAgent runs one
 `evallab.trace_store.watch` tick every 600 seconds; it does not run local Scout
 scans. Its `keys run --` command, interpreter, working directory, code, locked
@@ -140,10 +150,11 @@ code or corpus-policy changes. Both cloud adapters must be installed and their
 dependencies and snapshot registry must validate before replacing the owned job.
 
 The watcher fingerprints the database and WAL, ignoring SHM. An unchanged tick
-makes no hosted calls. Before any changed target syncs, a read-only Laminar GET
-must verify the existing project's Signals are all disabled. Normal sync retains
-every source, admission, secret and Docent owner-only guard, plus each provider's
-independent 2.5 GB monthly byte cap.
+makes no hosted calls. When Laminar is selected, a changed pass first uses a
+read-only Laminar GET to verify the existing project's Signals are all disabled.
+Explicit Docent-only ticks construct no Laminar client and call no Laminar API.
+Normal sync retains every source, admission, secret and Docent owner-only guard,
+plus each provider's independent 2.5 GB monthly byte cap.
 The timer invokes no model or paid Signal API.
 
 `watch-state.json` under the sync state root records compact results and latched
@@ -151,8 +162,9 @@ pauses. Quota, access, size, byte-cap or Signals refusals preserve the cursor an
 are not automatically retried; initial adoption also honors the latest manual
 sync's stop. An operator may run the installed snapshot module with its recorded
 `--repo-root`/`--state-root` and `--resume docent` (or `laminar`/`all`) after fixing
-the cause. Resume still checks Signals and the byte cap; it never clears receipts
-or budget counters. A paused target gives exit status 2 while healthy targets
+the cause. Use `--target docent --resume docent` for an isolated Docent resume.
+Resume checks the byte cap and, when Laminar is selected, Signals; it never clears
+receipts or budget counters. A paused target gives exit status 2 while healthy targets
 can continue. `--uninstall` removes only this installer's owned job and plist,
 leaving receipts, runtime snapshots and logs intact.
 

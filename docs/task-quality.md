@@ -552,6 +552,9 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   then suspicion. Records omit `source`/`split`/model and give only a cluster id
   and level: cluster names are model-written from stored samples that may include
   runs the caller cannot see, so they are never returned.
+- Malformed numeric `--facet` values return the normal JSON error envelope, including
+  superscript digits, repeated signs and oversized integer spellings. An undecodable
+  run id gets the uniform unavailable refusal. Neither error starts an export.
 - `window` returns recorded non-user steps (`step_index`, role, tool, command,
   content, observation preview), without evaluator flags or CAS pointers.
 - `history` returns the task's own confirmed/provisional issues (refuted ones are

@@ -55,7 +55,10 @@ def _stored(ctx: QaContext, run_id: str) -> dict[str, Any]:
     """Everything the card reads from the store, admitted and read in one snapshot."""
     with ctx.database._transaction():
         admitted, sealed = ctx.retriever._admitted_ids()
-        row = ctx.database._execute("SELECT task_id FROM agent_traces WHERE trace_id = ?", (run_id,)).fetchone()
+        try:
+            row = ctx.database._execute("SELECT task_id FROM agent_traces WHERE trace_id = ?", (run_id,)).fetchone()
+        except UnicodeEncodeError:
+            raise QaDataError(UNAVAILABLE) from None
         if row is None or row[0] not in admitted:
             raise QaDataError(UNAVAILABLE)
         task_id = row[0]

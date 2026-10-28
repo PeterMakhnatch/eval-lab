@@ -18,8 +18,8 @@ tasks and runs through the registry gate, and prints ONE JSON document {"ok", "d
 Exit 2 = refused or failed: read "error" (a usage mistake prints argparse text on stderr, also exit 2). A task or run that is missing, TEST, held out, sealed or locked under another key gets the SAME error,
 "not available: not an admitted DEV task or run": never retry with variants to find out which. --budget N caps the
 reply at about N tokens (default 4000, minimum 200; `task` replies often need --budget 8000); lists drop whole items
-and say how many (meta.omitted_items counts budget drops only; `truncated` is also true when --limit cut a list:
-`matched` is the full count). File viewers may clip long lines: add --pretty (indented) to any call; the budget
+and say how many (meta.omitted_items counts items not returned, whether the budget or --limit cut them; `truncated`
+is then true; `matched` is the full count). File viewers may clip long lines: add --pretty (indented) to any call; the budget
 and tokens_est describe the compact form, so pretty text is about 30 percent larger. The database's own
 split='dev' is NOT admission; this tool applies the strict cross-key check.
 No call makes a model call, runs a grader, writes the store or the repository.
@@ -47,7 +47,8 @@ CALLS (all JSON; examples use real flags)
        (pass|fail|unknown), tests (untouched|read|modified|deleted|replaced), eval_awareness (none|mentions_tests|
        reasons_about_grader|plans_to_game), grader_or_harness_touched / answer_material_accessed /
        success_claim_without_evidence (true|false), suspicion (0-3). A comma list is OR inside one field; separate
-       --facet flags are ANDed; "suspicion at least 2" is --facet suspicion=2,3.
+       --facet flags are ANDed (an OR across different fields needs two queries); "suspicion at least 2" is
+       --facet suspicion=2,3.
        runs --facet answer_material_accessed=true          most suspicious first; `matched` is the full count
        (--cluster uses the STORED db clusters, `clusters` default view; ids from `clusters --source file` can differ)
        runs --task cad-model --facet tests=modified,deleted,replaced
@@ -89,13 +90,15 @@ CALLS (all JSON; examples use real flags)
        harbor: DIR/run-<hex>/agent/trajectory.json + result.json (reward null)   scout: DIR/transcripts.jsonl
        Hand readers only the exported files. The sealed manifest holds trace ids (they name the dataset) and rewards.
        export --facet answer_material_accessed=true --limit 5 --out /private/tmp/me/ex1
+       export any runs: pick ids with `traces --dataset D --limit 3 --ids-only`, then --trace-id each (or --ids-file).
   steps MANIFEST TRACE [--original N | --blinded N]
        trace id or blind id -> {blind_id, steps}; --original N = exported step number of original step N;
        --blinded N = original id of exported step N. Never prints a reward.
   scan TRANSCRIPTS_JSONL [--scanner NAME ...]
        the four deterministic Scout text scanners over an `export --format scout` file (repeated_assistant_message,
        harness_parse_errors, native_tool_call_markup, restored_tool_calls): per blind id messages, results, values,
-       references; model_calls is always 0. Runs under the scout-watch runtime interpreter when this venv lacks Scout.
+       references (values: one number per scanner result, 0 = nothing found; references: count of cited messages);
+       model_calls is always 0. Runs under the scout-watch runtime interpreter when this venv lacks Scout.
 
 OBSERVED ON THE LIVE STORE, 2026-10-28 (counts move while lanes run: quote the date or `recount` digest)
   3,474 admitted tasks, 4,544 admitted runs (pass 2,033, fail 1,297, unknown 1,214). 1,234 admitted faceted runs;
@@ -127,7 +130,7 @@ OUTSIDE qa-data (plain files; no admission needed; run from the checkout root un
     ~/Developer/eval-lab-results/2026-10-27/oq6-tq-gate-rerun/ (manifest-dev.json maps cases to tasks; its key_count
     fields are null; scorer-only-keys/ holds the keys). The aggregate counts (tasks, keyed, annotations, unkeyed) and
     the key rules are stated in the protocol prose, which you may read: $RA/oq6-task-quality-gate-rerun.md. The
-    399-task DEV set is the one in its first paragraph (the 15-task cross cohort is separate).
+    399-task DEV set is the one on line 20 of that file (the 15-task cross cohort is separate).
   Is a lane's claim committed?  git -C ~/Developer/research-context status --porcelain -- bridge/<file>.md
   Safe store snapshot: sqlite3 'file:<store>?mode=ro' ".backup /private/tmp/me/copy.sqlite" (never copy a live WAL file)
 

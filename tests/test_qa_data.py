@@ -429,3 +429,20 @@ def test_a_store_that_cannot_be_read_still_replies_with_the_json_error_envelope(
     assert args.func(args, Path.cwd(), harbor=None) == 2
     reply = json.loads(capsys.readouterr().out)
     assert reply["ok"] is False and "cannot answer" in reply["error"]
+
+
+def test_a_list_that_fills_the_budget_still_fits_with_its_own_framing(
+    store: CloudTraceDatabase, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    for number in range(60):
+        add_run(store, "alpha", f"many{number:02d}", suspicion=2, goal="Repair the parser " + "x" * (number % 7))
+    store.close()
+    for budget in range(400, 4001, 211):
+        args = cli_parser().parse_args([
+            "qa-data", "runs", "--facet", "tests=modified", "--limit", "200",
+            "--cloud-database", str(tmp_path / "qa.sqlite"), "--budget", str(budget),
+        ])
+        assert args.func(args, Path.cwd(), harbor=None) == 0, budget
+        reply = json.loads(capsys.readouterr().out)
+        assert reply["ok"] and reply["meta"]["tokens_est"] <= budget, budget
+        assert len(reply["data"]["runs"]) + reply["data"]["omitted"] == 60 + 2

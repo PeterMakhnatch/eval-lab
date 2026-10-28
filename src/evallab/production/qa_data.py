@@ -29,6 +29,7 @@ from typing import Any
 DEFAULT_DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
 DEFAULT_BUDGET = 4000
 ENVELOPE_TOKENS = 120  # reserved for ``ok``/``meta`` framing around ``data``
+FRAMING_TOKENS = 40  # held back inside ``data`` for its own keys; plus 5% of the room for commas
 MIN_BUDGET = 200
 UNAVAILABLE = "not available: not an admitted DEV task or run"
 CALLS = (
@@ -278,7 +279,9 @@ def run(args: argparse.Namespace, root: Path | None = None, *, harbor: Any = Non
     if args.budget < MIN_BUDGET:
         return _reply(out, call, args.budget, started, None, f"--budget must be at least {MIN_BUDGET}", 0, pretty)
     room = args.budget - ENVELOPE_TOKENS
-    budget = Budget(room)
+    # Items are charged one by one; the reply also holds the keys around them and a comma per item.
+    # Hold back a share of the room for that framing so a list that fills the budget still fits.
+    budget = Budget(max(1, room - FRAMING_TOKENS - room // 20))
     context: QaContext | None = None
     data: dict[str, Any] | None = None
     error: str | None = None

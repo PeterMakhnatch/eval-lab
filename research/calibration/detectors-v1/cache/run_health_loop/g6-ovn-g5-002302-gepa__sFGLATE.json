@@ -1,11 +1,9 @@
 {
  "cost_usd": 0.0,
  "detector": "run_health_loop",
- "detector_version": "run-health/3",
- "evidence_steps": [
-  77
- ],
- "explanation": "completion_claims=14 (>= 5); command_cycle=3 (<= 3)",
+ "detector_version": "run-health/4",
+ "evidence_steps": [],
+ "explanation": "completion_claims=14 (>= 5)",
  "flagged": true,
  "id": "g6-ovn-g5-002302-gepa__sFGLATE",
  "schema": "evallab.detector_verdict/v1",

@@ -76,6 +76,21 @@ def test_loop_one_short_of_threshold_is_clear() -> None:
     assert _by_kind(_run(steps))["loop"]["verdict"] == "clear"
 
 
+def test_repeat_with_new_output_is_progress_but_same_error_with_new_ids_is_a_loop() -> None:
+    n = rh.LOOP_COMMAND_RUN + 4
+    names = [w.split()[1] for w in _words(n)]
+    paging = [_step(i + 1, f"sed -n '{i * 100},{i * 100 + 100}p' src/app.py", observation=f"def {names[i]}(): ...")
+              for i in range(n)]
+    polling = [_step(i + 1, "sleep 55; tail -2 /tmp/build.log", observation=f"PASSED tests/test_{names[i]}.py")
+               for i in range(n)]
+    stuck = [_step(i + 1, f"echo retry-{i}", observation=f"Modal Sandbox with container ID ta-01M0EWFYP8 not found "
+                                                         f"(Error code: {names[i].upper()}X{i}Q{i})")
+             for i in range(n)]
+    assert _by_kind(_run(paging))["loop"]["verdict"] == "clear"
+    assert _by_kind(_run(polling))["loop"]["verdict"] == "clear"
+    assert _by_kind(_run(stuck))["loop"]["verdict"] == "alarm"
+
+
 def test_loop_period_two_cycle_alarms_via_command_cycle() -> None:
     steps = [_step(i + 1, "ls" if i % 2 == 0 else "pwd") for i in range(12)]
     loop = _by_kind(_run(steps))["loop"]

@@ -109,20 +109,20 @@ def _destination(path: str | Path, label: str) -> Path:
     destination = Path(path).expanduser()
     if destination.exists() or destination.is_symlink():
         raise ValueError(f"{label} already exists; refusing overwrite")
-    return destination.resolve()
+    return destination.parent.resolve() / destination.name
 
 
-def _requested_ids(trace_ids: Iterable[str] | None) -> frozenset[str] | None:
+def _requested_ids(trace_ids: Iterable[str] | None) -> tuple[str, ...] | None:
     if trace_ids is None:
         return None
     if isinstance(trace_ids, (str, bytes)):
         raise ValueError("trace_ids must be a collection of nonempty strings")
-    requested = set()
+    requested: dict[str, None] = {}
     for trace_id in trace_ids:
         if not isinstance(trace_id, str) or not trace_id.strip() or "\x00" in trace_id:
             raise ValueError("trace_ids must contain nonempty strings without NUL")
-        requested.add(trace_id)
-    return frozenset(requested)
+        requested[trace_id] = None
+    return tuple(requested)
 
 
 def _blind_id(trace_id: str) -> str:
@@ -304,6 +304,7 @@ def export_runs(
     trace_ids: Iterable[str] | None = None,
     limit: int | None = None,
     manifest: str | Path | None = None,
+    strict: bool = False,
 ) -> dict[str, Any]:
     """Atomically publish a blinded local run directory and a private join file.
 
@@ -311,7 +312,8 @@ def export_runs(
     Python callers; the CLI requires an explicit path. Neither destination may
     already exist. ``admitted`` counts candidate traces before ``limit``;
     ``refused`` counts candidates denied admission (plus missing requested IDs).
-    No limit-excluded run is counted as refused.
+    No limit-excluded run is counted as refused. ``strict`` validates every
+    requested id before creating output parents, then limits in request order.
     """
     if format not in _FORMATS:
         raise ValueError("format must be harbor, atif or scout")
@@ -328,8 +330,7 @@ def export_runs(
     source = Path(database_path).expanduser().resolve(strict=True)
     authority = registry if registry is not None else CorpusRegistry()
     scout_api = _scout_api() if format == "scout" else None
-    stage = _StagedExport(output, join_path)
-    staging = stage.directory
+    stage: _StagedExport | None = None
     joins: dict[str, Any] = {}
     try:
         with closing(sqlite3.connect(source_read_uri(source), uri=True)) as connection:
@@ -350,10 +351,17 @@ def export_runs(
             admitted_count = connection.execute(
                 f"SELECT count(*) FROM agent_traces WHERE {trace_scope}", parameters,
             ).fetchone()[0]
+            if strict and requested is not None and admitted_count != candidate_count:
+                raise ValueError("requested traces are missing or not admitted")
             query = (
                 "SELECT trace_id, task_id, run_id, model_id, reward FROM agent_traces WHERE "
-                + trace_scope + " ORDER BY trace_id"
+                + trace_scope
             )
+            if strict and requested is not None:
+                query += " ORDER BY (SELECT key FROM json_each(?) WHERE value = agent_traces.trace_id)"
+                parameters += (json.dumps(requested),)
+            else:
+                query += " ORDER BY trace_id"
             if limit is not None:
                 query += " LIMIT ?"
                 parameters += (limit,)
@@ -370,6 +378,8 @@ def export_runs(
             for trace in traces:
                 redactions.update(trace[key] for key in ("trace_id", "model_id", "run_id"))
             pattern = _redaction_pattern(redactions)
+            stage = _StagedExport(output, join_path)
+            staging = stage.directory
             if format == "scout":
                 _write_bytes(staging / "transcripts.jsonl", b"")
             for trace in traces:
@@ -425,7 +435,8 @@ def export_runs(
         stage.publish()
         return receipt
     finally:
-        stage.close()
+        if stage is not None:
+            stage.close()
 
 
 _CLUSTER_SCOPE_SCHEMA = "evallab.cluster_scope/v1"

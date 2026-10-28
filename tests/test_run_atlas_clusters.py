@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import builtins
 import copy
-import importlib
 import json
+import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
@@ -63,21 +63,31 @@ def _empty_registry(root: Path) -> Path:
     return keys
 
 
-def test_hashing_embedding_import_never_requires_lancedb(monkeypatch: pytest.MonkeyPatch) -> None:
-    original = builtins.__import__
-
-    def without_lance(name: str, *args: Any, **kwargs: Any) -> Any:
-        if name == "lancedb" or name.startswith("lancedb."):
-            raise AssertionError("HashingEmbedder must not import optional LanceDB")
-        return original(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", without_lance)
-    from evallab import lance
-
-    importlib.reload(lance)
-    vectors = lance.HashingEmbedder().embed(["repair parser | none"])
-    assert len(vectors) == 1 and len(vectors[0]) == 256
-    assert vectors == lance.HashingEmbedder().embed(["repair parser | none"])
+def test_hashing_clustering_works_without_optional_lancedb() -> None:
+    # A fresh interpreter proves the optional-dependency boundary without
+    # reloading evallab.lance and replacing classes collected by other tests.
+    program = """
+import builtins
+import json
+import sys
+original = builtins.__import__
+def without_lance(name, *args, **kwargs):
+    if name == 'lancedb' or name.startswith('lancedb.'):
+        raise AssertionError('Offline hashing must not import LanceDB')
+    return original(name, *args, **kwargs)
+builtins.__import__ = without_lance
+from evallab.production.run_atlas_clusters import cluster_facets
+print(json.dumps(cluster_facets(json.load(sys.stdin))))
+"""
+    facets = _facets(16)
+    result = subprocess.run(
+        [sys.executable, "-c", program], input=json.dumps(facets),
+        text=True, capture_output=True, check=True,
+    )
+    clusters = json.loads(result.stdout)
+    assert {cluster["level"] for cluster in clusters} == {1, 2, 3}
+    leaves = [run_id for cluster in clusters if cluster["level"] == 3 for run_id in cluster["run_ids"]]
+    assert sorted(leaves) == sorted(facet["run_id"] for facet in facets)
 
 
 def test_hierarchy_determinism_membership_parents_and_centroids() -> None:

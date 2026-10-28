@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import sqlite3
 from dataclasses import replace
 from pathlib import Path
@@ -76,6 +77,11 @@ def test_sync_reopens_receipts_without_second_upload(monkeypatch, tmp_path: Path
     first = sync_module.sync("laminar", **options)
     second = sync_module.sync("laminar", **options)
     assert (first["synced"], first["payload_bytes"], second["unchanged"], target.uploads) == (1, 9, 1, 1)
+    assert first["cost_usd"] is None and first["model_cost_usd"] == 0
+    assert "unknown" in first["storage_tariff"]
+    ledger = tmp_path / ".local/state/evallab-failure-library/spend.jsonl"
+    rows = [json.loads(line) for line in ledger.read_text().splitlines()]
+    assert all(row["cost_usd"] is None and row["model_cost_usd"] == 0 for row in rows)
 
 
 def test_quota_stops_without_receipt_and_is_resumable(monkeypatch, tmp_path: Path) -> None:
@@ -109,10 +115,30 @@ def test_byte_budget_survives_reopening_and_rejects_before_send(monkeypatch, tmp
     monkeypatch.setattr(state_module, "now", lambda: "2026-10-27T00:00:00+00:00")
     monkeypatch.setattr(state_module, "MONTHLY_PAYLOAD_BYTES", 10)
     state_module.byte_reserver(tmp_path, "laminar")(8)
-    reopened = state_module.byte_reserver(tmp_path, "docent")
+    reopened = state_module.byte_reserver(tmp_path, "laminar")
     with pytest.raises(ValueError, match="monthly"):
         reopened(3)
     reopened(2)
+    # Another provider has independent headroom, without clearing either ledger.
+    state_module.byte_reserver(tmp_path, "docent")(10)
+    with pytest.raises(ValueError, match="docent.*monthly"):
+        state_module.byte_reserver(tmp_path, "docent")(1)
+    with pytest.raises(ValueError, match="laminar.*monthly"):
+        state_module.byte_reserver(tmp_path, "laminar")(1)
+
+
+def test_byte_budget_keeps_old_month_receipts_without_charging_them(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    state_module = importlib.import_module("evallab.trace_store.state")
+    monkeypatch.setattr(state_module, "MONTHLY_PAYLOAD_BYTES", 10)
+    monkeypatch.setattr(state_module, "now", lambda: "2026-09-30T23:59:59+00:00")
+    state_module.byte_reserver(tmp_path, "laminar")(10)
+    monkeypatch.setattr(state_module, "now", lambda: "2026-10-01T00:00:00+00:00")
+    state_module.byte_reserver(tmp_path, "laminar")(10)
+    assert len((tmp_path / "upload-bytes.jsonl").read_text().splitlines()) == 2
+    with pytest.raises(ValueError, match="monthly"):
+        state_module.byte_reserver(tmp_path, "laminar")(1)
 
 
 @pytest.mark.parametrize("batched", [False, True])

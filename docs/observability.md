@@ -98,9 +98,12 @@ Per-target successful receipts live under
 Unchanged content is skipped, new rows are picked up, and quota/access/size
 rejections stop cleanly without marking the rejected run synced. Local error and
 batch receipts report rejected IDs, wire-attempt bytes, hydration bytes and wall
-time. A shared lock and durable pre-send byte reservations enforce the authorized
-2.5 GB monthly ceiling, including retries and interrupted sends. API/storage
-batches are logged to the spend ledger; this path invokes no LLM or paid Signals.
+time. A shared lock and durable pre-send byte reservations enforce an independent
+2.5 GB monthly ceiling for each provider, including retries and interrupted sends.
+The Laminar allowance is not charged for Docent traffic. API/storage batches are
+logged to the spend ledger. Ingest invokes no model, paid Signal or Docent Reading
+API and activates no paid storage. Accepted bytes do not prove a $0 invoice:
+published storage tariffs are unverified, so ingestion cost is recorded as unknown.
 Docent has no supported upsert: different content at an existing deterministic
 remote ID pauses without deleting that evidence.
 

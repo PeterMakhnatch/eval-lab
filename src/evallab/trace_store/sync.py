@@ -76,10 +76,11 @@ def sync(
     report: dict[str, Any] = {
         "target": target, "at": now(), "selected": 0, "synced": 0, "unchanged": 0,
         "rejected": [], "sources": {}, "payload_bytes": 0, "hydrated_bytes": 0,
-        "stopped": None, "cursor": None, "cost_usd": 0,
+        "stopped": None, "cursor": None, "cost_usd": None, "model_cost_usd": 0,
+        "storage_tariff": "unknown; ingest-only, no paid-storage activation",
     }
     counts: Counter[str] = Counter()
-    # The common lock also serializes cross-target monthly byte reservations.
+    # The common lock serializes the ledger; each provider has its own byte cap.
     with (root / "sync.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         state = SyncState(root / f"{target}-state.jsonl")
@@ -201,6 +202,7 @@ def sync(
             record_spend(
                 target + "-storage", synced=report["synced"], sources=report["sources"],
                 payload_bytes=report["sent_bytes"], wall_seconds=report["wall_seconds"],
+                cost_usd=None, model_cost_usd=0, storage_tariff=report["storage_tariff"],
                 basis="ingest within plan allowance; Signals disabled",
                 stopped=report["stopped"],
             )

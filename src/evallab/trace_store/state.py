@@ -106,7 +106,7 @@ def byte_reserver(root: Path, target: str) -> Callable[[int], None]:
     """Reserve each wire attempt durably before sending, including retries.
 
     Called with the common sync lock held. An interrupted send can overcount,
-    never undercount, the authorized monthly byte ceiling.
+    never undercount, each provider's authorized monthly byte ceiling.
     """
     path = root / "upload-bytes.jsonl"
     month = now()[:7]
@@ -115,13 +115,13 @@ def byte_reserver(root: Path, target: str) -> Callable[[int], None]:
         with path.open(encoding="utf-8") as stream:
             for line in stream:
                 row = json.loads(line)
-                if row["at"].startswith(month):
+                if row["at"].startswith(month) and row["target"] == target:
                     used += row["payload_bytes"]
 
     def reserve(size: int) -> None:
         nonlocal used
         if used + size > MONTHLY_PAYLOAD_BYTES:
-            raise ValueError("2.5 GB monthly payload-byte allowance reached")
+            raise ValueError(f"{target}: 2.5 GB monthly payload-byte allowance reached")
         append_jsonl(path, {"at": now(), "target": target, "payload_bytes": size})
         used += size
 

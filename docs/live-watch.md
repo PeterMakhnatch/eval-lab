@@ -1555,6 +1555,8 @@ Neither endpoint calls a model, joins source labels, or writes anything.
   `cluster_version`, `build_id`, `created_at`, `facet_count`, `cluster_id`, `name`,
   `level`, `parent`, `run_ids`, `centroid_text`, `size` and nullable `label_rates`.
   The final contiguous build in file order is used; reused IDs never mix builds.
+  Creation timestamps may differ per node within a build; only `build_id` and
+  `facet_count` identify its shared snapshot, not timestamp equality.
   Its three levels must partition the same `facet_count` identities, with distinct
   IDs, correct sizes, parents one level above and children contained in their parent.
   An incomplete or invalid final build yields `store.cluster_error`; facets still show.

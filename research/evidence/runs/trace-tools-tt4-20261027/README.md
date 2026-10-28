@@ -8,16 +8,32 @@ scores**, not ten completed readings. It made **47 subprocess attempts: 41
 attested `xai-oauth/grok-4.3` responses and 6 failed/unattested exits**. Every score
 used an exactly attested model; failures were not converted to clean outcomes.
 
-The lane owner then explicitly assigned a **fresh, single-model Kimi campaign**
-after the five-hour reset, and instructed this worker not to wait. **No Kimi model
-calls have been made.** Its 200 traces are ordered with seed `20261027`, shuffled
-within each stratum and round-robin across enacted-positive / clean /
-considered-only. The first ten requested traces are therefore 4 / 3 / 3, not the
-unbalanced opaque-id prefix used by the stopped Grok pilot. Strata affect only
-private ordering and offline scoring; they never enter scanner inputs or metadata.
-Grok scores are never reused as Kimi completions.
+The lane owner launched a **fresh, single-model Kimi campaign** on October 27,
+**10:33:49–10:34:08 PM ET** after the earlier five-hour reset. The exact command
+below returned zero in **19.588 seconds**, but this was a **quota stop, not a
+completed scan**. Its first fresh preflight at **10:34:06 PM ET** found the shared
+five-hour allowance already **100% exhausted**. Monthly total/code were
+61.05% / 60.32%, below the 90% ceiling. The coding-headroom guard stopped before
+the first native scan: **zero scan attempts, zero OMP subprocess calls, zero
+served-model attestations, zero tokens and $0**. No terminal scanner error occurred.
 
-**Launch this exact command at the Kimi reset, then repeat it unchanged to resume:**
+**Kimi coverage is 0/200; all 200 remain resumable abstentions**: 80 enacted
+positives, 70 clean and 50 considered-only. Recall, false-alarm rate, AUROC and
+comparison gains are **unknown**, not evidence of zero sensitivity. Native and
+predeclared ≥5/≥7 records have null values/flags (600 explicit abstention rows),
+with a `quota-preflight:` receipt identifier rather than a fabricated native scan.
+The canonical spend ledger and its copies contain a deduplicated zero-generation
+batch (`runs=0`). See `kimi-reset-attempt.json` for the driver, quota and ledger
+provenance. No new run was armed after inspecting this completed attempt.
+
+The same 200 traces remain ordered with seed `20261027`, shuffled within each
+stratum and round-robin across enacted-positive / clean / considered-only. The
+first ten requested traces are 4 / 3 / 3, not the unbalanced opaque-id prefix used
+by the stopped Grok pilot. Strata affect only private ordering and offline scoring;
+they never enter scanner inputs or metadata. Grok scores are never reused as Kimi
+completions.
+
+**The exact resumable command is unchanged; no automatic new model run is scheduled:**
 
 ```bash
 env PYTHONPATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/src \
@@ -26,12 +42,12 @@ env PYTHONPATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-m
   /Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/research/evidence/runs/trace-tools-tt4-20261027/run.py run
 ```
 
-The observed Kimi reset was **October 27, 2026, 10:23 PM ET**
-(`2026-10-28T02:23:00.652Z`); the command refetches live allowance rather than
-trusting that historical timestamp. An early launch safely records exhaustion and
-makes no model request. Optional `--limit 10` limits one invocation to the next
-ten pending traces; the command above processes all pending traces until complete
-or a fresh quota stop.
+The next reset reported by the completed Kimi preflight is **October 28, 2026,
+3:23:00 AM ET** (`2026-10-28T07:23:00.652Z`). The command refetches live allowance
+rather than trusting that timestamp and starts no trace at ≥90% used in any
+limiting window. Optional `--limit 10` limits one invocation to the next ten
+pending traces; the command above resumes all pending traces until complete or a
+fresh quota stop. The short attempt did not consume or terminally mark any trace.
 
 The stopped Grok weekly window resets **October 30, 2026, 2:10:48 PM ET**
 (`2026-10-30T18:10:48.559Z`). There is no model switch, paid fallback, OpenRouter,
@@ -48,8 +64,8 @@ remain unfunded and are not used here.
   `CorpusRegistry` answer-key indexes in this owned worktree. Missing authority or
   an inadmissible trace fails closed. The frozen sample hash cannot change.
 - `blind_messages` and `scout_clouddb.to_transcript` preserve full text, reasoning
-  and restored tool calls. If not merged, they are imported from the TT-1
-  worktree; none of its code is copied or committed by this change. Transcript ids
+  and restored tool calls from the merged TT-1 modules; there is no dependency on
+  its staging worktree. Transcript ids
   are salted opaque ids; metadata is only the blind schema, and message metadata
   only the original step index. Labels/source/cohort/family fields are not sent.
 - The native, unmodified

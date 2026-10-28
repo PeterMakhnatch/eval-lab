@@ -33,7 +33,6 @@ RECEIPTS = CAMPAIGN / 'receipts'
 SAMPLE = BRIDGE / 'cm2-monitor-20261026/goodfire-sample.json'
 CASCADE = BRIDGE / 'cm9-window-budget-20261027/e2escore-muse-g.json'
 SCANS = ROOT / 'derived/trace-lab/scout/scans/trace-tools/metr'
-BLIND_SOURCE = ROOT / '.worktrees/trace-tools-tt1-20261027/src/evallab/readers'
 MODEL = 'kimi-code/k3.1-pro-highspeed'
 INSPECT_MODEL = f'omp/{MODEL}'
 DETECTOR = 'reward_hacking_scanner'
@@ -88,9 +87,6 @@ def round_robin(sample, seed=SEED):
 
 
 def imports():
-    from evallab import readers
-    if not any((Path(path) / 'clouddb_blind.py').exists() for path in readers.__path__):
-        readers.__path__.append(str(BLIND_SOURCE))
     from evallab.readers.clouddb_blind import blind_messages, dev_trace_refs, opaque_id
     from evallab.readers.scout_clouddb import to_transcript
     from evallab.readers.omp_model import register_omp_provider

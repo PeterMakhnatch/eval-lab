@@ -1,18 +1,22 @@
-"""Subscription transport identity, data-loss and concurrency boundaries (offline)."""
+"""Historical parser, sealed native transport and offline ledger boundaries."""
 
-import asyncio
+import builtins
 import fcntl
 import importlib.util
+import io
 import json
 import os
 import subprocess
 import sys
+import tempfile
 import threading
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -161,95 +165,143 @@ def test_render_rejects_inputs_that_cannot_be_preserved(messages):
         omp_model.render_prompt(messages)
 
 
-def test_transport_uses_isolated_cm9_flags_and_writes_only_attestation(monkeypatch, tmp_path):
-    def run(argv, **kwargs):
-        assert argv[:5] == ["omp", "-p", "--mode", "json", "--no-session"]
-        for flag in ("--no-tools", "--no-lsp", "--no-extensions", "--no-skills", "--no-rules", "--no-title", "--no-pty"):
-            assert flag in argv
-        assert argv[argv.index("--model") + 1] == omp_model.KIMI_MODEL
-        assert argv[argv.index("--system-prompt") + 1] == "scanner system"
-        overlay = Path(argv[argv.index("--config") + 1])
-        assert overlay.read_text() == omp_model.NO_FALLBACK_OVERLAY
-        assert overlay.parent == Path(kwargs["cwd"])
-        assert kwargs["env"] == {"HOME": "/fixture/home"}
-        assert kwargs["input"] == "private transcript"
-        return SimpleNamespace(returncode=0, stdout=stream())
-
-    monkeypatch.setattr(omp_model.os, "environ", {"HOME": "/fixture/home", "ZAI_API_KEY": "fixture"})
-    monkeypatch.setattr(omp_model.subprocess, "run", run)
-    path = tmp_path / "calls.jsonl"
-    reply = omp_model.call_omp("scanner system", "private transcript", receipt_path=path)
-    receipt = json.loads(path.read_text())
-    assert receipt["ok"] and receipt["served_model"] == reply.served_model
-    assert receipt["usd"] == 0 and receipt["fallback"] is False
-    assert "private transcript" not in path.read_text()
-    assert "scanner system" not in path.read_text()
+SEALED_ROUTES = (
+    omp_model.KIMI_MODEL,
+    "xai-oauth/grok-4.3",
+    "other-provider/other-model",
+    omp_model.INSPECT_MODEL,
+    "ambiguous-model",
+    "",
+)
 
 
-def test_failed_child_does_not_parse_success_shaped_stdout(monkeypatch, tmp_path):
-    monkeypatch.setattr(omp_model.os, "environ", {})
-    monkeypatch.setattr(omp_model.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout=stream()))
-    path = tmp_path / "calls.jsonl"
-    with pytest.raises(omp_model.OmpRouteError, match="status 1"):
-        omp_model.call_omp("system", "user", receipt_path=path)
-    assert json.loads(path.read_text())["ok"] is False
+def filesystem_snapshot(root):
+    return {
+        path.relative_to(root).as_posix(): None if path.is_dir() else path.read_bytes()
+        for path in root.rglob("*")
+    }
 
 
-def test_process_bound_is_shared_across_concurrent_calls(monkeypatch):
-    lock = threading.Lock()
-    four_started = threading.Event()
-    release = threading.Event()
-    active = maximum = 0
+@pytest.fixture
+def sealed_route_guard(monkeypatch):
+    """Fail on attempted execution, provider imports, environment access or file IO."""
+    @contextmanager
+    def guard():
+        attempts = []
 
-    def run(*args, **kwargs):
-        nonlocal active, maximum
-        with lock:
-            active += 1
-            maximum = max(maximum, active)
-            if active == 4:
-                four_started.set()
-        assert release.wait(10)
-        with lock:
-            active -= 1
-        return SimpleNamespace(returncode=0, stdout=stream())
+        def forbidden(operation):
+            def reject(*args, **kwargs):
+                attempts.append(operation)
+                raise AssertionError(f"sealed native route attempted {operation}")
+            return reject
 
-    monkeypatch.setattr(omp_model.os, "environ", {})
-    monkeypatch.setattr(omp_model.subprocess, "run", run)
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        futures = [pool.submit(omp_model.call_omp, "system", "user") for _ in range(8)]
-        try:
-            assert four_started.wait(10)
-            assert maximum == 4
-        finally:
-            release.set()
-        assert len([future.result() for future in futures]) == 8
-    assert maximum == 4
+        class UnreadableEnvironment(Mapping):
+            def __getitem__(self, key):
+                forbidden("environment access")()
+
+            def __iter__(self):
+                forbidden("environment access")()
+
+            def __len__(self):
+                forbidden("environment access")()
+
+        original_import = builtins.__import__
+
+        def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if (
+                globals is not None and globals.get("__name__") == omp_model.__name__
+                or name.split(".", 1)[0] in {
+                    "inspect_ai", "inspect_scout", "metr_scanners", "openai", "anthropic",
+                }
+            ):
+                forbidden(f"import {name}")()
+            return original_import(name, globals, locals, fromlist, level)
+
+        with monkeypatch.context() as patch:
+            for module, names in (
+                (subprocess, ("run", "Popen")),
+                (tempfile, ("TemporaryDirectory", "NamedTemporaryFile", "mkdtemp", "mkstemp")),
+                (Path, ("exists", "stat", "mkdir", "touch", "unlink", "rename", "replace")),
+                (os, ("open", "mkdir", "remove", "unlink", "rename", "replace")),
+                (builtins, ("open",)),
+                (io, ("open",)),
+            ):
+                for name in names:
+                    patch.setattr(module, name, forbidden(f"{module.__name__}.{name}"))
+            patch.setattr(os, "environ", UnreadableEnvironment())
+            patch.setattr(omp_model, "subscription_env", forbidden("credential filtering"))
+            patch.setattr(builtins, "__import__", guarded_import)
+            patch.setattr(importlib, "import_module", forbidden("dynamic import"))
+            yield
+            assert attempts == []
+
+    return guard
 
 
-def test_unqualified_routes_are_rejected_before_execution():
-    with pytest.raises(ValueError, match="explicit provider/model"):
-        omp_model.call_omp("system", "user", model="ambiguous-model")
+def test_denied_requests_leave_historical_parser_usable(sealed_route_guard):
+    historical_stdout = stream()
+    with sealed_route_guard():
+        for request in (
+            omp_model.require_native_omp_transport,
+            lambda: omp_model.call_omp("system", "historical transcript"),
+            omp_model.register_omp_provider,
+        ):
+            with pytest.raises(
+                omp_model.OmpTransportSealedError, match="read-only isolation is not established",
+            ) as caught:
+                request()
+            assert isinstance(caught.value, omp_model.OmpRouteError)
+        reply = omp_model.parse_omp_stream(historical_stdout)
+    assert json.loads(reply.text)["score"] == 7
+    assert reply.served_model == omp_model.KIMI_MODEL
+    assert reply.response_id == "response-fixture"
+    assert reply.total_tokens == 38
 
-@pytest.mark.parametrize("halt_while_queued", [False, True])
-def test_quota_halt_prevents_even_previously_queued_subprocesses(monkeypatch, tmp_path, halt_while_queued):
-    halt = tmp_path / "halt.json"
 
-    class Slot:
-        def __enter__(self):
-            if halt_while_queued:
-                halt.write_text("{}")
+@pytest.mark.parametrize("model", SEALED_ROUTES)
+@pytest.mark.parametrize("artifacts_exist", [False, True])
+def test_every_route_denies_before_receipt_halt_or_filesystem_access(
+    tmp_path, sealed_route_guard, model, artifacts_exist,
+):
+    receipt = tmp_path / "native" / "calls.jsonl"
+    halt = tmp_path / "native" / "halt.json"
+    if artifacts_exist:
+        receipt.parent.mkdir()
+        receipt.write_bytes(b"immutable historical receipt\n")
+        halt.write_bytes(b"immutable historical halt\n")
+    before = filesystem_snapshot(tmp_path)
+    with sealed_route_guard():
+        for _ in range(3):
+            with pytest.raises(omp_model.OmpTransportSealedError, match="Native OMP CLI transport is sealed"):
+                omp_model.call_omp(
+                    "private system", "private transcript", model=model, timeout=0,
+                    receipt_path=receipt, halt_path=halt,
+                )
+    assert filesystem_snapshot(tmp_path) == before
 
-        def __exit__(self, *args):
-            return False
 
-    if not halt_while_queued:
-        halt.write_text("{}")
-    monkeypatch.setattr(omp_model, "_PROCESS_SLOTS", Slot())
-    monkeypatch.setattr(omp_model.subprocess, "run", lambda *args, **kwargs: pytest.fail("halted subprocess started"))
-    receipt = tmp_path / "calls.jsonl"
-    with pytest.raises(omp_model.OmpRouteError, match="halted before subprocess"):
-        omp_model.call_omp("system", "user", halt_path=halt, receipt_path=receipt)
-    assert not receipt.exists()  # No hosted call was made.
+def test_parallel_repeated_requests_never_start_transport_or_provider(tmp_path, sealed_route_guard):
+    barrier = threading.Barrier(8)
+    before = filesystem_snapshot(tmp_path)
+
+    def request(index):
+        barrier.wait(timeout=10)
+        for _ in range(3):
+            with pytest.raises(omp_model.OmpTransportSealedError, match="sealed"):
+                omp_model.call_omp(
+                    "system", "transcript", model=SEALED_ROUTES[index % len(SEALED_ROUTES)],
+                    receipt_path=tmp_path / f"calls-{index}.jsonl", halt_path=tmp_path / "halt.json",
+                )
+            with pytest.raises(omp_model.OmpTransportSealedError, match="sealed"):
+                omp_model.register_omp_provider()
+            with pytest.raises(omp_model.OmpTransportSealedError, match="sealed"):
+                omp_model.require_native_omp_transport()
+        return index
+
+    with ThreadPoolExecutor(max_workers=8) as pool, sealed_route_guard():
+        futures = [pool.submit(request, index) for index in range(8)]
+        assert [future.result(timeout=10) for future in futures] == list(range(8))
+    assert filesystem_snapshot(tmp_path) == before
 
 
 def test_generic_route_attestation_includes_provider_and_full_model_id():
@@ -262,29 +314,36 @@ def test_generic_route_attestation_includes_provider_and_full_model_id():
 
 
 
-def test_inspect_provider_schema_and_usage_without_model_call(monkeypatch):
-    inspect_model = pytest.importorskip("inspect_ai.model")
-    captured = {}
+@pytest.mark.parametrize("preloaded", [False, True])
+def test_registration_denies_before_optional_import_cached_factory_or_handler(
+    monkeypatch, tmp_path, sealed_route_guard, preloaded,
+):
+    starts = []
 
-    def call(system, prompt, **kwargs):
-        captured.update(system=system, prompt=prompt, **kwargs)
-        return omp_model.parse_omp_stream(stream())
+    def forbidden(*args, **kwargs):
+        starts.append("provider")
+        raise AssertionError("sealed registration started a provider or handler")
 
-    monkeypatch.setattr(omp_model, "call_omp", call)
-    assert omp_model.register_omp_provider() is omp_model.register_omp_provider()
-    model = inspect_model.get_model(omp_model.INSPECT_MODEL)
-    result = asyncio.run(model.api.generate(
-        [inspect_model.ChatMessageUser(content="unchanged scanner prompt")], [], "none",
-        inspect_model.GenerateConfig(response_schema=inspect_model.ResponseSchema(
-            name="RewardHacking", json_schema={"type": "object", "properties": {"score": {"type": "number"}}},
-        )),
-    ))
-    assert captured["prompt"] == "unchanged scanner prompt"
-    assert json.loads(captured["system"].split("schema:\n", 1)[1])["type"] == "object"
-    assert result.completion == omp_model.parse_omp_stream(stream()).text
-    assert result.usage.total_tokens == 38
-    assert result.usage.total_cost == 0
-    assert result.metadata["served_model"] == omp_model.KIMI_MODEL
+    if preloaded:
+        package = ModuleType("inspect_ai")
+        model = ModuleType("inspect_ai.model")
+        model.modelapi = forbidden
+        model.get_model = forbidden
+        package.model = model
+        monkeypatch.setitem(sys.modules, "inspect_ai", package)
+        monkeypatch.setitem(sys.modules, "inspect_ai.model", model)
+        monkeypatch.setattr(omp_model, "_PROVIDER", forbidden, raising=False)
+    else:
+        monkeypatch.delitem(sys.modules, "inspect_ai", raising=False)
+        monkeypatch.delitem(sys.modules, "inspect_ai.model", raising=False)
+        monkeypatch.delattr(omp_model, "_PROVIDER", raising=False)
+    before = filesystem_snapshot(tmp_path)
+    with sealed_route_guard():
+        for _ in range(3):
+            with pytest.raises(omp_model.OmpTransportSealedError, match="Inspect provider registration"):
+                omp_model.register_omp_provider()
+    assert starts == []
+    assert filesystem_snapshot(tmp_path) == before
 
 
 def load_runner(monkeypatch, tmp_path):
@@ -379,59 +438,63 @@ def kimi_quota_report():
 
 @pytest.mark.parametrize("window_index", [0, 1, 2])
 @pytest.mark.parametrize("used,available", [(0.899999, True), (0.9, False), (1, False)])
-def test_quota_reserves_coding_headroom_in_every_window(
-    monkeypatch, tmp_path, kimi_quota_report, window_index, used, available,
+def test_historical_quota_reserves_coding_headroom_in_every_window(
+    monkeypatch, tmp_path, kimi_quota_report, sealed_route_guard, window_index, used, available,
 ):
     runner = load_runner(monkeypatch, tmp_path)
     limit = kimi_quota_report["reports"][0]["limits"][window_index]
     limit["amount"] = {"usedFraction": used, "remainingFraction": 1 - used}
-    calls = []
-
-    def usage(argv, **kwargs):
-        calls.append(argv)
-        return SimpleNamespace(stdout=json.dumps(kimi_quota_report))
-
-    monkeypatch.setattr(runner.subprocess, "run", usage)
-    result = runner.quota()
+    report_before = json.dumps(kimi_quota_report, sort_keys=True)
+    before = filesystem_snapshot(tmp_path)
+    with sealed_route_guard():
+        result = runner.parse_quota_report(
+            kimi_quota_report, observed_at_ms=kimi_quota_report["generatedAt"],
+        )
     assert result["available"] is available
     assert result["stop_used_fraction"] == 0.9
-    assert len(result["reset_at"]) == (not available)
-    assert calls == [
-        ["omp", "usage", "invalidate", "--provider", "kimi-code"],
-        ["omp", "usage", "--json", "--provider", "kimi-code", "--redact"],
+    expected_resets = [] if available else [
+        datetime.fromtimestamp(limit["window"]["resetsAt"] / 1000, UTC).isoformat(),
     ]
+    assert result["reset_at"] == expected_resets
     assert result["freshness_ttl_ms"] == 60_000
-    for target in (runner.SPEND, runner.STATE / "spend.jsonl", runner.RECEIPTS / "spend.jsonl"):
-        event = runner.jsonl(target)[0]
-        assert (event["runs"], event["input_tokens"], event["output_tokens"], event["usd"]) == (0, 0, 0, 0)
-        assert event["route"] == runner.INSPECT_MODEL
+    assert result["report"] == kimi_quota_report
+    assert json.dumps(kimi_quota_report, sort_keys=True) == report_before
+    assert filesystem_snapshot(tmp_path) == before
 
 
 @pytest.mark.parametrize("field", ["usedFraction", "remainingFraction"])
 @pytest.mark.parametrize("value", [None, True, "0.1", float("nan"), float("inf"), -0.1, 1.1])
-def test_quota_unknown_amount_is_fail_closed(
-    monkeypatch, tmp_path, kimi_quota_report, field, value,
+def test_historical_quota_unknown_amount_is_fail_closed(
+    monkeypatch, tmp_path, kimi_quota_report, sealed_route_guard, field, value,
 ):
     runner = load_runner(monkeypatch, tmp_path)
     kimi_quota_report["reports"][0]["limits"][0]["amount"][field] = value
-    monkeypatch.setattr(
-        runner.subprocess, "run",
-        lambda *args, **kwargs: SimpleNamespace(stdout=json.dumps(kimi_quota_report)),
-    )
-    with pytest.raises(RuntimeError, match="unknown subscription allowance"):
-        runner.quota()
+    before = filesystem_snapshot(tmp_path)
+    with (
+        sealed_route_guard(),
+        pytest.raises(RuntimeError, match="unknown subscription allowance"),
+    ):
+        runner.parse_quota_report(
+            kimi_quota_report, observed_at_ms=kimi_quota_report["generatedAt"],
+        )
+    assert filesystem_snapshot(tmp_path) == before
 
 
 @pytest.mark.parametrize("status", [None, "unknown"])
-def test_quota_unknown_status_is_fail_closed(monkeypatch, tmp_path, kimi_quota_report, status):
+def test_historical_quota_unknown_status_is_fail_closed(
+    monkeypatch, tmp_path, kimi_quota_report, sealed_route_guard, status,
+):
     runner = load_runner(monkeypatch, tmp_path)
     kimi_quota_report["reports"][0]["limits"][0]["status"] = status
-    monkeypatch.setattr(
-        runner.subprocess, "run",
-        lambda *args, **kwargs: SimpleNamespace(stdout=json.dumps(kimi_quota_report)),
-    )
-    with pytest.raises(RuntimeError, match="unknown subscription allowance"):
-        runner.quota()
+    before = filesystem_snapshot(tmp_path)
+    with (
+        sealed_route_guard(),
+        pytest.raises(RuntimeError, match="unknown subscription allowance"),
+    ):
+        runner.parse_quota_report(
+            kimi_quota_report, observed_at_ms=kimi_quota_report["generatedAt"],
+        )
+    assert filesystem_snapshot(tmp_path) == before
 
 
 @pytest.mark.parametrize("mutation", [
@@ -439,10 +502,11 @@ def test_quota_unknown_status_is_fail_closed(monkeypatch, tmp_path, kimi_quota_r
     "duplicate_window", "missing_window", "stale_fetch", "stale_report",
     "future_fetch", "future_report", "boolean_fetch", "missing_fetch",
 ])
-def test_quota_refuses_stale_or_misidentified_machine_windows(
-    monkeypatch, tmp_path, kimi_quota_report, mutation,
+def test_historical_quota_refuses_stale_or_misidentified_machine_windows(
+    monkeypatch, tmp_path, kimi_quota_report, sealed_route_guard, mutation,
 ):
     runner = load_runner(monkeypatch, tmp_path)
+    observed = kimi_quota_report["generatedAt"]
     provider = kimi_quota_report["reports"][0]
     limit = provider["limits"][0]
     if mutation == "wrong_provider":
@@ -458,25 +522,25 @@ def test_quota_refuses_stale_or_misidentified_machine_windows(
     elif mutation == "missing_window":
         provider["limits"].pop()
     elif mutation == "stale_fetch":
-        provider["fetchedAt"] = kimi_quota_report["generatedAt"] - 60_001
+        provider["fetchedAt"] = observed - 60_001
     elif mutation == "stale_report":
         kimi_quota_report["generatedAt"] -= 60_001
         provider["fetchedAt"] -= 60_001
     elif mutation == "future_fetch":
-        provider["fetchedAt"] = kimi_quota_report["generatedAt"] + 1
+        provider["fetchedAt"] = observed + 1
     elif mutation == "future_report":
         kimi_quota_report["generatedAt"] += 60_001
     elif mutation == "boolean_fetch":
         provider["fetchedAt"] = True
     else:
         provider.pop("fetchedAt")
-    monkeypatch.setattr(
-        runner.subprocess, "run",
-        lambda *args, **kwargs: SimpleNamespace(stdout=json.dumps(kimi_quota_report)),
-    )
-    with pytest.raises(RuntimeError, match="unknown subscription allowance"):
-        runner.quota()
-    assert runner.jsonl(runner.SPEND)[0]["usd"] == 0
+    before = filesystem_snapshot(tmp_path)
+    with (
+        sealed_route_guard(),
+        pytest.raises(RuntimeError, match="unknown subscription allowance"),
+    ):
+        runner.parse_quota_report(kimi_quota_report, observed_at_ms=observed)
+    assert filesystem_snapshot(tmp_path) == before
 
 
 def test_canonical_privacy_abstention_never_sends_or_becomes_a_negative(monkeypatch, tmp_path):
@@ -486,7 +550,7 @@ def test_canonical_privacy_abstention_never_sends_or_becomes_a_negative(monkeypa
     def forbidden(*args, **kwargs):
         raise AssertionError("privacy abstentions must not invoke a model or usage command")
 
-    monkeypatch.setattr(runner.subprocess, "run", forbidden)
+    monkeypatch.setattr(subprocess, "run", forbidden)
     runner.source_abstention(row, "secret_unsafe")
     runner.source_abstention(row, "secret_unsafe")
     records = runner.jsonl(runner.STATE / "results-v1.jsonl")
@@ -522,7 +586,7 @@ def test_missing_results_are_explicit_nulls_without_disabling_resume(monkeypatch
     def forbidden(*args, **kwargs):
         raise AssertionError("finalizing missing results must not call a model or usage endpoint")
 
-    monkeypatch.setattr(runner.subprocess, "run", forbidden)
+    monkeypatch.setattr(subprocess, "run", forbidden)
     runner.missing_abstentions(keys, {"done": 8})
     privacy_status = runner.CAMPAIGN / f'{keys[1]["opaque_id"]}-status.json'
     original_privacy_status = privacy_status.read_bytes()
@@ -537,27 +601,30 @@ def test_missing_results_are_explicit_nulls_without_disabling_resume(monkeypatch
     assert not runner.SPEND.exists()
 
 
-def test_failed_quota_metadata_is_retained_without_retry_or_generation(monkeypatch, tmp_path, kimi_quota_report):
+def test_live_quota_and_run_deny_before_metadata_retry_or_generation(
+    monkeypatch, tmp_path, kimi_quota_report, sealed_route_guard,
+):
     runner = load_runner(monkeypatch, tmp_path)
-    kimi_quota_report["reports"][0]["limits"][0]["status"] = "unknown"
-    calls = []
+    runner.append(runner.RECEIPTS / "quota.jsonl", [{"available": True, "report": kimi_quota_report}])
+    for path in (
+        runner.SPEND, runner.STATE / "spend.jsonl", runner.RECEIPTS / "quota-errors.jsonl",
+    ):
+        runner.append(path, [{"historical": True, "usd": 0}])
+    before = filesystem_snapshot(tmp_path)
 
-    def usage(argv, **kwargs):
-        calls.append(argv)
-        return SimpleNamespace(stdout=json.dumps(kimi_quota_report))
+    def forbidden(*args, **kwargs):
+        raise AssertionError("sealed runner reached preparation, quota, collection or spend handling")
 
-    monkeypatch.setattr(runner.subprocess, "run", usage)
-    with pytest.raises(RuntimeError, match="unknown subscription allowance"):
-        runner.quota()
-    assert len(calls) == 2
-    failures = runner.jsonl(runner.RECEIPTS / "quota-errors.jsonl")
-    assert len(failures) == 1 and failures[0]["available"] is False
-    assert failures[0]["reason"] == "RuntimeError: unknown subscription allowance"
-    assert json.loads(failures[0]["raw_report_json"]) == kimi_quota_report
-    assert not (runner.RECEIPTS / "quota.jsonl").exists()
-    for target in (runner.SPEND, runner.STATE / "spend.jsonl", runner.RECEIPTS / "spend.jsonl"):
-        events = runner.jsonl(target)
-        assert len(events) == 1 and (events[0]["runs"], events[0]["usd"]) == (0, 0)
+    live_quota = runner.quota
+    for name in ("prepare", "quota", "collect", "flush_spend"):
+        monkeypatch.setattr(runner, name, forbidden)
+    with sealed_route_guard():
+        for _ in range(3):
+            with pytest.raises(omp_model.OmpTransportSealedError, match="sealed"):
+                live_quota()
+            with pytest.raises(omp_model.OmpTransportSealedError, match="sealed"):
+                runner.run([], 200)
+    assert filesystem_snapshot(tmp_path) == before
 
 
 BUDGET_PATH = (

@@ -3067,3 +3067,131 @@ def test_task_search_finds_only_admitted_tasks_and_treats_wildcards_literally(
         assert literal.status_code == 200 and literal.json()["tasks"] == []
     short = client.get("/api/cloud-db/task-evidence/search", headers=AUTH, params={"q": "c"})
     assert short.status_code == 400
+
+
+def _refresh_files(runtime: CloudRuntime, listed: list[str], redone: list[dict[str, Any]]) -> None:
+    directory = runtime.data_root / "run-atlas"
+    directory.mkdir(exist_ok=True)
+    (directory / "blinding-refresh-v1.json").write_text(
+        json.dumps({"schema": "run-atlas-blinding-refresh/v1", "run_ids": listed}), encoding="utf-8"
+    )
+    (directory / "reblinded-facets-v1.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in redone), encoding="utf-8"
+    )
+
+
+def test_atlas_coverage_reports_stored_versus_admitted_and_blinding_state(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    verified = _atlas_facet(VERIFIED, suspicion=3, goal="Re-blinded goal")
+    provisional = _atlas_facet(PROVISIONAL, goal="Earlier leaky goal")
+    _write_atlas(runtime, [verified, provisional, _atlas_facet("not-a-trace")])
+    assert client.get("/api/cloud-db/atlas/coverage").status_code == 401
+    assert (
+        client.get("/api/cloud-db/atlas/coverage", headers=AUTH, params={"split": "test"}).status_code
+        == 400
+    )
+
+    # No refresh list yet: nothing is claimed about blinding.
+    bare = client.get("/api/cloud-db/atlas/coverage", headers=AUTH).json()
+    assert bare["refresh_error"] and bare["totals"]["refresh_listed_n"] is None
+    assert bare["populations"][0]["blinding"]["unknown"] == 2
+
+    _refresh_files(
+        runtime,
+        [VERIFIED, PROVISIONAL],
+        [verified, _atlas_facet(PROVISIONAL, goal="Re-extracted goal")],
+    )
+    response = client.get("/api/cloud-db/atlas/coverage", headers=AUTH)
+    assert response.status_code == 200, response.text
+    coverage = response.json()
+    assert coverage["refresh_error"] is None
+    totals = coverage["totals"]
+    assert (totals["admitted_n"], totals["stored_n"], totals["not_stored_n"]) == (3, 2, 1)
+    assert (totals["pending_blinding_n"], totals["refreshed_n"], totals["unadmitted_n"]) == (1, 1, 1)
+    (population,) = coverage["populations"]
+    assert (population["admitted_n"], population["stored_n"]) == (3, 2)
+    assert population["facet_versions"] == {"run-facets/v1": 2}
+    assert population["blinding"] == {"refreshed": 1, "pending": 1, "unlisted": 0, "unknown": 0}
+
+    listing = client.get("/api/cloud-db/atlas", headers=AUTH).json()
+    assert {run["run_id"]: run["blinding"] for run in listing["runs"]} == {
+        VERIFIED: "refreshed",
+        PROVISIONAL: "pending",
+    }
+    detail = client.get("/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": PROVISIONAL})
+    assert detail.json()["run"]["blinding"] == "pending"
+    assert detail.json()["run"]["facet_version"] == "run-facets/v1"
+
+
+def _scout_rows(rows: list[tuple[str, str, bool | None]]) -> str:
+    return "".join(
+        json.dumps(
+            {
+                "run_id": run,
+                "tool": tool,
+                "detector": "d1",
+                "flag": flag,
+                "at": "2026-10-27T22:00:00+00:00",
+                "evidence_steps": [2],
+            }
+        )
+        + "\n"
+        for run, tool, flag in rows
+    )
+
+
+def test_trace_tool_run_lists_are_dev_only_by_trace_id_and_carry_no_labels(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    _write_atlas(
+        runtime, [_atlas_facet(VERIFIED, suspicion=3), _atlas_facet(PROVISIONAL, suspicion=0)]
+    )
+    directory = runtime.data_root / "trace-tools"
+    directory.mkdir()
+    (directory / "results-v1.jsonl").write_text(
+        _scout_rows(
+            [
+                (VERIFIED, "scout", True),
+                (PROVISIONAL, "scout", False),
+                (REFUTED, "docent", None),
+                ("run-outside-the-corpus", "scout", True),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    url = "/api/cloud-db/trace-tools/runs"
+    assert client.get(url, params={"tool": "scout"}).status_code == 401
+    assert client.get(url, headers=AUTH, params={"tool": "scout", "split": "test"}).status_code == 400
+    for tool in ("cascade", "harbor_analyze", "unknown"):
+        assert client.get(url, headers=AUTH, params={"tool": tool}).status_code == 404
+    for bad in ({"kind": "missed"}, {"limit": 0}, {"limit": 201}, {"offset": -1}):
+        assert client.get(url, headers=AUTH, params={"tool": "scout"} | bad).status_code == 422
+
+    hit = client.get(url, headers=AUTH, params={"tool": "scout"})
+    assert hit.status_code == 200, hit.text
+    assert hit.headers["cache-control"] == "no-store"
+    body = hit.json()
+    assert [(row["run_id"], row["task_id"], row["faceted"]) for row in body["runs"]] == [
+        (VERIFIED, PRIMARY, True)
+    ]
+    assert body["runs"][0]["detectors"] == [{"detector": "d1", "evidence_steps": [2]}]
+    assert body["counts"] == {
+        "admitted_n": 3,
+        "hit_n": 1,
+        "clean_n": 1,
+        "unread_n": 1,
+        "outside_n": 1,
+    }
+    clean = client.get(url, headers=AUTH, params={"tool": "scout", "kind": "clean"}).json()
+    assert [row["run_id"] for row in clean["runs"]] == [PROVISIONAL]
+    unread = client.get(url, headers=AUTH, params={"tool": "scout", "kind": "unread"}).json()
+    assert [(row["run_id"], row["faceted"]) for row in unread["runs"]] == [(REFUTED, False)]
+    docent = client.get(url, headers=AUTH, params={"tool": "docent", "kind": "unread"}).json()
+    assert docent["counts"]["unread_n"] == 3  # an abstention is not a read
+    facets = client.get(url, headers=AUTH, params={"tool": "facets"}).json()
+    assert [row["run_id"] for row in facets["runs"]] == [VERIFIED]
+    assert (facets["counts"]["clean_n"], facets["counts"]["unread_n"]) == (1, 1)
+    for text in (hit.text, json.dumps(unread), json.dumps(facets)):
+        assert "outcome" not in text and "reward" not in text
+        assert "primaryneedle" not in text and "witnessneedle" not in text

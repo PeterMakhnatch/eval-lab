@@ -115,6 +115,11 @@ DASHBOARD: str = r"""<!doctype html>
   <div id="atlas-tools-table"></div>
   <div class="row"><button id="atlas-tools-open" type="button" class="small">Open Trace Tools for cost, detectors and sources</button></div>
  </details>
+<details id="atlas-coverage" class="atlas-tools" open>
+ <summary>Coverage · stored facets versus admitted runs, and what is not yet ready</summary>
+ <p id="atlas-coverage-status" class="notice" role="status"></p>
+ <div id="atlas-coverage-body"></div>
+</details>
  <div id="cloud-atlas-health"></div>
  <form id="cloud-atlas-filters" class="cloud-filters">
   <div><label for="atlas-source">Source</label><select id="atlas-source"><option value="">Any source</option></select></div>
@@ -145,6 +150,13 @@ DASHBOARD: str = r"""<!doctype html>
  <p id="cloud-tools-status" class="notice" role="status"></p>
  <div id="cloud-tools-cohorts" class="tools-cohorts"></div>
  <div id="cloud-tools-table" class="tools-table"></div>
+<section id="tools-runs-panel" class="atlas-detail" tabindex="-1" aria-labelledby="tools-runs-title" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Admitted DEV runs by trace id / no labels</div><h2 id="tools-runs-title">Tool runs</h2></div><div class="actions"><button id="tools-runs-copy" type="button" class="small">Copy run IDs · this page</button><button id="tools-runs-close" type="button" class="small">Close</button></div></div>
+ <div id="tools-runs-kinds" class="chips"></div>
+ <p id="tools-runs-status" class="notice" role="status"></p>
+ <div id="tools-runs-body"></div>
+ <div class="row"><button id="tools-runs-prev" type="button" class="small">Previous</button> <span id="tools-runs-page"></span> <button id="tools-runs-next" type="button" class="small">Next</button></div>
+</section>
  <details id="cloud-tools-sources" class="tools-sources"><summary>Sources read</summary><div id="cloud-tools-source-list"></div></details>
 </section>
 <section id="task-view" class="panel" role="tabpanel" aria-labelledby="task-tab" hidden>
@@ -790,7 +802,7 @@ function atlasRuns(data){
    'No admitted DEV runs match these filters. Reset filters or inspect store health.','empty'));return;
  }
  const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Dataset / task','Goal','Approach','Shortcut',
-  'Tests','Facet flags','Eval awareness','Tokens in / out','Clusters'],runs.map(run=>{
+  'Tests','Facet flags','Eval awareness','Tokens in / out','Clusters','Facet version · blinding'],runs.map(run=>{
   const open=button(String(run.run_id).slice(0,20),()=>openAtlasRun(run.run_id,open),'link');
   open.title=run.run_id;open.setAttribute('aria-label','Open run '+run.run_id);open.dataset.runId=run.run_id;openers.push(open);
   const identity=node('span',run.dataset_id),chips=node('div',undefined,'chips');
@@ -799,7 +811,7 @@ function atlasRuns(data){
   if(!chips.children.length)chips.append(node('small','No retained cluster'));
   return [badge(cloudCount(run.suspicion),run.suspicion>0?'warn':''),open,identity,run.goal,run.approach,
    run.shortcut,run.tests,atlasFlagBadges(run),run.eval_awareness,
-   cloudCount(run.input_tokens)+' / '+cloudCount(run.output_tokens),chips];
+   cloudCount(run.input_tokens)+' / '+cloudCount(run.output_tokens),chips,atlasVersion(run)];
  }));
  for(const [index,row] of Array.from(table.querySelectorAll('tbody tr')).entries()){
   row.className='atlas-run-row';
@@ -833,12 +845,62 @@ async function loadAtlas(){
   if(version===atlasListVersion){$('cloud-atlas-refresh').disabled=false;$('atlas-view').setAttribute('aria-busy','false');}
  }
 }
+const blindingText={refreshed:'Re-blinded',pending:'Re-blind pending',unlisted:'Not on refresh list',unknown:'Blinding unknown'};
+const blindingBadge=state=>state?badge(blindingText[state]??state,state==='pending'?'warn':''):node('small','Not recorded');
+function atlasVersion(run){
+ const box=node('div',undefined,'task-lines');
+ box.append(node('small',run.facet_version),blindingBadge(run.blinding));
+ return box;
+}
+function openRunInAtlas(runId){
+ $('cloud-atlas-filters').reset();$('atlas-query').value=runId;atlasOffset=0;atlasCluster='';$('atlas-tab').click();
+}
+function coverageLines(counts,label){
+ const entries=Object.entries(counts||{}).filter(([,value])=>value>0);
+ if(!entries.length)return node('small','None stored');
+ return taskLines(entries.map(([key,value])=>label(key)+' · '+cloudCount(value)));
+}
+function atlasCoverage(data){
+ const parent=$('atlas-coverage-body'),totals=data.totals,tiles=node('div',undefined,'metrics');
+ parent.replaceChildren();
+ for(const [value,label] of [[cloudCount(totals.stored_n)+' / '+cloudCount(totals.admitted_n),'Admitted runs with a stored facet'],
+  [cloudCount(totals.not_stored_n),'Admitted runs without a facet (not ready)'],[cloudCount(totals.pending_blinding_n),'Stored facets awaiting re-blinding'],
+  [cloudCount(totals.rejected_n),'Rejected facet lines'],[cloudCount(totals.unadmitted_n+totals.evidence_outside_run_n),'Stored but withheld']])tiles.append(cloudTile(value,label));
+ parent.append(tiles);
+ if(data.refresh_error)parent.append(node('p','Blinding refresh list: '+data.refresh_error,'notice error'));
+ else if(totals.refresh_listed_n!==null)parent.append(node('small','Re-blinding refresh list: '+cloudCount(totals.refresh_listed_n)+' runs listed, '+cloudCount(totals.refreshed_n)+' stored as the re-extraction.'));
+ parent.append(cloudTable(['Population (dataset · trust tier)','Stored / admitted','Ready','Facet version','Facet model','Blinding'],
+  list(data.populations).map(row=>{
+   const missing=row.admitted_n-row.stored_n,ready=node('div',undefined,'task-lines');
+   ready.append(node('small',cloudRatio(row.stored_n,row.admitted_n)),missing>0?badge(cloudCount(missing)+' not ready','warn'):badge('All stored','good'));
+   return [row.dataset_id+' · '+row.trust_tier,cloudCount(row.stored_n)+' / '+cloudCount(row.admitted_n),ready,
+    coverageLines(row.facet_versions,key=>key),coverageLines(row.facet_models,key=>key),
+    coverageLines(row.blinding,key=>blindingText[key]??key)];
+  })));
+}
+let atlasCoverageVersion=0;
+async function loadAtlasCoverage(){
+ const version=++atlasCoverageVersion;
+ notice('atlas-coverage-status','Loading coverage…');
+ try{
+  const data=await cloudApi('/api/cloud-db/atlas/coverage?split=dev');
+  if(version!==atlasCoverageVersion)return;
+  atlasCoverage(data);
+  notice('atlas-coverage-status',data.notice);
+ }catch(error){
+  if(version===atlasCoverageVersion){
+   $('atlas-coverage-body').replaceChildren();
+   notice('atlas-coverage-status',cloudError(error,'Atlas coverage'),true);
+  }
+ }
+}
 function atlasFacet(run){
  const details=node('dl',undefined,'atlas-facet');
  for(const [label,value] of [['Run ID',run.run_id],['Dataset / task',text(run.dataset_id)+' / '+text(run.task_id)],
   ['Source / split',text(run.source)+' / '+text(run.split)],['Goal',run.goal],['Approach',run.approach],
   ['Shortcut',run.shortcut],['Outcome',run.outcome],['Tests',run.tests],['Eval awareness',run.eval_awareness],
-  ['Suspicion',cloudCount(run.suspicion)],['Facet model',run.facet_model],
+  ['Suspicion',cloudCount(run.suspicion)],['Facet model',run.facet_model],['Facet version',run.facet_version],
+  ['Blinding',blindingText[run.blinding]??'Not recorded'],
   ['Tokens in / out',cloudCount(run.input_tokens)+' / '+cloudCount(run.output_tokens)],
   ['Trust tier',run.trust_tier],['Run steps',cloudCount(run.step_count)],
   ['Facet evidence indices',list(run.evidence_steps).join(', ')||'None recorded']]){
@@ -925,7 +987,7 @@ async function openAtlasRun(runId,opener){
   if(version===atlasRunVersion){$('atlas-run-refresh').disabled=false;panel.setAttribute('aria-busy','false');}
  }
 }
-$('cloud-atlas-refresh').addEventListener('click',()=>{loadAtlas();loadAtlasTools();});
+$('cloud-atlas-refresh').addEventListener('click',()=>{loadAtlas();loadAtlasTools();loadAtlasCoverage();});
 $('cloud-atlas-filters').addEventListener('change',()=>{atlasOffset=0;loadAtlas();});
 $('cloud-atlas-filters').addEventListener('submit',event=>{event.preventDefault();atlasOffset=0;loadAtlas();});
 $('atlas-reset').addEventListener('click',()=>{
@@ -1086,9 +1148,7 @@ function taskRuns(data){
   runs.map(run=>{
    const facet=run.facet,id=node('code',String(run.run_id).slice(0,22),'mono'),actions=node('div',undefined,'task-lines');
    id.title=run.run_id;
-   actions.append(button('Open in atlas',()=>{
-    $('cloud-atlas-filters').reset();$('atlas-query').value=run.run_id;atlasOffset=0;atlasCluster='';$('atlas-tab').click();
-   }),button('Copy export command',()=>copyText(run.export_command,'the export command','task-status')));
+   actions.append(button('Open in atlas',()=>openRunInAtlas(run.run_id)),button('Copy export command',()=>copyText(run.export_command,'the export command','task-status')));
    return [facet?badge(cloudCount(facet.suspicion),facet.suspicion>0?'warn':''):node('small','No facet'),id,run.model_id,run.outcome,
     facet?taskLines([facet.goal,facet.approach,'Shortcut: '+facet.shortcut]):node('small','No atlas facet'),
     facet?atlasFlagBadges(facet):'\u2014',
@@ -1209,6 +1269,7 @@ function toolsRows(data){
    cloudCount(refresh.listed)+' re-blinding runs not re-extracted','warn'));
   const detectors=toolsDetectors(tool,populations);
   if(detectors)name.append(detectors);
+  name.append(toolsRunButton(tool));
   for(const population of populations){
    const entry=tool.populations[population.key];
    if(!entry){
@@ -1272,6 +1333,57 @@ async function loadTraceTools(){
  }
 }
 $('cloud-tools-refresh').addEventListener('click',loadTraceTools);
+const toolsRunKinds=[['hit','Hit'],['clean','Read clean'],['unread','Not read']];
+const toolsRunLists=new Set(['facets','laminar','docent','scout','scout_metr','omp']);
+let toolsRunTool='',toolsRunName='',toolsRunKind='hit',toolsRunOffset=0,toolsRunVersion=0,toolsRunIds=[];
+function toolsRunButton(tool){
+ if(!toolsRunLists.has(tool.tool))return node('small','Counts only · no per-run list retained','muted');
+ return button('Show runs · hit / read clean / not read',()=>{
+  toolsRunTool=tool.tool;toolsRunName=tool.name;toolsRunKind='hit';toolsRunOffset=0;loadToolsRuns();
+ });
+}
+function renderToolsRuns(data){
+ const counts=data.counts,kinds=$('tools-runs-kinds'),body=$('tools-runs-body');
+ kinds.replaceChildren();body.replaceChildren();
+ for(const [kind,label] of toolsRunKinds){
+  const choose=button(label+' · '+cloudCount(counts[kind+'_n']),()=>{toolsRunKind=kind;toolsRunOffset=0;loadToolsRuns();},kind===data.kind?'primary':'small');
+  choose.setAttribute('aria-pressed',String(kind===data.kind));kinds.append(choose);
+ }
+ const runs=list(data.runs);
+ toolsRunIds=runs.map(run=>String(run.run_id));$('tools-runs-copy').disabled=!toolsRunIds.length;
+ $('tools-runs-page').textContent=cloudCount(data.total)+' runs · offset '+data.offset;
+ $('tools-runs-prev').disabled=data.offset===0;$('tools-runs-next').disabled=data.offset+data.limit>=data.total;
+ let note=data.notice;
+ if(counts.outside_n)note+=' '+cloudCount(counts.outside_n)+' runs this tool read are not admitted DEV runs here and are not listed.';
+ if(data.results_error)note='Tool results: '+data.results_error+'. '+note;
+ notice('tools-runs-status',note,Boolean(data.results_error));
+ if(!runs.length){body.append(node('p','No admitted DEV runs in this group.','empty'));return;}
+ body.append(cloudTable(['Run ID','Task','Detectors (evidence steps)','Open'],runs.map(run=>{
+  const id=node('code',String(run.run_id).slice(0,26),'mono'),actions=node('div',undefined,'task-lines');
+  id.title=run.run_id;
+  actions.append(run.faceted?button('Open in atlas',()=>openRunInAtlas(run.run_id)):node('small','No atlas facet yet'),
+   button('Open task evidence',()=>openTask(run.task_id)));
+  const detectors=list(run.detectors).map(item=>item.detector+(list(item.evidence_steps).length?' (steps '+item.evidence_steps.join(', ')+')':''));
+  return [id,run.task_id,detectors.length?taskLines(detectors):'\u2014',actions];
+ })));
+}
+async function loadToolsRuns(){
+ const version=++toolsRunVersion,panel=$('tools-runs-panel'),wasHidden=panel.hidden;
+ panel.hidden=false;$('tools-runs-title').textContent='Runs · '+toolsRunName;
+ for(const id of ['tools-runs-prev','tools-runs-next','tools-runs-copy'])$(id).disabled=true;
+ $('tools-runs-body').replaceChildren();notice('tools-runs-status','Loading run list…');
+ if(wasHidden)panel.focus();
+ try{
+  const data=await cloudApi('/api/cloud-db/trace-tools/runs?split=dev&limit=50&tool='+encodeURIComponent(toolsRunTool)+'&kind='+toolsRunKind+'&offset='+toolsRunOffset);
+  if(version===toolsRunVersion)renderToolsRuns(data);
+ }catch(error){
+  if(version===toolsRunVersion)notice('tools-runs-status',cloudError(error,'Tool run list'),true);
+ }
+}
+$('tools-runs-prev').addEventListener('click',()=>{toolsRunOffset=Math.max(0,toolsRunOffset-50);loadToolsRuns();});
+$('tools-runs-next').addEventListener('click',()=>{toolsRunOffset+=50;loadToolsRuns();});
+$('tools-runs-copy').addEventListener('click',()=>copyText(toolsRunIds.join('\n'),cloudCount(toolsRunIds.length)+(toolsRunIds.length===1?' run ID':' run IDs'),'tools-runs-status'));
+$('tools-runs-close').addEventListener('click',()=>{++toolsRunVersion;$('tools-runs-panel').hidden=true;});
 const trustSections=[
  ['evallab.system_playbook/v1','cloud-trust-playbook',cloudSystemPlaybook,'No retained system playbook.'],
  ['evallab.trust_tier_census/v1','cloud-trust-tiers',cloudTierCensus,'No retained trust-tier census.'],
@@ -1318,7 +1430,7 @@ for(const tab of viewTabs){
   if(tab.id==='benchmark-tab')loadCloudBenchmarks();
   if(tab.id==='corpus-tab')loadCloudCorpus();
   if(tab.id==='seeker-tab')loadSeekerComparison();
-  if(tab.id==='atlas-tab'){loadAtlas();loadAtlasTools();}
+  if(tab.id==='atlas-tab'){loadAtlas();loadAtlasTools();loadAtlasCoverage();}
   if(tab.id==='tools-tab')loadTraceTools();
   if(tab.id==='task-tab'&&taskId)loadTask();
   if(tab.id==='trust-tab')loadTrustQc();

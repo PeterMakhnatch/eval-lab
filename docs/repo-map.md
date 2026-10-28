@@ -979,7 +979,7 @@ inputs:
   - path: src/evallab/trace_store/sync.py
     digest: sha256:a9c709533cf78be51169ba8d0d9a42a19ee889199cc75de4fcbe2978c90a580c
   - path: src/evallab/trace_store/watch.py
-    digest: sha256:b0808cba25ece6fd1ec0f6780cb54f67d322a458b95f8b49df51da03042b122e
+    digest: sha256:c5bf9d6960e25a7fa5cff1911755c678443b5f8f47474731fd05e4cc4e33fa9b
   - path: src/evallab/tracing.py
     digest: sha256:5166b3122ef3afbd2d6cf937d941bd7b6a7e53ba6063a050a4734b43b3492a58
   - path: src/evallab/training_eligibility.py

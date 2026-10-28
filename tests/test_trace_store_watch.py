@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import stat
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from evallab.trace_store import watch
+from evallab.trace_store import docent, watch
+from evallab.trace_store.core import load_trace, select_traces, trace_uuid
+from evallab.trace_store.state import SyncState, content_digest
+from evallab.trace_store.sync import sync
 
 
 def make_report(**over: Any) -> dict[str, Any]:
@@ -76,6 +81,173 @@ class Harness:
 @pytest.fixture
 def h(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Harness:
     return Harness(tmp_path, monkeypatch)
+
+
+@pytest.fixture
+def no_laminar(h: Harness, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    from evallab.trace_store import laminar
+
+    calls: list[str] = []
+
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        calls.append("laminar")
+        raise AssertionError("Docent-only must not construct or call Laminar")
+
+    monkeypatch.setattr(watch, "_preflight", forbidden)
+    monkeypatch.setattr(watch, "new_laminar_target", forbidden)
+    monkeypatch.setattr(laminar.LaminarTarget, "__init__", forbidden)
+    monkeypatch.setattr(laminar.LaminarTarget, "check_signals", forbidden)
+    monkeypatch.setattr(laminar.LaminarTarget, "upload", forbidden)
+    monkeypatch.setattr(laminar.laminar, "_json_call", forbidden)
+    return calls
+
+
+def test_docent_only_initial_arrival_and_idle_never_touch_laminar(
+    h: Harness, no_laminar: list[str],
+) -> None:
+    for content in (b"one", b"one-with-new-arrivals"):
+        h.db.write_bytes(content)
+        out = h.tick(targets=["docent"])
+        assert out["ok"] is True
+        assert list(out["targets"]) == ["docent"]
+        assert out["targets"]["docent"]["status"] == "synced"
+        assert h.sync_calls[-1] == ("docent", {
+            "repo_root": h.repo, "db_path": h.db, "root": h.root, "uploader": None,
+        })
+        state = (h.root / "watch-state.json").read_bytes()
+        before = h.hosted()
+        idle = h.tick(targets=["docent"])
+        assert idle["ok"] is True
+        assert idle["targets"]["docent"]["status"] == "unchanged"
+        assert h.hosted() == before
+        assert (h.root / "watch-state.json").read_bytes() == state
+    assert h.targets_called() == ["docent", "docent"]
+    assert h.guards == h.spend == no_laminar == []
+
+
+def test_docent_only_cli_uses_real_sync_selection_and_receipt_skips(
+    h: Harness, no_laminar: list[str], monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Keep the native watch, sync, source loader, Registry and receipt paths real.
+    # Only the optional Docent SDK boundary is replaced; no API returns success.
+    monkeypatch.setattr(watch, "run_sync", sync)
+    clients: list[object] = []
+    uploads: list[Any] = []
+
+    def offline_client() -> object:
+        client = object()
+        clients.append(client)
+        return client
+
+    def forbidden_upload(*args: Any, **kwargs: Any) -> Any:
+        uploads.append(args)
+        raise AssertionError("Existing receipts must skip the Docent API")
+
+    monkeypatch.setattr(docent, "new_client", offline_client)
+    monkeypatch.setattr(docent.DocentTarget, "upload_batch", forbidden_upload)
+    keys = h.repo / "research/answer-keys"
+    for dataset in ("tb4-audit-v1", "cheatbench-actions-v1", "hacktrace-act-v1"):
+        path = keys / dataset / "items.jsonl"
+        path.parent.mkdir(parents=True)
+        path.write_text("")
+    (keys / "tb4-audit-v1/tasks.jsonl").write_text("")
+    inventory = h.repo / "research/experiments/mimo-defect-map-v1/inventory.json"
+    inventory.parent.mkdir(parents=True)
+    inventory.write_text(json.dumps({
+        "dataset_id": "mimo-defect-map-v1", "tasks": [],
+        "heldout_task_ids_excluded_from_training_all_versions": [],
+    }))
+    assignments = keys / "splits/assignments.csv"
+    assignments.parent.mkdir()
+    assignments.write_text(
+        "key_id,item_id,task,split\n"
+        + "".join(
+            f"mimo-defect-map-v1,{name},terminal-bench/{name},dev\n"
+            for name in ("watch-initial", "watch-arrival", "watch-sealed")
+        )
+        + "tb4-audit-v1,sealed-peer,terminal-bench/watch-sealed,test\n"
+    )
+    evidence = Path.home() / (
+        ".local/state/evallab-prod-live/cloud-trace-db-evidence/ingestion-sources.json"
+    )
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(json.dumps({"artifact_sources": {"mimo30": {"traces": 2}}}))
+    h.db.unlink()
+    receipts = SyncState(h.root / "docent-state.jsonl")
+    argv = [
+        "--repo-root", str(h.repo), "--db-path", str(h.db), "--state-root", str(h.root),
+        "--target", "docent",
+    ]
+    with closing(sqlite3.connect(h.db)) as con:
+        con.executescript("""
+            CREATE TABLE corpus_tasks (
+                task_id TEXT PRIMARY KEY, dataset_id TEXT, split TEXT,
+                original_grader_digest TEXT, repaired_grader_digest TEXT, metadata_json TEXT
+            );
+            CREATE TABLE agent_traces (
+                trace_id TEXT PRIMARY KEY, task_id TEXT, run_id TEXT, model_id TEXT,
+                outcome TEXT, verified_receipt_json TEXT
+            );
+            CREATE TABLE trace_steps (
+                trace_id TEXT, step_index INTEGER, role TEXT, tool_name TEXT,
+                command_or_action TEXT, content_text TEXT, observation_preview TEXT,
+                observation_cas_uri TEXT, flags_json TEXT
+            );
+        """)
+
+        def arrive(name: str, *, receipted: bool = True) -> None:
+            task_id = "terminal-bench/" + name
+            con.execute("INSERT INTO corpus_tasks VALUES (?, ?, 'DEV', NULL, NULL, ?)", (
+                task_id, "mimo-defect-map-v1", json.dumps({"item_id": name}),
+            ))
+            con.execute("INSERT INTO agent_traces VALUES (?, ?, ?, ?, ?, '{}')", (
+                name, task_id, "mimo30", "synthetic-model", "unknown",
+            ))
+            con.execute("INSERT INTO trace_steps VALUES (?, 0, 'user', NULL, NULL, ?, NULL, NULL, '{}')", (
+                name, "Synthetic actor request.",
+            ))
+            con.commit()
+            if receipted:
+                ref = next(ref for ref in select_traces(con, repo_root=h.repo) if ref.trace_id == name)
+                trace = load_trace(con, ref)
+                # Local receipts model an earlier manual sync, not a fake hosted response.
+                receipts.record(
+                    name, content_digest(trace), {"remote_id": trace_uuid(name)}, trace.dataset_id,
+                )
+
+        arrive("watch-sealed", receipted=False)
+        for expected, name in enumerate(("watch-initial", "watch-arrival"), start=1):
+            arrive(name)
+            database = h.db.read_bytes()
+            receipt_bytes = receipts.path.read_bytes()
+            assert watch.main(argv) == 0
+            out = json.loads(capsys.readouterr().out)
+            assert out["ok"] is True and list(out["targets"]) == ["docent"]
+            report = out["targets"]["docent"]
+            assert report["status"] == "synced"
+            assert report["selected"] == report["unchanged"] == expected
+            assert report["synced"] == report["rejected"] == report["requests"] == 0
+            assert len(clients) == expected
+            assert receipts.path.read_bytes() == receipt_bytes
+            state = (h.root / "watch-state.json").read_bytes()
+            runs = (h.root / "sync-runs.jsonl").read_bytes()
+            assert watch.main(argv) == 0
+            idle = json.loads(capsys.readouterr().out)
+            assert idle["targets"]["docent"]["status"] == "unchanged"
+            assert idle["targets"]["docent"]["last"]["unchanged"] == expected
+            assert len(clients) == expected
+            assert (h.root / "watch-state.json").read_bytes() == state
+            assert (h.root / "sync-runs.jsonl").read_bytes() == runs
+            assert h.db.read_bytes() == database
+    assert set(SyncState(receipts.path).receipts) == {"watch-initial", "watch-arrival"}
+    assert set(watch._load_state(h.root / "watch-state.json")) == {"docent"}
+    assert not (h.root / "laminar-state.jsonl").exists()
+    spend = Path.home() / ".local/state/evallab-failure-library/spend.jsonl"
+    assert [json.loads(line)["route"] for line in spend.read_text().splitlines()] == [
+        "docent-storage", "docent-storage",
+    ]
+    assert h.sync_calls == h.guards == h.spend == no_laminar == uploads == []
 
 
 def test_new_db_syncs_both_then_unchanged_makes_zero_hosted_calls(h: Harness) -> None:

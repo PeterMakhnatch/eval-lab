@@ -260,13 +260,18 @@ def strings(value: object) -> list[str]:
     return []
 
 
-def test_install_builds_durable_snapshot_and_plist(world: World) -> None:
+@pytest.mark.parametrize(
+    "target",
+    [None, "docent", "laminar"],
+    ids=["default-both", "docent-only", "laminar-only"],
+)
+def test_install_builds_durable_snapshot_and_plist(world: World, target: str | None) -> None:
     # Dirty primary state and a dirty invoking worktree must never reach the snapshot.
     (world.repo / WATCH_REL).write_text('MARK = "dirty"\n')
     (world.repo / "src/evallab/untracked.py").write_text("LEAK = 1\n")
     (world.wt / "src/evallab/wt_untracked.py").write_text("LEAK = 1\n")
 
-    done = world.run()
+    done = world.run() if target is None else world.run("--target", target)
     assert done.returncode == 0, done.stderr
 
     (release,) = world.releases()
@@ -283,7 +288,7 @@ def test_install_builds_durable_snapshot_and_plist(world: World) -> None:
         "--repo-root", str(source),
         "--db-path", str(world.db),
         "--state-root", str(world.sync_state),
-    ]
+    ] + (["--target", target] if target is not None else [])
     assert plist["WorkingDirectory"] == str(source)
     assert plist["RunAtLoad"] is True
     assert plist["StartInterval"] == 600
@@ -446,12 +451,50 @@ def _receipt(release: Path) -> str:
         ["--bogus"],
         ["--load", "--uninstall"],
         ["--resume", "all"],
+        ["--target", "all"],
+        ["--target", "unknown"],
+        ["--target", ""],
+        ["--target"],
     ],
 )
 def test_invalid_arguments_fail_before_any_side_effect(world: World, bad: list[str]) -> None:
     done = world.run(*bad)
     assert done.returncode != 0
     world.untouched()
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        ["--target", "all"],
+        ["--target", "unknown"],
+        ["--target", ""],
+        ["--target"],
+    ],
+)
+def test_invalid_target_preserves_owned_files_without_creating_runtime(
+    world: World, bad: list[str],
+) -> None:
+    world.dest.parent.mkdir(parents=True)
+    owned = plistlib.dumps({
+        "Label": LABEL,
+        "EvallabManagedBy": "evallab-trace-store-sync-installer",
+        "ProgramArguments": ["/bin/true"],
+    })
+    world.dest.write_bytes(owned)
+    world.state.mkdir()
+    receipt = world.state / "INSTALLED"
+    receipt.write_text("existing receipt\n")
+
+    done = world.run(*bad)
+
+    assert done.returncode == 2
+    assert "--target" in done.stderr
+    assert world.dest.read_bytes() == owned
+    assert receipt.read_text() == "existing receipt\n"
+    assert not (world.state / "releases").exists()
+    assert not world.logs.exists()
+    assert world.calls() == []
 
 
 def test_repo_root_must_be_primary_checkout(world: World) -> None:

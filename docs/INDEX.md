@@ -87,7 +87,7 @@ inputs:
   - path: docs/mimo-task-catalog.md
     digest: sha256:1da171277153ff6fbcafcd2a6835ee6c3b0d79eb3ef7d448d344b72d841332b1
   - path: docs/model-capture.md
-    digest: sha256:4266e7a61de35f666b8ded9a2510d3c694786583b5c61d1cf17f46c12b5d3bb2
+    digest: sha256:820a697afa3ffbf99e7b262f38cf26895f94f1df147167405fc944d7fc4484e6
   - path: docs/model-defaults.md
     digest: sha256:405093d29c78f0f422e895abe055988952fb14f297d8c75fc0a2b46f3ab10adf
   - path: docs/monitor-investigations.md

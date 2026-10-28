@@ -1,7 +1,8 @@
-"""TT-4: exact CM-9 200, seeded round-robin, one Kimi subscription model.
+"""TT-4: retained CM-9 200 preparation and offline Kimi-arm scoring.
 
-Run once after the quota reset; rerun the same command to resume. Model calls are
-never mixed with the stopped Grok pilot. Runtime artifacts live outside Git.
+Native OMP generation and usage entrypoints are permanently sealed because the
+CLI transport is not proved read-only. Historical evidence remains available;
+neither a quota reset nor a rerun authorizes native execution.
 """
 from __future__ import annotations
 
@@ -9,18 +10,18 @@ import argparse
 import fcntl
 import hashlib
 import json
-import os
 import random
 import re
-import signal
 import sqlite3
-import subprocess
-import threading
 from collections import deque
-from contextlib import contextmanager
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
+
+from evallab.readers.omp_model import (
+    OmpTransportSealedError,
+    require_native_omp_transport,
+)
 
 ROOT = Path('/Users/petermakhnatch/Developer/eval-lab')
 AUTHORITY = Path(__file__).resolve().parents[4]
@@ -45,7 +46,6 @@ SEED = 20261027
 STRATA = ('enacted_yes', 'clean_no', 'considered_only')
 BASIS = 'Explicit TT-4 approval: stored Kimi Code OAuth subscription; $0 marginal; no paid fallback; token totals cover attested calls, failed-call usage unknown'
 HALT = CAMPAIGN / 'halt.json'
-_QUOTA_LOCK = threading.Lock()
 
 
 def now():
@@ -173,106 +173,61 @@ def prepare():
 
 
 def quota():
-    """Fresh scoped identity and all applicable windows; preserve the 90% guard."""
-    from evallab.readers.omp_model import subscription_env
-    with _QUOTA_LOCK:
-        event = {
-            'at': now(), 'tool': 'scout_metr', 'route': INSPECT_MODEL, 'model': MODEL,
-            'runs': 0, 'input_tokens': 0, 'output_tokens': 0, 'usd': 0,
-            'basis': 'Stored OAuth subscription usage metadata only; provider-scoped invalidate/read; no generation',
-        }
-        event['batch_id'] = f'tt4-kimi-quota:{CAMPAIGN.name}:{event["at"]}'
-        raw_report = None
-        try:
-            env = subscription_env(os.environ)
-            subprocess.run(['omp', 'usage', 'invalidate', '--provider', 'kimi-code'],
-                           capture_output=True, text=True, timeout=40, check=True, env=env)
-            proc = subprocess.run(['omp', 'usage', '--json', '--provider', 'kimi-code', '--redact'],
-                                  capture_output=True, text=True, timeout=40, check=True, env=env)
-            raw_report = proc.stdout
-            report = json.loads(raw_report)
-            providers = report.get('reports', [])
-            if len(providers) != 1 or providers[0].get('provider') != 'kimi-code':
-                raise RuntimeError('unknown subscription allowance provider')
-            generated, fetched = report.get('generatedAt'), providers[0].get('fetchedAt')
-            observed = int(datetime.now(UTC).timestamp() * 1000)
-            if (
-                type(generated) is not int or type(fetched) is not int
-                or not 0 <= generated - fetched <= 60_000
-                or not 0 <= observed - generated <= 60_000
-            ):
-                raise RuntimeError('unknown subscription allowance freshness')
-            limits = providers[0].get('limits', [])
-            expected = {'5h', 'limit_month_total', 'limit_month_code'}
-            identities = [limit.get('scope', {}).get('windowId') for limit in limits]
-            if (
-                len(limits) != 3 or set(identities) != expected
-                or any(
-                    limit.get('scope', {}).get('provider') != 'kimi-code'
-                    or limit.get('window', {}).get('id') != identity
-                    for limit, identity in zip(limits, identities, strict=True)
-                )
-            ):
-                raise RuntimeError('unknown subscription allowance window identity')
-            for limit in limits:
-                fractions = [limit.get('amount', {}).get(field)
-                             for field in ('usedFraction', 'remainingFraction')]
-                if (limit.get('status') not in ('ok', 'exhausted')
-                        or any(type(value) not in (int, float) or not 0 <= value <= 1
-                               for value in fractions)):
-                    raise RuntimeError('unknown subscription allowance')
-            blocked = [limit for limit in limits if limit['status'] == 'exhausted'
-                       or limit['amount']['usedFraction'] >= 0.9
-                       or limit['amount']['remainingFraction'] <= 0.1]
-            result = {
-                'at': now(), 'available': not blocked, 'stop_used_fraction': 0.9,
-                'reset_at': sorted({datetime.fromtimestamp(limit['window']['resetsAt']/1000, UTC).isoformat() for limit in blocked}),
-                'report': report, 'freshness_ttl_ms': 60_000,
-            }
-            append(RECEIPTS / 'quota.jsonl', [result])
-            return result
-        except Exception as exc:
-            append(RECEIPTS / 'quota-errors.jsonl', [{
-                'at': now(), 'available': False,
-                'reason': f'{type(exc).__name__}: {exc}',
-                'raw_report_json': raw_report,
-                'note': 'Diagnostic only; unknown allowance never authorizes generation.',
-            }])
-            raise
-        finally:
-            for target in (SPEND, STATE / 'spend.jsonl', RECEIPTS / 'spend.jsonl'):
-                append(target, [event])
+    """Deny native usage calls; retained metadata can be parsed offline instead."""
+    require_native_omp_transport()
 
 
-def stop(reason):
-    save(HALT, reason)
-    save(RECEIPTS / 'blocked.json', reason)
+def parse_quota_report(report, *, observed_at_ms=None):
+    """Validate historical quota metadata without OMP calls or ledger writes.
 
-
-@contextmanager
-def quota_watch():
-    """Interrupt the native scan on exhaustion; queued OMP calls see the halt file."""
-    finished = threading.Event()
-    def watch():
-        while not finished.wait(30):
-            try:
-                current = quota()
-            except Exception as exc:
-                current = {'at': now(), 'available': False, 'reset_at': [],
-                           'reason': f'quota check unavailable: {type(exc).__name__}: {exc}'}
-            if finished.is_set():
-                return
-            if not current['available']:
-                stop(current)
-                os.kill(os.getpid(), signal.SIGINT)
-                return
-    thread = threading.Thread(target=watch, daemon=True)
-    thread.start()
-    try:
-        yield
-    finally:
-        finished.set()
-        thread.join(timeout=85)
+    A valid allowance report is not authorization to use the sealed transport.
+    """
+    providers = report.get('reports', [])
+    if len(providers) != 1 or providers[0].get('provider') != 'kimi-code':
+        raise RuntimeError('unknown subscription allowance provider')
+    generated, fetched = report.get('generatedAt'), providers[0].get('fetchedAt')
+    observed = (
+        int(datetime.now(UTC).timestamp() * 1000)
+        if observed_at_ms is None else observed_at_ms
+    )
+    if (
+        type(generated) is not int or type(fetched) is not int
+        or type(observed) is not int
+        or not 0 <= generated - fetched <= 60_000
+        or not 0 <= observed - generated <= 60_000
+    ):
+        raise RuntimeError('unknown subscription allowance freshness')
+    limits = providers[0].get('limits', [])
+    expected = {'5h', 'limit_month_total', 'limit_month_code'}
+    identities = [limit.get('scope', {}).get('windowId') for limit in limits]
+    if (
+        len(limits) != 3 or set(identities) != expected
+        or any(
+            limit.get('scope', {}).get('provider') != 'kimi-code'
+            or limit.get('window', {}).get('id') != identity
+            for limit, identity in zip(limits, identities, strict=True)
+        )
+    ):
+        raise RuntimeError('unknown subscription allowance window identity')
+    for limit in limits:
+        fractions = [limit.get('amount', {}).get(field)
+                     for field in ('usedFraction', 'remainingFraction')]
+        if (limit.get('status') not in ('ok', 'exhausted')
+                or any(type(value) not in (int, float) or not 0 <= value <= 1
+                       for value in fractions)):
+            raise RuntimeError('unknown subscription allowance')
+    blocked = [limit for limit in limits if limit['status'] == 'exhausted'
+               or limit['amount']['usedFraction'] >= 0.9
+               or limit['amount']['remainingFraction'] <= 0.1]
+    return {
+        'at': datetime.fromtimestamp(observed / 1000, UTC).isoformat(),
+        'available': not blocked, 'stop_used_fraction': 0.9,
+        'reset_at': sorted({
+            datetime.fromtimestamp(limit['window']['resetsAt'] / 1000, UTC).isoformat()
+            for limit in blocked
+        }),
+        'report': report, 'freshness_ttl_ms': 60_000,
+    }
 
 
 def collect(location, keys):
@@ -355,7 +310,7 @@ def source_abstention(row, category):
 
 
 def missing_abstentions(keys, measured):
-    """Unmeasured inputs stay resumable and are never imputed as negatives."""
+    """Unmeasured historical inputs stay abstentions, never imputed negatives."""
     projection = json.loads((RECEIPTS / 'admission.json').read_text())['input_projection']
     rejected = {row['opaque_id']: row['category'] for row in projection['rejected']}
     for row in keys:
@@ -368,7 +323,7 @@ def missing_abstentions(keys, measured):
 
 
 def scores(records):
-    """Only this model's native valid scores are resumable completed measurements."""
+    """Accept only this frozen native arm's retained valid measurements."""
     result = {}
     for row in records:
         value = row.get('value')
@@ -412,77 +367,8 @@ def flush_spend(opaque):
 
 
 def run(keys, limit):
-    from evallab.readers.omp_model import register_omp_provider
-    from evallab.readers.scout_clouddb import _check_transcripts
-
-    _check_transcripts(CAMPAIGN / 'transcripts')
-    register_omp_provider()
-    from inspect_ai.model import GenerateConfig
-    from inspect_scout import scan, scan_resume, transcripts_from
-    from metr_scanners.reward_hacking import reward_hacking_scanner
-    for row in keys:
-        flush_spend(row['opaque_id'])  # Recover any pre-interruption accounting first.
-    measured = scores(jsonl(STATE / 'results-v1.jsonl'))
-    projection = json.loads((RECEIPTS / 'admission.json').read_text())['input_projection']
-    source_rejected = {row['opaque_id']: row['category'] for row in projection['rejected']}
-    attempted = 0
-    for row in keys:
-        opaque, trace = row['opaque_id'], row['run_id']
-        state_path = CAMPAIGN / f'{opaque}-status.json'
-        previous = json.loads(state_path.read_text()) if state_path.exists() else {}
-        if trace in measured or previous.get('terminal_abstention'):
-            continue
-        if opaque in source_rejected:
-            source_abstention(row, source_rejected[opaque])
-            continue
-        if limit is not None and attempted >= limit:
-            break
-        try:
-            current = quota()
-        except Exception as exc:
-            stop({'at': now(), 'available': False, 'reset_at': [],
-                  'reason': f'quota unavailable: {type(exc).__name__}: {exc}'})
-            break
-        if not current['available']:
-            stop(current)
-            break
-        HALT.unlink(missing_ok=True)  # Only after fresh positive allowance, never before.
-        receipt = CAMPAIGN / f'{opaque}-calls.jsonl'
-        location = previous.get('location') or locate_scan(opaque, receipt)
-        attempted += 1
-        status = None
-        try:
-            with quota_watch():
-                if location:
-                    status = scan_resume(location, display='none', log_level='warning')
-                else:
-                    status = scan(
-                        scanners=[reward_hacking_scanner()],
-                        transcripts=transcripts_from(str(CAMPAIGN / 'transcripts')).where(f"transcript_id = '{opaque}'"),
-                        model=INSPECT_MODEL,
-                        model_args={'receipt_path': str(receipt), 'halt_path': str(HALT), 'timeout': 300},
-                        model_config=GenerateConfig(max_connections=4, max_retries=0, fallback_models=[]),
-                        scans=str(SCANS), max_processes=1, max_transcripts=1, results_buffer=1,
-                        display='none', log_level='warning',
-                    )
-        except KeyboardInterrupt:
-            if not HALT.exists():
-                stop({'at': now(), 'available': False, 'reset_at': [], 'reason': 'operator interrupt; native scan preserved'})
-        finally:
-            location = status.location if status is not None else locate_scan(opaque, receipt)
-            reports = collect(location, keys) if location else []
-            fresh = scores(jsonl(STATE / 'results-v1.jsonl'))
-            save(state_path, {
-                'at': now(), 'model': MODEL, 'location': location,
-                'scored': trace in fresh, 'complete': bool(status and status.complete),
-                'terminal_abstention': bool(reports and trace not in fresh and not HALT.exists()),
-            })
-            flush_spend(opaque)
-            measured = fresh
-        print(json.dumps({'ordinal': row['ordinal'], 'opaque_id': opaque, 'scored': trace in measured,
-                          'total_scored': len(measured), 'halted': HALT.exists()}), flush=True)
-        if HALT.exists():
-            break
+    """Deny before inspecting sources, quota, providers, handlers, or scan inputs."""
+    require_native_omp_transport()
 
 
 def metrics(values, labels, baseline, threshold):
@@ -567,8 +453,13 @@ def score(keys):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('command', choices=['prepare', 'run', 'score'])
-    parser.add_argument('--limit', type=int, default=None, help='new attempted traces this invocation; default all pending')
+    parser.add_argument('--limit', type=int, default=None, help='retained native limit; execution is sealed')
     args = parser.parse_args()
+    if args.command == 'run':
+        try:
+            require_native_omp_transport()
+        except OmpTransportSealedError as exc:
+            parser.exit(status=1, message=f'{exc}\n')
     CAMPAIGN.mkdir(parents=True, exist_ok=True)
     with (CAMPAIGN / 'runner.lock').open('a+') as lock:
         try:
@@ -576,9 +467,7 @@ def main():
         except BlockingIOError as exc:
             raise SystemExit('this Kimi campaign already has a live runner') from exc
         keys = prepare()  # Recheck all 200 against current DEV authority on every invocation.
-        if args.command == 'run':
-            run(keys, args.limit)
-        if args.command in {'run', 'score'}:
+        if args.command == 'score':
             score(keys)
 
 

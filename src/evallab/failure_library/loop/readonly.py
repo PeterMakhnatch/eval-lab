@@ -143,6 +143,7 @@ def diagnostic_pilot(
     import os
 
     from evallab.failure_library.loop.selection import digest, run_label
+    from evallab.failure_library.loop.source_views import extract_documents
     from evallab.failure_library.records import Finding, RunRecord
     from evallab.failure_library.store import default_state_root
 
@@ -196,11 +197,7 @@ def diagnostic_pilot(
         )
         if kind not in {"task", "trace"} or record.split != "DEV":
             raise ValueError("only DEV Task/Trace subjects are permitted")
-        allowed = (
-            {"pm-tb4-findings", "envcheck-tb4-findings"}
-            if kind == "task"
-            else {"olmo-reward-hacking"}
-        )
+        allowed = {"pm-tb4-findings", "envcheck-tb4"} if kind == "task" else {"olmo-reward-hacking"}
         if record.collection not in allowed:
             raise ValueError("restricted or unsupported source collection; no upload allowed")
         expected = (
@@ -229,10 +226,16 @@ def diagnostic_pilot(
             document_path = (default_state_root() / subject["documents_ref"]).resolve()
             if not document_path.is_relative_to(private_root):
                 raise ValueError("private source views must stay under library state/loop")
-            documents = json.loads(document_path.read_text())
+            raw_documents = document_path.read_bytes()
+            if hashlib.sha256(raw_documents).hexdigest() != subject["documents_file_sha256"]:
+                raise ValueError("private document file checksum changed")
+            documents = json.loads(raw_documents)
             if digest(documents) != subject["documents_digest"]:
                 raise ValueError("private document bytes changed")
-        view = source_view(documents)
+        native_documents = extract_documents(subject, record)
+        if documents != native_documents:
+            raise ValueError("rendered documents disagree with the pinned source")
+        view = source_view(native_documents)
         if view["sha256"] != subject["view_sha256"] or len(view["text"]) > 60000:
             raise ValueError("source view drifted or exceeds the bounded pilot input")
         task_ids.add(record.task.source_id + "/" + record.task.task_id)

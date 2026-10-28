@@ -76,21 +76,25 @@ def _curated_text(guide: TaxonomyGuidance, agent: Agent) -> str:
         if agent == "task-qa"
         else "Compare archived outcomes with task intent; keep oracle and judge labels distinct."
     )
-    return "\n".join(
-        [
-            f"## FG-{guide.code}: {guide.title}",
-            "Pre-existing taxonomy guidance: no examples or empirical support claim.",
-            f"Definition: {guide.definition}",
-            "Defensive validation:",
-            f"- {role_check}",
-            "- Pin task/version and evidence origin before confirming any concrete defect.",
-            "- A source label, reproducer path or model agreement is not independent verification.",
-            "Repair location: " + (
-                guide.repair_location
-                or "Identify the responsible boundary before proposing a change."
-            ),
-        ]
-    ) + "\n"
+    return (
+        "\n".join(
+            [
+                f"## FG-{guide.code}: {guide.title}",
+                "Pre-existing taxonomy guidance: no examples or empirical support claim.",
+                f"Definition: {guide.definition}",
+                "Defensive validation:",
+                f"- {role_check}",
+                "- Pin task/version and evidence origin before confirming any concrete defect.",
+                "- A source label, reproducer path or model agreement is not independent verification.",
+                "Repair location: "
+                + (
+                    guide.repair_location
+                    or "Identify the responsible boundary before proposing a change."
+                ),
+            ]
+        )
+        + "\n"
+    )
 
 
 def make_pack(
@@ -146,7 +150,8 @@ def make_pack(
     examples = tuple(
         e
         for e in knowledge.examples
-        if not unknown and e.ref.id not in excluded
+        if not unknown
+        and e.ref.id not in excluded
         and not any(_same_subject(e, subject, knowledge) for subject in subjects)
         and (seal is None or not seal.search(e.search_text + " " + e.ref.source_url))
     )
@@ -285,7 +290,9 @@ def make_pack(
         excluded_tasks=sorted(set(exclude_tasks)),
         retrieval_mode="dev_examples"
         if selected_examples or selected_cards
-        else "curated_only" if selected_guidance else "empty",
+        else "curated_only"
+        if selected_guidance
+        else "empty",
         curated_guidance_ids=selected_guidance,
         identity_uncertainties=sorted(set(uncertainties)),
         task_id=task,

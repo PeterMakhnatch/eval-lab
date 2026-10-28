@@ -54,7 +54,6 @@ class TaxonomyGuidance(ContractModel):
     repair_location: str = ""
 
 
-
 class FailureCard(ContractModel):
     schema_version: Literal["failure-card/v1"] = "failure-card/v1"
     card_id: str

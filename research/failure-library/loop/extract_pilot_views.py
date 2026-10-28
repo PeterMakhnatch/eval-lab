@@ -1,7 +1,7 @@
-"""Recompute the frozen pilot views offline; no model, tools, grader or shell.
+"""Reconstruct and bind frozen pilot views offline; no model or source execution.
 
-This evidence helper is not yet the public pilot's admission gate. The integration
-owner must bind reconstruction before a subsequent model request.
+The public runner uses the same native-source extractor. ``--bind`` regenerates
+the manifest's admission metadata only after source/view equality is established.
 """
 
 from __future__ import annotations
@@ -9,59 +9,40 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
 
+from evallab.failure_library.loop import source_views
 from evallab.failure_library.loop.readonly import source_view
 from evallab.failure_library.loop.selection import digest
-from evallab.registry import task_directory_digest
+from evallab.failure_library.records import Finding, RunRecord
 
 
 def reconstruct(subject: dict) -> list[str]:
     for source in subject["sources"]:
         with Path(source["path"]).open("rb") as handle:
-            assert hashlib.file_digest(handle, "sha256").hexdigest() == source["sha256"]
-    if subject["kind"] == "task":
-        package = Path(subject["package_path"]).resolve()
-        expected = subject["record"]["task"]["task_version_digest"]
-        assert expected and task_directory_digest(package) == expected
-        assert all(
-            Path(source["path"]).resolve().is_relative_to(package) for source in subject["sources"]
-        )
-        documents = [Path(source["path"]).read_text() for source in subject["sources"]]
-    else:
-        import pyarrow.parquet as pq
-
-        assert subject["native_ref"] == subject["record"]["transcript_ref"]
-        ref = urlparse(subject["native_ref"])
-        path, fields = Path(unquote(ref.path)), parse_qs(ref.fragment)
-        assert str(path) == subject["sources"][0]["path"]
-        offset, field = int(fields["row"][0]), fields["field"][0]
-        parquet = pq.ParquetFile(path)
-        if not 0 <= offset < parquet.metadata.num_rows:
-            raise ValueError("native zero-based row is outside the pinned Parquet")
-        messages = None
-        for group in range(parquet.num_row_groups):
-            count = parquet.metadata.row_group(group).num_rows
-            if offset < count:
-                messages = parquet.read_row_group(group, columns=[field])[field][offset].as_py()
-                break
-            offset -= count
-        if isinstance(messages, str):
-            messages = json.loads(messages)
-        documents = []
-        for span in subject["spans"]:
-            message = messages[span["message"]]
-            content = message.get("content", "")
-            if not isinstance(content, str):
-                content = json.dumps(content, sort_keys=True)
-            assert len(content) == span["original_chars"]
-            assert 0 <= span["start"] <= span["end"] <= len(content)
-            text = content[span["start"] : span["end"]]
-            text = text.replace(subject["record"]["task"]["task_id"], "[subject]")
-            documents.append(message.get("role", "unknown").upper() + "\n" + text)
-    assert digest(documents) == subject["documents_digest"]
-    assert source_view(documents)["sha256"] == subject["view_sha256"]
+            if hashlib.file_digest(handle, "sha256").hexdigest() != source["sha256"]:
+                raise ValueError("native source file checksum changed")
+    model = Finding if subject["kind"] == "task" else RunRecord
+    documents = source_views.extract_documents(subject, model.model_validate(subject["record"]))
+    if digest(documents) != subject["documents_digest"]:
+        raise ValueError("reconstructed document contents changed")
+    if source_view(documents)["sha256"] != subject["view_sha256"]:
+        raise ValueError("reconstructed line-cited view changed")
     return documents
+
+
+def bind_manifest(path: Path, frozen: dict) -> None:
+    for subject in frozen["subjects"]:
+        subject["view_extractor"] = (
+            "task-files/v1" if subject["kind"] == "task" else "olmo-messages/v1"
+        )
+        reconstruct(subject)
+    frozen["reconstruction"] = {
+        "script": "research/failure-library/loop/extract_pilot_views.py",
+        "sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "admission": "native documents and task-package/trace-row identity enforced by public runner",
+    }
+    frozen["digest"] = digest({key: value for key, value in frozen.items() if key != "digest"})
+    path.write_text(json.dumps(frozen, sort_keys=True, indent=2) + "\n")
 
 
 if __name__ == "__main__":
@@ -69,11 +50,15 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path)
+    parser.add_argument(
+        "--bind", action="store_true", help="Regenerate verified source-view admission metadata"
+    )
     args = parser.parse_args()
     frozen = json.loads(args.manifest.read_text())
-    assert frozen["digest"] == digest(
-        {key: value for key, value in frozen.items() if key != "digest"}
-    )
+    if frozen["digest"] != digest({key: value for key, value in frozen.items() if key != "digest"}):
+        raise ValueError("frozen manifest digest changed")
+    if args.bind:
+        bind_manifest(args.manifest, frozen)
     print(
         json.dumps(
             [

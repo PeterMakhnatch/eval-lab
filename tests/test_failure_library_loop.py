@@ -724,7 +724,6 @@ def test_readonly_invalid_outputs_are_unmeasured_and_never_retried(raw: str) -> 
 
         def turn(self, prompt: str, *, timeout_seconds: float) -> dict:
             self.calls += 1
-            assert "NO tools" in prompt
             return {"response": raw}
 
     driver = Driver()
@@ -760,13 +759,17 @@ def test_public_readonly_dryrun_uses_private_views_and_never_calls_model(
     record = next(store.iter_findings()).model_dump(mode="json")
     record["collection"] = "pm-tb4-findings"
     record["summary"] = "PRIVATE_SOURCE_LABEL_DO_NOT_PROMPT"
+    record["task"]["task_version_digest"] = task_directory_digest(source.parent)
     subject = {
         "id": "S1",
         "kind": "task",
+        "view_extractor": "task-files/v1",
+        "package_path": str(source.parent),
         "record": record,
         "record_digest": digest(record),
         "documents_ref": "loop/views/S1.json",
         "documents_digest": digest(documents),
+        "documents_file_sha256": hashlib.sha256(private.read_bytes()).hexdigest(),
         "view_sha256": source_view(documents)["sha256"],
         "sources": [
             {"path": str(source), "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}

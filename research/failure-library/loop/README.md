@@ -44,9 +44,9 @@ the same slice rather than quietly rerolling after ingestion. Selected finding,
 run or control byte changes, run-manifest mismatches and split drift block model
 calls. New independent slices use an explicit new `--manifest` path.
 
-The default execution subset is two balanced tasks and two balanced runs per
-arm; Seeker receives only the broken tasks. Increase `--max-items` explicitly,
-up to 40. Both knowledge arms use exactly the same selected IDs.
+The default native execution subset is two balanced tasks and two balanced runs
+per arm. Increase `--max-items` explicitly, up to 40. Both knowledge arms use
+exactly the same selected IDs. Seeker execution remains unsupported and disabled.
 Packets exclude **all** frozen raw finding/run IDs with `--exclude-id`, and
 every frozen native `SOURCE/TASK` (including clean controls) with `--exclude-task`,
 plus the compiler's mandatory same-task/family/template exclusions. Synthetic
@@ -71,9 +71,9 @@ the unchanged baseline received usable knowledge.
   review mode and an owner-selected packet interface are requested from its
   owner. The heartbeat does not generate or execute exploit payloads, run its
   stale approval's replay command, or call submission syntax validity success.
-- **Feedback:** read-only source claims cannot mint V3 evidence. Confirmation
-  belongs to `failures verify run` with owner-approved target material and spend;
-  identity-checked confirmed receipts then re-enter through owning source builders.
+- **Feedback:** read-only source claims cannot mint V3 evidence. Task-version-bound
+  independent support must be reviewed by the owning source builder before
+  re-ingestion. This package ships no exploit/re-break verification executor.
 
 `scoreboard.csv` records agent, knowledge ON/OFF, recall, false-alarm count/rate,
 metered cost, tokens, wall time and review denominators. Missing measurements are
@@ -123,10 +123,14 @@ document contents enter the prompt; row grading columns and identity/label
 sidecars do not. `extract_pilot_views.py` preserves the offline reconstruction
 method, including the package digest versus exact-row/span distinction.
 
-**Admission gap remains parent-owned:** the current public runner separately
-checks source and view hashes; it does not yet enforce reconstruction or the
-whole task-package digest at admission. Bind the reconstruction checks before
-the next model calls. The extraction helper is evidence, not a claimed fix.
+**Source admission is enforced:** the public runner reconstructs the same source
+documents before any model request. Task views require the whole pinned package
+digest and in-package files. Trace views bind the exact native row, record
+identity/outcomes/labels, message spans and declared redaction. A frozen view hash
+plus an unrelated genuine source checksum is rejected. Private document-file
+checksums and parsed-view equality are both checked. `extract_pilot_views.py`
+uses the same production extractor; `--bind` regenerates metadata only after
+native reconstruction matches the frozen document and line-cited-view digests.
 
 From the integrated checkout, the owner can validate the frozen inputs offline:
 
@@ -146,9 +150,10 @@ evallab failures loop readonly-pilot --dry-run --lane omp \
   --output-dir "$STATE/loop/readonly-trace-NEXT" --allow-curated-fallback
 ```
 
-Only after closing the admission gap and a manual route decision may the owner
-remove `--dry-run`, using **new** output directories. The empirical Task packet
-must seal every frozen record/task exclusion. Curated Trace guidance is labelled
+A manually authorized route decision may remove `--dry-run`, using **new**
+output directories; provider quota failures are preserved and never retried or
+rerouted automatically. The empirical Task packet must seal every frozen
+record/task exclusion. Curated Trace guidance is labelled
 `preexisting_curated_defensive_taxonomy`, never evidence-retrieved knowledge.
 
 The first real public CLI attempt reached Muse on October 27 at about 8:05 PM ET.

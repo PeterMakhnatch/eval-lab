@@ -17,9 +17,7 @@ def register(subparsers: Any) -> None:
     parser = subparsers.add_parser(
         "pack", help="DEV-only failure cards and leave-subject-out examples"
     )
-    parser.add_argument(
-        "--for", dest="agent", required=True, choices=("task-qa", "trace-qa")
-    )
+    parser.add_argument("--for", dest="agent", required=True, choices=("task-qa", "trace-qa"))
     parser.add_argument(
         "--task", help="Subject <source_id>/<task_id>; always excluded with its group"
     )

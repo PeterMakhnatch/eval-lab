@@ -25,15 +25,17 @@ marked `curated_only`, never represented as an observed finding. Manifests separ
 ## Usage
 
 ```sh
-uv run evallab failures pack --for task-qa --task terminal-bench/html-js-filter \
+uv run --extra laminar evallab failures pack --for task-qa --task terminal-bench/html-js-filter \
   --exclude-id fl-215a4657118e2136 --exclude-task terminal-bench/html-js-filter \
-  --max-chars 8000 --output-dir /tmp/defensive-task-qa
+  --top-k 2 --max-chars 12000 --output-dir /tmp/defensive-task-qa
 uv run evallab failures pack --for trace-qa --curated-only \
   --task native-source/native-task --max-chars 8000 \
   --output-dir /tmp/defensive-taxonomy-trace-qa
 ```
 
 Both commands print bounded Markdown. Output directories must be new.
+The default Task QA baseline rubric comes from the pinned optional Harbor runtime
+(`--extra laminar`); alternatively supply an existing baseline via `--rubric-base`.
 `--exclude-id` accepts admitted raw ids or `COLLECTION::RAW_ID` and is repeatable.
 `--exclude-task SOURCE/TASK` also handles clean controls without library records;
 `excluded_tasks` preserves these explicit inputs in the manifest. Unresolved ids
@@ -71,10 +73,16 @@ responses and previous generated artifacts are retained in local read-only custo
 drafting receipts describe this projection. These empirical drafts are **not** the
 source-independent taxonomy fallback.
 
-Parent integration corrected source evidence semantics and sanitized task narratives
-after the frozen packet smokes. Old generated cards/proposals/build output are
-therefore withdrawn from active Git paths pending the parent's rebuild against the
-final corrected library. `smoke.json` is explicitly historical, not verification of
-current code or current labels. The parent owns final formatting, tests, generated
-documentation, artifact rebuilding and merge. No tests, builds or model calls were
-run after that handoff instruction.
+The integrated corrected library was rebuilt through the actual pack CLI:
+**141,994 admitted DEV examples, 30 evidence-backed cards, zero missing run
+collections**. Ten proposals fit the current exact-source Hackbook enum; all
+attacker-template fields are disabled/empty, and other source mappings remain
+explicitly omitted rather than relabelled.
+
+`integration-smoke.json` records the exercised current exports: a known-ledger
+Task subject retrieved four disjoint DEV examples, while both an explicitly
+curated Trace subject and an unresolved subject used twelve taxonomy entries
+with zero empirical examples. Packet hashes, native rubric loading, exclusion
+seals and `matched=false` priors were checked. This proves knowledge delivery,
+not model improvement. `smoke.json` remains an explicitly historical receipt of
+the earlier pre-correction build, not current verification.

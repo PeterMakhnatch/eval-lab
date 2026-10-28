@@ -1,11 +1,11 @@
 {
   "canonical_parent_pack_dir": "/Users/petermakhnatch/.local/state/evallab-failure-library/integration-smoke-20261028/task-empirical",
   "created_at": "2026-10-28T00:04:28.432783+00:00",
-  "digest": "sha256:222bd9c3eafc0843bf3254200993e6fcd47678003ad54e6fc74e32aed9135d7d",
+  "digest": "sha256:2e9b6cab5e732a6e02b150663e1b2b2f0e2b519ac9163e8b138c216feb2d38cb",
   "reconstruction": {
-    "admission_gap": "Helper is offline evidence; parent must bind reconstruction/package checks in the public driver before next model calls.",
+    "admission": "native documents and task-package/trace-row identity enforced by public runner",
     "script": "research/failure-library/loop/extract_pilot_views.py",
-    "sha256": "3b64a5eb796e576d156e5b246a4029470dbd2e72a6d1ce30db7956e5594b8207"
+    "sha256": "ee41948ec05da9c867ffbe890273f344387b9db7c289f2b87dfe2548a34b598b"
   },
   "schema": "failure-library.readonly-pilot/v1",
   "subjects": [
@@ -80,6 +80,7 @@
           "sha256": "3e5dec7c555b1ace7ebacf0fd57a6575760084e6c47f7c1dfc3064accca72dbb"
         }
       ],
+      "view_extractor": "task-files/v1",
       "view_scope": "pinned instruction, grader source and environment Dockerfile; read-only source review, NO execution",
       "view_sha256": "abd8fb5fb55a21de289286280e934dce2d389d0d3cc6accc9581aff4a32d90f4"
     }

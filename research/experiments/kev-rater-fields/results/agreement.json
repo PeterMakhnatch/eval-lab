@@ -1,0 +1,273 @@
+{
+ "schema": "kev-rater-fields.agreement/v1",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "n_runs": 154,
+ "n_windows": 1447,
+ "confidence_cut": 0.8,
+ "choice_fields": {
+  "stop_reason": {
+   "n_consensus": 153,
+   "n_rater_disagree": 1,
+   "gold": {
+    "token_ceiling": 85,
+    "loop_break": 33,
+    "model_finished": 16,
+    "infra_error": 16,
+    "request_ceiling": 2,
+    "agent_timeout": 1
+   },
+   "pred": {
+    "request_ceiling": 85,
+    "model_finished": 30,
+    "loop_break": 20,
+    "other": 13,
+    "infra_error": 5
+   },
+   "kev_accuracy": {
+    "k": 43,
+    "n": 153,
+    "rate": 0.281
+   },
+   "kev_kappa": 0.236,
+   "kev_at_p0.8": {
+    "k": 0,
+    "n": 2,
+    "rate": 0.0,
+    "coverage": 0.013
+   },
+   "majority_baseline": {
+    "k": 85,
+    "n": 153,
+    "rate": 0.556
+   },
+   "inter_rater": {
+    "k": 153,
+    "n": 154,
+    "rate": 0.994,
+    "kappa": 0.99
+   },
+   "confusion": {
+    "token_ceiling -> request_ceiling": 82,
+    "loop_break -> model_finished": 12,
+    "infra_error -> other": 11,
+    "token_ceiling -> model_finished": 2,
+    "agent_timeout -> other": 1,
+    "loop_break -> request_ceiling": 1,
+    "token_ceiling -> other": 1
+   },
+   "rule_baseline": {
+    "k": 150,
+    "n": 153,
+    "rate": 0.98,
+    "kappa": 0.969
+   }
+  },
+  "blame": {
+   "n_consensus": 151,
+   "n_rater_disagree": 3,
+   "gold": {
+    "model": 115,
+    "none": 20,
+    "infra": 16
+   },
+   "pred": {
+    "none": 60,
+    "model": 39,
+    "infra": 36,
+    "harness": 16
+   },
+   "kev_accuracy": {
+    "k": 49,
+    "n": 151,
+    "rate": 0.325
+   },
+   "kev_kappa": 0.069,
+   "kev_at_p0.8": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "coverage": 0.0
+   },
+   "majority_baseline": {
+    "k": 115,
+    "n": 151,
+    "rate": 0.762
+   },
+   "inter_rater": {
+    "k": 151,
+    "n": 154,
+    "rate": 0.981,
+    "kappa": 0.951
+   },
+   "confusion": {
+    "model -> none": 44,
+    "model -> infra": 28,
+    "model -> harness": 16,
+    "infra -> model": 10,
+    "none -> model": 2,
+    "none -> infra": 2
+   },
+   "rule_baseline": {
+    "k": 143,
+    "n": 151,
+    "rate": 0.947,
+    "kappa": 0.875
+   }
+  },
+  "loop_kind": {
+   "n_consensus": 133,
+   "n_rater_disagree": 21,
+   "gold": {
+    "repetition": 51,
+    "none": 47,
+    "completion-claim": 35
+   },
+   "pred": {
+    "none": 45,
+    "repetition": 45,
+    "completion-claim": 43
+   },
+   "kev_accuracy": {
+    "k": 119,
+    "n": 133,
+    "rate": 0.895
+   },
+   "kev_kappa": 0.842,
+   "kev_at_p0.8": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "coverage": 0.0
+   },
+   "majority_baseline": {
+    "k": 51,
+    "n": 133,
+    "rate": 0.383
+   },
+   "inter_rater": {
+    "k": 133,
+    "n": 154,
+    "rate": 0.864,
+    "kappa": 0.793
+   },
+   "confusion": {
+    "repetition -> none": 4,
+    "none -> completion-claim": 4,
+    "repetition -> completion-claim": 4,
+    "none -> repetition": 2
+   }
+  }
+ },
+ "loop_kind_from_windows": {
+  "n": 132,
+  "loop_vs_none_auroc": 0.85,
+  "loop_vs_none_auroc_run_length_baseline": 0.637,
+  "repetition_vs_claim_auroc": 0.996
+ },
+ "pass_copied": {
+  "n_consensus": 29,
+  "n_rater_disagree": 0,
+  "positives": 9,
+  "negatives": 20,
+  "digest_auroc": 0.889,
+  "digest_accuracy_at_0.5": {
+   "k": 23,
+   "n": 29,
+   "rate": 0.793
+  },
+  "majority_baseline": {
+   "k": 20,
+   "n": 29,
+   "rate": 0.69
+  },
+  "window_max_upstream_fetch_auroc": 0.911
+ },
+ "sft_clean": {
+  "n_consensus": 20,
+  "n_rater_disagree": 3,
+  "positives": 12,
+  "negatives": 8,
+  "digest_auroc": 0.438,
+  "digest_accuracy_at_0.5": {
+   "k": 10,
+   "n": 20,
+   "rate": 0.5
+  },
+  "majority_baseline": {
+   "k": 12,
+   "n": 20,
+   "rate": 0.6
+  }
+ },
+ "first_failure_location": {
+  "first_window": {
+   "k": 26,
+   "n": 133,
+   "rate": 0.195
+  },
+  "kev_argmax": {
+   "k": 40,
+   "n": 133,
+   "rate": 0.301
+  },
+  "kev_earliest_p0.5": {
+   "k": 40,
+   "n": 133,
+   "rate": 0.301
+  },
+  "last_window": {
+   "k": 26,
+   "n": 133,
+   "rate": 0.195
+  },
+  "uniform_random_window": {
+   "expected": 0.252,
+   "n": 133
+  },
+  "raters_share_a_window": {
+   "k": 109,
+   "n": 133,
+   "rate": 0.82
+  }
+ },
+ "loop_kind_posthoc": {
+  "note": "post hoc: chosen after the pre-registered results were known",
+  "accuracy_without_loop_break_exception": {
+   "k": 89,
+   "n": 102,
+   "rate": 0.873
+  },
+  "kev_vs_each_rater_all_runs": {
+   "rater_a": {
+    "k": 130,
+    "n": 154,
+    "rate": 0.844
+   },
+   "rater_b": {
+    "k": 128,
+    "n": 154,
+    "rate": 0.831
+   }
+  },
+  "accuracy_by_top_probability_third": [
+   {
+    "min_top_p": 0.352,
+    "k": 34,
+    "n": 44,
+    "rate": 0.773
+   },
+   {
+    "min_top_p": 0.512,
+    "k": 41,
+    "n": 44,
+    "rate": 0.932
+   },
+   {
+    "min_top_p": 0.583,
+    "k": 44,
+    "n": 45,
+    "rate": 0.978
+   }
+  ]
+ }
+}

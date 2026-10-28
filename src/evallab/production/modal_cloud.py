@@ -615,6 +615,23 @@ class CloudRuntime:
             )
         return found
 
+    def _run_alarms(self, run_ids: Collection[str]) -> tuple[dict[str, list[str]], bool]:
+        """Per run, the detectors that alarm on it: whole-run tool results and harness findings.
+
+        A detector that recorded nothing for a run adds nothing; the flag says whether any source is
+        retained at all, so "no run alarmed" is never confused with "nothing was read".
+        """
+        tools = self._tool_results.for_runs(run_ids)
+        findings = self._harness_findings.get()
+        by_run = findings["by_run"]
+        alarms: dict[str, list[str]] = {}
+        for run in run_ids:
+            names = {tool for tool, entry in tools.get(run, {}).items() if entry["flagged"]}
+            names.update(record["detector"] for record in by_run.get(run, {}).values() if record["verdict"] == "alarm")
+            if names:
+                alarms[run] = sorted(names)
+        return alarms, self._tool_results.error is None or bool(findings["present"])
+
     def _harness_overview(self) -> dict[str, Any]:
         findings = self._harness_findings.get()
         admitted = self._admitted_runs(findings["by_run"])
@@ -831,6 +848,8 @@ class CloudRuntime:
             grader_or_harness_touched: bool | None = None,
             answer_material_accessed: bool | None = None,
             success_claim_without_evidence: bool | None = None,
+            alarmed_by: str | None = Query(None, pattern=r"^[A-Za-z0-9_.-]{1,60}$"),
+            sort: Literal["suspicion", "alarms"] = "suspicion",
             cluster_id: str | None = None,
             limit: int = Query(50, ge=1, le=atlas_view.MAX_PAGE),
             offset: int = Query(0, ge=0),
@@ -849,10 +868,13 @@ class CloudRuntime:
                 answer_material_accessed=answer_material_accessed,
                 success_claim_without_evidence=success_claim_without_evidence,
                 cluster_id=cluster_id,
+                alarmed_by=alarmed_by,
+                sort=sort,
             )
             try:
                 store, traces = self._atlas_store(), self._atlas_traces()
                 shown, _ = atlas_view.visible_facets(store, traces)
+                alarms, available = self._run_alarms(shown)
                 return atlas_view.atlas_listing(
                     store,
                     traces,
@@ -860,6 +882,8 @@ class CloudRuntime:
                     limit=limit,
                     offset=offset,
                     blinding=atlas_coverage.blinding_states(self._atlas_refresh.get(), shown),
+                    alarms=alarms,
+                    alarms_available=available,
                 )
             except ValueError as error:
                 raise HTTPException(400, str(error)) from error

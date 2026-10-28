@@ -1781,6 +1781,25 @@ suspicious first) and `store` counters: facets read, shown, rejected, superseded
 whose task is not admitted DEV (`unadmitted_n`) and runs whose evidence step is not a
 step of the run (`evidence_outside_run_n`). Neither kind is shown.
 
+**Picking runs.** The Run Atlas is the cloud dashboard's first screen. After store health it shows
+the filter bar, then the cluster tree beside the runs table; the run detail opens below them, and
+the panels (which tool to trust, reader mix, coverage, field reliability) follow it, so the table
+is reachable without scrolling past them. Two
+parameters pick runs by what the detectors recorded: `alarmed_by=<name>` keeps runs on which that
+detector alarms, and `sort=alarms` orders runs by how many distinct detectors alarm (then
+suspicion, then id; the default stays suspicion first). A detector name is a whole-run tool from
+`trace-tools/results-v1.jsonl` with a flagged result (`scout`, `metr`, `laminar`, `docent`) or a
+`trace-findings/v1` detector with an `alarm` verdict in `trace-harness/findings-v1.jsonl`
+(`cascade`, `facets`, `tripwire`, `run_health.loop`, ...). Each run row carries `alarms` (sorted
+names), `options.alarmed_by` counts admitted runs per detector, and `alarms_available` says
+whether either source is retained: an empty `alarms` with `alarms_available: false` means nothing
+was recorded, never that no detector alarmed. A detector that read the run and found nothing, or
+abstained, adds nothing. The page shows these as the **Detector alarm** filter, the **Order**
+selector and a **Detector alarms** column, all in the shareable `#atlas?alarmed_by=&sort=` link.
+An agent can use the same endpoint with the bearer token, for example
+`GET /api/cloud-db/atlas?alarmed_by=scout&sort=alarms&limit=25`, then open
+`/api/cloud-db/harness/card?run_id=` for the full card.
+
 `GET /api/cloud-db/atlas/run?run_id=` returns one run: its facet, the cluster chains
 that hold it, its evidence steps with one neighbour each side (bounded excerpts from
 retrieval's `expand_pointer`, never user or system prompts), the fired trace feature flags with

@@ -1,0 +1,614 @@
+{
+  "account_usage_inspection": {
+    "at": "2026-10-27T22:52:36.568301+00:00",
+    "endpoints": [
+      {
+        "endpoint": "/settings/usage/summary",
+        "http_status": 200,
+        "response_fields": [
+          "byok",
+          "free",
+          "window_seconds"
+        ]
+      },
+      {
+        "endpoint": "/settings/usage/free-cap",
+        "http_status": 200,
+        "response_fields": [
+          "cap_cents"
+        ]
+      }
+    ],
+    "read_only": true,
+    "route_source": "Public settingsApi getUsageSummary/getFreeUsageCap in https://docent.transluce.org/_next/static/chunks/5071-3825c4ae31460658.js"
+  },
+  "arms": [
+    {
+      "abstentions": 81,
+      "canonical_records": 150,
+      "catalog_openrouter_alternative": {
+        "invoked": false,
+        "slug": "anthropic/claude-sonnet-5.5",
+        "uses_byok": false
+      },
+      "chunked_runs": 0,
+      "classes": [
+        "sonnet"
+      ],
+      "client_wall_s": 430.268126,
+      "detector": "tt7_form:anthropic/claude-sonnet-5-5",
+      "finished_at": "2026-10-27T22:46:28.991016+00:00",
+      "input_tokens": 9142012,
+      "latency_reason": "SDK reading_results schema has tokens/provider/created_at but no request duration; client_wall_s is whole-batch wall time",
+      "latency_s": null,
+      "model": "anthropic/claude-sonnet-5-5",
+      "model_configurations": [
+        "{\"model_name\": \"claude-sonnet-5-5\", \"provider\": \"anthropic\", \"reasoning_effort\": \"low\"}"
+      ],
+      "output_tokens": 6404,
+      "plan_urls": [
+        "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/b0dc330a-8202-48f1-8bb0-9a3284306fcf"
+      ],
+      "reason": "docent_usage_limit: 75; docent_usage_limit_route_stopped: 1; hosted_reading_error: 4; secret_scan_rejected: 1",
+      "reason_counts": {
+        "docent_usage_limit": 75,
+        "docent_usage_limit_route_stopped": 1,
+        "hosted_reading_error": 4,
+        "secret_scan_rejected": 1,
+        "valid": 69
+      },
+      "recorded_runs": 150,
+      "roles": [
+        "sonnet"
+      ],
+      "scan": "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/b0dc330a-8202-48f1-8bb0-9a3284306fcf",
+      "schema_retry_batches": 0,
+      "schema_retry_blocked_by_usage_limit": 4,
+      "schema_retry_reason": "Backend returned empty invalid JSON; the route reached its weekly usage limit before any schema retry could be submitted. Abstained without retrying an exhausted route.",
+      "selection": {
+        "context_window": 1000000,
+        "model_name": "claude-sonnet-5-5",
+        "provider": "anthropic",
+        "reasoning_effort": "low",
+        "uses_byok": false
+      },
+      "served_providers": [],
+      "service_errors": [
+        {
+          "count": 75,
+          "error_type_id": "docent_usage_limit",
+          "message": "Free weekly usage limit reached. Add your own API key in settings or email docent@transluce.org to inquire about custom usage limits."
+        },
+        {
+          "count": 4,
+          "error_type_id": "validation_failed",
+          "message": "Failed to parse JSON: Empty or whitespace-only input"
+        }
+      ],
+      "started_at": "2026-10-27T22:39:15.585778+00:00",
+      "status": "partial",
+      "usd": 0,
+      "valid_forms": 69,
+      "valid_runs": 69
+    },
+    {
+      "abstentions": 150,
+      "canonical_records": 150,
+      "catalog_openrouter_alternative": {
+        "invoked": false,
+        "slug": "openai/gpt-5.4-mini",
+        "uses_byok": false
+      },
+      "chunked_runs": 0,
+      "classes": [
+        "mini"
+      ],
+      "client_wall_s": 9.50511,
+      "detector": "tt7_form:openai/gpt-5.4-mini",
+      "finished_at": "2026-10-27T22:46:40.336948+00:00",
+      "input_tokens": 0,
+      "latency_reason": "SDK reading_results schema has tokens/provider/created_at but no request duration; client_wall_s is whole-batch wall time",
+      "latency_s": null,
+      "model": "openai/gpt-5.4-mini",
+      "model_configurations": [
+        "{\"model_name\": \"gpt-5.4-mini\", \"provider\": \"openai\", \"reasoning_effort\": \"low\"}"
+      ],
+      "output_tokens": 0,
+      "plan_urls": [
+        "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/9f91bae0-2054-4b40-aa00-86778b1053ee"
+      ],
+      "reason": "docent_usage_limit: 124; docent_usage_limit_route_stopped: 25; secret_scan_rejected: 1",
+      "reason_counts": {
+        "docent_usage_limit": 124,
+        "docent_usage_limit_route_stopped": 25,
+        "secret_scan_rejected": 1
+      },
+      "recorded_runs": 150,
+      "roles": [
+        "mini"
+      ],
+      "scan": "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/9f91bae0-2054-4b40-aa00-86778b1053ee",
+      "schema_retry_batches": 0,
+      "schema_retry_blocked_by_usage_limit": 0,
+      "selection": {
+        "context_window": 400000,
+        "model_name": "gpt-5.4-mini",
+        "provider": "openai",
+        "reasoning_effort": "low",
+        "uses_byok": false
+      },
+      "served_providers": [],
+      "service_errors": [
+        {
+          "count": 124,
+          "error_type_id": "docent_usage_limit",
+          "message": "Free weekly usage limit reached. Add your own API key in settings or email docent@transluce.org to inquire about custom usage limits."
+        }
+      ],
+      "started_at": "2026-10-27T22:46:29.393039+00:00",
+      "status": "deferred",
+      "usd": 0,
+      "valid_forms": 0,
+      "valid_runs": 0
+    },
+    {
+      "abstentions": 150,
+      "canonical_records": 150,
+      "catalog_openrouter_alternative": {
+        "invoked": false,
+        "slug": "openai/gpt-6.1-sol",
+        "uses_byok": false
+      },
+      "chunked_runs": 0,
+      "classes": [
+        "gpt_flagship"
+      ],
+      "client_wall_s": 13.486952,
+      "detector": "tt7_form:openai/gpt-6.1-sol",
+      "finished_at": "2026-10-27T22:46:55.839620+00:00",
+      "input_tokens": 0,
+      "latency_reason": "SDK reading_results schema has tokens/provider/created_at but no request duration; client_wall_s is whole-batch wall time",
+      "latency_s": null,
+      "model": "openai/gpt-6.1-sol",
+      "model_configurations": [
+        "{\"model_name\": \"gpt-6.1-sol\", \"provider\": \"openai\", \"reasoning_effort\": \"low\"}"
+      ],
+      "output_tokens": 0,
+      "plan_urls": [
+        "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/284f9133-4838-4950-a274-90657f8402ad"
+      ],
+      "reason": "docent_usage_limit: 148; docent_usage_limit_route_stopped: 1; secret_scan_rejected: 1",
+      "reason_counts": {
+        "docent_usage_limit": 148,
+        "docent_usage_limit_route_stopped": 1,
+        "secret_scan_rejected": 1
+      },
+      "recorded_runs": 150,
+      "roles": [
+        "gpt_flagship"
+      ],
+      "scan": "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/284f9133-4838-4950-a274-90657f8402ad",
+      "schema_retry_batches": 0,
+      "schema_retry_blocked_by_usage_limit": 0,
+      "selection": {
+        "context_window": 1050000,
+        "model_name": "gpt-6.1-sol",
+        "provider": "openai",
+        "reasoning_effort": "low",
+        "uses_byok": false
+      },
+      "served_providers": [],
+      "service_errors": [
+        {
+          "count": 148,
+          "error_type_id": "docent_usage_limit",
+          "message": "Free weekly usage limit reached. Add your own API key in settings or email docent@transluce.org to inquire about custom usage limits."
+        }
+      ],
+      "started_at": "2026-10-27T22:46:40.698567+00:00",
+      "status": "deferred",
+      "usd": 0,
+      "valid_forms": 0,
+      "valid_runs": 0
+    },
+    {
+      "abstentions": 150,
+      "canonical_records": 150,
+      "catalog_openrouter_alternative": {
+        "invoked": false,
+        "slug": "google/gemini-3.8-flash",
+        "uses_byok": false
+      },
+      "chunked_runs": 0,
+      "classes": [
+        "gemini",
+        "flash"
+      ],
+      "client_wall_s": 13.646135,
+      "detector": "tt7_form:google/gemini-3.8-flash",
+      "finished_at": "2026-10-27T22:47:11.475528+00:00",
+      "input_tokens": 0,
+      "latency_reason": "SDK reading_results schema has tokens/provider/created_at but no request duration; client_wall_s is whole-batch wall time",
+      "latency_s": null,
+      "model": "google/gemini-3.8-flash",
+      "model_configurations": [
+        "{\"model_name\": \"gemini-3.8-flash\", \"provider\": \"google\", \"reasoning_effort\": null}"
+      ],
+      "output_tokens": 0,
+      "plan_urls": [
+        "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/a8ac8f90-67dd-492d-a9c9-7d17b1041758"
+      ],
+      "reason": "docent_usage_limit: 148; docent_usage_limit_route_stopped: 1; secret_scan_rejected: 1",
+      "reason_counts": {
+        "docent_usage_limit": 148,
+        "docent_usage_limit_route_stopped": 1,
+        "secret_scan_rejected": 1
+      },
+      "recorded_runs": 150,
+      "roles": [
+        "gemini",
+        "flash"
+      ],
+      "scan": "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/a8ac8f90-67dd-492d-a9c9-7d17b1041758",
+      "schema_retry_batches": 0,
+      "schema_retry_blocked_by_usage_limit": 0,
+      "selection": {
+        "context_window": 1048576,
+        "model_name": "gemini-3.8-flash",
+        "provider": "google",
+        "reasoning_effort": null,
+        "uses_byok": false
+      },
+      "served_providers": [],
+      "service_errors": [
+        {
+          "count": 148,
+          "error_type_id": "docent_usage_limit",
+          "message": "Free weekly usage limit reached. Add your own API key in settings or email docent@transluce.org to inquire about custom usage limits."
+        }
+      ],
+      "started_at": "2026-10-27T22:46:56.259783+00:00",
+      "status": "deferred",
+      "usd": 0,
+      "valid_forms": 0,
+      "valid_runs": 0
+    },
+    {
+      "catalog_providers": [
+        "openrouter"
+      ],
+      "catalog_uses_byok": [
+        false
+      ],
+      "detector": null,
+      "input_tokens": 0,
+      "listed_options": 64,
+      "model": "glm",
+      "openrouter_slugs": [
+        "z-ai/glm-4.5",
+        "z-ai/glm-4.5-air",
+        "z-ai/glm-4.5v",
+        "z-ai/glm-4.6",
+        "z-ai/glm-4.6v",
+        "z-ai/glm-4.7",
+        "z-ai/glm-4.7-flash",
+        "z-ai/glm-5",
+        "z-ai/glm-5-turbo",
+        "z-ai/glm-5.1",
+        "z-ai/glm-5.2",
+        "z-ai/glm-5.3",
+        "z-ai/glm-5.3-flash",
+        "z-ai/glm-5.3-flashx",
+        "z-ai/glm-5.3-prime",
+        "z-ai/glm-5v-turbo",
+        "~z-ai/glm-flash-latest",
+        "~z-ai/glm-latest"
+      ],
+      "output_tokens": 0,
+      "reason": "All 64 GLM catalog options are OpenRouter-only with uses_byok=false; TT-7 explicitly prohibits OpenRouter, so no permitted route was invoked",
+      "recorded_runs": 0,
+      "roles": [
+        "glm"
+      ],
+      "scan": null,
+      "status": "deferred",
+      "usd": 0,
+      "valid_runs": 0
+    }
+  ],
+  "at": "2026-10-27T22:54:46.000419+00:00",
+  "auto_approve_plans": true,
+  "canonical_records": 600,
+  "catalog_pricing": {
+    "list_price": null,
+    "openrouter_invoked": false,
+    "reason": "get_reading_models exposes provider/model_name/reasoning_effort/context_window/uses_byok only; no list-price or token-rate fields"
+  },
+  "client_wall_s": 466.906323,
+  "collection_created_at": "2026-10-27T22:38:17.571147+00:00",
+  "collection_id": "597ecbec-4cba-42ee-ab4b-3b08292de4a5",
+  "collection_name": "Trace Tools TT-7 bake-off (private, blind)",
+  "collection_url": "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5",
+  "commands": [
+    "keys run -- uv run --no-project --python 3.12 --with docent==0.1.88 --with harbor==0.21.0 python research/evidence/runs/trace-tools-tt7-20261027/run_docent.py discover",
+    "keys run -- uv run --no-project --python 3.12 --with docent==0.1.88 --with harbor==0.21.0 python research/evidence/runs/trace-tools-tt7-20261027/run_docent.py prepare",
+    "keys run -- uv run --no-project --python 3.12 --with docent==0.1.88 --with harbor==0.21.0 python research/evidence/runs/trace-tools-tt7-20261027/run_docent.py upload",
+    "keys run -- uv run --no-project --python 3.12 --with docent==0.1.88 --with harbor==0.21.0 python research/evidence/runs/trace-tools-tt7-20261027/run_docent.py run",
+    "keys run -- uv run --no-project --python 3.12 --with docent==0.1.88 --with harbor==0.21.0 python research/evidence/runs/trace-tools-tt7-20261027/run_docent.py collect",
+    "keys run -- uv run --no-project --python 3.12 --with docent==0.1.88 --with harbor==0.21.0 python research/evidence/runs/trace-tools-tt7-20261027/run_docent.py collect",
+    "keys run -- uv run --no-project --python 3.12 --with docent==0.1.88 --with harbor==0.21.0 python research/evidence/runs/trace-tools-tt7-20261027/run_docent.py quota",
+    "keys run -- uv run --no-project --python 3.12 --with docent==0.1.88 --with harbor==0.21.0 python research/evidence/runs/trace-tools-tt7-20261027/run_docent.py collect"
+  ],
+  "cost_basis": "Docent hosted free allowance; uses_byok=false; no OpenRouter or provider keys",
+  "excluded_storage_scope": 50,
+  "exclusion_reason": "CheatBench is not authorized for Docent storage; not a model failure",
+  "hosted_allowance": {
+    "account_free_total_cents": 2855.919025,
+    "account_models": [
+      {
+        "fraction_used": 0.9876904000000001,
+        "model": "claude-sonnet-5-5",
+        "total_cents": 2469.226
+      },
+      {
+        "fraction_used": 0.15467721,
+        "model": "gpt-5.4-mini-2026-03-17",
+        "total_cents": 386.69302500000003
+      }
+    ],
+    "as_of": "2026-10-27T22:52:36.568301+00:00",
+    "cap_cents": 2500,
+    "fraction_used": 1.14236761,
+    "has_cap": true,
+    "reset_at_utc": null,
+    "reset_evidence": "Not exposed: retained docent_usage_limit errors state only 'Free weekly usage limit reached'; authenticated GET /rest/settings/usage/summary and /usage/free-cap expose a 604800-second window and allowance totals, but no reset timestamp/date. SDK 0.1.88 has no usage/reset method. No reset date is inferred.",
+    "unblock_condition": "Hosted usage must fall below the free cap or Docent must raise that allowance. Recorded TT-7 arms stay frozen; any resumed comparison needs a separately authorized campaign. BYOK/OpenRouter changes are outside this assignment and no rates are exposed by the catalog.",
+    "valuation_note": "Account-wide service-valued allowance cents, not a charge or TT-7-specific cost. Actual TT-7 marginal spend is $0.",
+    "window_seconds": 604800
+  },
+  "hosted_batches": 4,
+  "hosted_model_options": 184,
+  "ingest_spend_logged_at": "2026-10-27T22:39:05.278620+00:00",
+  "input_tokens": 9142012,
+  "max_run_text_bytes": 1060229,
+  "model_catalog_rows": 1254,
+  "model_catalog_schema": [
+    "context_window",
+    "model_name",
+    "provider",
+    "reasoning_effort",
+    "uses_byok"
+  ],
+  "models_frozen_at": "2026-10-27T22:35:12.398689+00:00",
+  "output_tokens": 6404,
+  "payload_bytes": 34282020,
+  "prepared_at": "2026-10-27T22:36:09.996058+00:00",
+  "privacy": {
+    "metadata": "empty",
+    "owner_only": true,
+    "public": false,
+    "shared": false
+  },
+  "privacy_checks": [
+    {
+      "at": "2026-10-27T22:38:17.702937+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "before_upload"
+    },
+    {
+      "at": "2026-10-27T22:39:05.130459+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "after_upload"
+    },
+    {
+      "at": "2026-10-27T22:39:17.614893+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "before_reading:d123610543e5-form"
+    },
+    {
+      "at": "2026-10-27T22:46:28.928806+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "after_reading:d123610543e5-form"
+    },
+    {
+      "at": "2026-10-27T22:46:29.380754+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "after_arm:d123610543e5"
+    },
+    {
+      "at": "2026-10-27T22:46:29.805513+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "before_reading:deed65be08ae-form"
+    },
+    {
+      "at": "2026-10-27T22:46:40.267721+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "after_reading:deed65be08ae-form"
+    },
+    {
+      "at": "2026-10-27T22:46:40.669738+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "after_arm:deed65be08ae"
+    },
+    {
+      "at": "2026-10-27T22:46:41.024773+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "before_reading:0f7beea535ab-form"
+    },
+    {
+      "at": "2026-10-27T22:46:55.691745+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "after_reading:0f7beea535ab-form"
+    },
+    {
+      "at": "2026-10-27T22:46:56.220110+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "after_arm:0f7beea535ab"
+    },
+    {
+      "at": "2026-10-27T22:46:56.635944+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "before_reading:422e5ba87859-form"
+    },
+    {
+      "at": "2026-10-27T22:47:11.408240+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "after_reading:422e5ba87859-form"
+    },
+    {
+      "at": "2026-10-27T22:47:11.952688+00:00",
+      "collaborators": [
+        {
+          "matches_owner": true,
+          "permission_level": "admin",
+          "subject_type": "user"
+        }
+      ],
+      "owner_only": true,
+      "stage": "after_arm:422e5ba87859"
+    }
+  ],
+  "schema": "evallab.tt7_docent/v1",
+  "sdk": {
+    "docent": "0.1.88",
+    "harbor": "0.21.0",
+    "python": "3.12"
+  },
+  "secret_rejected_runs": 1,
+  "secret_scan": "existing export_harbor.secret_hits, conservative rejection; no content edits",
+  "source_runs": 150,
+  "spend_batches_logged": 6,
+  "status": "terminal",
+  "steps": 10629,
+  "text_bytes": 33547576,
+  "unavailable_classes": [
+    {
+      "catalog_providers": [
+        "openrouter"
+      ],
+      "catalog_uses_byok": [
+        false
+      ],
+      "class": "glm",
+      "listed_options": 64,
+      "openrouter_slugs": [
+        "z-ai/glm-4.5",
+        "z-ai/glm-4.5-air",
+        "z-ai/glm-4.5v",
+        "z-ai/glm-4.6",
+        "z-ai/glm-4.6v",
+        "z-ai/glm-4.7",
+        "z-ai/glm-4.7-flash",
+        "z-ai/glm-5",
+        "z-ai/glm-5-turbo",
+        "z-ai/glm-5.1",
+        "z-ai/glm-5.2",
+        "z-ai/glm-5.3",
+        "z-ai/glm-5.3-flash",
+        "z-ai/glm-5.3-flashx",
+        "z-ai/glm-5.3-prime",
+        "z-ai/glm-5v-turbo",
+        "~z-ai/glm-flash-latest",
+        "~z-ai/glm-latest"
+      ],
+      "reason": "All 64 GLM catalog options are OpenRouter-only with uses_byok=false; TT-7 explicitly prohibits OpenRouter, so no permitted route was invoked",
+      "status": "deferred"
+    }
+  ],
+  "upload_candidates": 149,
+  "uploaded_at": "2026-10-27T22:39:05.277824+00:00",
+  "uploaded_runs": 149,
+  "uploaded_text_bytes": 33386854,
+  "usd": 0
+}

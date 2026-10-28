@@ -1694,6 +1694,68 @@ read, withheld (unadmitted or evidence outside the run), rejected and superseded
 without a stored facet is not ready, which is not the same as clean. Atlas listing rows and run
 detail carry the same `blinding` value.
 
+#### Field reliability (`/api/cloud-db/atlas/field-reliability`)
+
+The **Field reliability** panel of the Run Atlas shows how often an independent blind
+re-rating agreed with each stored facet field, with the sample size and a 95% Wilson interval.
+It reads `<data_root>/run-atlas/field-reliability-v1.json` (`evallab.field_reliability/v1`,
+`evallab.production.field_reliability`), re-read only when the file changes: `measured_at`,
+`source`, `design`, `sample_runs` and `fields[]` of `{field, agree_n, n, basis}` where `basis`
+is `within_1` for suspicion scored within one level and null when the receipt does not say.
+The file holds counts only (no run id, run text or label); it is refused if a field is unknown
+or repeated, `agree_n > n`, `n` exceeds `sample_runs`, `measured_at` has no time zone, or it is
+not a small regular file. An absent file answers `measured: false` with "not measured" (which
+is neither reliable nor unreliable); an invalid one answers `unreadable: <reason>`.
+
+`evallab prod import-field-reliability --receipt <vf11-receipt.json> --output-directory
+<state>/run-atlas [--replace]` builds the file from a VF-11 style receipt, copying only the
+per-field agreement and sample size; a percentage that contradicts its counts is refused and
+an existing different file is not overwritten without `--replace`.
+
+#### Grader repairs (`/api/cloud-db/repair-board`)
+
+The read-only **Grader repairs** tab lists the keyed DEV tasks of the TS-9 defensive inventory
+(`evallab.ts9_defensive_inventory/v1`, `evallab.production.repair_board`), one row per task:
+defect types and annotation count, repair PRs, status, and the number of atlas runs that passed
+with tests modified on that task (outcome `pass` and facet `tests=modified` among the visible
+atlas facets; a count, no run ids). It filters by status, defect type and task text, and links
+to Task Evidence for tasks in the cloud database.
+
+The inventory path is `EVALLAB_REPAIR_INVENTORY`, default `<data_root>/repair-board/inventory.json`;
+it is re-read only when the file changes. An absent file shows an empty state, an invalid one
+`unreadable: <reason>`. Only task and dataset ids, defect-type names, counts, PR numbers and
+GitHub PR URLs leave the server: annotation text, key ids, answer-key paths and digests stay in
+the inventory. A task whose assignments are not all `dev` is dropped and counted.
+
+Status, strongest first: `native-validated` (a repair names a native receipt and claims native
+qualification; the only state shown green), `static only` (a delivered candidate with host
+checks and no sandbox run), `candidate` (a related candidate not bound to the exact package),
+`no repair`. A merged PR or a claim without a receipt never reaches `native-validated`, and every
+other status says "no native proof".
+
+#### Cross-test sets (`/api/cloud-db/cross-test-sets`)
+
+The read-only **Cross-test sets** tab lists the staged cross-test corpora from the registry file
+alone (`cross-test-registry/v1`, `evallab.production.cross_test_sets`; the registry lives in
+research-context beside `validate_cross_test_registry.py`). Path: `EVALLAB_CROSS_TEST_REGISTRY`,
+default `<data_root>/cross-test/registry.json`, re-read only when the file changes. Absent shows
+an empty state naming the setting; an unreadable file or wrong `schema_version` shows
+`unreadable: <reason>`.
+
+Per set: unit, label type and every published count, whether command-level scoring is possible
+(with the registry's reason), licence and redistributability, the rights flags (eval-only,
+local-only, no-training, no-rehosting), `Uploadable: no`, the hosted-model-API note, and adapter
+state with the eval-lab PR. The HOLD-access sets are listed as "needs Peter, not available" and a
+hold entry that claims otherwise is refused. Bundles, manifests and records are never opened and
+bundle paths, caveats and source notes are not served, so no record text can appear.
+
+Each entry is checked alone: one that is malformed (not valid, marked uploadable, not
+eval-only/local-only/no-training, a non-redistributable set without no-rehosting, a non-integer
+count, a duplicate id) is shown as an error row and is not listed as a usable set; the others
+still show. The page gives the copyable validator command
+(`cd ~/Developer/research-context && python3 <registry validator.script>`, plus a `--quick
+--offline` form) and never runs it.
+
 #### Task Evidence (`/api/cloud-db/task-evidence`)
 
 The **Task Evidence** tab answers "what is known about this task" in one view. `GET

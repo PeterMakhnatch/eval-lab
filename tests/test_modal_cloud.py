@@ -3195,3 +3195,144 @@ def test_trace_tool_run_lists_are_dev_only_by_trace_id_and_carry_no_labels(
     for text in (hit.text, json.dumps(unread), json.dumps(facets)):
         assert "outcome" not in text and "reward" not in text
         assert "primaryneedle" not in text and "witnessneedle" not in text
+
+
+def test_field_reliability_endpoint_says_not_measured_until_a_receipt_is_retained(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    url = "/api/cloud-db/atlas/field-reliability"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["measured"] is False
+    assert absent.json()["error"].startswith("not measured")
+
+    directory = runtime.data_root / "run-atlas"
+    directory.mkdir(exist_ok=True)
+    (directory / "field-reliability-v1.json").write_text(
+        json.dumps(
+            {
+                "schema": "evallab.field_reliability/v1",
+                "measured_at": "2026-10-28T03:42:26+00:00",
+                "source": "VF-11 blind re-rate",
+                "design": "5 runs per cluster, rated blind",
+                "sample_runs": 60,
+                "fields": [
+                    {"field": "goal", "agree_n": 35, "n": 40, "basis": None},
+                    {"field": "evidence_steps", "agree_n": 35, "n": 42, "basis": None},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH).json()
+    assert served["measured"] is True
+    assert [(row["field"], row["agree_n"], row["n"]) for row in served["reliability"]["fields"]] == [
+        ("goal", 35, 40),
+        ("evidence_steps", 35, 42),
+    ]
+
+
+def test_repair_board_endpoint_joins_atlas_counts_and_reports_absent_inventory(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    url = "/api/cloud-db/repair-board"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["present"] is False and absent.json()["tasks"] == []
+
+    _write_atlas(
+        runtime,
+        [
+            _atlas_facet(VERIFIED, tests="modified"),
+            _atlas_facet(PROVISIONAL, tests="modified"),
+            _atlas_facet(REFUTED, tests="modified", evidence_steps=[5]),
+        ],
+    )
+    inventory = runtime.data_root / "repair-board" / "inventory.json"
+    inventory.parent.mkdir()
+    inventory.write_text(
+        json.dumps(
+            {
+                "schema": "evallab.ts9_defensive_inventory/v1",
+                "observed_at": "2026-10-28T04:03:55+00:00",
+                "source_revision": "837dc7c",
+                "tasks": [
+                    {
+                        "task_id": task_id,
+                        "dataset_id": "tb4-audit-v1",
+                        "dev_assignments": [["tb4-audit-v1", "dev"]],
+                        "annotations": [{"defect_type": "weak_check", "weak_check": "private wording"}],
+                    }
+                    for task_id in (PRIMARY, "task-without-cloud-rows")
+                ],
+                "selected_repair_deliveries": [
+                    {
+                        "task": PRIMARY,
+                        "pr": 1326,
+                        "pr_url": "https://github.com/PeterMakhnatch/eval-lab/pull/1326",
+                        "delivery_status": "MERGED",
+                        "verification_class": "static-only",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH)
+    assert "private wording" not in served.text and VERIFIED not in served.text
+    board = served.json()
+    rows = {row["task_id"]: row for row in board["tasks"]}
+    assert board["present"] is True and board["counts"]["by_status"]["native-validated"] == 0
+    assert rows[PRIMARY]["status"] == "static only" and rows[PRIMARY]["admitted"] is True
+    # Of the task's two atlas runs only the passing one counts as passed with modified tests.
+    assert (rows[PRIMARY]["atlas_runs"], rows[PRIMARY]["passed_tests_modified"]) == (2, 1)
+    missing = rows["task-without-cloud-rows"]
+    assert (missing["admitted"], missing["atlas_runs"], missing["status"]) == (False, 0, "no repair")
+
+
+def test_cross_test_sets_endpoint_reads_the_registry_file_only(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    url = "/api/cloud-db/cross-test-sets"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["present"] is False
+
+    registry = runtime.data_root / "cross-test" / "registry.json"
+    registry.parent.mkdir()
+    entry = {
+        "id": "set-a", "name": "org/set-a", "source_url": "https://example.org/a", "unit": "run",
+        "status": "ready",
+        "flags": {
+            "eval_only": True, "local_only": True, "no_training": True, "no_rehosting": True,
+            "uploadable_to_vendor_projects": False, "hosted_model_api_for_evaluation": "allowed",
+        },
+        "licence": {"text": "mit", "redistributable": True},
+        "labels": {"type": "oracle", "counts": {"rows": 3}},
+        "scoring": {"command_level_localization_scorable": True},
+        "adapter": {"merge_state": "open-pr", "pr": 1302},
+        "caveats": ["recordtextneedle"],
+    }
+    registry.write_text(
+        json.dumps(
+            {
+                "schema_version": "cross-test-registry/v1",
+                "entries": [entry, {**entry, "id": "set-b", "flags": {**entry["flags"], "uploadable_to_vendor_projects": True}}],
+                "hold_access": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH)
+    assert "recordtextneedle" not in served.text
+    board = served.json()
+    assert board["present"] is True
+    assert [row["id"] for row in board["entries"]] == ["set-a"]
+    assert board["entries"][0]["uploadable"] is False and board["entries"][0]["adapter"]["merge_state"] == "open-pr"
+    assert [problem["id"] for problem in board["malformed"]] == ["set-b"]

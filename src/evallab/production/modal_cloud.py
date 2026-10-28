@@ -75,7 +75,16 @@ from pydantic import BaseModel, ValidationError
 
 from evallab.execution_backend import ExecutionBackendConfig
 from evallab.hackbook.playbook_cards import match_playbook_cards
-from evallab.production import atlas_coverage, atlas_view, task_evidence, tool_runs
+from evallab.production import (
+    atlas_coverage,
+    atlas_view,
+    cross_test_sets,
+    field_reliability,
+    file_cache,
+    repair_board,
+    task_evidence,
+    tool_runs,
+)
 from evallab.production.asset_store import VerifiedAssetStore
 from evallab.production.benchmark_reports import MAX_BENCHMARK_BYTES, validate_benchmark_document
 from evallab.production.cloud_trace_db import (
@@ -169,6 +178,8 @@ class CloudRuntime:
         token: str,
         *,
         commit: Callable[[], None] | None = None,
+        repair_inventory: Path | None = None,
+        cross_test_registry: Path | None = None,
     ) -> None:
         if not token.strip():
             raise ValueError("EVALLAB_CLOUD_TOKEN is required; public trace access is forbidden")
@@ -184,6 +195,15 @@ class CloudRuntime:
         self._atlas_cache: tuple[list[tuple[int, int, int] | None], atlas_view.AtlasStore] | None = None
         self._tool_scorecard = ToolScorecardCache(self.data_root)
         self._atlas_refresh = atlas_coverage.RefreshCache(self.data_root / "run-atlas")
+        self._field_reliability = field_reliability.FieldReliabilityCache(self.data_root / "run-atlas")
+        self._repair_inventory = file_cache.ChangeCache(
+            Path(repair_inventory) if repair_inventory else self.data_root / repair_board.DEFAULT_FILE,
+            repair_board.load_inventory,
+        )
+        self._cross_test_registry = file_cache.ChangeCache(
+            Path(cross_test_registry) if cross_test_registry else self.data_root / cross_test_sets.DEFAULT_FILE,
+            cross_test_sets.load_registry,
+        )
         self._tool_results = task_evidence.ToolFindingIndex(
             self.data_root / "trace-tools" / task_evidence.RESULTS_FILE
         )
@@ -768,6 +788,27 @@ class CloudRuntime:
                 store, traces, shown, withheld, self._atlas_refresh.get()
             )
 
+        @self.app.get("/api/cloud-db/atlas/field-reliability")
+        def atlas_field_reliability(split: str = "dev"):
+            _require_dev(split)
+            return self._field_reliability.get()
+
+        @self.app.get("/api/cloud-db/repair-board")
+        def repair_board_route(split: str = "dev"):
+            _require_dev(split)
+            inventory = self._repair_inventory.get()
+            task_ids = {row["task_id"] for row in inventory.get("tasks", [])}
+            traces = self._atlas_traces(task_ids)
+            shown, _ = atlas_view.visible_facets(self._atlas_store(), traces)
+            return repair_board.build_board(
+                inventory, self._admitted_task_ids() & task_ids, shown, traces
+            )
+
+        @self.app.get("/api/cloud-db/cross-test-sets")
+        def cross_test_sets_route(split: str = "dev"):
+            _require_dev(split)
+            return self._cross_test_registry.get()
+
         @self.app.get("/api/cloud-db/trace-tools")
         def trace_tools(split: str = "dev"):
             _require_dev(split)
@@ -930,6 +971,8 @@ class CloudProduction:
             CLOUD_REPO_ROOT,
             os.environ["EVALLAB_CLOUD_TOKEN"],
             commit=store_volume.commit,
+            repair_inventory=Path(path) if (path := os.environ.get("EVALLAB_REPAIR_INVENTORY")) else None,
+            cross_test_registry=Path(registry) if (registry := os.environ.get("EVALLAB_CROSS_TEST_REGISTRY")) else None,
         )
 
     @modal.asgi_app()

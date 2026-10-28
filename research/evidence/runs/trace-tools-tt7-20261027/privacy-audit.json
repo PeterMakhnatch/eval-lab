@@ -1,0 +1,51 @@
+{
+  "schema": "tt7.privacy_audit_public/v1",
+  "started_at": "2026-10-28T02:47:48.583426+00:00",
+  "finished_at": "2026-10-28T02:48:04.401710+00:00",
+  "elapsed_s": 15.818,
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "canonical_gate_sha256": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f",
+  "canonical_gate_dependency": "Committed canonical_secret_gate.py exact-byte snapshot; optional repository module accepted only at identical SHA256. No active-worktree runtime dependency or weaker fallback.",
+  "all_blinded_inputs": {
+    "runs": 200,
+    "text_bytes": 45564204,
+    "steps": 13957,
+    "runs_by_source": {
+      "cheatbench-actions-v1": 50,
+      "cloud-trace-db": 150
+    },
+    "pattern_hit_runs": 4,
+    "pattern_hit_runs_by_source": {
+      "cheatbench-actions-v1": 3,
+      "cloud-trace-db": 1
+    },
+    "pattern_hit_prefix60_runs": 3,
+    "pattern_hit_continuation140_runs": 1
+  },
+  "hosted_payloads": {
+    "runs": 149,
+    "encoded_bytes": 34282020,
+    "direct_pattern_hit_runs": 0,
+    "structured_flagged_intersection_runs": 0
+  },
+  "scope": "Same canonical regex and recursive JSON decoding over structured original values and exact rendered input for all200 IDs, never labels",
+  "pattern_hit_is_proof_of_real_credential": false,
+  "matched_strings_printed": false,
+  "prior_measurements_preserved": true,
+  "affected_new_calls_abstain_without_transmission": true,
+  "model_calls": 0,
+  "remote_mutations": 0,
+  "marginal_cost_usd": 0,
+  "audit_command": [
+    "uv",
+    "run",
+    "--locked",
+    "--python",
+    "3.12",
+    "python",
+    "-c",
+    "import hashlib,importlib.util,json,sys,time\nfrom collections import Counter\nfrom pathlib import Path\nsys.path.insert(0,'research/evidence/runs/trace-tools-tt7-20261027')\nimport common\npath=Path('/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-store-20261027/.worktrees/trace-tools-sync-20261027/src/evallab/trace_store/secrets.py')\nspec=importlib.util.spec_from_file_location('tt7_canonical_secret_gate',path)\nmodule=importlib.util.module_from_spec(spec)\nsys.modules[spec.name]=module\nspec.loader.exec_module(module)\nstarted=common.now();clock=time.perf_counter();rows=[]\nfor item in common.load_sample():\n opaque='run-'+hashlib.sha256(('trace-tools/v1:'+item['run_id']).encode()).hexdigest()[:24]\n try:\n  run=common.load_run(item)\n  markers=module.secret_hits({'instruction':run['instruction'],'messages':run['messages'],'rendered':run['text']})\n  rows.append({'opaque_id':opaque,'source':item['source'],'text_bytes':len(run['text'].encode()),'steps':len(run['steps']),'pattern_marker_count':len(markers)})\n except Exception as exc:\n  print(json.dumps({'error_type':type(exc).__name__,'opaque_id':opaque,'audited_runs':len(rows)}));sys.exit(1)\npayload_path=common.STATE/'tt7/docent/payloads.json'\npayloads=json.loads(payload_path.read_text())\nhosted=[{'opaque_id':payload['name'],'pattern_marker_count':len(module.secret_hits(payload))} for payload in payloads]\nflagged={row['opaque_id'] for row in rows if row['pattern_marker_count']}\naffected_hosted=sorted({row['opaque_id'] for row in hosted if row['pattern_marker_count']}|({row['opaque_id'] for row in hosted}&flagged))\nprint(json.dumps({'schema':'tt7.privacy_audit_private/v1','started_at':started,'finished_at':common.now(),'elapsed_s':round(time.perf_counter()-clock,3),'sample_sha256':common.SAMPLE_SHA256,'gate_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'rows':rows,'hosted_rows':hosted,'affected_hosted_opaque_ids':affected_hosted,'hosted_payload_bytes':payload_path.stat().st_size,'model_calls':0,'remote_mutations':0}))\n"
+  ],
+  "canonical_gate_source_snapshot": "canonical_secret_gate.py",
+  "secondary_safe_eligible_run_count": 196
+}

@@ -3336,3 +3336,37 @@ def test_cross_test_sets_endpoint_reads_the_registry_file_only(
     assert [row["id"] for row in board["entries"]] == ["set-a"]
     assert board["entries"][0]["uploadable"] is False and board["entries"][0]["adapter"]["merge_state"] == "open-pr"
     assert [problem["id"] for problem in board["malformed"]] == ["set-b"]
+
+
+def test_the_container_runtime_reads_data_files_from_the_volume_or_the_environment_settings(
+    modal_cloud: ModuleType, tmp_path: Path, repo_root: Path
+) -> None:
+    registry = {
+        "schema_version": "cross-test-registry/v1", "entries": [], "hold_access": [],
+    }
+    elsewhere = tmp_path / "elsewhere-registry.json"
+    elsewhere.write_text(json.dumps(registry), encoding="utf-8")
+    default = modal_cloud.runtime_from_environment(tmp_path / "default", repo_root, {"EVALLAB_CLOUD_TOKEN": TOKEN})
+    configured = modal_cloud.runtime_from_environment(
+        tmp_path / "configured", repo_root,
+        {"EVALLAB_CLOUD_TOKEN": TOKEN, "EVALLAB_CROSS_TEST_REGISTRY": str(elsewhere)},
+    )
+    try:
+        with TestClient(default.app, base_url="https://cloud.test") as plain, TestClient(
+            configured.app, base_url="https://cloud.test"
+        ) as set_up:
+            url = "/api/cloud-db/cross-test-sets"
+            assert plain.get(url, headers=AUTH).json()["present"] is False
+            assert set_up.get(url, headers=AUTH).json()["present"] is True
+            (tmp_path / "default/cross-test").mkdir()
+            (tmp_path / "default/cross-test/registry.json").write_text(json.dumps(registry), encoding="utf-8")
+            assert plain.get(url, headers=AUTH).json()["present"] is True  # the default is under the data root
+        with pytest.raises(KeyError):
+            modal_cloud.runtime_from_environment(tmp_path / "x", repo_root, {})
+    finally:
+        default.close()
+        configured.close()
+    from evallab.production import deploy_preflight
+
+    assert deploy_preflight.VOLUME_NAME == modal_cloud.VOLUME_NAME
+    assert (Path(modal_cloud.__file__).parents[3] / deploy_preflight.ENTRY).is_file()

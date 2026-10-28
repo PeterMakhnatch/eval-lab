@@ -158,6 +158,17 @@ def parse_inventory(raw: bytes) -> dict[str, Any]:
     }
 
 
+def project_inventory(raw: bytes) -> dict[str, Any]:
+    """The inventory reduced to the fields this board reads, for staging to the cloud volume.
+
+    Annotation wording, key ids, answer-key paths and digests are dropped, so the volume never
+    holds them. The result parses to the same board as ``raw``.
+    """
+    inventory = _Inventory.model_validate(strict_loads(raw.decode("utf-8")))
+    parse_inventory(raw)  # the same refusals as serving: wrong schema, duplicate tasks
+    return inventory.model_dump(by_alias=True, mode="json")
+
+
 def load_inventory(path: Path) -> dict[str, Any]:
     """The served inventory state for ``path``: parsed, absent or unreadable (with the reason)."""
     try:

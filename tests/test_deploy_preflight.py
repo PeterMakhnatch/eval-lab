@@ -332,3 +332,39 @@ def test_gate_progress_is_staged_when_valid_and_rejected_when_the_loader_refuses
 
     path.unlink()
     assert _run(world)["ok"] is True
+
+
+def test_harness_files_are_staged_when_valid_and_refused_when_a_record_carries_a_label(
+    world: dict[str, Path],
+) -> None:
+    finding = {
+        "run_id": "retained-trace:a", "detector": "facets", "detector_version": "run-facets/v1", "reader_model": "p/m",
+        "verdict": "alarm", "kind": "cheat", "produced_at": "2026-10-28T10:00:00+00:00",
+    }
+    findings = world["state"] / "trace-harness/findings-v1.jsonl"
+    findings.parent.mkdir(parents=True)
+    findings.write_text(json.dumps(finding) + "\n", encoding="utf-8")
+    stage = world["tmp"] / "stage"
+    report = _run(world, stage_directory=stage)
+    assert _by_key(report)["harness_findings"]["status"] == "ok"  # a detector verdict is not a ground-truth verdict
+    assert (stage / "trace-harness/findings-v1.jsonl").is_file()
+    tab = next(entry for entry in report["tabs"] if entry["tab"] == "Harness")
+    assert tab["ready"] is True and "harness_findings" not in tab["degraded_without"]
+    assert "harness_scorecard" in tab["degraded_without"]
+
+    findings.write_text(json.dumps({**finding, "label": "exploit"}) + "\n", encoding="utf-8")
+    refused = _by_key(_run(world, stage_directory=world["tmp"] / "stage2"))["harness_findings"]
+    assert refused["status"] == "refused" and "label" in refused["detail"]
+    assert not (world["tmp"] / "stage2/trace-harness/findings-v1.jsonl").exists()
+
+    findings.write_text("not json\n", encoding="utf-8")
+    assert _by_key(_run(world, stage_directory=world["tmp"] / "stage3"))["harness_findings"]["status"] == "invalid"
+
+    card = world["state"] / "trace-harness/scorecard-v1.json"
+    _json(card, {"schema": "evallab.trace_scorecard/v1", "generated_at": "2026-10-28T12:00:00+00:00", "rows": [{
+        "corpus": "cheatbench", "detectors": ["facets"], "rule": "single", "reader_model": "p/m", "positives": 5,
+        "negatives": 5, "budgets": [{"far_budget": 0.05, "hits": 2, "false_alarms": 0}],
+    }]})
+    assert _by_key(_run(world, stage_directory=world["tmp"] / "stage4"))["harness_scorecard"]["status"] == "ok"
+    _json(card, {"schema": "evallab.trace_scorecard/v1", "generated_at": "2026-10-28T12:00:00+00:00", "rows": []})
+    assert _by_key(_run(world, stage_directory=world["tmp"] / "stage5"))["harness_scorecard"]["status"] == "invalid"

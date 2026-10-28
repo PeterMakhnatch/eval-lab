@@ -4,7 +4,7 @@ Cross-test only. HackBench (`facebook/hackbench`, CC BY-NC 4.0, no training, no 
 `~/.local/state/evallab-cross-test/meta-hackbench/b3d6f678e635/` by the LB-6 adapter. Hosted judges score
 windows for evaluation only; nothing is stored in Laminar, Docent or any shared store. **No dataset text,
 command text, judge reply or quote is in this repository**; the runner writes per-trajectory hashes and
-integers to `.../b3d6f678e635/cm11/`, next to the data.
+integers to `~/.local/state/evallab-cross-test/meta-hackbench-cm11/`, beside the read-only data.
 
 ## Design (frozen before the first judged window)
 

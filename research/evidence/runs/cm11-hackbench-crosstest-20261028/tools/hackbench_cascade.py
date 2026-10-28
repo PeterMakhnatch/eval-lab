@@ -45,7 +45,9 @@ from evallab.production import command_prefilter  # noqa: E402
 from evallab.production import window_cascade as wc  # noqa: E402
 from evallab.production.monitor_worker import MisalignmentLiveWorker  # noqa: E402
 
-STATE = hb.ROOT / "cm11"
+STATE = (
+    hb.ROOT.parent / "meta-hackbench-cm11"
+)  # the data directory is read-only; this sits beside it
 FREEZE = STATE / "freeze.json"
 DEFAULT_MODEL = "kimi-code/k3.1-pro-highspeed"
 ALLOWED = {

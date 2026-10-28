@@ -80,25 +80,25 @@ class Budget:
 
 
 def bare_task_name(task_id: str) -> str:
-    """The name cohort and ledger files use: no namespace, version pin or ``__`` prefix, case-folded."""
-    return task_id.split("@", 1)[0].rsplit("/", 1)[-1].rsplit("__", 1)[-1].casefold()
+    """The name cohort and ledger files use: the last path segment without a version pin, case-folded."""
+    return task_id.split("@", 1)[0].rsplit("/", 1)[-1].casefold()
 
 
 def match_admitted_task(admitted: Any, wanted: str) -> str | None:
     """An exact admitted id, else (for a BARE name only) the single admitted id with that bare name.
 
-    A qualified input (namespace ``/``, version ``@`` or ``__`` prefix) names one identity and
+    A qualified input (namespace ``/`` or version pin ``@``) names one identity and
     matches only exactly: a denied ``test/alpha`` must never be served by an admitted ``dev/alpha``.
     Several admitted ids sharing the bare name refuse with a short admitted-only candidate list;
     no admitted match is the uniform refusal at the call site.
     """
     if wanted in admitted:
         return wanted
-    if any(mark in wanted for mark in ("/", "@", "__")):
+    if "/" in wanted or "@" in wanted:
         return None
     matches = sorted(task for task in admitted if bare_task_name(task) == bare_task_name(wanted))
     if len(matches) > 1:
-        shown = ", ".join(task[:80] for task in matches[:3])
+        shown = ", ".join(matches[:3])
         raise QaDataError(f"{wanted[:60]!r} matches {len(matches)} admitted tasks; give the full id, e.g. {shown}")
     return matches[0] if matches else None
 
@@ -293,7 +293,15 @@ def run(args: argparse.Namespace, root: Path | None = None, *, harbor: Any = Non
             data, error = None, f"this call needs about {needed} tokens for its smallest answer; raise --budget"
     except QaDataError as exc:
         data, error = None, str(exc)
-    except sqlite3.OperationalError as exc:
+    except sqlite3.Error as exc:
+        data, error = None, f"the store cannot answer this call: {str(exc)[:120]}"
+    except OSError as exc:
+        data, error = None, f"cannot read or write a path this call needs: {str(exc)[:160]}"
+    except Exception as exc:  # noqa: BLE001 - only a PostgreSQL driver error is converted; anything else propagates
+        import psycopg
+
+        if not isinstance(exc, psycopg.Error):
+            raise
         data, error = None, f"the store cannot answer this call: {str(exc)[:120]}"
     finally:
         if context is not None:
@@ -335,7 +343,7 @@ def register_parser(commands: Any) -> None:
         sub.add_argument("--repo-root", type=Path, default=None)
         sub.add_argument("--cloud-database", default=str(DEFAULT_DATABASE), help="SQLite path/URL or PostgreSQL URL")
         sub.add_argument("--budget", type=int, default=DEFAULT_BUDGET, help="Approximate token cap for the reply")
-        sub.add_argument("--pretty", action="store_true", help="Indent the JSON (one field per line) for readers that clip long lines")
+        sub.add_argument("--pretty", action="store_true", help="Indent the JSON for readers that clip long lines (the budget applies to the compact form)")
         sub.set_defaults(func=run)
 
     task = calls.add_parser("task", help="Instruction, tests, grader and Dockerfile of one admitted task")
@@ -350,7 +358,12 @@ def register_parser(commands: Any) -> None:
 
     runs = calls.add_parser("runs", help="Search runs by facets, cluster and similarity")
     common(runs)
-    runs.add_argument("--facet", action="append", default=[], metavar="KEY=V[,V]")
+    runs.add_argument(
+        "--facet", action="append", default=[], metavar="KEY=V[,V]",
+        help="Fields: outcome, tests, eval_awareness, grader_or_harness_touched, answer_material_accessed, "
+             "success_claim_without_evidence (true|false), suspicion (0-3). A comma list is OR within a field; "
+             "repeated --facet flags are ANDed (suspicion at least 2 is suspicion=2,3). Values: see qa-data --help",
+    )
     runs.add_argument("--cluster", default=None, metavar="CLUSTER_ID")
     runs.add_argument("--like", default=None, metavar="RUN_ID", help="Rank by similarity to this admitted run")
     runs.add_argument("--query", default="", help="Lexical terms")

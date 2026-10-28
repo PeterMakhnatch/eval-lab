@@ -469,7 +469,7 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
 
 - Task ids: every call taking a task accepts the full namespaced id or the bare name
   cohort and ledger files use (`cad-model` for `terminal-bench/cad-model`). An exact
-  admitted id wins; otherwise only a bare input (no `/`, `@` or `__`) falls back to
+  admitted id wins; otherwise only a bare input (no `/` or `@`) falls back to
   the one admitted task with that bare name, several matches list a few admitted
   candidates, and a qualified id never lands on a namesake.
 - `task` returns the instruction, every variant's original and repaired package file
@@ -498,9 +498,12 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   printing a reward. `scan` runs the four deterministic Scout text scanners over a
   scout export (re-executing under the scout-watch runtime when this environment
   lacks Scout); no call makes a model call.
-- `--pretty` indents any reply for readers that clip long lines.
+- `--pretty` indents any reply for readers that clip long lines; `--budget` and `tokens_est`
+  describe the compact form (pretty text is about 30% larger). Store or path errors reply
+  with the same JSON envelope (exit 2), never a traceback.
 - Defects fixed with this surface: `prod status` is read-only (it refuses a missing,
-  non-queue, or WAL-live SQLite file instead of creating or migrating it), and
+  non-queue SQLite file instead of creating or migrating it, and reads a queue another
+  process holds open without writing), and
   `prod export-runs --strict` fails before publishing when any requested id is
   missing or not admitted; `--trace-ids-file` takes ids from a file. The default
   `export-runs` still exits 0 with `refused` counted.

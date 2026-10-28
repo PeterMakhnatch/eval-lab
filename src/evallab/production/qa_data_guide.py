@@ -13,20 +13,23 @@ Run from the root of an Eval Lab checkout or worktree (the split ledger and `eva
     export EVALLAB_DISABLE_LOCAL_DOCKER=1 PYTHONWARNINGS=ignore UV_OFFLINE=1 UV_NO_SYNC=1
     uv run evallab qa-data <call> ...            # first call builds the venv if needed; scratch: /private/tmp/<you>/
 
-Every call opens the live store READ-ONLY, admits DEV tasks and runs through the registry gate, and prints ONE
-JSON line {"ok", "data" | "error", "meta"}. Exit 0 = ok. Exit 2 = refused or failed: read "error" (there is no other
-exit code). A task or run that is missing, TEST, held out, sealed or locked under another key gets the SAME error,
+Every call that reads the store (all but split, steps and scan, which need none) opens it READ-ONLY, admits DEV
+tasks and runs through the registry gate, and prints ONE JSON document {"ok", "data" | "error", "meta"}. Exit 0 = ok.
+Exit 2 = refused or failed: read "error" (a usage mistake prints argparse text on stderr, also exit 2). A task or run that is missing, TEST, held out, sealed or locked under another key gets the SAME error,
 "not available: not an admitted DEV task or run": never retry with variants to find out which. --budget N caps the
-reply at about N tokens (default 4000, minimum 200); lists drop whole items and say how many (meta.omitted_items,
-meta.truncated; `truncated` is also true when --limit cut a list: `matched` is the full count). Long single-line
-JSON can be clipped by file viewers: add --pretty (indented, one field per line) to any call. The database's own split='dev' is NOT admission; this tool applies the strict cross-key check.
+reply at about N tokens (default 4000, minimum 200; `task` replies often need --budget 8000); lists drop whole items
+and say how many (meta.omitted_items counts budget drops only; `truncated` is also true when --limit cut a list:
+`matched` is the full count). File viewers may clip long lines: add --pretty (indented) to any call; the budget
+and tokens_est describe the compact form, so pretty text is about 30 percent larger. The database's own
+split='dev' is NOT admission; this tool applies the strict cross-key check.
 No call makes a model call, runs a grader, writes the store or the repository.
 
 IDS
   run key          trace_id  (the `run_id` field of facet records is the same value; agent_traces.run_id is a batch id)
   task ids         cloud ids are namespaced (terminal-bench/cad-model); cohort and ledger files use bare names
-                   (cad-model). Every call taking a task accepts either: an exact id wins, else the one admitted task
-                   with that bare name; several matches list the candidates. Hand-written SQL with the wrong form
+                   (cad-model, django__django-11179). Every call taking a task accepts either: an exact id wins; a bare
+                   name (no "/" or "@") falls back to the one admitted task with that name; several match -> a few
+                   admitted candidates are listed. A qualified id ("ns/x", "x@v") must match exactly. Hand-written SQL with the wrong form
                    silently returns 0 rows.
   step ids         facet `evidence_steps` use the ORIGINAL step ids; an export renumbers steps 1..n. Never add 1:
                    use `export`'s printed map or `steps`.
@@ -57,18 +60,23 @@ CALLS (all JSON; examples use real flags)
        clusters --source file --members L1-02   cloud_run_ids, registry_only_dev_ids and their counts
        Equal sizes tie (report all tied clusters). To count a facet over a cluster, intersect cloud_run_ids with
        `runs --facet ... --limit 200` ids (or use `export`/`window` on single runs).
-  recount                            facets: interim JSONL vs the database over admitted runs (sha256, counts)
+  recount                            facets: interim JSONL vs the database over admitted runs (sha256, counts). It counts
+       admitted TASKS' facets (1,235 in the database); `runs`/`export --facet` also screen sealed text (1,234).
   findings [--run TRACE_ID | --task T] [--limit N]
        trace-tool rows (Scout, Scout-METR, Docent, Laminar, OMP). With no flag: per-tool rows, runs, admitted runs
-       (aggregates: no detector fields). A null flag is not a negative; with --run or --task keep detector and
-       detector_version beside any number you quote.
+       (aggregates: no detector fields). A null flag is not a negative; with --run or --task each row keeps its tool
+       and detector: quote both beside any number.
   history TASK_ID [--flag F ...]     past confirmed issues, similar examples, playbook cards for one task
-  task TASK_ID [--file REL ...] [--variant N] [--kind original_package|repaired_package]
-       one admitted task: instruction, package file lists (every variant and kind), issues (no reproducers), run
-       counts. `task cad-model --file tests/test.sh --kind repaired_package` returns that file's text. Never run
-       package code from here.
+  task TASK_ID [--file REL ...] [--variant N (default 0)] [--kind original_package|repaired_package (default original)]
+       one admitted task (without --file it lists, it does not dump). Fields: instruction_chars (+ instruction text,
+       instruction_truncated); packages{"<variant>:<kind>"}: file_count (INCLUDES withheld files), files[{relative_path,
+       size}], withheld[] (solution/ and scoring-key names: listed, never read), contents[] (only with --file);
+       issues[] + issues_total (retained issues, no reproducers; status/trust_tier as stored: provisional and
+       tier3_provisional are the lowest-trust tiers); runs{total, faceted, suspicion_ge_2, list[]}. A file that is
+       not in the chosen package says so: check the other --kind. `task vpp-loss-divergence --file tests/test.sh`
+       returns that file's text. Never run package code from here.
   split task TASK_ID | split item KEY_ID ITEM_ID
-       prints {"split": "DEV"|"TEST"|"UNKNOWN"} and nothing else. TEST = TEST under any key or sealed. UNKNOWN never
+       data is {"split": "DEV"|"TEST"|"UNKNOWN"} and nothing else. TEST = TEST under any key or sealed. UNKNOWN never
        authorizes access. DEV still needs admission before run content is read. Needs no store.
        split task 3d-scan-calc                            DEV
        split item breaker-bench-v1 breaker-bench-v1:benchflow-0.2.0:terminal-bench-2/caffe-cifar-10    TEST
@@ -91,7 +99,7 @@ CALLS (all JSON; examples use real flags)
 
 OBSERVED ON THE LIVE STORE, 2026-10-28 (counts move while lanes run: quote the date or `recount` digest)
   3,474 admitted tasks, 4,544 admitted runs (pass 2,033, fail 1,297, unknown 1,214). 1,234 admitted faceted runs;
-  answer_material_accessed true on 29; suspicion 2 or 3 on 326. Facets are leads, not verdicts.
+  answer_material_accessed true on 29; suspicion 2 or 3 on 326 (327 in `recount`, see above). Facets are leads.
 
 OUTSIDE qa-data (plain files; no admission needed; run from the checkout root unless a path says otherwise)
   RA=~/Developer/research-context/bridge/2026-10-27-run-atlas
@@ -118,11 +126,13 @@ OUTSIDE qa-data (plain files; no admission needed; run from the checkout root un
   Task QA keyed defects (the keys are for the scorer after predictions are frozen; never open for discovery):
     ~/Developer/eval-lab-results/2026-10-27/oq6-tq-gate-rerun/ (manifest-dev.json maps cases to tasks; its key_count
     fields are null; scorer-only-keys/ holds the keys). The aggregate counts (tasks, keyed, annotations, unkeyed) and
-    the key rules are stated in the protocol prose, which you may read: $RA/oq6-task-quality-gate-rerun.md
+    the key rules are stated in the protocol prose, which you may read: $RA/oq6-task-quality-gate-rerun.md. The
+    399-task DEV set is the one in its first paragraph (the 15-task cross cohort is separate).
   Is a lane's claim committed?  git -C ~/Developer/research-context status --porcelain -- bridge/<file>.md
   Safe store snapshot: sqlite3 'file:<store>?mode=ro' ".backup /private/tmp/me/copy.sqlite" (never copy a live WAL file)
 
-NEVER: `evallab prod status` or `CloudTraceDatabase(path)` on the live store without read_only (they write);
+NEVER: `CloudTraceDatabase(path)` on the live store without read_only=True (it runs a write transaction);
+`evallab prod status` is read-only but is for queue databases only: do not aim it at the cloud store;
 `atlas facet` without --dry-run, `atlas clusters build`, `atlas watch`, `prod run-once|serve|ingest`, `evallab trace`
 without --dry-run (model calls or writes); put labels, rewards, trace ids, dataset names or split names in a blind
 reader's input; read TEST or cross-test labels.

@@ -595,7 +595,7 @@ inputs:
   - path: src/evallab/production/public_corpus_loader.py
     digest: sha256:6dd834cea54b40d742bb4289f1a7ac2b1586197b27483d1e6b1112095adde01f
   - path: src/evallab/production/qa_data.py
-    digest: sha256:44e7de30cc1c0da071c724e282ee622e9691e559e8733f5780301f6667521d4b
+    digest: sha256:d2c74ad09be1e81a09e430286dfe06cee581405bb24d6e3ad45d3f1d48acd9d8
   - path: src/evallab/production/qa_data_calls.py
     digest: sha256:312d146e7fd907fc2e59cebb4cda1693b4b49d834daef1f76afc0bb184bb3164
   - path: src/evallab/production/qa_data_export.py
@@ -603,7 +603,7 @@ inputs:
   - path: src/evallab/production/qa_data_findings.py
     digest: sha256:7b2e3eeed802ebe29807a08318c1fe54f5af8626927f4f8ebfaff4af58ce3cbb
   - path: src/evallab/production/qa_data_guide.py
-    digest: sha256:ea9575d5cccc467c7894af11802d6861c58b62cca11e2b7f52d1b3010a8db28c
+    digest: sha256:8d991d5da6254ac8e7ae26a918c1d0ed09aa2740ed8bbc6ec48f00e9a87ad664
   - path: src/evallab/production/qa_data_inventory.py
     digest: sha256:03106dd6abfd369ccd3c8416fac2fcaa833a76c0bdcdfa2dcf5296b0fd3133b8
   - path: src/evallab/production/qa_data_scan.py
@@ -611,7 +611,7 @@ inputs:
   - path: src/evallab/production/qa_data_split.py
     digest: sha256:00c5bae0bcd3ef192ec0d4a5e682353d6fafbf41f9f5f2c9fa0980c6b52f0863
   - path: src/evallab/production/qa_data_task.py
-    digest: sha256:1e06aa0b53f3d7a2fcf7413f74db08f099fbddb1159d18c005fe65c653f1c53e
+    digest: sha256:bb182ea52255ffbdb04afdb14816168d2963758cbde0433103d34c62ba30b21c
   - path: src/evallab/production/qc_reports.py
     digest: sha256:997afaf180b46df36b02cf6d8fecdadf6f5f1d30d430718b3bf94f630c11ac1b
   - path: src/evallab/production/relay.py

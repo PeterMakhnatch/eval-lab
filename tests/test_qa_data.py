@@ -127,6 +127,11 @@ def test_only_bare_inputs_fall_back_to_a_namesake_and_qualified_ids_must_match_e
         with pytest.raises(QaDataError) as refused:
             ctx.require_task(denied)
         assert str(refused.value) == UNAVAILABLE  # a qualified, missing or denied id never lands on a namesake
+    add_task(store, "swe/django__django-11179@task-bundle-sha256-" + "a" * 64)
+    ledger_style = ctx.require_task("django__django-11179")  # the ledger's name for a namespaced, pinned cloud id
+    assert ledger_style["task_id"].startswith("swe/django__django-11179@")
+    with pytest.raises(QaDataError, match=UNAVAILABLE):
+        ctx.require_task("django-11179")  # `__` is part of the name, not a namespace to strip
     add_task(store, "left/gamma")
     add_task(store, "right/gamma")
     with pytest.raises(QaDataError, match="2 admitted tasks") as ambiguous:
@@ -413,3 +418,14 @@ def test_a_reply_larger_than_the_budget_becomes_a_bounded_refusal(
     args = cli_parser().parse_args(["qa-data", "runs", "--task", "t", "--cloud-database", str(database), "--budget", "50"])
     assert args.func(args, Path.cwd(), harbor=None) == 2
     assert "at least" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_a_store_that_cannot_be_read_still_replies_with_the_json_error_envelope(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    database = tmp_path / "not-sqlite.sqlite"
+    database.write_bytes(b"this is not a database" * 100)
+    args = cli_parser().parse_args(["qa-data", "inventory", "--cloud-database", str(database)])
+    assert args.func(args, Path.cwd(), harbor=None) == 2
+    reply = json.loads(capsys.readouterr().out)
+    assert reply["ok"] is False and "cannot answer" in reply["error"]

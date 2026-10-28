@@ -884,6 +884,8 @@ def test_reclassification_after_name_resolution_cannot_authorize_task_content(ca
     ("tests/EXPECTED_CATEGORY.bin", "tests/EXPECTED_CATEGORY.bin"),
     ("tests/expectedVerdict.data", "tests/expectedVerdict.data"),
     ("tests/test_expected_category.py", "tests/test_expected_category.py"),
+    ("tests/expected_categories.json", "tests/expected_categories.json"),
+    ("tests/EXPECTED-CATEGORIES.csv", "tests/EXPECTED-CATEGORIES.csv"),
     ("tests/exposures.csv", "tests/exposures.csv"),
     ("tests/scorer-only-keys/ordinary.json", "tests/scorer-only-keys/"),
     ("environment/SCORER_ONLY_KEYS.bin/nested.txt", "environment/SCORER_ONLY_KEYS.bin/"),

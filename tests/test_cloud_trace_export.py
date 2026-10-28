@@ -1617,3 +1617,29 @@ def test_export_rejects_a_racing_final_component_symlink_without_following_its_t
     other = manifest if racing == "output" else output
     assert not other.exists() and not other.is_symlink()
     assert not list(tmp_path.rglob(".cloud-trace-*"))
+
+
+@pytest.mark.parametrize("content", ("", " \n\t\n", "# selection\n  # no ids\n\n"))
+@pytest.mark.parametrize("strict", (False, True))
+@pytest.mark.parametrize("explicit_id", (False, True))
+def test_cli_empty_ids_file_refuses_before_creating_any_export_entries(
+    source: Path, tmp_path: Path, isolated_cli: Any, capsys: pytest.CaptureFixture[str],
+    content: str, strict: bool, explicit_id: bool,
+) -> None:
+    ids_file = tmp_path / "empty-ids.txt"
+    ids_file.write_text(content)
+    output = tmp_path / "new-output-parent" / "out"
+    manifest = tmp_path / "new-manifest-parent" / "join.json"
+    options = (["--strict"] if strict else []) + (
+        ["--trace-id", next(iter(ADMITTED_TRACES))] if explicit_id else []
+    )
+    before = set(tmp_path.iterdir())
+    assert isolated_cli.run_cli([
+        "prod", "export-runs", "--source-database", str(source), "--output-directory", str(output),
+        "--format", "atif", "--manifest", str(manifest), "--trace-ids-file", str(ids_file), *options,
+    ], workspace=tmp_path) != 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert json.loads(captured.err)["error"]["message"] == "no admitted runs selected"
+    assert not output.parent.exists() and not manifest.parent.exists()
+    assert set(tmp_path.iterdir()) == before

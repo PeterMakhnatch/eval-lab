@@ -434,9 +434,15 @@ def _open_status_queue(args: argparse.Namespace, root: Path) -> Any:
                 path = Path(database)
                 if not path.is_file():
                     raise ValueError("status requires an existing queue database")
-                self._connection = sqlite3.connect(
-                    source_read_uri(path), uri=True, isolation_level=None,
-                )
+                sidecars = [path.with_name(path.name + suffix) for suffix in ("-wal", "-shm")]
+                if all(sidecar.is_file() for sidecar in sidecars):
+                    uri = path.as_uri() + "?mode=ro"
+                else:
+                    try:
+                        uri = source_read_uri(path)
+                    except ValueError as exc:
+                        raise ValueError(str(exc).replace("before projection", "before reading queue status")) from exc
+                self._connection = sqlite3.connect(uri, uri=True, isolation_level=None)
             try:
                 if not self._postgres:
                     self._connection.execute("PRAGMA query_only=ON")
@@ -671,10 +677,10 @@ def _export_runs(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     trace_ids = args.trace_ids
     if args.trace_ids_file is not None:
         lines = _local_path(root, args.trace_ids_file).read_text(encoding="utf-8").splitlines()
-        trace_ids = [
-            *(trace_ids or ()),
-            *(line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")),
-        ]
+        file_ids = [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
+        if not file_ids:
+            raise ValueError("no admitted runs selected")
+        trace_ids = [*(trace_ids or ()), *file_ids]
     return export_runs(
         _local_path(root, args.source_database),
         _local_path(root, args.output_directory),

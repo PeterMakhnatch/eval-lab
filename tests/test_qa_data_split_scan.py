@@ -10,7 +10,7 @@ import pytest
 
 from evallab.production import qa_data_scan, qa_data_split
 from evallab.production.corpus_queue import CorpusRegistry, _identity
-from evallab.production.qa_data import Budget, QaDataError
+from evallab.production.qa_data import Budget, QaDataError, estimate_tokens
 
 KEY, OTHER = "synthetic-key", "other-key"
 LEDGER_TEXT = (
@@ -113,3 +113,16 @@ def test_scan_rows_beyond_the_budget_are_counted_not_refused() -> None:
     assert 0 < len(fitted["rows"]) < 100
     assert fitted["omitted_rows"] == 100 - len(fitted["rows"]) and fitted["truncated"] is True
     assert fitted["rows"] == rows[: len(fitted["rows"])]  # whole rows, in order
+
+
+@pytest.mark.parametrize("limit", [200, 250, 300, 600, 1000, 4000])
+def test_scan_reply_with_its_fixed_fields_never_exceeds_the_budget(limit: int) -> None:
+    rows = [
+        {"blind_id": f"run-{n:032x}", "messages": 296, "scanner": "harness_parse_errors", "results": 4,
+         "values": [0, 0, 0, 0], "references": 0}
+        for n in range(212)
+    ]
+    budget = Budget(limit - 120)
+    fitted = qa_data_scan._fit({"transcripts": 53, "rows": rows, "inspect_scout": "0.5.4", "model_calls": 0}, budget)
+    assert estimate_tokens(fitted) <= limit - 120
+    assert len(fitted["rows"]) + fitted["omitted_rows"] == 212 and fitted["model_calls"] == 0

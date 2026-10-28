@@ -69,8 +69,10 @@ def _runtime_python() -> Path | None:
 
 def _fit(payload: dict[str, Any], budget: Budget) -> dict[str, Any]:
     """Keep whole scanner rows that fit the budget; count the rest rather than refuse the call."""
-    rows = [row for row in payload["rows"] if budget.take(row)]
-    return {**payload, "rows": rows, "omitted_rows": len(payload["rows"]) - len(rows), "truncated": len(rows) < len(payload["rows"])}
+    frame = {**payload, "rows": [], "omitted_rows": len(payload["rows"]), "truncated": True}
+    budget.take(frame)  # the fixed fields count too: rows are charged on top of them
+    rows = [row for row in payload["rows"] if budget.take([row])]
+    return {**frame, "rows": rows, "omitted_rows": len(payload["rows"]) - len(rows), "truncated": len(rows) < len(payload["rows"])}
 
 
 def scan(transcripts: Path, scanners: Sequence[str] | None, budget: Budget) -> dict[str, Any]:

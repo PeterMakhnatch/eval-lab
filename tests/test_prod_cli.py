@@ -1360,3 +1360,46 @@ def test_status_real_queue_uses_existing_state_without_changing_any_bytes_or_cre
     assert receipt["queue"]["jobs"] == {"queued": 2, "leased": 0, "completed": 0}
     assert receipt["queue"]["last_seq"] == 2
     assert {item.name: item.read_bytes() for item in path.parent.iterdir() if item.is_file()} == before
+
+
+def test_status_reads_an_open_queue_including_its_uncheckpointed_wal_without_writing(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(corpus_root, "misalignment")
+    path = _path(corpus_root)
+    with ContinuousWorkQueue(path, registry=CorpusRegistry(corpus_root)) as queue:
+        queue.append_event({
+            "event_id": "live-status-job", "run_id": "cli-regression", "system": "task_quality",
+            "event_type": JOB_TYPES["task_quality"], "status": "confirmed",
+            "payload": {"dataset_id": DATASET, "item_id": DEV},
+        })
+        wal = path.with_name(path.name + "-wal")
+        shm = path.with_name(path.name + "-shm")
+        assert wal.is_file() and shm.is_file()
+        entries_before = set(path.parent.iterdir())
+        database_before, wal_before = path.read_bytes(), wal.read_bytes()
+        assert cli.run_cli(["prod", "status"], workspace=corpus_root) == 0
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        receipt = json.loads(captured.out)
+        assert receipt["backend"] == "sqlite" and receipt["queue"]["depth"] == 2
+        assert receipt["queue"]["jobs"] == {"queued": 2, "leased": 0, "completed": 0}
+        assert receipt["queue"]["last_seq"] == 2
+        assert set(path.parent.iterdir()) == entries_before
+        assert path.read_bytes() == database_before and wal.read_bytes() == wal_before
+
+
+@pytest.mark.parametrize("suffix", ("-wal", "-shm"))
+def test_status_refuses_an_incomplete_wal_snapshot_without_creating_the_missing_sidecar(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str], suffix: str,
+) -> None:
+    _seed(corpus_root, "misalignment")
+    path = _path(corpus_root)
+    path.with_name(path.name + suffix).write_bytes(b"unpaired sidecar")
+    before = {entry.name: entry.read_bytes() for entry in path.parent.iterdir()}
+    assert cli.run_cli(["prod", "status"], workspace=corpus_root) != 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    message = json.loads(captured.err)["error"]["message"]
+    assert "reading queue status" in message and "projection" not in message
+    assert {entry.name: entry.read_bytes() for entry in path.parent.iterdir()} == before

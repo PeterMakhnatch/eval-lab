@@ -112,6 +112,7 @@ def test_inventory_counts_only_admitted_tasks_and_all_their_runs(ctx: QaContext)
     assert payload["by_dataset"] == {"dataset-a": {"tasks": 2, "runs": 2}, "dataset-b": {"tasks": 1, "runs": 1}}
     assert payload["run_outcomes"] == {"pass": 1, "fail": 1, "unknown": 1}
     assert payload["models"] == {"model-a": 2, "model-b": 1}
+    assert payload["models_total"] == 2
     assert "hidden" not in json.dumps(payload)
 
 
@@ -127,6 +128,18 @@ def test_inventory_budget_keeps_totals_and_counts_omitted_dataset_and_model_entr
     assert 0 < kept < len(entries)
     assert payload["omitted"] == bounded.budget.omitted == len(entries) - kept
     assert payload["truncated"] and estimate_tokens(payload) <= bounded.budget.limit
+
+
+def test_inventory_reports_the_top_twelve_model_cut_with_distinct_total(ctx: QaContext) -> None:
+    for index in range(15):
+        ctx.database.upsert_trace({
+            "trace_id": f"extra-model-{index:02d}", "run_id": "batch", "task_id": "beta",
+            "model_id": f"model-{index:02d}",
+        }, steps=[])
+    payload = inventory(ctx, ids_out=None)
+    assert payload["models_total"] == 17
+    assert list(payload["models"]) == ["model-a", *(f"model-{index:02d}" for index in range(11))]
+    assert payload["omitted"] == ctx.budget.omitted == 5 and payload["truncated"]
 
 
 def test_inventory_id_file_is_complete_exclusive_and_requires_existing_parent(ctx: QaContext, tmp_path: Path) -> None:

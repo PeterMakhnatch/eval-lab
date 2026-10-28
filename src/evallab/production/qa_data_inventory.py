@@ -53,14 +53,16 @@ def inventory(ctx: QaContext, *, ids_out: Path | None) -> dict[str, Any]:
     run_counts = Counter(row["dataset_id"] for row in rows)
     outcomes = Counter(outcome_from_reward(row["reward"]) for row in rows)
     models = Counter(row["model_id"] for row in rows)
+    capped_models = max(0, len(models) - 12)
     payload: dict[str, Any] = {
         "admitted_tasks": len(tasks), "admitted_runs": len(rows), "by_dataset": {},
         "run_outcomes": {key: outcomes[key] for key in ("pass", "fail", "unknown")},
-        "models": {}, "omitted": 0, "truncated": False,
+        "models": {}, "models_total": len(models), "omitted": capped_models, "truncated": bool(capped_models),
     }
     if ids_out is not None:
         payload["ids_file"] = {"path": str(ids_out), "lines": len(rows)}
     _reserve(ctx, payload)
+    ctx.budget.omitted += capped_models
     for dataset in sorted(task_counts.keys() | run_counts.keys()):
         value = {"tasks": task_counts[dataset], "runs": run_counts[dataset]}
         if ctx.budget.take({dataset: value}):

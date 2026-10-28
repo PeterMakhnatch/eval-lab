@@ -30,7 +30,7 @@ _WITHHELD_NAMES = _WITHHELD_TOKENS | {
     "hiddendata", "reference", "references", "solve",
 }
 _SCORING_KEY_NAMES = frozenset({
-    "expectedverdict", "expectedcategory", "scoreronlykey", "scoreronlykeys",
+    "expectedverdict", "expectedcategory", "expectedcategories", "scoreronlykey", "scoreronlykeys",
     "scoringkey", "scoringkeys", "scorerkey", "scorerkeys", "labelkey", "labelkeys",
     "goldkey", "goldkeys", "groundtruth",
 })

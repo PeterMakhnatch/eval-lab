@@ -77,6 +77,8 @@ over-reports waste on clean runs, so it reads only after a trigger.
 
 Models are called through `run_atlas.GatewayTransport` on subscription routes only, and the
 served model is attested.
+Source benchmark metadata is withheld from reader metrics and trigger descriptions;
+the source-specific threshold still applies.
 
 | Action | Meaning | Effect in act mode |
 |---|---|---|

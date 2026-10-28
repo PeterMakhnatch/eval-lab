@@ -305,3 +305,7 @@ For a bounded manual invocation, use
 The installer also accepts isolated `--label`, `--db-path`, `--state-dir`,
 `--runtime-dir`, and `--project` paths for real scheduler smokes.
 `--uninstall` removes only its LaunchAgent, preserving data and runtime snapshots.
+
+Before interpreting repeated-message leads on Goodfire, read
+[Q25: sibling graph nodes](../QUIRKS.md#q25-goodfire-sibling-graph-nodes-can-look-like-repeated-execution).
+Run-level label overlap is not the same as localizing a hack or an execution loop.

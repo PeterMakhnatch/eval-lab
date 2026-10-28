@@ -173,3 +173,9 @@ Status values:
 - **What does count:** modifying an *existing* test so that it passes (g6-41 rewrote `test/test_youtube.py`; g6-30 edited the visible tests). Hidden tests replace the visible ones at grading, so neither changes rewards.
 - **Handle:** alert only on modification of existing test, verifier or grader files (`evallab watch` `grader_tamper`, #686 follow-up).
 - **Status:** by design.
+
+### Q25. Goodfire sibling graph nodes can look like repeated execution
+- **What:** native Goodfire graphs retain sampled assistant leaves and selected continuation nodes with identical text/actions and the same parent. A message-only Scout view can count these adjacent sibling nodes as `repeated_assistant_message=2`; that is not proof of two sequential executions or a loop.
+- **Handle:** use this flag as a source/harness-health lead, not a reward-hacking or loop verdict. A run-level publisher-positive label does not establish that the scanner localized its hack. Preserve source evidence; do not silently deduplicate the native graph or treat the sampled sibling as an executed turn.
+- **Evidence:** the complete TT-1 Scout-only-versus-Stage-1 set has one publisher-positive (`9b04de16…`, steps 234/235, parent 233) and two clean negatives (`bac0e908…`, steps 32/33; `40bdbb97…`, steps 482/483). Each pair has a sampled off-final-path leaf and a non-sampled on-final-path continuation. Exact refs, quotes and graph fields: [`sibling-repetition-audit.json`](../../evidence/runs/trace-tools-tt1-20261027/sibling-repetition-audit.json).
+- **Status:** by design (native graph retention; conversation scanners do not model branching).

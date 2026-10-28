@@ -2058,9 +2058,11 @@ under `<data_root>/trace-harness/` feed it, both optional and both re-read only 
 - `findings-v1.jsonl`: `trace-findings/v1` records (CONTRACT section 3b), the interim file that
   `evallab trace run` and every detector adapter append to, `run_health.*` included. The newest
   record per run, detector, detector version and reader model wins. A line that breaks the contract
-  (unknown verdict or kind, a non-identifier detector or reader, a negative or non-finite number,
-  more than 20 evidence steps, a summary over 40 words, a time with no zone, a duplicate JSON key)
-  is counted by reason on the page and never shown; no reason repeats the line.
+  (unknown verdict or kind, a non-identifier detector, version or reader, a negative or non-finite
+  number, more than 20 evidence steps, a summary over 40 words, a time with no zone, a duplicate
+  JSON key) is counted by reason on the page and never shown; no reason repeats the line. A version
+  may use letters, digits and `. _ / + : @ -` (up to 80 characters). The contract stores an absent
+  latency as 0, so a latency of 0 is shown as not recorded and left out of the mean.
 - `scorecard-v1.json`: `evallab.trace_scorecard/v1`, counts only: per corpus and detector
   combination, the reader model (`none` for a deterministic detector), recall hits and false alarms
   at the 3% and 5% false-alarm budgets, localization, cost per 1,000 runs, median latency and, for a

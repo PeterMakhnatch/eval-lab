@@ -29,6 +29,7 @@ DEFAULT_CALLS = {
     "runs": ["runs", "--task", "alpha", "--facet", "tests=modified"],
     "window": ["window", "alpha/a1", "--first", "0", "--last", "5"],
     "findings": ["findings", "--run", "alpha/a1"],
+    "trace-card": ["trace-card", "alpha/a1"],
 }
 REFUSED_IDS = ("held-out", "locked-task", "sealed-task", "no-such-task")  # TEST, cross-key, sealed, missing
 
@@ -175,12 +176,13 @@ def refusal_argv(call: str, identity: str, out: Path) -> list[str]:
         "task": ["task", identity], "history": ["history", identity], "split": ["split", "task", identity],
         "runs": ["runs", "--task", identity], "window": ["window", f"{identity}/a1"],
         "findings": ["findings", "--run", f"{identity}/a1"], "traces": ["traces", "--task", identity],
+        "trace-card": ["trace-card", f"{identity}/a1"],
         "export": ["export", "--trace-id", f"{identity}/a1", "--out", str(out / f"export-{identity}")],
         "scan": ["scan", str(out / f"{identity}.jsonl")],  # the argument is a file: never echoed back
     }[call]
 
 
-STORE_CALLS = ("task", "history", "split", "runs", "window", "findings", "traces", "export")
+STORE_CALLS = ("task", "history", "split", "runs", "window", "findings", "traces", "export", "trace-card")
 
 
 @pytest.mark.parametrize("flags", [[], ["--with-outcomes"]])

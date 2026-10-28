@@ -446,6 +446,10 @@ def cost_summary(unit: Unit, rows: Sequence[Row]) -> dict[str, Any]:
     """Cost and latency over runs where every member has a finding (any verdict).
 
     A combination sums its members' cost/tokens/latency per run (sequential upper bound).
+    Imported results often carry no receipts: a model-read member whose tokens are zero
+    on every run, or any member whose latency is zero on every run, makes that column
+    ``None`` ("not recorded") rather than a misleading zero. Cost stays a number: every
+    current reader is a subscription route or deterministic, which records ``0.0``.
     """
     have = [[r for r in row.records if r is not None] for row in rows]
     have = [records for records in have if len(records) == len(unit.members)]
@@ -454,19 +458,28 @@ def cost_summary(unit: Unit, rows: Sequence[Row]) -> dict[str, Any]:
                 "mean_output_tokens": None, "latency_ms_p50": None, "latency_ms_p95": None}
     n = len(have)
 
+    def unrecorded(key: str, *, model_only: bool) -> bool:
+        return any(
+            all(records[member][key] == 0 for records in have)
+            and not (model_only and have[0][member]["reader_model"] is None)
+            for member in range(len(unit.members))
+        )
+
     def total(key: str) -> list[float]:
         return [sum(record[key] for record in records) for records in have]
 
     cost, tokens_in, tokens_out, latency = (
         total("cost_usd"), total("input_tokens"), total("output_tokens"), total("latency_ms"),
     )
+    tokens_missing = unrecorded("input_tokens", model_only=True)
+    latency_missing = unrecorded("latency_ms", model_only=False)
     return {
         "runs": n,
         "cost_per_1k_usd": round(1000 * sum(cost) / n, 4),
-        "mean_input_tokens": round(sum(tokens_in) / n, 1),
-        "mean_output_tokens": round(sum(tokens_out) / n, 1),
-        "latency_ms_p50": _percentile(latency, 50),
-        "latency_ms_p95": _percentile(latency, 95),
+        "mean_input_tokens": None if tokens_missing else round(sum(tokens_in) / n, 1),
+        "mean_output_tokens": None if tokens_missing else round(sum(tokens_out) / n, 1),
+        "latency_ms_p50": None if latency_missing else _percentile(latency, 50),
+        "latency_ms_p95": None if latency_missing else _percentile(latency, 95),
     }
 
 
@@ -802,7 +815,10 @@ def render_markdown(result: Mapping[str, Any]) -> str:
             f"{_num(cost['mean_input_tokens'])} | {_num(cost['mean_output_tokens'])} | "
             f"{_num(cost['latency_ms_p50'])} / {_num(cost['latency_ms_p95'])} |"
         )
-    lines += ["", f"FAR budgets calibrated on: {cal or IN_CORPUS}.", ""]
+    lines += [
+        "", "Cost/token/latency `n/a`: not recorded by the stored results the detector imports.",
+        f"FAR budgets calibrated on: {cal or IN_CORPUS}.", "",
+    ]
     return "\n".join(lines)
 
 

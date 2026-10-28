@@ -404,6 +404,17 @@ def test_cost_tokens_and_latency_percentiles() -> None:
     assert (cost["latency_ms_p50"], cost["latency_ms_p95"]) == (500, 1000)
 
 
+def test_unrecorded_tokens_and_latency_are_not_reported_as_zero() -> None:
+    cohort = labels("c", {"p": True, "n": False})
+    imported = store(rec("p", "alarm"), rec("n", "clear"))  # model reader, no receipts
+    cost = only(ths.score_corpus(cohort, imported))["cost"]
+    assert cost["cost_per_1k_usd"] == 0.0
+    assert cost["mean_input_tokens"] is None and cost["latency_ms_p50"] is None
+    deterministic = store(rec("p", "alarm", reader=None, latency=3), rec("n", "clear", reader=None, latency=5))
+    cost = only(ths.score_corpus(cohort, deterministic))["cost"]
+    assert cost["mean_input_tokens"] == 0 and cost["latency_ms_p95"] == 5
+
+
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #

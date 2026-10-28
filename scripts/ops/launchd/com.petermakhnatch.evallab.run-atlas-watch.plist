@@ -19,6 +19,8 @@
 		<string>25</string>
 		<string>--max-tokens-per-day</string>
 		<string>1000000</string>
+		<string>--route</string>
+		<string>anthropic/claude-haiku-5-5</string>
 	</array>
 	<key>WorkingDirectory</key>
 	<string>__WORKDIR__</string>

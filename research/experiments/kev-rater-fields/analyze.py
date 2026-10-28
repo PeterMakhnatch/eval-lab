@@ -126,9 +126,7 @@ def noul_field(cohort, dig, win_max, field, window_q=None):
     out = {
         "n_consensus": len(rows),
         "n_rater_disagree": sum(
-            1
-            for c in cohort
-            if c["raters"][field]["rater_a"] != c["raters"][field]["rater_b"]
+            1 for c in cohort if c["raters"][field]["rater_a"] != c["raters"][field]["rater_b"]
         ),
         "positives": len(pos),
         "negatives": len(neg),
@@ -149,10 +147,16 @@ def noul_field(cohort, dig, win_max, field, window_q=None):
 
 def loop_from_windows(cohort, win_max):
     rows = [c for c in cohort if c["consensus"]["loop_kind"] is not None and c["id"] in win_max]
-    loop = lambda c: max(win_max[c["id"]]["repetition_here"], win_max[c["id"]]["completion_claim_here"])  # noqa: E731
+
+    def loop(c):
+        return max(win_max[c["id"]]["repetition_here"], win_max[c["id"]]["completion_claim_here"])
+
     looped = [c for c in rows if c["consensus"]["loop_kind"] != "none"]
     calm = [c for c in rows if c["consensus"]["loop_kind"] == "none"]
-    margin = lambda c: win_max[c["id"]]["repetition_here"] - win_max[c["id"]]["completion_claim_here"]  # noqa: E731
+
+    def margin(c):
+        return win_max[c["id"]]["repetition_here"] - win_max[c["id"]]["completion_claim_here"]
+
     return {
         "n": len(rows),
         "loop_vs_none_auroc": auroc([loop(c) for c in looped], [loop(c) for c in calm]),
@@ -201,6 +205,38 @@ def first_failure(cohort, windows):
     return out
 
 
+def loop_kind_posthoc(cohort, dig):
+    """Checks added after seeing the scores (not part of the plan)."""
+    pred = {
+        c["id"]: max(
+            dig[c["id"]]["loop_kind"]["probabilities"],
+            key=dig[c["id"]]["loop_kind"]["probabilities"].get,
+        )
+        for c in cohort
+    }
+    top = {c["id"]: max(dig[c["id"]]["loop_kind"]["probabilities"].values()) for c in cohort}
+    rows = [c for c in cohort if c["consensus"]["loop_kind"] is not None]
+    def ok(c):
+        return pred[c["id"]] == c["consensus"]["loop_kind"]
+
+    # a loop-break exception message names "repetition"; is Kev just reading it?
+    no_lb = [c for c in rows if "LoopBreak" not in (c["facts"]["exception_type"] or "")]
+    ranked = sorted(rows, key=lambda c: top[c["id"]])
+    thirds = [ranked[i * len(ranked) // 3 : (i + 1) * len(ranked) // 3] for i in range(3)]
+    return {
+        "note": "post hoc: chosen after the pre-registered results were known",
+        "accuracy_without_loop_break_exception": frac(sum(map(ok, no_lb)), len(no_lb)),
+        "kev_vs_each_rater_all_runs": {
+            r: frac(sum(pred[c["id"]] == c["raters"]["loop_kind"][r] for c in cohort), len(cohort))
+            for r in ("rater_a", "rater_b")
+        },
+        "accuracy_by_top_probability_third": [
+            {"min_top_p": round(top[t[0]["id"]], 3), **frac(sum(map(ok, t)), len(t))}
+            for t in thirds
+        ],
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--digest-scores", type=Path, default=DERIVED / "digest.scores.jsonl")
@@ -238,6 +274,7 @@ def main() -> None:
         "pass_copied": noul_field(cohort, dig, win_max, "pass_copied", "upstream_fetch"),
         "sft_clean": noul_field(cohort, dig, win_max, "sft_clean"),
         "first_failure_location": first_failure(cohort, windows),
+        "loop_kind_posthoc": loop_kind_posthoc(cohort, dig),
     }
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(json.dumps(res, indent=1) + "\n")

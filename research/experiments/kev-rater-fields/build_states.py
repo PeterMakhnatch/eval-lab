@@ -142,9 +142,7 @@ def run_facts(run: Path) -> dict:
     if diff.is_file():
         lines = diff.read_text(errors="replace").splitlines()
         facts["diff_changed_lines"] = sum(
-            1
-            for x in lines
-            if x[:1] in "+-" and not x.startswith(("+++", "---"))
+            1 for x in lines if x[:1] in "+-" and not x.startswith(("+++", "---"))
         )
     else:
         facts["diff_changed_lines"] = None
@@ -171,7 +169,9 @@ def _outline_line(ref: str, step: dict, text: str) -> str:
         if isinstance(args, dict) and "keystrokes" in args:
             cmds.append("$ " + str(args["keystrokes"]))
         else:
-            cmds.append(f"{fn}({json.dumps(args, ensure_ascii=False) if not isinstance(args, str) else args})")
+            cmds.append(
+                f"{fn}({json.dumps(args, ensure_ascii=False) if not isinstance(args, str) else args})"
+            )
     line = " ".join(said.split())[:70]
     if cmds:
         line += " || " + " ; ".join(" ".join(x.split()) for x in cmds)
@@ -186,8 +186,10 @@ def step_units(files: list[tuple[str, Path]]) -> tuple[str, list[str], list[str]
         for step in traj.get("steps", []):
             src = step.get("source", "?")
             msg = step.get("message")
-            text = msg if isinstance(msg, str) else " ".join(
-                p.get("text", "") for p in msg or [] if isinstance(p, dict)
+            text = (
+                msg
+                if isinstance(msg, str)
+                else " ".join(p.get("text", "") for p in msg or [] if isinstance(p, dict))
             )
             ref = f"{tag}#{step.get('step_id')}"
             if not task and src == "user" and text:
@@ -276,7 +278,11 @@ def main() -> None:
             task, units, refs, outline = step_units(files)
             facts = run_facts(run)
             if not task:
-                task = (run / "instruction.md").read_text() if (run / "instruction.md").is_file() else ""
+                task = (
+                    (run / "instruction.md").read_text()
+                    if (run / "instruction.md").is_file()
+                    else ""
+                )
             vals = {
                 f: {r: fn(raters[r]) for r in ("rater_a", "rater_b")} for f, fn in FIELDS.items()
             }
@@ -294,9 +300,7 @@ def main() -> None:
                     for f, v in vals.items()
                     if f != "first_failure_ref"
                 },
-                "first_failure_refs": sorted(
-                    {v for v in vals["first_failure_ref"].values() if v}
-                ),
+                "first_failure_refs": sorted({v for v in vals["first_failure_ref"].values() if v}),
                 "step_refs": refs,
             }
             fc.write(json.dumps(row, ensure_ascii=False) + "\n")

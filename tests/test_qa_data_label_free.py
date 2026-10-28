@@ -30,7 +30,7 @@ DEFAULT_CALLS = {
     "window": ["window", "alpha/a1", "--first", "0", "--last", "5"],
     "findings": ["findings", "--run", "alpha/a1"],
 }
-REFUSED_IDS = ("held-out", "locked-task", "no-such-task")  # TEST, TEST under another key, missing
+REFUSED_IDS = ("held-out", "locked-task", "sealed-task", "no-such-task")  # TEST, cross-key, sealed, missing
 
 
 class SyntheticRegistry(CorpusRegistry):
@@ -44,7 +44,7 @@ class SyntheticRegistry(CorpusRegistry):
         self._assignment_names = {}
         self._assigned_test_ids = set()
         self._assigned_test_names = {"locked-task"}
-        self._sealed_names = set()
+        self._sealed_names = {"sealed-task"}
         self._sealed_digests = set()
         self._sealed_ids = set()
         self._items = {}
@@ -62,7 +62,7 @@ def ask(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureF
     ledger = state / "trace-tools" / "results-v1.jsonl"
     ledger.parent.mkdir(parents=True)
     with CloudTraceDatabase(database, sqlite_fts=False) as db:
-        for task_id, split in (("alpha", "dev"), ("beta", "dev"), ("held-out", "test"), ("locked-task", "dev")):
+        for task_id, split in (("alpha", "dev"), ("beta", "dev"), ("held-out", "test"), ("locked-task", "dev"), ("sealed-task", "dev")):
             db.upsert_task({
                 "task_id": task_id, "dataset_id": DATASET, "split": split,
                 "instruction_text": "repair the parser so every output check passes",
@@ -170,21 +170,66 @@ def normalized(out: str) -> str:
     return re.sub(r'"latency_ms":[0-9.]+', '"latency_ms":0', out)
 
 
+def refusal_argv(call: str, identity: str, out: Path) -> list[str]:
+    return {
+        "task": ["task", identity], "history": ["history", identity], "split": ["split", "task", identity],
+        "runs": ["runs", "--task", identity], "window": ["window", f"{identity}/a1"],
+        "findings": ["findings", "--run", f"{identity}/a1"], "traces": ["traces", "--task", identity],
+        "export": ["export", "--trace-id", f"{identity}/a1", "--out", str(out / f"export-{identity}")],
+        "scan": ["scan", str(out / f"{identity}.jsonl")],  # the argument is a file: never echoed back
+    }[call]
+
+
+STORE_CALLS = ("task", "history", "split", "runs", "window", "findings", "traces", "export")
+
+
 @pytest.mark.parametrize("flags", [[], ["--with-outcomes"]])
-@pytest.mark.parametrize("call", ["task", "history", "runs", "window", "findings"])
-def test_refusals_are_byte_identical_for_test_cross_key_and_missing_identities(
-    ask: Ask, call: str, flags: list[str],
+@pytest.mark.parametrize("call", [*STORE_CALLS, "scan"])
+def test_every_non_admitted_identity_gets_one_byte_identical_refusal(
+    ask: Ask, tmp_path: Path, call: str, flags: list[str],
 ) -> None:
-    if call in {"runs", "window", "findings"} and flags:
+    if call not in {"task", "history"} and flags:
         pytest.skip("--with-outcomes belongs to task and history")
     refusals = set()
     for identity in REFUSED_IDS:
-        argv = {
-            "task": ["task", identity], "history": ["history", identity],
-            "runs": ["runs", "--task", identity], "window": ["window", f"{identity}/a1"],
-            "findings": ["findings", "--run", f"{identity}/a1"],
-        }[call]
-        status, out = ask(*argv, *flags)
-        assert status == 2 and json.loads(out)["error"] == UNAVAILABLE
+        status, out = ask(*refusal_argv(call, identity, tmp_path), *flags)
+        assert status == 2
         refusals.add(normalized(out))
     assert len(refusals) == 1, refusals
+    assert not (tmp_path / "export-held-out").exists()  # a refused export wrote nothing
+    if call != "scan":
+        assert json.loads(next(iter(refusals)))["error"] == UNAVAILABLE
+
+
+def test_refusals_have_the_same_token_size_in_every_call_that_reads_the_store(ask: Ask, tmp_path: Path) -> None:
+    sizes = {
+        call: json.loads(ask(*refusal_argv(call, "no-such-task", tmp_path))[1])["meta"]["tokens_est"]
+        for call in STORE_CALLS
+    }
+    assert len(set(sizes.values())) == 1, sizes
+    # Stronger: the whole refusal is the same document in every call, not only the same size.
+    bodies = {normalized(ask(*refusal_argv(call, "held-out", tmp_path))[1]) for call in STORE_CALLS}
+    assert len(bodies) == 1, bodies
+
+
+def test_split_confirms_an_admitted_dev_task_and_nothing_else(ask: Ask) -> None:
+    status, out = ask("split", "task", "alpha")
+    reply = json.loads(out)
+    assert status == 0 and reply["data"] == {"split": "DEV"}
+    assert "TEST" not in out and "UNKNOWN" not in out
+    # Namespaced and bare forms of an admitted id both work; a denied namesake does not.
+    assert ask("split", "task", "alpha")[0] == 0 and ask("split", "task", "test/alpha")[0] == 2
+
+
+def test_scan_refusal_for_too_many_transcripts_is_the_same_text_whatever_the_file_size(
+    ask: Ask, tmp_path: Path,
+) -> None:
+    texts = set()
+    for lines in (201, 3066):
+        path = tmp_path / f"scan-{lines}.jsonl"
+        path.write_text("{}\n" * lines, encoding="utf-8")
+        status, out = ask("scan", str(path))
+        assert status == 2
+        texts.add(normalized(out))
+        assert str(lines) not in out
+    assert len(texts) == 1, texts

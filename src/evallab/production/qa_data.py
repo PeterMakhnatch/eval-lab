@@ -40,7 +40,7 @@ CALLS = (
     "task", "runs", "window", "history", "findings", "inventory", "traces", "clusters", "recount",
     "split", "export", "steps", "scan",
 )
-NO_STORE_CALLS = frozenset({"split", "steps", "scan"})
+NO_STORE_CALLS = frozenset({"steps", "scan"})
 OUTCOME_CALLS = frozenset({"task", "history"})  # calls with a --with-outcomes gate
 
 
@@ -208,12 +208,7 @@ def _open(args: argparse.Namespace, budget: Budget) -> QaContext:
 
 
 def _dispatch_without_store(call: str, args: argparse.Namespace, budget: Budget) -> dict[str, Any]:
-    """Calls that never open the trace store: split lookup, step maps and local scanners."""
-    root = Path(args.repo_root).resolve() if getattr(args, "repo_root", None) else Path.cwd().resolve()
-    if call == "split":
-        from evallab.production.qa_data_split import split
-
-        return split(root, args.mode, args.ids)
+    """Calls that never open the trace store: step maps and local scanners."""
     if call == "steps":
         from evallab.production.qa_data_export import steps
 
@@ -232,6 +227,10 @@ def _dispatch(call: str, context: QaContext, args: argparse.Namespace) -> dict[s
             context, args.task_id, files=args.file, variant=args.variant, kind=args.kind,
             with_outcomes=args.with_outcomes,
         )
+    if call == "split":
+        from evallab.production.qa_data_split import split
+
+        return split(context, args.mode, args.ids)
     if call == "findings":
         from evallab.production import qa_data_findings
 
@@ -285,11 +284,12 @@ def run(args: argparse.Namespace, root: Path | None = None, *, harbor: Any = Non
     out = out or sys.stdout
     call = args.qa_data_call
     pretty = bool(getattr(args, "pretty", False))
-    # The outcome gate is recorded on every reply of the calls that have it, refusals included.
+    # The outcome gate is recorded on every answer of the calls that have it; a refusal returns
+    # nothing, so it carries no flag and every refusal has one size.
     extra_meta = {"with_outcomes": bool(args.with_outcomes)} if call in OUTCOME_CALLS else None
     started = time.perf_counter()
     if args.budget < MIN_BUDGET:
-        return _reply(out, call, args.budget, started, None, f"--budget must be at least {MIN_BUDGET}", 0, pretty, extra_meta)
+        return _reply(out, call, args.budget, started, None, f"--budget must be at least {MIN_BUDGET}", 0, pretty)
     room = args.budget - ENVELOPE_TOKENS
     # Items are charged one by one; the reply also holds the keys around them and a comma per item.
     # Hold back a share of the room for that framing so a list that fills the budget still fits.
@@ -321,15 +321,16 @@ def run(args: argparse.Namespace, root: Path | None = None, *, harbor: Any = Non
     finally:
         if context is not None:
             context.database.close()
-    return _reply(out, call, args.budget, started, data, error, budget.omitted, pretty, extra_meta)
+    return _reply(out, call, args.budget, started, data, error, budget.omitted, pretty, None if error else extra_meta)
 
 
 def _reply(
     out: Any, call: str, limit: int, started: float, data: dict[str, Any] | None, error: str | None,
     omitted: int, pretty: bool = False, extra_meta: dict[str, Any] | None = None,
 ) -> int:
+    # The uniform refusal names no call, so one refusal is the same bytes (and token size) in every call.
     meta: dict[str, Any] = {
-        "call": call, "budget": limit, "omitted_items": omitted,
+        **({} if error == UNAVAILABLE else {"call": call}), "budget": limit, "omitted_items": omitted,
         "truncated": omitted > 0 or bool(data and data.get("truncated")), "tokens_est": 0, "latency_ms": 0.0,
         **(extra_meta or {}),
     }
@@ -430,7 +431,7 @@ def register_parser(commands: Any) -> None:
     recount = calls.add_parser("recount", help="Facets: the interim JSONL against the database, over admitted runs")
     common(recount)
 
-    split = calls.add_parser("split", help="DEV, TEST or UNKNOWN for a task id or a (key, item) pair; never a label")
+    split = calls.add_parser("split", help="Confirm an admitted DEV task id or (key, item) pair; every other id is refused alike")
     common(split)
     split.add_argument("mode", choices=("task", "item"))
     split.add_argument("ids", nargs="+", metavar="ID", help="task: TASK_ID (full or bare); item: KEY_ID ITEM_ID")

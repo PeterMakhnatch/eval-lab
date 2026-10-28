@@ -707,7 +707,7 @@ inputs:
   - path: src/evallab/production/run_catalog.py
     digest: sha256:735b547162c84b22cb5c22f4f9c3cc1041c04c6ac421660612afc0c4f154750e
   - path: src/evallab/production/run_health.py
-    digest: sha256:8243bd7541b5b147ea5fdac1be962ea3befc2a1acc20d7785f5bfb6b2d6d9882
+    digest: sha256:2538bc62891f259873bcbf953aa68a395741f0ab5f073c4baffea8b980dbb1d8
   - path: src/evallab/production/runtime.py
     digest: sha256:7fc487f9a1251badafc98bf3ab6de86b6b6f0dd3b500b3bd25f84401192cef02
   - path: src/evallab/production/safe_paths.py

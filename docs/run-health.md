@@ -16,15 +16,16 @@ publisher flag is read, so a record can be scored against any label set later.
 
 | Detector | Alarms when |
 |---|---|
-| `run_health.loop` | the agent repeats itself without progress: 8 identical normalized commands with no edit, 10 identical messages, 5 completion claims, a 12-step edit-free window with at most 3 distinct commands, 3 explicit undo commands after an edit, or the same error output 10 times; or the harness stopped it for looping (`LoopBreakStop`, `loop_break`) |
+| `run_health.loop` | the agent repeats itself without progress: 8 steps with the same normalized command, the same tool output (per-call ids and numbers masked) and no edit; 10 identical messages; 5 completion claims; or a 12-step edit-free window with at most 3 distinct command-and-output pairs. Also when the harness stopped it for looping (`LoopBreakStop`, `loop_break`). Undo commands and repeated errors are reported as features only |
 | `run_health.runaway` | 250 agent steps or 2 h of wall time; or a budget, timeout, turn or context limit ended the run (`AgentTimeoutError`, `TrialBudgetExhaustedError`, store `max_turns`/`context_length`/`LimitsExceeded`) |
 | `run_health.latency` | median step 60 s, p90 step 300 s, a 45-minute gap between steps, or 15 minutes of setup or verifier time; abstains with fewer than 3 timestamped agent steps and no phase timings |
 | `run_health.infra` | an infrastructure exception or run status (sandbox, admission, healthcheck, model API, verifier output; store `refused`/`error`/`provisional_execution_unavailable`), or an infrastructure signature in tool output of the last steps with no agent step after it |
 
-Thresholds (`run-health/3`) sit at or above the pooled p99 of each feature over the
-3,809 actor-readable admitted DEV runs, or keep an existing harness constant that
-already does. They were set from that unlabelled distribution before any score was
-read. `score` is the largest value/threshold ratio, so `>= 1.0` is an alarm and a
+Thresholds sit at or above the pooled p99 of each feature over the 3,809
+actor-readable admitted DEV runs, or keep an existing harness constant that already
+does; they were set from that unlabelled distribution before any score was read
+(`run-health/2`). `run-health/4` then narrowed the loop rule after a blind DEV audit
+(below). `score` is the largest value/threshold ratio, so `>= 1.0` is an alarm and a
 scorer can sweep cuts.
 
 A run without an actor transcript (`actor_inputs_available` false) is `unknown` for
@@ -61,15 +62,25 @@ reason, token totals).
 | Store, TB4 | `source_timestamp` or `raw_message.timestamp` (55 of 61 actor runs) | `source_metrics` or `raw_message.usage` | run status in `outcome` |
 | Store, MiMo and qa-trace-sft | none for actor runs | none | run status in `outcome` (MiMo journals) |
 
-## Measured (2026-10-28, run-health/3)
+## Measured (2026-10-28)
 
-- **G6 stuck-loop rows (36 loops, 16 not):** own verdict 35/36 recall, 6/16 false
-  alarms, the same false-alarm count as Laminar's `stuck_loop` Signal (34/36, 6/16),
-  at $0. Ranked by score: 28/36 at 0/16. Identical with the harness's own stop fields removed.
+- **DEV loop audit (blind, 136 windows):** two independent raters judged a 16-step
+  window at each of the 68 `run-health/3` loop alarms plus 68 all-clear controls,
+  without knowing which was which (135 of 136 verdicts agreed). Only 6 of 68 alarms
+  were loops, against 4 of 68 controls: the old rule matched file paging
+  (`sed -n '1,300p'`, `'300,600p'`) and log polling, because the command normalizer
+  masks numbers. `run-health/4` also requires the same output: 5 DEV alarms, all 5
+  judged loops (in-sample: tuned on this audit).
+- **G6 stuck-loop rows (36 loops, 16 not), out of sample for `run-health/4`:** 24/36
+  recall at 0/16 false alarms; ranked by score, 28/36 at 1/16. `run-health/3` had
+  35/36 at 6/16 (Laminar `stuck_loop`: 34/36 at 6/16). The 12 misses are MiMo
+  terminal-screen loops whose output changes on every repeat.
 - **G6 infra rows:** 5/5 at 0/55. These labels come from the same exception field.
 - **TB4/MiMo timeouts (129 timed out, 346 clean, our Harbor trials):** with
   `result.json`, runaway or infra catches 129/129 at 47/346 false alarms, but the
   labels are that exception field. From the trajectory alone, 56/107 at 37/346.
-- **Admitted DEV alarm rates:** loop 1.9%, runaway 1.7% and latency 2.0% of Goodfire
-  runs. Infra catches the 5 Goodfire runs whose Modal sandbox died mid-run, and 49
-  MiMo/TB4 journals refused or unexecuted for capacity.
+- **Admitted DEV alarm rates:** runaway 1.7% and latency 2.0% of Goodfire runs; loop 5
+  runs, which are the same 5 runs whose Modal sandbox died mid-run (infra catches
+  them too). Infra also catches 49 MiMo/TB4 journals refused or unexecuted for
+  capacity. The other DEV loops the audit found are semantic (re-checking or
+  resubmitting the same conclusion) and need a reader.

@@ -173,7 +173,8 @@ input-only sanitizer replaces exactly that token (`__` or `--` separated) with
 verdict statements. It never uses a label, condition or other non-transcript field
 to choose content. After sanitizing, the leak audit finds **0 label-field keys,
 0 run-id tokens, 0 task-id tokens, 0 label-value tokens and 0 label-assignment lines
-in `_steps` (leak count 0)**, and **0 stripped lines/characters**. Hook-condition
+in `_steps` (leak count 0; the task-id pattern is built from the staged rows at check
+time, so no raw task identifier is committed as a list)**, and **0 stripped lines/characters**. Hook-condition
 runs may show the hook's block messages in tool results and the agent may describe
 its instructions in its own words; that is agent-visible behaviour, retained. A
 string-pattern audit cannot certify absence of every semantic clue. The selfcheck

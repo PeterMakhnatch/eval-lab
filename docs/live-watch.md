@@ -2089,6 +2089,29 @@ recorded `clear` for it is shown as `unknown`, and a run no detector read says s
 reading as clean. The card holds no outcome, reward, model or dataset field. The page keeps the run
 in its address (`#harness?run_id=`), and Run Atlas run detail links to the card.
 
+The detector lanes write their own files (the trace harness lane's
+`trace-harness/findings-v1.jsonl`, Run Health's `run-health/findings-run-health-<n>.jsonl`).
+Merge them into the one file the tab reads, locally and read-only (no database, no model call,
+nothing uploaded, nothing written outside the output directory):
+
+```bash
+EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run evallab prod export-trace-findings \
+  --findings ~/.local/state/evallab-prod-live/trace-harness/findings-v1.jsonl \
+  --findings ~/.local/state/evallab-prod-live/run-health/findings-run-health-3.jsonl \
+  --output-directory /private/tmp/harness-stage/trace-harness
+```
+
+Every non-blank line goes through the cloud loader's own record check; a line that is not one
+JSON object, breaks the contract, or holds a per-run label or reward field at any depth
+(deploy-preflight's findings policy) is refused and counted by reason, never copied. The newest
+record per run, detector, version and reader wins, as the loader keeps it (a later line wins a tie,
+so a later `--findings` file wins over an earlier one). Only the contract fields are written, one
+record per line in sorted order, through a temporary file; a linked source, output directory or
+output file is refused, and an existing different file needs `--replace`. The receipt gives lines
+read, kept, superseded and refused by reason, per-source line counts and digests, the output
+sha256, and per detector, version and reader the kept records by verdict. Point
+`deploy-preflight --state-root` at the output's parent to check it before any `modal volume put`.
+
 Deploy-preflight lists both files as optional for the Harness tab and stages them at the same
 relative path after the cloud loaders accept them. A findings record may carry a detector
 `verdict`, but any per-run label or reward field still refuses the file. Staging is not

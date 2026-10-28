@@ -28,6 +28,7 @@ from contextlib import closing, contextmanager
 from dataclasses import asdict, dataclass, replace
 from dataclasses import field as dataclass_field
 from functools import lru_cache
+from operator import itemgetter
 from pathlib import Path
 from typing import Any
 
@@ -66,7 +67,10 @@ _SEARCH_COLUMNS = {
 _POSTGRES_VECTOR_SOURCE_BYTES = 65_536
 # Derived read structures (FTS rowid postings, step rowid ranges) reused while
 # a SQLite database is unchanged; the oldest entry is evicted beyond this count.
-_READ_MEMO_ENTRIES = 24
+# One similar-example retrieval reads a conjunction plus four per-term postings
+# per query term, the step ranges and evidence sets; 64 keeps a query of up to
+# 14 terms from evicting the step ranges and postings it reads again.
+_READ_MEMO_ENTRIES = 64
 _JSON_COLUMNS = {
     "metadata_json", "verified_receipt_json", "flags_json", "flagged_passage_steps", "evidence_steps",
     "run_ids", "label_rates", "provenance_json",
@@ -1357,11 +1361,11 @@ class CloudTraceDatabase:
     def _postings(self, table: str, terms: Sequence[str]) -> array[int]:
         """Ascending rowids of one FTS5 literal-AND match, the set ``_search_match`` tests."""
         expression = " AND ".join('"' + term + '"' for term in terms)
-        return self._read_memo(("postings", table, expression), lambda: array("q", (
-            row[0] for row in self._execute(
+        return self._read_memo(("postings", table, expression), lambda: array("q", map(
+            itemgetter(0), self._execute(
                 f"SELECT rowid FROM {table}_fts WHERE {table}_fts MATCH ? ORDER BY rowid",
                 (expression,),
-            )
+            ),
         )))
 
     def _evidence_task_ids(self, tiers: Collection[str]) -> frozenset[str]:

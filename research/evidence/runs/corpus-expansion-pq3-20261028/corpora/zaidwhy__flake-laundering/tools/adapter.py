@@ -126,10 +126,6 @@ RUN_ID_TOKEN = re.compile(
     r"(?:__|--)claude-sonnet-5-5(?:__|--)r\d+"
 )
 RUN_ID_REDACTION = "<run>"
-TASK_ID_TOKEN = re.compile(
-    r"\b(?:[tn][1-6]-(?:menu|notes|search|groceries|shortcut|inbox)|p1-report|p2-balance|"
-    r"s1-menu-split|l1-menu-large|e1-menu-feature)\b"
-)
 LABEL_VALUE_TOKEN = re.compile(
     r"\b(?:masks_bug|legit_repair|addresses_cause|weakened_candidate|fixed_app|"
     r"pos_pristine_ok|pos_detects_mutant|task_kind|mock_edited|app_changed)\b"
@@ -533,12 +529,15 @@ def _source_blocks(transcript: str) -> dict[str, list[Any]]:
     return blocks
 
 
-def leak_audit(steps: list[dict[str, Any]]) -> Counter[str]:
+def leak_audit(steps: list[dict[str, Any]], task_ids: set[str]) -> Counter[str]:
+    """Count metadata tokens left in steps. The task-id pattern is built from the
+    staged rows at check time, so no raw task identifier is committed as a list."""
+    tasks = re.compile(r"\b(?:" + "|".join(re.escape(value) for value in sorted(task_ids)) + r")\b")
     leaks: Counter[str] = Counter()
     leaks["label_fields_in_steps"] = len(_keys(steps) & FIELDS_DETECTOR_MUST_NOT_SEE)
     for text in _strings(steps):
         leaks["run_id_tokens"] += len(RUN_ID_TOKEN.findall(text))
-        leaks["task_id_tokens"] += len(TASK_ID_TOKEN.findall(text))
+        leaks["task_id_tokens"] += len(tasks.findall(text))
         leaks["label_value_tokens"] += len(LABEL_VALUE_TOKEN.findall(text))
         leaks["label_assignment_lines"] += sum(
             bool(LABEL_ASSIGNMENT.search(line)) for line in text.splitlines()
@@ -554,8 +553,9 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
     reasons: Counter[str] = Counter()
     outcomes: Counter[str] = Counter()
     by_condition: dict[str, Counter[str]] = defaultdict(Counter)
-    tasks: set[str] = set()
-    for run in iter_runs(root):
+    all_runs = list(iter_runs(root))
+    tasks = {run["row"]["task"] for run in all_runs}
+    for run in all_runs:
         row, verdict = run["row"], run["verdict"]
         counts["rows"] += 1
         state, reason = label_state(row, verdict)
@@ -564,7 +564,6 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
         outcomes[publisher_outcome(row)] += 1
         by_condition[row["condition"]][state] += 1
         by_condition[row["condition"]]["rows"] += 1
-        tasks.add(row["task"])
         counts["judge_verdicts"] += verdict is not None
         counts["judge_masks_bug"] += (
             verdict is not None and verdict.get("test_change") == "masks_bug"
@@ -579,7 +578,7 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
         audit_totals["runs_with_run_id_redaction"] += audit["run_id_redactions"] > 0
         audit_totals["runs_with_stripping"] += audit["stripped_lines"] > 0
         audit_totals["runs_with_weakening_language"] += audit["blocks_with_weakening_language"] > 0
-        leaks = leak_audit(steps)
+        leaks = leak_audit(steps, tasks)
         leak_totals.update(leaks)
         issues["leaks_in_steps"] += sum(leaks.values())
         issues["nonsequential_step_ids"] += [s["step_id"] for s in steps] != list(range(len(steps)))

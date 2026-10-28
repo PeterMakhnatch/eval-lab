@@ -78,7 +78,9 @@ from evallab.hackbook.playbook_cards import match_playbook_cards
 from evallab.production import (
     atlas_coverage,
     atlas_view,
+    cross_test_sets,
     field_reliability,
+    file_cache,
     repair_board,
     task_evidence,
     tool_runs,
@@ -177,6 +179,7 @@ class CloudRuntime:
         *,
         commit: Callable[[], None] | None = None,
         repair_inventory: Path | None = None,
+        cross_test_registry: Path | None = None,
     ) -> None:
         if not token.strip():
             raise ValueError("EVALLAB_CLOUD_TOKEN is required; public trace access is forbidden")
@@ -193,8 +196,13 @@ class CloudRuntime:
         self._tool_scorecard = ToolScorecardCache(self.data_root)
         self._atlas_refresh = atlas_coverage.RefreshCache(self.data_root / "run-atlas")
         self._field_reliability = field_reliability.FieldReliabilityCache(self.data_root / "run-atlas")
-        self._repair_inventory = repair_board.RepairInventoryCache(
-            Path(repair_inventory) if repair_inventory else self.data_root / repair_board.DEFAULT_FILE
+        self._repair_inventory = file_cache.ChangeCache(
+            Path(repair_inventory) if repair_inventory else self.data_root / repair_board.DEFAULT_FILE,
+            repair_board.load_inventory,
+        )
+        self._cross_test_registry = file_cache.ChangeCache(
+            Path(cross_test_registry) if cross_test_registry else self.data_root / cross_test_sets.DEFAULT_FILE,
+            cross_test_sets.load_registry,
         )
         self._tool_results = task_evidence.ToolFindingIndex(
             self.data_root / "trace-tools" / task_evidence.RESULTS_FILE
@@ -796,6 +804,11 @@ class CloudRuntime:
                 inventory, self._admitted_task_ids() & task_ids, shown, traces
             )
 
+        @self.app.get("/api/cloud-db/cross-test-sets")
+        def cross_test_sets_route(split: str = "dev"):
+            _require_dev(split)
+            return self._cross_test_registry.get()
+
         @self.app.get("/api/cloud-db/trace-tools")
         def trace_tools(split: str = "dev"):
             _require_dev(split)
@@ -959,6 +972,7 @@ class CloudProduction:
             os.environ["EVALLAB_CLOUD_TOKEN"],
             commit=store_volume.commit,
             repair_inventory=Path(path) if (path := os.environ.get("EVALLAB_REPAIR_INVENTORY")) else None,
+            cross_test_registry=Path(registry) if (registry := os.environ.get("EVALLAB_CROSS_TEST_REGISTRY")) else None,
         )
 
     @modal.asgi_app()

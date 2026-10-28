@@ -67,6 +67,33 @@ evidence limits and deterministic rebuild command. Large normalized runs and raw
 transcripts stay outside Git. Ingestion parses data; it does not execute imported
 patches or test bodies.
 
+## Issue bank: one inventory across every source
+
+`issue-bank/v1` (`src/evallab/failure_library/bank/`) lists every known-issue
+item the lab holds, inside and outside this library: Failure Library findings
+and runs, cloud trace store runs and `task_issues`, answer keys, grader repairs,
+staged cross-test sets, seeker cells and Run Health findings. One item is one
+labelled subject (run, task or repair pair) from one source, with its kind,
+polarity (real negatives are items; unlabelled subjects are not), label type,
+granularity, declared split and the strict split after
+`CorpusRegistry` seals (`research/answer-keys/splits/assignments.csv`), licence,
+actor-transcript availability and the `evallab trace run --runs` selector.
+
+| What | Where |
+|---|---|
+| Source builders, one module per source | `src/evallab/failure_library/bank/sources/` (discovered by name) |
+| Items (local only, never uploaded) | `<state>/bank/<source>.jsonl` |
+| Counts and digests (no ids, no content) | `bank/manifest.json` |
+
+HackBench (CC BY-NC, no rehosting) contributes a count-only summary, never items.
+
+```sh
+uv run evallab failures bank sources
+uv run evallab failures bank build [--source SLUG ...]
+uv run evallab failures bank stats
+uv run evallab failures bank verify
+```
+
 ## One empirical QC system
 
 The source ingestors preserve observations; the [knowledge compiler](knowledge/README.md)

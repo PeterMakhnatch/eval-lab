@@ -3292,3 +3292,47 @@ def test_repair_board_endpoint_joins_atlas_counts_and_reports_absent_inventory(
     assert (rows[PRIMARY]["atlas_runs"], rows[PRIMARY]["passed_tests_modified"]) == (2, 1)
     missing = rows["task-without-cloud-rows"]
     assert (missing["admitted"], missing["atlas_runs"], missing["status"]) == (False, 0, "no repair")
+
+
+def test_cross_test_sets_endpoint_reads_the_registry_file_only(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    url = "/api/cloud-db/cross-test-sets"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["present"] is False
+
+    registry = runtime.data_root / "cross-test" / "registry.json"
+    registry.parent.mkdir()
+    entry = {
+        "id": "set-a", "name": "org/set-a", "source_url": "https://example.org/a", "unit": "run",
+        "status": "ready",
+        "flags": {
+            "eval_only": True, "local_only": True, "no_training": True, "no_rehosting": True,
+            "uploadable_to_vendor_projects": False, "hosted_model_api_for_evaluation": "allowed",
+        },
+        "licence": {"text": "mit", "redistributable": True},
+        "labels": {"type": "oracle", "counts": {"rows": 3}},
+        "scoring": {"command_level_localization_scorable": True},
+        "adapter": {"merge_state": "open-pr", "pr": 1302},
+        "caveats": ["recordtextneedle"],
+    }
+    registry.write_text(
+        json.dumps(
+            {
+                "schema_version": "cross-test-registry/v1",
+                "entries": [entry, {**entry, "id": "set-b", "flags": {**entry["flags"], "uploadable_to_vendor_projects": True}}],
+                "hold_access": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH)
+    assert "recordtextneedle" not in served.text
+    board = served.json()
+    assert board["present"] is True
+    assert [row["id"] for row in board["entries"]] == ["set-a"]
+    assert board["entries"][0]["uploadable"] is False and board["entries"][0]["adapter"]["merge_state"] == "open-pr"
+    assert [problem["id"] for problem in board["malformed"]] == ["set-b"]

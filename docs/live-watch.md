@@ -1724,6 +1724,29 @@ checks and no sandbox run), `candidate` (a related candidate not bound to the ex
 `no repair`. A merged PR or a claim without a receipt never reaches `native-validated`, and every
 other status says "no native proof".
 
+#### Cross-test sets (`/api/cloud-db/cross-test-sets`)
+
+The read-only **Cross-test sets** tab lists the staged cross-test corpora from the registry file
+alone (`cross-test-registry/v1`, `evallab.production.cross_test_sets`; the registry lives in
+research-context beside `validate_cross_test_registry.py`). Path: `EVALLAB_CROSS_TEST_REGISTRY`,
+default `<data_root>/cross-test/registry.json`, re-read only when the file changes. Absent shows
+an empty state naming the setting; an unreadable file or wrong `schema_version` shows
+`unreadable: <reason>`.
+
+Per set: unit, label type and every published count, whether command-level scoring is possible
+(with the registry's reason), licence and redistributability, the rights flags (eval-only,
+local-only, no-training, no-rehosting), `Uploadable: no`, the hosted-model-API note, and adapter
+state with the eval-lab PR. The HOLD-access sets are listed as "needs Peter, not available" and a
+hold entry that claims otherwise is refused. Bundles, manifests and records are never opened and
+bundle paths, caveats and source notes are not served, so no record text can appear.
+
+Each entry is checked alone: one that is malformed (not valid, marked uploadable, not
+eval-only/local-only/no-training, a non-redistributable set without no-rehosting, a non-integer
+count, a duplicate id) is shown as an error row and is not listed as a usable set; the others
+still show. The page gives the copyable validator command
+(`cd ~/Developer/research-context && python3 <registry validator.script>`, plus a `--quick
+--offline` form) and never runs it.
+
 #### Task Evidence (`/api/cloud-db/task-evidence`)
 
 The **Task Evidence** tab answers "what is known about this task" in one view. `GET

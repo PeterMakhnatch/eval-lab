@@ -24,6 +24,7 @@ DASHBOARD: str = r"""<!doctype html>
 .task-section{margin-top:22px}.task-section h3{margin:0 0 8px}.task-section>p{margin:0 0 8px}.task-command{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--raised);font:12px var(--mono)}.task-command-row{margin:12px 0}.task-lines{display:grid;gap:3px;min-width:0}.task-lines small{color:var(--muted);overflow-wrap:anywhere}.task-runs .cloud-table{min-width:1280px}.task-qa .cloud-table,.task-seeker .cloud-table,.task-fixes .cloud-table{min-width:900px}
 .reliability-bar{display:block;height:6px;border-radius:3px;background:var(--blue);min-width:2px}.reliability-track{display:block;width:140px;height:6px;border-radius:3px;background:var(--line)}.atlas-tools .cloud-table.reliability-table{min-width:560px}
 .repairs-table .cloud-table{min-width:1100px}.repairs-table td>div{display:grid;gap:3px;min-width:0}.repairs-table td small{color:var(--muted);overflow-wrap:anywhere}.repairs-table td a{color:var(--blue);overflow-wrap:anywhere}
+.crosstest-table .cloud-table{min-width:1320px}.crosstest-table td>div{display:grid;gap:3px;min-width:0}.crosstest-table td small{color:var(--muted);overflow-wrap:anywhere}.crosstest-table td a{color:var(--blue);overflow-wrap:anywhere}.crosstest-table details .cloud-table{min-width:0}.crosstest-table summary{cursor:pointer;color:var(--blue)}.crosstest-hold{margin-top:22px}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}.focus-step{animation:step-focus 1.5s ease-out}@keyframes step-focus{from{box-shadow:0 0 0 5px #6ce4b844}to{box-shadow:0 0 0 0 transparent}}}
@@ -48,6 +49,7 @@ DASHBOARD: str = r"""<!doctype html>
  <button id="tools-tab" type="button" role="tab" aria-selected="false" aria-controls="tools-view" tabindex="-1">Trace Tools</button>
  <button id="task-tab" type="button" role="tab" aria-selected="false" aria-controls="task-view" tabindex="-1">Task Evidence</button>
  <button id="repairs-tab" type="button" role="tab" aria-selected="false" aria-controls="repairs-view" tabindex="-1">Grader repairs</button>
+ <button id="crosstest-tab" type="button" role="tab" aria-selected="false" aria-controls="crosstest-view" tabindex="-1">Cross-test sets</button>
  <button id="trust-tab" type="button" role="tab" aria-selected="false" aria-controls="trust-view" tabindex="-1">Trust &amp; QC</button>
 </nav>
 <div id="live-view" role="tabpanel" aria-labelledby="live-tab">
@@ -189,6 +191,16 @@ DASHBOARD: str = r"""<!doctype html>
   <div><label for="repairs-task-filter">Task</label><input id="repairs-task-filter" type="search" maxlength="100" autocomplete="off" placeholder="Part of a task id"></div>
  </form>
  <div id="repairs-table" class="repairs-table"></div>
+</section>
+<section id="crosstest-view" class="panel" role="tabpanel" aria-labelledby="crosstest-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">Staged cross-test sets / registry metadata only</div><h2>Cross-test sets</h2></div><button id="crosstest-refresh" type="button" class="small">Refresh registry</button></div>
+ <p class="seal">Read-only. Frozen, one-shot, local evaluation sets: none is uploadable, none may be trained on, and no record text is shown here.</p>
+ <p id="crosstest-status" class="notice" role="status"></p>
+ <div id="crosstest-summary" class="tools-cohorts"></div>
+ <div id="crosstest-validator"></div>
+ <div id="crosstest-malformed"></div>
+ <div id="crosstest-table" class="crosstest-table"></div>
+ <div id="crosstest-hold" class="crosstest-table crosstest-hold"></div>
 </section>
 <section id="trust-view" class="panel" role="tabpanel" aria-labelledby="trust-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">Retained producer reports / counts and arithmetic only</div><h2>Trust tiers, Hackbook QC and cross-test</h2></div><button id="cloud-trust-refresh" type="button" class="small">Refresh retained reports</button></div>
@@ -1185,6 +1197,81 @@ $('repairs-refresh').addEventListener('click',loadRepairs);
 $('repairs-filters').addEventListener('change',renderRepairs);
 $('repairs-filters').addEventListener('input',renderRepairs);
 $('repairs-filters').addEventListener('submit',event=>event.preventDefault());
+let crosstestVersion=0;
+const crosstestFlags=[['eval_only','Eval only'],['local_only','Local only'],['no_training','No training'],['no_rehosting','No rehosting']];
+function crosstestLink(label,url){
+ if(!url)return node('span',label);
+ const link=node('a',label);link.href=url;link.target='_blank';link.rel='noopener noreferrer';return link;
+}
+function crosstestRow(entry){
+ const id=node('div',undefined,'task-lines');
+ id.append(node('strong',entry.name),node('small',entry.id+' · unit: '+entry.unit),crosstestLink('Source',entry.source_url));
+ const counts=Object.entries(entry.counts),details=node('details');
+ details.append(node('summary',cloudCount(counts.length)+' counts'),cloudTable(['Count','Value'],counts.map(([key,value])=>[key,cloudCount(value)])));
+ const scoring=node('div',undefined,'task-lines');
+ scoring.append(badge(entry.command_level.scorable?'Command-level scoring: possible':'Command-level scoring: not possible',entry.command_level.scorable?'blue':'warn'));
+ if(entry.command_level.reason)scoring.append(node('small',entry.command_level.reason));
+ const rights=node('div',undefined,'chips');
+ for(const [key,label] of crosstestFlags)rights.append(badge(label+': '+(entry.flags[key]?'yes':'no')));
+ rights.append(badge('Uploadable: no','warn'));
+ const licence=node('div',undefined,'task-lines');
+ licence.append(node('strong',entry.licence.text),node('small','Redistributable: '+(entry.licence.redistributable?'yes':'no')),node('small','Hosted model API for evaluation: '+entry.hosted_model_api.split('_').join(' ')));
+ const adapter=node('div',undefined,'task-lines');
+ adapter.append(badge(entry.adapter.merge_state,entry.adapter.merge_state==='merged'?'blue':'warn'),
+  entry.adapter.pr?crosstestLink('PR #'+entry.adapter.pr,entry.adapter.pr_url):node('small','No PR recorded'),node('small',entry.status));
+ return [id,entry.label_type,details,scoring,licence,rights,adapter];
+}
+function renderCrosstest(data){
+ for(const id of ['crosstest-summary','crosstest-validator','crosstest-malformed','crosstest-table','crosstest-hold'])$(id).replaceChildren();
+ if(!data.present){
+  $('crosstest-table').append(node('p','No cross-test sets to show: '+data.error+'. Set EVALLAB_CROSS_TEST_REGISTRY to cross-test-registry.json, or place it at cross-test/registry.json in the data root. Nothing has been fabricated.','empty'));
+  return;
+ }
+ $('crosstest-summary').append(badge(cloudCount(data.entries.length)+' staged sets'),badge(cloudCount(data.hold_access.length)+' need Peter, not available','warn'),
+  badge(cloudCount(data.malformed.length)+' malformed',data.malformed.length?'bad':''),badge('Uploadable · 0'),
+  badge(cloudCount(data.hold_licence_not_staged_n)+' more held for licence, not staged'),data.created?badge('Registry '+data.created):node('span'));
+ if(data.validator){
+  const box=node('div',undefined,'task-command-row');
+  box.append(node('strong','Validate the registry against the staged bundles'),node('small',' · reads manifests on this machine; no record text'));
+  for(const [label,command] of [['Full check',data.validator.command],['Quick check (no hashing, no adapter check)',data.validator.quick_command]]){
+   box.append(node('small',label),node('pre',command,'task-command'),button('Copy command',()=>copyText(command,'the validator command','crosstest-status')));
+  }
+  $('crosstest-validator').append(box);
+ }
+ for(const problem of data.malformed){
+  $('crosstest-malformed').append(node('p','Malformed '+problem.where+(problem.id?' ('+problem.id+')':'')+': '+problem.reason+'. Not shown as a usable set.','notice error'));
+ }
+ if(data.entries.length){
+  $('crosstest-table').append(cloudTable(['Set','Label type','Counts','Command-level scoring','Licence','Rights','Adapter'],data.entries.map(crosstestRow)));
+ }else $('crosstest-table').append(node('p','No valid staged set is listed.','empty'));
+ if(data.hold_access.length){
+  const hold=$('crosstest-hold');
+  hold.append(node('h3','Held: needs Peter, not available'),cloudTable(['Set','State','Why held'],data.hold_access.map(item=>{
+   const id=node('div',undefined,'task-lines');
+   id.append(node('strong',item.name),node('small',item.id),crosstestLink('Source',item.source_url));
+   return [id,badge(item.state,'warn'),item.why_held||'\u2014'];
+  })));
+ }
+}
+async function loadCrosstest(){
+ const version=++crosstestVersion;
+ $('crosstest-refresh').disabled=true;
+ notice('crosstest-status','Loading the cross-test registry…');
+ try{
+  const data=await cloudApi('/api/cloud-db/cross-test-sets?split=dev');
+  if(version!==crosstestVersion)return;
+  renderCrosstest(data);
+  notice('crosstest-status',data.present?data.notice:data.error,!data.present&&String(data.error).startsWith('unreadable'));
+ }catch(error){
+  if(version===crosstestVersion){
+   for(const id of ['crosstest-summary','crosstest-validator','crosstest-malformed','crosstest-table','crosstest-hold'])$(id).replaceChildren();
+   notice('crosstest-status',cloudError(error,'Cross-test registry'),true);
+  }
+ }finally{
+  if(version===crosstestVersion)$('crosstest-refresh').disabled=false;
+ }
+}
+$('crosstest-refresh').addEventListener('click',loadCrosstest);
 let taskId='',taskVersion=0,taskSearchVersion=0;
 const taskLink=id=>location.origin+location.pathname+'#task?task_id='+encodeURIComponent(id);
 const taskReward=value=>typeof value==='number'?String(value):'Not recorded';
@@ -1560,6 +1647,7 @@ for(const tab of viewTabs){
   if(tab.id==='atlas-tab'){loadAtlas();loadAtlasTools();loadAtlasCoverage();loadAtlasReliability();}
   if(tab.id==='tools-tab')loadTraceTools();
   if(tab.id==='repairs-tab')loadRepairs();
+  if(tab.id==='crosstest-tab')loadCrosstest();
   if(tab.id==='task-tab'&&taskId)loadTask();
   if(tab.id==='trust-tab')loadTrustQc();
  });

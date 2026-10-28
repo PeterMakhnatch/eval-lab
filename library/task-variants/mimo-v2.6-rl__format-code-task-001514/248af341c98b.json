@@ -1,0 +1,122 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-001514",
+  "variant_digest": "sha256:248af341c98b0063b6878a6be059b2349fc9f7d1687c499482e1a746e3dc575a",
+  "variant_harbor_digest": "sha256:8a0bb04290b27bcfe67cc31d3066a0696288e3d1e1041a2851704d161e543947",
+  "parent": {
+    "digest": "sha256:7d6f0bf53cb7fbb5622a74d472a9831b523673c190be382a222a37b9a6dc5a5a",
+    "harbor_digest": "sha256:bcb40be451225b4a10f9ed30a67cdf5949574d732eea565816a93a2b5ffca1c2",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-code",
+      "revision": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
+      "path": "tasks/format-code-task-001514",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@ts11-1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:99e15d4fd3fb1b1843d7ba5be547d97cd15bd512b663bec4ac629ab4d9832219",
+      "after_sha256": "sha256:7ab3e7c8b21f6c11d217d73c5ffe98cec92a3a264fc12af8a9419df7a0fac785",
+      "content": "diff --git a/src/utils/body.test.ts b/src/utils/body.test.ts\nindex 80443466..18b69cd2 100644\n--- a/src/utils/body.test.ts\n+++ b/src/utils/body.test.ts\n@@ -1,4 +1,5 @@\n-import { parseBody } from './body'\n+import { Hono } from '../hono'\n+import { parseBody, type BodyData, type ParseBodyOptions } from './body'\n \n describe('Parse Body Util', () => {\n   const FORM_URL = 'https://localhost/form'\n@@ -50,6 +51,223 @@ describe('Parse Body Util', () => {\n     })\n   })\n \n+  it('should parse dotted multipart form fields as nested objects with dot true', async () => {\n+    const data = new FormData()\n+    data.append('account.name', 'Alice')\n+    data.append('account.email', 'alice@example.com')\n+    data.append('token', 'abc123')\n+\n+    const req = createRequest(FORM_URL, 'POST', data)\n+\n+    const parsedData = await parseBody(req, { dot: true })\n+    expect(parsedData.account).toEqual({\n+      name: 'Alice',\n+      email: 'alice@example.com',\n+    })\n+    expect(parsedData.token).toBe('abc123')\n+  })\n+\n+  it('should parse deep dotted form fields with dot true', async () => {\n+    const data = new FormData()\n+    data.append('settings.profile.display.name', 'Ada')\n+\n+    const req = createRequest(FORM_URL, 'POST', data)\n+\n+    const parsedData = await parseBody(req, { dot: true })\n+    expect(parsedData.settings).toEqual({\n+      profile: { display: { name: 'Ada' } },\n+    })\n+  })\n+\n+  it('should parse dotted urlencoded fields as nested objects with dot true', async () => {\n+    const params = new URLSearchParams()\n+    params.append('profile.name', 'Grace')\n+    params.append('profile.email', 'grace@example.com')\n+\n+    const req = new Request(FORM_URL, {\n+      method: 'POST',\n+      headers: {\n+        'Content-Type': 'application/x-www-form-urlencoded',\n+      },\n+      body: params,\n+    })\n+\n+    const parsedData = await parseBody(req, { dot: true })\n+    expect(parsedData.profile).toEqual({\n+      name: 'Grace',\n+      email: 'grace@example.com',\n+    })\n+  })\n+\n+  it('should pass dot option through request context parseBody', async () => {\n+    const app = new Hono()\n+    app.post('/profile', async (c) => {\n+      const body = await c.req.parseBody({ dot: true })\n+      return c.json(body)\n+    })\n+\n+    const data = new FormData()\n+    data.append('member.name', 'Lin')\n+    data.append('member.role', 'admin')\n+\n+    const res = await app.request('/profile', {\n+      method: 'POST',\n+      body: data,\n+    })\n+\n+    expect(await res.json()).toEqual({\n+      member: {\n+        name: 'Lin',\n+        role: 'admin',\n+      },\n+    })\n+  })\n+\n+  it('should preserve File values in nested paths', async () => {\n+    const avatar = new File(['avatar'], 'avatar.png', {\n+      type: 'image/png',\n+    })\n+    const resume = new File(['resume'], 'resume.pdf', {\n+      type: 'application/pdf',\n+    })\n+    const data = new FormData()\n+    data.append('uploads.avatar', avatar)\n+    data.append('uploads.resume', resume)\n+\n+    const req = createRequest(FORM_URL, 'POST', data)\n+\n+    const parsedData = await parseBody(req, { dot: true })\n+    expect((parsedData.uploads as Record<string, File>).avatar).toMatchObject({\n+      name: 'avatar.png',\n+      size: avatar.size,\n+      type: 'image/png',\n+    })\n+    expect((parsedData.uploads as Record<string, File>).resume).toMatchObject({\n+      name: 'resume.pdf',\n+      size: resume.size,\n+      type: 'application/pdf',\n+    })\n+  })\n+\n+  it('should keep dotted keys flat by default', async () => {\n+    const data = new FormData()\n+    data.append('account.name', 'Alice')\n+\n+    const req = createRequest(FORM_URL, 'POST', data)\n+\n+    const parsedData = await parseBody(req)\n+    expect(parsedData['account.name']).toBe('Alice')\n+    expect(parsedData.account).toBeUndefined()\n+  })\n+\n+  it('should keep dotted keys flat when dot is false', async () => {\n+    const data = new FormData()\n+    data.append('account.name', 'Alice')\n+\n+    const req = createRequest(FORM_URL, 'POST', data)\n+\n+    const parsedData = await parseBody(req, { dot: false })\n+    expect(parsedData['account.name']).toBe('Alice')\n+    expect(parsedData.account).toBeUndefined()\n+  })\n+\n+  it('should keep dotted keys flat with all only', async () => {\n+    const data = new FormData()\n+    data.append('account.name', 'Alice')\n+    data.append('account.name', 'Ada')\n+\n+    const req = createRequest(FORM_URL, 'POST', data)\n+\n+    const parsedData = await parseBody(req, { all: true })\n+    expect(parsedData['account.name']).toEqual(['Alice', 'Ada'])\n+    expect(parsedData.account).toBeUndefined()\n+  })\n+\n+  it('should combine dot true with all true for repeated dotted fields', async () => {\n+    const data = new FormData()\n+    data.append('prefs.tags', 'typescript')\n+    data.append('prefs.tags', 'runtime')\n+    data.append('scope', 'public')\n+\n+    const req = createRequest(FORM_URL, 'POST', data)\n+\n+    const parsedData = await parseBody(req, { dot: true, all: true })\n+    expect(parsedData.prefs).toEqual({\n+      tags: ['typescript', 'runtime'],\n+    })\n+    expect(parsedData.scope).toBe('public')\n+  })\n+\n+  it('should combine dot true with array suffix fields', async () => {\n+    const data = new FormData()\n+    data.append('settings.roles[]', 'admin')\n+    data.append('settings.roles[]', 'editor')\n+\n+    const req = createRequest(FORM_URL, 'POST', data)\n+\n+    const parsedData = await parseBody(req, { dot: true })\n+    expect(parsedData.settings).toEqual({\n+      'roles[]': ['admin', 'editor'],\n+    })\n+  })\n+\n+  it('should return null prototype body objects', async () => {\n+    const data = new FormData()\n+    data.append('name', 'Alice')\n+\n+    const req = createRequest(FORM_URL, 'POST', data)\n+\n+    const parsedData = await parseBody(req)\n+    expect(Object.getPrototypeOf(parsedData)).toBeNull()\n+  })\n+\n+  it('should return null prototype nested body objects with dot true', async () => {\n+    const data = new FormData()\n+    data.append('account.profile.name', 'Alice')\n+\n+    const req = createRequest(FORM_URL, 'POST', data)\n+\n+    const parsedData = await parseBody(req, { dot: true })\n+    const account = parsedData.account as Record<string, unknown>\n+    const profile = account.profile as Record<string, unknown>\n+    expect(Object.getPrototypeOf(parsedData)).toBeNull()\n+    expect(Object.getPrototypeOf(account)).toBeNull()\n+    expect(Object.getPrototypeOf(profile)).toBeNull()\n+    expect(profile.name).toBe('Alice')\n+\n+    for (const repeatedData of [new FormData(), new URLSearchParams()]) {\n+      repeatedData.append('account', 'first')\n+      repeatedData.append('account', 'second')\n+      repeatedData.append('account.profile.name', 'Alice')\n+\n+      const repeatedParsed = await parseBody(\n+        new Request(FORM_URL, { method: 'POST', body: repeatedData }),\n+        { dot: true, all: true }\n+      )\n+      const repeatedAccount = repeatedParsed.account as Record<string, unknown>\n+      const repeatedProfile = repeatedAccount.profile as Record<string, unknown>\n+      expect(Object.getPrototypeOf(repeatedParsed)).toBeNull()\n+      expect(Object.getPrototypeOf(repeatedAccount)).toBeNull()\n+      expect(Object.getPrototypeOf(repeatedProfile)).toBeNull()\n+      expect(repeatedProfile.name).toBe('Alice')\n+    }\n+  })\n+\n+  it('should expose types for dot options and nested body data', async () => {\n+    const opts: Partial<ParseBodyOptions> = { dot: true }\n+    const body: BodyData = {\n+      account: {\n+        name: 'Alice',\n+      },\n+    }\n+    const req = createRequest(FORM_URL, 'POST', new FormData())\n+    const parsed: BodyData = await parseBody(req, opts)\n+\n+    expect(opts.dot).toBe(true)\n+    expect((body.account as Record<string, unknown>).name).toBe('Alice')\n+    expect(Object.keys(parsed)).toEqual([])\n+  })\n+\n   it('should parse multiple values if `all` option is true', async () => {\n     const data = new FormData()\n     data.append('file', 'aaa')\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,21 @@\n+#!/bin/bash\n+set -uo pipefail\n+cd /testbed\n+\n+\n+dev-switch node 22\n+npm install --legacy-peer-deps 2>&1 | tail -1\n+\n+\n+case \"${1:-}\" in\n+  base)\n+    npx vitest run src/utils/body.test.ts --testNamePattern 'should parse `multipart/form-data`|should parse `x-www-form-urlencoded`|should not parse multiple values in default|should parse multiple values if `all` option is true|should parse multiple values if values are `File`|should parse multiple values if key ends with `\\[\\]`|should return blank object if body is JSON'\n+    ;;\n+  new)\n+    npx vitest run src/utils/body.test.ts --testNamePattern 'should parse dotted multipart form fields as nested objects with dot true|should parse deep dotted form fields with dot true|should parse dotted urlencoded fields as nested objects with dot true|should pass dot option through request context parseBody|should preserve File values in nested paths|should keep dotted keys flat by default|should keep dotted keys flat when dot is false|should keep dotted keys flat with all only|should combine dot true with all true for repeated dotted fields|should combine dot true with array suffix fields|should return null prototype body objects|should return null prototype nested body objects with dot true|should expose types for dot options and nested body data'\n+    ;;\n+  *)\n+    echo \"usage: $0 base|new\"\n+    exit 2\n+    ;;\n+esac\n"
+    }
+  ],
+  "rationale": "Extend the already selected null-prototype nested-body test with repeated account values followed by account.profile.name, using dot=true and all=true for multipart and URL-encoded requests. Assert null prototypes for the result and both path containers, and the dotted leaf value, without prescribing retention of conflicting parent scalar values. Preserve every existing assertion and the imported Node 22/Vitest base/new runner. Static-only candidate; no native oracle or retained-shortcut trial executed.",
+  "inputs": {
+    "task_id": "format-code-task-001514",
+    "case_id": "D0014",
+    "source_revision": "073bdd203ef8bec2db2169f70e214fcf1ad31779",
+    "expected_parent_digest": "sha256:7d6f0bf53cb7fbb5622a74d472a9831b523673c190be382a222a37b9a6dc5a5a",
+    "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "targeted_keys": [
+      "mimo-weak-tests-v2.1:format-code-task-001514:line-f369fa6860",
+      "mimo-weak-tests-v2.1:format-code-task-001514:line-5858c095c2",
+      "mimo-weak-tests-v2.1:format-code-task-001514:line-1236e7ae69"
+    ],
+    "weak_check": {
+      "file": "src/utils/body.test.ts",
+      "line": 224,
+      "assertion_lines": [
+        233,
+        234,
+        235,
+        236
+      ],
+      "package_file": "tests/test.patch",
+      "package_lines": [
+        186,
+        199
+      ],
+      "description": "The selected nested null-prototype test has only an initially absent path; array tests cover leaf arrays, not an array-valued intermediate path."
+    },
+    "runner_selection": {
+      "command_source": "tests/test_command.sh:1",
+      "runner_source": "tests/test.patch:229-238",
+      "selected_test": "should return null prototype nested body objects with dot true",
+      "mode": "new",
+      "runtime": "Node 22 / imported Vitest",
+      "new_test_nodes": false,
+      "runner_changed": false
+    },
+    "supplied_qualifying_unique_run_count": 4,
+    "supplied_cluster_counts": [
+      {
+        "cluster_id": "L1-01",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-01.2",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-01.2.2",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-05",
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-05.2",
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-05.2.1",
+        "qualifying_run_count": 2
+      },
+      {
+        "cluster_id": "L1-09",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-09.2",
+        "qualifying_run_count": 1
+      },
+      {
+        "cluster_id": "L1-09.2.1",
+        "qualifying_run_count": 1
+      }
+    ],
+    "count_interpretation": "Supplied co-occurrence counts only; no causal shortcut or original/repaired differential established.",
+    "existing_semantic_candidate": null,
+    "existing_exact_parent_record": {
+      "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001514/8d9feef99160.json",
+      "variant_digest": "sha256:8d9feef99160f3ed320e7857728d5fa3e6aa4b7d32c00ff80441c491a1a6fbb8",
+      "parent_digest": "sha256:7d6f0bf53cb7fbb5622a74d472a9831b523673c190be382a222a37b9a6dc5a5a",
+      "transform": "strip-future-history@1",
+      "relation": "Infrastructure-only sibling; no tests/test.patch semantic overlay."
+    },
+    "validation_class": "static only",
+    "checks_run": [],
+    "source_boundaries": "Assigned DEV instruction.md, task.toml, tests only; same-task records inspected with metadata/path filters only. No solution bytes, oracle patches, traces, unassigned tasks, or held-out content read. Full-package copying/hashing only inside derive_task."
+  },
+  "created_by": "ts11-defensive-repair",
+  "created_at": "2026-10-28T07:00:57Z",
+  "status": "candidate",
+  "evidence": []
+}

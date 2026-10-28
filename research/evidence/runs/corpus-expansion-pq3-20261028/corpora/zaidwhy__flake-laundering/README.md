@@ -13,7 +13,8 @@ once, and never use this corpus for tuning, training, retrieval or examples.**
 - Matching GitHub release: [zaidwhy/flake-laundering](https://github.com/zaidwhy/flake-laundering) tag `v1.0.0` (annotated tag object `6dcc45e4b5035c4ff2efe6f92c73f3295282c96a`) on commit **`59c95631dd2fcd8c2dffb1be03fd58fc58ac94c6`**. The zip comment names that commit, and every one of the 214 extracted files matches the Git blob SHA-1 in the commit's tree.
 - The publisher's `README.md`, `RESULT.md`, `PLAN.md`, `results/hand-review.md` and `harness/{analyze,judge,detect}.py` were read in full or for their label definitions; no harness code was executed.
 - Local bundle: `~/.local/state/evallab-cross-test/zaidwhy__flake-laundering/v1.0.0/`.
-- Manifest SHA-256: `612d0eb141d936e18b28e8cd60655fe70276e8148e45a4ba75cac83789ec8e84`.
+- Manifest revision: commit **`59c95631dd2fcd8c2dffb1be03fd58fc58ac94c6`** (tag `v1.0.0`, tag object `6dcc45e4b5035c4ff2efe6f92c73f3295282c96a`); the bundle directory keeps the version label `v1.0.0`.
+- Manifest SHA-256: `418bad7c08a350f9bd38ce1bbae7697a27242d2deb73fa1a3c0597abbc9ce256`.
 - Notice SHA-256: `aa0a8b68d986e5c0d85635b0b7124e437b6c64df19a432e6d93c10745e2cdb81`.
 
 The complete Zenodo record is staged: the zip itself plus its 214 extracted files,

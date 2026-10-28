@@ -1904,7 +1904,8 @@ pass). The three groups always cover every admitted run; `counts.outside_n` coun
 tool read that are not admitted here. Rows carry only the trace id, its task id, whether it has
 an atlas facet and, for hits, the detector names and evidence steps. No label, reward or outcome
 is sent: whether a hit was right needs labels, which stay local. The page links each row to the
-Run Atlas (when faceted) and to Task Evidence, and copies the page's run ids.
+Run Atlas (when faceted), to Task Evidence and to the run's combined Harness evidence card
+(**Open combined evidence card**), and copies the page's run ids.
 
 #### Atlas coverage (`/api/cloud-db/atlas/coverage`)
 
@@ -2014,7 +2015,8 @@ The **Task Evidence** tab answers "what is known about this task" in one view. `
 (at least two characters, literal match, at most 25). The journal is read incrementally
 through `ContinuousWorkQueue.read_events_of_types`, and `trace-tools/results-v1.jsonl` only
 when the file changes. The page keeps the task in its address (`#task?task_id=`) and the
-Run Atlas run detail links to it. Nothing here calls a model, joins a label or writes.
+Run Atlas run detail links to it. Each row of the task's runs table opens the run in the Run
+Atlas or its combined Harness evidence card. Nothing here calls a model, joins a label or writes.
 
 **Gate rerun progress** (`GET /api/cloud-db/task-evidence/gate-progress`, `split=dev` only) is the
 panel above the task search: how far the corrected Task QA gate rerun (OQ-6) has got on the
@@ -2087,7 +2089,9 @@ the trace database once per findings-file and database state, not once per reque
 A run with no actor transcript (no agent step with text or a tool call) is unknown, never clean: a
 recorded `clear` for it is shown as `unknown`, and a run no detector read says so rather than
 reading as clean. The card holds no outcome, reward, model or dataset field. The page keeps the run
-in its address (`#harness?run_id=`), and Run Atlas run detail links to the card.
+in its address (`#harness?run_id=`). Run Atlas run detail, each Trace Tools run-list row and each
+row of a task's runs table on Task Evidence have an **Open combined evidence card** button (its
+accessible name includes the run id) that opens this card for that run.
 
 The detector lanes write their own files (the trace harness lane's
 `trace-harness/findings-v1.jsonl`, Run Health's `run-health/findings-run-health-<n>.jsonl`).

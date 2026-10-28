@@ -15,6 +15,9 @@ HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / "results" / "profile.json"
 TASK_COUNT_EXPECTED = 20
 ARCHIVE_SHA256 = "dd5151aab55488f5d9b01cac536ced43a77379d82250a504c01284559513e854"
+# An OSF node has no VCS revision: the pinned identity is the archive digest's 40-hex prefix.
+REVISION = "dd5151aab55488f5d9b01cac536ced43a77379d82"
+MANIFEST_SHA256 = "c4959328a8aaf526f2e22e00f6915046a3590ede88a2bd238312a6e57687457b"
 RECEIPTS = frozenset({"STAGE-MANIFEST.json", "CROSS_TEST_ONLY.md"})
 # adapter.ROOT is the episodes directory inside the locked bundle.
 BUNDLE = adapter.ROOT.parents[2]
@@ -43,9 +46,11 @@ def hashed_ids(values: list[str]) -> dict[str, list[str]]:
 def verify_bundle(root: Path) -> dict[str, Any]:
     """Reverify the locked bundle from its staging receipt, after every write."""
     manifest_bytes = (root / "STAGE-MANIFEST.json").read_bytes()
+    if sha256(manifest_bytes) != MANIFEST_SHA256:
+        raise ValueError("manifest differs from the pinned staging receipt")
     manifest = json.loads(manifest_bytes)
-    if manifest["revision"] != adapter.DIRNAME:
-        raise ValueError("manifest revision differs from the staged archive digest prefix")
+    if manifest["revision"] != REVISION:
+        raise ValueError("manifest revision differs from the pinned archive identity")
     if (manifest["repo"], manifest["archive_sha256"], manifest["gated"]) != (
         f"osf:{adapter.NODE}",
         ARCHIVE_SHA256,

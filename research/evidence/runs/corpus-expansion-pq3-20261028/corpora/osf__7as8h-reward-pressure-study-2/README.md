@@ -9,6 +9,7 @@ adapter, profile script and aggregate counts. No rows, transcripts or task text 
 - OSF node 7as8h, reached via the view-only link printed in arXiv 2610.04793.
   The node is private and only reachable through that review link (access fragility).
 - Archive `Release.zip`, sha256 `dd5151aab55488f5d9b01cac536ced43a77379d82250a504c01284559513e854`.
+- Pinned identity: the manifest records `revision` = the archive digest's 40-hex prefix `dd5151aab55488f5d9b01cac536ced43a77379d82`, because an OSF node has no VCS revision. `tools/profile.py` refuses a bundle whose manifest revision or manifest digest differs.
 - `Release/LICENSE.txt`: data, prompts, codebooks and results are CC BY 4.0; code (.py, .bat) is MIT.
 - OSF node licence object: CC0 1.0.
 

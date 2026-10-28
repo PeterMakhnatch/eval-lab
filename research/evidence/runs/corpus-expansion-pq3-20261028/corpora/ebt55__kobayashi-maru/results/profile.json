@@ -173,7 +173,7 @@
     }
   },
   "files": 1395,
-  "filesystem_bytes_including_receipts": 292857460,
+  "filesystem_bytes_including_receipts": 292879971,
   "filesystem_files_including_receipts": 1398,
   "gated": false,
   "id_uniqueness": {
@@ -211,7 +211,7 @@
   "licence_notice_sha256": "383df82ea4b14ded75e97d1f66fe947b0a6ee9d15ce5233c5ca97c5ab1231624",
   "local_only": true,
   "main_commit_read": "53b48a4262391fc7d470cf2f09ae2a4b49cf21da",
-  "manifest_sha256": "c9d4b9ea014026dce1d13acbf5705e644e1dba1969f751c6bb9c05a2328be78c",
+  "manifest_sha256": "df723ba03f6904aac38bcbcea847c97d0d531727dd99a0f89a56e3f53484a4da",
   "negatives": 7916,
   "notice_sha256": "ab14f0c04bcc5d72af28b469d7a49675aef25e232074eace09b76c5ad999895f",
   "per_env_version": {
@@ -809,7 +809,7 @@
   },
   "release_tag_commit": "1f6876b767029f6522eccb73d44db7d9b168ce5c",
   "repo": "ebt55/kobayashi-maru",
-  "revision": "freeze-2026-09-14b",
+  "revision": "1f6876b767029f6522eccb73d44db7d9b168ce5c",
   "rows": 8959,
   "run_id_hashes": {
     "bare": [

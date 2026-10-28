@@ -118,6 +118,15 @@ CALLS (all JSON; examples use real flags)
        harness_parse_errors, native_tool_call_markup, restored_tool_calls): per blind id messages, results, values,
        references (values: one number per scanner result, 0 = nothing found; references: count of cited messages);
        model_calls is always 0. Runs under the scout-watch runtime interpreter when this venv lacks Scout.
+  trace-card RUN_ID [--no-ledgers]
+       one card of at most 1500 tokens for one admitted run: the header (steps, actor_inputs_available), a tally and one
+       line per stored detector finding (detector, version, reader, verdict alarm|clear|abstain|unknown, kind, score,
+       cited original steps, summary; alarms first), the Run Atlas facet leads, the trace flags as name@first_step
+       x count, the trace playbook cards they trigger, and ledger_readers {tool: [rows, flagged]}. No outcome, reward,
+       model or dataset. An empty detectors list means nothing is stored, not that the run is clean; a run with no actor
+       transcript is unknown, never clean. When the card is full it first prints a finding without its summary, then
+       without its steps (`shortened` counts those), and last drops whole items, lowest priority first (`omitted`).
+       --no-ledgers skips the ledger files (saves about 2 s).
 
 OBSERVED ON THE LIVE STORE, 2026-10-28 (counts move while lanes run: quote the date or `recount` digest)
   3,474 admitted tasks, 4,544 admitted runs (pass 2,033, fail 1,297, unknown 1,214). 1,234 admitted faceted runs;

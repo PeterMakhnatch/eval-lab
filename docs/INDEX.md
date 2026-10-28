@@ -80,6 +80,8 @@ inputs:
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
+  - path: docs/live-supervisor.md
+    digest: sha256:eb69b227df4571147b88cd90c856684bf3322d1d81839d5deadccc82f53c2aff
   - path: docs/live-watch.md
     digest: sha256:00687b4a8669c718a09baa776881432e9e9afbcbd45b15f1bc80aeaaaa3544ba
   - path: docs/lora-sft-runbook.md
@@ -129,7 +131,7 @@ inputs:
   - path: docs/rollout.md
     digest: sha256:478b97b1ff840eb80549057203e5626209a4475c14c69aac9caf04fcf6298daf
   - path: docs/run-atlas.md
-    digest: sha256:ff0260c2c8ad5b2ab30bb988adb025baf99caa0948eb800ac580e44208cac5c8
+    digest: sha256:2e2e537737632f6446d08068e497eedd89de50d7f42fb7963933b7bfcace8b8f
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/run-health.md
@@ -156,6 +158,8 @@ inputs:
     digest: sha256:87fa6aa8b5781e0ce661129149c9fbbbcee01013e8613436731af04ba5b2b51f
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
+  - path: docs/trace-harness.md
+    digest: sha256:6ca59c0445943832564cba9790a14014cf2239f79debf26f43fbf779d5abb266
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md
@@ -208,6 +212,7 @@ an operator can see what is archived.
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/live-supervisor.md` | Live Supervisor | `living` | `operator, builder` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/qa-contract.md` | QA contract (`evallab.qa`) | `living` | `builder, operator` |
@@ -290,6 +295,7 @@ an operator can see what is archived.
 | `docs/task-quality.md` | Judging whether a task is good | `living` | `analyst, operator` |
 | `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
 | `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
+| `docs/trace-harness.md` | Trace harness: map of every trace component | `living` | `analyst, operator` |
 | `docs/trial-treatment.md` | Trial treatment keys and capture records | `living` | `analyst, runner` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 | `docs/verifier-calibration.md` | Verifier Calibration and Selection Lift | `living` | `builder, analyst` |
@@ -382,6 +388,7 @@ an operator can see what is archived.
 | `docs/harbor-view.md` | Harbor viewer as the results surface (HAR-170) | `living` | `operator, analyst` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/live-supervisor.md` | Live Supervisor | `living` | `operator, builder` |
 | `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |
 | `docs/lora-sft-runbook.md` | LoRA SFT runbook: train, serve base + adapter, check parity, cost | `living` | `runner, operator` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
@@ -411,6 +418,7 @@ an operator can see what is archived.
 | `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
 | `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
+| `docs/trace-harness.md` | Trace harness: map of every trace component | `living` | `analyst, operator` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 | `docs/verifier-check.md` | VerifierCheck: red/blue verifier audits | `living` | `analyst, operator` |
 

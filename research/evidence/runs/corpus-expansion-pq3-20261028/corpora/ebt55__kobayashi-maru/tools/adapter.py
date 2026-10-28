@@ -18,9 +18,11 @@ from pathlib import Path
 from typing import Any
 
 REPO = "ebt55/kobayashi-maru"
-REVISION = "freeze-2026-09-14b"
+REVISION = "1f6876b767029f6522eccb73d44db7d9b168ce5c"
 CORPUS = "ebt55__kobayashi-maru"
-ROOT = Path.home() / ".local/state/evallab-cross-test" / CORPUS / REVISION
+# The bundle directory keeps the release label; the pin itself is the release tag's commit.
+BUNDLE_DIR = "freeze-2026-09-14b"
+ROOT = Path.home() / ".local/state/evallab-cross-test" / CORPUS / BUNDLE_DIR
 # The publisher's analysed corpus: every batch directory under results/runs (stats.json
 # n_batches 571, n_item_runs 8,959). Pilot, failed and dropped directories are staged
 # but never selected.

@@ -27,7 +27,7 @@ from adapter import (
 )
 
 OUTPUT = Path(__file__).resolve().parents[1] / "results/profile.json"
-MANIFEST_SHA256 = "612d0eb141d936e18b28e8cd60655fe70276e8148e45a4ba75cac83789ec8e84"
+MANIFEST_SHA256 = "418bad7c08a350f9bd38ce1bbae7697a27242d2deb73fa1a3c0597abbc9ce256"
 NOTICE_SHA256 = "aa0a8b68d986e5c0d85635b0b7124e437b6c64df19a432e6d93c10745e2cdb81"
 ZIP_NAME = "flake-laundering-v1.0.0.zip"
 ZIP_MD5 = "0435fc7c48c19a569a8af566a8c88079"

@@ -16,7 +16,8 @@ once, and never use this corpus for tuning, training, retrieval or examples.**
   `PREREG.md`, `DEVIATIONS.md`, `harness/`, `detectors/`, `monitor/` and `analysis/` were read at
   main commit **`53b48a4262391fc7d470cf2f09ae2a4b49cf21da`**.
 - Local bundle: `~/.local/state/evallab-cross-test/ebt55__kobayashi-maru/freeze-2026-09-14b/`.
-- Manifest SHA-256: `c9d4b9ea014026dce1d13acbf5705e644e1dba1969f751c6bb9c05a2328be78c`.
+- Manifest revision: release tag commit **`1f6876b767029f6522eccb73d44db7d9b168ce5c`** (`freeze-2026-09-14b`); the bundle directory keeps the release label.
+- Manifest SHA-256: `df723ba03f6904aac38bcbcea847c97d0d531727dd99a0f89a56e3f53484a4da`.
 - Notice SHA-256: `ab14f0c04bcc5d72af28b469d7a49675aef25e232074eace09b76c5ad999895f`.
 - Licence-notice SHA-256: `383df82ea4b14ded75e97d1f66fe947b0a6ee9d15ce5233c5ca97c5ab1231624`.
 

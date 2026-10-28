@@ -402,7 +402,12 @@ class LabActuator:
             out.append("no adjudication gate: real kills need LS-3 precision evidence")
         else:
             try:
-                if not self.gate(observation, decision):
+                refusal = getattr(self.gate, "refusal", None)
+                if callable(refusal):
+                    why = refusal(observation, decision)
+                    if why:
+                        out.append(f"adjudication gate declined: {why}")
+                elif not self.gate(observation, decision):
                     out.append("adjudication gate declined: not an adjudicated kill case")
             except Exception as exc:  # noqa: BLE001 - a broken gate must block, never allow
                 out.append(f"adjudication gate failed: {type(exc).__name__}: {exc}"[:200])

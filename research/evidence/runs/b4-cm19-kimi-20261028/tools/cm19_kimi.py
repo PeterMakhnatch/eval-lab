@@ -26,6 +26,8 @@ import sys
 import threading
 import time
 from collections import Counter
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +50,16 @@ PROVIDER = "kimi-code"
 KIMI_STOP = 0.85
 
 
+def reset_stamp(window: Mapping[str, Any]) -> str | None:
+    """The window's reset time, in UTC, for the receipt."""
+    for field in ("resetsAt", "resets_at", "resetAt"):
+        value = window.get(field)
+        if isinstance(value, int | float) and value > 0:
+            seconds = value / 1000 if value > 10**11 else value
+            return datetime.fromtimestamp(seconds, UTC).isoformat(timespec="seconds")
+    return None
+
+
 class KimiGate(fw.QuotaGate):
     """Stop at 85% of any Kimi window; an empty or unreadable report stops the run."""
 
@@ -64,6 +76,7 @@ class KimiGate(fw.QuotaGate):
                     capture_output=True, text=True, timeout=60, env=env, check=False,
                 )  # fmt: skip
                 windows: list[dict[str, Any]] = []
+                exhausted = False
                 for _ in range(4):
                     proc = subprocess.run(
                         ["omp", "usage", "--json", "--provider", PROVIDER],
@@ -82,16 +95,24 @@ class KimiGate(fw.QuotaGate):
                             if not isinstance(fraction, int | float) or not 0 <= fraction <= 1:
                                 raise fw.CallError("quota_window_unavailable", quota=True)
                             windows.append(
-                                {"window": limit.get("window", {}).get("id"), "used": fraction}
+                                {
+                                    "window": limit.get("window", {}).get("id"),
+                                    "used": fraction,
+                                    "resets_utc": reset_stamp(limit.get("window", {})),
+                                    "status": limit.get("status"),
+                                }
                             )
                             if fraction >= KIMI_STOP or limit.get("status") == "exhausted":
-                                raise fw.CallError("quota_85_percent_stop", quota=True)
+                                exhausted = True
                     if windows:
                         break
                     time.sleep(5)
                 if not windows:
                     raise fw.CallError("quota_windows_missing", quota=True)
+                # CM-19's gate raised on the first hot window; recording every window keeps the stop receipt complete.
                 self.observations.append({"at": fw.now(), "windows": windows})
+                if exhausted:
+                    raise fw.CallError("quota_85_percent_stop", quota=True)
                 self.checked = time.monotonic()
             except (OSError, subprocess.SubprocessError, ValueError, TypeError) as exc:
                 self.stopped.set()
@@ -180,6 +201,23 @@ def guard() -> dict[str, Any]:
     }
 
 
+def smoke() -> dict[str, Any]:
+    """No model call: the admission guard plus one real quota probe, written to results/smoke.json."""
+    report: dict[str, Any] = {"at": fw.now(), "model_calls": 0, "admission": guard()}
+    gate = KimiGate()
+    try:
+        gate.check()
+        report["quota"] = {"outcome": "open", "windows": gate.observations[-1]["windows"]}
+    except fw.CallError as error:
+        report["quota"] = {
+            "outcome": "stopped",
+            "code": str(error),
+            "windows": gate.observations[-1]["windows"] if gate.observations else None,
+        }
+    fw.write_json(RESULTS / "smoke.json", report)
+    return report
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -188,10 +226,13 @@ def main() -> int:
     runner.add_argument("--limit", type=int)
     runner.add_argument("--jobs", type=int, default=4)
     sub.add_parser("score")
+    sub.add_parser("smoke")
     args = parser.parse_args()
     configure()
     if args.command == "prepare":
         print(json.dumps(prepare(), indent=1))
+    elif args.command == "smoke":
+        print(json.dumps(smoke(), indent=1))
     elif args.command == "run":
         print(json.dumps(guard(), indent=1))
         print(json.dumps(fw.run(args.limit, args.jobs), indent=1))

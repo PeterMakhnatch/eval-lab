@@ -87,7 +87,8 @@ def now() -> str:
 
 
 def wilson(k: int, n: int) -> list[float | None]:
-    return hc.wilson(k, n)
+    lo, hi = hc.wilson(k, n)
+    return [lo if lo is None else max(0.0, lo), hi]
 
 
 def rate(k: int, n: int) -> dict[str, Any]:
@@ -600,6 +601,18 @@ def score() -> None:
         if c["status"] == "confirmed" or c["rule"] in wc.PASS_THROUGH_RULES
     )
     out["cascade_alarm_rules"] = dict(sorted(rules.items()))
+    by_label = {r["key"]: (r["set"], r["label"]) for r in sample_doc["runs"]}
+    split: dict[str, Counter[str]] = {}
+    for key, row in casc.items():
+        name, label = by_label[key]
+        for c in row["cards"]:
+            if c["status"] == "confirmed" or c["rule"] in wc.PASS_THROUGH_RULES:
+                split.setdefault(f"{name}:{'positive' if label else 'negative'}", Counter())[
+                    c["rule"]
+                ] += 1
+    out["cascade_alarm_cards_by_set_and_label"] = {
+        k: dict(sorted(v.items())) for k, v in sorted(split.items())
+    }
     RESULTS.mkdir(parents=True, exist_ok=True)
     (RESULTS / "score.json").write_text(json.dumps(out, indent=1, sort_keys=True) + "\n")
     for name, entry in out["sets"].items():

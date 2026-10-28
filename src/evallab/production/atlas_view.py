@@ -177,7 +177,7 @@ def _cluster_snapshot(raw: bytes) -> dict[str, Any]:
     for line in raw.decode("utf-8").splitlines():
         if not line.strip():
             continue
-        row = _loads(line)
+        row = strict_loads(line)
         if not isinstance(row, dict) or row.get("cluster_version") != "run-clusters/v1":
             raise ValueError("cluster stream contains an unknown record")
         if row.get("build_id") != build_id:
@@ -218,7 +218,7 @@ class AtlasStore:
     sha256: dict[str, str] = field(default_factory=dict)
 
 
-def _read_regular(directory: Path, name: str, limit: int) -> bytes | None:
+def read_regular(directory: Path, name: str, limit: int) -> bytes | None:
     """Read a bounded regular file without following the directory or file link."""
     try:
         parent = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
@@ -254,11 +254,11 @@ def _reject_constant(value: str) -> Any:
     raise ValueError(f"non-finite JSON number {value}")
 
 
-def _loads(text: str) -> Any:
+def strict_loads(text: str) -> Any:
     return json.loads(text, object_pairs_hook=_json_object, parse_constant=_reject_constant)
 
 
-def _reason(error: Exception) -> str:
+def json_reason(error: Exception) -> str:
     """One bounded, readable line: the first failing field and why."""
     if isinstance(error, ValidationError):
         first = error.errors()[0]
@@ -273,31 +273,31 @@ def load_atlas_store(directory: Path) -> AtlasStore:
     facets: dict[str, dict[str, Any]] = {}
     rejected: list[dict[str, Any]] = []
     rejected_n = superseded_n = 0
-    raw = _read_regular(directory, FACETS_FILE, MAX_FACET_BYTES)
+    raw = read_regular(directory, FACETS_FILE, MAX_FACET_BYTES)
     if raw is not None:
         digests[FACETS_FILE] = hashlib.sha256(raw).hexdigest()
         for number, line in enumerate(raw.decode("utf-8").splitlines(), 1):
             if not line.strip():
                 continue
             try:
-                record = RunFacets.model_validate(_loads(line)).model_dump()
+                record = RunFacets.model_validate(strict_loads(line)).model_dump()
             except (ValueError, ValidationError) as error:
                 rejected_n += 1
                 if len(rejected) < MAX_REJECTION_NOTES:
-                    reason = _reason(error)
+                    reason = json_reason(error)
                     rejected.append({"line": number, "reason": reason})
                 continue
             superseded_n += record["run_id"] in facets
             facets[record["run_id"]] = record
     clusters: dict[str, Any] | None = None
     cluster_error: str | None = None
-    raw = _read_regular(directory, CLUSTERS_FILE, MAX_CLUSTER_BYTES)
+    raw = read_regular(directory, CLUSTERS_FILE, MAX_CLUSTER_BYTES)
     if raw is not None:
         digests[CLUSTERS_FILE] = hashlib.sha256(raw).hexdigest()
         try:
             clusters = _cluster_snapshot(raw)
         except (ValueError, ValidationError) as error:
-            cluster_error = _reason(error)
+            cluster_error = json_reason(error)
     return AtlasStore(facets, rejected, rejected_n, superseded_n, clusters, cluster_error, digests)
 
 

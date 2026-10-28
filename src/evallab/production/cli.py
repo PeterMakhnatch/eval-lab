@@ -21,6 +21,7 @@ import math
 import os
 import re
 import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -31,6 +32,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 _CONNECTION_URL = re.compile(r"(?i)\b(?:postgres(?:ql)?|nats|tls|ws|wss)://[^\s\"'<>]+")
+_LIVE_DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
 
 
 def _queue_options(parser: argparse.ArgumentParser) -> None:
@@ -164,6 +166,24 @@ def register_parser(commands: Any) -> None:
     runs.add_argument("--limit", type=int, help="Maximum admitted traces to export")
     runs.set_defaults(func=_command)
 
+    scope = actions.add_parser(
+        "export-cluster-scope",
+        help="Write a metadata-only scope file for one Run Atlas cluster; never reads run bodies",
+        description=(
+            "One row per DEV-admitted run in the cluster (trace id, task ids, assignments.csv digest, "
+            "facet build/producer/model) plus counts of refused members. No trace bodies, labels, "
+            "rewards, facet text or cluster names; the manifest must not already exist."
+        ),
+    )
+    scope.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    scope.add_argument(
+        "--source-database", type=Path, default=_LIVE_DATABASE,
+        help="SQLite cloud trace database (default: the live store)",
+    )
+    scope.add_argument("--cluster-id", required=True)
+    scope.add_argument("--manifest", type=Path, required=True, help="New scope file to publish")
+    scope.set_defaults(func=_command)
+
     export = actions.add_parser(
         "export-qc-reports",
         help="Write validated Trust & QC dashboard reports from a live database; never upload",
@@ -237,6 +257,21 @@ def register_parser(commands: Any) -> None:
         help="Drop (and count) clustered runs with no stored admitted facets instead of refusing the build",
     )
     clusters.set_defaults(func=_command)
+
+    reliability = actions.add_parser(
+        "import-field-reliability",
+        help="Write run-atlas/field-reliability-v1.json from a VF-11 blind re-rate receipt (agreement and n only)",
+    )
+    reliability.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    reliability.add_argument("--receipt", type=Path, required=True, help="VF-11 receipt JSON")
+    reliability.add_argument(
+        "--output-directory", type=Path, required=True,
+        help="The run-atlas state directory that receives field-reliability-v1.json",
+    )
+    reliability.add_argument(
+        "--replace", action="store_true", help="Overwrite an existing, different file",
+    )
+    reliability.set_defaults(func=_command)
 
     sb1 = actions.add_parser(
         "seeker-error-first",
@@ -553,6 +588,23 @@ def _export_runs(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     )
 
 
+def _export_cluster_scope(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    from evallab.production.cloud_trace_export import export_cluster_scope
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10, check=False,
+        )
+        revision = head.stdout.strip() if head.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        revision = None
+    return export_cluster_scope(
+        _local_path(root, args.source_database), args.cluster_id, _local_path(root, args.manifest),
+        registry=CorpusRegistry(root), revision=revision or None,
+    )
+
+
 def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     from evallab.production.qc_reports import export_qc_reports
 
@@ -704,6 +756,9 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
         if args.prod_command == "export-runs":
             _emit({"command": args.prod_command, **_export_runs(args, root)}, args)
             return 0
+        if args.prod_command == "export-cluster-scope":
+            _emit({"command": args.prod_command, **_export_cluster_scope(args, root)}, args)
+            return 0
         if args.prod_command == "export-qc-reports":
             _emit({"command": args.prod_command, **_export_qc_reports(args, root)}, args)
             return 0
@@ -726,6 +781,20 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                     database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
                     drop_unfaceted=args.drop_unfaceted,
                 )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "import-field-reliability":
+            from evallab.production.field_reliability import (
+                from_vf11_receipt,
+                write_field_reliability,
+            )
+
+            document = from_vf11_receipt(
+                json.loads(_resolve(root, args.receipt).read_text(encoding="utf-8"))
+            )
+            receipt = write_field_reliability(
+                _resolve(root, args.output_directory), document, replace=args.replace,
+            )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0
         if args.prod_command == "seeker-error-first":

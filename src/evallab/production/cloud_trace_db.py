@@ -485,9 +485,14 @@ class CloudTraceDatabase:
     configuration is an error, never an accidental local cloud replacement.
     SQLite uses FTS5 with a literal-AND query, falling back to escaped LIKE when
     FTS5 is unavailable (or ``sqlite_fts=False`` for deterministic local tests).
+    ``read_only=True`` opens an existing store without creating, migrating,
+    indexing or rebuilding anything: SQLite uses ``mode=ro`` and PostgreSQL a
+    read-only session; search support is whatever the store already has.
     """
 
-    def __init__(self, database: str | Path | None = None, *, sqlite_fts: bool = True) -> None:
+    def __init__(
+        self, database: str | Path | None = None, *, sqlite_fts: bool = True, read_only: bool = False,
+    ) -> None:
         target = str(database) if database is not None else (
             os.environ.get("EVALLAB_CLOUD_DATABASE_URL") or os.environ.get("DATABASE_URL")
         )
@@ -500,17 +505,34 @@ class CloudTraceDatabase:
         self._memo_values: dict[tuple[Any, ...], Any] = {}
         self._connection: Any
         if self._postgres:
-            self._connection = psycopg.connect(target, autocommit=True)
+            self._connection = psycopg.connect(
+                target, autocommit=True,
+                **({"options": "-c default_transaction_read_only=on"} if read_only else {}),
+            )
         else:
             if "://" in target and not target.startswith("sqlite:///"):
                 raise ValueError("database must be a PostgreSQL URL, SQLite URL, or local path")
             path = target.removeprefix("sqlite:///")
-            self._connection = sqlite3.connect(
-                path, timeout=30, isolation_level=None, check_same_thread=False,
-            )
+            if read_only:
+                self._connection = sqlite3.connect(
+                    Path(path).resolve().as_uri() + "?mode=ro", uri=True, timeout=30,
+                    isolation_level=None, check_same_thread=False,
+                )
+                self._connection.execute("PRAGMA query_only=ON")
+            else:
+                self._connection = sqlite3.connect(
+                    path, timeout=30, isolation_level=None, check_same_thread=False,
+                )
             self._connection.execute("PRAGMA foreign_keys=ON")
         try:
-            self._initialize(sqlite_fts=sqlite_fts)
+            if read_only:
+                if not self._postgres:
+                    self._fts = all(
+                        self._execute("SELECT 1 FROM sqlite_master WHERE name = ?", (f"{table}_fts",)).fetchone()
+                        for table in _SEARCH_COLUMNS
+                    )
+            else:
+                self._initialize(sqlite_fts=sqlite_fts)
         except BaseException:
             self._connection.close()
             raise

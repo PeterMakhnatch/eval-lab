@@ -1,0 +1,42 @@
+{
+  "schema": "tt7.subscription_refusal_receipt/v1",
+  "scope": "Fixed first 60 sample rows, attempted once per route with paid keys stripped and fallback disabled",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "source_counts": {"cloud-trace-db": 35, "cheatbench-actions-v1": 25},
+  "evidence_basis": "Retained private form-attempt-0-events.jsonl agent_end assistant.errorMessage prefix; not stdout tail dumps, and not inferred from elapsed time",
+  "routes": {
+    "anthropic/claude-sonnet-5-5": {
+      "attempted": 60,
+      "valid_forms": 40,
+      "abstentions": 20,
+      "refusals": {
+        "Refusal (reasoning_extraction)": 13,
+        "Refusal (cyber)": 7
+      },
+      "valid_by_source": {"cloud-trace-db": 22, "cheatbench-actions-v1": 18},
+      "last_observed_5h_fraction": 0.23,
+      "last_observed_7d_fraction": 0.41
+    },
+    "anthropic/claude-opus-5-5": {
+      "attempted": 60,
+      "valid_forms": 37,
+      "abstentions": 23,
+      "refusals": {
+        "Refusal (reasoning_extraction)": 15,
+        "Refusal (cyber)": 8
+      },
+      "valid_by_source": {"cloud-trace-db": 20, "cheatbench-actions-v1": 17},
+      "last_observed_5h_fraction": 0.23,
+      "last_observed_7d_fraction": 0.41
+    }
+  },
+  "started_after_utc": "2026-10-28T00:00:15+00:00",
+  "finished_at_utc": "2026-10-28T00:06:17.902740+00:00",
+  "admission_threshold": 0.65,
+  "fleet_5h_policy_ceiling": 0.70,
+  "active_continuation_wall_s": 362.90274,
+  "scheduled_job_total_wall_s_including_reset_wait": 5110.76,
+  "policy": "All provider refusals remain null abstentions; no retry, alternate transport, source rewriting, or attempted circumvention. Unserved-model failures are not credited as readings.",
+  "private_raw_evidence_committed": false,
+  "marginal_usd": 0
+}

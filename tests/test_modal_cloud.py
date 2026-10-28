@@ -417,6 +417,8 @@ def test_bearer_serves_protected_dashboard_and_state(client: TestClient) -> None
     assert dashboard.status_code == 200
     assert dashboard.headers["content-type"].startswith("text/html")
     assert TOKEN not in dashboard.text
+    # The cloud deployment opens on the Run Atlas; the local control plane keeps the live journal.
+    assert '<body data-home="atlas">' in dashboard.text
     assert client.get("/api/state", headers=AUTH).status_code == 200
 
 

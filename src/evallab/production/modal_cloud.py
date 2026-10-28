@@ -194,6 +194,7 @@ class CloudRuntime:
             self.app = create_app(
                 self.queue,
                 operator_tokens={token: "Peter"},
+                home="atlas",
                 asset_store=VerifiedAssetStore(
                     self.queue,
                     self.registry,

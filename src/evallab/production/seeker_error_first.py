@@ -233,7 +233,9 @@ def parse_cohort(payload: Mapping[str, Any]) -> Cohort:
     git_head = payload.get("git_head")
     return Cohort(
         tasks=tuple(tasks),
-        assignments_csv_sha256=csv_digest if isinstance(csv_digest, str) else None,
+        assignments_csv_sha256=(
+            csv_digest.removeprefix("sha256:") if isinstance(csv_digest, str) else None
+        ),
         git_head=git_head if isinstance(git_head, str) else None,
     )
 

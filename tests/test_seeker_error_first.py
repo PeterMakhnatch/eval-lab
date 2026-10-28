@@ -677,6 +677,20 @@ def test_ledger_digest_drift_refuses(tmp_path: Path) -> None:
     assert harness.omp.calls == []
 
 
+def test_committed_cohort_ledger_digest_matches_committed_ledger(tmp_path: Path) -> None:
+    # The cohort builder writes the ledger digest as ``sha256:<hex>``; the plan must
+    # compare it to the ledger's bare hex digest instead of calling every real cohort drifted.
+    repo = Path(__file__).resolve().parents[1]
+    cohort = sef.load_cohort(repo / "research/experiments/sb1-clean-seeker-set-20261027/cohort.json")
+    config = sef.CampaignConfig(
+        cohort=cohort,
+        models=(ROUTE,),
+        out=tmp_path / "out",
+        assignments_csv=repo / "research/answer-keys/splits/assignments.csv",
+    )
+    assert sef.plan_campaign(config)["problems"] == []
+
+
 def test_package_digest_drift_is_a_plan_problem(tmp_path: Path) -> None:
     harness = Harness(tmp_path)
     (harness.cohort.tasks[0].original_task / "instruction.md").write_text("changed\n")

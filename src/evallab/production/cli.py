@@ -191,6 +191,18 @@ def register_parser(commands: Any) -> None:
     export.add_argument("--generated-at", metavar="ISO", help="Census timestamp (default: now, UTC)")
     export.set_defaults(func=_command)
 
+    facets = actions.add_parser(
+        "import-run-facets",
+        help="Import Run Atlas run-facets/v1 JSONL into the cloud trace database (DEV-admitted runs only)",
+    )
+    facets.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    facets.add_argument(
+        "--cloud-database", required=True,
+        help="Cloud trace database: SQLite path/URL or PostgreSQL URL",
+    )
+    facets.add_argument("--jsonl", type=Path, required=True, help="Append-only facets JSONL keyed by run_id")
+    facets.set_defaults(func=_command)
+
     once = actions.add_parser("run-once", help="Run selected live consumers, then relay once")
     _queue_options(once)
     _worker_options(once, WORKER_SYSTEMS)
@@ -565,6 +577,16 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             return 0
         if args.prod_command == "export-qc-reports":
             _emit({"command": args.prod_command, **_export_qc_reports(args, root)}, args)
+            return 0
+        if args.prod_command == "import-run-facets":
+            from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_facets
+            from evallab.production.corpus_queue import CorpusRegistry
+
+            with CloudTraceDatabase(_database(root, args.cloud_database)) as database:
+                receipt = import_run_facets(
+                    database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
+                )
+            _emit({"command": args.prod_command, **receipt}, args)
             return 0
         with _open_queue(args, root) as connection:
             if args.prod_command == "ingest":

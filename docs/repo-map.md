@@ -213,7 +213,7 @@ inputs:
   - path: src/evallab/failure_library/loop/canary.py
     digest: sha256:7c2895c27f833f7fe57ec9f84b833ba394656b28149af404b3ec74cf615d0630
   - path: src/evallab/failure_library/loop/readonly.py
-    digest: sha256:799269b17ed97a4b6747de1bca02b4489c1b3d9f6d201fa6b81f7efc3fedd620
+    digest: sha256:2649ffd723ea5361e87c7dfe1347891d8c3b6db8ef74b7caaf48c60763f74ffa
   - path: src/evallab/failure_library/loop/selection.py
     digest: sha256:ecd03d16f516703cd927c047ea7edaf0a293cbdd6a7c0cfd7f8156065d45660b
   - path: src/evallab/failure_library/loop/source_views.py

@@ -303,3 +303,32 @@ def test_the_detector_scope_is_staged_when_valid_and_rejected_when_it_carries_a_
     path.unlink()
     absent = _run(world)
     assert absent["ok"] is True and any(warning.startswith("detector_scope: missing") for warning in absent["warnings"])
+
+
+def test_gate_progress_is_staged_when_valid_and_rejected_when_the_loader_refuses_it(
+    world: dict[str, Path],
+) -> None:
+    row = {
+        "route": "anthropic/claude-sonnet-5-5", "arm": "A", "answered": 64, "consumed": 64, "quota_pending": 335,
+        "failed": 0, "scorer_quota_pending": 0, "fully_scored": 64, "baseline_answered": 44, "keys_read": 118,
+        "new_0_5": {"matched_keys": 4, "eligible_findings": 43}, "old_0_8": {"matched_keys": 0, "eligible_findings": 4},
+    }
+    document = {
+        "schema": "evallab.gate_progress/v1", "exported_at": "2026-10-28T12:00:00+00:00",
+        "source": {"coverage_sha256": "a" * 64, "checkpoint_sha256": "b" * 64},
+        "cohort": {"dev_tasks": 399, "keyed_tasks": 44, "unkeyed_tasks": 355, "planned_keys": 118},
+        "rows": [row],
+    }
+    path = world["state"] / "task-qa/gate-progress-v1.json"
+    _json(path, document)
+    stage = world["tmp"] / "stage"
+    assert _by_key(_run(world, stage_directory=stage))["gate_progress"]["status"] == "ok"
+    assert (stage / "task-qa/gate-progress-v1.json").is_file()
+
+    _json(path, {**document, "rows": [{**row, "answered": 400}]})
+    rejected = _by_key(_run(world, stage_directory=world["tmp"] / "stage2"))["gate_progress"]
+    assert rejected["status"] == "invalid" and "cloud loader rejects" in rejected["detail"]
+    assert not (world["tmp"] / "stage2/task-qa/gate-progress-v1.json").exists()
+
+    path.unlink()
+    assert _run(world)["ok"] is True

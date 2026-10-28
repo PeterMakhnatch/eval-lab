@@ -178,7 +178,9 @@ def _forbidden(key: str, policy: Policy) -> bool:
     return key.lower() in names or bool(_BENCH_LABEL.search(key))
 
 
-def _walk(value: Any, policy: Policy, found: Counter[str]) -> None:
+def count_forbidden(value: Any, policy: Policy, found: Counter[str] | None = None) -> Counter[str]:
+    """Count every label or reward key ``policy`` refuses, at any depth of ``value``, into ``found``."""
+    found = Counter() if found is None else found
     stack = [value]
     while stack:
         item = stack.pop()
@@ -189,6 +191,7 @@ def _walk(value: Any, policy: Policy, found: Counter[str]) -> None:
                 stack.append(child)
         elif isinstance(item, list):
             stack.extend(item)
+    return found
 
 
 def _stream(source: Path, target: Path, item: Item) -> _Scan:
@@ -206,7 +209,7 @@ def _stream(source: Path, target: Path, item: Item) -> _Scan:
                     continue
                 scan.lines += 1
                 try:
-                    _walk(json.loads(line), item.policy, scan.forbidden)
+                    count_forbidden(json.loads(line), item.policy, scan.forbidden)
                 except ValueError:
                     scan.bad_lines += 1
         else:
@@ -216,7 +219,7 @@ def _stream(source: Path, target: Path, item: Item) -> _Scan:
             digest.update(raw)
             out.write(raw)
             scan.bytes = len(raw)
-            _walk(json.loads(raw), item.policy, scan.forbidden)
+            count_forbidden(json.loads(raw), item.policy, scan.forbidden)
     scan.sha256 = digest.hexdigest()
     return scan
 
@@ -226,7 +229,7 @@ def _write_document(target: Path, document: dict[str, Any], policy: Policy) -> _
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(body)
     scan = _Scan(bytes=len(body), sha256=hashlib.sha256(body).hexdigest())
-    _walk(document, policy, scan.forbidden)
+    count_forbidden(document, policy, scan.forbidden)
     return scan
 
 

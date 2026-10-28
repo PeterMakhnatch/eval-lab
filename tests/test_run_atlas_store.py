@@ -110,6 +110,7 @@ def test_import_stores_admitted_runs_with_database_identity_and_supersedes_by_ru
     (facet("batch-1"), "run_id names no stored trace"),
     (facet("test-task/pass"), "task is not admitted DEV"),
     (facet(evidence_steps=[4]), "evidence_steps must name stored steps of the run"),
+    (facet(evidence_steps=[2**64]), "evidence_steps must name stored steps of the run"),
     (facet(suspicion=4), "suspicion must be an integer from 0 to 3"),
     (facet(evidence_steps=[0, 1, 2, 3, 0]), "evidence_steps must not repeat a step index"),
     (facet(evidence_steps=list(range(6))), "evidence_steps must be a list of at most 5 step indices"),
@@ -128,6 +129,21 @@ def test_refused_records_are_counted_by_reason_and_never_stored(
     assert receipt["refused_by_reason"] == {reason: 1}
     assert receipt["refused_examples"] == [{"run_id": record.get("run_id"), "reason": reason}]
     assert set(stored(db)) == {"dev-task/fail"}
+
+
+def test_evidence_steps_must_be_stored_in_the_cited_run_itself(db: CloudTraceDatabase, tmp_path: Path) -> None:
+    db.upsert_trace({
+        "trace_id": "dev-task/short", "run_id": "batch-1", "task_id": "dev-task",
+        "model_id": "synthetic-model", "reward": 0.0,
+    }, steps=[{"step_index": 0, "role": "assistant"}])
+    path = write_jsonl(
+        tmp_path / "facets.jsonl", facet(evidence_steps=[3]), facet("dev-task/short", evidence_steps=[0, 3]),
+    )
+    receipt = import_run_facets(db, path, registry=SyntheticRegistry())
+    assert receipt["refused_examples"] == [
+        {"run_id": "dev-task/short", "reason": "evidence_steps must name stored steps of the run"},
+    ]
+    assert set(stored(db)) == {"dev-task/pass"}
 
 
 def test_without_split_authority_nothing_is_stored(db: CloudTraceDatabase, tmp_path: Path) -> None:

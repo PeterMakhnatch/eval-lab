@@ -44,6 +44,8 @@ def verify_bundle(root: Path) -> dict[str, Any]:
     """Reverify the locked bundle from its staging receipt, after every write."""
     manifest_bytes = (root / "STAGE-MANIFEST.json").read_bytes()
     manifest = json.loads(manifest_bytes)
+    if manifest["revision"] != adapter.DIRNAME:
+        raise ValueError("manifest revision differs from the staged archive digest prefix")
     if (manifest["repo"], manifest["archive_sha256"], manifest["gated"]) != (
         f"osf:{adapter.NODE}",
         ARCHIVE_SHA256,

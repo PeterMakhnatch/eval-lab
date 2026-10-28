@@ -1627,6 +1627,31 @@ and confidence intervals only: the browser derives every recall, false-alarm rat
 run, so the page never computes a score the producers did not record. Nothing is ranked, no
 label is joined, and `split` other than `dev` is refused.
 
+**Run lists behind each tool** (`GET /api/cloud-db/trace-tools/runs?tool=&kind=hit|clean|unread`,
+`split=dev` only, `limit` at most 200). Each Trace Tools row with a per-run record (`facets`,
+`laminar`, `docent`, `scout`, `scout_metr`, `omp`; the cascade and `harbor analyze` keep counts
+only, so the endpoint answers 404) can list the *admitted DEV* runs it **hit** (its own recorded
+flag; for `facets`, stored suspicion of at least 2), **read clean** (read and flagged nothing,
+not a verdict) or **did not read** (no result or only abstentions: neither a miss nor a clean
+pass). The three groups always cover every admitted run; `counts.outside_n` counts runs the
+tool read that are not admitted here. Rows carry only the trace id, its task id, whether it has
+an atlas facet and, for hits, the detector names and evidence steps. No label, reward or outcome
+is sent: whether a hit was right needs labels, which stay local. The page links each row to the
+Run Atlas (when faceted) and to Task Evidence, and copies the page's run ids.
+
+#### Atlas coverage (`/api/cloud-db/atlas/coverage`)
+
+`evallab.atlas_coverage/v1` (`evallab.production.atlas_coverage`), shown as the **Coverage** strip
+of the Run Atlas. Per population (dataset and trust tier of the admitted DEV runs) it gives
+admitted runs, runs with a stored facet, and the facet version, facet model and **blinding
+state** of each stored record: `refreshed` (on `blinding-refresh-v1.json` and the stored record
+is the re-extraction in `reblinded-facets-v1.jsonl`), `pending` (listed, still the earlier
+extraction), `unlisted` (not on the list; not a claim it was never leaky) or `unknown` (no
+readable list, reported as `refresh_error`, never as zero pending). Totals also count facets
+read, withheld (unadmitted or evidence outside the run), rejected and superseded lines. A run
+without a stored facet is not ready, which is not the same as clean. Atlas listing rows and run
+detail carry the same `blinding` value.
+
 #### Task Evidence (`/api/cloud-db/task-evidence`)
 
 The **Task Evidence** tab answers "what is known about this task" in one view. `GET

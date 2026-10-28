@@ -61,6 +61,60 @@ filtered before historical ingestion. Before changing live definitions, retain a
 GET snapshot under `~/.local/state/evallab-prod-live/trace-store/`, then verify
 the stored definitions and a single trace's `signal_runs` via read-only SQL.
 
+## Private cloud trace store
+
+`src/evallab/trace_store/` reads the live cloud trace SQLite database in read-only
+mode. Selection intersects exact uppercase `DEV` with the shared cross-key
+admission gate. The upload allow-list is Goodfire and our owned
+`mimo-defect-map-v1`, `tb2-to-tb21-v1`, and `tb4-audit-v1` runs; TB4 accepts only
+`kimi-tb4` and `muse-r1`, never external TB4 Hub trajectories. HackBench,
+CheatBench, held/lowercase-dev data, and `qa-trace-sft-v0` are not storage inputs.
+Own runs precede Goodfire. Source ownership is checked against the retained
+`cloud-trace-db-evidence/ingestion-sources.json`.
+
+Both targets use UUID5 identities from DB `trace_id`. Trace metadata is limited
+to `run_id`, `source`, `benchmark`, `model`, `task_id`, `outcome`, and `split`;
+classification labels and raw receipt/flag dictionaries are not uploaded.
+Only actor-visible messages, reasoning, calls and results are projected.
+Observation CAS bytes are hash-verified and hydrated, never silently replaced
+by previews. Payloads are secret-scanned before transmission; hits and malformed
+or missing observations are rejected with local, non-secret receipts.
+Provider-prefix patterns require a token boundary, so opaque `task-<hash>` IDs
+are not credentials; the exporter's other secret rules are unchanged. Both
+providers inspect raw string values and recursively decoded JSON string wrappers,
+including JSON embedded inside tool-message content. Raw-string hits are never
+lost by decoding. Laminar's generated input/output fields use the same logical
+gate. A hit rejects only its trace, including within a Docent batch, and the gate
+is checked before an unchanged-content receipt can skip a trace.
+Evaluator-field rejection also recursively decodes quoted JSON strings; ordinary
+actor prose and code stay intact rather than being scrubbed.
+
+Laminar uses the existing project and OTLP encoders, preserving text rather than
+the live watch exporter's clipped display values. Import sequence timestamps are
+explicitly synthetic, not measured action durations. Ordinary requests are
+batched below 4 MiB; an oversized single span is sent intact, and any provider
+size rejection stops the sync rather than clipping content. All project Signals
+must be paused before the adapter sends data. Docent uses one owner-only private
+collection named `evallab-trace-store/<dataset_id> (private)` per source, checking
+collaborators before and after each upload.
+
+Per-target successful receipts and opaque quarantine tombstones live under
+`~/.local/state/evallab-prod-live/trace-store/{laminar,docent}-state.jsonl`.
+Tombstones preserve every original receipt and replay only after a separately
+authorized removal of a proven lane-owned copy, with remote absence verified.
+Sync never automatically deletes remote runs or collections.
+Unchanged content is skipped, new rows are picked up, and quota/access/size
+rejections stop cleanly without marking the rejected run synced. Local error and
+batch receipts report rejected IDs, wire-attempt bytes, hydration bytes and wall
+time. A shared lock and durable pre-send byte reservations enforce an independent
+2.5 GB monthly ceiling for each provider, including retries and interrupted sends.
+The Laminar allowance is not charged for Docent traffic. API/storage batches are
+logged to the spend ledger. Ingest invokes no model, paid Signal or Docent Reading
+API and activates no paid storage. Accepted bytes do not prove a $0 invoice:
+published storage tariffs are unverified, so ingestion cost is recorded as unknown.
+Docent has no supported upsert: different content at an existing deterministic
+remote ID pauses without deleting that evidence.
+
 
 ## Incremental native ATIF (HAR-168)
 

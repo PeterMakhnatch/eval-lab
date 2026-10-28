@@ -1,0 +1,66 @@
+{
+  "all_retained_tool_events_are_known_single_anomaly": true,
+  "arguments_message_text_thinking_or_result_content_emitted": false,
+  "assistant_end_vs_final_agent_end_count_mismatches": 0,
+  "assistant_turns": 164,
+  "at": "2026-10-28T17:26:57.362523+00:00",
+  "audit_source_sha256": "7890c8ef6dc9cd20d908fbf2a8ea40f19b89e5925e1f90e552067862ad340902",
+  "capability_boundary": {
+    "explicit_tool_handler_deny_attested": false,
+    "future_inference_authorized": false,
+    "status": "STOPPED: flags were requested, but are not a tool-capability sandbox",
+    "zero_advertised_tools_attested": false
+  },
+  "malformed_json_lines": 0,
+  "missing_final_agent_end_streams": 0,
+  "model_calls": 0,
+  "multi_assistant_turn_streams": 1,
+  "new_side_effectful_tool_calls": 0,
+  "not_claimed": [
+    "no other-session consumption",
+    "no unretained provider actions",
+    "zero advertised or callable tools"
+  ],
+  "quota_queries": 0,
+  "retained_event_manifest_sha256": "13c8fff139096dcedd4d11436a5335b589017a9380e3a6af107f04ba2373da1e",
+  "roots": {
+    "claude-continuation-storage": {},
+    "codex-continuation-storage": {
+      "bytes": 5961416,
+      "files": 13,
+      "malformed_json_lines": 0
+    },
+    "retained-tt7-generation-storage": {
+      "bytes": 135119760,
+      "files": 150,
+      "malformed_json_lines": 0
+    }
+  },
+  "routes": {
+    "anthropic/claude-opus-5-5": {
+      "assistant_turns": 74,
+      "files": 74
+    },
+    "anthropic/claude-sonnet-5-5": {
+      "assistant_turns": 74,
+      "files": 74
+    },
+    "openai-codex/gpt-6-luna": {
+      "assistant_turns": 16,
+      "files": 15,
+      "tool_execution_ends": 1,
+      "tool_execution_starts": 1
+    }
+  },
+  "schema": "tt7.native_tool_metadata_audit/v1",
+  "scope": "Only retained TT7 native generation event files; not other chats, skills, caches or profiles",
+  "streams": 163,
+  "tools": {
+    "manage_skill": {
+      "ends": 1,
+      "error_ends": 0,
+      "starts": 1,
+      "successful_ends": 1
+    }
+  }
+}

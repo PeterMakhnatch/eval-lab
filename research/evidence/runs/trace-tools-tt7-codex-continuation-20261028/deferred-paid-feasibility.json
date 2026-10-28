@@ -1,0 +1,112 @@
+{
+  "schema": "tt7.retained_paid_feasibility_summary/v1",
+  "phase": "Read-only retained feasibility, separate from sealed measurements and current native Luna continuation",
+  "decision": "NO_GO",
+  "dispatch_approved": false,
+  "new_inference_or_byok_configuration": 0,
+  "expected_actual_campaign_cost_usd": null,
+  "verified_actual_campaign_cost_ceiling_usd": null,
+  "tt7_reserved_not_dispatch_approved_cap_usd": "35.00",
+  "tt4_separate_cap_usd": "14.85",
+  "caps_sum_usd": "49.85",
+  "historical_parent_verified_wallet_usd": "49.851292595",
+  "historical_wallet_at": "2026-10-28T09:16:26.310613+00:00",
+  "historical_wallet_is_not_fresh_cash_gate": true,
+  "key_spend_cap_headroom_is_not_wallet_credit": true,
+  "sonnet_inventory": {
+    "valid_preserved": 69,
+    "usage_limit_remaining": 76,
+    "terminal_validation_failures_not_retried": 4,
+    "privacy_withheld": 1,
+    "same_model_native_refusals_in_remaining_inventory_not_rerouted": 8,
+    "potential_dispatch_only_if_all_gates_approved": 68
+  },
+  "conditional_sonnet_68_route": {
+    "route": "openrouter/anthropic/claude-sonnet-5.5",
+    "whole_runs": 67,
+    "chunked_runs": 1,
+    "summary_requests": 2,
+    "known_request_utf8_bytes": 15624967,
+    "o200k_base_content_known_wrapper_proxy_not_billable_tokens": 4391265,
+    "advertised_context_per_generation": 1000000,
+    "advertised_max_completion_tokens": 128000,
+    "price_extrema_per_million": {
+      "all_endpoint_max_input": "2.2000000",
+      "all_endpoint_max_output": "11.000000",
+      "all_endpoint_max_cache_write": "4.4000000"
+    },
+    "initial_only": {
+      "logical_readings": 70,
+      "conditional_provider_generations": 630,
+      "conditional_context_input_tokens_ceiling": 630000000,
+      "conditional_configured_output_tokens_ceiling_if_enforced": 2654208,
+      "uncached_catalog_route_upper_usd": "1415.1962880",
+      "cache_write_premium_safe_upper_usd": "2801.1962880"
+    },
+    "including_one_external_form_retry": {
+      "logical_readings": 138,
+      "conditional_provider_generations": 1242,
+      "conditional_context_input_tokens_ceiling": 1242000000,
+      "conditional_configured_output_tokens_ceiling_if_enforced": 5160960,
+      "uncached_catalog_route_upper_usd": "2789.1705600",
+      "cache_write_premium_safe_upper_usd": "5521.5705600"
+    },
+    "actual_hosted_generation_ceiling_verified": false,
+    "actual_whole_wire_input_bound_verified": false,
+    "actual_billable_output_cap_verified": false,
+    "actual_invoice_usd": null
+  },
+  "conditional_retry_layers": {
+    "packaged_llm_validation_attempts": 3,
+    "packaged_transport_default_retries": 2,
+    "packaged_transport_tries_if_default_used": 3,
+    "conditional_generations_per_initial_reading": 9,
+    "frozen_external_form_schema_evidence_retries": 1,
+    "conditional_generations_per_form_with_external_retry": 18,
+    "summary_external_retries": 0,
+    "conditional_generations_per_summary": 9,
+    "local_submit_path": "Observed SDK plan submit calls Session.post directly; generic _post_with_retry default3 is not called on this path. HTTP submits do not establish hosted generation counts.",
+    "hosted_worker_and_provider_retry_ceiling_verified": false,
+    "claim_limit": "9/18 are conditional bundled implementation defaults, NOT verified deployed hosted ceilings. Feedback, hidden retries, overrides and reasoning-token cap semantics remain unverified. No actual finite USD campaign bound is asserted.",
+    "post_completion_usage_counter_is_not_verified_hard_prespend_cap": true
+  },
+  "two_credential_layer_gate": {
+    "docent_catalog_matching_openrouter_rows": 19,
+    "matching_uses_byok_true_rows": 0,
+    "docent_uses_byok_false_is_not_openrouter_upstream_byok_off_proof": true,
+    "openrouter_upstream_byok_configuration_verified": false,
+    "parent_reported_get_byok_status": 401,
+    "parent_reported_management_key_present": false,
+    "documented_enforced_credits_only_switch_verified": false,
+    "billing_route_scope_verified": false,
+    "actual_docent_backend_budget_cap_verified": false
+  },
+  "exact_unblock_conditions": [
+    "Authorized account operator supplies supported read-only proof of credits-only billing for the exact key/provider route, without upstream stored-provider account billing.",
+    "Deployment-attested Docent generation/input/billable-output controls and an enforceable whole-request dollar ceiling or verified actual settlement make the35 reservation binding, including all retry layers.",
+    "Fresh account cash gate, disjoint flock reservations with TT4, pending/unknown upper bounds retained, and explicit dispatch approval. No token-proxy or aggregate-wallet settlement.",
+    "The frozen form/sample/thresholds and terminal refusal/validation/privacy exclusions remain unchanged; no direct-OpenRouter replacement is represented as Docent."
+  ],
+  "docent_weekly_reset": {
+    "window_seconds": 604800,
+    "free_cap_cents": 2500,
+    "exact_reset_timestamp": null,
+    "reason": "Retained API/error observations did not expose a reset date; no invented reset or polling for an expected reset"
+  },
+  "laminar_flow_1": {
+    "status": "Deferred: paid Signals not funded/authorized for dispatch; CheatBench storage prohibited",
+    "uncached_input_usd_per_million": "0.05",
+    "cached_input_usd_per_million": "0.01",
+    "output_usd_per_million": "0.30",
+    "explicit_counterfactual_scenario": "100000 uncached input and1000 output tokens per run, one generation",
+    "counterfactual_200_runs_usd": "1.06",
+    "allowed_goodfire_150_scenario_usd": "0.795",
+    "privacy_eligible_goodfire_149_scenario_usd": "0.7897",
+    "starter_usd_per_month_separate": "30.00",
+    "scenario_is_not_observed_bill_or_retry_inclusive_budget_guarantee": true
+  },
+  "source_private_receipt": "~/.local/state/evallab-prod-live/trace-tools/tt7-byok-feasibility-20261028/feasibility.json",
+  "no_capability_or_recall_recommendation_from_cost_order": true,
+  "model_calls_for_this_summary": 0,
+  "quota_or_funding_queries_for_this_summary": 0
+}

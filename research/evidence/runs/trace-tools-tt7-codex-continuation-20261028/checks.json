@@ -1,0 +1,66 @@
+{
+  "at": "2026-10-28T18:25:09.732656+00:00",
+  "command": [
+    "scripts/premerge.sh",
+    "--focused",
+    "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/test_codex_guard.py",
+    "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/test_score_delta.py",
+    "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/test_native_metadata.py",
+    "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/test_close_privacy.py",
+    "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/test_native_inference_gate.py",
+    "-n",
+    "0",
+    "-q"
+  ],
+  "cwd": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-tt7-codex-continuation-20261028",
+  "elapsed_s": 63.52449462498771,
+  "environment": {
+    "EVALLAB_DERIVED_ROOT": "/private/tmp/evallab-tt7-codex-final-offline-20261028",
+    "EVALLAB_DISABLE_LOCAL_DOCKER": "1"
+  },
+  "exit_code": 0,
+  "focused_test_files": [
+    "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/test_codex_guard.py",
+    "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/test_score_delta.py",
+    "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/test_native_metadata.py",
+    "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/test_close_privacy.py",
+    "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/test_native_inference_gate.py"
+  ],
+  "full_local_test_suite_executed": false,
+  "github_ci_green_claim": false,
+  "model_calls": 0,
+  "offline_gate_scope": "Default-deny admission before transport/handler launch; no assertion that native CLI dispatch is safe.",
+  "paid_calls": 0,
+  "passed_tests": 54,
+  "private_full_stdout_stderr_log": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-codex-entitlement-20261028T151645Z/delivery/prepush-1.log",
+  "quota_queries": 0,
+  "runtime_smoke_executed": false,
+  "schema": "tt7.local_checkpoint/v1",
+  "source_sha256": {
+    "audit_native_metadata.py": "7890c8ef6dc9cd20d908fbf2a8ea40f19b89e5925e1f90e552067862ad340902",
+    "close_privacy.py": "2d46931bac8b8f2707eaf57833ba10b779d6dc0dc6398e92ac5246e8adedc331",
+    "continue_codex.py": "87c0d0bb6296b28d5a38804fdfc6211e5ad1a61ff8e926f43bf4b8aa811eca28",
+    "metadata-observer.ts": "856e9a59c2968f2dea697420c476f5ceed969b56f7579816a2b3ab47aa803416",
+    "native_inference_gate.py": "1865d8d49f08afcc4b8a86df44ea97c6bf00b236b3efe20b36fe420c80bb2d1b",
+    "score_delta.py": "e85ccd303218895c3e8dc741f2c1fd10c9459b2ca62da077f11deed2d0d3a454",
+    "test_close_privacy.py": "2f254436512f48172be2d79f212e98d2f5bb2b16a70e09700f97bf89d8369fd7",
+    "test_codex_guard.py": "1c98a0a88e5b1c85dc1d80f837911ad187c2251231a5575edc6dd9cfb9eb2e6f",
+    "test_native_inference_gate.py": "5e58614acf223fae0eba0851c3668f95e4b80ea3b4f336002815575a196b0b45",
+    "test_native_metadata.py": "edbef35d0c5b065f89a8f9c47f2b7dc0b673022375450697046cc69456e6e572",
+    "test_score_delta.py": "86a1d44a20c1750e8f323c1e732470a31332010defb87dc9901a0a2c6c7c6ba6"
+  },
+  "static_gates_passed": [
+    "locked install",
+    "ruff",
+    "docindex",
+    "repomap",
+    "governance",
+    "registry audit",
+    "lessons",
+    "ty@0.0.71 zero diagnostics"
+  ],
+  "stderr_bytes": 1675,
+  "stderr_note": "Existing semantic_facts Field name construct shadows FactRow warnings; no suppression or source changes.",
+  "stdout_bytes": 5906,
+  "test_count_basis": "54 success dots with100% and exit0; pytest double-quiet suppressed numeric footer"
+}

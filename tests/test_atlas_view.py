@@ -342,8 +342,11 @@ def test_cluster_stream_selects_final_build_and_rejects_partial_tail(tmp_path: P
         cluster("new-middle", 2, "new", ["b"]),
         cluster("new-leaf", 3, "new-middle", ["b"]),
     )
-    for row in latest["clusters"]:
-        row.update(build_id="earlier-alphabetically", created_at="2026-10-26T20:00:00Z")
+    for index, row in enumerate(latest["clusters"]):
+        row.update(
+            build_id="earlier-alphabetically",
+            created_at=f"2026-10-26T20:00:00.{index:06d}Z",
+        )
     write_clusters(tmp_path, {"clusters": old["clusters"] + latest["clusters"]})
     store = load_atlas_store(tmp_path)
     assert store.cluster_error is None

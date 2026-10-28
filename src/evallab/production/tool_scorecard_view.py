@@ -193,7 +193,7 @@ class _ToolScorecard(_Strict):
     label_sets: dict[str, dict[str, Any]]
 
 
-def _moment(text: str) -> datetime:
+def parse_moment(text: str) -> datetime:
     """An ISO-8601 time that names its zone; anything else is not a recorded time."""
     moment = datetime.fromisoformat(text)
     if moment.tzinfo is None:
@@ -212,7 +212,7 @@ class _Spend(_Strict):
 
     @model_validator(mode="after")
     def validate_timestamp(self) -> Self:
-        _moment(self.at)
+        parse_moment(self.at)
         return self
 
 
@@ -288,7 +288,7 @@ def _read_document(path: Path | None, name: str) -> tuple[Any, Source]:
     return document, Source(name, path, digest=hashlib.sha256(raw).hexdigest())
 
 
-def _lines(path: Path) -> Iterator[bytes]:
+def iter_lines(path: Path) -> Iterator[bytes]:
     """Stream a regular file without following links; a bound stops a runaway file."""
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(descriptor, "rb") as stream:
@@ -309,7 +309,7 @@ def _read_records(path: Path | None, name: str, model: type[_Strict]) -> tuple[l
     notes: list[str] = []
     digest = hashlib.sha256()
     try:
-        for number, line in enumerate(_lines(path), 1):
+        for number, line in enumerate(iter_lines(path), 1):
             digest.update(line)
             if not line.strip():
                 continue
@@ -335,7 +335,7 @@ def _latest_time(
         return latest, 0, Source(name, None, error="not retained")
     skipped = 0
     try:
-        for line in _lines(path):
+        for line in iter_lines(path):
             if not line.strip():
                 continue
             try:
@@ -343,7 +343,7 @@ def _latest_time(
                 tool = tool_of(row)
                 if "at" not in row:
                     continue  # e.g. a call row written before it had a time
-                moment = _moment(row["at"])
+                moment = parse_moment(row["at"])
                 if tool is None:
                     raise ValueError
             except (ValueError, KeyError, TypeError, UnicodeDecodeError):
@@ -570,7 +570,7 @@ def _build(paths: _Paths) -> dict[str, Any]:
         by_tool.setdefault(entry.tool, []).append(
             (entry.runs, entry.input_tokens, entry.output_tokens, entry.usd, entry.route)
         )
-        moment = _moment(entry.at)
+        moment = parse_moment(entry.at)
         if entry.tool not in last or moment > last[entry.tool][0]:
             last[entry.tool] = (moment, "spend ledger")
 

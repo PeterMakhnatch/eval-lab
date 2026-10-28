@@ -21,6 +21,7 @@ DASHBOARD: str = r"""<!doctype html>
 @media(max-width:1000px){.atlas-layout{grid-template-columns:1fr}.atlas-tree{max-height:370px}.atlas-detail .panel-head{flex-wrap:wrap}}
 .atlas-tools{margin:12px 0;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--raised)}.atlas-tools summary{cursor:pointer;color:var(--blue);font-weight:600}.atlas-tools .cloud-table{min-width:760px}.atlas-tools .row{margin-top:8px}
 .tools-cohorts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.tools-table .cloud-table{min-width:1180px}.tools-table>.cloud-table-wrap>.cloud-table>tbody>tr>td:first-child{min-width:280px}.tools-table td>div{display:grid;gap:3px;min-width:0}.tools-table td small{color:var(--muted);overflow-wrap:anywhere}.tools-table details{margin-top:8px}.tools-table summary{cursor:pointer;color:var(--blue)}.tools-table details h4{margin:10px 0 0}.tools-table details .cloud-table{min-width:0}.tools-sources summary{cursor:pointer;color:var(--blue)}
+.task-section{margin-top:22px}.task-section h3{margin:0 0 8px}.task-section>p{margin:0 0 8px}.task-command{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--raised);font:12px var(--mono)}.task-command-row{margin:12px 0}.task-lines{display:grid;gap:3px;min-width:0}.task-lines small{color:var(--muted);overflow-wrap:anywhere}.task-runs .cloud-table{min-width:1280px}.task-qa .cloud-table,.task-seeker .cloud-table,.task-fixes .cloud-table{min-width:900px}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}.focus-step{animation:step-focus 1.5s ease-out}@keyframes step-focus{from{box-shadow:0 0 0 5px #6ce4b844}to{box-shadow:0 0 0 0 transparent}}}
@@ -43,6 +44,7 @@ DASHBOARD: str = r"""<!doctype html>
  <button id="seeker-tab" type="button" role="tab" aria-selected="false" aria-controls="seeker-view" tabindex="-1">Reward Seeker</button>
  <button id="atlas-tab" type="button" role="tab" aria-selected="false" aria-controls="atlas-view" tabindex="-1">Run Atlas</button>
  <button id="tools-tab" type="button" role="tab" aria-selected="false" aria-controls="tools-view" tabindex="-1">Trace Tools</button>
+ <button id="task-tab" type="button" role="tab" aria-selected="false" aria-controls="task-view" tabindex="-1">Task Evidence</button>
  <button id="trust-tab" type="button" role="tab" aria-selected="false" aria-controls="trust-view" tabindex="-1">Trust &amp; QC</button>
 </nav>
 <div id="live-view" role="tabpanel" aria-labelledby="live-tab">
@@ -144,6 +146,17 @@ DASHBOARD: str = r"""<!doctype html>
  <div id="cloud-tools-cohorts" class="tools-cohorts"></div>
  <div id="cloud-tools-table" class="tools-table"></div>
  <details id="cloud-tools-sources" class="tools-sources"><summary>Sources read</summary><div id="cloud-tools-source-list"></div></details>
+</section>
+<section id="task-view" class="panel" role="tabpanel" aria-labelledby="task-tab" hidden>
+ <div class="panel-head"><div><div class="eyebrow">One admitted DEV task / runs, tool findings, Task QA, seeker differentials, grader fixes</div><h2>Task Evidence</h2></div><button id="task-refresh" type="button" class="small">Refresh task</button></div>
+ <p class="seal">Retained records for one task, not a verdict. A tool that did not read a run abstained, which is neither a miss nor a clean pass; no finding recorded means none recorded.</p>
+ <form id="task-form" class="cloud-filters">
+  <div class="cloud-query"><label for="task-query">Task id (two or more characters)</label><input id="task-query" type="search" autocomplete="off" maxlength="300" placeholder="e.g. terminal-bench/vf2-speedup-networkx"></div>
+  <div class="actions"><button type="submit" class="primary">Find task</button><button id="task-copy-link" type="button">Copy link to this task</button></div>
+ </form>
+ <p id="task-status" class="notice" role="status"></p>
+ <div id="task-matches"></div>
+ <div id="task-content"></div>
 </section>
 <section id="trust-view" class="panel" role="tabpanel" aria-labelledby="trust-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">Retained producer reports / counts and arithmetic only</div><h2>Trust tiers, Hackbook QC and cross-test</h2></div><button id="cloud-trust-refresh" type="button" class="small">Refresh retained reports</button></div>
@@ -895,6 +908,7 @@ async function openAtlasRun(runId,opener){
   const data=await cloudApi('/api/cloud-db/atlas/run?'+new URLSearchParams({run_id:runId,split:'dev'}));
   if(version!==atlasRunVersion)return;
   const run=data.run;
+  parent.append(button('Open task evidence for '+text(run.task_id),()=>openTask(run.task_id)));
   parent.append(atlasFacet(run),atlasFlagBadges(run),node('h3','Cluster paths'));
   const paths=list(run.cluster_paths);
   if(paths.length)for(const path of paths)parent.append(node('p',list(path).map(cluster=>cluster.name).join(' → ')));
@@ -949,13 +963,13 @@ function applyAtlasLink(){
  atlasCluster=params.get('cluster_id')||'';
  return true;
 }
-async function copyAtlasText(value,label){
- try{await navigator.clipboard.writeText(value);notice('cloud-atlas-status','Copied '+label+'.');}
- catch{notice('cloud-atlas-status','Clipboard is unavailable in this browser context; '+label+' were not copied.',true);}
+async function copyText(value,label,statusId='cloud-atlas-status'){
+ try{await navigator.clipboard.writeText(value);notice(statusId,'Copied '+label+'.');}
+ catch{notice(statusId,'Clipboard is unavailable in this browser context; '+label+' were not copied.',true);}
 }
-$('atlas-copy-ids').addEventListener('click',()=>copyAtlasText(atlasShownIds.join('\n'),
+$('atlas-copy-ids').addEventListener('click',()=>copyText(atlasShownIds.join('\n'),
  cloudCount(atlasShownIds.length)+(atlasShownIds.length===1?' run ID':' run IDs')));
-$('atlas-copy-link').addEventListener('click',()=>copyAtlasText(atlasLink(),'the link to this view'));
+$('atlas-copy-link').addEventListener('click',()=>copyText(atlasLink(),'the link to this view'));
 function toolsBrief(entry){
  if(!entry)return 'No retained result';
  if(!entry.positives_decided)return 'No runs read';
@@ -982,6 +996,164 @@ async function loadAtlasTools(){
  }
 }
 $('atlas-tools-open').addEventListener('click',()=>$('tools-tab').click());
+let taskId='',taskVersion=0,taskSearchVersion=0;
+const taskLink=id=>location.origin+location.pathname+'#task?task_id='+encodeURIComponent(id);
+const taskReward=value=>typeof value==='number'?String(value):'Not recorded';
+const taskRatio=(passes,trials)=>Number.isInteger(passes)&&Number.isInteger(trials)?passes+' of '+trials:'Not recorded';
+function applyTaskLink(){
+ if(!location.hash.startsWith('#task'))return false;
+ const id=new URLSearchParams(location.hash.slice(6)).get('task_id');
+ if(!id)return false;
+ taskId=id.slice(0,300);$('task-query').value=taskId;
+ return true;
+}
+function openTask(id){
+ taskId=id;$('task-query').value=id;
+ if($('task-tab').getAttribute('aria-selected')==='true')loadTask();else $('task-tab').click();
+}
+function taskSection(title,hint,cls){
+ const section=node('section',undefined,'task-section '+(cls||''));
+ section.append(node('h3',title));
+ if(hint)section.append(node('p',hint,'muted'));
+ return section;
+}
+function taskLines(lines){
+ const box=node('div',undefined,'task-lines');
+ for(const line of lines)box.append(node('small',line));
+ return box;
+}
+function taskCommands(commands){
+ const section=taskSection('Fetch these records','Copy a command to pull the same evidence into an agent session. Exports are blinded; labels stay in a sealed manifest.');
+ for(const entry of list(commands)){
+  const row=node('div',undefined,'task-command-row'),command=entry.command.split('$EVALLAB_CLOUD_URL').join(location.origin);
+  row.append(node('strong',entry.label),node('small',' · needs '+entry.needs),node('pre',command,'task-command'),
+   button('Copy command',()=>copyText(command,'the '+entry.label.toLowerCase()+' command','task-status')));
+  section.append(row);
+ }
+ return section;
+}
+function taskGraderFixes(data){
+ const section=taskSection('Grader fixes','The recorded repaired-grader digest above, repairs qualified by Task QA, and each issue\u2019s original and repaired reward.','task-fixes'),
+  repairs=list(data.repairs);
+ if(!repairs.length)section.append(node('p','No qualified repair events are retained for this task.','empty'));
+ else section.append(cloudTable(['When','Campaign','Qualified','Source','Repaired task digest','Exploit passes','No-op passes','Reference passes'],
+  repairs.map(repair=>[toolsTime(repair.at),repair.campaign,badge(repair.qualified?'Qualified':'Not qualified',repair.qualified?'good':'warn'),
+   repair.source,cloudDigest(repair.repaired_task_digest),taskRatio(repair.exploit,repair.exploit_trials),
+   taskRatio(repair.nop,repair.nop_trials),taskRatio(repair.ref_passes,repair.reference_trials)])));
+ return section;
+}
+function taskQa(data){
+ const section=taskSection('Task QA findings','Retained issue rows and the journal\u2019s Task QA findings. Provisional means not yet verified.','task-qa'),
+  issues=list(data.issues),findings=list(data.qa_findings);
+ if(!issues.length)section.append(node('p','No retained issue rows for this task.','empty'));
+ else section.append(cloudTable(['Issue','Defect class','Direction','Status','Trust tier','Original \u2192 repaired reward','Citation','Witness'],
+  issues.map(issue=>[issue.issue_id,issue.defect_class,issue.direction,badge(text(issue.status),tone(issue.status)),issue.trust_tier,
+   taskReward(issue.original_reward)+' \u2192 '+taskReward(issue.repaired_reward),
+   issue.citation_file?issue.citation_file+':'+text(issue.citation_line):'Not recorded',cloudDigest(issue.witness_digest)])));
+ if(!findings.length)section.append(node('p','No journal Task QA findings are retained for this task.','empty'));
+ else section.append(cloudTable(['When','Finding','Phase','Severity','Status','Summary'],
+  findings.map(finding=>[toolsTime(finding.at),finding.kind==='blocked'?'Blocked: '+list(finding.finding_ids).join(', '):finding.finding_id,
+   finding.phase,finding.severity,finding.status,finding.summary])));
+ return section;
+}
+function taskSeeker(data){
+ const section=taskSection('Seeker differentials','A differential is a submission that passes the original grader and fails the repaired one. Exploit files are never shown here.','task-seeker'),
+  rows=list(data.seeker);
+ if(!rows.length){section.append(node('p','No Reward Seeker attempts are retained for this task.','empty'));return section;}
+ section.append(cloudTable(['When','Event','Attempt','Differential','Original \u2192 repaired','Class','Hackbook entry','Model route','Detail'],
+  rows.map(row=>[toolsTime(row.at),row.kind,row.attempt_index??row.attempts_run??'\u2014',
+   row.kind==='worker'?badge(row.exploit_confirmed?'Exploit confirmed':'No exploit',row.exploit_confirmed?'good':'warn'):
+    badge(row.differential_confirmed?'Confirmed':'Not confirmed',row.differential_confirmed?'good':'warn'),
+   taskReward(row.original_reward)+' \u2192 '+taskReward(row.repaired_reward),row.taxonomy_class,row.hackbook_entry_id,row.model_route,
+   row.mechanism||[row.failure_kind,row.target_check].filter(Boolean).join(' \u00b7 ')||'\u2014'])));
+ return section;
+}
+function taskTools(tools){
+ const names=Object.keys(tools||{});
+ if(!names.length)return node('small','No tool result retained');
+ return taskLines(names.map(name=>{
+  const entry=tools[name],flagged=list(entry.flagged);
+  return name+': '+(flagged.length?'flagged '+flagged.map(item=>item.detector+(list(item.evidence_steps).length?' (steps '+item.evidence_steps.join(', ')+')':'')).join('; ')+' · ':'')+
+   cloudCount(entry.clean_n)+' clean · '+cloudCount(entry.abstained_n)+' abstained';
+ }));
+}
+function taskRuns(data){
+ const runs=list(data.runs),section=taskSection('Runs of this task','Most suspicious atlas facet first. Facets are model-read leads; tool findings are leads, not verdicts.','task-runs');
+ if(data.tool_results_error)section.append(node('p','Trace-tool results: '+data.tool_results_error,'notice error'));
+ if(!runs.length){section.append(node('p','No runs are retained for this task.','empty'));return section;}
+ if(data.summary.runs_n>runs.length)section.append(node('p','Showing '+cloudCount(runs.length)+' of '+cloudCount(data.summary.runs_n)+' runs.','notice'));
+ section.append(cloudTable(['Suspicion','Run ID','Model','Outcome','Goal / approach / shortcut','Facet flags','Clusters','Trace tools','Actions'],
+  runs.map(run=>{
+   const facet=run.facet,id=node('code',String(run.run_id).slice(0,22),'mono'),actions=node('div',undefined,'task-lines');
+   id.title=run.run_id;
+   actions.append(button('Open in atlas',()=>{
+    $('cloud-atlas-filters').reset();$('atlas-query').value=run.run_id;atlasOffset=0;atlasCluster='';$('atlas-tab').click();
+   }),button('Copy export command',()=>copyText(run.export_command,'the export command','task-status')));
+   return [facet?badge(cloudCount(facet.suspicion),facet.suspicion>0?'warn':''):node('small','No facet'),id,run.model_id,run.outcome,
+    facet?taskLines([facet.goal,facet.approach,'Shortcut: '+facet.shortcut]):node('small','No atlas facet'),
+    facet?atlasFlagBadges(facet):'\u2014',
+    run.clusters.length?taskLines(run.clusters.map(path=>list(path).join(' \u2192 '))):'\u2014',taskTools(run.tools),actions];
+  })));
+ return section;
+}
+function renderTask(data){
+ const parent=$('task-content'),task=data.task,summary=data.summary,head=node('dl',undefined,'atlas-facet'),tiles=node('div',undefined,'metrics');
+ parent.replaceChildren();
+ for(const [label,value] of [['Task',task.task_id],['Dataset',task.dataset_id],['Item',task.item_id],['Split',task.split]]){
+  const box=node('div');box.append(node('dt',label),node('dd',value));head.append(box);
+ }
+ for(const [label,value] of [['Original grader',task.original_grader_digest],['Repaired grader',task.repaired_grader_digest]]){
+  const box=node('div'),detail=node('dd');
+  detail.append(typeof value==='string'?cloudDigest(value):node('span','None recorded'));box.append(node('dt',label),detail);head.append(box);
+ }
+ for(const [value,label] of [[cloudCount(summary.runs_n),'Runs'],[cloudCount(summary.faceted_n),'With atlas facet'],
+  [cloudCount(summary.suspicion_at_least_2_n),'Facet suspicion \u2265 2'],[cloudCount(summary.tool_flagged_runs_n),'Flagged by a tool'],
+  [cloudCount(summary.issues_confirmed_n)+' / '+cloudCount(summary.issues_n),'Confirmed / retained issues'],
+  [cloudCount(summary.seeker_confirmed_n)+' / '+cloudCount(summary.seeker_attempts_n),'Seeker differentials / attempts'],
+  [cloudCount(summary.repairs_qualified_n),'Qualified grader repairs']])tiles.append(cloudTile(value,label));
+ parent.append(head,tiles,taskCommands(data.commands),taskGraderFixes(data),taskQa(data),taskSeeker(data),taskRuns(data));
+}
+async function loadTask(){
+ const version=++taskVersion;
+ $('task-refresh').disabled=true;$('task-view').setAttribute('aria-busy','true');$('task-content').replaceChildren();$('task-matches').replaceChildren();
+ notice('task-status','Loading retained evidence for '+taskId+'\u2026');
+ try{
+  const data=await cloudApi('/api/cloud-db/task-evidence?split=dev&task_id='+encodeURIComponent(taskId));
+  if(version!==taskVersion)return;
+  renderTask(data);history.replaceState(null,'',taskLink(taskId));
+  notice('task-status',data.notice);
+ }catch(error){
+  if(version===taskVersion)notice('task-status',error.status===404?
+   'This is not an admitted DEV task (404). Search for a task id above.':cloudError(error,'Task evidence'),true);
+ }finally{
+  if(version===taskVersion){$('task-refresh').disabled=false;$('task-view').setAttribute('aria-busy','false');}
+ }
+}
+async function searchTasks(){
+ const query=$('task-query').value.trim(),version=++taskSearchVersion;
+ $('task-matches').replaceChildren();
+ if(query.length<2){notice('task-status','Type at least two characters of a task id.',true);return;}
+ notice('task-status','Searching admitted DEV tasks\u2026');
+ try{
+  const data=await cloudApi('/api/cloud-db/task-evidence/search?split=dev&q='+encodeURIComponent(query)),tasks=list(data.tasks);
+  if(version!==taskSearchVersion)return;
+  if(!tasks.length){notice('task-status','No admitted DEV task id contains that text.');return;}
+  const exact=tasks.find(item=>item.task_id===query);
+  if(exact||tasks.length===1){openTask((exact||tasks[0]).task_id);return;}
+  $('task-content').replaceChildren();
+  $('task-matches').replaceChildren(cloudTable(['Task','Dataset','Runs','Issues'],tasks.map(item=>[
+   button(item.task_id,()=>openTask(item.task_id),'link'),item.dataset_id,cloudCount(item.runs_n),cloudCount(item.issues_n)])));
+  notice('task-status',tasks.length>=data.limit?'Showing the first '+data.limit+' matches; narrow the text to see others.':'Choose a task.');
+ }catch(error){
+  if(version===taskSearchVersion)notice('task-status',cloudError(error,'Task search'),true);
+ }
+}
+$('task-form').addEventListener('submit',event=>{event.preventDefault();searchTasks();});
+$('task-refresh').addEventListener('click',()=>{if(taskId)loadTask();else searchTasks();});
+$('task-copy-link').addEventListener('click',()=>{
+ if(taskId)copyText(taskLink(taskId),'the link to this task','task-status');
+ else notice('task-status','Open a task first.',true);
+});
 const toolsPct=value=>(value*100).toFixed(1)+'%';
 const toolsTokens=new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
 function toolsTime(value){
@@ -1148,6 +1320,7 @@ for(const tab of viewTabs){
   if(tab.id==='seeker-tab')loadSeekerComparison();
   if(tab.id==='atlas-tab'){loadAtlas();loadAtlasTools();}
   if(tab.id==='tools-tab')loadTraceTools();
+  if(tab.id==='task-tab'&&taskId)loadTask();
   if(tab.id==='trust-tab')loadTrustQc();
  });
  tab.addEventListener('keydown',event=>{
@@ -1803,7 +1976,8 @@ stream.onmessage=event=>{
 stream.onopen=()=>{$('connection').textContent='Live · connected';$('connection').className='status';};
 stream.onerror=()=>{$('connection').textContent='Reconnecting · journal replay enabled';$('connection').className='disconnected';};
 window.addEventListener('pagehide',()=>{stream.close();clearTimeout(stateTimer);clearTimeout(timelineTimer);});
-if(applyAtlasLink()||document.body.dataset.home==='atlas')$('atlas-tab').click();
+if(applyTaskLink())$('task-tab').click();
+else if(applyAtlasLink()||document.body.dataset.home==='atlas')$('atlas-tab').click();
 refresh();
 </script>
 </body>

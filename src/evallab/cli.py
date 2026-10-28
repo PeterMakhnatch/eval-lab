@@ -6821,8 +6821,13 @@ def parser() -> argparse.ArgumentParser:
     )
     sa_parser.set_defaults(func=_ladder_screen_analyze_command)
 
-    trace = commands.add_parser(
+    trace_parser = commands.add_parser(
         "trace",
+        help="Trace harness (run/card/score detectors) and the ATIF->OTel Phoenix shipper (otel)",
+    )
+    trace_actions = trace_parser.add_subparsers(dest="trace_command", required=True)
+    trace = trace_actions.add_parser(
+        "otel",
         help="Convert ATIF trajectories to OTel and ship them to Phoenix",
     )
     trace.add_argument("path", type=Path, help="Trial directory, job directory, or trajectory.json")
@@ -6842,6 +6847,9 @@ def parser() -> argparse.ArgumentParser:
         help="Also trace oracle/nop control trials",
     )
     trace.set_defaults(func=_trace_command)
+    from evallab.production.trace_harness import register_subcommands as register_trace_harness
+
+    register_trace_harness(trace_actions)
 
     fetch = commands.add_parser(
         "fetch",

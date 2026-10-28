@@ -639,7 +639,7 @@ inputs:
   - path: src/evallab/production/cross_test_sets.py
     digest: sha256:8738f4b1dc6d00f03f46bea94a3eb16fc7f4e37bf20614708a68c56c729b43b8
   - path: src/evallab/production/dashboard.py
-    digest: sha256:824a3b0862521c23789cd3ea1e11c06e7f92a0dd1b8b5e1f2753462460638d47
+    digest: sha256:b0ba6b0261db54328f8fc042ecdbb42a7842a70e47fc1e09d295217f6b2714e7
   - path: src/evallab/production/deploy_preflight.py
     digest: sha256:8d9939d3d6b738d932e4d9296bc70a565e8b9896f87e068479b8026765311fa6
   - path: src/evallab/production/detector_scope.py
@@ -655,7 +655,7 @@ inputs:
   - path: src/evallab/production/gate_progress.py
     digest: sha256:c0737b9c65bad106e37f5ee3ebe23024a70a80c8bef9a255a737e881c1a52adc
   - path: src/evallab/production/harness_view.py
-    digest: sha256:594c4265a18ff557c952f14c93b055c141f8b63cdb34f9178d114ea520d28200
+    digest: sha256:797dbb8d4250326fec9ae32ce8caa1f8e4653694f1394113b94f27632fc6a104
   - path: src/evallab/production/ingest.py
     digest: sha256:8d9b4a839b8cb0484ad6bad3d46867b7c83761b4376cd8dc586c140e993764c2
   - path: src/evallab/production/inspector.py

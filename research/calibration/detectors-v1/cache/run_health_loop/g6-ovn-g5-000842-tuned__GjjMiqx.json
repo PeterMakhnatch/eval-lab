@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.0,
+ "detector": "run_health_loop",
+ "detector_version": "run-health/3",
+ "evidence_steps": [],
+ "explanation": "no component at threshold; max completion_claims=4",
+ "flagged": false,
+ "id": "g6-ovn-g5-000842-tuned__GjjMiqx",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.8
+}

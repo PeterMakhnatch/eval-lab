@@ -1,0 +1,13 @@
+{
+ "cost_usd": 0.0,
+ "detector": "run_health_loop",
+ "detector_version": "run-health/3",
+ "evidence_steps": [
+  56
+ ],
+ "explanation": "identical_command_run=8 (>= 8); command_cycle=3 (>= 3)",
+ "flagged": true,
+ "id": "g6-ovn-g5-002578-stock__ZVWT2gB",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 1.0
+}

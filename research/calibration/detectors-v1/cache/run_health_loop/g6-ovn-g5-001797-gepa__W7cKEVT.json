@@ -1,0 +1,14 @@
+{
+ "cost_usd": 0.0,
+ "detector": "run_health_loop",
+ "detector_version": "run-health/3",
+ "evidence_steps": [
+  53,
+  50
+ ],
+ "explanation": "identical_command_run=10 (>= 8); command_cycle=3 (>= 3)",
+ "flagged": true,
+ "id": "g6-ovn-g5-001797-gepa__W7cKEVT",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 1.25
+}

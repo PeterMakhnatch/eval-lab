@@ -238,6 +238,57 @@ def register_parser(commands: Any) -> None:
     )
     clusters.set_defaults(func=_command)
 
+    sb1 = actions.add_parser(
+        "seeker-error-first",
+        help="SB-1 two-turn error-first Reward Seeker campaign; --plan (default) is free",
+        description=(
+            "One cell is one cohort task x one model: a blind turn 1, then turn 2 with the "
+            "real ORIGINAL-grader runner error placed first plus DEV-only trace retrieval. "
+            "Plan and summarize make no model call and no grader run. --execute needs "
+            "--approval, --max-usd, --spend-ledger and --modal-app-name; local Docker is "
+            "always disabled."
+        ),
+    )
+    sb1.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    sb1.add_argument(
+        "--cohort", type=Path,
+        default=Path("research/experiments/sb1-clean-seeker-set-20261027/cohort.json"),
+        help="evallab.sb1_clean_seeker_set/v1 manifest",
+    )
+    sb1.add_argument("--out", type=Path, required=True, help="Retained cell/summary directory")
+    sb1.add_argument(
+        "--models", nargs="+", metavar="ROUTE",
+        help="OMP routes (default: the four SB-1 routes)",
+    )
+    sb1.add_argument("--workers", type=int, default=6, help="Concurrent cells (1-8, default 6)")
+    sb1.add_argument(
+        "--per-model-concurrency", type=int, default=2,
+        help="Concurrent model calls per route, within --workers (default 2)",
+    )
+    sb1.add_argument("--resume", action="store_true", help="Skip turns whose result passes the QC predicate")
+    mode = sb1.add_mutually_exclusive_group()
+    mode.add_argument("--plan", action="store_true", help="Default: counts and cost bound only")
+    mode.add_argument("--execute", action="store_true", help="Call models and Modal graders")
+    mode.add_argument("--summarize", action="store_true", help="Rebuild summary from retained cells")
+    sb1.add_argument("--approval", help="Recorded Peter authorization text for the Modal spend")
+    sb1.add_argument("--max-usd", type=float, help="Spend cap enforced by the native ledger")
+    sb1.add_argument("--spend-ledger", type=Path, help="Native Modal reservation ledger path")
+    sb1.add_argument("--modal-app-name", help="Modal app that owns the sandboxes")
+    sb1.add_argument("--billing-tag", help="Modal execution cost attribution")
+    sb1.add_argument(
+        "--cloud-trace-db", type=Path,
+        help="Local cloud-trace SQLite for turn-2 retrieval (opened read-only, DEV only)",
+    )
+    sb1.add_argument("--assignments-csv", type=Path, help="Split ledger (default: repository copy)")
+    sb1.add_argument("--omp-timeout", type=_positive_seconds, default=300.0)
+    sb1.add_argument("--grader-timeout", type=int, default=600)
+    sb1.add_argument("--omp-config", type=Path, help="OMP --config file")
+    sb1.add_argument(
+        "--spend-log", type=Path,
+        help="Failure-library spend.jsonl (default: ~/.local/state/evallab-failure-library)",
+    )
+    sb1.set_defaults(func=_command)
+
     once = actions.add_parser("run-once", help="Run selected live consumers, then relay once")
     _queue_options(once)
     _worker_options(once, WORKER_SYSTEMS)
@@ -520,6 +571,31 @@ def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     )
 
 
+def _seeker_error_first(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], int]:
+    from evallab.production.seeker_error_first import run_command
+
+    return run_command(
+        cohort=_local_path(root, args.cohort),
+        out=_local_path(root, args.out),
+        models=args.models,
+        workers=args.workers,
+        per_model_concurrency=args.per_model_concurrency,
+        resume=args.resume,
+        mode="execute" if args.execute else "summarize" if args.summarize else "plan",
+        assignments_csv=_optional_path(root, args.assignments_csv),
+        cloud_trace_db=_optional_path(root, args.cloud_trace_db),
+        approval=args.approval,
+        max_usd=args.max_usd,
+        spend_ledger=_optional_path(root, args.spend_ledger),
+        modal_app_name=args.modal_app_name,
+        billing_tag=args.billing_tag,
+        omp_timeout=args.omp_timeout,
+        grader_timeout=args.grader_timeout,
+        omp_config=_optional_path(root, args.omp_config),
+        spend_log=_optional_path(root, args.spend_log),
+    )
+
+
 def _optional_path(root: Path, path: Path | None) -> Path | None:
     return None if path is None else _local_path(root, path)
 
@@ -652,6 +728,10 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0
+        if args.prod_command == "seeker-error-first":
+            receipt, exit_code = _seeker_error_first(args, root)
+            _emit({"command": args.prod_command, **receipt}, args)
+            return exit_code
         with _open_queue(args, root) as connection:
             if args.prod_command == "ingest":
                 from evallab.production.ingest import ingest_corpus

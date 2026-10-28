@@ -1,0 +1,168 @@
+[
+  {
+    "id": "8fc7e0a0-9a57-4a80-9a6f-6cbf3b598246",
+    "name": "infra_not_model",
+    "version": 2,
+    "disabled": true,
+    "mode": "realtime",
+    "filters": [],
+    "trigger": {
+      "type": "rootSpanFinished"
+    },
+    "model": "glm-5.3-flash",
+    "llmProfileId": "3979cb66-df7f-429b-9f43-cfa77edcd9cc"
+  },
+  {
+    "id": "5c835d4f-783d-4bcb-a1de-b929ad1acbd4",
+    "name": "false_completion_claim",
+    "version": 3,
+    "disabled": false,
+    "mode": "realtime",
+    "filters": [],
+    "trigger": {
+      "type": "rootSpanFinished"
+    },
+    "model": "glm-5.3-flash",
+    "llmProfileId": "3979cb66-df7f-429b-9f43-cfa77edcd9cc"
+  },
+  {
+    "id": "87029992-9f37-4d2c-91b6-25368d4725f2",
+    "name": "stuck_loop",
+    "version": 3,
+    "disabled": false,
+    "mode": "realtime",
+    "filters": [],
+    "trigger": {
+      "type": "rootSpanFinished"
+    },
+    "model": "glm-5.3-flash",
+    "llmProfileId": "3979cb66-df7f-429b-9f43-cfa77edcd9cc"
+  },
+  {
+    "id": "26570c66-85c5-4d6f-8cb0-5f885ce81b28",
+    "name": "copied_upstream_fix",
+    "version": 3,
+    "disabled": false,
+    "mode": "realtime",
+    "filters": [],
+    "trigger": {
+      "type": "rootSpanFinished"
+    },
+    "model": "glm-5.3-flash",
+    "llmProfileId": "3979cb66-df7f-429b-9f43-cfa77edcd9cc"
+  },
+  {
+    "id": "f70b87dd-7f8f-4b85-9ea0-2ee23b549dc8",
+    "name": "Logic Analyzer",
+    "version": 2,
+    "disabled": true,
+    "mode": "batch",
+    "filters": [
+      {
+        "value": "1000",
+        "column": "total_token_count",
+        "operator": "gt"
+      }
+    ],
+    "trigger": {
+      "type": "rootSpanFinished"
+    },
+    "model": null,
+    "llmProfileId": null
+  },
+  {
+    "id": "206bf985-7d2e-4144-a77c-0c3212936a23",
+    "name": "Task Evaluator",
+    "version": 2,
+    "disabled": true,
+    "mode": "batch",
+    "filters": [
+      {
+        "value": "1000",
+        "column": "total_token_count",
+        "operator": "gt"
+      }
+    ],
+    "trigger": {
+      "type": "rootSpanFinished"
+    },
+    "model": null,
+    "llmProfileId": null
+  },
+  {
+    "id": "d4e90c4f-59fe-4d61-a2b2-d2dd9052cc94",
+    "name": "Friction Detector",
+    "version": 2,
+    "disabled": true,
+    "mode": "batch",
+    "filters": [
+      {
+        "value": "1000",
+        "column": "total_token_count",
+        "operator": "gt"
+      }
+    ],
+    "trigger": {
+      "type": "rootSpanFinished"
+    },
+    "model": null,
+    "llmProfileId": null
+  },
+  {
+    "id": "c94c47aa-9718-4083-bbd2-d83f68ae71ae",
+    "name": "Hallucination Detector",
+    "version": 2,
+    "disabled": true,
+    "mode": "batch",
+    "filters": [
+      {
+        "value": "1000",
+        "column": "total_token_count",
+        "operator": "gt"
+      }
+    ],
+    "trigger": {
+      "type": "rootSpanFinished"
+    },
+    "model": null,
+    "llmProfileId": null
+  },
+  {
+    "id": "0b5c9b0b-e233-48ab-bef5-ef437f97e832",
+    "name": "Intent Classifier",
+    "version": 2,
+    "disabled": true,
+    "mode": "batch",
+    "filters": [
+      {
+        "value": "1000",
+        "column": "total_token_count",
+        "operator": "gt"
+      }
+    ],
+    "trigger": {
+      "type": "rootSpanFinished"
+    },
+    "model": null,
+    "llmProfileId": null
+  },
+  {
+    "id": "e8875881-9a44-4f64-806d-b45c0e82a8ec",
+    "name": "Failure Detector",
+    "version": 3,
+    "disabled": false,
+    "mode": "realtime",
+    "filters": [
+      {
+        "value": "1000",
+        "column": "total_token_count",
+        "operator": "gt"
+      }
+    ],
+    "trigger": {
+      "type": "rootSpanFinished"
+    },
+    "model": null,
+    "llmProfileId": null
+  }
+]

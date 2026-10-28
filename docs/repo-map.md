@@ -595,7 +595,7 @@ inputs:
   - path: src/evallab/production/run_atlas_score.py
     digest: sha256:47892708f078d90f3133b9607a3986c0557d97a91aba1f4c161680a3c45e4091
   - path: src/evallab/production/run_atlas_watch.py
-    digest: sha256:87b3c605577f590391c452827b268effa7cc281e703bc656d8b3984d1bca2b0e
+    digest: sha256:01edce5c20afb99d3b1a003b133c4f746b36f13fcf6c5de7e230ebd438892163
   - path: src/evallab/production/run_catalog.py
     digest: sha256:735b547162c84b22cb5c22f4f9c3cc1041c04c6ac421660612afc0c4f154750e
   - path: src/evallab/production/runtime.py

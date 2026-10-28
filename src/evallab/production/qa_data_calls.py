@@ -12,7 +12,7 @@ from typing import Any
 
 from evallab.hackbook.playbook_cards import list_playbook_cards, match_playbook_cards
 from evallab.production.cloud_trace_db import _sealed_pattern
-from evallab.production.qa_data import UNAVAILABLE, QaContext, QaDataError
+from evallab.production.qa_data import UNAVAILABLE, QaContext, QaDataError, match_admitted_task
 
 # Facet fields a QA agent needs to triage a run. ``source`` and ``split`` stay out:
 # run records are routinely handed to blinded readers.
@@ -97,7 +97,7 @@ def runs(
     if not (facets or cluster_id is not None or like_run_id is not None or terms or task_id is not None):
         raise QaDataError("give at least one of --facet, --cluster, --like, --query, --task")
     if task_id is not None:
-        ctx.require_task(task_id)
+        task_id = ctx.require_task(task_id)["task_id"]
     try:
         pool = ctx.database.search_runs(
             facets, registry=ctx.retriever.registry, sealed_task_ids=ctx.retriever._sealed_ids, limit=None,
@@ -196,16 +196,18 @@ def history(ctx: QaContext, task_id: str, *, flags: Sequence[str], limit: int) -
         raise QaDataError(UNAVAILABLE)
     with ctx.database._transaction():  # admission, task row and issue rows share one snapshot
         admitted, _sealed = ctx.retriever._admitted_ids()
+        canonical = match_admitted_task(admitted, task_id)
         tasks = ctx.database._rows(
-            "SELECT instruction_text FROM corpus_tasks WHERE task_id = ?", (task_id,),
-        ) if task_id in admitted else []
+            "SELECT instruction_text FROM corpus_tasks WHERE task_id = ?", (canonical,),
+        ) if canonical is not None else []
         issue_rows = ctx.database._rows(
             "SELECT issue_id, defect_class, direction, status, trust_tier, citation_file, citation_line, "
             "original_reward, repaired_reward FROM task_issues WHERE task_id = ? ORDER BY issue_id",
-            (task_id,),
+            (canonical,),
         ) if tasks else []
-    if not tasks:
+    if not tasks or canonical is None:
         raise QaDataError(UNAVAILABLE)
+    task_id = canonical
     live = [row for row in issue_rows if row["status"] != "refuted"]
     own = []
     for row in live:

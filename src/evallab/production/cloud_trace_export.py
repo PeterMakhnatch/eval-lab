@@ -15,6 +15,7 @@ import os
 import re
 import sqlite3
 import tempfile
+import time
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import closing
 from datetime import UTC, datetime
@@ -403,3 +404,131 @@ def export_runs(
                         manifest_status.st_dev, manifest_status.st_ino,
                     ):
                         join_path.unlink()
+
+
+_CLUSTER_SCOPE_SCHEMA = "evallab.cluster_scope/v1"
+_CLUSTER_SCOPE_SQL = (
+    "SELECT m.value AS member, a.trace_id, a.task_id, t.split AS stored_split,"
+    " CASE WHEN json_valid(t.metadata_json)"
+    " THEN json_extract(t.metadata_json, '$.native_identity.task_name') END AS native_task,"
+    " f.facet_version, f.facet_model"
+    " FROM json_each(?) AS m"
+    " LEFT JOIN agent_traces AS a ON a.trace_id = m.value"
+    " LEFT JOIN corpus_tasks AS t ON t.task_id = a.task_id"
+    " LEFT JOIN run_facets AS f ON f.run_id = a.trace_id AND f.task_id = a.task_id"
+    " ORDER BY m.value"
+)
+
+
+def _cluster_members(raw: Any) -> list[str]:
+    members = json.loads(raw) if isinstance(raw, str) else raw
+    if not isinstance(members, list) or not all(isinstance(item, str) and item for item in members):
+        raise ValueError("stored cluster membership is not a list of run ids")
+    return list(dict.fromkeys(members))
+
+
+def export_cluster_scope(
+    database_path: str | Path,
+    cluster_id: str,
+    manifest: str | Path,
+    *,
+    registry: CorpusRegistry | None = None,
+    revision: str | None = None,
+) -> dict[str, Any]:
+    """Publish a metadata-only scope file for one stored Run Atlas cluster.
+
+    One row per member run whose task the shared admission gate
+    (``admitted_cloud_task_ids`` with the registry's ``assignments.csv`` authority,
+    which includes the strict cross-key TEST check) admits as DEV. Members that
+    are not admitted get no row, name and id: only counts by coarse reason are
+    published, so the file cannot say which hidden runs exist. No trace body,
+    label, reward, facet text, cluster name or run source is read or written.
+    The manifest must not exist; it is published whole, never replaced.
+    """
+    if not isinstance(cluster_id, str) or not cluster_id.strip() or "\x00" in cluster_id:
+        raise ValueError("cluster_id must be a nonempty string without NUL")
+    started = time.perf_counter()
+    join_path = _destination(manifest, "manifest")
+    source = Path(database_path).expanduser().resolve(strict=True)
+    authority = registry if registry is not None else CorpusRegistry()
+    if not authority.has_assignment_authority():
+        raise ValueError("assignments.csv authority is unavailable; refusing to certify any run as DEV")
+    digest = authority.split_assignments_digest
+    assert digest is not None  # has_assignment_authority() validated it
+    assignments_sha256 = digest.removeprefix("sha256:")
+    with closing(sqlite3.connect(source_read_uri(source), uri=True)) as connection:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA query_only=ON")
+        connection.execute("BEGIN")
+        cluster = connection.execute(
+            "SELECT cluster_id, level, parent, size, run_ids, provenance_json"
+            " FROM run_clusters WHERE cluster_id = ?", (cluster_id,),
+        ).fetchone()
+        if cluster is None:
+            raise ValueError("no stored cluster has that id")
+        members = _cluster_members(cluster["run_ids"])
+        provenance = json.loads(cluster["provenance_json"])
+        identities = [dict(row) for row in connection.execute(_IDENTITY_SQL)]
+        admitted = admitted_cloud_task_ids(identities, registry=authority)
+        rows = []
+        refused = {"db_non_dev_split": 0, "registry_cross_key_or_sealed": 0, "unstored_run": 0}
+        for row in connection.execute(_CLUSTER_SCOPE_SQL, (json.dumps(members),)):
+            if row["trace_id"] is None:
+                refused["unstored_run"] += 1
+            elif row["task_id"] not in admitted:
+                label = row["stored_split"]
+                refused[
+                    "registry_cross_key_or_sealed"
+                    if isinstance(label, str) and label.strip().casefold() == "dev" else "db_non_dev_split"
+                ] += 1
+            else:
+                rows.append({
+                    "trace_id": row["trace_id"],
+                    "task_id": row["task_id"],
+                    "native_task_id": row["native_task"],
+                    "canonical_task_id": authority.task_name(row["task_id"]),
+                    "assignments_sha256": assignments_sha256,
+                    "admission": "dev-admitted",
+                    "facet_build_id": provenance.get("build_id"),
+                    "facet_producer_revision": row["facet_version"],
+                    "facet_served_model": row["facet_model"],
+                })
+    document = {
+        "schema": _CLUSTER_SCOPE_SCHEMA,
+        "cluster": {
+            "cluster_id": cluster["cluster_id"], "level": cluster["level"], "parent": cluster["parent"],
+            "stored_size": cluster["size"], "members": len(members),
+            "build_id": provenance.get("build_id"), "cluster_version": provenance.get("cluster_version"),
+            "facet_count": provenance.get("facet_count"), "created_at": provenance.get("created_at"),
+            "embedder": provenance.get("embedder"), "embedder_digest": provenance.get("embedder_digest"),
+        },
+        "assignments_sha256": assignments_sha256,
+        "admission_gate": "admitted_cloud_task_ids + CorpusRegistry (assignments.csv cross-key TEST check)",
+        "counts": {
+            "members": len(members), "admitted": len(rows),
+            "refused": sum(refused.values()), "refused_by_reason": refused,
+        },
+        "export_revision": revision,
+        "rows": rows,
+    }
+    manifest_bytes = _json_bytes(document)
+    join_path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, filename = tempfile.mkstemp(prefix=".cluster-scope-", dir=join_path.parent)
+    temporary = Path(filename)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(manifest_bytes)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(temporary, join_path)  # never replaces a racing file or symlink
+    finally:
+        temporary.unlink(missing_ok=True)
+    return {
+        "schema": _CLUSTER_SCOPE_SCHEMA, "cluster_id": cluster["cluster_id"], "level": cluster["level"],
+        **document["counts"], "assignments_sha256": assignments_sha256,
+        "facet_build_id": provenance.get("build_id"), "manifest_path": str(join_path),
+        "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+        "recorded_at_utc": datetime.now(UTC).isoformat(),
+        "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
+    }

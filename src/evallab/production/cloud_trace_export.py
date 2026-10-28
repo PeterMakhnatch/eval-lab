@@ -169,6 +169,20 @@ def _atif(steps: Sequence[Mapping[str, Any]], blind_id: str) -> dict[str, Any]:
     }
 
 
+def _actor_inputs_available(steps: Sequence[Mapping[str, Any]]) -> bool:
+    """Whether a blinded run holds anything an actor-reading monitor can scan.
+
+    True when some agent-authored step has message text or a tool call. Runs made only of
+    system events, replay receipts, tool output or user prompts (no model actor behind them)
+    give a monitor nothing to read: their answer is unknown, not clean. Derived from the
+    exported structure alone, never from a label, reward or source name.
+    """
+    return any(
+        step.get("source") == "agent" and (str(step.get("message") or "").strip() or bool(step.get("tool_calls")))
+        for step in steps
+    )
+
+
 def _redact_steps(document: dict[str, Any], identities: re.Pattern[str]) -> None:
     def text(value: str) -> str:
         return identities.sub(_REDACTED, _CAS_REFERENCE.sub(_REDACTED, value))
@@ -404,6 +418,7 @@ def export_runs(
                     raise ValueError("blinded trajectory contains evaluator-only fields or text")
                 if not projected["steps"]:
                     raise ValueError("trace has no actor-visible steps")
+                actor_inputs = _actor_inputs_available(projected["steps"])
                 _redact_steps(projected, pattern)
                 if find_forbidden_json(projected):
                     raise ValueError("blinded trajectory contains evaluator-only fields or text")
@@ -415,6 +430,7 @@ def export_runs(
                 _write_run(staging, blind_id, projected, format=format, scout_api=scout_api)
                 joins[blind_id] = {
                     "trace_id": trace["trace_id"], "step_origin": origins, "reward": trace["reward"],
+                    "actor_inputs_available": actor_inputs,
                 }
         manifest_bytes = _json_bytes(joins)
         stage.link_manifest(manifest_bytes)
@@ -843,7 +859,7 @@ def export_cheatbench_runs(
             _write_run(stage.directory, blind_id, blinded, format=format, scout_api=scout_api)
             joins[blind_id] = {
                 "run_id": item.item_id, "trial_ref": reference, "view": view, "trajectory_sha256": observed,
-                "step_origin": origins, "reward": None,
+                "step_origin": origins, "reward": None, "actor_inputs_available": _actor_inputs_available(steps),
                 "answer_key": {key: item.metadata.get(key) for key in _CHEATBENCH_KEY_FIELDS},
             }
         manifest_bytes = _json_bytes(joins)

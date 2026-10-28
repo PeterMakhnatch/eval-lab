@@ -28,7 +28,10 @@ def _manifest(path: Path) -> dict[str, dict[str, Any]]:
     ):
         raise QaDataError("invalid sealed manifest")
     return {
-        blind_id: {"trace_id": entry["trace_id"], "step_origin": entry["step_origin"]}
+        blind_id: {
+            "trace_id": entry["trace_id"], "step_origin": entry["step_origin"],
+            "actor_inputs_available": entry.get("actor_inputs_available"),
+        }
         for blind_id, entry in value.items()
     }
 
@@ -152,13 +155,14 @@ def export(
         ) from exc
     result["receipt"] = {key: receipt[key] for key in result["receipt"]}
     by_trace = {
-        entry["trace_id"]: (blind_id, entry["step_origin"])
+        entry["trace_id"]: (blind_id, entry["step_origin"], entry["actor_inputs_available"])
         for blind_id, entry in _manifest(manifest_path).items()
     }
     taken = []
     for trace_id in ids:
-        blind_id, origins = by_trace[trace_id]
-        item: dict[str, Any] = {"trace_id": trace_id, "blind_id": blind_id}
+        blind_id, origins, actor_inputs = by_trace[trace_id]
+        # False means no model actor to read (replay receipts, event journals): unknown, not clean.
+        item: dict[str, Any] = {"trace_id": trace_id, "blind_id": blind_id, "actor_inputs_available": actor_inputs}
         if format == "atif":
             cited = evidence.get(trace_id, [])
             positions = {original: index for index, original in enumerate(origins, start=1)}

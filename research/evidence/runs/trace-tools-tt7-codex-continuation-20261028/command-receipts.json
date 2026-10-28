@@ -1,0 +1,137 @@
+{
+  "additional_side_effects_found_in_retained_outer_tool_events": 0,
+  "commands": [
+    {
+      "command": "git fetch origin main",
+      "elapsed_s": null,
+      "result": "origin/main fetched at f5105c36a6a1ed082d2a4006d117388a9cd7c29b"
+    },
+    {
+      "command": "git worktree add -b trace-tools/tt7-codex-continuation-20261028 $WT origin/main",
+      "elapsed_s": 9.38,
+      "result": "new isolated owned worktree"
+    },
+    {
+      "command": "uv sync --locked --python 3.12 --no-group observability --group benchmarks --group lance",
+      "elapsed_s": 1.75,
+      "result": "CPython3.12.11;166 packages"
+    },
+    {
+      "command": "uv run --no-sync pytest $PUBLIC/test_codex_guard.py -n 0 -q",
+      "elapsed_s": null,
+      "result": "32 passed before preparation; synthetic guard tests, zero model calls"
+    },
+    {
+      "combined_guard_tests_and_prepare_cli_elapsed_s": 22.98,
+      "command": "uv run --no-sync python $PUBLIC/continue_codex.py prepare",
+      "elapsed_s": 21.452,
+      "labels_read": false,
+      "result": "200 frozen inputs;45564204 rendered bytes;13957 steps;4 canonical privacy vetoes"
+    },
+    {
+      "actual_concurrency": 1,
+      "actual_provider_http_or_generation_count": null,
+      "command": "uv run --no-sync python $PUBLIC/continue_codex.py --entitlement $STATE/tt7-codex-entitlement-20261028T151645Z/entitlement.json run",
+      "elapsed_s": 87.6,
+      "labels_read": false,
+      "last_applicable_quota_fraction": 0.84,
+      "quota_checks": 13,
+      "result": "13 native OMP invocations;12 valid forms;1 actual stateful-tool/multiple-turn protocol breach;then STOP"
+    },
+    {
+      "command": "uv run --no-sync python $PUBLIC/continue_codex.py close",
+      "elapsed_s": null,
+      "labels_read": false,
+      "model_calls": 0,
+      "result": "sealed original13-row attempt;185 missing before later4-row privacy closure"
+    },
+    {
+      "command": "uv run --no-sync python $PUBLIC/score_delta.py --readings-closed",
+      "elapsed_s": null,
+      "model_calls": 0,
+      "preceding_8_score_tests_and_cli_combined_elapsed_s": 1.82,
+      "result": "local-only label/gold join after seal;baseline19 arm views and12 Luna pairs exactly reproduced;13 new observations"
+    },
+    {
+      "command": "uv run --no-sync pytest $PUBLIC/test_native_metadata.py -n 0 -q && uv run --no-sync python $PUBLIC/audit_native_metadata.py",
+      "elapsed_s": 5.0,
+      "model_or_quota_calls": 0,
+      "result": "5 tests passed;163 owned retained outer-event streams;164 assistant turns;141081176 bytes;exactly1 known stateful tool execution"
+    },
+    {
+      "command": "uv run --no-sync pytest $PUBLIC/test_close_privacy.py -n 0 -q && uv run --no-sync python $PUBLIC/close_privacy.py",
+      "elapsed_s": null,
+      "labels_read": false,
+      "model_or_quota_calls": 0,
+      "result": "4 tests passed;4 canonical zero-call privacy abstentions appended;181 truly unattempted;all prior rows preserved"
+    },
+    {
+      "command": "uv run --no-sync pytest $PUBLIC/test_score_delta.py -n 0 -q && uv run --no-sync python $PUBLIC/score_delta.py --readings-closed --render-only --out $PUBLIC/score-delta-v2.json",
+      "elapsed_s": null,
+      "labels_reopened": false,
+      "metrics_recomputed": false,
+      "model_or_quota_calls": 0,
+      "result": "9 tests passed;only a fresh Markdown render written;sealed JSON and original Markdown hashes unchanged"
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "--no-sync",
+        "python",
+        "/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-tt7-codex-continuation-20261028/research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/native_inference_gate.py",
+        "--entitlement",
+        "/private/tmp/tt7-native-gate-proof-is-not-read.json",
+        "run"
+      ],
+      "cli_tool_dispatch_safety_proven": false,
+      "elapsed_s": 4.453991334012244,
+      "model_or_quota_calls": 0,
+      "result": "exit78/BLOCKED before archived launch or proof/prompt/quota access;stdout442 bytes;stderr0"
+    }
+  ],
+  "default_environment": {
+    "EVALLAB_DISABLE_LOCAL_DOCKER": "1"
+  },
+  "financial_basis": "financial-annotation.json:12 current included-native invocations $0 marginal;historical2 and anomalous1 UNKNOWN;whole-study totals not certified zero",
+  "frozen_private_artifacts": {
+    "native_metadata_manifest_sha256": "13c8fff139096dcedd4d11436a5335b589017a9380e3a6af107f04ba2373da1e",
+    "privacy_closure_rows": {
+      "rows": 4,
+      "sha256": "0213c0609b0af46ac132184e3ce83007fc14719e3070717ac75c62d69d3e2759"
+    },
+    "sealed_new_records": {
+      "bytes": 18335,
+      "rows": 13,
+      "sha256": "3da2620226539706d9ec5e101504800b362821f278c4bcbd7bb167cf91fb5a14"
+    },
+    "sealed_results_snapshot": {
+      "bytes": 1515357,
+      "rows": 2115,
+      "sha256": "191313cf3f5a3ecb9e950dd37a26b8d041c593e70b9d678eb441305bb78e95b8"
+    }
+  },
+  "limitations": [
+    "No exact elapsed value is invented for commands without a retained measurement.",
+    "Provider request/retry counts are not inferred from OMP invocation count.",
+    "This is not full local-suite, runtime-smoke, GitHub CI or merged-revision proof; those are separate delivery receipts."
+  ],
+  "metadata_only_proof_observations": {
+    "exact_metadata_probe_argv": "Retained privately in original proof receipts; not reconstructed from memory here",
+    "model_prompts": 0,
+    "raw_credentials_printed": false,
+    "source": "route-proof.json",
+    "v1_elapsed_s": 0.399599,
+    "v1_stdout_bytes": 17307,
+    "v2_elapsed_s": 0.675684,
+    "v2_stdout_bytes": 17411
+  },
+  "new_calls_after_protocol_stop": 0,
+  "schema": "tt7.codex_continuation_command_receipts/v1",
+  "scope": "Retained historical execution plus offline audit/closure/admission-stop commands; not instructions to resume inference",
+  "variables": {
+    "PUBLIC": "research/evidence/runs/trace-tools-tt7-codex-continuation-20261028",
+    "STATE": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools",
+    "WT": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-tt7-codex-continuation-20261028"
+  }
+}

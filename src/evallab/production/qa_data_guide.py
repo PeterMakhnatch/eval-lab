@@ -84,7 +84,8 @@ CALLS (all JSON; examples use real flags)
   export (--facet K=V[,V] ... | --trace-id ID ... | --ids-file FILE) [--limit N] [--format atif|harbor|scout] --out DIR
        blinded export of admitted runs. DIR and DIR.sealed-manifest.json (written beside it) must not exist. Any
        non-admitted id fails the whole call and exports nothing. Prints a receipt (admitted, exported, refused) and, per
-       run, trace_id, blind_id and the file; for atif also steps, evidence_steps_original and evidence_steps_blinded
+       run, trace_id, blind_id, actor_inputs_available (false = no model actor behind the run, e.g. replay receipts
+       and event journals: unknown, never clean) and the file; for atif also steps, evidence_steps_original and evidence_steps_blinded
        (same steps in the export's numbering; null = not exported). harbor and scout give no step map.
        atif: DIR/run-<32hex>.json  (jq '.steps[] | select(.step_id==3)': keys step_id, source, message, observation)
        harbor: DIR/run-<hex>/agent/trajectory.json + result.json (reward null)   scout: DIR/transcripts.jsonl

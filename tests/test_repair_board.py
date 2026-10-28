@@ -9,7 +9,8 @@ from typing import Any
 import pytest
 
 from evallab.production import repair_board
-from evallab.production.repair_board import RepairInventoryCache, build_board, parse_inventory
+from evallab.production.file_cache import ChangeCache
+from evallab.production.repair_board import build_board, load_inventory, parse_inventory
 
 SECRET_WORDING = "weak_check wording that must stay in the inventory"
 
@@ -146,7 +147,7 @@ def test_a_non_github_pr_url_is_not_linked() -> None:
 
 def test_the_cache_reports_absent_unreadable_and_reloads_when_the_file_changes(tmp_path: Path) -> None:
     path = tmp_path / "board" / "inventory.json"
-    cache = RepairInventoryCache(path)
+    cache = ChangeCache(path, load_inventory)
     assert cache.get()["present"] is False and "no repair inventory" in cache.get()["error"]
     path.parent.mkdir()
     path.write_text("{broken", encoding="utf-8")

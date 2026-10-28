@@ -14,7 +14,6 @@ inferred from a merged PR.
 
 from __future__ import annotations
 
-import threading
 from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
@@ -159,36 +158,15 @@ def parse_inventory(raw: bytes) -> dict[str, Any]:
     }
 
 
-class RepairInventoryCache:
-    """Re-reads the inventory only when the file changes on disk."""
-
-    def __init__(self, path: Path) -> None:
-        self.path = path
-        self._lock = threading.Lock()
-        self._key: tuple[int, int, int] | None = None
-        self._loaded = False
-        self._value: dict[str, Any] = {}
-
-    def get(self) -> dict[str, Any]:
-        try:
-            seen = self.path.lstat()
-            key: tuple[int, int, int] | None = (seen.st_mtime_ns, seen.st_size, seen.st_ino)
-        except OSError:
-            key = None
-        with self._lock:
-            if not self._loaded or key != self._key:
-                self._key, self._loaded = key, True
-                self._value = self._load()
-            return self._value
-
-    def _load(self) -> dict[str, Any]:
-        try:
-            raw = read_regular(self.path.parent, self.path.name, MAX_BYTES)
-            if raw is None:
-                return {"present": False, "error": "no repair inventory is retained at the configured path"}
-            return {"present": True, "error": None, **parse_inventory(raw)}
-        except (OSError, ValueError, ValidationError, UnicodeDecodeError) as error:
-            return {"present": False, "error": f"unreadable: {json_reason(error)}"}
+def load_inventory(path: Path) -> dict[str, Any]:
+    """The served inventory state for ``path``: parsed, absent or unreadable (with the reason)."""
+    try:
+        raw = read_regular(path.parent, path.name, MAX_BYTES)
+        if raw is None:
+            return {"present": False, "error": "no repair inventory is retained at the configured path"}
+        return {"present": True, "error": None, **parse_inventory(raw)}
+    except (OSError, ValueError, ValidationError, UnicodeDecodeError) as error:
+        return {"present": False, "error": f"unreadable: {json_reason(error)}"}
 
 
 def build_board(

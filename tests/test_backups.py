@@ -8,7 +8,63 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from evallab.backups import create_postgres_backup
+from evallab.backups import backup_freshness, create_postgres_backup
+
+
+def _generation(root: Path, day: str, payload: bytes, *, created_at: str) -> Path:
+    generation = root / "backups/postgres" / f"evallab-{day}"
+    generation.mkdir(parents=True)
+    dump = generation / "database.dump"
+    dump.write_bytes(payload)
+    (generation / "manifest.json").write_text(
+        json.dumps(
+            {
+                "created_at": created_at,
+                "dump": "database.dump",
+                "size_bytes": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        )
+    )
+    return dump
+
+
+def test_backup_freshness_reports_newest_verified_dump_age(tmp_path: Path) -> None:
+    _generation(tmp_path, "2026-09-19", b"older", created_at="2026-09-19T06:32:00+00:00")
+    newest = _generation(tmp_path, "2026-09-20", b"newest", created_at="2026-09-20T09:38:00+00:00")
+    corrupt = _generation(
+        tmp_path, "2026-09-21", b"corrupt", created_at="2026-09-21T06:30:00+00:00"
+    )
+    corrupt.write_bytes(b"truncated")  # Checksum no longer matches its manifest.
+
+    stale = backup_freshness(tmp_path, now=datetime(2026, 10, 27, 9, 38, tzinfo=UTC))
+    fresh = backup_freshness(tmp_path, now=datetime(2026, 9, 21, 9, 38, tzinfo=UTC))
+
+    assert stale == {
+        "status": "stale",
+        "newest_verified": str(newest),
+        "created_at": "2026-09-20T09:38:00+00:00",
+        "age_hours": 888.0,
+        "max_age_hours": 36.0,
+        "unverified_newer": [str(corrupt)],
+    }
+    assert fresh["status"] == "fresh"
+    assert fresh["age_hours"] == 24.0
+
+
+def test_backup_freshness_without_verified_dump_is_missing(tmp_path: Path) -> None:
+    broken = _generation(tmp_path, "2026-09-20", b"dump", created_at="2026-09-20T09:38:00+00:00")
+    (broken.parent / "manifest.json").write_text("{not json")
+
+    fact = backup_freshness(tmp_path, now=datetime(2026, 10, 27, tzinfo=UTC))
+
+    assert fact["status"] == "missing"
+    assert fact["newest_verified"] is None
+    assert fact["unverified_newer"] == [str(broken)]
+    assert (
+        backup_freshness(tmp_path / "absent", now=datetime(2026, 10, 27, tzinfo=UTC))["status"]
+        == "missing"
+    )
 
 
 def test_postgres_backup_is_atomic_and_has_integrity_manifest(tmp_path: Path) -> None:

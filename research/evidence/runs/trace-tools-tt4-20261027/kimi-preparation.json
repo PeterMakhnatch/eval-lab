@@ -1,0 +1,19 @@
+{
+  "admitted_n": 200,
+  "at": "2026-10-27T22:35:33.746717+00:00",
+  "blind_schema": "evallab.blind_run/v1",
+  "dev_gate": "dev_trace_refs exact DEV + admitted_cloud_task_ids(CorpusRegistry(owned_worktree))",
+  "duckdb": "1.5.5",
+  "inspect_ai": "0.3.285",
+  "inspect_scout": "0.5.4",
+  "metr_scanners": "0.1.11",
+  "model": "kimi-code/k3.1-pro-highspeed",
+  "no_truncation": true,
+  "ordered_ids_sha256": "8919dedfd5c702b14f995fcb738cea1322536964c679cbb60d15e6fbbf9707c4",
+  "ordering": "shuffle within each stratum; round-robin enacted_yes/clean_no/considered_only",
+  "sample_n": 200,
+  "sample_sha256": "e24db6ec51ca12f7184301caa9a2467446e4a2e090ecfcb9a2b25c3ca1eb7f87",
+  "seed": 20261027,
+  "model_calls": 0,
+  "launch_owner": "Main, after fresh positive Kimi allowance; worker does not wait for reset"
+}

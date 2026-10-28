@@ -1532,26 +1532,154 @@ modal run src/evallab/production/modal_cloud.py::run_cloud_supervisor_step \
   --approval 'Current scoped cloud offload approval' --max-usd 1
 ```
 
+#### SB-1 error-first seeker campaign (`evallab prod seeker-error-first`)
+
+One cell is one clean-cohort task x one OMP route, retained at
+`<out>/<dataset>/<task>/<route with "/" as "_">/{turn-1,turn-2}/{prompt.md,response.jsonl,result.json,submission/}`
+in the layout `ts4_executed_differentials` reads. Turn 1 is blind (`hide_tests`, strict blind
+prompt, no cues, retrieval or feedback). Turn 2 puts the **real ORIGINAL-grader runner error** of
+the turn-1 submission first (reward, status, sandbox exit codes, harness error, failing node names,
+verifier log tail and CTRF excerpts; free text is passed through `scrub_blind_task_text`, test file
+paths are dropped, the repaired grade is never fed back, 6000-character cap), then the blind
+prompt and DEV-only `CloudTraceRetriever` evidence (query enriched with the first failure token).
+
+```bash
+# free: counts, Modal upper bound, per-task cross-key DEV gate; writes <out>/plan.json
+uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out
+# paid, only under a current approval; refuses without all four authority flags
+uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out --execute \
+  --approval '<approval text>' --max-usd N --spend-ledger /path/to/ledger.json \
+  --modal-app-name NAME --cloud-trace-db /path/to/cloud-trace-db.sqlite [--resume]
+```
+
+- `--plan` (default) and `--summarize` make no model call and no grader run. Local Docker is
+  forced off for the whole process. `--workers` is at most 8; `--per-model-concurrency` bounds
+  concurrent calls per route.
+- A cell counts only when the served provider/model equals the requested route (a fallback
+  answer is never attributed to it), the digests bind `response.jsonl` and the executed
+  `solve.sh`, and both graders were `measured`. Unevaluated or missing cells are listed and never
+  counted as zeros; the summary pairs turn 2 against turn 1 over cells evaluated on both turns
+  (exact McNemar p on the discordant pairs).
+- `--resume` skips a turn only when its retained `result.json` passes that predicate; a failed
+  turn is renamed `turn-N.superseded-K`, never overwritten.
+- Model calls log `tool: omp`, `usd: 0` rows and Modal grades log `route: modal` rows to
+  `~/.local/state/evallab-failure-library/spend.jsonl` (`--spend-log` overrides it).
+
+#### Deploy runbook: data files for the dashboard tabs
+
+Deploying is a shared-service change that needs Peter's approval. `evallab prod deploy-preflight`
+prepares it and runs nothing on Modal: it checks each file, stages clean copies into a local
+directory, and prints the exact commands. Run it, read the report, and run the printed commands
+only after approval.
+
+```bash
+uv run evallab prod deploy-preflight --stage-directory /private/tmp/evallab-deploy-stage
+```
+
+It reads `~/.local/state/evallab-prod-live` (`--state-root`), the TS-9 inventory (`--inventory`) and
+the cross-test registry (`--registry`), writes only under the new stage directory (omit the flag to
+use a temporary one that is deleted), exits 1 when a required file is missing, unparseable, too
+large, rejected by the cloud loader or holds a per-run label or reward field, and prints `ok`,
+per-file status, which tabs are ready or degraded, the never-copy names it found, the deploy source,
+the environment settings, and the commands. Nothing it prints has been run.
+
+| Volume path (under `/data`) | Source | Tabs | If absent |
+| --- | --- | --- | --- |
+| `run-atlas/facets-v1.jsonl` | state root | Run Atlas, Coverage, Task Evidence, Trace Tools, Grader repairs | Run Atlas: "No facets have been written yet" |
+| `run-atlas/blinding-refresh-v1.json` | state root | Run Atlas, Coverage | both show an error notice; blinding unknown (required) |
+| `run-atlas/clusters-v1.jsonl` | state root | Run Atlas tree and paths | "No retained cluster tree" (optional) |
+| `run-atlas/reblinded-facets-v1.jsonl` | state root | Coverage | listed runs cannot be compared (optional) |
+| `run-atlas/field-reliability-v1.json` | state root | Field reliability | "not measured" |
+| `trace-tools/tt1-scorecard.json` | state root | Trace Tools | detector rows missing |
+| `trace-tools/results-v1.jsonl` | state root | Trace Tools run lists, Task Evidence | Task Evidence shows "Trace-tool results: not retained" |
+| `run-atlas/scorecards/<newest>.json`, `trace-tools/spend.jsonl`, `run-atlas/per-run-accounting-<newest>.jsonl` | state root | Trace Tools facet rows, cost | those columns blank (optional) |
+| `repair-board/inventory.json` (`EVALLAB_REPAIR_INVENTORY`) | TS-9 inventory, **reduced** | Grader repairs | empty state |
+| `cross-test/registry.json` (`EVALLAB_CROSS_TEST_REGISTRY`) | registry, **reduced** | Cross-test sets | empty state |
+| `cloud-trace-db.sqlite`, `prod.sqlite` | already on the volume | Run Atlas, Coverage, Task Evidence, Trace Tools, Grader repairs | tabs show no admitted runs |
+
+The two environment settings are optional because the defaults above sit under the volume's data
+root; `EVALLAB_CLOUD_TOKEN` comes from the Modal secret `evallab-cloud-production-auth`. The
+inventory and registry are staged as reduced projections that keep only the fields the pages read:
+annotation wording, key ids, answer-key paths, digests, bundle paths, caveats and source notes
+never reach the volume. A registry with a malformed entry blocks instead of being staged partly.
+
+**Never copy:** `cloud-trace-db.sqlite` and `prod.sqlite` (the volume's admitted copy is
+authoritative; adoption needs an exact allowlisted scope), model-call ledgers
+(`*-calls-v1.jsonl`), `trace-tools/keymap-v1.jsonl`, `evidence/` directories, cascade and Laminar
+working files, any manifest (sealed or QA), `research/answer-keys` outside the repository image,
+`assignments.csv`, label files, the cross-test bundles under `~/.local/state/evallab-cross-test`
+(local-only, eval-only, no-training, no uploads), and any HackBench or CheatBench record or
+label. The preflight lists these names when it finds them and never stages them.
+
+Image contents: `modal deploy` uploads `src/`, `library/` and `research/` (about 0.6 GB for
+`library/` and 0.3 GB for `research/` in a clean checkout). `research/` includes
+`research/answer-keys`, which `CorpusRegistry` reads for DEV admission, so deploy from a clean
+worktree of `origin/main`: an untracked local file under those directories would be uploaded too.
+The report states whether the checkout is clean and at `origin/main`.
+
+Steps after approval: run the printed `modal volume put` lines (no `--force`: an existing file makes
+the put fail instead of overwriting; add `--force` only after reading what it would replace), then
+the printed `modal deploy --strategy recreate src/evallab/production/modal_cloud.py` from the clean
+worktree, then open each tab with the bearer token. To undo a data file use
+`modal volume rm evallab-cloud-store /<path>`; to undo code redeploy the previous commit. The
+preflight does not read the volume, so check what is already there first with
+`modal volume ls evallab-cloud-store /` and `/run-atlas`.
+
+Cost: Modal's published rates are $0.0000131 per core-second and $0.00000222 per GiB-second, and
+this app runs one container with 1 core and 2 GiB that scales down after 30 seconds idle, so
+[INFERENCE] about $0.06 per hour of active serving and nothing idle. The staged files total about 30
+MB. What Modal charges for the image build and the upload of the repository is unknown: it is not
+stated where this repository can see it.
+
 #### Run Atlas (`/api/cloud-db/atlas`)
 
-The atlas is a read-only projection of two retained files under `<data_root>/atlas/`,
-validated strictly by `evallab.production.atlas_view` and re-read only when a file
-changes. Neither endpoint calls a model, reads a label, or writes anything.
+The atlas is a read-only projection of two retained files under `<data_root>/run-atlas/`,
+validated by `evallab.production.atlas_view` and re-read only when a file changes.
+Neither endpoint calls a model, joins source labels, or writes anything.
 
+- The dashboard's **Run Atlas** tab shows store health, the recorded cluster tree,
+  facet filters and paged DEV runs, with in-page evidence, trace flags and playbook cards.
+- **Opening screen.** The cloud deployment (`CloudRuntime`) serves the dashboard with
+  `home="atlas"`, so it opens on the Run Atlas; the local control plane has no trace
+  database and keeps `home="live"`. The server picks the screen (`dashboard_html(home)`),
+  so there is no probing request and no flicker. A `#atlas?…` link opens it from either.
+- **Which tool to trust.** Above the filters, a collapsible strip shows each tool's recall
+  and false alarms on the two labelled cohorts from `/api/cloud-db/trace-tools` (counts
+  only; abstentions are never misses) with a button to the full **Trace Tools** tab for
+  cost, detectors and sources.
+- **Picking runs.** The view is a link: after every load the address bar carries
+  `#atlas?` plus the active source, outcome, tests, eval-awareness, minimum-suspicion,
+  boolean, free-text and cluster filters (never page size, offset or a token). **Copy link
+  to this view** copies it; opening it restores the filters and cluster, and a link the API
+  refuses (unknown cluster, bad value) shows that refusal instead of an empty page.
+  **Copy run IDs · this page** copies the shown trace IDs, one per line, for an agent.
 - `facets-v1.jsonl` -- one `run-facets/v1` JSON object per line (contract: the Wave 6
-  `CONTRACT.md` §3). `run_id` is `agent_traces.trace_id`: the database's `run_id`
-  column is shared by many traces and is never used to look a run up. A line that is
-  not exactly that record (extra or missing field, `split` other than `DEV`,
+  `CONTRACT.md` §3). Cloud-backed `run_id` is `agent_traces.trace_id`: the database's
+  `run_id` column is shared by many traces and is never used to look a run up.
+  Item-only records without a corresponding trace are counted as withheld, not aliased.
+  A line that is not exactly that record (extra or missing field, `split` other than `DEV`,
   `suspicion` outside 0-3, more than 5 or repeated `evidence_steps`, bad enum) is
   counted as rejected and shown as a short reason; the latest valid line per `run_id`
-  wins.
-- `clusters-v1.json` -- one `run-clusters/v1` document: `facet_version`, `generated_at`,
-  `scored_at` (null until scored) and `clusters[]` of `{cluster_id, name, level 1-3,
-  parent, run_ids, centroid_text, size, label_rates[] of {label, hits_n, of_n}}`. Rules:
-  `size` equals the distinct `run_ids`; only level 1 has no parent; a parent sits one
-  level above and contains every child run; `label_rates` exist only once `scored_at`
-  is set and never exceed the cluster (`hits_n <= of_n <= size`). An invalid cluster
-  file is reported as `store.cluster_error` and the facets still show.
+  wins. Displayed `source` comes from the admitted task's `dataset_id`; `outcome`
+  comes from trace reward (at least 1: pass; at most 0: fail; otherwise unknown).
+  Evidence is checked against actual `trace_steps.step_index` membership, not
+  `step_count`: sparse indices are valid, nonexistent gaps are not.
+- `clusters-v1.jsonl` -- the producer's append-only `run-clusters/v1` rows, with
+  `cluster_version`, `build_id`, `created_at`, `facet_count`, `cluster_id`, `name`,
+  `level`, `parent`, `run_ids`, `centroid_text`, `size` and nullable `label_rates`.
+  The final contiguous build in file order is used; reused IDs never mix builds.
+  Creation timestamps may differ per node within a build; only `build_id` and
+  `facet_count` identify its shared snapshot, not timestamp equality.
+  Its three levels must partition the same `facet_count` identities, with distinct
+  IDs, correct sizes, parents one level above and children contained in their parent.
+  An incomplete or invalid final build yields `store.cluster_error`; facets still show.
+  Unused producer diagnostics and sample texts are not returned.
+- Producer `label_rates` is either null or `{labelled, positives, rate}`. The view
+  validates `positives <= labelled <= size` and the ratio, then projects it into
+  `{label, hits_n, of_n}` for display. Unknown labels never become negatives.
+  The producer does not record a scoring timestamp: API `scored_at` remains null,
+  never replaced with clustering time or file mtime. Null rates show "Not scored yet";
+  recorded rates without a timestamp show "Scoring time not recorded".
 
 `GET /api/cloud-db/atlas` (always `split=dev`) takes the facet filters `source`,
 `outcome`, `tests`, `eval_awareness`, `min_suspicion`, the three boolean facets,
@@ -1564,10 +1692,150 @@ step of the run (`evidence_outside_run_n`). Neither kind is shown.
 
 `GET /api/cloud-db/atlas/run?run_id=` returns one run: its facet, the cluster chains
 that hold it, its evidence steps with one neighbour each side (bounded excerpts from
-retrieval's `expand_pointer`, never user prompts), the fired trace feature flags with
+retrieval's `expand_pointer`, never user or system prompts), the fired trace feature flags with
 their step indices, and the matching Trace-Watcher playbook cards. Retrieval's own
 gate decides first; a run it will not return yields `withheld` and no steps. Flags and
 cards are routing leads, not cheating verdicts.
+
+#### Trace Tools scorecard (`/api/cloud-db/trace-tools`)
+
+The **Trace Tools** tab puts Laminar, Docent, Inspect Scout (deterministic scanners and the
+METR scanner), the OMP subscription readings, the frozen rule cascade and the Run Atlas
+facets side by side on the two labelled cohorts the lanes already score: the Goodfire CM-9
+sample and the CheatBench DEV cross-test. `harbor analyze` has a row that reads "No retained
+result" until a scorecard contains one. The endpoint is a read-only projection of retained
+files, validated by `evallab.production.tool_scorecard_view` and re-read only when one changes:
+
+- `<data_root>/trace-tools/tt1-scorecard.json` (`evallab.trace_tool_scorecard/v1`): per tool
+  and detector counts; the headline detector is `any_flag`. Abstentions are counts of runs the
+  tool did not read, never negatives.
+- `<data_root>/run-atlas/scorecards/*.json` (`run-atlas-scorecard/v1`, newest valid file by
+  modification time): the facet headline (`suspicion>=2`) and the cascade on the same traces.
+- `<data_root>/trace-tools/spend.jsonl` and `<data_root>/run-atlas/per-run-accounting-*.jsonl`:
+  recorded usage. Cost per 1k runs divides entries that recorded tokens or dollars by the run
+  count on the same line; entries with no usage are not denominators, and `$0` means a
+  subscription or free allowance. An interrupted line is not adjusted.
+- `<data_root>/trace-tools/results-v1.jsonl` and `<data_root>/run-atlas/facet-calls-v1.jsonl`:
+  the last recorded write per tool, shown in ET with the file it came from.
+- `<data_root>/run-atlas/blinding-refresh-v1.json` against `reblinded-facets-v1.jsonl`: the
+  facets row is marked provisional while listed runs have no re-extracted record.
+
+Rows that contradict their own counts are rejected and counted; a missing or broken file
+degrades only its own columns and is listed under "Sources read". The response carries counts
+and confidence intervals only: the browser derives every recall, false-alarm rate and cost per
+run, so the page never computes a score the producers did not record. Nothing is ranked, no
+label is joined, and `split` other than `dev` is refused.
+
+**Run lists behind each tool** (`GET /api/cloud-db/trace-tools/runs?tool=&kind=hit|clean|unread`,
+`split=dev` only, `limit` at most 200). Each Trace Tools row with a per-run record (`facets`,
+`laminar`, `docent`, `scout`, `scout_metr`, `omp`; the cascade and `harbor analyze` keep counts
+only, so the endpoint answers 404) can list the *admitted DEV* runs it **hit** (its own recorded
+flag; for `facets`, stored suspicion of at least 2), **read clean** (read and flagged nothing,
+not a verdict) or **did not read** (no result or only abstentions: neither a miss nor a clean
+pass). The three groups always cover every admitted run; `counts.outside_n` counts runs the
+tool read that are not admitted here. Rows carry only the trace id, its task id, whether it has
+an atlas facet and, for hits, the detector names and evidence steps. No label, reward or outcome
+is sent: whether a hit was right needs labels, which stay local. The page links each row to the
+Run Atlas (when faceted) and to Task Evidence, and copies the page's run ids.
+
+#### Atlas coverage (`/api/cloud-db/atlas/coverage`)
+
+`evallab.atlas_coverage/v1` (`evallab.production.atlas_coverage`), shown as the **Coverage** strip
+of the Run Atlas. Per population (dataset and trust tier of the admitted DEV runs) it gives
+admitted runs, runs with a stored facet, and the facet version, facet model and **blinding
+state** of each stored record: `refreshed` (on `blinding-refresh-v1.json` and the stored record
+is the re-extraction in `reblinded-facets-v1.jsonl`), `pending` (listed, still the earlier
+extraction), `unlisted` (not on the list; not a claim it was never leaky) or `unknown` (no
+readable list, reported as `refresh_error`, never as zero pending). Totals also count facets
+read, withheld (unadmitted or evidence outside the run), rejected and superseded lines. A run
+without a stored facet is not ready, which is not the same as clean. Atlas listing rows and run
+detail carry the same `blinding` value.
+
+#### Field reliability (`/api/cloud-db/atlas/field-reliability`)
+
+The **Field reliability** panel of the Run Atlas shows how often an independent blind
+re-rating agreed with each stored facet field, with the sample size and a 95% Wilson interval.
+It reads `<data_root>/run-atlas/field-reliability-v1.json` (`evallab.field_reliability/v1`,
+`evallab.production.field_reliability`), re-read only when the file changes: `measured_at`,
+`source`, `design`, `sample_runs` and `fields[]` of `{field, agree_n, n, basis}` where `basis`
+is `within_1` for suspicion scored within one level and null when the receipt does not say.
+The file holds counts only (no run id, run text or label); it is refused if a field is unknown
+or repeated, `agree_n > n`, `n` exceeds `sample_runs`, `measured_at` has no time zone, or it is
+not a small regular file. An absent file answers `measured: false` with "not measured" (which
+is neither reliable nor unreliable); an invalid one answers `unreadable: <reason>`.
+
+`evallab prod import-field-reliability --receipt <vf11-receipt.json> --output-directory
+<state>/run-atlas [--replace]` builds the file from a VF-11 style receipt, copying only the
+per-field agreement and sample size; a percentage that contradicts its counts is refused and
+an existing different file is not overwritten without `--replace`.
+
+#### Grader repairs (`/api/cloud-db/repair-board`)
+
+The read-only **Grader repairs** tab lists the keyed DEV tasks of the TS-9 defensive inventory
+(`evallab.ts9_defensive_inventory/v1`, `evallab.production.repair_board`), one row per task:
+defect types and annotation count, repair PRs, status, and the number of atlas runs that passed
+with tests modified on that task (outcome `pass` and facet `tests=modified` among the visible
+atlas facets; a count, no run ids). It filters by status, defect type and task text, and links
+to Task Evidence for tasks in the cloud database.
+
+The inventory path is `EVALLAB_REPAIR_INVENTORY`, default `<data_root>/repair-board/inventory.json`;
+it is re-read only when the file changes. An absent file shows an empty state, an invalid one
+`unreadable: <reason>`. Only task and dataset ids, defect-type names, counts, PR numbers and
+GitHub PR URLs leave the server: annotation text, key ids, answer-key paths and digests stay in
+the inventory. A task whose assignments are not all `dev` is dropped and counted.
+
+Status, strongest first: `native-validated` (a repair names a native receipt and claims native
+qualification; the only state shown green), `static only` (a delivered candidate with host
+checks and no sandbox run), `candidate` (a related candidate not bound to the exact package),
+`no repair`. A merged PR or a claim without a receipt never reaches `native-validated`, and every
+other status says "no native proof".
+
+#### Cross-test sets (`/api/cloud-db/cross-test-sets`)
+
+The read-only **Cross-test sets** tab lists the staged cross-test corpora from the registry file
+alone (`cross-test-registry/v1`, `evallab.production.cross_test_sets`; the registry lives in
+research-context beside `validate_cross_test_registry.py`). Path: `EVALLAB_CROSS_TEST_REGISTRY`,
+default `<data_root>/cross-test/registry.json`, re-read only when the file changes. Absent shows
+an empty state naming the setting; an unreadable file or wrong `schema_version` shows
+`unreadable: <reason>`.
+
+Per set: unit, label type and every published count, whether command-level scoring is possible
+(with the registry's reason), licence and redistributability, the rights flags (eval-only,
+local-only, no-training, no-rehosting), `Uploadable: no`, the hosted-model-API note, and adapter
+state with the eval-lab PR. The HOLD-access sets are listed as "needs Peter, not available" and a
+hold entry that claims otherwise is refused. Bundles, manifests and records are never opened and
+bundle paths, caveats and source notes are not served, so no record text can appear.
+
+Each entry is checked alone: one that is malformed (not valid, marked uploadable, not
+eval-only/local-only/no-training, a non-redistributable set without no-rehosting, a non-integer
+count, a duplicate id) is shown as an error row and is not listed as a usable set; the others
+still show. The page gives the copyable validator command
+(`cd ~/Developer/research-context && python3 <registry validator.script>`, plus a `--quick
+--offline` form) and never runs it.
+
+#### Task Evidence (`/api/cloud-db/task-evidence`)
+
+The **Task Evidence** tab answers "what is known about this task" in one view. `GET
+/api/cloud-db/task-evidence?task_id=` (always `split=dev`; any other split is refused with
+400, a task the registry does not admit with 404) returns `evallab.task_evidence/v1`:
+
+- `task` and `summary` — identity, grader digests (never the instruction text) and counts.
+- `runs[]` — every admitted run of the task (at most 100, most suspicious atlas facet first)
+  with its facet, cluster paths and, per whole-run trace tool, the detectors that flagged it
+  and how many read clean or abstained. A run with no tool result has `tools: {}`: no result
+  is not a clean result.
+- `issues[]`, `qa_findings[]`, `seeker[]`, `repairs[]` — the retained `task_issues` rows
+  without reproducers, and the journal's `qa.finding/v1`, blocked, seeker
+  (grader feedback, confirmed differentials, worker completion) and qualified-repair events.
+  Every record is bounded text and counts; exploit files and failure memory are never copied.
+- `commands[]` — copyable `curl`, `evallab task` and blinded `evallab prod export-runs
+  --format atif` commands, each with what it needs; ids are shell-quoted.
+
+`GET /api/cloud-db/task-evidence/search?q=` lists admitted DEV task ids containing the text
+(at least two characters, literal match, at most 25). The journal is read incrementally
+through `ContinuousWorkQueue.read_events_of_types`, and `trace-tools/results-v1.jsonl` only
+when the file changes. The page keeps the task in its address (`#task?task_id=`) and the
+Run Atlas run detail links to it. Nothing here calls a model, joins a label or writes.
 
 ### Production supervisor
 

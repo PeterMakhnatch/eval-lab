@@ -31,9 +31,9 @@ inputs:
   - path: src/evallab/auto_watch.py
     digest: sha256:92477b67d7b2da47e152ef74c3e9e50d0b25370d47a378ba93207a773f4013d8
   - path: src/evallab/automation.py
-    digest: sha256:6d7d74624513fc52c35b1857fffab57cf548aba6d33d53fdecc19ccdb590c882
+    digest: sha256:e7b1889303046c4a40f55c2e2776f56d0dbba776ba425692e29d75c3a957d33e
   - path: src/evallab/backups.py
-    digest: sha256:1ffc2dfad106d905f9df81ede5b3fc54f8307b8c39c3affc1d006ba3755f5539
+    digest: sha256:1a73b6b9a65c10724a0ce5c1bf45539a347ae5a5366ac5eba129d0407b2895a9
   - path: src/evallab/behavior.py
     digest: sha256:722dc12cfdaf94e60623c8a5e901d9a8e21cc3e7a1435a2bc404826a048479d1
   - path: src/evallab/behavior_calibration.py
@@ -463,7 +463,7 @@ inputs:
   - path: src/evallab/ladder.py
     digest: sha256:142f028f50d04045289a40ffbc1d69c3d760785a57c356fa23fd70b585dca705
   - path: src/evallab/laminar.py
-    digest: sha256:bce8efc71fc3a65874036b787af2d1478496aa4c786cade8cebe8390831e0c38
+    digest: sha256:880b02332f9999a03c4a3522a01d7a396e3e03527ed798442acbe455594da578
   - path: src/evallab/laminar_tracing.py
     digest: sha256:078d8b5e796574b398daf441ac2ea27ec1d87fc5f739bc788c214019e324f2cb
   - path: src/evallab/lance.py
@@ -515,7 +515,7 @@ inputs:
   - path: src/evallab/native_telemetry.py
     digest: sha256:d9fae1d34da598ff63645ae0e404374da9b103feca28c5b5b80f72900548ed43
   - path: src/evallab/nightly_refresh.py
-    digest: sha256:c85908a707c780c913193b0f0e2e1542f75ee4b3ef99494df97e879caaf39d41
+    digest: sha256:e242ead2de8384969904f8d2bdd0c62255481bac2b4aff5a267b7c661348c418
   - path: src/evallab/observation_masking.py
     digest: sha256:f5626dab311f5bed6d8838c6114a127ce2fdee6eb851560323d4a904681bb6f9
   - path: src/evallab/operational_restraint.py
@@ -546,30 +546,42 @@ inputs:
     digest: sha256:4871e989a420aabd8893ca5cc2fa9938bb8bfaa6cdd3ee1b2c14d3dc9bc81b04
   - path: src/evallab/production/asset_store.py
     digest: sha256:4013faafc955c70c9759911dc81dea1334a72115fb40f99d242fd0667dde8c1d
+  - path: src/evallab/production/atlas_coverage.py
+    digest: sha256:3e95c782adb6de4b5dac3f1e0cf57f0c24e26b2a3e30099f363e9af458f41e2a
   - path: src/evallab/production/atlas_view.py
-    digest: sha256:e98e8df579691aa0f6818c9558dbd938c05a8d703613c6cc59fac6469efbecaf
+    digest: sha256:be5ac3beb6dcdd30db6d516f5fc95d478c0d3bf0ebe89c6f8e6326dfa6077b3b
   - path: src/evallab/production/benchmark_reports.py
     digest: sha256:4e20138d3ba94a6aefebf65aaefcca699e38c2a09675b9140405a54b6ec4fe59
   - path: src/evallab/production/cli.py
-    digest: sha256:b7144f8ac37f5cbc7e4734de2f7212ab7b37fee21dc69ded1dd96d826fb52272
+    digest: sha256:dfd26f74213a02c8a189e9d9ef2c7bd0d7e312d311d1ac0891bd4874c98b685e
   - path: src/evallab/production/cloud_trace_db.py
-    digest: sha256:3f22c40715b184b6ad02816ca5deac719b0b8c5cf3f43b4b3e34d48a452701e7
+    digest: sha256:82b4d795dde2200952729d4474c44eb27233aed845422f6d1319fd1a1b39ddef
+  - path: src/evallab/production/cloud_trace_export.py
+    digest: sha256:4d1c75aa5cd8c22cb37f7127801a7b8b548eccc3ee4a8386d3733a574dd5ab05
   - path: src/evallab/production/cloud_trace_retriever.py
     digest: sha256:c47640d332b49c363399616c1a4fdba67c09e68d99854ef1d8ba307996d265ce
   - path: src/evallab/production/command_prefilter.py
     digest: sha256:21d0a8854c1c745f5f1fc8e1927b1fb19e873d54aa1a18df2f7c219f6ff4ae2b
   - path: src/evallab/production/control_plane.py
-    digest: sha256:2786e7fe37c793f871282b647fea677e7da212edfafc68ab1714cecf6f6165e8
+    digest: sha256:ed33deaa619a67abba7610db20379e7c643f07ec3bba75ea15fdab57f825f9d8
   - path: src/evallab/production/corpus_clearance.py
     digest: sha256:b5173730bff87fffc2e114bb993b8c68ec790ff5b074e4aed1327c77bbc07dbf
   - path: src/evallab/production/corpus_expansion.py
     digest: sha256:be331af40c61e9b9da933b994bfcbbb0409d582707a3714e837b1940a0fa5f59
   - path: src/evallab/production/corpus_queue.py
-    digest: sha256:b40155ddc51e85e4cb61c38d1f2cfebf913a73054557e15540ccfd190ddd865f
+    digest: sha256:7adb6b0255943935bd738e59410c9f0b7e4a93c916b0847388768bf3a24f258d
+  - path: src/evallab/production/cross_test_sets.py
+    digest: sha256:8738f4b1dc6d00f03f46bea94a3eb16fc7f4e37bf20614708a68c56c729b43b8
   - path: src/evallab/production/dashboard.py
-    digest: sha256:fc1c6f20e4b25848338d77ea13e8c2a963afe06c34531681fa07eccf2ec4e908
+    digest: sha256:04f13e22485ff8dfee00da588b3ad6641db4a2209eb6b3eb115293e036e48194
+  - path: src/evallab/production/deploy_preflight.py
+    digest: sha256:bf6486c1dc23cde1cb2d4c21ae42e885dbf63192cb3a1d5e07cdc6273b36ccb0
   - path: src/evallab/production/feeder.py
     digest: sha256:596c0ecfa4001bc5f937c365b6e158e3123c5cceda4af3793442b10d0b9bd03e
+  - path: src/evallab/production/field_reliability.py
+    digest: sha256:9a695bca0ba19726224e1de4987fb46631b33a7d388b566678b17d3ff60853db
+  - path: src/evallab/production/file_cache.py
+    digest: sha256:283fa6d7f6a2cf62945eb9bb770ed76f89d1b74afd81bf4485513a3ad23d640c
   - path: src/evallab/production/gate_policy.py
     digest: sha256:f14a366bca8e8f77f66ffe6bc1b92d996bb428f6d0e9f3377d7a14d9941b0eb0
   - path: src/evallab/production/ingest.py
@@ -577,27 +589,43 @@ inputs:
   - path: src/evallab/production/inspector.py
     digest: sha256:5c0f81d453e402c96cc870bbdf53a47fa7a220609556a379220a3b878cd28fbf
   - path: src/evallab/production/modal_cloud.py
-    digest: sha256:8e7596c35b638e75d1ab5e648db3a943684ca383146be7f06d01fda3c6847feb
+    digest: sha256:c588939551ba3389c26ddb5428debc3ba4a1e2e97b3aaf1992a6d00f1d747813
   - path: src/evallab/production/monitor_worker.py
     digest: sha256:028591253c90c2c5b8e5c11cca4e462c24f7e70cddba49908f39428f0b14ad1a
   - path: src/evallab/production/outbox_relay.py
     digest: sha256:ab1adc2f16421d334c953e1da45d7c8937426e7bf0918e5a8ecd855c6f20fe1f
   - path: src/evallab/production/public_corpus_loader.py
     digest: sha256:6dd834cea54b40d742bb4289f1a7ac2b1586197b27483d1e6b1112095adde01f
+  - path: src/evallab/production/qa_data.py
+    digest: sha256:44d1dfb7717b8781a733d262f14eaf76858e7dec8fdf10e18e5031add381dd22
+  - path: src/evallab/production/qa_data_calls.py
+    digest: sha256:82de8d4105cf028f96aad044b0647ac5654deffa23a308640ea0f06121fea99d
+  - path: src/evallab/production/qa_data_findings.py
+    digest: sha256:d12520bbc368fcdc4aacbc657d7086e9a012ad6e3dac5aea43ab692acd5c7dc9
+  - path: src/evallab/production/qa_data_task.py
+    digest: sha256:f26f501418d718634a8ffbd113b7101b6a8876ee666dd1c486bff7f055ea42f5
   - path: src/evallab/production/qc_reports.py
     digest: sha256:997afaf180b46df36b02cf6d8fecdadf6f5f1d30d430718b3bf94f630c11ac1b
   - path: src/evallab/production/relay.py
     digest: sha256:1734d2d010cbcd84bac1ef59939f4d762786f0f8a0ca28a5b799dc589510ac57
+  - path: src/evallab/production/repair_board.py
+    digest: sha256:ba3091827cf84a5cfafb9af0541dd35298aa2d7a5ca554cf54c474418844e890
   - path: src/evallab/production/run_atlas.py
-    digest: sha256:165a0dfb069b4e48eb308e5b4f405fc9bc9006d49628322a31357b407b4fea46
+    digest: sha256:f53bae84fa84bda6c5ffb9db46eb8bdd70d72a3f286be098564664ed9f4add74
+  - path: src/evallab/production/run_atlas_clusters.py
+    digest: sha256:f882877dd9424ef840cae578285fccd63e7e385948be51c94e64a9a02a8fb48a
   - path: src/evallab/production/run_atlas_score.py
     digest: sha256:47892708f078d90f3133b9607a3986c0557d97a91aba1f4c161680a3c45e4091
+  - path: src/evallab/production/run_atlas_watch.py
+    digest: sha256:01edce5c20afb99d3b1a003b133c4f746b36f13fcf6c5de7e230ebd438892163
   - path: src/evallab/production/run_catalog.py
     digest: sha256:735b547162c84b22cb5c22f4f9c3cc1041c04c6ac421660612afc0c4f154750e
   - path: src/evallab/production/runtime.py
     digest: sha256:7fc487f9a1251badafc98bf3ab6de86b6b6f0dd3b500b3bd25f84401192cef02
   - path: src/evallab/production/safe_paths.py
     digest: sha256:bcaab5996fe97a77fa456f340ff5a215f5a063d4cbfbb72645038740e3708e70
+  - path: src/evallab/production/seeker_error_first.py
+    digest: sha256:9f567f057da81f71f12c274e0a28d5cf492b5f73eee6bde9ec9696786450c67a
   - path: src/evallab/production/seeker_worker.py
     digest: sha256:1a3d3876bb45527e926d46d14c95241eb964e191f5f9e925ff53d1d7189624fd
   - path: src/evallab/production/stage0_triage.py
@@ -608,6 +636,12 @@ inputs:
     digest: sha256:b0378b8f865784cadb90c9d3f6d24c3fabe497d78a21e014cb3d2149897a2ec4
   - path: src/evallab/production/swarm_coordinator.py
     digest: sha256:3ed63a3dea05fcaed695a4b205d93002232e0a211f0f0b87eb2d44cbb683ff96
+  - path: src/evallab/production/task_evidence.py
+    digest: sha256:121238f22a2b3ab26a30a18f4d00b21817d49e0275c0272c5cac1540b7b90699
+  - path: src/evallab/production/tool_runs.py
+    digest: sha256:6f0c4385f27a8ee6da3eb2e6488f0807dac9e04e351a5b740ba463d9f3556bae
+  - path: src/evallab/production/tool_scorecard_view.py
+    digest: sha256:66bef4365be8ee374829cce0a2f22c4481d56c2e48a7cf52eebbd833061f1f46
   - path: src/evallab/production/tq_context.py
     digest: sha256:e9b90c3d1ed70c526a090e409783ab5847a400501dffc47255836d03e3bd6f93
   - path: src/evallab/production/tq_fixture.py
@@ -686,14 +720,24 @@ inputs:
     digest: sha256:79b798c4710583be8c809fa7b01a158f52d06f0f3a6f5263ea2ac621befcb43c
   - path: src/evallab/readers/__init__.py
     digest: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  - path: src/evallab/readers/clouddb_blind.py
+    digest: sha256:bda373f3a0c18f7f83ce9699cc3e906d731e8786bbf89dfe3b6025959efbff69
   - path: src/evallab/readers/harbor_analyze.py
     digest: sha256:7171fd87c259eb50dd986968392bbac7fa212f5dd3a817b3581fca934e8e88d2
   - path: src/evallab/readers/laminar_import.py
     digest: sha256:922f7805df1ad44f08a79d235639a231d440a66c036bd3a6a5d3227f08b04249
   - path: src/evallab/readers/laminar_signals.py
     digest: sha256:4a4b1f47880b7c0b305cf28d673e75d5412085184d8517980a69570de9d9273a
+  - path: src/evallab/readers/omp_model.py
+    digest: sha256:c0e64ac5d9d2943bc387b699fc8b9769dcdf04c49697f8f74034225383a55f35
+  - path: src/evallab/readers/scout_clouddb.py
+    digest: sha256:55ca7060a11b1a00fbb49bcb3ae4ee8a48473bbde181beaca82c0ff37564b0f5
   - path: src/evallab/readers/scout_metr.py
     digest: sha256:2eb327cf49557ebdf8470d3d4fb9def637ebccab524b45d34794d5164c376315
+  - path: src/evallab/readers/scout_watch.py
+    digest: sha256:7b2d6827194c85a2f1b356d24072faabc0a9908e42e7909bdcc29e7c1d2df543
+  - path: src/evallab/readers/tool_scorecard.py
+    digest: sha256:ee2318f7464ddfcda59e18c932575545a82f661918fb2664182f9268a96d623f
   - path: src/evallab/recovery/__init__.py
     digest: sha256:7d1cf972820e3632cf8efc788c6528d630030ddf73a1cc50c5b6ec889cb615dc
   - path: src/evallab/recovery/bundle.py
@@ -719,7 +763,7 @@ inputs:
   - path: src/evallab/report.py
     digest: sha256:6a840dfc5bee23254ec2384dac26c3a995808fa6ec1a20deb481ce1b97efa284
   - path: src/evallab/researchers.py
-    digest: sha256:24a42ba182ace517c07a8b2b202fa6c77aff8c8793b61b6a0191c6d11d63e276
+    digest: sha256:212a8af86628a50eb449ee2e02eafe1be767028c9c1a5a9a82b05f84d2e74ce9
   - path: src/evallab/restraint_canary.py
     digest: sha256:5bb9bf0ad75b7da3bf0285feacd39280cc1829df99dcd586ff1d81d310175f52
   - path: src/evallab/results.py
@@ -894,6 +938,26 @@ inputs:
     digest: sha256:ffe4e1968b5eb2c990fec10c0c543dbbb29539d196d762f0e307299610a59bd8
   - path: src/evallab/trace_query.py
     digest: sha256:c20b750e914432861b9761c37c88b9dcd4c1dc6ff5d654f6c6d81bf65a7aea87
+  - path: src/evallab/trace_store/__init__.py
+    digest: sha256:1a0fd27ffefcd7b444008510ba7cbfb2ceb728f54e5ca925faa365ef04c387c9
+  - path: src/evallab/trace_store/cli.py
+    digest: sha256:1c757506ffa122df8a52b55bac082c65843a1e7cc715d7a640e0d09b5cc1f9ce
+  - path: src/evallab/trace_store/core.py
+    digest: sha256:4d361a7c49e651b7b94e87dd28ca13ea53a6d74e3c272d795c9957c1ebce789f
+  - path: src/evallab/trace_store/docent.py
+    digest: sha256:0a51e1db7a2c0f39a011d9025732e5015da95c0405fcc11c858f500d02cabf86
+  - path: src/evallab/trace_store/fetch.py
+    digest: sha256:5705216772cf96c544daf95d0607a4b421ebd455ccdf22024f4e7dc6b6762c7d
+  - path: src/evallab/trace_store/laminar.py
+    digest: sha256:3ab746717b1229c9b6f3c7014abc835b7556780079ee6755df11737401918ad8
+  - path: src/evallab/trace_store/secrets.py
+    digest: sha256:e6ed04fa351612bd5c8caf2c0194d60b111c903bb32c1982a9a8e5c0e102a493
+  - path: src/evallab/trace_store/state.py
+    digest: sha256:ca71ba6eb9662d21e53ecb1bb07b23fe1d811c7ab8cc5e00f6256888262128b8
+  - path: src/evallab/trace_store/sync.py
+    digest: sha256:a9c709533cf78be51169ba8d0d9a42a19ee889199cc75de4fcbe2978c90a580c
+  - path: src/evallab/trace_store/watch.py
+    digest: sha256:b0808cba25ece6fd1ec0f6780cb54f67d322a458b95f8b49df51da03042b122e
   - path: src/evallab/tracing.py
     digest: sha256:5166b3122ef3afbd2d6cf937d941bd7b6a7e53ba6063a050a4734b43b3492a58
   - path: src/evallab/training_eligibility.py
@@ -992,8 +1056,8 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `audit_mimo` | 1100 | Read-only MiMo stored-audit plugin and HAR-186 evidence facets. | — |
 | `authoring` | 3600 | BUILDER authoring pipeline (WS-C). | `python -m evallab.authoring propose`, `python -m evallab.authoring model-propose`, `python -m evallab.authoring harvest`, `python -m evallab.authoring battery`, `python -m evallab.authoring review`, `python -m evallab.authoring register`, `python -m evallab.authoring sample`, `python -m evallab.authoring batch` |
 | `auto_watch` | 600 | Per-job live-watch supervision for queue dispatch (HAR-162). | — |
-| `automation` | 1200 | Return boolean-only readiness without reading credential values into Python. | `doctor`, `research` |
-| `backups` | 200 | Publish one immutable dump/manifest generation with one atomic rename. | — |
+| `automation` | 1300 | A step outlived its declared timeout; its new child processes are already gone. | `doctor`, `research` |
+| `backups` | 200 | Read-only fact: the newest dump whose manifest checksum verifies, and its age. | — |
 | `behavior` | 700 | Behavioral analysis over the unified attach surface (trial_facts, steps, tool_calls). | — |
 | `behavior_calibration` | 300 | Human-grounded calibration for ATIF behavior episodes. | — |
 | `behavior_catalog` | 200 | Human-reviewable catalog for the frozen ATIF behavior dimensions. | — |
@@ -1234,7 +1298,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `mtime_normalize` | 300 | Set every work-tree path to one fixed timestamp (``mtime-normalize@1``). | — |
 | `music_prefetch` | 200 | Prefetch abcmidi into MiMo music setups (``music-prefetch-abcmidi@1``). | — |
 | `native_telemetry` | 700 | Native OTLP metric observations represented in the existing Laminar store. | — |
-| `nightly_refresh` | 600 | Local-only incremental refresh behind ``evallab nightly --refresh`` (HAR-199). | — |
+| `nightly_refresh` | 700 | Local-only incremental refresh behind ``evallab nightly --refresh`` (HAR-199). | — |
 | `observation_masking` | 200 | Opt-in last-N tool-observation masking; no model calls or trajectory rewriting. | — |
 | `operational_restraint` | 2000 | Operational Restraint Synthetic Evaluation Package (S7 Conflict-Pair V0). | — |
 | `ops_continuous` | 2300 | Disabled-by-default continuous-loop operator validation (Ops/Runner adapters). | — |
@@ -1250,37 +1314,54 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.actor_projection` | 300 | Physically separate, caller-admitted SQLite projections for cloud actors. | — |
 | `production.asset_exporter` | 2300 | Verified-asset export with receipt re-verification, plus the Model Lab training gate. | — |
 | `production.asset_store` | 1100 | Journal-derived verified assets and fail-closed, local DEV-only exports. | — |
-| `production.atlas_view` | 400 | Read-only Run Atlas view model: validated run facets and clusters on admitted DEV runs. | — |
+| `production.atlas_coverage` | 200 | Run Atlas coverage: what is stored versus what could be, and what is not yet ready. | — |
+| `production.atlas_view` | 500 | Read-only Run Atlas view model: validated run facets and clusters on admitted DEV runs. | — |
 | `production.benchmark_reports` | 1100 | Strict, versioned retained-report schemas shared by the cloud API and the exporter. | — |
-| `production.cli` | 600 | Production queue commands, with dashboard-only serving as the safe default. | — |
-| `production.cloud_trace_db` | 2200 | Queryable task/defect/trace projections backed by PostgreSQL or local SQLite. | — |
+| `production.cli` | 900 | Production queue commands, with dashboard-only serving as the safe default. | — |
+| `production.cloud_trace_db` | 2800 | Queryable task/defect/trace projections backed by PostgreSQL or local SQLite. | — |
+| `production.cloud_trace_export` | 900 | Local, DEV-admitted run exports with a separate sealed scoring join. | — |
 | `production.cloud_trace_retriever` | 500 | Deterministic compact DEV-only verified-trace retrieval for seeker prompt augmentation. | — |
 | `production.command_prefilter` | 200 | High-recall Stage-1 command cues for the live monitor cascade. | — |
 | `production.control_plane` | 700 | Single production dashboard over the durable, ordered production event journal. | — |
 | `production.corpus_clearance` | 300 | Fail-closed, identity-only clearance for locally staged corpus records. | — |
 | `production.corpus_expansion` | 600 | Import explicitly cleared, locally staged task bundles into a held SQLite store. | — |
 | `production.corpus_queue` | 1100 | Public-corpus admission and the durable production work journal. | — |
-| `production.dashboard` | 1300 | Self-contained, read-only-by-default browser surface for the production journal. | — |
+| `production.cross_test_sets` | 300 | Read-only view of the staged cross-test sets, from the registry file only. | — |
+| `production.dashboard` | 2300 | Self-contained, read-only-by-default browser surface for the production journal. | — |
+| `production.deploy_preflight` | 500 | Read-only preflight for deploying the Modal cloud dashboard with its data files. | — |
 | `production.feeder` | 900 | Replay retained DEV evidence into the real production journal and prefix monitor. | — |
+| `production.field_reliability` | 200 | Which Run Atlas facet fields to trust: measured agreement, read from a retained file. | — |
+| `production.file_cache` | 100 | Serve a parsed retained file, re-reading it only when it changes on disk. | — |
 | `production.gate_policy` | 2200 | Synchronous known-rule action policy for the live gate (TW-P1). | — |
 | `production.ingest` | 600 | Admit public DEV corpus records without inventing executable work. | — |
 | `production.inspector` | 900 | Bounded trace projections and root-confined DEV-only grader comparisons. | — |
-| `production.modal_cloud` | 800 | Authenticated Modal production control plane, durable stores, and CPU workers. | — |
+| `production.modal_cloud` | 1000 | Authenticated Modal production control plane, durable stores, and CPU workers. | — |
 | `production.monitor_worker` | 2600 | Causal trace monitoring and executor-acknowledged run control. | — |
 | `production.outbox_relay` | 1200 | Publish durable production journal envelopes to scoped JetStream subjects. | — |
 | `production.public_corpus_loader` | 900 | Stream cataloged public-corpus exports into durable production jobs. | — |
+| `production.qa_data` | 300 | ``evallab qa-data``: one token-budgeted JSON surface over the admitted DEV cloud trace store. | — |
+| `production.qa_data_calls` | 300 | ``qa-data`` calls over runs and history: run search, step windows, past issues and cards. | — |
+| `production.qa_data_findings` | 500 | Read-only, admitted-DEV findings from the local trace-tool result ledgers. | — |
+| `production.qa_data_task` | 300 | Read-only task packages for the admitted DEV ``qa-data`` surface. | — |
 | `production.qc_reports` | 1400 | Export the Trust & QC retained reports as exact-byte, validated artifacts. | — |
 | `production.relay` | 300 | Initial-open database failover and an acknowledged, at-least-once outbox relay. | — |
+| `production.repair_board` | 200 | Grader repair board: one row per keyed DEV task, with how far each repair has been proven. | — |
 | `production.run_atlas` | 1200 | Run Atlas: one blinded whole-run facet record per run (``run-facets/v1``). | — |
+| `production.run_atlas_clusters` | 600 | Deterministic, lexical Run Atlas hierarchies (``run-clusters/v1``). | — |
 | `production.run_atlas_score` | 500 | DEV-only label joins and scorecards for Run Atlas (no model calls). | — |
+| `production.run_atlas_watch` | 400 | Poll committed cloud traces for missing, admitted DEV Run Atlas facets. | — |
 | `production.run_catalog` | 400 | Bounded DEV item summaries over the ordered production event journal. | — |
 | `production.runtime` | 1000 | One model-free-by-default cycle over the durable production workers. | — |
 | `production.safe_paths` | 100 | Confine journal-supplied filesystem paths to explicitly allowed roots. | — |
+| `production.seeker_error_first` | 1800 | SB-1 two-turn "error-first" Reward Seeker campaign driver. | — |
 | `production.seeker_worker` | 4000 | Live Reward Seeker production worker for measurable DEV tasks and newly repaired tasks. | — |
 | `production.stage0_triage` | 200 | Stage-0 whole-run alarms from provisional, model-extracted run facets. | — |
 | `production.supervisor` | 1000 | Production supervisor: one deterministic, lease-aware orchestration step. | — |
 | `production.swarm_bench` | 900 | DEV-only, zero-inference swarm selection benchmark. | — |
 | `production.swarm_coordinator` | 2100 | Many cheap agents versus one strong model: the production swarm harness. | — |
+| `production.task_evidence` | 500 | Read-only QA evidence for one admitted DEV task, assembled from retained records. | — |
+| `production.tool_runs` | 100 | Run-level lists behind each Trace Tools row: which runs a tool hit, read clean, or did not read. | — |
+| `production.tool_scorecard_view` | 700 | Read-only trace-tool scorecard view: whole-run tools, cascade and facets side by side. | — |
 | `production.tq_context` | 400 | Bounded, provenance-bearing DEV evidence for the existing Task Quality reader. | — |
 | `production.tq_fixture` | 200 | Separate, provenance-bound DEV fixtures for defensive Task Quality studies. | — |
 | `production.tq_worker` | 1600 | Durable Task Quality consumption and execution-backed live findings. | — |
@@ -1320,10 +1401,15 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `queue` | 3700 | The refusal an operator reads — in `submit` output and in queue/reasons/. | `submit`, `approve`, `reject`, `stop`, `resume`, `ingest`, `trajectories` |
 | `quota` | 1300 | Subscription-quota accounting for paid agents, measured instead of estimated. | — |
 | `readers` | 100 | Package `evallab.readers`. | — |
+| `readers.clouddb_blind` | 200 | Lossless, label-free conversation projections for the admitted DEV corpus. | — |
 | `readers.harbor_analyze` | 500 | Run Harbor's native readers on writable copies and normalize real outputs. | — |
 | `readers.laminar_import` | 300 | Score imported Harbor-shaped trials with Laminar Signals (HAR-187). | — |
 | `readers.laminar_signals` | 100 | Laminar Signals as a trace reader: one ``evallab.reader_verdict/v1`` per trial. | — |
+| `readers.omp_model` | 300 | Opt-in Inspect provider backed by OMP's stored provider credentials. | — |
+| `readers.scout_clouddb` | 400 | Blinded DEV DB/ATIF conversations through Inspect Scout 0.5.4, entirely local. | — |
 | `readers.scout_metr` | 400 | METR reward_hacking scanner (native prompts; Z.ai transport shim). | — |
+| `readers.scout_watch` | 100 | Scan newly admitted DEV traces locally on a periodic, credential-free timer. | — |
+| `readers.tool_scorecard` | 400 | Join blinded whole-run detector results to DEV labels and cascade decisions. | — |
 | `recovery` | 100 | Package `evallab.recovery`. | — |
 | `recovery.bundle` | 200 | Defines `RecoveryContractModel`, `CommandOutcome`, `FileEntry`, `FilesystemManifest`, …. | — |
 | `recovery.certify` | 300 | Defines `CertificationCriterion`, `StateCertificate`, `evaluate_archive_hash`, `evaluate_manifest_equivalence`, …. | — |
@@ -1336,7 +1422,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `repetition` | 600 | Deterministic, resume-safe repeated attempt matrix for TB4 campaigns. | `python -m evallab.repetition prepare`, `python -m evallab.repetition resume` |
 | `repomap` | 1100 | Generated repository map for `src/evallab/` (WS-F navigation). | `python -m evallab.repomap generate`, `python -m evallab.repomap check` |
 | `report` | 500 | Defines `family_report`, `render_family_report`, `write_family_report`, `load_completed_spec`, …. | — |
-| `researchers` | 1400 | Run schema-constrained Codex with read-only, networkless evidence access. | — |
+| `researchers` | 1500 | Longest legitimate pass: every role's attempts run to their own timeout. | — |
 | `restraint_canary` | 800 | Cleanroom Single-Delta Operational Restraint Canary Benchmark Family (V1). | `python -m evallab.restraint_canary generate`, `python -m evallab.restraint_canary audit`, `python -m evallab.restraint_canary controls` |
 | `results` | 300 | Best-effort object load used only by job *discovery*. | `summarize` |
 | `results_home` | 1100 | One results home for finished Harbor jobs (HAR-117). | — |
@@ -1424,6 +1510,16 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `token_flow` | 1000 | Per-trial token-flow analysis: where the input-token budget goes (HAR-114). | — |
 | `toolbox` | 200 | Python toolbox packaging and validation for Harbor agent environments. | — |
 | `trace_query` | 1300 | Read-only trace query interface over evaluated Harbor trials (HAR-131). | — |
+| `trace_store` | 100 | Private, label-free, incremental cloud storage for admitted DEV traces. | — |
+| `trace_store.cli` | 100 | Lazy JSON CLI registration for private trace storage and retrieval. | — |
+| `trace_store.core` | 400 | Read-only, admitted trace payloads for the private trace stores. | — |
+| `trace_store.docent` | 300 | Private, deterministic Docent ingestion using the pinned 0.1.88 wire format. | — |
+| `trace_store.fetch` | 200 | Read stored Laminar spans or private Docent runs without model calls. | — |
+| `trace_store.laminar` | 200 | Lossless DB-message projection through Eval Lab's existing OTLP encoders. | — |
+| `trace_store.secrets` | 100 | Pure export secret gate, without optional Docent integration imports. | — |
+| `trace_store.state` | 200 | Append-only, crash-resumable trace-store receipts and spend accounting. | — |
+| `trace_store.sync` | 200 | Strictly admitted, own-first, resumable private trace-store synchronization. | — |
+| `trace_store.watch` | 300 | One scheduled, guarded tick of private trace-store synchronization. | — |
 | `tracing` | 800 | ATIF → OpenTelemetry conversion and Phoenix shipping. | `nightly`, `trace` |
 | `training_eligibility` | 200 | No-spend SFT and online-RL eligibility over native Harbor trials. | — |
 | `training_freeze` | 300 | Closed, development-only intake for the bounded001246 runtime repair. | — |

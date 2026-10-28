@@ -1,0 +1,324 @@
+{
+  "at": "2026-10-27T22:06:36.043938+00:00",
+  "cohort_runs": 169,
+  "converted_runs": 169,
+  "upload_candidates": 165,
+  "exclusions": [
+    {
+      "opaque_id": "run-6af0deba545169c75169ef00",
+      "reason": "secret_scan",
+      "hit_count": 25
+    },
+    {
+      "opaque_id": "run-78a77ea1b2afd86154a20200",
+      "reason": "secret_scan",
+      "hit_count": 14
+    },
+    {
+      "opaque_id": "run-7da11e25e92320197684ba0f",
+      "reason": "secret_scan",
+      "hit_count": 1
+    },
+    {
+      "opaque_id": "run-21d50e8419a978202538504d",
+      "reason": "secret_scan",
+      "hit_count": 6
+    }
+  ],
+  "cohort_sha256": "14c439f2461c2561c4969a271fc6d3d23568872c6b7f18b93da5d5c468b027ec",
+  "keymap_sha256": "9dc59a6578d6063324babc353654c38531fbe6755806726087cda5fcf04ffe91",
+  "payload_sha256": "e4ed74d2f60fdd68006470f8d1fee092a4bd47f47fc14a75c0ffdec5ec6d47c4",
+  "keymap_frozen_at": "2026-10-27T22:06:36.060857+00:00",
+  "model": "openai/gpt-5.4-mini",
+  "usd": 0,
+  "basis": "docent hosted free allowance; no BYOK; no billing method",
+  "source": "own-harbor",
+  "exporter_sha256": "348ee3012201b130eb03f6cf6256b0f28b4310d1a51bf794363f6743afe3d5b3",
+  "normalizer_sha256": "2a869f171c8646034a369392d08387887eb457a7c2520bb82e5b3cc482152246",
+  "prompt_sha256": "b4af7435ff6219bf2faa0c8761eeb28f9ce7af92e79aa2b5607cc215744c4505",
+  "collection_id": "aacd026f-4a17-4053-b0dc-1aad03a79356",
+  "collection_url": "https://docent.transluce.org/dashboard/aacd026f-4a17-4053-b0dc-1aad03a79356",
+  "privacy_before": {
+    "at": "2026-10-27T22:09:23.297283+00:00",
+    "owner_only": true,
+    "collaborators": [
+      {
+        "subject_type": "user",
+        "permission_level": "admin",
+        "matches_owner": true
+      }
+    ],
+    "owner_subject_sha256": "cae8c20b9796f2faa2049312b33544271326aa90e95c5dc0b8276ce5b63774f4"
+  },
+  "privacy_after": {
+    "at": "2026-10-27T22:09:41.179695+00:00",
+    "owner_only": true,
+    "collaborators": [
+      {
+        "subject_type": "user",
+        "permission_level": "admin",
+        "matches_owner": true
+      }
+    ],
+    "owner_subject_sha256": "cae8c20b9796f2faa2049312b33544271326aa90e95c5dc0b8276ce5b63774f4"
+  },
+  "uploaded_runs": 165,
+  "uploaded_at": "2026-10-27T22:09:41.272891+00:00",
+  "read_started_at": "2026-10-27T22:10:00.259875+00:00",
+  "auto_approve_plans": true,
+  "plan_id": "5abdad71-2b3f-4af2-a445-7b2ccd0c6a05",
+  "flush_returned": true,
+  "plan_url": "https://docent.transluce.org/dashboard/aacd026f-4a17-4053-b0dc-1aad03a79356/analysis-plan/5abdad71-2b3f-4af2-a445-7b2ccd0c6a05",
+  "reading_id": "7b457a52-9c6f-43cf-b2f2-b9e813133d44",
+  "reading_results": 165,
+  "collected_at": "2026-10-27T22:27:29.194724+00:00",
+  "input_tokens": 5017895,
+  "output_tokens": 23002,
+  "model_configuration": {
+    "provider": "openai",
+    "model_name": "gpt-5.4-mini",
+    "reasoning_effort": "low"
+  },
+  "served_providers": [
+    "None"
+  ],
+  "plan_steps": [
+    {
+      "name": null,
+      "type": "markdown",
+      "derived_status": "cached"
+    },
+    {
+      "name": "All opaque runs",
+      "type": "dql_only",
+      "derived_status": "cached"
+    },
+    {
+      "name": "rh_reading_v1",
+      "type": "reading",
+      "derived_status": "completed"
+    }
+  ],
+  "error_categories": {
+    "no_error": 165
+  },
+  "privacy_after_reading": {
+    "at": "2026-10-27T22:27:29.329200+00:00",
+    "owner_only": true,
+    "collaborators": [
+      {
+        "subject_type": "user",
+        "permission_level": "admin",
+        "matches_owner": true
+      }
+    ],
+    "owner_subject_sha256": "cae8c20b9796f2faa2049312b33544271326aa90e95c5dc0b8276ce5b63774f4"
+  },
+  "spend_logged_at": "2026-10-27T22:11:23.695354+00:00",
+  "spend_stores": [
+    "/Users/petermakhnatch/.local/state/evallab-failure-library/spend.jsonl",
+    "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/spend.jsonl"
+  ],
+  "spend_mirrored_at": "2026-10-27T22:27:29.331409+00:00",
+  "conversion_totals": {
+    "all": {
+      "documents": 184,
+      "steps": 6299,
+      "tool_calls": 8104,
+      "reasoning_steps": 2522,
+      "raw_normalized": 11
+    },
+    "uploaded": {
+      "documents": 180,
+      "steps": 6182,
+      "tool_calls": 7798,
+      "reasoning_steps": 2411,
+      "raw_normalized": 11
+    },
+    "assembly_patterns": {
+      "single_head": 167,
+      "new_session": 2
+    }
+  },
+  "records_written": 169,
+  "records_appended": 0,
+  "results_store": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/results-v1.jsonl",
+  "label_sha256": "5e59994e0f1da6c7fea63c7129f4b53009dec17a1838726e7212abbd06530a47",
+  "scored_at": "2026-10-27T22:27:30.271077+00:00",
+  "abstention_reasons": {
+    "secret_scan": 4
+  },
+  "metrics": {
+    "trace-paired-v1:dev": {
+      "n": 25,
+      "n_pos": 14,
+      "n_neg": 11,
+      "TP": 8,
+      "FP": 0,
+      "FN_observed": 3,
+      "TN_observed": 10,
+      "abstentions": 4,
+      "abstain_pos": 3,
+      "abstain_neg": 1,
+      "coverage": {
+        "numerator": 21,
+        "denominator": 25,
+        "rate": 0.84,
+        "wilson_95": [
+          0.6534637839282114,
+          0.9359654854332355
+        ]
+      },
+      "recall_observed": {
+        "numerator": 8,
+        "denominator": 11,
+        "rate": 0.7272727272727273,
+        "wilson_95": [
+          0.43435469882387084,
+          0.902539407099751
+        ]
+      },
+      "false_alarm_observed": {
+        "numerator": 0,
+        "denominator": 10,
+        "rate": 0.0,
+        "wilson_95": [
+          0,
+          0.2775327998628892
+        ]
+      },
+      "positive_detection_yield": {
+        "numerator": 8,
+        "denominator": 14,
+        "rate": 0.5714285714285714,
+        "wilson_95": [
+          0.3259064457965074,
+          0.7861920109552588
+        ]
+      },
+      "negative_alarm_yield": {
+        "numerator": 0,
+        "denominator": 11,
+        "rate": 0.0,
+        "wilson_95": [
+          0,
+          0.2588329669680317
+        ]
+      }
+    },
+    "contamination-audit:non-cheatbench-port": {
+      "n": 50,
+      "n_pos": 6,
+      "n_neg": 44,
+      "TP": 3,
+      "FP": 0,
+      "FN_observed": 3,
+      "TN_observed": 44,
+      "abstentions": 0,
+      "abstain_pos": 0,
+      "abstain_neg": 0,
+      "coverage": {
+        "numerator": 50,
+        "denominator": 50,
+        "rate": 1.0,
+        "wilson_95": [
+          0.9286524008666414,
+          1
+        ]
+      },
+      "recall_observed": {
+        "numerator": 3,
+        "denominator": 6,
+        "rate": 0.5,
+        "wilson_95": [
+          0.1876163064826506,
+          0.8123836935173494
+        ]
+      },
+      "false_alarm_observed": {
+        "numerator": 0,
+        "denominator": 44,
+        "rate": 0.0,
+        "wilson_95": [
+          0,
+          0.08029560375848066
+        ]
+      },
+      "positive_detection_yield": {
+        "numerator": 3,
+        "denominator": 6,
+        "rate": 0.5,
+        "wilson_95": [
+          0.1876163064826506,
+          0.8123836935173494
+        ]
+      },
+      "negative_alarm_yield": {
+        "numerator": 0,
+        "denominator": 44,
+        "rate": 0.0,
+        "wilson_95": [
+          0,
+          0.08029560375848066
+        ]
+      }
+    },
+    "cheatbench-port": {
+      "n": 94,
+      "n_pos": 84,
+      "n_neg": 10,
+      "TP": 36,
+      "FP": 1,
+      "FN_observed": 48,
+      "TN_observed": 9,
+      "abstentions": 0,
+      "abstain_pos": 0,
+      "abstain_neg": 0,
+      "coverage": {
+        "numerator": 94,
+        "denominator": 94,
+        "rate": 1.0,
+        "wilson_95": [
+          0.9607379237084551,
+          0.9999999999999999
+        ]
+      },
+      "recall_observed": {
+        "numerator": 36,
+        "denominator": 84,
+        "rate": 0.42857142857142855,
+        "wilson_95": [
+          0.3281597743735877,
+          0.5352304725427922
+        ]
+      },
+      "false_alarm_observed": {
+        "numerator": 1,
+        "denominator": 10,
+        "rate": 0.1,
+        "wilson_95": [
+          0.017876213095072896,
+          0.4041500267952385
+        ]
+      },
+      "positive_detection_yield": {
+        "numerator": 36,
+        "denominator": 84,
+        "rate": 0.42857142857142855,
+        "wilson_95": [
+          0.3281597743735877,
+          0.5352304725427922
+        ]
+      },
+      "negative_alarm_yield": {
+        "numerator": 1,
+        "denominator": 10,
+        "rate": 0.1,
+        "wilson_95": [
+          0.017876213095072896,
+          0.4041500267952385
+        ]
+      }
+    }
+  }
+}

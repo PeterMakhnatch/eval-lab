@@ -81,25 +81,25 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:a2192d906302a41acff2c97ec3b92cff63d0dd5fe236decd61ed28ef6c678003
+    digest: sha256:5c7321bd635dff3bc721a2983f8c4b98d623977d2fec5c458b1226cb8bfa42e0
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
     digest: sha256:1da171277153ff6fbcafcd2a6835ee6c3b0d79eb3ef7d448d344b72d841332b1
   - path: docs/model-capture.md
-    digest: sha256:4266e7a61de35f666b8ded9a2510d3c694786583b5c61d1cf17f46c12b5d3bb2
+    digest: sha256:820a697afa3ffbf99e7b262f38cf26895f94f1df147167405fc944d7fc4484e6
   - path: docs/model-defaults.md
     digest: sha256:405093d29c78f0f422e895abe055988952fb14f297d8c75fc0a2b46f3ab10adf
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
-    digest: sha256:17587e087cea130547b9997332df26f202fe6585a3dd330a3d84b7529646045c
+    digest: sha256:df9bacf7f5dc9df05cab42825b1a20ea5028cb705a82081b0b9d517dbf3982d2
   - path: docs/open-qa-harness.md
     digest: sha256:cf0a4da37baa714c321301e312826782948bc011e6840a16474f903fe6344b6f
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:7ada2ac1ad1a92ba20cd280dc82c45580f8933e88f6d8c44d70f8c6265bd29cd
+    digest: sha256:c8e0b3ae7de3d0a0a10108f19ea73a056e964c8828025464813d26d0f84f23a4
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/qa-contract.md
@@ -129,7 +129,7 @@ inputs:
   - path: docs/rollout.md
     digest: sha256:478b97b1ff840eb80549057203e5626209a4475c14c69aac9caf04fcf6298daf
   - path: docs/run-atlas.md
-    digest: sha256:38db7dc6bfd49cb55b860347121a177094e70b5692e3c4584b83fcd68428e537
+    digest: sha256:84bf122cba91b2b8a47988aa83c61221648c65bf8e7583b2ec4a78c461cba770
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/scaling.md
@@ -143,7 +143,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:bf99a6c322c581c25571caaf64520d0f157fb54455f84995915210948ed278e2
+    digest: sha256:c6c870ad07100169c44b5bb39a2b9bbcb446dd9990e8a54ccee28636db4b7e88
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

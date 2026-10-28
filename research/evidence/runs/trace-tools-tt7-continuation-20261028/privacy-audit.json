@@ -1,0 +1,18 @@
+{
+  "canonical_gate_sha256": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f",
+  "elapsed_s": 19.524,
+  "finished_at": "2026-10-28T07:02:20.799037+00:00",
+  "hosted_payload_new_uploads": 0,
+  "hosted_payload_runs_reused": 149,
+  "input_runs": 200,
+  "input_steps": 13957,
+  "input_text_bytes": 45564204,
+  "model_calls": 0,
+  "new_eligible_positions_flagged": 0,
+  "policy_flagged_runs": 4,
+  "remote_mutations": 0,
+  "safe_eligible_runs": 196,
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "schema": "tt7.postmerge_privacy_audit/v1",
+  "started_at": "2026-10-28T07:02:01.274472+00:00"
+}

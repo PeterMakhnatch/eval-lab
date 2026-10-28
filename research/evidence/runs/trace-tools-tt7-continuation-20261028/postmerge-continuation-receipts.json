@@ -1,0 +1,36 @@
+{
+  "finished_at": "2026-10-28T07:07:34.662489+00:00",
+  "labels_read": false,
+  "namespace": "tt7-continuation-20261028",
+  "original_evidence_preserved": true,
+  "requested_run_count": 200,
+  "results_snapshot": {
+    "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-continuation-20261028/results-snapshot.jsonl",
+    "sha256": "12865827a22c777ee32ce76c864dffdf1129c7e683adf2ab53b40b1ba693fbfc"
+  },
+  "routes": {
+    "anthropic/claude-opus-5-5": {
+      "new_abstentions": 0,
+      "new_terminal_records": 0,
+      "new_valid_records": 0,
+      "original_terminal_records": 75,
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "status": "partial",
+      "unattempted_positions": 125,
+      "unattempted_reason": "anthropic: usage snapshot older than 120 seconds; fail closed"
+    },
+    "anthropic/claude-sonnet-5-5": {
+      "new_abstentions": 0,
+      "new_terminal_records": 0,
+      "new_valid_records": 0,
+      "original_terminal_records": 75,
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "status": "partial",
+      "unattempted_positions": 125,
+      "unattempted_reason": "anthropic: usage snapshot older than 120 seconds; fail closed"
+    }
+  },
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "schema": "tt7.postmerge_continuation/v1",
+  "status": "partial"
+}

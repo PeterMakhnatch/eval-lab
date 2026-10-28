@@ -46,7 +46,7 @@ from evallab.production.asset_store import (
     SplitLeakError,
     VerifiedAssetStore,
 )
-from evallab.production.dashboard import DASHBOARD
+from evallab.production.dashboard import dashboard_html
 from evallab.production.inspector import AmbiguousRunError, RunInspector
 from evallab.production.run_catalog import RunCatalog
 from evallab.production.safe_paths import PathOutsideRootsError
@@ -359,6 +359,7 @@ def create_app(
     asset_store: VerifiedAssetStore | None = None,
     inspector: RunInspector | None = None,
     poll_interval: float = 0.5,
+    home: str = "live",
     heartbeat_interval: float = 15.0,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> FastAPI:
@@ -373,6 +374,7 @@ def create_app(
     tokens = dict(operator_tokens or {})
     if any(not token or not operator.strip() for token, operator in tokens.items()):
         raise ValueError("operator tokens and identities must be nonempty")
+    page = dashboard_html(home)
     plane = ControlPlane(journal, projection=projection)
     app = FastAPI(title="Eval Lab Live Production", docs_url=None, redoc_url=None)
     app.state.control_plane = plane
@@ -380,7 +382,7 @@ def create_app(
     @app.get("/", response_class=HTMLResponse)
     def dashboard():
         return HTMLResponse(
-            DASHBOARD,
+            page,
             headers={
                 "Cache-Control": "no-store",
                 "X-Content-Type-Options": "nosniff",

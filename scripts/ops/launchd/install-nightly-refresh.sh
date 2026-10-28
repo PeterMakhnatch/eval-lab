@@ -9,10 +9,12 @@ COMMON="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
 DATA_ROOT="$(dirname "$COMMON")"
 VERDICT_ROOT=""
 LOAD=0
+BACKUP=0
 QUEUE_ROOTS=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --load) LOAD=1; shift ;;
+    --backup) BACKUP=1; shift ;;
     --state-dir) STATE="$2"; shift 2 ;;
     --facts-root) FACTS="$2"; shift 2 ;;
     --data-root) DATA_ROOT="$2"; shift 2 ;;
@@ -43,13 +45,13 @@ if [ ! -e "$SNAPSHOT/READY" ]; then
   uv sync --frozen --no-default-groups --project "$SNAPSHOT"
   printf '%s\n' "$COMMIT" > "$SNAPSHOT/READY"
 fi
-python3 - "$ROOT/scripts/ops/launchd/$LABEL.plist" "$DEST" "$SNAPSHOT" "$DATA_ROOT" "$STATE" "$FACTS" "$VERDICT_ROOT" "$LOGS" ${QUEUE_ROOTS[@]+"${QUEUE_ROOTS[@]}"} <<'PY'
+python3 - "$ROOT/scripts/ops/launchd/$LABEL.plist" "$DEST" "$SNAPSHOT" "$DATA_ROOT" "$STATE" "$FACTS" "$VERDICT_ROOT" "$LOGS" "$BACKUP" ${QUEUE_ROOTS[@]+"${QUEUE_ROOTS[@]}"} <<'PY'
 import os
 from pathlib import Path
 import plistlib
 import sys
 
-template, destination, source, data, state, facts, verdict, logs, *roots = sys.argv[1:]
+template, destination, source, data, state, facts, verdict, logs, backup, *roots = sys.argv[1:]
 source = str(Path(source).resolve())
 config = plistlib.loads(Path(template).read_bytes())
 program = (
@@ -65,6 +67,9 @@ if verdict:
     config["ProgramArguments"] += ["--verdict-root", str(Path(verdict).resolve())]
 for root in roots:
     config["ProgramArguments"] += ["--queue-root", str(Path(root).resolve())]
+if backup == "1":
+    # Daily pg_dump via the compose Postgres; failures make the refresh exit 1.
+    config["ProgramArguments"] += ["--backup"]
 config["WorkingDirectory"] = source
 config["StandardOutPath"] = str(Path(logs) / "nightly-refresh.log")
 config["StandardErrorPath"] = str(Path(logs) / "nightly-refresh.error.log")

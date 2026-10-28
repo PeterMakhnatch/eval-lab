@@ -237,6 +237,15 @@ DEFAULT_ROLE_LIMITS: Mapping[ResearchRole, RoleLimits] = {
 }
 
 
+# One validated invocation per role, retried once on failure or timeout.
+INVOCATION_ATTEMPTS = 2
+
+
+def pass_wall_clock_bound_seconds(limits: Mapping[ResearchRole, RoleLimits]) -> int:
+    """Longest legitimate pass: every role's attempts run to their own timeout."""
+    return INVOCATION_ATTEMPTS * sum(limit.timeout_seconds for limit in limits.values())
+
+
 @dataclass(frozen=True)
 class InvocationResponse:
     output: str
@@ -705,7 +714,7 @@ class ResearcherLoop:
         validator: Callable[[T], None] | None = None,
     ) -> T:
         errors: list[str] = []
-        for attempt in (1, 2):
+        for attempt in range(1, INVOCATION_ATTEMPTS + 1):
             limits = self.limits[role]
             budget_now = self._clock()
             if budget_now.utcoffset() is None:

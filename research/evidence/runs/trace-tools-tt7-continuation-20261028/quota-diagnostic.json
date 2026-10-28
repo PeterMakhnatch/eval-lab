@@ -1,0 +1,19 @@
+{
+  "checked_at_utc": "2026-10-28T07:05:07.754503+00:00",
+  "returncode": 0,
+  "elapsed_s": 1.596,
+  "reports": [],
+  "stderr_bytes": 0,
+  "model_calls": 0,
+  "cache_invalidations": 0,
+  "root_report_count": 0,
+  "accounts_without_usage_count": 1,
+  "disabled_credential_count": 0,
+  "provider_failure_cause": "Not exposed: CLI returned0 reports and one account without usage, no error/status fields; no HTTP/auth cause inferred",
+  "account_provider_types": [
+    {
+      "provider": "anthropic",
+      "type": "oauth"
+    }
+  ]
+}

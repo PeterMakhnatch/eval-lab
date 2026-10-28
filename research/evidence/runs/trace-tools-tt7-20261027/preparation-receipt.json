@@ -1,0 +1,20 @@
+{
+  "schema": "tt7.blind_preparation/v1",
+  "at": "2026-10-27T22:35:48.598081+00:00",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "sources": {
+    "cheatbench-actions-v1": {
+      "runs": 50,
+      "bytes": 12016628,
+      "steps": 3328,
+      "max_bytes": 2898600
+    },
+    "cloud-trace-db": {
+      "runs": 150,
+      "bytes": 33547576,
+      "steps": 10629,
+      "max_bytes": 1060229
+    }
+  },
+  "labels_read": false
+}

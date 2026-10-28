@@ -21,6 +21,7 @@ import math
 import os
 import re
 import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -31,6 +32,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 _CONNECTION_URL = re.compile(r"(?i)\b(?:postgres(?:ql)?|nats|tls|ws|wss)://[^\s\"'<>]+")
+_LIVE_DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
 
 
 def _queue_options(parser: argparse.ArgumentParser) -> None:
@@ -145,6 +147,70 @@ def register_parser(commands: Any) -> None:
     )
     project.set_defaults(func=_command)
 
+    runs = actions.add_parser(
+        "export-runs",
+        help="Export blinded, registry-admitted DEV traces locally; never dispatch or upload",
+    )
+    runs.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    runs.add_argument("--source-database", type=Path, required=True)
+    runs.add_argument("--output-directory", type=Path, required=True)
+    runs.add_argument("--format", choices=("harbor", "atif", "scout"), required=True)
+    runs.add_argument(
+        "--manifest", type=Path, required=True,
+        help="New sealed identity/step join file outside the export directory",
+    )
+    runs.add_argument(
+        "--trace-id", dest="trace_ids", action="append",
+        help="Further restrict admitted traces; repeat to select several",
+    )
+    runs.add_argument("--limit", type=int, help="Maximum admitted traces to export")
+    runs.set_defaults(func=_command)
+
+    scope = actions.add_parser(
+        "export-cluster-scope",
+        help="Write a metadata-only scope file for one Run Atlas cluster; never reads run bodies",
+        description=(
+            "One row per DEV-admitted run in the cluster (trace id, task ids, assignments.csv digest, "
+            "facet build/producer/model) plus counts of refused members. No trace bodies, labels, "
+            "rewards, facet text or cluster names; the manifest must not already exist."
+        ),
+    )
+    scope.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    scope.add_argument(
+        "--source-database", type=Path, default=_LIVE_DATABASE,
+        help="SQLite cloud trace database (default: the live store)",
+    )
+    scope.add_argument("--cluster-id", required=True)
+    scope.add_argument("--manifest", type=Path, required=True, help="New scope file to publish")
+    scope.set_defaults(func=_command)
+
+    cheatbench = actions.add_parser(
+        "export-cheatbench-runs",
+        help="Export blinded, registry-admitted DEV CheatBench runs that have no cloud trace; never uploads",
+        description=(
+            "Resolves facet run ids (cheatbench-actions-v1 item ids) through the answer-key registry's "
+            "pinned published trajectories, applies the per-item DEV admission, and writes the same "
+            "blinded formats as export-runs. The trial_ref and the expected-verdict fields stay in the "
+            "sealed manifest outside the export."
+        ),
+    )
+    cheatbench.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    cheatbench.add_argument("--output-directory", type=Path, required=True)
+    cheatbench.add_argument("--format", choices=("harbor", "atif", "scout"), required=True)
+    cheatbench.add_argument(
+        "--manifest", type=Path, required=True, help="New sealed join file outside the export directory",
+    )
+    cheatbench.add_argument(
+        "--run-id", dest="run_ids", action="append",
+        help="Facet run id (item id) to export; repeat to select several (default: every candidate)",
+    )
+    cheatbench.add_argument("--limit", type=int, help="Maximum admitted runs to export")
+    cheatbench.add_argument(
+        "--view", choices=("full", "actions_only"), default="full",
+        help="full = the trajectory the facets were produced from (default)",
+    )
+    cheatbench.set_defaults(func=_command)
+
     export = actions.add_parser(
         "export-qc-reports",
         help="Write validated Trust & QC dashboard reports from a live database; never upload",
@@ -190,6 +256,125 @@ def register_parser(commands: Any) -> None:
     )
     export.add_argument("--generated-at", metavar="ISO", help="Census timestamp (default: now, UTC)")
     export.set_defaults(func=_command)
+
+    facets = actions.add_parser(
+        "import-run-facets",
+        help="Import Run Atlas run-facets/v1 JSONL into the cloud trace database (DEV-admitted runs only)",
+    )
+    facets.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    facets.add_argument(
+        "--cloud-database", required=True,
+        help="Cloud trace database: SQLite path/URL or PostgreSQL URL",
+    )
+    facets.add_argument("--jsonl", type=Path, required=True, help="Append-only facets JSONL keyed by run_id")
+    facets.set_defaults(func=_command)
+
+    clusters = actions.add_parser(
+        "import-run-clusters",
+        help="Import the final complete Run Atlas run-clusters/v1 build (DEV-admitted, faceted runs only)",
+    )
+    clusters.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    clusters.add_argument(
+        "--cloud-database", required=True,
+        help="Cloud trace database: SQLite path/URL or PostgreSQL URL",
+    )
+    clusters.add_argument("--jsonl", type=Path, required=True, help="Append-only clusters JSONL")
+    clusters.add_argument(
+        "--drop-unfaceted", action="store_true",
+        help="Drop (and count) clustered runs with no stored admitted facets instead of refusing the build",
+    )
+    clusters.set_defaults(func=_command)
+
+    reliability = actions.add_parser(
+        "import-field-reliability",
+        help="Write run-atlas/field-reliability-v1.json from a VF-11 blind re-rate receipt (agreement and n only)",
+    )
+    reliability.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    reliability.add_argument("--receipt", type=Path, required=True, help="VF-11 receipt JSON")
+    reliability.add_argument(
+        "--output-directory", type=Path, required=True,
+        help="The run-atlas state directory that receives field-reliability-v1.json",
+    )
+    reliability.add_argument(
+        "--replace", action="store_true", help="Overwrite an existing, different file",
+    )
+    reliability.set_defaults(func=_command)
+
+    preflight = actions.add_parser(
+        "deploy-preflight",
+        help="Read-only check of the data files the Modal cloud tabs need; prints, never runs, the deploy commands",
+    )
+    preflight.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    preflight.add_argument(
+        "--state-root", type=Path, default=Path("~/.local/state/evallab-prod-live"),
+        help="Live state directory holding run-atlas/ and trace-tools/",
+    )
+    preflight.add_argument(
+        "--inventory", type=Path,
+        default=Path("~/Developer/research-context/bridge/2026-10-27-run-atlas/ts9-defensive-inventory/inventory.json"),
+        help="TS-9 defensive inventory (staged reduced)",
+    )
+    preflight.add_argument(
+        "--registry", type=Path,
+        default=Path("~/Developer/research-context/bridge/2026-10-27-run-atlas/cross-test-registry.json"),
+        help="Cross-test registry (staged reduced)",
+    )
+    preflight.add_argument(
+        "--stage-directory", type=Path,
+        help="Keep the staged copies here (a new or empty directory); default: a temporary directory that is deleted",
+    )
+    preflight.set_defaults(func=_command)
+
+    sb1 = actions.add_parser(
+        "seeker-error-first",
+        help="SB-1 two-turn error-first Reward Seeker campaign; --plan (default) is free",
+        description=(
+            "One cell is one cohort task x one model: a blind turn 1, then turn 2 with the "
+            "real ORIGINAL-grader runner error placed first plus DEV-only trace retrieval. "
+            "Plan and summarize make no model call and no grader run. --execute needs "
+            "--approval, --max-usd, --spend-ledger and --modal-app-name; local Docker is "
+            "always disabled."
+        ),
+    )
+    sb1.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    sb1.add_argument(
+        "--cohort", type=Path,
+        default=Path("research/experiments/sb1-clean-seeker-set-20261027/cohort.json"),
+        help="evallab.sb1_clean_seeker_set/v1 manifest",
+    )
+    sb1.add_argument("--out", type=Path, required=True, help="Retained cell/summary directory")
+    sb1.add_argument(
+        "--models", nargs="+", metavar="ROUTE",
+        help="OMP routes (default: the four SB-1 routes)",
+    )
+    sb1.add_argument("--workers", type=int, default=6, help="Concurrent cells (1-8, default 6)")
+    sb1.add_argument(
+        "--per-model-concurrency", type=int, default=2,
+        help="Concurrent model calls per route, within --workers (default 2)",
+    )
+    sb1.add_argument("--resume", action="store_true", help="Skip turns whose result passes the QC predicate")
+    mode = sb1.add_mutually_exclusive_group()
+    mode.add_argument("--plan", action="store_true", help="Default: counts and cost bound only")
+    mode.add_argument("--execute", action="store_true", help="Call models and Modal graders")
+    mode.add_argument("--summarize", action="store_true", help="Rebuild summary from retained cells")
+    sb1.add_argument("--approval", help="Recorded Peter authorization text for the Modal spend")
+    sb1.add_argument("--max-usd", type=float, help="Spend cap enforced by the native ledger")
+    sb1.add_argument("--spend-ledger", type=Path, help="Native Modal reservation ledger path")
+    sb1.add_argument("--modal-app-name", help="Modal app that owns the sandboxes")
+    sb1.add_argument("--billing-tag", help="Modal execution cost attribution")
+    sb1.add_argument(
+        "--cloud-trace-db", type=Path,
+        help="Local cloud-trace SQLite for turn-2 retrieval (opened read-only, DEV only)",
+    )
+    sb1.add_argument("--assignments-csv", type=Path, help="Split ledger (default: repository copy)")
+    sb1.add_argument("--omp-timeout", type=_positive_seconds, default=300.0)
+    sb1.add_argument("--grader-timeout", type=int, default=600)
+    sb1.add_argument("--omp-config", type=Path, help="OMP --config file")
+    sb1.add_argument(
+        "--spend-log", type=Path,
+        help="Failure-library spend.jsonl (default: ~/.local/state/evallab-failure-library)",
+    )
+    sb1.set_defaults(func=_command)
 
     once = actions.add_parser("run-once", help="Run selected live consumers, then relay once")
     _queue_options(once)
@@ -440,6 +625,53 @@ def _local_path(root: Path, path: Path) -> Path:
     return path
 
 
+def _export_runs(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    from evallab.production.cloud_trace_export import export_runs
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    return export_runs(
+        _local_path(root, args.source_database),
+        _local_path(root, args.output_directory),
+        format=args.format,
+        registry=CorpusRegistry(root),
+        trace_ids=args.trace_ids,
+        limit=args.limit,
+        manifest=_local_path(root, args.manifest),
+    )
+
+
+def _export_cheatbench_runs(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    from evallab.production.cloud_trace_export import export_cheatbench_runs
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    return export_cheatbench_runs(
+        _local_path(root, args.output_directory),
+        format=args.format,
+        registry=CorpusRegistry(root),
+        run_ids=args.run_ids,
+        limit=args.limit,
+        manifest=_local_path(root, args.manifest),
+        view=args.view,
+    )
+
+
+def _export_cluster_scope(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    from evallab.production.cloud_trace_export import export_cluster_scope
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10, check=False,
+        )
+        revision = head.stdout.strip() if head.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        revision = None
+    return export_cluster_scope(
+        _local_path(root, args.source_database), args.cluster_id, _local_path(root, args.manifest),
+        registry=CorpusRegistry(root), revision=revision or None,
+    )
+
+
 def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     from evallab.production.qc_reports import export_qc_reports
 
@@ -455,6 +687,31 @@ def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         oq5_directory=_optional_path(root, args.oq5_directory),
         cm5_directory=_optional_path(root, args.cm5_directory),
         generated_at=args.generated_at,
+    )
+
+
+def _seeker_error_first(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], int]:
+    from evallab.production.seeker_error_first import run_command
+
+    return run_command(
+        cohort=_local_path(root, args.cohort),
+        out=_local_path(root, args.out),
+        models=args.models,
+        workers=args.workers,
+        per_model_concurrency=args.per_model_concurrency,
+        resume=args.resume,
+        mode="execute" if args.execute else "summarize" if args.summarize else "plan",
+        assignments_csv=_optional_path(root, args.assignments_csv),
+        cloud_trace_db=_optional_path(root, args.cloud_trace_db),
+        approval=args.approval,
+        max_usd=args.max_usd,
+        spend_ledger=_optional_path(root, args.spend_ledger),
+        modal_app_name=args.modal_app_name,
+        billing_tag=args.billing_tag,
+        omp_timeout=args.omp_timeout,
+        grader_timeout=args.grader_timeout,
+        omp_config=_optional_path(root, args.omp_config),
+        spend_log=_optional_path(root, args.spend_log),
     )
 
 
@@ -563,9 +820,66 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
         if args.prod_command == "project-actor":
             _emit({"command": args.prod_command, **_project_actor(args, root)}, args)
             return 0
+        if args.prod_command == "export-runs":
+            _emit({"command": args.prod_command, **_export_runs(args, root)}, args)
+            return 0
+        if args.prod_command == "export-cheatbench-runs":
+            _emit({"command": args.prod_command, **_export_cheatbench_runs(args, root)}, args)
+            return 0
+        if args.prod_command == "export-cluster-scope":
+            _emit({"command": args.prod_command, **_export_cluster_scope(args, root)}, args)
+            return 0
         if args.prod_command == "export-qc-reports":
             _emit({"command": args.prod_command, **_export_qc_reports(args, root)}, args)
             return 0
+        if args.prod_command == "import-run-facets":
+            from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_facets
+            from evallab.production.corpus_queue import CorpusRegistry
+
+            with CloudTraceDatabase(_database(root, args.cloud_database)) as database:
+                receipt = import_run_facets(
+                    database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
+                )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "import-run-clusters":
+            from evallab.production.cloud_trace_db import CloudTraceDatabase, import_run_clusters
+            from evallab.production.corpus_queue import CorpusRegistry
+
+            with CloudTraceDatabase(_database(root, args.cloud_database)) as database:
+                receipt = import_run_clusters(
+                    database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
+                    drop_unfaceted=args.drop_unfaceted,
+                )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "import-field-reliability":
+            from evallab.production.field_reliability import (
+                from_vf11_receipt,
+                write_field_reliability,
+            )
+
+            document = from_vf11_receipt(
+                json.loads(_resolve(root, args.receipt).read_text(encoding="utf-8"))
+            )
+            receipt = write_field_reliability(
+                _resolve(root, args.output_directory), document, replace=args.replace,
+            )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "deploy-preflight":
+            from evallab.production.deploy_preflight import run_preflight
+
+            report = run_preflight(
+                args.state_root, repo_root=root, inventory=args.inventory.expanduser(),
+                registry=args.registry.expanduser(), stage_directory=args.stage_directory,
+            )
+            _emit({"command": args.prod_command, **report}, args)
+            return 0 if report["ok"] else 1
+        if args.prod_command == "seeker-error-first":
+            receipt, exit_code = _seeker_error_first(args, root)
+            _emit({"command": args.prod_command, **receipt}, args)
+            return exit_code
         with _open_queue(args, root) as connection:
             if args.prod_command == "ingest":
                 from evallab.production.ingest import ingest_corpus

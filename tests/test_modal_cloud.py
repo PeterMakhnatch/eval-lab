@@ -21,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from evallab.execution_backend import ExecutionBackendConfig
+from evallab.production import atlas_view
 from evallab.production.benchmark_reports import MAX_BENCHMARK_BYTES
 from evallab.production.cloud_trace_db import CloudTraceDatabase, S3CompatibleCAS
 from evallab.production.corpus_queue import ContinuousWorkQueue
@@ -416,6 +417,8 @@ def test_bearer_serves_protected_dashboard_and_state(client: TestClient) -> None
     assert dashboard.status_code == 200
     assert dashboard.headers["content-type"].startswith("text/html")
     assert TOKEN not in dashboard.text
+    # The cloud deployment opens on the Run Atlas; the local control plane keeps the live journal.
+    assert '<body data-home="atlas">' in dashboard.text
     assert client.get("/api/state", headers=AUTH).status_code == 200
 
 
@@ -2460,15 +2463,266 @@ def _atlas_facet(run_id: str, **fields: Any) -> dict[str, Any]:
     } | fields
 
 
+def _atlas_cluster(cluster_id: str, run_ids: list[str], **fields: Any) -> dict[str, Any]:
+    return {
+        "cluster_version": "run-clusters/v1",
+        "cluster_id": cluster_id,
+        "name": "Synthetic cluster",
+        "level": 1,
+        "parent": None,
+        "run_ids": run_ids,
+        "centroid_text": "Synthetic approach | none",
+        "size": len(run_ids),
+        "samples": ["Synthetic approach | none"],
+        "label_rates": None,
+        "rule_rate": None,
+        "name_source": "deterministic",
+        "build_id": "00000000000000000000000000000001",
+        "facet_count": len(run_ids),
+        "created_at": "2026-10-27T20:00:00Z",
+        "seed": 0,
+        "min_size": 5,
+        "embedder": "hashing",
+        "embedder_digest": "f" * 64,
+    } | fields
+
+
 def _write_atlas(
-    runtime: CloudRuntime, facets: list[Any], clusters: dict[str, Any] | None = None
+    runtime: CloudRuntime, facets: list[Any], clusters: list[dict[str, Any]] | None = None
 ) -> None:
-    directory = runtime.data_root / "atlas"
+    directory = runtime.data_root / "run-atlas"
     directory.mkdir(exist_ok=True)
     lines = [row if isinstance(row, str) else json.dumps(row) for row in facets]
-    (directory / "facets-v1.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (directory / atlas_view.FACETS_FILE).write_text("\n".join(lines) + "\n", encoding="utf-8")
     if clusters is not None:
-        (directory / "clusters-v1.json").write_text(json.dumps(clusters), encoding="utf-8")
+        (directory / atlas_view.CLUSTERS_FILE).write_text(
+            "\n".join(json.dumps(row) for row in clusters) + "\n", encoding="utf-8"
+        )
+
+
+def _guard_atlas_step_bodies(
+    runtime: CloudRuntime, monkeypatch: pytest.MonkeyPatch, denied: set[str]
+) -> list[str]:
+    reads: list[str] = []
+
+    def guarded_body(value: str | None, trace_id: str) -> str | None:
+        if trace_id in denied:
+            raise AssertionError("an unadmitted trace body must not be read")
+        reads.append(trace_id)
+        return value
+
+    connection = runtime.database._connection
+    connection.create_function("guarded_atlas_body", 2, guarded_body)
+    original_connect = sqlite3.connect
+
+    def guarded_connection(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+        opened = original_connect(*args, **kwargs)
+        opened.create_function("guarded_atlas_body", 2, guarded_body)
+        return opened
+
+    monkeypatch.setattr(sqlite3, "connect", guarded_connection)
+    columns = [row[1] for row in connection.execute("PRAGMA table_info(trace_steps)")]
+    projection = ", ".join(
+        "guarded_atlas_body(content_text, trace_id) AS content_text"
+        if name == "content_text"
+        else '"' + name + '"'
+        for name in columns
+    )
+    connection.execute("ALTER TABLE trace_steps RENAME TO guarded_atlas_steps")
+    connection.execute(f"CREATE VIEW trace_steps AS SELECT {projection} FROM guarded_atlas_steps")
+
+    return reads
+
+
+@pytest.mark.parametrize(("evidence_index", "visible"), [(9, True), (1, False), (99, False)])
+def test_atlas_evidence_requires_exact_sparse_step_membership(
+    client: TestClient,
+    runtime: CloudRuntime,
+    records: dict[str, Any],
+    evidence_index: int,
+    visible: bool,
+) -> None:
+    _write_atlas(runtime, [_atlas_facet(VERIFIED, evidence_steps=[evidence_index])])
+
+    identities = runtime._atlas_traces()
+    assert identities[VERIFIED]["step_count"] == 3
+    assert identities[VERIFIED]["step_indices"] == frozenset({0, 2, 9})
+    listing = client.get("/api/cloud-db/atlas", headers=AUTH)
+    assert listing.status_code == 200, listing.text
+    body = listing.json()
+    assert {run["run_id"] for run in body["runs"]} == ({VERIFIED} if visible else set())
+    assert body["store"]["evidence_outside_run_n"] == (0 if visible else 1)
+    assert all("step_indices" not in run for run in body["runs"])
+
+    detail = client.get("/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": VERIFIED})
+    assert detail.status_code == (200 if visible else 404), detail.text
+    if visible:
+        assert detail.json()["run"]["step_count"] == 3
+        assert "step_indices" not in detail.json()["run"]
+        assert [
+            step["step_index"] for step in detail.json()["evidence"] if step["is_evidence"]
+        ] == [9]
+
+
+@pytest.mark.parametrize(
+    ("reward", "outcome"),
+    [
+        (1.0, "pass"),
+        (1.5, "pass"),
+        (0.0, "fail"),
+        (-0.5, "fail"),
+        (0.5, "unknown"),
+        (None, "unknown"),
+    ],
+)
+def test_atlas_source_and_outcome_are_database_owned(
+    client: TestClient,
+    runtime: CloudRuntime,
+    records: dict[str, Any],
+    reward: float | None,
+    outcome: str,
+) -> None:
+    trace_id = "trace-atlas-canonical"
+    runtime.database.upsert_trace(
+        {**_trace(trace_id, PRIMARY, None), "reward": reward},
+        steps=[{"step_index": 0, "role": "assistant", "content_text": "Synthetic evidence."}],
+    )
+    forged_outcome = "fail" if outcome == "pass" else "pass"
+    _write_atlas(
+        runtime,
+        [_atlas_facet(trace_id, source="forged-dataset", outcome=forged_outcome)],
+    )
+    source = records["tasks"][PRIMARY]["dataset_id"]
+    listing = client.get("/api/cloud-db/atlas", headers=AUTH)
+    assert listing.status_code == 200, listing.text
+    body = listing.json()
+    assert body["runs"][0]["source"] == source
+    assert body["runs"][0]["outcome"] == outcome
+    assert body["options"]["source"] == {source: 1}
+    assert body["options"]["outcome"] == {outcome: 1}
+    for filters, total in (
+        ({"source": source, "outcome": outcome}, 1),
+        ({"source": "forged-dataset"}, 0),
+        ({"outcome": forged_outcome}, 0),
+    ):
+        response = client.get("/api/cloud-db/atlas", headers=AUTH, params=filters)
+        assert response.status_code == 200, response.text
+        assert response.json()["total"] == total
+    detail = client.get("/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": trace_id})
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["run"]["source"] == source
+    assert detail.json()["run"]["outcome"] == outcome
+    assert "step_indices" not in detail.json()["run"]
+
+
+def test_atlas_admission_precedes_trace_body_reads(
+    client: TestClient,
+    runtime: CloudRuntime,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    facets = []
+    for task_id, split in (
+        ("atlas-allowed", "dev"),
+        ("sealed-task-name", "dev"),
+        ("atlas-test", "test"),
+    ):
+        runtime.database.upsert_task(_task(task_id, "Synthetic task.", split=split))
+        trace_id = "trace-" + task_id
+        runtime.database.upsert_trace(
+            _trace(trace_id, task_id, None),
+            steps=[{"step_index": 0, "role": "assistant", "content_text": "Synthetic body."}],
+        )
+        facets.append(_atlas_facet(trace_id))
+    _write_atlas(runtime, facets)
+    denied = {"trace-sealed-task-name", "trace-atlas-test"}
+    reads = _guard_atlas_step_bodies(runtime, monkeypatch, denied)
+
+    assert set(runtime._atlas_traces()) == {"trace-atlas-allowed"}
+    listing = client.get("/api/cloud-db/atlas", headers=AUTH)
+    assert listing.status_code == 200, listing.text
+    assert {run["run_id"] for run in listing.json()["runs"]} == {"trace-atlas-allowed"}
+    for trace_id in denied:
+        response = client.get("/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": trace_id})
+        assert response.status_code == 404, response.text
+    assert reads == []
+    detail = client.get(
+        "/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": "trace-atlas-allowed"}
+    )
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["withheld"] is None
+    assert reads and set(reads) == {"trace-atlas-allowed"}
+
+
+@pytest.mark.parametrize("change", ["denied", "missing"])
+@pytest.mark.parametrize("phase", ["initial_gate", "evidence_window", "flag_read"])
+def test_atlas_drilldown_withholds_evidence_when_returnability_changes(
+    client: TestClient,
+    runtime: CloudRuntime,
+    modal_cloud: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    change: str,
+    phase: str,
+) -> None:
+    task = _task("atlas-returnability", "Synthetic task.")
+    trace_id = "trace-atlas-returnability"
+    runtime.database.upsert_task(task)
+    runtime.database.upsert_trace(
+        _trace(trace_id, task["task_id"], None),
+        steps=[
+            {"step_index": 0, "role": "user", "content_text": "Synthetic request."},
+            {"step_index": 1, "role": "assistant", "content_text": "partial-evidence-needle"},
+            {"step_index": 4, "role": "tool", "content_text": "Synthetic tool output."},
+        ],
+    )
+    _write_atlas(runtime, [_atlas_facet(trace_id, evidence_steps=[1, 4])])
+    denied: set[str] = set()
+    reads = _guard_atlas_step_bodies(runtime, monkeypatch, denied)
+    original_expand = modal_cloud.CloudTraceRetriever.expand_pointer
+    calls = 0
+
+    def change_returnability() -> None:
+        denied.add(trace_id)
+        if change == "denied":
+            runtime.database.upsert_task({**task, "split": "test"})
+        else:
+            runtime.database._connection.execute(
+                "DELETE FROM agent_traces WHERE trace_id = ?", (trace_id,)
+            )
+
+    def expand_after_change(retriever: Any, pointer: str, **kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if (phase == "initial_gate" and calls == 1) or (
+            phase == "evidence_window" and calls == 3
+        ):
+            change_returnability()
+        window = original_expand(retriever, pointer, **kwargs)
+        if phase == "flag_read" and calls == 3:
+            change_returnability()
+        return window
+
+    monkeypatch.setattr(modal_cloud.CloudTraceRetriever, "expand_pointer", expand_after_change)
+    response = client.get("/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": trace_id})
+    assert response.status_code == 200, response.text
+    detail = response.json()
+    assert detail["withheld"] is not None
+    assert detail["evidence"] == []
+    assert detail["flags"] is None and detail["playbook_cards"] == []
+    assert "partial-evidence-needle" not in response.text
+    assert bool(reads) is (phase != "initial_gate")
+
+
+def test_atlas_cache_refuses_a_replaced_directory_symlink(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    _write_atlas(runtime, [_atlas_facet(VERIFIED)])
+    assert client.get("/api/cloud-db/atlas", headers=AUTH).json()["total"] == 1
+    directory = runtime.data_root / "run-atlas"
+    retained = runtime.data_root / "retained-atlas-fixture"
+    directory.rename(retained)
+    directory.symlink_to(retained, target_is_directory=True)
+    response = client.get("/api/cloud-db/atlas", headers=AUTH)
+    assert response.status_code == 503
 
 
 def test_atlas_serves_only_admitted_dev_runs_and_refuses_other_splits(
@@ -2485,7 +2739,11 @@ def test_atlas_serves_only_admitted_dev_runs_and_refuses_other_splits(
         {**_trace("trace-held", "cloud-held", None), "step_count": 1},
         steps=[{"step_index": 0, "role": "assistant", "content_text": "heldneedle"}],
     )
-    facets = [_atlas_facet(trace_id) for trace_id in (VERIFIED, PROVISIONAL, REFUTED)]
+    facets = [
+        _atlas_facet(VERIFIED),
+        _atlas_facet(PROVISIONAL),
+        _atlas_facet(REFUTED, evidence_steps=[5]),
+    ]
     facets += [
         _atlas_facet("trace-held", goal="heldneedle goal"),
         _atlas_facet("trace-not-in-database"),
@@ -2539,16 +2797,13 @@ def test_atlas_filters_clusters_and_cache_follow_the_retained_files(
         _atlas_facet(VERIFIED, suspicion=3, answer_material_accessed=True, source="alpha"),
         _atlas_facet(PROVISIONAL, suspicion=1, source="beta", tests="modified"),
     ]
-    root = {
-        "cluster_id": "root",
-        "name": "all runs",
-        "level": 1,
-        "parent": None,
-        "run_ids": [VERIFIED, PROVISIONAL],
-        "centroid_text": "everything",
-        "size": 2,
-        "label_rates": [{"label": "cheat", "hits_n": 1, "of_n": 2}],
-    }
+    root = _atlas_cluster(
+        "root",
+        [VERIFIED, PROVISIONAL],
+        name="all runs",
+        centroid_text="everything",
+        label_rates={"labelled": 2, "positives": 1, "rate": 0.5},
+    )
     leaf = root | {
         "cluster_id": "leaf",
         "name": "reads answers",
@@ -2556,16 +2811,16 @@ def test_atlas_filters_clusters_and_cache_follow_the_retained_files(
         "parent": "root",
         "run_ids": [VERIFIED],
         "size": 1,
-        "label_rates": [],
+        "label_rates": None,
     }
-    document = {
-        "schema": "run-clusters/v1",
-        "facet_version": "run-facets/v1",
-        "generated_at": "2026-10-27T20:00:00Z",
-        "scored_at": "2026-10-27T21:00:00Z",
-        "clusters": [root, leaf],
+    other = leaf | {
+        "cluster_id": "other",
+        "name": "normal checks",
+        "run_ids": [PROVISIONAL],
     }
-    _write_atlas(runtime, facets, document)
+    leaf_tip = leaf | {"cluster_id": "leaf-tip", "level": 3, "parent": "leaf"}
+    other_tip = other | {"cluster_id": "other-tip", "level": 3, "parent": "other"}
+    _write_atlas(runtime, facets, [root, leaf, other, leaf_tip, other_tip])
 
     def get(**params: Any) -> dict[str, Any]:
         response = client.get("/api/cloud-db/atlas", headers=AUTH, params=params)
@@ -2577,8 +2832,18 @@ def test_atlas_filters_clusters_and_cache_follow_the_retained_files(
     assert {item["cluster_id"]: item["admitted_n"] for item in shown["clusters"]} == {
         "root": len(visible),
         "leaf": len(visible & {VERIFIED}),
+        "other": len(visible & {PROVISIONAL}),
+        "leaf-tip": len(visible & {VERIFIED}),
+        "other-tip": len(visible & {PROVISIONAL}),
     }
-    assert shown["scored_at"] == "2026-10-27T21:00:00Z"
+    assert shown["scored_at"] is None
+    assert {item["cluster_id"]: item["label_rates"] for item in shown["clusters"]} == {
+        "root": [{"label": "positive source label", "hits_n": 1, "of_n": 2}],
+        "leaf": [],
+        "other": [],
+        "leaf-tip": [],
+        "other-tip": [],
+    }
     narrowed = get(min_suspicion=3, answer_material_accessed="true")
     assert {run["run_id"] for run in narrowed["runs"]} <= {VERIFIED}
     assert {item["cluster_id"]: item["matching_n"] for item in narrowed["clusters"]}["root"] == len(
@@ -2603,17 +2868,17 @@ def test_atlas_filters_clusters_and_cache_follow_the_retained_files(
     # cluster file is reported while facets still show.
     _write_atlas(
         runtime,
-        [_atlas_facet(VERIFIED, source="gamma")],
-        {**document, "clusters": [{**root, "size": 9}]},
+        [_atlas_facet(VERIFIED, goal="A replacement retained goal.", source="gamma")],
+        [{**root, "size": 9}],
     )
     changed = get()
-    assert {run["source"] for run in changed["runs"]} == {"gamma"}
+    assert {run["goal"] for run in changed["runs"]} == {"A replacement retained goal."}
+    assert {run["source"] for run in changed["runs"]} == {records["tasks"][PRIMARY]["dataset_id"]}
     assert changed["clusters"] == [] and "size" in changed["store"]["cluster_error"]
 
-    (runtime.data_root / "atlas" / "facets-v1.jsonl").unlink()
-    (runtime.data_root / "atlas" / "facets-v1.jsonl").symlink_to(
-        runtime.data_root / "atlas" / "clusters-v1.json"
-    )
+    directory = runtime.data_root / "run-atlas"
+    (directory / atlas_view.FACETS_FILE).unlink()
+    (directory / atlas_view.FACETS_FILE).symlink_to(directory / atlas_view.CLUSTERS_FILE)
     assert client.get("/api/cloud-db/atlas", headers=AUTH).status_code == 503
 
 
@@ -2621,7 +2886,7 @@ def test_atlas_run_drilldown_has_evidence_flags_and_playbook_cards(
     client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
 ) -> None:
     runtime.database.upsert_trace(
-        {**_trace("trace-atlas-flags", PRIMARY, None), "step_count": 5},
+        {**_trace("trace-atlas-flags", PRIMARY, None), "step_count": 6},
         steps=[
             {"step_index": 0, "role": "user", "content_text": "Synthetic task request userneedle."},
             {
@@ -2646,46 +2911,462 @@ def test_atlas_run_drilldown_has_evidence_flags_and_playbook_cards(
                 "command_or_action": "pwd",
                 "content_text": "done",
             },
+            {"step_index": 5, "role": "system", "content_text": "Synthetic systemneedle."},
         ],
     )
+    cluster = _atlas_cluster("only", ["trace-atlas-flags"], name="edits tests", centroid_text="x")
+    child = cluster | {"cluster_id": "only-2", "level": 2, "parent": "only"}
+    tip = child | {"cluster_id": "only-3", "level": 3, "parent": "only-2"}
     _write_atlas(
         runtime,
-        [_atlas_facet("trace-atlas-flags", evidence_steps=[3, 1], suspicion=2)],
-        {
-            "schema": "run-clusters/v1",
-            "facet_version": "run-facets/v1",
-            "generated_at": "2026-10-27T20:00:00Z",
-            "scored_at": None,
-            "clusters": [
-                {
-                    "cluster_id": "only",
-                    "name": "edits tests",
-                    "level": 1,
-                    "parent": None,
-                    "run_ids": ["trace-atlas-flags"],
-                    "centroid_text": "x",
-                    "size": 1,
-                    "label_rates": [],
-                }
-            ],
-        },
+        [_atlas_facet("trace-atlas-flags", evidence_steps=[3, 1, 4], suspicion=2)],
+        [cluster, child, tip],
     )
     response = client.get(
         "/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": "trace-atlas-flags"}
     )
     assert response.status_code == 200, response.text
     detail = response.json()
-    assert detail["run"]["cluster_paths"] == [[{"cluster_id": "only", "name": "edits tests"}]]
+    assert detail["run"]["cluster_paths"] == [
+        [
+            {"cluster_id": "only", "name": "edits tests"},
+            {"cluster_id": "only-2", "name": "edits tests"},
+            {"cluster_id": "only-3", "name": "edits tests"},
+        ]
+    ]
     assert detail["withheld"] is None
     evidence = {step["step_index"]: step for step in detail["evidence"]}
     assert sorted(evidence) == [1, 2, 3, 4]
-    assert {index for index, step in evidence.items() if step["is_evidence"]} == {1, 3}
+    assert {index for index, step in evidence.items() if step["is_evidence"]} == {1, 3, 4}
     assert evidence[2]["is_evidence"] is False and evidence[2]["role"] == "tool"
-    # The user prompt is never disclosed, even as a neighbouring step.
-    assert "userneedle" not in response.text
+    # Neither prompt is disclosed, even when it neighbours a cited step.
+    assert "userneedle" not in response.text and "systemneedle" not in response.text
     assert detail["flags"]["reasoning_mentions_hardcode"] == {"count": 1, "step_indices": [1]}
     assert detail["flags"]["test_or_grader_edit"]["step_indices"] == [3]
     assert detail["playbook_cards"] and all(
         card["card_id"].startswith("TW") for card in detail["playbook_cards"]
     )
     assert "not cheating verdicts" in detail["notice"]
+
+
+def test_trace_tool_scorecard_is_authenticated_dev_only_and_follows_retained_files(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    assert client.get("/api/cloud-db/trace-tools").status_code == 401
+    for split in ("test", "held", "all"):
+        response = client.get("/api/cloud-db/trace-tools", headers=AUTH, params={"split": split})
+        assert response.status_code == 400, split
+
+    empty = client.get("/api/cloud-db/trace-tools", headers=AUTH)
+    assert empty.status_code == 200, empty.text
+    assert empty.headers["cache-control"] == "no-store"
+    body = empty.json()
+    assert all(entry is None for tool in body["tools"] for entry in tool["populations"].values())
+    assert {source["error"] for source in body["sources"]} == {"not retained"}
+
+    directory = runtime.data_root / "trace-tools"
+    directory.mkdir()
+    (directory / "spend.jsonl").write_text(
+        json.dumps(
+            {
+                "at": "2026-10-27T22:00:00+00:00",
+                "tool": "docent",
+                "route": "hosted",
+                "runs": 10,
+                "input_tokens": 100,
+                "output_tokens": 5,
+                "usd": 0.5,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    served = client.get("/api/cloud-db/trace-tools", headers=AUTH).json()
+    docent = next(tool for tool in served["tools"] if tool["tool"] == "docent")
+    assert docent["usage"]["usage_runs"] == 10 and docent["last_run_source"] == "spend ledger"
+
+
+def test_task_evidence_joins_one_admitted_task_and_never_returns_bodies(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    _write_atlas(
+        runtime,
+        [_atlas_facet(VERIFIED, suspicion=3, goal="Fix the parser"), _atlas_facet(PROVISIONAL)],
+        [
+            _atlas_cluster("root", [VERIFIED, PROVISIONAL], name="all runs"),
+            _atlas_cluster(
+                "leaf", [VERIFIED, PROVISIONAL], name="parsers", level=2, parent="root"
+            ),
+            _atlas_cluster(
+                "tip", [VERIFIED, PROVISIONAL], name="parser tips", level=3, parent="leaf"
+            ),
+        ],
+    )
+    results = runtime.data_root / "trace-tools"
+    results.mkdir()
+    (results / "results-v1.jsonl").write_text(
+        json.dumps(
+            {
+                "run_id": VERIFIED,
+                "tool": "scout",
+                "detector": "repeated_assistant_message",
+                "flag": True,
+                "at": "2026-10-27T22:00:00+00:00",
+                "evidence_steps": [2],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    assert client.get("/api/cloud-db/task-evidence", params={"task_id": PRIMARY}).status_code == 401
+    for split in ("test", "held"):
+        refused = client.get(
+            "/api/cloud-db/task-evidence", headers=AUTH, params={"task_id": PRIMARY, "split": split}
+        )
+        assert refused.status_code == 400
+    assert (
+        client.get(
+            "/api/cloud-db/task-evidence", headers=AUTH, params={"task_id": "no-such-task"}
+        ).status_code
+        == 404
+    )
+
+    response = client.get("/api/cloud-db/task-evidence", headers=AUTH, params={"task_id": PRIMARY})
+    assert response.status_code == 200, response.text
+    assert response.headers["cache-control"] == "no-store"
+    document = response.json()
+    assert document["task"]["task_id"] == PRIMARY
+    runs = {run["run_id"]: run for run in document["runs"]}
+    assert set(runs) == {VERIFIED, PROVISIONAL}
+    assert [run["run_id"] for run in document["runs"]][0] == VERIFIED  # most suspicious first
+    assert runs[VERIFIED]["facet"]["goal"] == "Fix the parser"
+    assert runs[VERIFIED]["clusters"] == [["all runs", "parsers", "parser tips"]]
+    assert runs[VERIFIED]["tools"]["scout"]["flagged"][0]["detector"] == "repeated_assistant_message"
+    assert runs[PROVISIONAL]["tools"] == {}  # no result is not a clean result
+    assert {issue["issue_id"] for issue in document["issues"]} == {
+        "issue-confirmed-primary",
+        "issue-provisional-primary",
+    }
+    assert document["summary"]["runs_n"] == 2 and document["summary"]["issues_confirmed_n"] == 1
+    assert document["seeker"] == [] and document["repairs"] == []
+    for secret in ("primaryneedle", "witnessneedle", "provisionalneedle", "instruction_text", "cas_uri"):
+        assert secret not in response.text
+    assert any(c["command"].startswith("uv run evallab task ") for c in document["commands"])
+
+
+def test_task_search_finds_only_admitted_tasks_and_treats_wildcards_literally(
+    client: TestClient, records: dict[str, Any]
+) -> None:
+    found = client.get("/api/cloud-db/task-evidence/search", headers=AUTH, params={"q": "cloud-pri"})
+    assert found.status_code == 200, found.text
+    assert [(row["task_id"], row["runs_n"], row["issues_n"]) for row in found.json()["tasks"]] == [
+        (PRIMARY, 2, 2)
+    ]
+    for query in ("%%", "c_ud"):
+        literal = client.get("/api/cloud-db/task-evidence/search", headers=AUTH, params={"q": query})
+        assert literal.status_code == 200 and literal.json()["tasks"] == []
+    short = client.get("/api/cloud-db/task-evidence/search", headers=AUTH, params={"q": "c"})
+    assert short.status_code == 400
+
+
+def _refresh_files(runtime: CloudRuntime, listed: list[str], redone: list[dict[str, Any]]) -> None:
+    directory = runtime.data_root / "run-atlas"
+    directory.mkdir(exist_ok=True)
+    (directory / "blinding-refresh-v1.json").write_text(
+        json.dumps({"schema": "run-atlas-blinding-refresh/v1", "run_ids": listed}), encoding="utf-8"
+    )
+    (directory / "reblinded-facets-v1.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in redone), encoding="utf-8"
+    )
+
+
+def test_atlas_coverage_reports_stored_versus_admitted_and_blinding_state(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    verified = _atlas_facet(VERIFIED, suspicion=3, goal="Re-blinded goal")
+    provisional = _atlas_facet(PROVISIONAL, goal="Earlier leaky goal")
+    _write_atlas(runtime, [verified, provisional, _atlas_facet("not-a-trace")])
+    assert client.get("/api/cloud-db/atlas/coverage").status_code == 401
+    assert (
+        client.get("/api/cloud-db/atlas/coverage", headers=AUTH, params={"split": "test"}).status_code
+        == 400
+    )
+
+    # No refresh list yet: nothing is claimed about blinding.
+    bare = client.get("/api/cloud-db/atlas/coverage", headers=AUTH).json()
+    assert bare["refresh_error"] and bare["totals"]["refresh_listed_n"] is None
+    assert bare["populations"][0]["blinding"]["unknown"] == 2
+
+    _refresh_files(
+        runtime,
+        [VERIFIED, PROVISIONAL],
+        [verified, _atlas_facet(PROVISIONAL, goal="Re-extracted goal")],
+    )
+    response = client.get("/api/cloud-db/atlas/coverage", headers=AUTH)
+    assert response.status_code == 200, response.text
+    coverage = response.json()
+    assert coverage["refresh_error"] is None
+    totals = coverage["totals"]
+    assert (totals["admitted_n"], totals["stored_n"], totals["not_stored_n"]) == (3, 2, 1)
+    assert (totals["pending_blinding_n"], totals["refreshed_n"], totals["unadmitted_n"]) == (1, 1, 1)
+    (population,) = coverage["populations"]
+    assert (population["admitted_n"], population["stored_n"]) == (3, 2)
+    assert population["facet_versions"] == {"run-facets/v1": 2}
+    assert population["blinding"] == {"refreshed": 1, "pending": 1, "unlisted": 0, "unknown": 0}
+
+    listing = client.get("/api/cloud-db/atlas", headers=AUTH).json()
+    assert {run["run_id"]: run["blinding"] for run in listing["runs"]} == {
+        VERIFIED: "refreshed",
+        PROVISIONAL: "pending",
+    }
+    detail = client.get("/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": PROVISIONAL})
+    assert detail.json()["run"]["blinding"] == "pending"
+    assert detail.json()["run"]["facet_version"] == "run-facets/v1"
+
+
+def _scout_rows(rows: list[tuple[str, str, bool | None]]) -> str:
+    return "".join(
+        json.dumps(
+            {
+                "run_id": run,
+                "tool": tool,
+                "detector": "d1",
+                "flag": flag,
+                "at": "2026-10-27T22:00:00+00:00",
+                "evidence_steps": [2],
+            }
+        )
+        + "\n"
+        for run, tool, flag in rows
+    )
+
+
+def test_trace_tool_run_lists_are_dev_only_by_trace_id_and_carry_no_labels(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    _write_atlas(
+        runtime, [_atlas_facet(VERIFIED, suspicion=3), _atlas_facet(PROVISIONAL, suspicion=0)]
+    )
+    directory = runtime.data_root / "trace-tools"
+    directory.mkdir()
+    (directory / "results-v1.jsonl").write_text(
+        _scout_rows(
+            [
+                (VERIFIED, "scout", True),
+                (PROVISIONAL, "scout", False),
+                (REFUTED, "docent", None),
+                ("run-outside-the-corpus", "scout", True),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    url = "/api/cloud-db/trace-tools/runs"
+    assert client.get(url, params={"tool": "scout"}).status_code == 401
+    assert client.get(url, headers=AUTH, params={"tool": "scout", "split": "test"}).status_code == 400
+    for tool in ("cascade", "harbor_analyze", "unknown"):
+        assert client.get(url, headers=AUTH, params={"tool": tool}).status_code == 404
+    for bad in ({"kind": "missed"}, {"limit": 0}, {"limit": 201}, {"offset": -1}):
+        assert client.get(url, headers=AUTH, params={"tool": "scout"} | bad).status_code == 422
+
+    hit = client.get(url, headers=AUTH, params={"tool": "scout"})
+    assert hit.status_code == 200, hit.text
+    assert hit.headers["cache-control"] == "no-store"
+    body = hit.json()
+    assert [(row["run_id"], row["task_id"], row["faceted"]) for row in body["runs"]] == [
+        (VERIFIED, PRIMARY, True)
+    ]
+    assert body["runs"][0]["detectors"] == [{"detector": "d1", "evidence_steps": [2]}]
+    assert body["counts"] == {
+        "admitted_n": 3,
+        "hit_n": 1,
+        "clean_n": 1,
+        "unread_n": 1,
+        "outside_n": 1,
+    }
+    clean = client.get(url, headers=AUTH, params={"tool": "scout", "kind": "clean"}).json()
+    assert [row["run_id"] for row in clean["runs"]] == [PROVISIONAL]
+    unread = client.get(url, headers=AUTH, params={"tool": "scout", "kind": "unread"}).json()
+    assert [(row["run_id"], row["faceted"]) for row in unread["runs"]] == [(REFUTED, False)]
+    docent = client.get(url, headers=AUTH, params={"tool": "docent", "kind": "unread"}).json()
+    assert docent["counts"]["unread_n"] == 3  # an abstention is not a read
+    facets = client.get(url, headers=AUTH, params={"tool": "facets"}).json()
+    assert [row["run_id"] for row in facets["runs"]] == [VERIFIED]
+    assert (facets["counts"]["clean_n"], facets["counts"]["unread_n"]) == (1, 1)
+    for text in (hit.text, json.dumps(unread), json.dumps(facets)):
+        assert "outcome" not in text and "reward" not in text
+        assert "primaryneedle" not in text and "witnessneedle" not in text
+
+
+def test_field_reliability_endpoint_says_not_measured_until_a_receipt_is_retained(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    url = "/api/cloud-db/atlas/field-reliability"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["measured"] is False
+    assert absent.json()["error"].startswith("not measured")
+
+    directory = runtime.data_root / "run-atlas"
+    directory.mkdir(exist_ok=True)
+    (directory / "field-reliability-v1.json").write_text(
+        json.dumps(
+            {
+                "schema": "evallab.field_reliability/v1",
+                "measured_at": "2026-10-28T03:42:26+00:00",
+                "source": "VF-11 blind re-rate",
+                "design": "5 runs per cluster, rated blind",
+                "sample_runs": 60,
+                "fields": [
+                    {"field": "goal", "agree_n": 35, "n": 40, "basis": None},
+                    {"field": "evidence_steps", "agree_n": 35, "n": 42, "basis": None},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH).json()
+    assert served["measured"] is True
+    assert [(row["field"], row["agree_n"], row["n"]) for row in served["reliability"]["fields"]] == [
+        ("goal", 35, 40),
+        ("evidence_steps", 35, 42),
+    ]
+
+
+def test_repair_board_endpoint_joins_atlas_counts_and_reports_absent_inventory(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    url = "/api/cloud-db/repair-board"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["present"] is False and absent.json()["tasks"] == []
+
+    _write_atlas(
+        runtime,
+        [
+            _atlas_facet(VERIFIED, tests="modified"),
+            _atlas_facet(PROVISIONAL, tests="modified"),
+            _atlas_facet(REFUTED, tests="modified", evidence_steps=[5]),
+        ],
+    )
+    inventory = runtime.data_root / "repair-board" / "inventory.json"
+    inventory.parent.mkdir()
+    inventory.write_text(
+        json.dumps(
+            {
+                "schema": "evallab.ts9_defensive_inventory/v1",
+                "observed_at": "2026-10-28T04:03:55+00:00",
+                "source_revision": "837dc7c",
+                "tasks": [
+                    {
+                        "task_id": task_id,
+                        "dataset_id": "tb4-audit-v1",
+                        "dev_assignments": [["tb4-audit-v1", "dev"]],
+                        "annotations": [{"defect_type": "weak_check", "weak_check": "private wording"}],
+                    }
+                    for task_id in (PRIMARY, "task-without-cloud-rows")
+                ],
+                "selected_repair_deliveries": [
+                    {
+                        "task": PRIMARY,
+                        "pr": 1326,
+                        "pr_url": "https://github.com/PeterMakhnatch/eval-lab/pull/1326",
+                        "delivery_status": "MERGED",
+                        "verification_class": "static-only",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH)
+    assert "private wording" not in served.text and VERIFIED not in served.text
+    board = served.json()
+    rows = {row["task_id"]: row for row in board["tasks"]}
+    assert board["present"] is True and board["counts"]["by_status"]["native-validated"] == 0
+    assert rows[PRIMARY]["status"] == "static only" and rows[PRIMARY]["admitted"] is True
+    # Of the task's two atlas runs only the passing one counts as passed with modified tests.
+    assert (rows[PRIMARY]["atlas_runs"], rows[PRIMARY]["passed_tests_modified"]) == (2, 1)
+    missing = rows["task-without-cloud-rows"]
+    assert (missing["admitted"], missing["atlas_runs"], missing["status"]) == (False, 0, "no repair")
+
+
+def test_cross_test_sets_endpoint_reads_the_registry_file_only(
+    client: TestClient, runtime: CloudRuntime
+) -> None:
+    url = "/api/cloud-db/cross-test-sets"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=AUTH, params={"split": "test"}).status_code == 400
+    absent = client.get(url, headers=AUTH)
+    assert absent.status_code == 200 and absent.headers["cache-control"] == "no-store"
+    assert absent.json()["present"] is False
+
+    registry = runtime.data_root / "cross-test" / "registry.json"
+    registry.parent.mkdir()
+    entry = {
+        "id": "set-a", "name": "org/set-a", "source_url": "https://example.org/a", "unit": "run",
+        "status": "ready",
+        "flags": {
+            "eval_only": True, "local_only": True, "no_training": True, "no_rehosting": True,
+            "uploadable_to_vendor_projects": False, "hosted_model_api_for_evaluation": "allowed",
+        },
+        "licence": {"text": "mit", "redistributable": True},
+        "labels": {"type": "oracle", "counts": {"rows": 3}},
+        "scoring": {"command_level_localization_scorable": True},
+        "adapter": {"merge_state": "open-pr", "pr": 1302},
+        "caveats": ["recordtextneedle"],
+    }
+    registry.write_text(
+        json.dumps(
+            {
+                "schema_version": "cross-test-registry/v1",
+                "entries": [entry, {**entry, "id": "set-b", "flags": {**entry["flags"], "uploadable_to_vendor_projects": True}}],
+                "hold_access": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    served = client.get(url, headers=AUTH)
+    assert "recordtextneedle" not in served.text
+    board = served.json()
+    assert board["present"] is True
+    assert [row["id"] for row in board["entries"]] == ["set-a"]
+    assert board["entries"][0]["uploadable"] is False and board["entries"][0]["adapter"]["merge_state"] == "open-pr"
+    assert [problem["id"] for problem in board["malformed"]] == ["set-b"]
+
+
+def test_the_container_runtime_reads_data_files_from_the_volume_or_the_environment_settings(
+    modal_cloud: ModuleType, tmp_path: Path, repo_root: Path
+) -> None:
+    registry = {
+        "schema_version": "cross-test-registry/v1", "entries": [], "hold_access": [],
+    }
+    elsewhere = tmp_path / "elsewhere-registry.json"
+    elsewhere.write_text(json.dumps(registry), encoding="utf-8")
+    default = modal_cloud.runtime_from_environment(tmp_path / "default", repo_root, {"EVALLAB_CLOUD_TOKEN": TOKEN})
+    configured = modal_cloud.runtime_from_environment(
+        tmp_path / "configured", repo_root,
+        {"EVALLAB_CLOUD_TOKEN": TOKEN, "EVALLAB_CROSS_TEST_REGISTRY": str(elsewhere)},
+    )
+    try:
+        with TestClient(default.app, base_url="https://cloud.test") as plain, TestClient(
+            configured.app, base_url="https://cloud.test"
+        ) as set_up:
+            url = "/api/cloud-db/cross-test-sets"
+            assert plain.get(url, headers=AUTH).json()["present"] is False
+            assert set_up.get(url, headers=AUTH).json()["present"] is True
+            (tmp_path / "default/cross-test").mkdir()
+            (tmp_path / "default/cross-test/registry.json").write_text(json.dumps(registry), encoding="utf-8")
+            assert plain.get(url, headers=AUTH).json()["present"] is True  # the default is under the data root
+        with pytest.raises(KeyError):
+            modal_cloud.runtime_from_environment(tmp_path / "x", repo_root, {})
+    finally:
+        default.close()
+        configured.close()
+    from evallab.production import deploy_preflight
+
+    assert deploy_preflight.VOLUME_NAME == modal_cloud.VOLUME_NAME
+    assert (Path(modal_cloud.__file__).parents[3] / deploy_preflight.ENTRY).is_file()

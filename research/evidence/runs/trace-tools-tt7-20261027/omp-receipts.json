@@ -1,0 +1,105 @@
+{
+  "schema": "tt7.omp_receipts/v1",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "started_at": "2026-10-27T22:35:57.623516+00:00",
+  "routes": {
+    "anthropic/claude-sonnet-5-5": {
+      "status": "partial",
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "stopped_at": "2026-10-28T03:01:21.560557+00:00",
+      "pending_runs": 126,
+      "scope": "full-200",
+      "target_runs": 200,
+      "admission_threshold": 0.65,
+      "outside_scope_runs": 0,
+      "missing_target_runs": 126,
+      "recorded_runs": 74,
+      "valid_runs": 51,
+      "abstentions": 23,
+      "missing_runs": 126,
+      "input_tokens": 4928628,
+      "output_tokens": 5089,
+      "list_price_usd": 9.908146,
+      "marginal_usd": 0,
+      "errors": {
+        "valid": 51,
+        "RouteError": 23
+      }
+    },
+    "anthropic/claude-opus-5-5": {
+      "status": "partial",
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "stopped_at": "2026-10-28T03:01:24.754627+00:00",
+      "pending_runs": 126,
+      "scope": "full-200",
+      "target_runs": 200,
+      "admission_threshold": 0.65,
+      "outside_scope_runs": 0,
+      "missing_target_runs": 126,
+      "recorded_runs": 74,
+      "valid_runs": 48,
+      "abstentions": 26,
+      "missing_runs": 126,
+      "input_tokens": 4292088,
+      "output_tokens": 5505,
+      "list_price_usd": 17.278452,
+      "marginal_usd": 0,
+      "errors": {
+        "valid": 48,
+        "RouteError": 26
+      }
+    },
+    "openai-codex/gpt-6-luna": {
+      "status": "partial",
+      "reason": "90% stop: highest applicable window 90.0%",
+      "stopped_at": "2026-10-27T22:36:56.866491+00:00",
+      "pending_runs": 198,
+      "recorded_runs": 2,
+      "valid_runs": 2,
+      "abstentions": 0,
+      "missing_runs": 198,
+      "input_tokens": 136154,
+      "output_tokens": 123,
+      "list_price_usd": 0.013676900000000002,
+      "marginal_usd": 0,
+      "errors": {
+        "valid": 2
+      }
+    }
+  },
+  "commands": "omp -p --mode json --no-session --no-tools --no-lsp --no-extensions --no-skills --no-rules --no-title --no-pty --config <no-fallback-overlay> --model <route> --system-prompt <frozen> --thinking low",
+  "pricing_basis": "omp models find <route> --json --no-extensions; uncached list-price equivalent, not marginal spend",
+  "context_windows": {
+    "anthropic/claude-sonnet-5-5": 1000000,
+    "anthropic/claude-opus-5-5": 1000000,
+    "openai-codex/gpt-6-luna": 272000
+  },
+  "rates_per_million_input_output": {
+    "anthropic/claude-sonnet-5-5": [
+      2.0,
+      10.0
+    ],
+    "anthropic/claude-opus-5-5": [
+      4.0,
+      20.0
+    ],
+    "openai-codex/gpt-6-luna": [
+      0.1,
+      0.5
+    ]
+  },
+  "deferred": {
+    "xai-oauth/grok-4.3": "weekly quota exhausted until 2026-10-30 14:10 ET; no call",
+    "laminar/flow-1": "paid Signals approved but not funded; no call"
+  },
+  "finished_at": "2026-10-28T03:01:25.166499+00:00",
+  "financial_basis_receipt": "luna-financial-basis.json",
+  "financial_annotation": {
+    "at": "2026-10-28T04:45:17.203370+00:00",
+    "route": "openai-codex/gpt-6-luna",
+    "original_marginal_usd_field": "runner/client-reported0, not verified provider billing",
+    "provider_billed_usd": null,
+    "verified_marginal_usd": null,
+    "original_model_measurements_preserved": true
+  }
+}

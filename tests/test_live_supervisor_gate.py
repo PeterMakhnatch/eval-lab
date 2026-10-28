@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from evallab.production.live_supervisor import Decision, Observation, Subject
-from evallab.production.live_supervisor_act import LabActuator, register_app
+from evallab.production.live_supervisor_act import (
+    LabActuator,
+    RetryAdmission,
+    register_app,
+)
 from evallab.production.live_supervisor_gate import (
     GATE_DIGEST_FILE,
     GATE_EVIDENCE_FILE,
@@ -160,6 +164,7 @@ def test_actuator_kills_only_with_registration_and_measurable_evidence(tmp_path:
     digest = write_evidence(root / GATE_EVIDENCE_FILE, (_scope(reader_model=None),))
     (root / GATE_DIGEST_FILE).write_text(digest)
     act = LabActuator(root=root, dry_run=False, runner=runner, gate=gate_for_root(root),
+                      retry_admitter=lambda obs, d: RetryAdmission(True, "queued", "rq-1"),
                       queue_path=tmp_path / "q.jsonl", alerts_path=tmp_path / "a.md",
                       clock=lambda: T0)
     rules = _decision(reader_model=None)

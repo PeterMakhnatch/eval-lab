@@ -19,6 +19,12 @@ rolling hour and ten per UTC day across the lab. Every real kill attempt counts.
 (the default) checks the same guards and caps, consumes nothing, runs nothing, and records the
 exact command it would have run. Every attempt appends one receipt row to ``actions-v1.jsonl``.
 
+``kill_and_retry`` is blocked unless a real retry admission is injected (``retry_admitter``, an
+admission into the lab queue): killing without a queue to retry into drops the work, so the action
+is refused rather than simulated. With an admitter, the receipt is ``done`` only when both the
+kill and the admission happened; a kill whose admission fails is ``partial`` and the ledger row is
+``retry_pending``, never ``retry_admitted``. ``kill_and_mark_infra`` has no retry and is unaffected.
+
 A lab-looking name or path is not proof that this lab started the target, so a real kill needs
 two more things besides the guards and caps:
 
@@ -100,6 +106,22 @@ CheatRouter = Callable[[Observation, Decision], bool]
 KillGate = Callable[[Observation, Decision], bool]
 
 
+@dataclass(frozen=True)
+class RetryAdmission:
+    """Outcome of admitting one retry into the lab's own queue (``DirectoryQueue``)."""
+
+    admitted: bool
+    detail: str = ""
+    request_id: str | None = None
+
+
+#: ``admit(observation, decision) -> RetryAdmission``; the only way ``kill_and_retry`` may run.
+RetryAdmitter = Callable[[Observation, Decision], RetryAdmission]
+#: ``kill_and_retry`` without a real queue admission is blocked, never simulated.
+RETRY_BLOCKED = ("retry not admitted: no DirectoryQueue retry admission is wired, so "
+                 "kill_and_retry cannot be executed (kill_and_mark_infra is unaffected)")
+
+
 def run_command(argv: Sequence[str]) -> int:
     """Run one command with a deadline; its exit code (output is not needed)."""
     return subprocess.run(list(argv), capture_output=True, check=False,
@@ -163,10 +185,14 @@ class KillLedger:
         self.kills.append({"subject": _subject_key(subject), "action": action, "channel": channel,
                            "at": _iso(now)})
 
-    def record_retry(self, subject: Subject, reason: str, now: datetime) -> None:
-        """``kill_and_retry`` requeue intent; v1 records it and dispatches nothing."""
-        self.retries.append({"subject": _subject_key(subject), "status": "retry_requested",
-                             "reason": reason, "at": _iso(now)})
+    def record_retry(self, subject: Subject, reason: str, now: datetime, *,
+                     status: str = "retry_requested", request_id: str | None = None) -> None:
+        """One retry bookkeeping row; ``status`` is ``retry_admitted`` only on a real admission."""
+        row: dict[str, Any] = {"subject": _subject_key(subject), "status": status,
+                               "reason": reason, "at": _iso(now)}
+        if request_id is not None:
+            row["request_id"] = request_id
+        self.retries.append(row)
 
 
 # --------------------------------------------------------------------------- registration
@@ -259,7 +285,7 @@ def registration_refusal(path: Path, subject: Subject, now: datetime) -> str | N
 class Outcome:
     """What one channel did (or would do) for one decision."""
 
-    status: str  # done | dry_run | refused | failed
+    status: str  # done | partial | dry_run | refused | failed | started
     channel: str
     detail: str = ""
     command: tuple[str, ...] = ()
@@ -297,6 +323,7 @@ class LabActuator:
                  runner: Runner = run_command, harbor_roots: Sequence[Path] = (),
                  queue_path: Path = DEFAULT_QUEUE_APPEND, alerts_path: Path = DEFAULT_ALERTS_MD,
                  cheat_router: CheatRouter | None = None, gate: KillGate | None = None,
+                 retry_admitter: RetryAdmitter | None = None,
                  clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         self.root = root.expanduser()
         self.dry_run = dry_run
@@ -307,6 +334,8 @@ class LabActuator:
         self.cheat_router = cheat_router
         #: LS-3's adjudication gate; none means no real kill can happen.
         self.gate = gate
+        #: Real retry admission into the lab queue; none blocks ``kill_and_retry``.
+        self.retry_admitter = retry_admitter
         self.clock = clock
         self.actions_path = self.root / ACTIONS_FILE
         self.caps_path = self.root / CAPS_FILE
@@ -385,12 +414,30 @@ class LabActuator:
             outcome = self._harbor_stop(decision, plan, now)
         else:
             outcome = self._modal_stop(subject, plan)
-        retry = False
         if outcome.acted and decision.action == "kill_and_retry":
-            ledger.record_retry(subject, decision.reason, now)
+            outcome = self._admit_retry(observation, decision, ledger, outcome, now)
+        return outcome, False
+
+    def _admit_retry(self, observation: Observation, decision: Decision, ledger: KillLedger,
+                     outcome: Outcome, now: datetime) -> Outcome:
+        """Admit the retry into the lab's own queue; a kill without one is reported ``partial``."""
+        assert self.retry_admitter is not None
+        try:
+            admission = self.retry_admitter(observation, decision)
+        except Exception as exc:  # noqa: BLE001 - a failed admission never hides the kill
+            admission = RetryAdmission(False, f"{type(exc).__name__}: {exc}"[:200])
+        if admission.admitted:
+            ledger.record_retry(observation.subject, decision.reason, now,
+                                status="retry_admitted", request_id=admission.request_id)
             ledger.save(self.caps_path)
-            retry = True
-        return outcome, retry
+            return Outcome("done", outcome.channel,
+                           f"{outcome.detail}; retry admitted {admission.request_id or ''}".strip(),
+                           outcome.command, outcome.target)
+        ledger.record_retry(observation.subject, decision.reason, now, status="retry_pending")
+        ledger.save(self.caps_path)
+        return Outcome("partial", outcome.channel,
+                       f"{outcome.detail}; killed but retry NOT admitted: {admission.detail}"[:400],
+                       outcome.command, outcome.target)
 
     def _blockers(self, observation: Observation, decision: Decision, now: datetime) -> list[str]:
         """Why a real kill would not be allowed: registration, then the LS-3 gate."""
@@ -398,6 +445,8 @@ class LabActuator:
         missing = registration_refusal(self.registrations, observation.subject, now)
         if missing is not None:
             out.append(missing)
+        if decision.action == "kill_and_retry" and self.retry_admitter is None:
+            out.append(RETRY_BLOCKED)
         if self.gate is None:
             out.append("no adjudication gate: real kills need LS-3 precision evidence")
         else:

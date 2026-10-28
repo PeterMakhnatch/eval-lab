@@ -14,7 +14,9 @@ from evallab.production.live_supervisor_act import (
     ALERTS_HEADING,
     CAPS_FILE,
     MODAL_STOP,
+    RETRY_BLOCKED,
     LabActuator,
+    RetryAdmission,
     insert_alert,
     register_app,
     register_trial,
@@ -45,12 +47,17 @@ def _permit(observation: Observation, decision: Decision) -> bool:
     return True
 
 
+def _admit(observation: Observation, decision: Decision) -> RetryAdmission:
+    return RetryAdmission(True, "queued", "rq-0001")
+
+
 def _actuator(tmp_path: Path, *, dry_run: bool = False, runner: FakeRunner | None = None,
-              clock: Clock | None = None, gate=_permit, **kw) -> LabActuator:
+              clock: Clock | None = None, gate=_permit, retry_admitter=_admit,
+              **kw) -> LabActuator:
     return LabActuator(root=tmp_path / "ls", dry_run=dry_run, runner=runner or FakeRunner(),
                        queue_path=tmp_path / "queue-append.jsonl",
                        alerts_path=tmp_path / "live-supervisor.md", gate=gate,
-                       clock=clock or Clock(), **kw)
+                       retry_admitter=retry_admitter, clock=clock or Clock(), **kw)
 
 
 def _register_apps(act: LabActuator, *app_ids: str) -> None:
@@ -122,16 +129,43 @@ def test_second_kill_on_the_same_subject_is_refused_even_after_a_failed_first(tm
     assert rows[-1]["detail"].startswith("cap_subject")
 
 
-def test_kill_and_retry_records_retry_requested_only(tmp_path: Path) -> None:
+def test_kill_and_retry_is_blocked_without_a_real_retry_admission(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    act = _actuator(tmp_path, runner=runner, retry_admitter=None)
+    _register_apps(act, "ap-1")
+    assert act.act(_app("ap-1"), KILL) is False
+    assert runner.calls == []
+    assert _receipts(tmp_path)[-1]["detail"] == RETRY_BLOCKED
+    assert not (tmp_path / "ls" / CAPS_FILE).exists()  # a blocked action spends no cap
+    assert _actuator(tmp_path, dry_run=True, retry_admitter=None).act(_app("ap-1"), KILL) is False
+    assert f"(blocked: {RETRY_BLOCKED})" in _receipts(tmp_path)[-1]["detail"]
+
+
+def test_retry_is_reported_admitted_only_after_a_real_admission(tmp_path: Path) -> None:
     act = _actuator(tmp_path)
     _register_apps(act, "ap-1", "ap-2")
     assert act.act(_app("ap-1"), KILL) is True
     assert act.act(_app("ap-2"), Decision("kill_and_mark_infra", "infra", "dead backend")) is True
     caps = json.loads((tmp_path / "ls" / CAPS_FILE).read_text())
     assert [k["subject"] for k in caps["kills"]] == ["modal_app:ap-1", "modal_app:ap-2"]
-    assert caps["retries"] == [{"subject": "modal_app:ap-1", "status": "retry_requested",
-                                "reason": KILL.reason, "at": "2026-10-28T01:00:00Z"}]
-    assert [r["retry_requested"] for r in _receipts(tmp_path)] == [False, True, False, False]
+    assert caps["retries"] == [{"subject": "modal_app:ap-1", "status": "retry_admitted",
+                                "reason": KILL.reason, "request_id": "rq-0001",
+                                "at": "2026-10-28T01:00:00Z"}]
+    rows = _receipts(tmp_path)
+    assert [(r["status"], r["acted"]) for r in rows] == [
+        ("started", False), ("done", True), ("started", False), ("done", True)]
+
+
+def test_kill_without_admission_is_partial_never_done(tmp_path: Path) -> None:
+    declining = lambda obs, d: RetryAdmission(False, "queue at cap")  # noqa: E731
+    act = _actuator(tmp_path, retry_admitter=declining)
+    _register_apps(act, "ap-1")
+    assert act.act(_app("ap-1"), KILL) is False
+    row = _receipts(tmp_path)[-1]
+    assert (row["status"], row["acted"]) == ("partial", False)
+    assert "killed but retry NOT admitted: queue at cap" in row["detail"]
+    caps = json.loads((tmp_path / "ls" / CAPS_FILE).read_text())
+    assert [r["status"] for r in caps["retries"]] == ["retry_pending"]
 
 
 # --------------------------------------------------------------------------- refusals

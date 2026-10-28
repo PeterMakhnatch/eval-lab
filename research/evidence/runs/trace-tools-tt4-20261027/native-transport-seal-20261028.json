@@ -1,0 +1,90 @@
+{
+  "schema": "evallab.trace-tools.tt4.native-transport-seal/v1",
+  "at": "2026-10-28T18:50:52.488422+00:00",
+  "status": "future_native_generation_and_usage_unconditionally_denied",
+  "reason": "A separate user-derived TT-7 reader executed a built-in mutating tool despite frozen CLI no-tools/no-skills/no-extensions flags; read-only isolation is unproven. This is not an observation of native METR tool execution.",
+  "unsafe_override": false,
+  "sdk_or_model_substitution": false,
+  "hard_tool_free_cli_fixed": false,
+  "guarded_entrypoints": {
+    "omp_model.register_omp_provider": "raise OmpTransportSealedError before optional imports, provider registry, cache or handler",
+    "omp_model.call_omp": "raise OmpTransportSealedError before input/environment inspection, subprocess, receipt, halt or filesystem access",
+    "run.main(run)": "one nonzero CLI failure before preparation, campaign mkdir/lock, quota, source or scan handler",
+    "run.run": "one OmpTransportSealedError before inspecting even synthetic fixed-200 inputs",
+    "run.quota": "raise before usage subprocess or ledger write"
+  },
+  "offline_utilities_retained": [
+    "OmpReply",
+    "OmpRouteError",
+    "_tokens",
+    "parse_omp_stream",
+    "render_prompt",
+    "subscription_env",
+    "prepare",
+    "parse_quota_report",
+    "collect",
+    "locate_scan",
+    "flush_spend",
+    "scores",
+    "metrics",
+    "score"
+  ],
+  "archival_manifest": "sealed-native-cli-20261028/manifest.json",
+  "archival_manifest_sha256": "cae1c9c10a82d58bbe9696b1d4888a2974e0baafdbf41bf7835427d98ec3a077",
+  "archive_bindings_validated": 6,
+  "unique_non_executable_historical_text_archives": 3,
+  "source_files_sha256": {
+    "src/evallab/readers/omp_model.py": "3b9e84dcbf09438a61e4e475e98e02c21e6c0f4dd5460ec664fe419be4a17c55",
+    "tests/test_omp_model.py": "c75b952949f6d506f3a702dd4a35b02a372518a7737bdea44f3ce9402af8f6af",
+    "research/evidence/runs/trace-tools-tt4-20261027/run.py": "7b1274ebd5a10c24ea228f604cf8d64f013e7a3b4f736d48aba47ed1a9d5dfc8",
+    "research/evidence/runs/trace-tools-tt4-20261027/test_native_seal.py": "72764ff19aaf8cb1015e4582db9656976eb58a2bbe87eb91ee9a80cb10f6c2e8"
+  },
+  "original_generation_closed_receipt_unchanged": true,
+  "original_call_files_unchanged": 37,
+  "historical_model_attested_calls": 79,
+  "historical_scored_runs": 37,
+  "historical_abstentions": 163,
+  "historical_input_tokens_including_cache": 2651418,
+  "historical_output_tokens": 38840,
+  "historical_usd": 0,
+  "historical_basis": "Kimi Code OAuth subscription; $0 marginal, no paid fallback",
+  "original_native600_sha256_unchanged": "c13b32e53c5ef8a15cf90c49c3bdd2a9dfef2f4a5e83333721a786dd7ec1e20a",
+  "historical_native_raw_streams_retained": 0,
+  "historical_native_actual_tool_execution_start_count": null,
+  "historical_native_actual_tool_execution_end_count": null,
+  "historical_scores_are_model_attested_not_tool_execution_attested": true,
+  "scientific_generation_calls_during_seal": 0,
+  "usage_calls_during_seal": 0,
+  "paid_calls_or_reservations_during_seal": 0,
+  "new_scientific_spend_usd": 0,
+  "paid_arm": "Still blocked on authoritative applicable Google BYOK/account-owner proof; no inference probe, automatic substitute or funding change.",
+  "local_checks": [
+    {
+      "command": "uv run --no-sync pytest -n 0 tests/test_omp_model.py research/evidence/runs/trace-tools-tt4-20261027/test_native_seal.py research/evidence/runs/trace-tools-tt4-20261027/test_paid_score.py research/evidence/runs/trace-tools-tt4-20261027/test_paid_transport.py research/evidence/runs/trace-tools-tt4-20261027/test_paid_projection.py",
+      "python": "3.12.11",
+      "passed": 429,
+      "skipped": 6,
+      "seconds_reported_by_pytest": 7.04,
+      "checkpoint": "Before behavior-equivalent SIM117 context-manager normalization; unchanged production source."
+    },
+    {
+      "command": "/usr/bin/env PYTHONPATH=src /private/tmp/trace-tools-metr-20261027-venv/bin/python -m pytest -n 0 tests/test_omp_model.py research/evidence/runs/trace-tools-tt4-20261027/test_native_seal.py research/evidence/runs/trace-tools-tt4-20261027/test_paid_score.py research/evidence/runs/trace-tools-tt4-20261027/test_paid_transport.py research/evidence/runs/trace-tools-tt4-20261027/test_paid_projection.py",
+      "python": "3.13.17",
+      "passed": 435,
+      "skipped": 0,
+      "warnings": 6,
+      "seconds_reported_by_pytest": 5.38,
+      "checkpoint": "Final source and tests after SIM117 normalization; retained pinned native SDK runtime; synthetic/mocked/no-network scanner fixtures only."
+    },
+    {
+      "command": "uv run --no-sync ruff check src/evallab/readers/omp_model.py tests/test_omp_model.py research/evidence/runs/trace-tools-tt4-20261027/run.py research/evidence/runs/trace-tools-tt4-20261027/test_native_seal.py",
+      "result": "All checks passed!",
+      "initial_failure": "4 new SIM117 nested-context diagnostics; one available LSP quick-fix plus three surgical equivalent context-manager combinations, no suppression."
+    },
+    {
+      "command": "Offline SHA-256 / non-executable-mode / AST integrity checkpoint",
+      "result": "6 historical source bindings / 3 distinct archives, 37 call files / 79 call records, generation-closed receipt and pre-gold600 unchanged; six historical pure definitions AST-identical."
+    }
+  ],
+  "ci": "Fresh exact-head all11, including the native profile, required before protected auto-merge; no prior-head status is carried."
+}

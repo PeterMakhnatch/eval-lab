@@ -18,6 +18,11 @@ rulings, spend, incidents) is [`G5-RUN.md`](G5-RUN.md).
 - Specs output (default `g5-specs/`, gitignored) — generated specs;
   submit parks them in `queue/waiting/`.
 
+The behavioral tests build their writable task, candidate and spec fixtures in
+an isolated temporary repository, copying only the small read-only harness
+fixture. They do not create or remove staged tasks in this checkout, avoiding
+the observed create/delete race with repository-wide secret scanning.
+
 ## 1. Frozen inputs
 
 | input | value |

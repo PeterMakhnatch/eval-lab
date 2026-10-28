@@ -614,7 +614,7 @@ def test_canonical_task_hash_is_not_a_provider_credential() -> None:
     "sk-" + "a" * 16, "dk_" + "a" * 10, "hf_" + "a" * 20,
     "AKIA" + "A" * 16, "ghp_" + "a" * 20, "gho_" + "a" * 20,
     "ghu_" + "a" * 20, "ghs_" + "a" * 20, "xoxb-" + "a" * 10,
-    "xoxp-" + "a" * 10, "-----BEGIN RSA PRIVATE KEY-----",
+    "xoxp-" + "a" * 10, "-----BEGIN " + "RSA PRIVATE KEY-----",
     "EXAMPLE_API_KEY=abcdefgh", "EXAMPLE_SECRET=abcdefgh", "PASSWORD=abcdefgh",
     "TOKEN=abcdefgh", "EXAMPLE_TOKEN=abcdefgh", "EXAMPLE_TOKENS_BACKUP=abcdefgh",
 ])

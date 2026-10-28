@@ -75,7 +75,7 @@ from pydantic import BaseModel, ValidationError
 
 from evallab.execution_backend import ExecutionBackendConfig
 from evallab.hackbook.playbook_cards import match_playbook_cards
-from evallab.production import atlas_view, task_evidence
+from evallab.production import atlas_coverage, atlas_view, task_evidence, tool_runs
 from evallab.production.asset_store import VerifiedAssetStore
 from evallab.production.benchmark_reports import MAX_BENCHMARK_BYTES, validate_benchmark_document
 from evallab.production.cloud_trace_db import (
@@ -183,6 +183,7 @@ class CloudRuntime:
         self._atlas_lock = threading.Lock()
         self._atlas_cache: tuple[list[tuple[int, int, int] | None], atlas_view.AtlasStore] | None = None
         self._tool_scorecard = ToolScorecardCache(self.data_root)
+        self._atlas_refresh = atlas_coverage.RefreshCache(self.data_root / "run-atlas")
         self._tool_results = task_evidence.ToolFindingIndex(
             self.data_root / "trace-tools" / task_evidence.RESULTS_FILE
         )
@@ -426,6 +427,7 @@ class CloudRuntime:
         facet = shown.get(run_id)
         if facet is None:
             raise HTTPException(404, "Run is not in the atlas")
+        blinding = atlas_coverage.blinding_states(self._atlas_refresh.get(), {run_id: facet})
         identity = traces[run_id]
         result: dict[str, Any] = {
             "run": {
@@ -435,6 +437,7 @@ class CloudRuntime:
                 "trust_tier": identity["trust_tier"],
                 "step_count": identity["step_count"],
                 "cluster_paths": atlas_view.cluster_paths(store, run_id),
+                "blinding": blinding[run_id],
             },
             "evidence": [],
             "flags": None,
@@ -738,8 +741,15 @@ class CloudRuntime:
                 cluster_id=cluster_id,
             )
             try:
+                store, traces = self._atlas_store(), self._atlas_traces()
+                shown, _ = atlas_view.visible_facets(store, traces)
                 return atlas_view.atlas_listing(
-                    self._atlas_store(), self._atlas_traces(), filters, limit=limit, offset=offset
+                    store,
+                    traces,
+                    filters,
+                    limit=limit,
+                    offset=offset,
+                    blinding=atlas_coverage.blinding_states(self._atlas_refresh.get(), shown),
                 )
             except ValueError as error:
                 raise HTTPException(400, str(error)) from error
@@ -749,10 +759,43 @@ class CloudRuntime:
             _require_dev(split)
             return self._atlas_run(run_id)
 
+        @self.app.get("/api/cloud-db/atlas/coverage")
+        def atlas_coverage_route(split: str = "dev"):
+            _require_dev(split)
+            store, traces = self._atlas_store(), self._atlas_traces()
+            shown, withheld = atlas_view.visible_facets(store, traces)
+            return atlas_coverage.build_coverage(
+                store, traces, shown, withheld, self._atlas_refresh.get()
+            )
+
         @self.app.get("/api/cloud-db/trace-tools")
         def trace_tools(split: str = "dev"):
             _require_dev(split)
             return self._tool_scorecard.get()
+
+        @self.app.get("/api/cloud-db/trace-tools/runs")
+        def trace_tool_runs(
+            tool: str = Query(min_length=1, max_length=40),
+            kind: Literal["hit", "clean", "unread"] = "hit",
+            limit: int = Query(50, ge=1, le=tool_runs.MAX_PAGE),
+            offset: int = Query(0, ge=0),
+            split: str = "dev",
+        ):
+            _require_dev(split)
+            if tool not in tool_runs.RUN_LIST_TOOLS:
+                raise HTTPException(404, f"No per-run list is retained for {tool}")
+            store, traces = self._atlas_store(), self._atlas_traces()
+            shown, _ = atlas_view.visible_facets(store, traces)
+            return tool_runs.tool_run_page(
+                tool,
+                kind,
+                traces=traces,
+                shown=shown,
+                facets_n=len(store.facets),
+                findings=self._tool_results,
+                limit=limit,
+                offset=offset,
+            )
 
         @self.app.get("/api/cloud-db/task-evidence")
         def task_evidence_route(

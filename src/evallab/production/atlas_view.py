@@ -381,6 +381,7 @@ def atlas_listing(
     *,
     limit: int = 50,
     offset: int = 0,
+    blinding: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Cluster tree, filter counts and one page of matching runs for the admitted DEV set."""
     if not 1 <= limit <= MAX_PAGE or offset < 0:
@@ -446,6 +447,7 @@ def atlas_listing(
                 "trust_tier": traces[run_id]["trust_tier"],
                 "step_count": traces[run_id]["step_count"],
                 "cluster_ids": by_run[run_id],
+                "blinding": None if blinding is None else blinding.get(run_id),
             }
             for run_id in page
         ],

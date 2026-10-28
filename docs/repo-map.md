@@ -663,7 +663,7 @@ inputs:
   - path: src/evallab/production/cross_test_sets.py
     digest: sha256:8738f4b1dc6d00f03f46bea94a3eb16fc7f4e37bf20614708a68c56c729b43b8
   - path: src/evallab/production/dashboard.py
-    digest: sha256:a779e6a08ed6a58f46c9dd9436012751c513a025d647532f0009895682ea261b
+    digest: sha256:9341d352835340a8f7a259d4552867be0bcaa9df0a0db1cc5456a747fa058f5f
   - path: src/evallab/production/deploy_preflight.py
     digest: sha256:0788abb958eb7e0d38be0d638dc88c2ece17fadacc67978bdc12251c23b7ed71
   - path: src/evallab/production/detector_scope.py

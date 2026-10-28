@@ -459,6 +459,7 @@ uv run evallab qa-data runs --cluster CLUSTER_ID | --like RUN_ID | --query "word
 uv run evallab qa-data window RUN_ID --around 12 --radius 3      # or --first A --last B
 uv run evallab qa-data history TASK_ID [--flag git_history_peek] # past issues, similar issues, playbook cards
 uv run evallab qa-data findings [--run RUN_ID | --task TASK_ID]  # Scout / Laminar / Docent leads, or per-tool totals
+uv run evallab qa-data trace-card RUN_ID [--no-ledgers]            # one card (<= 1.5k tokens): every stored detector verdict, flags, playbook
 uv run evallab qa-data clusters [--source db|file] [--level N] [--members CLUSTER_ID]
 uv run evallab qa-data recount                                    # facets interim JSONL vs database
 uv run evallab qa-data split task TASK_ID | split item KEY_ID ITEM_ID   # DEV for an admitted id; any other id is refused
@@ -521,6 +522,21 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   receipts); a monitor reading them has nothing to scan, so the answer is unknown, not clean.
   It is derived from the exported structure, never from a label. `qa-data export` prints it
   per run.
+- `trace-card RUN_ID`: the `trace_findings` table holds every detector's `trace-findings/v1`
+  record (`run_id`, `detector`, `detector_version`, `reader_model`, `verdict`
+  alarm|clear|abstain|unknown, `score`, `kind`, `evidence_steps`, `summary` of at most 40
+  words, tokens, cost, latency, `produced_at`). It is keyed by run, detector, version and
+  reader, so re-importing a file stores the same rows, the newest `produced_at` of a key
+  wins, and a cited step must be a stored (original) step of the run. The write path admits
+  only registry-admitted DEV runs and recomputes `actor_inputs_available` from the stored
+  steps: a run with no actor transcript cannot be recorded `clear`. Import:
+  `uv run evallab prod import-trace-findings --cloud-database DB --jsonl FILE` (a write: use a
+  copy for tests). The card (`evallab.production.qa_data_card.build_card`) lists each stored
+  finding (alarms first), the Run Atlas facet leads, the deterministic trace flags with their
+  first stored step, the trace playbook cards they trigger, and the per-reader row and flag
+  counts of the trace-tool ledgers. It stays within 1,500 tokens (whole items dropped and
+  counted in `omitted`), carries no outcome, reward, model, dataset or split field, and a
+  store without the table gives an empty `detectors` list. No finding is not a clean verdict.
 - `--pretty` indents any reply for readers that clip long lines; `--budget` and `tokens_est`
   describe the compact form (pretty text is about 30% larger). Store or path errors reply
   with the same JSON envelope (exit 2), never a traceback.

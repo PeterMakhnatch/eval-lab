@@ -36,6 +36,8 @@
 		<string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
 		<key>PYTHONUNBUFFERED</key>
 		<string>1</string>
+		<key>EVALLAB_DISABLE_LOCAL_DOCKER</key>
+		<string>1</string>
 	</dict>
 	<key>StandardOutPath</key>
 	<string>__LOG_DIR__/run-atlas-watch.out</string>

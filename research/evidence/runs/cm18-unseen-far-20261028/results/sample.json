@@ -1,0 +1,93 @@
+{
+ "schema": "cm18-sample-public/v1",
+ "seed": "20261028",
+ "sets": {
+  "kernelbench": {
+   "pool": {
+    "positive": 11,
+    "negative_established": 19,
+    "negative_other": 0
+   },
+   "drawn": {
+    "positive": 11,
+    "negative_established": 19,
+    "negative_other": 0
+   }
+  },
+  "reflex": {
+   "pool": {
+    "positive": 45,
+    "negative_established": 50,
+    "negative_other": 155
+   },
+   "drawn": {
+    "positive": 45,
+    "negative_established": 50,
+    "negative_other": 60
+   }
+  },
+  "cheatindex": {
+   "pool": {
+    "positive": 62,
+    "negative_established": 270,
+    "negative_other": 816
+   },
+   "drawn": {
+    "positive": 60,
+    "negative_established": 60,
+    "negative_other": 60
+   }
+  },
+  "evilgenie": {
+   "pool": {
+    "positive": 124,
+    "negative_established": 177,
+    "negative_other": 1813
+   },
+   "drawn": {
+    "positive": 60,
+    "negative_established": 60,
+    "negative_other": 60
+   }
+  },
+  "sdf": {
+   "pool": {
+    "positive": 359,
+    "negative_established": 331,
+    "negative_other": 305
+   },
+   "drawn": {
+    "positive": 60,
+    "negative_established": 60,
+    "negative_other": 60
+   }
+  },
+  "researcharena": {
+   "pool": {
+    "positive": 21,
+    "negative_established": 20,
+    "negative_other": 0
+   },
+   "drawn": {
+    "positive": 21,
+    "negative_established": 20,
+    "negative_other": 0
+   }
+  },
+  "beam": {
+   "pool": {
+    "positive": 171,
+    "negative_established": 175,
+    "negative_other": 267
+   },
+   "drawn": {
+    "positive": 60,
+    "negative_established": 60,
+    "negative_other": 60
+   }
+  }
+ },
+ "total_runs": 946,
+ "keys_sha256": "edbbc85c3a517cbea35d15be6f855d794a1e8f40a8ecc6af4c3c9b127e832b61",
+ "steps_per_run_median": 22
+}

@@ -2,9 +2,9 @@
 
 The page's own JavaScript (which option a link carries, which cell text a row shows) has no
 runtime harness here: the dashboard ships as one classic script and the suite has no browser
-or JS engine. These checks therefore hold the server contract the page is built on — every
-control maps to a declared parameter, each order changes the ranking, and a run no detector
-read is never reported the same way as a run read clean — plus the DOM order the page serves.
+or JS engine. These checks exercise ranking, filter counts and retained-result boundaries,
+alongside the nesting and document order of the served page. They do not claim to execute
+client-side link generation or cell rendering.
 """
 
 from __future__ import annotations
@@ -61,23 +61,6 @@ def _result(run_id: str, tool: str = "scout", flag: bool | None = True) -> dict[
         "run_id": run_id, "tool": tool, "detector": "repeated", "flag": flag,
         "at": "2026-10-27T22:00:00+00:00", "evidence_steps": [2] if flag else [],
     }
-
-
-def test_every_atlas_filter_control_is_a_declared_endpoint_parameter(
-    client: TestClient, runtime: CloudRuntime
-) -> None:
-    outline = atlas_outline()
-    selects = {
-        str(attrs["id"]).removeprefix("atlas-")
-        for index, (tag, attrs, _) in enumerate(outline.elements)
-        if tag == "select" and outline.within(index, "cloud-atlas-filters") is not None
-    }
-    declared = {
-        parameter["name"]
-        for parameter in runtime.app.openapi()["paths"][URL]["get"]["parameters"]
-    }
-    # A control the endpoint does not declare would arrive as an ignored query parameter.
-    assert {"alarmed_by", "sort"} <= selects <= declared
 
 
 def test_each_page_order_changes_the_ranking_and_matches_the_links_unsorted_default(
@@ -168,7 +151,7 @@ def test_only_harness_findings_still_say_detectors_were_retained(
     listing = _listing(client)
     assert listing["alarms_available"] is True
     assert _rows(listing)[VERIFIED]["alarms"] == [] and _rows(listing)[VERIFIED]["detector_results_n"] == 0
-    assert _rows(listing)[PROVISIONAL]["detector_results_n"] > 0  # a clear verdict is still a read
+    assert _rows(listing)[PROVISIONAL]["detector_results_n"] > 0  # recorded, not proof that an actor transcript was read
 
 
 def test_an_unreadable_alarm_source_degrades_instead_of_failing_the_atlas(

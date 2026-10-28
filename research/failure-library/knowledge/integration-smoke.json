@@ -1,0 +1,35 @@
+{
+  "commands_exercised": 3,
+  "results": [
+    {
+      "cards": 0,
+      "curated_guidance": 0,
+      "directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/integration-smoke-20261028/task-empirical",
+      "examples": 4,
+      "manifest_sha256": "33e6c9e6fef2039ef462ba778018056e28b9a5cd42d76b11998b8dcd5e73b4e9",
+      "name": "task-empirical",
+      "retrieval_mode": "dev_examples"
+    },
+    {
+      "cards": 0,
+      "curated_guidance": 12,
+      "directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/integration-smoke-20261028/trace-curated",
+      "examples": 0,
+      "manifest_sha256": "214a1a1122634d2346e36037c5b348fbe59ca702603b7899ee46d693cd3ba0fd",
+      "name": "trace-curated",
+      "retrieval_mode": "curated_only"
+    },
+    {
+      "cards": 0,
+      "curated_guidance": 12,
+      "directory": "/Users/petermakhnatch/.local/state/evallab-failure-library/integration-smoke-20261028/unknown-fail-closed",
+      "examples": 0,
+      "manifest_sha256": "a105de8fddd2aa786c5a45d3f01594c1d2c523710b1ccf8c13f54a2dc8481c20",
+      "name": "unknown-fail-closed",
+      "retrieval_mode": "curated_only"
+    }
+  ],
+  "schema_version": "failure-library-knowledge-smoke/v1",
+  "source_tiers_are_not_independent_verification": true,
+  "status": "passed"
+}

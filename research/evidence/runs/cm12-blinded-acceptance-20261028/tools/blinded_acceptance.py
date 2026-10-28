@@ -679,6 +679,46 @@ def cascade_attribution(
     }
 
 
+def union_roster(
+    cohorts: dict[str, set[str]], predictions: dict[str, dict[str, bool]]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Label-free identity authority for every detector and union decision."""
+    rows = []
+    for corpus, ids in cohorts.items():
+        for run_id in sorted(ids):
+            row = {
+                "run_id": run_id,
+                "corpus": corpus,
+                **{
+                    name: predictions[name].get(run_id)
+                    for name in ("F", "C_frozen", "C_v8", "C_v7")
+                },
+                **{
+                    name: predictions[name].get(run_id)
+                    for name in ("U_F_C_frozen", "U_F_C_v8", "U_F_C_v7")
+                },
+            }
+            # Derived, label-free: the frozen-arm supplement definition.
+            row["supplement_expected"] = row["U_F_C_frozen"] is True and row["U_F_C_v8"] is not True
+            rows.append(row)
+    rows.sort(key=lambda row: row["run_id"])
+    return rows, {
+        "labels_present": False,
+        "rows": len(rows),
+        "by_corpus": dict(Counter(row["corpus"] for row in rows)),
+        "true_counts": {
+            name: sum(row[name] is True for row in rows)
+            for name in ("F", "C_frozen", "C_v8", "C_v7", "U_F_C_frozen", "U_F_C_v8", "U_F_C_v7")
+        },
+        "unknown_counts": {
+            name: sum(row[name] is None for row in rows)
+            for name in ("F", "C_frozen", "C_v8", "C_v7")
+        },
+        "supplement_expected": sum(row["supplement_expected"] for row in rows),
+        "supplement_definition": "U_F_C_frozen is True and U_F_C_v8 is not True",
+    }
+
+
 def lead_path_alignment(
     lead_rows: list[dict[str, Any]], cohorts: dict[str, set[str]]
 ) -> dict[str, Any]:
@@ -1053,9 +1093,28 @@ def main() -> None:
         cohorts, step_ids, facet_alarms, cascade_frozen, cascade_v8
     )
     frozen_extra_output = atomic_jsonl(STATE / "leads-frozen-extra.jsonl", frozen_extra_rows)
+    roster_rows, roster_metadata = union_roster(cohorts, predictions)
+    roster_output = atomic_jsonl(STATE / "union-roster.jsonl", roster_rows)
+    roster_expected = {row["run_id"] for row in roster_rows if row["supplement_expected"]}
+    supplement_ids = {row["run_id"] for row in frozen_extra_rows}
+    lead_ids = {row["run_id"] for row in lead_rows}
+    supplement_validation = {
+        "roster_supplement_equals_file": roster_expected == supplement_ids,
+        "roster_supplement_rows": len(roster_expected),
+        "supplement_file_rows": len(supplement_ids),
+        "symmetric_difference_rows": len(roster_expected ^ supplement_ids),
+        "supplement_disjoint_from_main_leads": not (supplement_ids & lead_ids),
+        "by_corpus": dict(
+            Counter(row["corpus"] for row in roster_rows if row["supplement_expected"])
+        ),
+    }
     print(
         json.dumps(
-            {"leads_frozen_extra_ready": frozen_extra_output, "counts": frozen_extra["by_corpus"]}
+            {
+                "leads_frozen_extra_ready": frozen_extra_output,
+                "union_roster_ready": roster_output,
+                "supplement_validation": supplement_validation,
+            }
         ),
         flush=True,
     )
@@ -1168,8 +1227,10 @@ def main() -> None:
         "outputs_outside_git": {
             "leads": leads,
             "leads_frozen_extra": frozen_extra_output | {"metadata": frozen_extra},
+            "union_roster": roster_output | {"metadata": roster_metadata},
             "alarms_scoring_time_only": alarms_output,
         },
+        "supplement_validation": supplement_validation,
         "selected_records": [selected_meta[i] for i in sorted(selected_meta)],
         "step_identity_validation": step_sources,
         "fresh_activity": {

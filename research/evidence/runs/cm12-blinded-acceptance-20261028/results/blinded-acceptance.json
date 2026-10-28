@@ -1,6 +1,6 @@
 {
   "admission": {
-    "all_selected_guarded_utc": "2026-10-28T10:05:58+00:00",
+    "all_selected_guarded_utc": "2026-10-28T10:09:21+00:00",
     "assignment_authority": true,
     "assignments": {
       "bytes": 548722,
@@ -611,11 +611,11 @@
         "sha256": "sha256:615c28cfcbe3ba03d1796064f497e32743e885368de6505908736be3e8ced0b2"
       },
       {
-        "lines": 169,
+        "lines": 174,
         "malformed_selected_lines": 0,
         "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/ra6-single-reader/calls-cloud-0.jsonl",
         "selected_rows": 0,
-        "sha256": "sha256:2c53c39398a113d4ad1c7e04491eb292b95bc9d774e0f941fd8c3f796d5e41ef"
+        "sha256": "sha256:b0b61c2dffc33b79a73c027bca1df02e1f52e17fdd530403d0a1cadbec83d853"
       }
     ],
     "refresh_receipt": {
@@ -3449,7 +3449,7 @@
     "selected_records_unchanged": 22
   },
   "cohort_records": 350,
-  "completed_utc": "2026-10-28T10:05:58+00:00",
+  "completed_utc": "2026-10-28T10:09:22+00:00",
   "fresh_activity": {
     "cost_usd": 0.0,
     "input_tokens": 0,
@@ -9051,7 +9051,7 @@
       "sha256": "sha256:dd5f95c27adffce956d55429172d26bd07485d5560b73f7f5ac44fabaf692e6e"
     }
   },
-  "label_join_started_utc": "2026-10-28T10:05:58+00:00",
+  "label_join_started_utc": "2026-10-28T10:09:22+00:00",
   "labels_joined_last": true,
   "lead_path_alignment": {
     "authority": "trace_steps.flags_json['$.on_final_parent_path']",
@@ -9834,6 +9834,37 @@
       "rows": 10,
       "sha256": "sha256:04d1e74bfc9f9d74eef66c0fa42e3e0114f69b829ff1c411fbe00e1e8dfc6b21",
       "written": false
+    },
+    "union_roster": {
+      "metadata": {
+        "by_corpus": {
+          "cheatbench": 150,
+          "goodfire": 200
+        },
+        "labels_present": false,
+        "rows": 350,
+        "supplement_definition": "U_F_C_frozen is True and U_F_C_v8 is not True",
+        "supplement_expected": 10,
+        "true_counts": {
+          "C_frozen": 42,
+          "C_v7": 41,
+          "C_v8": 34,
+          "F": 42,
+          "U_F_C_frozen": 76,
+          "U_F_C_v7": 76,
+          "U_F_C_v8": 69
+        },
+        "unknown_counts": {
+          "C_frozen": 0,
+          "C_v7": 0,
+          "C_v8": 0,
+          "F": 0
+        }
+      },
+      "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/cm12/union-roster.jsonl",
+      "rows": 350,
+      "sha256": "sha256:2d705b12cc478ec0bd9bafa15a522392fb525a4fa5842636698b93f021665fdc",
+      "written": true
     }
   },
   "populations": {
@@ -10569,13 +10600,13 @@
     }
   },
   "pre_registration": {
-    "bytes": 5076,
+    "bytes": 5385,
     "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cm12-blinded-acceptance-20261028/research/evidence/runs/cm12-blinded-acceptance-20261028/README.md",
-    "sha256": "sha256:3d214301f57ab1e7364357d4c301d5e7a72e4064fff56c498597bdfdc99cc991"
+    "sha256": "sha256:eaf51f3e5c9e4fab7213d56dda6240461642d4c1b28b14bd24308b0d45f7f1b4"
   },
-  "predictions_fixed_utc": "2026-10-28T10:05:58+00:00",
+  "predictions_fixed_utc": "2026-10-28T10:09:22+00:00",
   "prose_persisted": false,
-  "repo_head_at_measurement": "a47272432327522d31826a206b4a8b28d1f8ae30",
+  "repo_head_at_measurement": "98b648f44110b2b8aede16a93128ae9830ab65c4",
   "reselection": {
     "changed_by_corpus": {
       "cheatbench": 0,
@@ -10586,9 +10617,9 @@
   },
   "schema": "cm12-blinded-acceptance/v1",
   "script": {
-    "bytes": 52099,
+    "bytes": 54849,
     "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cm12-blinded-acceptance-20261028/research/evidence/runs/cm12-blinded-acceptance-20261028/tools/blinded_acceptance.py",
-    "sha256": "sha256:3e75e01d422ed7852e558412a947f9a9fe80f23deb197b9146fddd7f01afae8b"
+    "sha256": "sha256:777f720dfd1472339e65fe155b363ba80ffa04885287439d80623b44fa8a1b80"
   },
   "selected_records": [
     {
@@ -16074,7 +16105,7 @@
       "sha256": "sha256:ef1e3b58d57a4a68c53de7c27ff9a336b45a0ceb90777b7539ad526d088f8d68"
     }
   ],
-  "started_utc": "2026-10-28T10:05:58+00:00",
+  "started_utc": "2026-10-28T10:09:21+00:00",
   "status": "blinding_binding_failed",
   "step_identity_validation": {
     "sha256:010629d25990c3201d1267985308df64ffc6494f3ca9258ec24e312ce8c07545": {
@@ -17777,5 +17808,16 @@
       "method": "identity_only_step_index",
       "steps": 44
     }
+  },
+  "supplement_validation": {
+    "by_corpus": {
+      "cheatbench": 6,
+      "goodfire": 4
+    },
+    "roster_supplement_equals_file": true,
+    "roster_supplement_rows": 10,
+    "supplement_disjoint_from_main_leads": true,
+    "supplement_file_rows": 10,
+    "symmetric_difference_rows": 0
   }
 }

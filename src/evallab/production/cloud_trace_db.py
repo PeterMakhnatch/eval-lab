@@ -974,7 +974,7 @@ class CloudTraceDatabase:
 
     def replace_run_clusters(
         self, clusters: Sequence[Mapping[str, Any]], *, registry: CorpusRegistry | None = None,
-        allowed_task_ids: Collection[str] | None = None,
+        allowed_task_ids: Collection[str] | None = None, drop_unfaceted: bool = False,
     ) -> dict[str, int]:
         """Atomically replace the whole ``run-clusters/v1`` hierarchy.
 
@@ -984,7 +984,10 @@ class CloudTraceDatabase:
         facets whose current tasks are registry-admitted DEV), ``centroid_text``,
         ``size`` (``len(run_ids)``) and optional ``label_rates`` (filled only at
         scoring time). ``allowed_task_ids`` only narrows admission. Any invalid
-        cluster keeps the stored hierarchy.
+        cluster keeps the stored hierarchy. With ``drop_unfaceted``, member runs
+        lacking stored facets of an admitted DEV trace are removed instead of
+        refused: sizes are recomputed, clusters left empty disappear, and
+        ``dropped_runs``/``dropped_clusters`` are returned.
         """
         rows: dict[str, dict[str, Any]] = {}
         for cluster in clusters:
@@ -1019,17 +1022,26 @@ class CloudTraceDatabase:
                 )
             }
             missing = [run_id for run_id in members if run_id not in faceted]
-            if missing:
+            if missing and not drop_unfaceted:
                 raise ValueError(
                     f"{len(missing)} clustered runs lack stored facets of an admitted DEV task "
                     f"(first: {missing[0]!r})"
                 )
+            dropped_clusters = 0
+            if missing:
+                for cluster_id, row in list(rows.items()):
+                    row["run_ids"] = [run_id for run_id in row["run_ids"] if run_id in faceted]
+                    row["size"] = len(row["run_ids"])
+                    if not row["run_ids"]:
+                        del rows[cluster_id]
+                        dropped_clusters += 1
             self._execute("DELETE FROM run_clusters")
             for level in (1, 2, 3):  # parents precede children for the foreign key
                 for row in rows.values():
                     if row["level"] == level:
                         self._upsert("run_clusters", row, ("cluster_id",))
-        return {"clusters": len(rows), "runs": len(members)}
+        result = {"clusters": len(rows), "runs": len(members) - len(missing)}
+        return {**result, "dropped_runs": len(missing), "dropped_clusters": dropped_clusters} if drop_unfaceted else result
 
     def search_runs(
         self, facets: Mapping[str, Any] | None = None, *, registry: CorpusRegistry | None = None,
@@ -2721,4 +2733,65 @@ def import_run_facets(
         "schema": "evallab.run_facets_import/v1", "path": str(path),
         "sha256": hashlib.sha256(data).hexdigest(), "invalid_json_lines": invalid,
         **database.upsert_run_facets(records, registry=registry),
+    }
+
+
+# Scoring-time label tallies the producer may attach to a build; never stored.
+_CLUSTER_LABEL_FIELDS = ("label_rates", "rule_recall", "rule_fpr")
+
+
+def import_run_clusters(
+    database: CloudTraceDatabase, path: str | Path, *, registry: CorpusRegistry | None = None,
+    drop_unfaceted: bool = False,
+) -> dict[str, Any]:
+    """Import the final contiguous build of the interim ``run-clusters/v1`` JSONL.
+
+    Like the producer's reader, the build is the last run of records sharing a
+    ``build_id``; it must be complete (each of the three levels covers its
+    ``facet_count`` runs) or nothing is stored. Scoring-time label fields are
+    never stored. Runs without stored admitted facets are refused, or dropped
+    and counted with ``drop_unfaceted``. The whole hierarchy is replaced atomically.
+    """
+    data = Path(path).read_bytes()
+    build: list[dict[str, Any]] = []
+    build_id = None
+    invalid = 0
+    for line in data.split(b"\n"):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            invalid += 1
+            continue
+        if not isinstance(row, dict) or row.get("cluster_version") != RUN_CLUSTERS_VERSION:
+            raise ValueError("cluster stream contains an unknown record")
+        if row.get("build_id") != build_id:
+            build, build_id = [], row.get("build_id")
+        build.append(row)
+    if not build:
+        raise ValueError("cluster stream holds no build")
+    facet_count = build[0].get("facet_count")
+    covered: dict[Any, set[Any]] = {}
+    for row in build:
+        if row.get("facet_count") != facet_count or not isinstance(row.get("run_ids"), list):
+            raise ValueError("cluster build metadata disagrees")
+        covered.setdefault(row.get("level"), set()).update(row["run_ids"])
+    if (
+        set(covered) != {1, 2, 3} or not covered[1] == covered[2] == covered[3]
+        or len(covered[1]) != facet_count
+    ):
+        raise ValueError("incomplete cluster build: each of three levels must cover facet_count runs")
+    labelled = sum(any(row.get(field) is not None for field in _CLUSTER_LABEL_FIELDS) for row in build)
+    clusters = [
+        {key: value for key, value in row.items() if key not in _CLUSTER_LABEL_FIELDS} for row in build
+    ]
+    return {
+        "schema": "evallab.run_clusters_import/v1", "path": str(path),
+        "sha256": hashlib.sha256(data).hexdigest(), "invalid_json_lines": invalid,
+        "build_id": build_id, "facet_count": facet_count, "build_clusters": len(build),
+        "clusters_with_label_fields_withheld": labelled,
+        **database.replace_run_clusters(
+            clusters, registry=registry, drop_unfaceted=drop_unfaceted,
+        ),
     }

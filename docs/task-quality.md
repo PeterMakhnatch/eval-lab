@@ -236,6 +236,15 @@ JSONL with retrieval's own admission; the last fully valid record wins. Refused
 replacements cannot discard a valid prefix, and a torn UTF-8/JSON append is counted
 without losing the complete preceding records.
 
+`evallab prod import-run-clusters --cloud-database <db> --jsonl <clusters-v1.jsonl>
+[--drop-unfaceted]` stores the **final contiguous build** of the producer's cluster
+stream, as the Run Atlas reader selects it. An incomplete build (a level not yet
+covering `facet_count` runs, e.g. mid-write) stores nothing. Scoring-time label
+fields (`label_rates`, `rule_recall`, `rule_fpr`) are never stored. Runs without
+stored admitted facets (for example CheatBench action IDs that have no cloud
+trace) refuse the build, or with `--drop-unfaceted` are removed, sizes recomputed,
+emptied clusters dropped, and the dropped counts reported in the receipt.
+
 `replace_run_clusters(clusters, registry=...)` atomically replaces the
 `run_clusters` (`run-clusters/v1`) hierarchy: levels 1–3, a level-1 cluster has no
 parent and every other one a parent one level up containing all its runs, `size`

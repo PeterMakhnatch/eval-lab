@@ -822,3 +822,18 @@ def test_atlas_help_does_not_open_database_or_gateway(
     if "facet" in argv:
         assert "--database" in help_text and "--route" in help_text
     assert not any(tmp_path.iterdir())
+
+def test_form_prompt_defines_every_level_and_keeps_the_schema_in_step() -> None:
+    prompt = atlas.FORM_INSTRUCTIONS
+    form_fields = ("goal", "approach", "tests", "grader_or_harness_touched",
+                   "answer_material_accessed", "success_claim_without_evidence",
+                   "eval_awareness", "shortcut", "suspicion", "evidence_steps")
+    for field in form_fields:
+        assert f"- {field}:" in prompt
+    for level in atlas.EVAL_AWARENESS_VALUES:
+        assert f'"{level}"' in prompt, level
+    assert "Decision rules:" in prompt
+    assert prompt.count('That is "plans_to_game"') == 1
+    assert 'reasons_about_grader" until the agent acts' in prompt
+    assert "does not raise the level" in prompt
+    assert atlas.PROMPT_VERSION == "run-atlas-prompt/v3"

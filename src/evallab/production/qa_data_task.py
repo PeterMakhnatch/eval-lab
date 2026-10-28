@@ -305,7 +305,7 @@ def _cas_packages(cas: S3CompatibleCAS, uri: str | None) -> dict[str, _Package]:
 
 
 def _task_rows(
-    ctx: QaContext, task_id: str,
+    ctx: QaContext, task_id: str, *, with_outcomes: bool = False,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     canonical = ctx.require_task(task_id)["task_id"]
     # require_task owns its snapshot. Re-admit its canonical identity here so
@@ -318,8 +318,8 @@ def _task_rows(
         if not rows:
             raise QaDataError(UNAVAILABLE)
         issues = ctx.database._rows(
-            "SELECT issue_id, defect_class, direction, status, trust_tier "
-            "FROM task_issues WHERE task_id = ? ORDER BY issue_id", (canonical,),
+            "SELECT issue_id, defect_class, direction, status" + (", trust_tier" if with_outcomes else "")
+            + " FROM task_issues WHERE task_id = ? ORDER BY issue_id", (canonical,),
         )
         runs = ctx.database._rows(
             "SELECT a.trace_id, a.reward, a.step_count, f.run_id AS faceted, f.tests, "
@@ -350,9 +350,14 @@ def _text_prefix(ctx: QaContext, text: str, record: dict[str, Any], field: str, 
 
 def task(
     ctx: QaContext, task_id: str, *, files: Sequence[str] = (), variant: int = 0, kind: str = "original_package",
+    with_outcomes: bool = False,
 ) -> dict[str, Any]:
-    """Instruction, local packages, retained issue metadata and every run of one admitted DEV task."""
-    row, issues, runs = _task_rows(ctx, task_id)
+    """Instruction, local packages, retained issue metadata and every run of one admitted DEV task.
+
+    The reply names no dataset or source: a QA reader needs the task, not its benchmark. Issue trust
+    tiers are outcome labels and appear only with ``with_outcomes``.
+    """
+    row, issues, runs = _task_rows(ctx, task_id, with_outcomes=with_outcomes)
     task_id = row["task_id"]
     requested = list(dict.fromkeys(_relative_file(value).as_posix() for value in files))
     if variant < 0 or kind not in {"original_package", "repaired_package"}:
@@ -405,7 +410,7 @@ def task(
     instruction = row["instruction_text"]
     summaries: dict[str, dict[str, Any]] = {
         key: {
-            "source": "registry" if package.path is not None else "cas",
+            "stored_in": "registry" if package.path is not None else "cas",
             "package": "unavailable", "file_count": package.file_count,
             "files": [], "contents": [], "withheld": [], "omissions": package.omissions,
             "omitted": {
@@ -417,7 +422,7 @@ def task(
         sum(summary["omitted"].values()) for summary in summaries.values()
     )
     data: dict[str, Any] = {
-        "task_id": task_id, "dataset": row["dataset_id"], "instruction": "",
+        "task_id": task_id, "instruction": "",
         "instruction_chars": len(instruction), "instruction_truncated": False,
         "original_grader_digest": row["original_grader_digest"],
         "repaired_grader_digest": row["repaired_grader_digest"],

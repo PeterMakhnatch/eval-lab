@@ -32,11 +32,16 @@ ENVELOPE_TOKENS = 120  # reserved for ``ok``/``meta`` framing around ``data``
 FRAMING_TOKENS = 40  # held back inside ``data`` for its own keys; plus 5% of the room for commas
 MIN_BUDGET = 200
 UNAVAILABLE = "not available: not an admitted DEV task or run"
+_WITH_OUTCOMES_HELP = (
+    "Also return outcome labels: each issue's trust_tier and original/repaired reward differential. "
+    "Off by default so QA reads stay label-free; the choice is recorded in meta.with_outcomes"
+)
 CALLS = (
     "task", "runs", "window", "history", "findings", "inventory", "traces", "clusters", "recount",
     "split", "export", "steps", "scan",
 )
 NO_STORE_CALLS = frozenset({"split", "steps", "scan"})
+OUTCOME_CALLS = frozenset({"task", "history"})  # calls with a --with-outcomes gate
 
 
 class QaDataError(ValueError):
@@ -223,7 +228,10 @@ def _dispatch(call: str, context: QaContext, args: argparse.Namespace) -> dict[s
     if call == "task":
         from evallab.production.qa_data_task import task
 
-        return task(context, args.task_id, files=args.file, variant=args.variant, kind=args.kind)
+        return task(
+            context, args.task_id, files=args.file, variant=args.variant, kind=args.kind,
+            with_outcomes=args.with_outcomes,
+        )
     if call == "findings":
         from evallab.production import qa_data_findings
 
@@ -262,7 +270,9 @@ def _dispatch(call: str, context: QaContext, args: argparse.Namespace) -> dict[s
             context, args.run_id, first=args.first, last=args.last, around=args.around, radius=args.radius,
         )
     if call == "history":
-        return qa_data_calls.history(context, args.task_id, flags=args.flag, limit=args.limit)
+        return qa_data_calls.history(
+            context, args.task_id, flags=args.flag, limit=args.limit, with_outcomes=args.with_outcomes,
+        )
     raise QaDataError(f"unknown call {call!r}")
 
 
@@ -275,9 +285,11 @@ def run(args: argparse.Namespace, root: Path | None = None, *, harbor: Any = Non
     out = out or sys.stdout
     call = args.qa_data_call
     pretty = bool(getattr(args, "pretty", False))
+    # The outcome gate is recorded on every reply of the calls that have it, refusals included.
+    extra_meta = {"with_outcomes": bool(args.with_outcomes)} if call in OUTCOME_CALLS else None
     started = time.perf_counter()
     if args.budget < MIN_BUDGET:
-        return _reply(out, call, args.budget, started, None, f"--budget must be at least {MIN_BUDGET}", 0, pretty)
+        return _reply(out, call, args.budget, started, None, f"--budget must be at least {MIN_BUDGET}", 0, pretty, extra_meta)
     room = args.budget - ENVELOPE_TOKENS
     # Items are charged one by one; the reply also holds the keys around them and a comma per item.
     # Hold back a share of the room for that framing so a list that fills the budget still fits.
@@ -309,16 +321,17 @@ def run(args: argparse.Namespace, root: Path | None = None, *, harbor: Any = Non
     finally:
         if context is not None:
             context.database.close()
-    return _reply(out, call, args.budget, started, data, error, budget.omitted, pretty)
+    return _reply(out, call, args.budget, started, data, error, budget.omitted, pretty, extra_meta)
 
 
 def _reply(
     out: Any, call: str, limit: int, started: float, data: dict[str, Any] | None, error: str | None,
-    omitted: int, pretty: bool = False,
+    omitted: int, pretty: bool = False, extra_meta: dict[str, Any] | None = None,
 ) -> int:
     meta: dict[str, Any] = {
         "call": call, "budget": limit, "omitted_items": omitted,
         "truncated": omitted > 0 or bool(data and data.get("truncated")), "tokens_est": 0, "latency_ms": 0.0,
+        **(extra_meta or {}),
     }
     payload: dict[str, Any] = {"ok": error is None, **({"data": data} if error is None else {"error": error})}
     payload["meta"] = meta
@@ -354,6 +367,7 @@ def register_parser(commands: Any) -> None:
     task.add_argument("task_id")
     task.add_argument("--file", action="append", default=[], metavar="REL", help="Also return this task file (repeatable)")
     task.add_argument("--variant", type=int, default=0, help="Task variant for package listings and --file (default 0)")
+    task.add_argument("--with-outcomes", action="store_true", help=_WITH_OUTCOMES_HELP)
     task.add_argument(
         "--kind", choices=("original_package", "repaired_package"), default="original_package",
         help="Which package of the variant --file reads",
@@ -386,6 +400,7 @@ def register_parser(commands: Any) -> None:
     history.add_argument("task_id")
     history.add_argument("--flag", action="append", default=[], help="Trigger flag for playbook cards (repeatable)")
     history.add_argument("--limit", type=int, default=5)
+    history.add_argument("--with-outcomes", action="store_true", help=_WITH_OUTCOMES_HELP)
 
     findings = calls.add_parser("findings", help="Scout, Laminar and Docent findings for one run or task")
     common(findings)

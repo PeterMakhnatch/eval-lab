@@ -1,4 +1,4 @@
-"""OQ-6 v3 scheduling only; scientific and native helpers remain frozen v2 bytes.
+"""OQ-6 scheduling only; scientific and native helpers remain frozen v2 bytes.
 
 Run one independent worker with --protocol PATH --route EXACT --arm A|B.
 PATH has a sibling PATH.with_suffix('.sha256'). The protocol retains frozen.verify's
@@ -32,6 +32,14 @@ paired missing row. They never fabricate a native receipt or a final cell.json.
 'status: finished' means a worker exhausted its plan, NOT scientific completeness.
 A slice reports exact planned/attempted/answered/pending/missing denominators and
 is checkpoint_partial or blocked unless every paired cell really is complete.
+
+A stage-continuation plan explicitly binds the closed parent protocol/plan and an
+immutable prior-consumption snapshot. Its two route-local arms partition every
+original case of one stage into remaining case_ids and referenced prior_case_ids.
+Existing cross attempts are immutable; only never-sent original roles may run.
+Cached answered audits are read through attested audit-directory symlinks while
+only an unsent scorer is dispatched. Guards reject source drift and redispatch.
+Independent audit routes share provider locks, not each other's keyed barrier.
 
 Import is stdlib-only. Clock, sleeper, science loader, verifier, and dispatcher
 are injectable; no private files or native commands are touched during import.
@@ -234,6 +242,15 @@ def validate_plan(protocol, plan):
         if type(case["scheduling_priority"]) is not int:
             raise ValueError("case scheduling_priority must be an integer")
         cases[case_id] = case
+    continuation = plan.get("continuation")
+    if continuation is not None:
+        if continuation.get("schema") != "oq6.stage-continuation-plan/v1":
+            raise ValueError("unknown continuation plan contract")
+        stage = continuation.get("stage")
+        if stage not in {"dev", "cross"} or any(case["stage"] != stage for case in cases.values()):
+            raise ValueError("continuation changed its original stage cohort")
+        if len(route_order(protocol)) != 1:
+            raise ValueError("continuation must schedule one independent audit route")
     workers = {}
     for worker in plan["workers"]:
         key = worker_key(worker["route"], worker["arm"])
@@ -242,9 +259,13 @@ def validate_plan(protocol, plan):
         ids = worker["case_ids"]
         if not isinstance(ids, list) or len(ids) != len(set(ids)) or any(cid not in cases for cid in ids):
             raise ValueError("worker has duplicate or unknown cases")
-        # Every worker is the full frozen cohort; priority is not cohort selection.
-        if set(ids) != set(cases):
-            raise ValueError("worker plan must retain every case denominator")
+        prior = worker.get("prior_case_ids", []) if continuation is not None else []
+        resumed = worker.get("resume_scorer_case_ids", []) if continuation is not None else []
+        if (not isinstance(prior, list) or len(prior) != len(set(prior))
+                or not isinstance(resumed, list) or len(resumed) != len(set(resumed))
+                or set(ids) & set(prior) or set(ids) | set(prior) != set(cases)
+                or not set(resumed) <= set(ids)):
+            raise ValueError("worker plan must retain every case denominator without duplicate continuation")
         workers[key] = worker
     expected = {worker_key(route, arm) for route in route_order(protocol) for arm in ("A", "B")}
     if set(workers) != expected:
@@ -254,6 +275,86 @@ def validate_plan(protocol, plan):
         if order != sorted(order):
             raise ValueError("worker case_ids must be ordered cross, keyed DEV, unkeyed DEV, then priority")
     return cases, workers
+
+
+def _continuation_snapshot(plan, cases, workers):
+    continuation = plan.get("continuation")
+    if continuation is None:
+        return None
+    bound = {}
+    for name in ("parent_protocol", "parent_plan", "prior_snapshot"):
+        path = Path(continuation[name + "_path"])
+        raw = path.read_bytes()
+        if sha(raw) != continuation[name + "_sha256"]:
+            raise ValueError("continuation parent custody drift: " + name)
+        bound[name] = json.loads(raw)
+    snapshot = bound["prior_snapshot"]
+    if (snapshot["schema"] != "oq6.prior-consumption-snapshot/v1"
+            or snapshot["parent_protocol_sha256"] != continuation["parent_protocol_sha256"]
+            or snapshot["parent_plan_sha256"] != continuation["parent_plan_sha256"]
+            or snapshot["stage"] != continuation["stage"]
+            or Path(snapshot["parent_root"]).resolve() != Path(continuation["parent_root"]).resolve()):
+        raise ValueError("continuation snapshot identity drift")
+    parent_cases = {
+        case["case_id"]: case for case in bound["parent_plan"]["cases"]
+        if case["stage"] == continuation["stage"]
+    }
+    if cases != parent_cases:
+        raise ValueError("continuation changed the represented original sources or prompts")
+    parent_root = Path(snapshot["parent_root"]).resolve()
+    for key, worker in workers.items():
+        previous = snapshot["workers"][key]
+        if (previous["route"], previous["arm"], set(previous["cases"])) != (
+                worker["route"], worker["arm"], set(cases)):
+            raise ValueError("continuation prior worker identity drift")
+        remaining = set(worker["case_ids"])
+        resumed = set(worker["resume_scorer_case_ids"])
+        for case_id, record in previous["cases"].items():
+            action = record["action"]
+            unavailable = cases[case_id]["preparation_status"] != "prepared"
+            expected = (
+                "resume_scorer" if case_id in resumed else
+                ("audit" if case_id in remaining else
+                 ("unavailable_input" if unavailable and action == "unavailable_input" else "prior_terminal"))
+            )
+            if unavailable and case_id in remaining:
+                raise ValueError("unavailable frozen input must not be newly dispatched")
+            if action != expected:
+                raise ValueError("continuation selected a prior-consumed role")
+            audit, scorer = record["audit"], record["scorer"]
+            if type(audit["consumed"]) is not bool or type(scorer["consumed"]) is not bool:
+                raise ValueError("continuation consumption must be an actual boolean")
+            if ((action == "audit" and (audit["consumed"] or scorer["consumed"]))
+                    or (action == "resume_scorer" and (
+                        not audit["consumed"] or audit["status"] != "answered"
+                        or scorer["consumed"] or record["cell_path"] is not None))
+                    or (action == "prior_terminal" and not (
+                        audit["consumed"] or scorer["consumed"] or record["cell_path"] is not None
+                        or record["prediction_path"] is not None))
+                    or (action == "unavailable_input" and (
+                        not unavailable or audit["consumed"] or scorer["consumed"]))):
+                raise ValueError("continuation action does not match prior consumption")
+            cell_base = parent_root / "calls" / worker["route"].replace("/", "--") / worker["arm"] / continuation["stage"] / case_id
+            for artifact, filename in (("cell", "cell.json"), ("prediction", "prediction.json")):
+                if record[artifact + "_path"] is not None:
+                    path = Path(record[artifact + "_path"])
+                    if path.resolve() != cell_base / filename or sha(path.read_bytes()) != record[artifact + "_sha256"]:
+                        raise ValueError("continuation prior local artifact drift")
+            for role in ("audit", "scorer"):
+                prior = record[role]
+                expected_path = cell_base / role
+                if Path(prior["directory"]).resolve() != expected_path:
+                    raise ValueError("continuation prior role path escaped its original slot")
+                pins = list(prior["owned_files"])
+                if prior["receipt_path"] is not None:
+                    if Path(prior["receipt_path"]).resolve() != expected_path / "receipt.json":
+                        raise ValueError("continuation receipt changed its original slot")
+                    pins.append({"path": prior["receipt_path"], "sha256": prior["receipt_sha256"]})
+                for pin in pins:
+                    path = Path(pin["path"])
+                    if not path.resolve().is_relative_to(expected_path) or sha(path.read_bytes()) != pin["sha256"]:
+                        raise ValueError("continuation prior role artifact drift")
+    return snapshot
 
 
 def cohort(case):
@@ -308,10 +409,17 @@ class Worker:
         self.freeze_sha256, self.plan_sha256 = freeze_sha256, plan_sha256
         self.execution = protocol["execution"]
         self.root = Path(self.execution["raw_root"]).resolve()
+        self.provider_lock_root = Path(self.execution.get("provider_lock_root", self.root / "locks")).resolve()
         if self.root.is_relative_to(Path(self.execution["science_root"]).resolve()):
             raise ValueError("v3 output cannot be the immutable science root")
         self.cutoff = timestamp(self.execution["cutoff_at"])
         self.route_order = route_order(protocol)
+        self.prior_snapshot = _continuation_snapshot(plan, self.cases, self.workers)
+        forbidden = [Path(self.execution["science_root"]).resolve()]
+        if self.prior_snapshot is not None:
+            forbidden.append(Path(self.prior_snapshot["parent_root"]).resolve())
+        if any(self.provider_lock_root.is_relative_to(path) for path in forbidden):
+            raise ValueError("provider coordination must not mutate immutable parent/science evidence")
         if self.execution["quota_recheck_seconds"] != 60 or self.execution["priority_wait_seconds"] != 5:
             raise ValueError("frozen scheduling intervals must remain 60s/5s")
         self.clock, self.sleeper, self.verifier = clock, sleeper, verifier
@@ -469,10 +577,34 @@ class Worker:
                                   "reason": "native_identity_or_isolation_quarantine",
                                   "receipt_path": str(directory / "receipt.json")}, immutable=True)
 
+    def _prior_role_guard(self, directory):
+        if self.prior_snapshot is None:
+            return
+        role = directory.name
+        if role not in {"audit", "scorer"} or directory != self._cell_directory(self.current) / role:
+            raise ValueError("continuation request escaped its frozen role slot")
+        previous = self.prior_snapshot["workers"][self.key]["cases"][self.current["case_id"]]
+        prior = previous[role]
+        original = Path(prior["directory"])
+        if self._consumed(original) is not prior["consumed"]:
+            raise ValueError("prior consumption changed after continuation freeze")
+        pins = list(prior["owned_files"])
+        if prior["receipt_path"] is not None:
+            pins.append({"path": prior["receipt_path"], "sha256": prior["receipt_sha256"]})
+        if any(sha(Path(pin["path"]).read_bytes()) != pin["sha256"] for pin in pins):
+            raise ValueError("prior consumed artifact changed before dispatch")
+        if prior["consumed"]:
+            if (role != "audit" or previous["action"] != "resume_scorer"
+                    or directory.resolve() != original.resolve() or not self._consumed(directory)):
+                raise ValueError("a consumed prior role must not be reissued")
+        elif directory.resolve().is_relative_to(Path(self.prior_snapshot["parent_root"]).resolve()):
+            raise ValueError("new continuation output must not write into its parent")
+
     def quota_call(self, directory, *, route, **kwargs):
         directory = Path(directory)
         if route not in self.protocol["models"]:
             raise ValueError("request route is not in the frozen model census")
+        self._prior_role_guard(directory)
         science = self.science()
         # Preserve the original timeout as part of the exact immutable request.
         if self._consumed(directory):
@@ -497,7 +629,7 @@ class Worker:
             raise RouteUnavailable(route, reason)
         self._priority_boundary(route)
         self.verifier()
-        provider_path = self.root / "locks" / ("provider-" + route.split("/", 1)[0] + ".lock")
+        provider_path = self.provider_lock_root / ("provider-" + route.split("/", 1)[0] + ".lock")
         try:
             with file_lock(provider_path, nonblocking=True):
                 if self.clock() >= self.cutoff:

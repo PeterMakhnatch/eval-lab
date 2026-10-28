@@ -246,11 +246,15 @@ def build_rows(
             state = "alarm" if all(s == "alarm" for s in states) else "clear"
         else:
             state = "alarm" if any(s == "alarm" for s in states) else "clear"
+        # Thresholds sweep every member's numeric score, so a score-only reader (no native
+        # decision: verdict abstain, numeric score) is scoreable at a FAR budget. Missing and
+        # no-actor (unknown) runs never carry a usable score.
         scores = [_score_of(record) for record in records]
         known = [score for score in scores if score is not None]
+        unusable = any(member in ("missing", "unknown") for member in states)
         rows.append(Row(
             run_id, labels.positive.get(run_id), records, state,
-            None if state in EXCLUDED_REASONS or len(known) != len(scores) else tuple(known),
+            None if unusable or len(known) != len(scores) else tuple(known),
         ))
     return rows
 

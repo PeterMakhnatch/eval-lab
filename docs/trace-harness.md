@@ -43,25 +43,31 @@ Run health is **pending**: the only code is one local commit on
 
 ## The harness
 
-`evallab trace run|card|score` (branch `th/trace-harness-core`, lands with the
-harness PR) runs the detectors above on one shared blinded input and writes one
-`trace-findings/v1` record per (run, detector):
+`evallab trace run|card|score|coverage` (`src/evallab/production/trace_harness*.py`)
+runs the detectors above on one shared input and writes one `trace-findings/v1`
+record per (run, detector):
 
 - `run_id, detector, detector_version, reader_model, verdict (alarm|clear|abstain|unknown), score, kind, evidence_steps, summary (<=40 words), tokens, cost_usd, latency_ms, produced_at`.
+  Records are validated with the cloud DB importer's own rules (`trace_findings._finding`),
+  so every stored record is importable by `evallab prod import-trace-findings`.
 - `evidence_steps` are original step ids, never renumbered blind ids. A run with no
   actor transcript is `unknown`, never `clear`; a run a detector has nothing for is
   omitted.
 - Store: `~/.local/state/evallab-prod-live/trace-harness/findings-v1.jsonl`, append
   only, latest line per (run, detector, version, reader) wins. It is an interim
-  JSONL, like the facets file; it is not the cloud DB.
-- `run --runs goodfire|goodfire-dev|cheatbench|hackbench|dataset:<id>|file:<path>|ids
-  --detectors LIST|all [--allow-model] [--refresh]`. Model-backed detectors only call a
-  subscription reader when `--allow-model` is given. `card RUN_ID` prints a short
-  evidence card (fired flags plus findings). `score` is registered from
-  `trace_harness_score` when that module exists.
-- The Phoenix shipper moved: on `origin/main` it is still `evallab trace <path>`;
-  on the harness branch it is `evallab trace otel <path>` and `docs/observability.md`
-  is updated to match. The harness PR lands both.
+  JSONL, like the facets file; the cloud DB `trace_findings` table imports it.
+- `run --runs goodfire|goodfire-dev|cheatbench|hackbench|hackbench-all|staged:<set>|dataset:<id>|file:<path>|ids
+  --detectors LIST|all [--allow-model] [--refresh]`. Model-backed detectors import stored
+  results; only facets call a subscription reader, and only with `--allow-model`.
+- `card RUN_ID` prints one label-free evidence card (≤1.5k tokens): every verdict with
+  its reader, cited steps, fired flags and playbook cards.
+- `score --corpus …` reports recall/false alarms (Wilson intervals), thresholds at 3% and
+  5% false-alarm budgets, localization and cost per detector and per OR/AND combination,
+  after a reproduction gate of the published single-detector numbers; `--publish` writes
+  the UI Harness tab's `trace-harness/scorecard-v1.json`.
+- `coverage --corpus … [--corpus …]` lists findings per detector identity and corpus,
+  and every registered detector that has no findings there.
+- The Phoenix shipper is `evallab trace otel <path>`.
 
 ## Gaps and duplicates
 

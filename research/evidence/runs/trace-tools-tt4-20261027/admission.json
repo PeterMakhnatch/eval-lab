@@ -1,0 +1,18 @@
+{
+  "admitted_n": 200,
+  "at": "2026-10-27T22:09:24.210202+00:00",
+  "dev_gate": "dev_trace_refs exact DEV + admitted_cloud_task_ids(CorpusRegistry(repo_root))",
+  "inspect_ai": "0.3.285",
+  "inspect_scout": "0.5.4",
+  "metr_scanners": "0.1.11",
+  "metr_source_revision": "c12893d1",
+  "no_truncation": true,
+  "ordered_ids_sha256": "e5634a0abae87e5106c43fc80f6371b5d5fee1df614c7248218bdfeeb73f84ca",
+  "python": "3.13.17",
+  "sample_n": 200,
+  "sample_sha256": "e24db6ec51ca12f7184301caa9a2467446e4a2e090ecfcb9a2b25c3ca1eb7f87",
+  "smoke_selection": "first 10 opaque ids, label-blind; full phase remaining 190",
+  "transcript_metadata": {
+    "blind_schema": "evallab.blind_run/v1"
+  }
+}

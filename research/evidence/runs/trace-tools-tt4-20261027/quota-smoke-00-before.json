@@ -1,0 +1,81 @@
+{
+  "accountsWithoutUsage": [],
+  "capacity": {
+    "xai-oauth": [
+      {
+        "accounts": 1,
+        "durationMs": 604800000,
+        "remainingAccounts": 0.45999999999999996,
+        "usedAccounts": 0.54,
+        "window": "7d"
+      }
+    ]
+  },
+  "disabledCredentials": [],
+  "generatedAt": 1793139230747,
+  "reports": [
+    {
+      "fetchedAt": 1793138964974,
+      "limits": [
+        {
+          "amount": {
+            "limit": 100,
+            "remaining": 46,
+            "remainingFraction": 0.45999999999999996,
+            "unit": "percent",
+            "used": 54,
+            "usedFraction": 0.54
+          },
+          "id": "xai-oauth:credits:1w",
+          "label": "SuperGrok Weekly Credits",
+          "scope": {
+            "accountId": "83*",
+            "provider": "xai-oauth",
+            "shared": true,
+            "windowId": "1w"
+          },
+          "status": "ok",
+          "window": {
+            "durationMs": 604800000,
+            "id": "1w",
+            "label": "Weekly",
+            "resetsAt": 1793383848559
+          }
+        },
+        {
+          "amount": {
+            "limit": 100,
+            "remaining": 46,
+            "remainingFraction": 0.45999999999999996,
+            "unit": "percent",
+            "used": 54,
+            "usedFraction": 0.54
+          },
+          "id": "xai-oauth:product:grokbuild:1w",
+          "label": "Grok Build (Weekly)",
+          "scope": {
+            "accountId": "83*",
+            "provider": "xai-oauth",
+            "shared": true,
+            "windowId": "1w"
+          },
+          "status": "ok",
+          "window": {
+            "durationMs": 604800000,
+            "id": "1w",
+            "label": "Weekly",
+            "resetsAt": 1793383848559
+          }
+        }
+      ],
+      "metadata": {
+        "accountId": "83*",
+        "billingKind": "weekly",
+        "email": "ne*",
+        "endpoint": "https://cli-chat-proxy.grok.com/v1/billing?format=credits",
+        "source": "cli-chat-proxy.grok.com/v1/billing"
+      },
+      "provider": "xai-oauth"
+    }
+  ]
+}

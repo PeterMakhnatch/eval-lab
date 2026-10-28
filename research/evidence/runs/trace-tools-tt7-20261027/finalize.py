@@ -31,22 +31,23 @@ def main() -> None:
     load_sample()  # Exact frozen bytes/identities, no labels.
     docent = load(OUT / "docent-receipts.json")
     omp = load(OUT / "omp-receipts.json")
+    prefix = load(OUT / "omp-prefix60-receipts.json")
     continuation = load(OUT / "continuation-200-receipts.json")
+    luna_financial = load(OUT / "luna-financial-basis.json")
     if (continuation.get("schema") != "tt7.subscription_continuation_admission/v1"
             or continuation.get("sample_sha256") != SAMPLE_SHA256
             or continuation.get("requested_run_count") != 200
             or continuation.get("continuation_start_zero_based") != 60
             or continuation.get("continuation_end_exclusive") != 200
-            or continuation.get("status") != "deferred"
-            or continuation.get("result") != "unknown_quota"
-            or continuation.get("model_calls") != 0
-            or continuation.get("canonical_rows_appended") != 0):
-        raise ValueError("full-200 continuation has not reached its fail-closed terminal receipt")
+            or continuation.get("status") not in TERMINAL
+            or "finished_at" not in continuation
+            or datetime.fromisoformat(continuation["finished_at"]) < datetime.fromisoformat(omp["finished_at"])):
+        raise ValueError("full-200 continuation has not reached a terminal receipt")
     schedule = load(STATE / "tt7/omp/schedule.json")
     if schedule.get("target_runs") != 60 or schedule.get("sample_sha256") != SAMPLE_SHA256:
         raise ValueError("initial scheduled batch is not the authorized fixed prefix-60")
-    if "resumed_at" not in schedule or datetime.fromisoformat(omp["finished_at"]) < datetime.fromisoformat(schedule["resumed_at"]):
-        raise ValueError("subscription continuation has not reached a terminal receipt")
+    if "resumed_at" not in schedule or datetime.fromisoformat(prefix["finished_at"]) < datetime.fromisoformat(schedule["resumed_at"]):
+        raise ValueError("initial prefix batch has not reached its terminal receipt")
     arms = []
     for arm in docent["arms"]:
         model = str(arm.get("model") or "glm-unavailable")
@@ -66,21 +67,28 @@ def main() -> None:
         if arm["status"] not in TERMINAL:
             raise ValueError(f"subscription arm not terminal: {model}")
         claude = model.startswith("anthropic/")
-        if claude and (arm.get("scope") != "prefix-60" or arm.get("target_runs") != 60
-                       or arm.get("recorded_runs") != 60):
-            raise ValueError("Claude's completed initial batch does not cover the fixed prefix-60")
-        if claude and continuation["routes"][model]["unattempted_positions"] != 140:
-            raise ValueError("Claude's remaining 140 positions are not explicitly accounted for")
-        reason = arm.get("reason")
         if claude:
-            reason = f"{reason}; fixed positions 60..199 unattempted: subscription quota unknown (snapshot stale >120s)"
+            batch = prefix["routes"][model]
+            phase = continuation["routes"][model]
+            if (batch.get("scope") != "prefix-60" or batch.get("target_runs") != 60
+                    or batch.get("recorded_runs") != 60):
+                raise ValueError("Claude's preserved initial batch does not cover the fixed prefix-60")
+            if (phase["status"] not in TERMINAL
+                    or 60 + phase["new_terminal_records"] + phase["unattempted_positions"] != 200):
+                raise ValueError("Claude's continuation does not account for all fixed 200 positions")
+            reason = f"{phase['reason']}; preserved prefix-60 plus {phase['new_terminal_records']} continuation terminal cells"
+        else:
+            reason = arm.get("reason")
         rates = omp["rates_per_million_input_output"][model]
         arms.append({"tool": "omp", "detector": f"tt7_form:{model}", "model": model,
                      "status": arm["status"], "reason": reason, "scan": str(OUT / "omp-receipts.json"),
                      "roles": roles_for(model), "subscription": True,
+                     "marginal_cost_verified": claude,
+                     "auth_class": None if claude else luna_financial["auth_class"],
+                     "transport_api": None if claude else luna_financial["attested_transport_api"],
                      "scope": "full-200", "target_run_count": 200, "expected_runs": 200, "total_sample": 200,
-                     "observed_batch_scope": "prefix-60" if claude else "initial-stopped-coverage",
-                     "unattempted_reason": "unknown_quota_unattempted" if claude else "missing_record",
+                     "observed_batch_scope": "prefix-60+fixed-continuation" if claude else "initial-stopped-coverage",
+                     "unattempted_reason": continuation["routes"][model]["unattempted_reason"] if claude else "missing_record",
                      "threshold": 0.70 if claude else 0.90,
                      "effective_admission_threshold": continuation["admission_fraction"] if claude else 0.90,
                      "expected_by_source": {"cloud-trace-db": 150, "cheatbench-actions-v1": 50},
@@ -99,8 +107,20 @@ def main() -> None:
                 "supplemental_comparison": "identical sample[:60], 35 Goodfire and 25 CheatBench, every arm/baseline restricted identically",
                 "labels_read": False, "subscription_scope_authority": continuation["authority"],
                 "subscription_admission_fraction": continuation["admission_fraction"],
-                "subscription_completed_batch_receipt": "omp-receipts.json",
+                "subscription_completed_batch_receipt": "omp-prefix60-receipts.json",
                 "subscription_continuation_receipt": "continuation-200-receipts.json",
+                "privacy_audit_receipt": "privacy-audit.json",
+                "privacy_gate_source_snapshot": "canonical_secret_gate.py",
+                "privacy_secondary_view": "196 safe-eligible IDs, descriptive only; all original 200 remain",
+                "financial_basis": {
+                    "receipt": "luna-financial-basis.json",
+                    "unverified_route": luna_financial["route"],
+                    "auth_class": luna_financial["auth_class"],
+                    "attested_transport_api": luna_financial["attested_transport_api"],
+                    "included_free_entitlement_verified": False,
+                    "provider_billed_usd": None, "marginal_usd": None,
+                    "client_reported_usd": 0, "list_price_equivalent_usd": 0.0136769,
+                },
                 "privacy_receipt": "docent-receipts.json", "pricing_receipt": "pricing.json"}
     path = OUT / "readings-finalized.json"
     path.write_text(json.dumps(manifest, indent=2) + "\n")

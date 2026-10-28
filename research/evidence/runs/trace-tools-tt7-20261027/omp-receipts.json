@@ -5,89 +5,49 @@
   "routes": {
     "anthropic/claude-sonnet-5-5": {
       "status": "partial",
-      "last_batch_at": "2026-10-28T00:06:04.191995+00:00",
-      "last_batch_runs": 2,
-      "last_batch_latency_s": 3.866,
-      "last_usage": {
-        "at": "2026-10-28T00:06:00.325386+00:00",
-        "provider": "anthropic",
-        "fetched_at_ms": 1793145959542,
-        "limits": [
-          {
-            "id": "anthropic:5h",
-            "used_fraction": 0.23,
-            "resets_at_ms": 1793163600000
-          },
-          {
-            "id": "anthropic:7d",
-            "used_fraction": 0.41,
-            "resets_at_ms": 1793584800000
-          }
-        ],
-        "maximum_fraction": 0.41
-      },
-      "pending_runs": 0,
-      "scope": "prefix-60",
-      "target_runs": 60,
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "stopped_at": "2026-10-28T03:01:21.560557+00:00",
+      "pending_runs": 126,
+      "scope": "full-200",
+      "target_runs": 200,
       "admission_threshold": 0.65,
-      "outside_scope_runs": 140,
-      "missing_target_runs": 0,
-      "recorded_runs": 60,
-      "valid_runs": 40,
-      "abstentions": 20,
-      "missing_runs": 140,
-      "input_tokens": 3136091,
-      "output_tokens": 4024,
-      "list_price_usd": 6.312422,
+      "outside_scope_runs": 0,
+      "missing_target_runs": 126,
+      "recorded_runs": 74,
+      "valid_runs": 51,
+      "abstentions": 23,
+      "missing_runs": 126,
+      "input_tokens": 4928628,
+      "output_tokens": 5089,
+      "list_price_usd": 9.908146,
       "marginal_usd": 0,
       "errors": {
-        "valid": 40,
-        "RouteError": 20
-      },
-      "reason": "all scoped runs attempted; one or more transport/schema/context abstentions"
+        "valid": 51,
+        "RouteError": 23
+      }
     },
     "anthropic/claude-opus-5-5": {
       "status": "partial",
-      "last_batch_at": "2026-10-28T00:06:17.665440+00:00",
-      "last_batch_runs": 1,
-      "last_batch_latency_s": 4.053,
-      "last_usage": {
-        "at": "2026-10-28T00:06:13.612610+00:00",
-        "provider": "anthropic",
-        "fetched_at_ms": 1793145972887,
-        "limits": [
-          {
-            "id": "anthropic:5h",
-            "used_fraction": 0.23,
-            "resets_at_ms": 1793163600000
-          },
-          {
-            "id": "anthropic:7d",
-            "used_fraction": 0.41,
-            "resets_at_ms": 1793584800000
-          }
-        ],
-        "maximum_fraction": 0.41
-      },
-      "pending_runs": 0,
-      "scope": "prefix-60",
-      "target_runs": 60,
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "stopped_at": "2026-10-28T03:01:24.754627+00:00",
+      "pending_runs": 126,
+      "scope": "full-200",
+      "target_runs": 200,
       "admission_threshold": 0.65,
-      "outside_scope_runs": 140,
-      "missing_target_runs": 0,
-      "recorded_runs": 60,
-      "valid_runs": 37,
-      "abstentions": 23,
-      "missing_runs": 140,
-      "input_tokens": 2499565,
-      "output_tokens": 3937,
-      "list_price_usd": 10.077,
+      "outside_scope_runs": 0,
+      "missing_target_runs": 126,
+      "recorded_runs": 74,
+      "valid_runs": 48,
+      "abstentions": 26,
+      "missing_runs": 126,
+      "input_tokens": 4292088,
+      "output_tokens": 5505,
+      "list_price_usd": 17.278452,
       "marginal_usd": 0,
       "errors": {
-        "valid": 37,
-        "RouteError": 23
-      },
-      "reason": "all scoped runs attempted; one or more transport/schema/context abstentions"
+        "valid": 48,
+        "RouteError": 26
+      }
     },
     "openai-codex/gpt-6-luna": {
       "status": "partial",
@@ -132,5 +92,14 @@
     "xai-oauth/grok-4.3": "weekly quota exhausted until 2026-10-30 14:10 ET; no call",
     "laminar/flow-1": "paid Signals approved but not funded; no call"
   },
-  "finished_at": "2026-10-28T00:06:17.902740+00:00"
+  "finished_at": "2026-10-28T03:01:25.166499+00:00",
+  "financial_basis_receipt": "luna-financial-basis.json",
+  "financial_annotation": {
+    "at": "2026-10-28T04:45:17.203370+00:00",
+    "route": "openai-codex/gpt-6-luna",
+    "original_marginal_usd_field": "runner/client-reported0, not verified provider billing",
+    "provider_billed_usd": null,
+    "verified_marginal_usd": null,
+    "original_model_measurements_preserved": true
+  }
 }

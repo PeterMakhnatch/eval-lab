@@ -230,8 +230,6 @@ def prepare(data: dict) -> None:
     excluded = [item for item in sample if item["source"] == "cheatbench-actions-v1"]
     if len(eligible) != 150 or len(excluded) != 50:
         raise ValueError("frozen sample storage partition differs")
-    sys.path.insert(0, str(REPO / "research/explorations/trace-lab/docent"))
-    from export_harbor import secret_hits
 
     payloads, manifest = [], []
     for item in eligible:
@@ -244,7 +242,7 @@ def prepare(data: dict) -> None:
             "role": "user", "content": text, "metadata": {}})])
         payload = AgentRun(name=name, description=None, metadata={}, transcripts=[transcript])
         encoded = payload.model_dump(mode="json")
-        hits = secret_hits(encoded)
+        hits = shared.run_secret_hits(run) + shared.secret_hits(encoded)
         entry = {"run_id": item["run_id"], "source": item["source"], "opaque_id": name,
                  "text_bytes": len(text.encode()), "text_chars": len(text),
                  "steps": run["step_ids"], "secret_hits": len(hits),
@@ -261,7 +259,7 @@ def prepare(data: dict) -> None:
                 text_bytes=sum(row["text_bytes"] for row in manifest),
                 steps=sum(len(row["steps"]) for row in manifest),
                 secret_rejected_runs=sum(row["status"] != "ready" for row in manifest),
-                secret_scan="existing export_harbor.secret_hits, conservative rejection; no content edits",
+                secret_scan="pinned canonical recursive-JSON secret gate; conservative rejection; no content edits",
                 upload_candidates=len(payloads))
     checkpoint(data)
 
@@ -304,10 +302,8 @@ def upload(data: dict) -> None:
     missing = expected - set(names)
     if missing:
         payloads = load(PRIVATE / "payloads.json")
-        sys.path.insert(0, str(REPO / "research/explorations/trace-lab/docent"))
-        from export_harbor import secret_hits
 
-        if secret_hits(payloads):
+        if common().secret_hits(payloads):
             raise ValueError("final pre-ingest secret scan failed")
         models = []
         for payload in payloads:
@@ -544,6 +540,8 @@ def run_arm(data: dict, arm: dict) -> None:
         run_id = row["run_id"]
         if row["status"] != "ready":
             conclusions[run_id] = {"reason": "secret_scan_rejected", "chunked": False, "chunks": 0}
+        elif shared.run_secret_hits(shared.load_run({"run_id": run_id, "source": row["source"]})):
+            conclusions[run_id] = {"reason": "privacy_scan_rejected", "chunked": False, "chunks": 0}
         elif row["text_bytes"] + len(prompt().encode()) <= budget:
             direct.append({"run_id": run_id, "ref_id": uploads[row["opaque_id"]]})
         else:

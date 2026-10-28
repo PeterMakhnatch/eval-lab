@@ -88,6 +88,8 @@ def refresh_usage(provider: str) -> dict[str, Any]:
             if isinstance(fraction, (int, float)):
                 limits.append({"id": limit.get("id"), "used_fraction": fraction,
                                "resets_at_ms": (limit.get("window") or {}).get("resetsAt")})
+    if provider == "anthropic" and not {"anthropic:5h", "anthropic:7d"}.issubset(row["id"] for row in limits):
+        raise RouteError("anthropic: both five-hour and weekly quota windows are required; fail closed")
     snapshot = {"at": now(), "provider": provider, "fetched_at_ms": fetched_at, "limits": limits,
                 "maximum_fraction": max((row["used_fraction"] for row in limits), default=None)}
     with (PRIVATE / "usage.jsonl").open("a") as handle:
@@ -217,7 +219,7 @@ def bounded_chunks(run: dict[str, Any], route: str, folder: Path) -> list[str]:
 
 
 def read_one(item: dict[str, str], route: str) -> dict[str, Any]:
-    from common import validate_form
+    from common import run_secret_hits, validate_form
 
     opaque = "run-" + hashlib.sha256(("trace-tools/v1:" + item["run_id"]).encode()).hexdigest()[:24]
     folder = PRIVATE / route.replace("/", "--") / opaque
@@ -228,6 +230,8 @@ def read_one(item: dict[str, str], route: str) -> dict[str, Any]:
     reason = None
     try:
         run = load_run(item)
+        if run_secret_hits(run):
+            raise RouteError("privacy_scan_rejected: canonical secret-pattern gate; no actor content transmitted")
         chunks = bounded_chunks(run, route, folder)
         chunk_count = len(chunks)
         if len(chunks) > 1:
@@ -357,6 +361,11 @@ def main() -> None:
         done = {row["run_id"] for row in read_jsonl(RESULTS)
                 if row.get("tool") == "omp" and row.get("detector") == f"tt7_form:{route}"}
         pending[route] = [item for item in sample if item["run_id"] not in done]
+    finalized_path = OUT / "readings-finalized.json"
+    if any(pending.values()) and finalized_path.exists():
+        finalized = json.loads(finalized_path.read_text())
+        finalized.update(finalized=False, continuation_started_at=now())
+        dump(finalized_path, finalized)
     while any(pending.values()):
         for route in args.routes:
             if not pending[route]:

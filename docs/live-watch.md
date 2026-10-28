@@ -1627,6 +1627,30 @@ and confidence intervals only: the browser derives every recall, false-alarm rat
 run, so the page never computes a score the producers did not record. Nothing is ranked, no
 label is joined, and `split` other than `dev` is refused.
 
+#### Task Evidence (`/api/cloud-db/task-evidence`)
+
+The **Task Evidence** tab answers "what is known about this task" in one view. `GET
+/api/cloud-db/task-evidence?task_id=` (always `split=dev`; any other split is refused with
+400, a task the registry does not admit with 404) returns `evallab.task_evidence/v1`:
+
+- `task` and `summary` — identity, grader digests (never the instruction text) and counts.
+- `runs[]` — every admitted run of the task (at most 100, most suspicious atlas facet first)
+  with its facet, cluster paths and, per whole-run trace tool, the detectors that flagged it
+  and how many read clean or abstained. A run with no tool result has `tools: {}`: no result
+  is not a clean result.
+- `issues[]`, `qa_findings[]`, `seeker[]`, `repairs[]` — the retained `task_issues` rows
+  without reproducers, and the journal's `qa.finding/v1`, blocked, seeker
+  (grader feedback, confirmed differentials, worker completion) and qualified-repair events.
+  Every record is bounded text and counts; exploit files and failure memory are never copied.
+- `commands[]` — copyable `curl`, `evallab task` and blinded `evallab prod export-runs
+  --format atif` commands, each with what it needs; ids are shell-quoted.
+
+`GET /api/cloud-db/task-evidence/search?q=` lists admitted DEV task ids containing the text
+(at least two characters, literal match, at most 25). The journal is read incrementally
+through `ContinuousWorkQueue.read_events_of_types`, and `trace-tools/results-v1.jsonl` only
+when the file changes. The page keeps the task in its address (`#task?task_id=`) and the
+Run Atlas run detail links to it. Nothing here calls a model, joins a label or writes.
+
 ### Production supervisor
 
 `evallab.production.ProductionSupervisor` is the thin orchestration layer that

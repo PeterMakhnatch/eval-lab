@@ -872,6 +872,24 @@ class ContinuousWorkQueue:
         """Read one run in global sequence order using the run/sequence index."""
         return self.read_events(after_seq=after_seq, limit=limit, run_id=_text(run_id, "run_id"))
 
+    def read_events_of_types(
+        self, event_types: Sequence[str], *, after_seq: int = 0, limit: int = 500
+    ) -> list[dict[str, Any]]:
+        """Read only the named event types in global sequence order (read-only, bounded)."""
+        self._limit(limit)
+        if type(after_seq) is not int or after_seq < 0:
+            raise ValueError("after_seq must be a non-negative integer")
+        if isinstance(event_types, str) or not event_types:
+            raise ValueError("event_types must be a non-empty sequence")
+        placeholders = ",".join("?" for _ in event_types)
+        with self._transaction():
+            rows = self._execute(
+                f"SELECT envelope FROM events WHERE seq > ? AND event_type IN ({placeholders})"
+                " ORDER BY seq LIMIT ?",
+                (after_seq, *event_types, limit),
+            ).fetchall()
+            return [json.loads(row[0]) for row in rows]
+
     def read_consumer(self, consumer_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         _text(consumer_id, "consumer_id")
         self._limit(limit)

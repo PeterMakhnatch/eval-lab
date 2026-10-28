@@ -1218,7 +1218,7 @@ function crosstestRow(entry){
  licence.append(node('strong',entry.licence.text),node('small','Redistributable: '+(entry.licence.redistributable?'yes':'no')),node('small','Hosted model API for evaluation: '+entry.hosted_model_api.split('_').join(' ')));
  const adapter=node('div',undefined,'task-lines');
  adapter.append(badge(entry.adapter.merge_state,entry.adapter.merge_state==='merged'?'blue':'warn'),
-  entry.adapter.pr?crosstestLink('PR #'+entry.adapter.pr,entry.adapter.pr_url):node('small','No PR recorded'),node('small',entry.status));
+  entry.adapter.pr?crosstestLink('PR #'+entry.adapter.pr,entry.adapter.pr_url):node('small','No PR recorded'),node('small',entry.status||''));
  return [id,entry.label_type,details,scoring,licence,rights,adapter];
 }
 function renderCrosstest(data){

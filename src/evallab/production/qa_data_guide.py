@@ -23,6 +23,9 @@ is then true; `matched` is the full count). File viewers may clip long lines: ad
 and tokens_est describe the compact form, so pretty text is about 30 percent larger. The database's own
 split='dev' is NOT admission; this tool applies the strict cross-key check.
 No call makes a model call, runs a grader, writes the store or the repository.
+Options go after the call name and every store-reading call takes them: `--cloud-database PATH` (default: the live
+store; give a `sqlite3 ... ".backup"` copy) and `--budget N`, e.g. `uv run evallab qa-data traces --task cad-model
+--cloud-database /private/tmp/me/copy.sqlite`. The list-size count `matched` is in `data`, not `meta`.
 
 IDS
   run key          trace_id  (the `run_id` field of facet records is the same value; agent_traces.run_id is a batch id)
@@ -40,6 +43,9 @@ CALLS (all JSON; examples use real flags)
        inventory --ids-out /private/tmp/me/ids.txt        also write every admitted trace id (file must not exist)
   traces [--task T] [--dataset D] [--model M] [--outcome pass|fail|unknown] [--limit N] [--ids-only]
        list admitted runs, faceted or not (task/dataset/model are shown; never hand these records to blind readers)
+       --model is the id as stored, with its prefix (`source-reported:moonshotai/Kimi-K3`; copy it from `inventory`
+       models): a name that matches nothing is matched 0, not an error. --ids-only gives data.traces[] = ids: save
+       them with `... | jq -r '.data.traces[]' > ids.txt` for `export --ids-file`.
        traces --task cad-model              -> matched, runs of terminal-bench/cad-model (matched: 0 says none exist)
   runs [--facet K=V[,V] ...] [--cluster ID] [--like TRACE_ID] [--query WORDS] [--task T] [--limit N]
        search FACETED runs. Records carry no dataset, split, source or model field, but task_id and run_id strings
@@ -52,6 +58,11 @@ CALLS (all JSON; examples use real flags)
        runs --facet answer_material_accessed=true          most suspicious first; `matched` is the full count
        (--cluster uses the STORED db clusters, `clusters` default view; ids from `clusters --source file` can differ)
        runs --task cad-model --facet tests=modified,deleted,replaced
+       --like TRACE_ID ranks OTHER runs by similarity: it never returns that run. runs has no --ids-only (use
+       jq '.data.runs[].run_id'). No call looks one run up by id alone: for ONE run's facet record take its task_id
+       (`traces --dataset D --model M` lists it per run; that list is cut by --budget, so a model with 1,234 runs needs
+       --limit 2000 --budget 200000), run `runs --task TASK_ID` and pick the record by run_id;
+       its trace-tool readers are `findings --run TRACE_ID` (one row per reader and detector).
   window RUN_ID [--first N --last M | --around N --radius R]    steps of one run, original step ids
        (recorded text as stored: replay-receipt steps of MiMo/TB4 native runs contain their replay "reward";
        for a blind reader use `export`, not window)
@@ -62,7 +73,7 @@ CALLS (all JSON; examples use real flags)
        clusters --source file --level 1                   largest first (admitted_members), with the build id
        clusters --source file --members L1-02   cloud_run_ids, registry_only_dev_ids and their counts
        Equal sizes tie (report all tied clusters). To count a facet over a cluster, intersect cloud_run_ids with
-       `runs --facet ... --limit 200` ids (or use `export`/`window` on single runs).
+       the run_id of each record of `runs --facet ... --limit 200` (or use `export`/`window` on single runs).
   recount                            facets: interim JSONL vs the database over admitted runs (sha256, counts). It counts
        the same runs as `runs`/`export --facet` (admitted tasks, facets that name no sealed identity: 1,234).
   findings [--run TRACE_ID | --task T] [--limit N]
@@ -79,7 +90,8 @@ CALLS (all JSON; examples use real flags)
        issues[] + issues_total (retained issues, no reproducers; status as stored: confirmed, provisional,
        refuted); runs{total, faceted, suspicion_ge_2, list[]}. A file that is
        not in the chosen package says so: check the other --kind. `task vpp-loss-divergence --file tests/test.sh`
-       returns that file's text. Never run package code from here.
+       returns that file's text (with the default --budget 4000 a long instruction or file is cut: use --budget 8000).
+       Never run package code from here.
   split task TASK_ID | split item KEY_ID ITEM_ID
        data is {"split": "DEV"} for an admitted DEV id and nothing else. Any other id (TEST, held out, sealed, locked
        under another key, unknown) gets the same refusal as `task`: split is not a way to ask what an id is.
@@ -87,12 +99,15 @@ CALLS (all JSON; examples use real flags)
   export (--facet K=V[,V] ... | --trace-id ID ... | --ids-file FILE) [--limit N] [--format atif|harbor|scout] --out DIR
        blinded export of admitted runs. DIR and DIR.sealed-manifest.json (written beside it) must not exist. Any
        non-admitted id fails the whole call and exports nothing. Prints a receipt (admitted, exported, refused) and, per
-       run, trace_id, blind_id, actor_inputs_available (false = no model actor behind the run, e.g. replay receipts
-       and event journals: unknown, never clean) and the file; for atif also steps, evidence_steps_original and evidence_steps_blinded
+       run (in `runs` order, most suspicious first), trace_id, blind_id, actor_inputs_available (false = no model actor behind the run, e.g. replay receipts
+       and event journals: unknown, never clean: a separate bucket, in neither the clean nor the bad count) and the file; for atif also steps, evidence_steps_original and evidence_steps_blinded
        (same steps in the export's numbering; null = not exported). harbor and scout give no step map.
        atif: DIR/run-<32hex>.json  (jq '.steps[] | select(.step_id==3)': keys step_id, source, message, observation)
        harbor: DIR/run-<hex>/agent/trajectory.json + result.json (reward null)   scout: DIR/transcripts.jsonl
        Hand readers only the exported files. The sealed manifest holds trace ids (they name the dataset) and rewards.
+       The per-run list is cut by --budget like any list: 47 of 91 runs at the default 4000 (meta.omitted_items says
+       how many); the receipt's `exported` is always complete, and --budget 8000 lists all 91. Count
+       actor_inputs_available over a cohort from a full list, not a cut one.
        export --facet answer_material_accessed=true --limit 5 --out /private/tmp/me/ex1
        export any runs: pick ids with `traces --dataset D --limit 3 --ids-only`, then --trace-id each (or --ids-file).
   steps MANIFEST TRACE [--original N | --blinded N]

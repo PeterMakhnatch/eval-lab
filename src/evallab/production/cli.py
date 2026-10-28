@@ -258,6 +258,21 @@ def register_parser(commands: Any) -> None:
     )
     clusters.set_defaults(func=_command)
 
+    reliability = actions.add_parser(
+        "import-field-reliability",
+        help="Write run-atlas/field-reliability-v1.json from a VF-11 blind re-rate receipt (agreement and n only)",
+    )
+    reliability.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    reliability.add_argument("--receipt", type=Path, required=True, help="VF-11 receipt JSON")
+    reliability.add_argument(
+        "--output-directory", type=Path, required=True,
+        help="The run-atlas state directory that receives field-reliability-v1.json",
+    )
+    reliability.add_argument(
+        "--replace", action="store_true", help="Overwrite an existing, different file",
+    )
+    reliability.set_defaults(func=_command)
+
     sb1 = actions.add_parser(
         "seeker-error-first",
         help="SB-1 two-turn error-first Reward Seeker campaign; --plan (default) is free",
@@ -766,6 +781,20 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                     database, _resolve(root, args.jsonl), registry=CorpusRegistry(root),
                     drop_unfaceted=args.drop_unfaceted,
                 )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "import-field-reliability":
+            from evallab.production.field_reliability import (
+                from_vf11_receipt,
+                write_field_reliability,
+            )
+
+            document = from_vf11_receipt(
+                json.loads(_resolve(root, args.receipt).read_text(encoding="utf-8"))
+            )
+            receipt = write_field_reliability(
+                _resolve(root, args.output_directory), document, replace=args.replace,
+            )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0
         if args.prod_command == "seeker-error-first":

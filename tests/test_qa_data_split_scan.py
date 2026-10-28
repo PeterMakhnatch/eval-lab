@@ -1,16 +1,18 @@
-"""``qa-data split`` answers one word from the ledger authority; ``qa-data scan`` fails closed without a runtime."""
+"""The ledger-side split lookup answers one word; ``qa-data scan`` fails closed without a runtime and never reports a size."""
 
 from __future__ import annotations
 
 import hashlib
 import importlib.util
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-from evallab.production import qa_data_scan, qa_data_split
+from evallab.production import ledger_split, qa_data_scan, qa_data_split
+from evallab.production.cloud_trace_db import CloudTraceDatabase, CloudTraceRetriever
 from evallab.production.corpus_queue import CorpusRegistry, _identity
-from evallab.production.qa_data import Budget, QaDataError, estimate_tokens
+from evallab.production.qa_data import UNAVAILABLE, Budget, QaContext, QaDataError, estimate_tokens
 
 KEY, OTHER = "synthetic-key", "other-key"
 LEDGER_TEXT = (
@@ -56,7 +58,7 @@ def root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     ledger = tmp_path / "research/answer-keys/splits/assignments.csv"
     ledger.parent.mkdir(parents=True)
     ledger.write_text(LEDGER_TEXT, encoding="utf-8")
-    monkeypatch.setattr(qa_data_split, "CorpusRegistry", lambda _root: LedgerRegistry())
+    monkeypatch.setattr(ledger_split, "CorpusRegistry", lambda _root: LedgerRegistry())
     return tmp_path
 
 
@@ -68,7 +70,7 @@ def root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     ("suite/never-seen", "UNKNOWN"),
 ])
 def test_task_split_is_one_word_and_test_wins_over_a_dev_label(root: Path, task: str, expected: str) -> None:
-    assert qa_data_split.split(root, "task", [task]) == {"split": expected}
+    assert ledger_split.split(root, "task", [task]) == {"split": expected}
 
 
 @pytest.mark.parametrize(("key", "item", "expected"), [
@@ -76,16 +78,16 @@ def test_task_split_is_one_word_and_test_wins_over_a_dev_label(root: Path, task:
     (KEY, "item-test", "TEST"), (KEY, "item-locked", "TEST"), (KEY, "unregistered-item", "UNKNOWN"),
 ])
 def test_item_split_uses_the_pair_and_any_key_lock(root: Path, key: str, item: str, expected: str) -> None:
-    assert qa_data_split.split(root, "item", [key, item]) == {"split": expected}
+    assert ledger_split.split(root, "item", [key, item]) == {"split": expected}
 
 
-def test_split_never_returns_ledger_labels_and_refuses_bad_usage(root: Path, tmp_path: Path) -> None:
-    answer = qa_data_split.split(root, "item", [KEY, "item-test"])
+def test_ledger_split_never_returns_ledger_labels_and_refuses_bad_usage(root: Path, tmp_path: Path) -> None:
+    answer = ledger_split.split(root, "item", [KEY, "item-test"])
     assert "SECRET" not in repr(answer) and set(answer) == {"split"}
     for mode, ids in (("task", []), ("task", ["a", "b"]), ("item", ["only-one"])):
-        with pytest.raises(QaDataError, match="usage"):
-            qa_data_split.split(root, mode, ids)
-    assert qa_data_split.split(tmp_path / "elsewhere", "task", ["suite/dev-task"]) == {"split": "UNKNOWN"}
+        with pytest.raises(ValueError, match="usage"):
+            ledger_split.split(root, mode, ids)
+    assert ledger_split.split(tmp_path / "elsewhere", "task", ["suite/dev-task"]) == {"split": "UNKNOWN"}
 
 
 def test_scan_refuses_unknown_scanners_missing_files_and_a_missing_runtime(
@@ -95,7 +97,7 @@ def test_scan_refuses_unknown_scanners_missing_files_and_a_missing_runtime(
     transcripts.write_text("{}\n", encoding="utf-8")
     with pytest.raises(QaDataError, match="unknown scanner"):
         qa_data_scan.scan(transcripts, ["rule_not_a_text_scanner"], Budget(1000))
-    with pytest.raises(QaDataError, match="not a file"):
+    with pytest.raises(QaDataError, match="pass the transcripts.jsonl"):
         qa_data_scan.scan(tmp_path / "missing.jsonl", None, Budget(1000))
     if importlib.util.find_spec("inspect_scout") is None:
         monkeypatch.setattr(qa_data_scan, "RUNTIME", tmp_path / "no-runtime")
@@ -126,3 +128,43 @@ def test_scan_reply_with_its_fixed_fields_never_exceeds_the_budget(limit: int) -
     fitted = qa_data_scan._fit({"transcripts": 53, "rows": rows, "inspect_scout": "0.5.4", "model_calls": 0}, budget)
     assert estimate_tokens(fitted) <= limit - 120
     assert len(fitted["rows"]) + fitted["omitted_rows"] == 212 and fitted["model_calls"] == 0
+
+
+@pytest.fixture
+def ctx(root: Path, tmp_path: Path) -> Iterator[QaContext]:
+    registry = LedgerRegistry()
+    with CloudTraceDatabase(tmp_path / "qa.sqlite", sqlite_fts=False) as db:
+        for task_id in ("suite/dev-task", "suite/test-task", "suite/locked-task"):
+            db.upsert_task({
+                "task_id": task_id, "dataset_id": "suite", "split": "dev", "instruction_text": "Repair output",
+            })
+        yield QaContext(
+            database=db, retriever=CloudTraceRetriever(db, registry=registry),
+            repo_root=root, state_dir=tmp_path / "state", budget=Budget(10_000),
+        )
+
+
+@pytest.mark.parametrize("ids", [
+    ("task", ["suite/dev-task"]), ("task", ["dev-task"]), ("item", [KEY, "item-dev"]),
+    ("item", [KEY.upper(), " ITEM-DEV "]),
+])
+def test_qa_data_split_confirms_only_admitted_dev_ids(ctx: QaContext, ids: tuple[str, list[str]]) -> None:
+    assert qa_data_split.split(ctx, *ids) == {"split": "DEV"}
+
+
+@pytest.mark.parametrize("ids", [
+    ("task", ["suite/test-task"]), ("task", ["suite/locked-task"]),  # TEST; DEV under one key, TEST under another
+    ("task", ["suite/sealed-task"]), ("task", ["never-seen"]),
+    ("item", [KEY, "item-test"]), ("item", [KEY, "item-locked"]), ("item", [KEY, "unregistered-item"]),
+    ("item", ["no-such-key", "item-dev"]),
+])
+def test_qa_data_split_gives_every_other_id_the_one_refusal(ctx: QaContext, ids: tuple[str, list[str]]) -> None:
+    with pytest.raises(QaDataError) as error:
+        qa_data_split.split(ctx, *ids)
+    assert str(error.value) == UNAVAILABLE
+
+
+def test_qa_data_split_usage_error_does_not_depend_on_the_ids(ctx: QaContext) -> None:
+    for mode, ids in (("task", []), ("task", ["a", "b"]), ("item", ["only-one"])):
+        with pytest.raises(QaDataError, match="usage"):
+            qa_data_split.split(ctx, mode, ids)

@@ -238,9 +238,10 @@ def build_rows(
         else:
             state = "alarm" if any(s == "alarm" for s in states) else "clear"
         scores = [_score_of(record) for record in records]
+        known = [score for score in scores if score is not None]
         rows.append(Row(
             run_id, labels.positive.get(run_id), records, state,
-            None if state in EXCLUDED_REASONS or None in scores else tuple(scores),  # type: ignore[arg-type]
+            None if state in EXCLUDED_REASONS or len(known) != len(scores) else tuple(known),
         ))
     return rows
 
@@ -292,22 +293,22 @@ def coverage(rows: Sequence[Row]) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 
 
-def _labelled_scored(rows: Sequence[Row]) -> list[Row]:
-    return [row for row in rows if row.scores is not None and row.label is not None]
+def _labelled_scored(rows: Sequence[Row]) -> list[tuple[Row, tuple[float, ...]]]:
+    return [(row, row.scores) for row in rows if row.scores is not None and row.label is not None]
 
 
-def _candidates(rows: Sequence[Row], member: int) -> list[tuple[float, int]]:
+def _candidates(scores: Sequence[tuple[float, ...]], member: int) -> list[tuple[float, int]]:
     """(threshold, bitmask of rows with score >= threshold), most conservative first.
 
     The first entry is ``inf``: this member never alarms.
     """
-    order = sorted(range(len(rows)), key=lambda i: -rows[i].scores[member])  # type: ignore[index]
+    order = sorted(range(len(scores)), key=lambda i: -scores[i][member])
     candidates: list[tuple[float, int]] = [(math.inf, 0)]
     mask = 0
     position = 0
     while position < len(order):
-        value = rows[order[position]].scores[member]  # type: ignore[index]
-        while position < len(order) and rows[order[position]].scores[member] == value:  # type: ignore[index]
+        value = scores[order[position]][member]
+        while position < len(order) and scores[order[position]][member] == value:
             mask |= 1 << order[position]
             position += 1
         candidates.append((value, mask))
@@ -322,15 +323,16 @@ def select_thresholds(rows: Sequence[Row], mode: str, members: int, budget: floa
     thresholds (OR/AND of the member predictions).
     """
     usable = _labelled_scored(rows)
-    negatives = sum(row.label is False for row in usable)
-    positives = sum(row.label is True for row in usable)
+    negatives = sum(row.label is False for row, _ in usable)
+    positives = sum(row.label is True for row, _ in usable)
     if not negatives:
         return {"status": "n/a", "reason": "no negatives to calibrate FAR on"}
     if not positives:
         return {"status": "n/a", "reason": "no positives to calibrate recall on"}
-    pos_mask = sum(1 << i for i, row in enumerate(usable) if row.label is True)
-    neg_mask = sum(1 << i for i, row in enumerate(usable) if row.label is False)
-    grids = [_candidates(usable, member) for member in range(members)]
+    pos_mask = sum(1 << i for i, (row, _) in enumerate(usable) if row.label is True)
+    neg_mask = sum(1 << i for i, (row, _) in enumerate(usable) if row.label is False)
+    scores = [row_scores for _, row_scores in usable]
+    grids = [_candidates(scores, member) for member in range(members)]
     size = math.prod(len(grid) for grid in grids)
     if size > MAX_GRID:
         return {"status": "n/a", "reason": f"joint threshold grid too large ({size} > {MAX_GRID})"}
@@ -361,8 +363,8 @@ def apply_thresholds(rows: Sequence[Row], mode: str, thresholds: Sequence[float 
     limits = [math.inf if t is None else t for t in thresholds]
     combine = all if mode == "and" else any
     tp = fp = positives = negatives = 0
-    for row in usable:
-        predicted = combine(score >= limit for score, limit in zip(row.scores, limits, strict=True))  # type: ignore[arg-type]
+    for row, scores in usable:
+        predicted = combine(score >= limit for score, limit in zip(scores, limits, strict=True))
         if row.label is True:
             positives += 1
             tp += predicted

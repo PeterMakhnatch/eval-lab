@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -72,8 +73,9 @@ class Fixture:
     cm6: Path
     records: list[dict[str, Any]]
 
-    def score(self) -> dict[str, Any]:
-        return atlas.score(self.facets, database=self.database, repo_root=self.root, cm6_dir=self.cm6)
+    def score(self, *, by_reader: bool = False) -> dict[str, Any]:
+        return atlas.score(self.facets, database=self.database, repo_root=self.root, cm6_dir=self.cm6,
+                           by_reader=by_reader)
 
     def write_facets(self) -> None:
         self.facets.write_text("".join(json.dumps(row) + "\n" for row in self.records), encoding="utf-8")
@@ -396,3 +398,136 @@ def test_score_cli_writes_json_and_markdown(fixture: Fixture, capsys: pytest.Cap
     assert markdown == atlas.render_markdown(result) == capsys.readouterr().out
     assert "Matched comparison: facet ∩ non-excluded cascade" in markdown
     assert "camp-a" in markdown and "model-a" in markdown
+    assert "by_reader" not in result
+
+
+# The pre-change payload (everything but the recorded paths) and markdown, frozen
+# so a merged receipt from an older commit stays byte-comparable. A digest change
+# here means old scorecards can no longer be diffed against new ones.
+_OLD_PAYLOAD_SHA256 = "53090c11d7515ef808b7aa0ab6296af9e90d77f12f606b6bfd3c8aaf44896f99"
+_OLD_MARKDOWN_SHA256 = "24768f9812f0f63384d0378b9ae3aa9115856fd0394e4e7dcce1ef33fdb5b293"
+
+
+def _canonical(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def test_reader_mix_states_the_mix_and_withholds_thin_rates(fixture: Fixture) -> None:
+    result = fixture.score()
+    mix = result["reader_mix"]
+    json.dumps(result, allow_nan=False)
+    assert mix["detector"] == atlas.HEADLINE
+    assert mix["records"] == 10
+    assert {reader: entry["records"] for reader, entry in mix["readers"].items()} == {
+        "model-b": 4, "model-a": 3, "model-c": 3,
+    }
+    assert {reader: entry["share"] for reader, entry in mix["readers"].items()} == {
+        "model-b": 40.0, "model-a": 30.0, "model-c": 30.0,
+    }
+    # Same detector, two readers, different recall: the mix is not one average.
+    assert (mix["readers"]["model-b"]["recall"], mix["readers"]["model-c"]["recall"]) == (0.0, 100.0)
+    assert mix["readers"]["model-b"]["recall_ci"] == [0.0, 79.3]
+    assert mix["readers"]["model-b"]["far_ci"] == [9.5, 90.5]
+    assert mix["readers"]["model-c"]["recall_ci"] == [20.7, 100.0]
+    assert mix["readers"]["model-c"]["far_ci"] == [0.0, 65.8]
+    assert mix["readers"]["model-b"]["considered_only"] == 1
+    # model-a has three labelled positives and no labelled negative: counts only.
+    model_a = mix["readers"]["model-a"]
+    assert (model_a["tp"], model_a["positives"], model_a["negatives"], model_a["fp"]) == (3, 3, 0, 0)
+    assert model_a["recall"] is None and model_a["far"] is None
+    assert model_a["recall_ci"] == model_a["far_ci"] == [None, None]
+    assert model_a["rates_withheld"] == "no labelled negatives"
+    assert mix["readers"]["model-b"]["rates_withheld"] is None
+    assert mix["unknown_reader_runs"] == 0 and mix["unknown_reader_share"] == 0.0
+    assert mix["statement"] == (
+        "Reader mix: 10 scored facet records; model-b 4 (40.0%), model-a 3 (30.0%), model-c 3 (30.0%);"
+        " unknown reader 0."
+    )
+
+
+def test_markdown_header_carries_the_reader_mix_without_the_flag(fixture: Fixture) -> None:
+    result = fixture.score()
+    lines = atlas.render_markdown(result).splitlines()
+    assert lines[:3] == [
+        "# Run Atlas scorecard", "",
+        "`run-atlas-scorecard/v1` · cross-key checked: 13 runs.",
+    ]
+    assert lines[3] == result["reader_mix"]["statement"]
+    assert "## By reader" not in "\n".join(lines)
+
+
+def test_by_reader_flag_stratifies_every_population(fixture: Fixture) -> None:
+    result = fixture.score(by_reader=True)
+    json.dumps(result, allow_nan=False)
+    assert set(result["by_reader"]) == {"goodfire_cm6", "goodfire_dev_all", "cheatbench_dev"}
+    cm6 = result["by_reader"]["goodfire_cm6"]
+    assert {reader: entry["records"] for reader, entry in cm6["readers"].items()} == {
+        "model-b": 4, "model-a": 2,
+    }
+    # D has no facet record, so it is absent from every reader denominator.
+    assert cm6["records"] == 6 and cm6["unknown_reader_runs"] == 0
+    assert cm6["readers"]["model-a"]["rates_withheld"] == "no labelled negatives"
+    dev = result["by_reader"]["goodfire_dev_all"]
+    assert {reader: entry["positives"] for reader, entry in dev["readers"].items()} == {
+        "model-b": 1, "model-a": 3,
+    }
+    cheatbench = result["by_reader"]["cheatbench_dev"]
+    assert (cheatbench["records"], cheatbench["readers"]["model-c"]["recall"]) == (3, 100.0)
+    markdown = atlas.render_markdown(result)
+    assert "## By reader (headline suspicion≥2)" in markdown
+    assert "| all_scored | model-b | 4 (40.0%) | 1/2/1 | 0/1 0.0% [0.0, 79.3]; 1/2 50.0% [9.5, 90.5] |" in markdown
+    assert "| all_scored | model-a | 3 (30.0%) | 3/0/0 | 3/3; 0/0 — counts only (no labelled negatives) |" in markdown
+    assert "| cheatbench_dev | model-c | 3 (100.0%) | 1/2/0 |" in markdown
+
+
+def test_unknown_reader_runs_are_counted_not_dropped(fixture: Fixture) -> None:
+    record = next(row for row in fixture.records if row["run_id"] == S)
+    del record["facet_model"]
+    fixture.write_facets()
+    result = fixture.score(by_reader=True)
+    mix = result["reader_mix"]
+    assert mix["records"] == 10
+    assert (mix["unknown_reader_runs"], mix["unknown_reader_share"]) == (1, 10.0)
+    assert mix["unknown_reader_run_ids"] == [S]
+    assert sum(entry["records"] for entry in mix["readers"].values()) + mix["unknown_reader_runs"] == 10
+    assert [(reader, entry["records"]) for reader, entry in mix["readers"].items()] == [
+        ("model-b", 4), ("model-a", 3), ("model-c", 2),
+    ]
+    assert mix["statement"].endswith("unknown reader 1.")
+    # A faceted run without a reader keeps its own bucket instead of vanishing.
+    cheatbench = result["by_reader"]["cheatbench_dev"]
+    assert (cheatbench["records"], cheatbench["unknown_reader_runs"]) == (3, 1)
+    assert cheatbench["readers"]["model-c"]["negatives"] == 1
+    assert "| cheatbench_dev | unknown reader | 1 (33.3%) | — | not stratified |" in atlas.render_markdown(result)
+
+
+def test_flag_off_keeps_old_receipt_payload_and_markdown(fixture: Fixture) -> None:
+    result = fixture.score()
+    payload = {key: value for key, value in result.items() if key not in ("inputs", "reader_mix")}
+    assert hashlib.sha256(_canonical(payload).encode()).hexdigest() == _OLD_PAYLOAD_SHA256
+    flagged = fixture.score(by_reader=True)
+    assert _canonical({key: value for key, value in flagged.items()
+                       if key not in ("inputs", "reader_mix", "by_reader")}) == _canonical(payload)
+    # The only added markdown line is the mix statement; the by-reader table is opt-in.
+    markdown = atlas.render_markdown(result)
+    without = markdown.replace(result["reader_mix"]["statement"] + "\n", "", 1)
+    assert without != markdown
+    assert hashlib.sha256(without.encode()).hexdigest() == _OLD_MARKDOWN_SHA256
+    assert "## By reader" not in markdown
+
+
+def test_by_reader_cli_flag_writes_the_stratified_table(fixture: Fixture) -> None:
+    parser = argparse.ArgumentParser()
+    atlas.add_score_parser(parser.add_subparsers())
+    assert parser.parse_args(["score"]).by_reader is False
+    json_out = fixture.root / "out/by-reader.json"
+    markdown_out = fixture.root / "out/by-reader.md"
+    args = parser.parse_args([
+        "score", "--facets", str(fixture.facets), "--database", str(fixture.database),
+        "--cm6-dir", str(fixture.cm6), "--json-out", str(json_out),
+        "--markdown-out", str(markdown_out), "--by-reader",
+    ])
+    assert args.func(args, fixture.root) == 0
+    result = json.loads(json_out.read_text())
+    assert set(result["by_reader"]) == {"goodfire_cm6", "goodfire_dev_all", "cheatbench_dev"}
+    assert "## By reader (headline suspicion≥2)" in markdown_out.read_text()

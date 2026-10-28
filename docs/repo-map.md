@@ -667,7 +667,7 @@ inputs:
   - path: src/evallab/production/live_supervisor.py
     digest: sha256:168841b8673fbd0e7d3bba63131d51d4bca37fb8b9dc913e3dcbae46e1f9817d
   - path: src/evallab/production/live_supervisor_act.py
-    digest: sha256:b0e79b5e94fbb268a28a54dba9ef61f01feef16687c1b2f9b19b18c6c6b0ed2e
+    digest: sha256:7dff56615667c8cfeef58f0003ecc1307a68e7d278983710a387f1a51a7840bd
   - path: src/evallab/production/live_supervisor_cheat.py
     digest: sha256:ab8f583d6e42f7b065a669a7f184e969200c93d3999b17ea3d0fbb2874faf527
   - path: src/evallab/production/live_supervisor_gate.py

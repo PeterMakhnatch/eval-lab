@@ -83,7 +83,7 @@ inputs:
   - path: docs/live-supervisor.md
     digest: sha256:eb69b227df4571147b88cd90c856684bf3322d1d81839d5deadccc82f53c2aff
   - path: docs/live-watch.md
-    digest: sha256:9df8b32e34632348d7fe4df9149ee62f4c9784a490026be08d894b21207548df
+    digest: sha256:bf105653b50ddaa0776e334e36c546e5809436bab200d4d78c588ba58ebb7068
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
@@ -131,11 +131,11 @@ inputs:
   - path: docs/rollout.md
     digest: sha256:478b97b1ff840eb80549057203e5626209a4475c14c69aac9caf04fcf6298daf
   - path: docs/run-atlas.md
-    digest: sha256:2e2e537737632f6446d08068e497eedd89de50d7f42fb7963933b7bfcace8b8f
+    digest: sha256:d0c085f8030ec4c15af612f83e8dd621d00c71f3d44c2527bcd4ddffdb4f604b
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/run-health.md
-    digest: sha256:bb8263d8023b2695b6cea728403af401b9655338657690ca092c82f73101b8ea
+    digest: sha256:adcd18564e59ddd3e863d4c638b8b9c28cfc6ba8c3d1037c5e253917c340f66c
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/storm-alarms.md

@@ -100,7 +100,7 @@ class Observation:
     observed_at: datetime
     events: tuple[Event, ...] = ()
     metrics: Mapping[str, Any] = field(default_factory=dict)
-    #: False when there is no actor transcript: a ``continue`` is then ``unknown``, never ``clear``.
+    #: False without an actor transcript: the finding is always ``unknown``.
     actor_inputs_available: bool = True
     #: The subject already finished; it is reported by Run Health, not supervised.
     terminal: bool = False
@@ -238,9 +238,9 @@ def _summary(text: str) -> str:
 
 
 def verdict_for(observation: Observation, decision: Decision) -> str:
-    if decision.action != "continue":
-        return "alarm"
-    return "clear" if observation.actor_inputs_available else "unknown"
+    if not observation.actor_inputs_available:
+        return "unknown"
+    return "alarm" if decision.action != "continue" else "clear"
 
 
 def finding(observation: Observation, hits: Sequence[TriggerHit], decision: Decision, *,
@@ -338,8 +338,9 @@ def scan_once(sources: Sequence[Source], decider: Decider, log: DecisionLog, *, 
               mode: str = "shadow", actuator: Actuator | None = None) -> ScanReport:
     """Observe every source once, decide on triggered subjects and record each decision.
 
-    A failing source is reported and skipped; a failing decider falls back to the rule
-    proposal. Nothing is acted on unless ``mode == "act"`` and an actuator is given.
+    A failing source is reported and skipped. A reader failure alerts research instead
+    of executing an unconfirmed proposal. Action failures remain recorded and do not
+    prevent the remaining subjects from being observed.
     """
     if mode not in MODES:
         raise ValueError(f"mode {mode!r} not in {MODES}")
@@ -355,7 +356,11 @@ def scan_once(sources: Sequence[Source], decider: Decider, log: DecisionLog, *, 
             if observation.terminal:
                 report.terminal += 1
                 continue
-            hits = source.triggers(observation)
+            try:
+                hits = source.triggers(observation)
+            except Exception as exc:  # noqa: BLE001 - isolate one malformed subject
+                report.errors[f"trigger:{source.name}:{observation.subject.id}"] = f"{type(exc).__name__}: {exc}"
+                continue
             if not hits:
                 report.quiet += 1
                 continue
@@ -367,12 +372,18 @@ def scan_once(sources: Sequence[Source], decider: Decider, log: DecisionLog, *, 
                 continue
             try:
                 decision = decider.decide(observation, hits, proposal)
-            except Exception as exc:  # noqa: BLE001 - the rule proposal stands when a reader fails
-                decision = replace(proposal, reason=f"{proposal.reason} (reader failed: {type(exc).__name__})")
+            except Exception as exc:  # noqa: BLE001 - reader failure must never authorize a stop
+                report.errors[f"reader:{subject.kind}:{subject.id}"] = f"{type(exc).__name__}: {exc}"
+                decision = Decision("alert_research", "infra",
+                                    f"reader failed: {type(exc).__name__}; proposed {proposal.action}",
+                                    evidence_steps=proposal.evidence_steps)
             decision = guard(subject, decision)
             acted = False
             if mode == "act" and actuator is not None and decision.action != "continue":
-                acted = actuator.act(observation, decision)
+                try:
+                    acted = actuator.act(observation, decision)
+                except Exception as exc:  # noqa: BLE001 - retain the decision even if the action fails
+                    report.errors[f"action:{subject.kind}:{subject.id}"] = f"{type(exc).__name__}: {exc}"
             record = finding(observation, hits, decision, proposal=proposal, mode=mode, acted=acted,
                              produced_at=now)
             log.append(subject, key, record, now)

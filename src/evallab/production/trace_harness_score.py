@@ -18,6 +18,10 @@ coverage counts; missing is never a negative, and runs whose label is ``None``
 the matched runs where every member has an ``alarm``/``clear`` finding, and are
 reported only when every applicable published single-detector number is
 reproduced (``--force-combos`` overrides).
+
+``--publish [PATH]`` additionally merges one row per scored single identity and per
+reported combination into the ``evallab.trace_scorecard/v1`` document the Harness tab
+reads (default ``<HARNESS_ROOT>/scorecard-v1.json``); see ``publish_scorecard``.
 """
 
 from __future__ import annotations
@@ -26,15 +30,20 @@ import argparse
 import itertools
 import json
 import math
+import os
+import re
+import sys
+import tempfile
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from evallab.production.run_atlas import DEFAULT_DATABASE
 from evallab.production.run_atlas_score import wilson
-from evallab.production.trace_harness import DEFAULT_FINDINGS, FindingStore
+from evallab.production.trace_harness import DEFAULT_FINDINGS, HARNESS_ROOT, FindingStore
 
 if TYPE_CHECKING:
     from evallab.production.trace_harness_corpora import CorpusLabels
@@ -823,6 +832,295 @@ def render_markdown(result: Mapping[str, Any]) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# publishing: the combined scorecard the Harness tab reads
+# --------------------------------------------------------------------------- #
+
+PUBLISH_SCHEMA = "evallab.trace_scorecard/v1"
+DEFAULT_PUBLISH = HARNESS_ROOT / "scorecard-v1.json"
+PUBLISH_BUDGETS = (0.03, 0.05)
+MAX_PUBLISHED_BYTES = 1024 * 1024
+MAX_PUBLISHED_ROWS = 400
+_RULES = {"single": "single", "or": "any", "and": "all"}
+_ROW_REQUIRED = ("corpus", "detectors", "rule", "reader_model", "positives", "negatives", "budgets")
+_ROW_ALLOWED = (*_ROW_REQUIRED, "localization", "cost_usd_per_1k_runs", "latency_ms_median", "published")
+_CORPUS = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,40}$")
+_DETECTOR_NAME = re.compile(r"^[a-z][a-z0-9_]{0,30}(\.[a-z][a-z0-9_]{0,30})?$")
+_PUBLISHED_READER = re.compile(r"^(none|[A-Za-z0-9._-]{1,40}/[A-Za-z0-9][A-Za-z0-9._:+-]{0,79})$")
+_CHECK_ID = re.compile(r"^[A-Za-z0-9 ._:%/,()-]{1,80}$")
+
+
+class PublishRefused(ValueError):
+    """The scorecard would not validate against the Harness tab, or cannot be merged safely."""
+
+
+def published_reader(members: Sequence[Mapping[str, Any]]) -> str:
+    """Reader string of a published row: ``none`` when no member reads with a model.
+
+    One model reader is ``provider/id``. Several model readers (a combination) are joined with
+    ``+`` in member order; the first stays ``provider/id`` and later ones are written
+    ``provider:id``, e.g. ``anthropic/claude-haiku-5-5+kimi-code:k3.1-pro-highspeed``.
+    Deterministic members are omitted.
+    """
+    models = [member["reader"] for member in members if member["reader"]]
+    if not models:
+        return "none"
+    first, *later = models
+    return "+".join([first, *(model.replace("/", ":", 1) for model in later)])
+
+
+def _published_check(unit: Mapping[str, Any], gate: Sequence[Mapping[str, Any]]) -> dict[str, Any] | None:
+    member = unit["members"][0]
+    found = [
+        entry for entry in gate
+        if entry["status"] in ("pass", "fail") and not entry["pooled"]
+        and (entry["detector"], entry["version"], entry["reader"])
+        == (member["detector"], member["version"], member["reader"])
+    ]
+    if not found:
+        return None
+    chosen = next((entry for entry in found if entry["status"] == "fail"), found[0])
+    return {"check": chosen["id"], "reproduced": chosen["status"] == "pass"}
+
+
+def _published_row(
+    corpus: str, unit: Mapping[str, Any], gate: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, Any] | None, str | None]:
+    """(row, None) or (None, why this unit is not published)."""
+    members = unit["members"]
+    names = [member["detector"] for member in members]
+    label = unit["label"]
+    if any(member["reader"] == POOLED for member in members):
+        return None, f"{label}: pooled readers are mixed"
+    if len(set(names)) != len(names):
+        return None, f"{label}: the same detector appears twice"
+    budgets: dict[float, dict[str, Any]] = {}
+    for entry in unit["far_budgets"]:
+        if entry["status"] == "ok" and entry["budget"] in PUBLISH_BUDGETS and entry["budget"] not in budgets:
+            applied = entry["applied"]
+            budgets[entry["budget"]] = {
+                "far_budget": float(entry["budget"]), "hits": applied["tp"], "false_alarms": applied["fp"],
+                "positives": applied["positives"], "negatives": applied["negatives"],
+            }
+    if not budgets:
+        return None, f"{label}: no 3%/5% false-alarm budget available (needs scores and labelled runs)"
+    counts = {(b["positives"], b["negatives"]) for b in budgets.values()}
+    assert len(counts) == 1  # every budget is applied to the same labelled, scored runs
+    positives, negatives = counts.pop()
+    if not negatives:
+        return None, f"{label}: no negatives among the scored runs"
+    loc = unit["localization"]
+    cost = unit["cost"]
+    p50 = cost["latency_ms_p50"]
+    return {
+        "corpus": corpus,
+        "detectors": names,
+        "rule": _RULES[unit["mode"]],
+        "reader_model": published_reader(members),
+        "positives": positives,
+        "negatives": negatives,
+        "budgets": [
+            {key: b[key] for key in ("far_budget", "hits", "false_alarms")}
+            for _, b in sorted(budgets.items())
+        ],
+        "localization": {"hits": loc["exact"]["k"], "scored": loc["records"]} if loc["records"] else None,
+        "cost_usd_per_1k_runs": None if cost["cost_per_1k_usd"] is None else float(cost["cost_per_1k_usd"]),
+        "latency_ms_median": None if p50 is None else int(round(p50)),
+        "published": _published_check(unit, gate) if unit["mode"] == "single" else None,
+    }, None
+
+
+def build_published_rows(result: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
+    """Scorecard rows for one scored corpus and the notes on what was left out.
+
+    A corpus with no negatives is left out entirely: its FAR budgets mean nothing. Combinations
+    the reproduction gate blocked carry no result and are left out unless ``--force-combos``.
+    """
+    corpus = result["corpus"]
+    if not result["cohort_labels"]["negative"]:
+        return [], [f"corpus {corpus!r} has no negatives: FAR budgets are meaningless, nothing published"]
+    units = [*result["detectors"], *(combo["result"] for combo in result["combos"] if "result" in combo)]
+    notes = [f"combo {combo['spec']!r} blocked by the reproduction gate, not published"
+             for combo in result["combos"] if "result" not in combo]
+    rows: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for unit in units:
+        row, why = _published_row(corpus, unit, result["gate"])
+        if row is None:
+            notes.append(f"not published: {why}")
+            continue
+        key = (tuple(row["detectors"]), row["rule"], row["reader_model"])
+        if key in rows and rows[key] != row:
+            raise PublishRefused(
+                f"two scored identities collide as {row['detectors']} {row['rule']} {row['reader_model']!r} "
+                "(they differ only by detector version); pick one with --detectors name@version:reader"
+            )
+        rows[key] = row
+    return list(rows.values()), notes
+
+
+def _is_count(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _row_problem(row: Any) -> str | None:
+    """Local mirror of the Harness tab's ``Row`` model (strict, extra=forbid)."""
+    if not isinstance(row, dict):
+        return "row is not an object"
+    if set(row) - set(_ROW_ALLOWED) or any(key not in row for key in _ROW_REQUIRED):
+        return "row fields differ from the scorecard row"
+    if not (isinstance(row["corpus"], str) and _CORPUS.fullmatch(row["corpus"])):
+        return "corpus name is not a scorecard corpus identifier"
+    names = row["detectors"]
+    if not (
+        isinstance(names, list) and 1 <= len(names) <= 8
+        and all(isinstance(n, str) and _DETECTOR_NAME.fullmatch(n) for n in names)
+    ):
+        return "detector names are not 1-8 detector identifiers"
+    if row["rule"] not in ("single", "any", "majority", "all", "stacked"):
+        return "rule is not a scorecard rule"
+    if (row["rule"] == "single") != (len(names) == 1):
+        return "a single rule names one detector and a combination names several"
+    if len(set(names)) != len(names):
+        return "a detector appears twice in one combination"
+    if not (isinstance(row["reader_model"], str) and _PUBLISHED_READER.fullmatch(row["reader_model"])):
+        return "reader model does not fit the scorecard pattern"
+    if not (_is_count(row["positives"]) and _is_count(row["negatives"])):
+        return "positives/negatives are not counts"
+    budgets = row["budgets"]
+    if not (isinstance(budgets, list) and 1 <= len(budgets) <= 2):
+        return "budgets are not one or two entries"
+    for budget in budgets:
+        if not (isinstance(budget, dict) and set(budget) == {"far_budget", "hits", "false_alarms"}):
+            return "budget fields differ from the scorecard budget"
+        if not (_is_number(budget["far_budget"]) and budget["far_budget"] in PUBLISH_BUDGETS):
+            return "only the fixed 3% and 5% false-alarm budgets are reported"
+        if not (_is_count(budget["hits"]) and _is_count(budget["false_alarms"])):
+            return "budget hits/false alarms are not counts"
+        if budget["hits"] > row["positives"] or budget["false_alarms"] > row["negatives"]:
+            return "hits exceed positives or false alarms exceed negatives"
+    if len({budget["far_budget"] for budget in budgets}) != len(budgets):
+        return "a false-alarm budget appears twice"
+    loc = row.get("localization")
+    if loc is not None and not (
+        isinstance(loc, dict) and set(loc) == {"hits", "scored"}
+        and _is_count(loc["hits"]) and _is_count(loc["scored"]) and loc["hits"] <= loc["scored"]
+    ):
+        return "localization is not hits <= scored counts"
+    cost = row.get("cost_usd_per_1k_runs")
+    if cost is not None and not (_is_number(cost) and cost >= 0):
+        return "cost is not a non-negative number"
+    latency = row.get("latency_ms_median")
+    if latency is not None and not _is_count(latency):
+        return "latency is not a count"
+    published = row.get("published")
+    if published is not None:
+        if row["rule"] != "single":
+            return "only a single detector is checked against a published number"
+        if not (
+            isinstance(published, dict) and set(published) == {"check", "reproduced"}
+            and isinstance(published["check"], str) and _CHECK_ID.fullmatch(published["check"])
+            and isinstance(published["reproduced"], bool)
+        ):
+            return "published check is not {check, reproduced}"
+    return None
+
+
+def scorecard_problem(document: Any) -> str | None:
+    """Why the document would not validate against the Harness tab's ``Scorecard``; None if it would."""
+    if not isinstance(document, dict) or set(document) != {"schema", "generated_at", "rows"}:
+        return "scorecard fields differ from schema/generated_at/rows"
+    if document["schema"] != PUBLISH_SCHEMA:
+        return "wrong scorecard schema"
+    try:
+        moment = datetime.fromisoformat(document["generated_at"])
+    except (TypeError, ValueError):
+        return "generated_at is not an ISO time"
+    if moment.tzinfo is None:
+        return "generated_at names no time zone"
+    rows = document["rows"]
+    if not (isinstance(rows, list) and 1 <= len(rows) <= MAX_PUBLISHED_ROWS):
+        return f"scorecard needs 1-{MAX_PUBLISHED_ROWS} rows"
+    for index, row in enumerate(rows):
+        problem = _row_problem(row)
+        if problem:
+            return f"row {index}: {problem}"
+    identities = [(r["corpus"], tuple(r["detectors"]), r["rule"], r["reader_model"]) for r in rows]
+    if len(set(identities)) != len(identities):
+        return "two rows share a corpus, combination and reader model"
+    return None
+
+
+def _read_scorecard(path: Path) -> list[dict[str, Any]]:
+    try:
+        if path.stat().st_size > MAX_PUBLISHED_BYTES:
+            raise PublishRefused(f"existing scorecard {path} is larger than the Harness tab reads")
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError) as error:
+        raise PublishRefused(
+            f"existing scorecard {path} is unreadable ({type(error).__name__}); not overwritten"
+        ) from error
+    problem = scorecard_problem(document)
+    if problem:
+        raise PublishRefused(f"existing scorecard {path} is invalid ({problem}); not overwritten")
+    return list(document["rows"])
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False,
+    ) as handle:
+        temporary = Path(handle.name)
+        try:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+            os.chmod(temporary, 0o644)
+            os.replace(temporary, path)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
+
+
+def publish_scorecard(
+    result: Mapping[str, Any], path: Path, *, now: datetime | None = None,
+) -> tuple[int, list[str]]:
+    """Merge this corpus's rows into the scorecard at ``path``; (rows written, notes).
+
+    Rows already in the file for other corpora are kept and rows for the scored corpus are
+    replaced. The document is checked against a local mirror of the Harness tab's strict model
+    before anything is written, and replaced atomically (temp file + ``os.replace``). A corpus
+    with no negatives is skipped (0 rows, nothing written). Raises ``PublishRefused`` and
+    writes nothing when the merged document would not validate.
+    """
+    rows, notes = build_published_rows(result)
+    if not rows:
+        if result["cohort_labels"]["negative"]:
+            raise PublishRefused("; ".join(notes) or "no row to publish")
+        return 0, notes
+    corpus = result["corpus"]
+    merged = [row for row in _read_scorecard(path) if row["corpus"] != corpus] + rows
+    document = {
+        "schema": PUBLISH_SCHEMA,
+        "generated_at": (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "rows": merged,
+    }
+    problem = scorecard_problem(document)
+    if problem:
+        raise PublishRefused(f"the scorecard would not validate ({problem}); nothing written")
+    text = json.dumps(document, indent=2, sort_keys=True) + "\n"
+    if len(text.encode("utf-8")) > MAX_PUBLISHED_BYTES:
+        raise PublishRefused("the scorecard would be larger than the Harness tab reads; nothing written")
+    _write_atomic(path, text)
+    return len(rows), notes
+
+
+# --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
 
@@ -865,13 +1163,16 @@ def add_score_parser(actions: Any) -> None:
     parser.add_argument("--markdown-out", type=Path)
     parser.add_argument("--force-combos", action="store_true",
                         help="Report combinations even when a published-number check fails")
+    parser.add_argument(
+        "--publish", nargs="?", const=DEFAULT_PUBLISH, default=None, type=Path, metavar="PATH",
+        help=f"Merge this corpus's rows into the {PUBLISH_SCHEMA} file the Harness tab reads "
+        f"(default {DEFAULT_PUBLISH})",
+    )
     parser.set_defaults(func=_score_command)
 
 
 def _score_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
     del harbor
-    import sys
-
     from evallab.production.trace_harness_corpora import load_corpus_labels
 
     labels = load_corpus_labels(args.corpus, database=args.database, repo_root=root)
@@ -896,4 +1197,15 @@ def _score_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) 
         args.markdown_out.parent.mkdir(parents=True, exist_ok=True)
         args.markdown_out.write_text(markdown, encoding="utf-8")
     print(markdown, end="")
+    if args.publish is None:
+        return 0
+    try:
+        count, notes = publish_scorecard(result, args.publish)
+    except PublishRefused as error:
+        print(f"trace score: --publish refused: {error}", file=sys.stderr)
+        return 2
+    for note in notes:
+        print(f"trace score: --publish: {note}", file=sys.stderr)
+    if count:
+        print(f"trace score: published {count} rows for {result['corpus']!r} to {args.publish}", file=sys.stderr)
     return 0

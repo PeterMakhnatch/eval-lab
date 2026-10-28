@@ -517,3 +517,260 @@ def test_goodfire_facets_check_is_gated_on_the_haiku_identity() -> None:
     other = store(*({**r, "reader_model": "openai/gpt-5-mini"} for r in records.values()))
     assert {e["id"]: e for e in ths.score_corpus(cohort, other)["gate"]}[
         "facets-goodfire-haiku"]["status"] == "not-applicable"
+
+
+# --------------------------------------------------------------------------- #
+# --publish: the combined scorecard the Harness tab reads
+# --------------------------------------------------------------------------- #
+
+KIMI = "kimi-code/k3.1-pro-highspeed"
+
+
+def published_cohort(name: str = "c") -> tuple[FakeLabels, dict[Any, Any]]:
+    """4 positives / 40 negatives; facets (Haiku, scored) and cascade (deterministic, scored)."""
+    cohort = labels(
+        name, {f"p{i}": True for i in range(4)} | {f"n{i}": False for i in range(40)},
+        positive_steps={"p0": frozenset({4}), "p1": frozenset({4})},
+    )
+    records = []
+    for i in range(4):
+        records.append(rec(f"p{i}", "alarm", score=5 - i, steps=((4,) if i == 0 else (9,) if i == 1 else ())))
+        records.append(rec(f"p{i}", "alarm", detector="cascade", reader=None, score=1.0, cost=0.002, latency=250))
+    for i in range(40):
+        records.append(rec(f"n{i}", "clear", score=0.0))
+        records.append(rec(f"n{i}", "clear", detector="cascade", reader=None, score=0.0, cost=0.002, latency=250))
+    return cohort, store(*records)
+
+
+def read_document(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def by_identity(document: dict[str, Any]) -> dict[tuple[str, tuple[str, ...], str, str], dict[str, Any]]:
+    return {
+        (r["corpus"], tuple(r["detectors"]), r["rule"], r["reader_model"]): r for r in document["rows"]
+    }
+
+
+def assert_ui_model_accepts(path: Path) -> None:
+    view = pytest.importorskip("evallab.production.harness_view")
+    view.Scorecard.model_validate(read_document(path))
+
+
+def test_publish_maps_singles_and_combos_to_scorecard_rows(tmp_path: Path) -> None:
+    cohort, records = published_cohort()
+    result = ths.score_corpus(cohort, records, combos=["facets|cascade", "facets&cascade"])
+    target = tmp_path / "scorecard.json"
+    count, notes = ths.publish_scorecard(result, target)
+    assert count == 4 and notes == []
+    document = read_document(target)
+    assert document["schema"] == ths.PUBLISH_SCHEMA
+    assert document["generated_at"].endswith("Z") and set(document) == {"schema", "generated_at", "rows"}
+    rows = by_identity(document)
+    facets = rows[("c", ("facets",), "single", HAIKU)]
+    cascade = rows[("c", ("cascade",), "single", "none")]
+    either = rows[("c", ("facets", "cascade"), "any", HAIKU)]
+    both = rows[("c", ("facets", "cascade"), "all", HAIKU)]
+    assert (facets["positives"], facets["negatives"]) == (4, 40)
+    assert facets["budgets"] == [
+        {"far_budget": 0.03, "hits": 4, "false_alarms": 0}, {"far_budget": 0.05, "hits": 4, "false_alarms": 0},
+    ]
+    assert facets["localization"] == {"hits": 1, "scored": 2} and cascade["localization"] == {"hits": 0, "scored": 2}
+    assert (facets["cost_usd_per_1k_runs"], facets["latency_ms_median"]) == (0.0, None)  # no receipts stored
+    assert (cascade["cost_usd_per_1k_runs"], cascade["latency_ms_median"]) == (2.0, 250)
+    assert either["cost_usd_per_1k_runs"] == both["cost_usd_per_1k_runs"] == 2.0
+    assert facets["published"] is None and either["published"] is None
+    assert all(not (r["rule"] != "single" and r["published"]) for r in rows.values())
+    assert_ui_model_accepts(target)
+
+
+def test_publish_only_the_fixed_budgets_and_requires_one_of_them(tmp_path: Path) -> None:
+    cohort, records = published_cohort()
+    target = tmp_path / "scorecard.json"
+    result = ths.score_corpus(cohort, records, far_budgets=(0.03, 0.1))
+    ths.publish_scorecard(result, target)
+    assert [b["far_budget"] for b in read_document(target)["rows"][0]["budgets"]] == [0.03]
+    other = tmp_path / "none.json"
+    with pytest.raises(ths.PublishRefused, match="no 3%/5%"):
+        ths.publish_scorecard(ths.score_corpus(cohort, records, far_budgets=(0.1,)), other)
+    assert not other.exists()
+
+
+def test_reader_encoding_for_single_deterministic_and_several_model_readers() -> None:
+    member = lambda reader: {"reader": reader}  # noqa: E731
+    assert ths.published_reader([member(None)]) == "none"
+    assert ths.published_reader([member(HAIKU)]) == HAIKU
+    assert ths.published_reader([member(HAIKU), member(None)]) == HAIKU
+    both = ths.published_reader([member(None), member(HAIKU), member(KIMI)])
+    assert both == "anthropic/claude-haiku-5-5+kimi-code:k3.1-pro-highspeed"
+    assert ths._PUBLISHED_READER.fullmatch(both)
+
+
+def test_publish_two_model_readers_and_same_detector_with_two_readers(tmp_path: Path) -> None:
+    cohort, records = published_cohort()
+    extra = [
+        rec(run, "alarm" if run.startswith("p") else "clear", detector="scout", reader=KIMI,
+            score=1.0 if run.startswith("p") else 0.0)
+        for run in cohort.run_ids
+    ]
+    other_reader = [{**record, "reader_model": "openai/gpt-5-mini"} for record in records.values()
+                    if record["detector"] == "facets"]
+    result = ths.score_corpus(
+        cohort, store(*records.values(), *extra, *other_reader), combos=[f"facets:{HAIKU}|scout"],
+    )
+    target = tmp_path / "scorecard.json"
+    ths.publish_scorecard(result, target)
+    rows = by_identity(read_document(target))
+    assert ("c", ("facets",), "single", HAIKU) in rows and ("c", ("facets",), "single", "openai/gpt-5-mini") in rows
+    assert ("c", ("facets", "scout"), "any", "anthropic/claude-haiku-5-5+kimi-code:k3.1-pro-highspeed") in rows
+    assert_ui_model_accepts(target)
+
+
+def test_combo_repeating_a_detector_and_pooled_identities_are_not_published(tmp_path: Path) -> None:
+    cohort, records = published_cohort()
+    twice = store(*records.values(), *(
+        {**r, "reader_model": "openai/gpt-5-mini"} for r in records.values() if r["detector"] == "facets"
+    ))
+    result = ths.score_corpus(
+        cohort, twice, detectors=["facets:*", "cascade"], combos=[f"facets:{HAIKU}|facets:openai/gpt-5-mini"],
+    )
+    count, notes = ths.publish_scorecard(result, tmp_path / "s.json")
+    rows = by_identity(read_document(tmp_path / "s.json"))
+    assert count == 1 and list(rows) == [("c", ("cascade",), "single", "none")]
+    assert any("pooled" in note for note in notes) and any("twice" in note for note in notes)
+
+
+def test_publish_merges_other_corpora_and_replaces_the_scored_one(tmp_path: Path) -> None:
+    target = tmp_path / "state/scorecard.json"
+    first, first_records = published_cohort("alpha")
+    second, second_records = published_cohort("beta")
+    ths.publish_scorecard(ths.score_corpus(first, first_records), target)
+    ths.publish_scorecard(ths.score_corpus(second, second_records, combos=["facets|cascade"]), target)
+    rows = by_identity(read_document(target))
+    assert {key[0] for key in rows} == {"alpha", "beta"} and len(rows) == 2 + 3
+    alpha_before = rows[("alpha", ("facets",), "single", HAIKU)]
+    # Re-scoring beta without the combo and with a missed positive replaces every beta row.
+    weaker = store(*(
+        {**r, "verdict": "clear", "score": 0.0} if r["run_id"] == "p0" else r for r in second_records.values()
+    ))
+    ths.publish_scorecard(ths.score_corpus(second, weaker), target)
+    rows = by_identity(read_document(target))
+    assert len(rows) == 4 and rows[("alpha", ("facets",), "single", HAIKU)] == alpha_before
+    assert not any(key[1] == ("facets", "cascade") for key in rows)
+    assert rows[("beta", ("facets",), "single", HAIKU)]["budgets"][0]["hits"] == 3
+    assert_ui_model_accepts(target)
+
+
+def test_corpus_without_negatives_is_skipped_and_writes_nothing(tmp_path: Path) -> None:
+    cohort = labels("hb", {f"h{i}": True for i in range(4)}, localization_unit="command")
+    records = store(*(rec(f"h{i}", "alarm", score=3.0) for i in range(4)))
+    target = tmp_path / "scorecard.json"
+    count, notes = ths.publish_scorecard(ths.score_corpus(cohort, records), target)
+    assert count == 0 and not target.exists()
+    assert len(notes) == 1 and "no negatives" in notes[0]
+    target.write_text("{}")  # not even an invalid existing file is touched or read
+    assert ths.publish_scorecard(ths.score_corpus(cohort, records), target) == (0, notes)
+    assert target.read_text() == "{}"
+
+
+def gated_cohort(facets_tp: int) -> tuple[FakeLabels, dict[Any, Any]]:
+    cohort, records = cheatbench(facets_tp=facets_tp)
+    return cohort, store(*(
+        {**r, "score": 1.0 if r["verdict"] == "alarm" else 0.0} if r["detector"] == "cascade" else r
+        for r in records.values()
+    ))
+
+
+def test_gate_blocked_combo_is_excluded_unless_forced_and_published_flags_follow_the_gate(
+    tmp_path: Path,
+) -> None:
+    combos = [f"facets:{HAIKU}|cascade"]
+    cohort, records = gated_cohort(30)
+    ths.publish_scorecard(ths.score_corpus(cohort, records, combos=combos), tmp_path / "ok.json")
+    ok = by_identity(read_document(tmp_path / "ok.json"))
+    assert ok[("cheatbench", ("facets",), "single", HAIKU)]["published"] == {
+        "check": "facets-cheatbench", "reproduced": True,
+    }
+    assert ok[("cheatbench", ("cascade",), "single", "none")]["published"] == {
+        "check": "cascade-v8-cheatbench", "reproduced": True,
+    }
+    assert ("cheatbench", ("facets", "cascade"), "any", HAIKU) in ok
+
+    cohort, records = gated_cohort(29)
+    count, notes = ths.publish_scorecard(
+        ths.score_corpus(cohort, records, combos=combos), tmp_path / "blocked.json",
+    )
+    blocked = by_identity(read_document(tmp_path / "blocked.json"))
+    assert count == 2 and ("cheatbench", ("facets", "cascade"), "any", HAIKU) not in blocked
+    assert any("blocked by the reproduction gate" in note for note in notes)
+    assert blocked[("cheatbench", ("facets",), "single", HAIKU)]["published"] == {
+        "check": "facets-cheatbench", "reproduced": False,
+    }
+    forced = ths.score_corpus(cohort, records, combos=combos, force_combos=True)
+    assert ths.publish_scorecard(forced, tmp_path / "forced.json")[0] == 3
+    assert ("cheatbench", ("facets", "cascade"), "any", HAIKU) in by_identity(read_document(tmp_path / "forced.json"))
+    assert_ui_model_accepts(tmp_path / "forced.json")
+
+
+def test_publish_is_atomic_when_the_replace_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "scorecard.json"
+    cohort, records = published_cohort("alpha")
+    ths.publish_scorecard(ths.score_corpus(cohort, records), target)
+    before = target.read_bytes()
+
+    def boom(source: Any, destination: Any) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(ths.os, "replace", boom)
+    other, other_records = published_cohort("beta")
+    with pytest.raises(OSError, match="replace failed"):
+        ths.publish_scorecard(ths.score_corpus(other, other_records), target)
+    assert target.read_bytes() == before
+    assert [p.name for p in tmp_path.iterdir()] == ["scorecard.json"]
+
+
+def test_publish_refuses_a_document_the_ui_model_would_reject(tmp_path: Path) -> None:
+    cohort, records = published_cohort("Bad Corpus")
+    target = tmp_path / "scorecard.json"
+    with pytest.raises(ths.PublishRefused, match="corpus name"):
+        ths.publish_scorecard(ths.score_corpus(cohort, records), target)
+    assert not target.exists()
+    good, good_records = published_cohort("alpha")
+    target.write_text('{"schema": "wrong"}')
+    with pytest.raises(ths.PublishRefused, match="existing scorecard"):
+        ths.publish_scorecard(ths.score_corpus(good, good_records), target)
+    assert target.read_text() == '{"schema": "wrong"}'
+
+
+def test_versions_of_one_detector_with_one_reader_collide_and_refuse(tmp_path: Path) -> None:
+    cohort, records = published_cohort()
+    both = store(*records.values(), *(
+        {**r, "detector_version": "v2", "score": 0.5} for r in records.values() if r["detector"] == "facets"
+    ))
+    with pytest.raises(ths.PublishRefused, match="differ only by detector version"):
+        ths.publish_scorecard(ths.score_corpus(cohort, both), tmp_path / "s.json")
+    assert not (tmp_path / "s.json").exists()
+
+
+def test_cli_publish_flag_default_and_exit_codes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cohort, records = published_cohort()
+    findings = tmp_path / "findings.jsonl"
+    FindingStore(findings).append(list(records.values()))
+    fake = types.ModuleType("evallab.production.trace_harness_corpora")
+    fake.load_corpus_labels = lambda name, *, database, repo_root: cohort  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "evallab.production.trace_harness_corpora", fake)
+    parser = argparse.ArgumentParser()
+    ths.add_score_parser(parser.add_subparsers())
+    assert parser.parse_args(["score", "--corpus", "c", "--publish"]).publish == ths.DEFAULT_PUBLISH
+    assert parser.parse_args(["score", "--corpus", "c"]).publish is None
+    assert ths.DEFAULT_PUBLISH.name == "scorecard-v1.json" and ths.DEFAULT_PUBLISH.parent.name == "trace-harness"
+
+    target = tmp_path / "out/scorecard.json"
+    args = parser.parse_args(["score", "--corpus", "c", "--findings", str(findings), "--publish", str(target)])
+    assert args.func(args, tmp_path) == 0
+    assert len(read_document(target)["rows"]) == 2
+    refused = parser.parse_args([
+        "score", "--corpus", "c", "--findings", str(findings), "--far-budgets", "0.1", "--publish", str(target),
+    ])
+    assert refused.func(refused, tmp_path) == 2
+    assert len(read_document(target)["rows"]) == 2

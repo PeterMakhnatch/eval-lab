@@ -1,0 +1,34 @@
+{
+ "estimated_input_tokens_total": 52694482,
+ "note": "size of the preregistered schedule (all 41 natural trajectories x each prefix); no model call made",
+ "prefix": {
+  "0.25": {
+   "agent_steps_median": 67,
+   "chars_max": 1423755,
+   "chars_median": 183261,
+   "chars_total": 13327503,
+   "estimated_input_tokens": 7663314,
+   "reads": 41
+  },
+  "0.5": {
+   "agent_steps_median": 133,
+   "chars_max": 2598982,
+   "chars_median": 437523,
+   "chars_total": 27318546,
+   "estimated_input_tokens": 15708164,
+   "reads": 41
+  },
+  "1.0": {
+   "agent_steps_median": 266,
+   "chars_max": 3778773,
+   "chars_median": 957009,
+   "chars_total": 50996528,
+   "estimated_input_tokens": 29323004,
+   "reads": 41
+  }
+ },
+ "schema": "cm16-hackbench-cost/v1",
+ "slice": "BURST-B3",
+ "tokens_per_char_measured_on_goodfire": 0.575,
+ "trajectories": 41
+}

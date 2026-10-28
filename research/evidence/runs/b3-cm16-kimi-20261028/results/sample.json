@@ -1,0 +1,31 @@
+{
+ "schema": "cm16-sample/v1",
+ "seed": 20261028,
+ "rule": "pool = DEV-admitted Goodfire judged runs outside the CM-6 cohort and RA-6 samples (enacted: with a labelled passage); order by sha256(seed:trace_id); skip a task already drawn, runs with fewer than 12 assistant steps and runs whose blinded rendering exceeds 150000 characters; first 25 per stratum",
+ "pool_sizes": {
+  "enacted": 1505,
+  "clean": 658
+ },
+ "skipped": {
+  "over_size_cap": 178,
+  "too_few_assistant_steps": 27,
+  "task_already_sampled": 4
+ },
+ "identities_checked_cross_key": 3824,
+ "excluded_cm6_ra6": 269,
+ "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+ "drawn_at": "2026-10-28T13:48:30+00:00",
+ "ids_sha256": "0f092dcf1aa6e23b9f0a71b6cec7b8b9ef1a7c0e071f8af8c80046de42a3e1d6",
+ "blinded_chars_summary": {
+  "enacted": {
+   "median": 84080,
+   "max": 135720,
+   "total": 2157595
+  },
+  "clean": {
+   "median": 61852,
+   "max": 141291,
+   "total": 1827072
+  }
+ }
+}

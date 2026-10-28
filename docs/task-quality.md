@@ -174,8 +174,8 @@ provisional; re-upserting a row without `trust_tier` keeps the stored tier, and
 else. Older stores gain the columns, provisional by default, when opened.
 `retrieve_similar_examples` omits provisional issues and traces entirely unless
 `include_provisional=True`; examples rank by their strongest returned tier, then
-match strength, and each example prefers its strongest evidence. A trace with
-labeled passage steps (or LB-3 `passage_positive` step marks) returns one window:
+optional facet similarity (below), then match strength, and prefer their strongest
+evidence. A trace with labeled passage steps (or LB-3 `passage_positive` step marks) returns one window:
 its best-matching passage step with up to three steps on each side; provenance
 reports `passage_window` and `flagged_step_indices`, and prompt lines mark flagged
 steps. A list of flag names flags a step; source metadata objects do not. Each
@@ -252,6 +252,59 @@ reads/writes; an optional `allowed_task_ids` list only narrows it.
 `CloudTraceRetriever.search_runs(facets)` uses the same gate and withholds records
 naming a sealed identity, e.g.
 `retriever.search_runs({"outcome": "pass", "tests": ["modified", "deleted", "replaced"]})`.
+
+`CloudTraceRetriever.retrieve_similar_examples(query, ..., facets=None,
+cluster_id=None, like_run_id=None)` also uses Run Atlas:
+
+- `facets` hard-filters traces with exactly the `search_runs` vocabulary and
+  validation above. A task qualifies only if it owns an admitted matching trace,
+  and the returned trace itself must match. `facets={}` requires a stored facet
+  row without adding field constraints; `None` leaves lexical retrieval unchanged.
+- `cluster_id` hard-filters trace IDs to that stored cluster's admitted,
+  ownership-consistent, sealed-screened members. A missing cluster or one with no
+  such members raises the same `ValueError("unknown cluster_id")`, including when
+  admission is empty. Facet and cluster filters intersect.
+- `like_run_id` ranks candidates by equal values of `outcome`, `tests`,
+  `eval_awareness`, `shortcut`, `grader_or_harness_touched`,
+  `answer_material_accessed`, `success_claim_without_evidence`, and `suspicion`
+  (0–8), plus one for sharing the reference's deepest cluster, when stored.
+  Cluster membership is projected onto admitted, ownership-consistent,
+  sealed-screened runs before comparing sizes; same-depth ties use the projected
+  member count, then cluster ID. Non-admitted membership cannot affect ranking.
+  The reference must be an admitted trace with stored facets; unavailable,
+  non-admitted, and unfaceted references raise the same `ValueError`. It need
+  not match the hard filters. Its own task is automatically excluded, in addition
+  to `exclude_task_ids`.
+
+Ranking is `(trust tier, descending facet similarity, descending lexical
+strength, task_id)`: similarity never outranks stronger trust. Within a task,
+the strongest matching trace tier wins, then its most similar trace, then the
+existing evidence order. Without `like_run_id`, similarity is zero and the
+existing ordering is unchanged. Only an Atlas request adds trace provenance
+`facet_similarity` (integer, zero when unused) and `run_facets_matched` (true).
+Default calls retain their existing provenance and rendered output.
+
+Any of these three arguments requires trace-backed evidence, including
+`task_quality` examples: an issue-only task or one without a matching,
+returnable trace is omitted. An empty or punctuation-only `query` then lists
+matching admitted tasks with lexical strength zero; without an Atlas argument
+it still returns no examples. For example:
+
+```python
+examples = retriever.retrieve_similar_examples(
+    "",
+    facets={"outcome": "pass", "tests": ["modified", "deleted", "replaced"]},
+    top_k=5,
+)
+```
+
+Admission, facet/cluster reads and evidence hydration share one read snapshot;
+an empty admitted scope reads no facet or cluster bodies. Existing sealed-identity
+screening remains in force. Best-first expansion uses precomputed per-task facet
+similarity bounds alongside lexical bounds, including conservative bounds when
+screening can expose a different trace.
+Partial-match widening likewise counts only matching traces at allowed trust
+tiers for Atlas requests, never unrelated traces or issue-only evidence.
 
 `evallab.production.CloudTraceRetriever` supplies a bounded, read-only DEV
 projection for consumers that need prior verified evidence. A local SQLite

@@ -28,6 +28,7 @@ from contextlib import closing, contextmanager
 from dataclasses import asdict, dataclass, replace
 from dataclasses import field as dataclass_field
 from functools import lru_cache
+from operator import itemgetter
 from pathlib import Path
 from typing import Any
 
@@ -66,7 +67,10 @@ _SEARCH_COLUMNS = {
 _POSTGRES_VECTOR_SOURCE_BYTES = 65_536
 # Derived read structures (FTS rowid postings, step rowid ranges) reused while
 # a SQLite database is unchanged; the oldest entry is evicted beyond this count.
-_READ_MEMO_ENTRIES = 24
+# One similar-example retrieval reads a conjunction plus four per-term postings
+# per query term, the step ranges and evidence sets; 64 keeps a query of up to
+# 14 terms from evicting the step ranges and postings it reads again.
+_READ_MEMO_ENTRIES = 64
 _JSON_COLUMNS = {
     "metadata_json", "verified_receipt_json", "flags_json", "flagged_passage_steps", "evidence_steps",
     "run_ids", "label_rates", "provenance_json",
@@ -751,19 +755,53 @@ class CloudTraceDatabase:
         self, table: str, row: Mapping[str, Any], keys: Sequence[str], *,
         preserve: Sequence[str] = (),
     ) -> None:
-        values = []
-        for column, value in row.items():
-            if column in _JSON_COLUMNS and value is not None:
-                value = Jsonb(value) if self._postgres else _json_text(value)
-            values.append(value)
+        self._upsert_many(table, [row], keys, preserve=preserve)
+
+    def _upsert_many(
+        self, table: str, rows: Sequence[Mapping[str, Any]], keys: Sequence[str], *,
+        preserve: Sequence[str] = (),
+    ) -> None:
+        """Upsert ``rows`` in order with one statement; every row has ``rows[0]``'s columns."""
+        if not rows:
+            return
+        columns = list(rows[0])
+        json_value = Jsonb if self._postgres else _json_text
+        values = [
+            [
+                json_value(row[column]) if column in _JSON_COLUMNS and row[column] is not None else row[column]
+                for column in columns
+            ]
+            for row in rows
+        ]
         updates = ", ".join(
-            f"{column}=excluded.{column}" for column in row
+            f"{column}=excluded.{column}" for column in columns
             if column not in keys and column not in preserve
         )
-        self._execute(
-            f"INSERT INTO {table} ({', '.join(row)}) VALUES ({', '.join('?' for _ in row)}) "
-            f"ON CONFLICT ({', '.join(keys)}) DO UPDATE SET {updates}", values,
+        query = (
+            f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)}) "
+            f"ON CONFLICT ({', '.join(keys)}) DO UPDATE SET {updates}"
         )
+        self._connection.cursor().executemany(query.replace("?", "%s") if self._postgres else query, values)
+
+    def _stored_steps(self, pairs: Iterable[tuple[str, int]]) -> set[tuple[str, int]]:
+        """Which ``(trace_id, step_index)`` pairs name stored steps: one index probe per distinct pair."""
+        # A stored step index is a 64-bit integer at most; larger ones cannot match.
+        wanted = sorted({(trace_id, index) for trace_id, index in pairs if index < 2**63})
+        if not wanted:
+            return set()
+        if self._postgres:
+            source = "unnest(?::text[], ?::bigint[]) AS p(trace_id, step_index)"
+            match = "s.trace_id = p.trace_id AND s.step_index = p.step_index"
+            parameters: list[Any] = [[trace_id for trace_id, _ in wanted], [index for _, index in wanted]]
+        else:
+            source = "json_each(?) AS p"
+            match = "s.trace_id = json_extract(p.value, '$[0]') AND s.step_index = json_extract(p.value, '$[1]')"
+            parameters = [_json_text(wanted)]
+        return {
+            (trace_id, index) for trace_id, index in self._execute(
+                f"SELECT s.trace_id, s.step_index FROM {source} JOIN trace_steps s ON {match}", parameters,
+            )
+        }
 
     def upsert_task(self, task: Mapping[str, Any]) -> None:
         """Replace a task's searchable record without modifying immutable CAS bytes."""
@@ -974,21 +1012,11 @@ class CloudTraceDatabase:
                 "SELECT a.trace_id, a.task_id, a.reward, c.dataset_id, c.split FROM agent_traces a "
                 f"JOIN corpus_tasks c ON c.task_id = a.task_id WHERE {scope}", parameters,
             )}
-            cited = {
-                row["run_id"] for row in rows
-                if row["evidence_steps"] and row["run_id"] in runs and runs[row["run_id"]]["task_id"] in allowed
-            }
-            parameters = []
-            scope = self._task_id_scope("trace_id", cited, parameters)
-            step_scope = self._task_id_scope(
-                "step_index", sorted({index for row in rows if row["run_id"] in cited for index in row["evidence_steps"]}),
-                parameters,
+            stored_steps = self._stored_steps(
+                (row["run_id"], index) for row in rows
+                if row["run_id"] in runs and runs[row["run_id"]]["task_id"] in allowed
+                for index in row["evidence_steps"]
             )
-            stored_steps = {
-                (step["trace_id"], step["step_index"]) for step in self._rows(
-                    f"SELECT trace_id, step_index FROM trace_steps WHERE {scope} AND {step_scope}", parameters,
-                )
-            }
             for row in rows:
                 run_id = row["run_id"]
                 run = runs.get(run_id)
@@ -1000,6 +1028,7 @@ class CloudTraceDatabase:
                     refuse(run_id, "evidence_steps must name stored steps of the run")
                 else:
                     selected[run_id] = row
+            stored_rows = []
             for run_id, row in selected.items():
                 run = runs[run_id]
                 database = {
@@ -1009,7 +1038,8 @@ class CloudTraceDatabase:
                 for field, value in database.items():
                     overrides[field] += field in row and row[field] != value
                 row |= database | {"task_id": run["task_id"]}
-                self._upsert("run_facets", {column: row[column] for column in _FACET_COLUMNS}, ("run_id",))
+                stored_rows.append({column: row[column] for column in _FACET_COLUMNS})
+            self._upsert_many("run_facets", stored_rows, ("run_id",))
         return {
             "admitted_tasks": len(allowed), "records": count, "runs": len(run_ids), "stored": len(selected),
             "superseded": count - len(selected) - sum(reasons.values()),
@@ -1349,11 +1379,11 @@ class CloudTraceDatabase:
     def _postings(self, table: str, terms: Sequence[str]) -> array[int]:
         """Ascending rowids of one FTS5 literal-AND match, the set ``_search_match`` tests."""
         expression = " AND ".join('"' + term + '"' for term in terms)
-        return self._read_memo(("postings", table, expression), lambda: array("q", (
-            row[0] for row in self._execute(
+        return self._read_memo(("postings", table, expression), lambda: array("q", map(
+            itemgetter(0), self._execute(
                 f"SELECT rowid FROM {table}_fts WHERE {table}_fts MATCH ? ORDER BY rowid",
                 (expression,),
-            )
+            ),
         )))
 
     def _evidence_task_ids(self, tiers: Collection[str]) -> frozenset[str]:

@@ -1902,7 +1902,8 @@ pass). The three groups always cover every admitted run; `counts.outside_n` coun
 tool read that are not admitted here. Rows carry only the trace id, its task id, whether it has
 an atlas facet and, for hits, the detector names and evidence steps. No label, reward or outcome
 is sent: whether a hit was right needs labels, which stay local. The page links each row to the
-Run Atlas (when faceted) and to Task Evidence, and copies the page's run ids.
+Run Atlas (when faceted), to Task Evidence and to the run's combined Harness evidence card
+(**Open combined evidence card**), and copies the page's run ids.
 
 #### Atlas coverage (`/api/cloud-db/atlas/coverage`)
 
@@ -1961,10 +1962,11 @@ GitHub PR URLs leave the server: annotation text, key ids, answer-key paths and 
 the inventory. A task whose assignments are not all `dev` is dropped and counted.
 
 Status, strongest first: `native-validated` (a repair names a native receipt and claims native
-qualification; the only state shown green), `static only` (a delivered candidate with host
-checks and no sandbox run), `candidate` (a related candidate not bound to the exact package),
-`no repair`. A merged PR or a claim without a receipt never reaches `native-validated`, and every
-other status says "no native proof".
+qualification; the only state shown green), `static only` (a host-checked candidate without
+complete native qualification), `candidate` (a related candidate not bound to the exact package),
+or `no repair`. A merged PR, an oracle-only control, or a claim without a receipt never reaches
+`native-validated`. Each repair's verification can disclose measured controls or reference
+rejections without claiming a completed repair differential. Candidate links are batch-neutral.
 
 #### Cross-test sets (`/api/cloud-db/cross-test-sets`)
 
@@ -2011,7 +2013,8 @@ The **Task Evidence** tab answers "what is known about this task" in one view. `
 (at least two characters, literal match, at most 25). The journal is read incrementally
 through `ContinuousWorkQueue.read_events_of_types`, and `trace-tools/results-v1.jsonl` only
 when the file changes. The page keeps the task in its address (`#task?task_id=`) and the
-Run Atlas run detail links to it. Nothing here calls a model, joins a label or writes.
+Run Atlas run detail links to it. Each row of the task's runs table opens the run in the Run
+Atlas or its combined Harness evidence card. Nothing here calls a model, joins a label or writes.
 
 **Gate rerun progress** (`GET /api/cloud-db/task-evidence/gate-progress`, `split=dev` only) is the
 panel above the task search: how far the corrected Task QA gate rerun (OQ-6) has got on the
@@ -2081,7 +2084,32 @@ recorded nothing for this run; and the Run Atlas facet lead. Nothing is merged i
 A run with no actor transcript (no agent step with text or a tool call) is unknown, never clean: a
 recorded `clear` for it is shown as `unknown`, and a run no detector read says so rather than
 reading as clean. The card holds no outcome, reward, model or dataset field. The page keeps the run
-in its address (`#harness?run_id=`), and Run Atlas run detail links to the card.
+in its address (`#harness?run_id=`). Run Atlas run detail, each Trace Tools run-list row and each
+row of a task's runs table on Task Evidence have an **Open combined evidence card** button (its
+accessible name includes the run id) that opens this card for that run.
+
+The detector lanes write their own files (the trace harness lane's
+`trace-harness/findings-v1.jsonl`, Run Health's `run-health/findings-run-health-<n>.jsonl`).
+Merge them into the one file the tab reads, locally and read-only (no database, no model call,
+nothing uploaded, nothing written outside the output directory):
+
+```bash
+EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run evallab prod export-trace-findings \
+  --findings ~/.local/state/evallab-prod-live/trace-harness/findings-v1.jsonl \
+  --findings ~/.local/state/evallab-prod-live/run-health/findings-run-health-3.jsonl \
+  --output-directory /private/tmp/harness-stage/trace-harness
+```
+
+Every non-blank line goes through the cloud loader's own record check; a line that is not one
+JSON object, breaks the contract, or holds a per-run label or reward field at any depth
+(deploy-preflight's findings policy) is refused and counted by reason, never copied. The newest
+record per run, detector, version and reader wins, as the loader keeps it (a later line wins a tie,
+so a later `--findings` file wins over an earlier one). Only the contract fields are written, one
+record per line in sorted order, through a temporary file; a linked source, output directory or
+output file is refused, and an existing different file needs `--replace`. The receipt gives lines
+read, kept, superseded and refused by reason, per-source line counts and digests, the output
+sha256, and per detector, version and reader the kept records by verdict. Point
+`deploy-preflight --state-root` at the output's parent to check it before any `modal volume put`.
 
 Deploy-preflight lists both files as optional for the Harness tab and stages them at the same
 relative path after the cloud loaders accept them. A findings record may carry a detector

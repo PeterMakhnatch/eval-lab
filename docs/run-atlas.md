@@ -152,7 +152,8 @@ Logic: `src/evallab/production/run_atlas_watch.py`. Tests:
 
 ```bash
 uv run evallab atlas watch --once --dry-run      # count pending runs; no lock, no gateway
-uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-day 1000000
+uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-day 1000000 \
+  --route anthropic/claude-haiku-5-5
 ```
 
 - No ingestion path publishes a "trace committed" event (`upsert_trace`,
@@ -170,6 +171,12 @@ uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-da
   `omp usage --json` window is at or above 90% are skipped. Quota exhaustion
   yields the batch promptly and does not consume a trace's failure allowance;
   the next cycle can resume after a reset.
+- One reader route. Facets from different models disagree more than one model
+  disagrees with its own re-read (cross-model kappa 0.42-0.47 on
+  `suspicion >= 2`, against 0.64 for a Haiku retest, on 100 DEV runs), so mixing
+  readers confounds population scores. The service template pins
+  `anthropic/claude-haiku-5-5`, the reader of the stored DEV pass; when its
+  provider is above the headroom gate, new runs wait rather than switch models.
 - One instance at a time (flock on `run-atlas/watch.lock`). The launchd
   template runs `--once` every five minutes, releasing the lock between cycles
   so a backfill driver can use the same lock. Render absolute paths to an

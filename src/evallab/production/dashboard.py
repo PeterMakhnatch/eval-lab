@@ -19,13 +19,14 @@ DASHBOARD: str = r"""<!doctype html>
 .atlas-detail{margin-top:20px;border-top:1px solid var(--line);padding-top:18px;scroll-margin-top:18px;min-width:0}.atlas-detail:focus{outline:2px solid var(--accent);outline-offset:8px}.atlas-detail h3{margin:16px 0 10px}.atlas-facet{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 18px}.atlas-facet div{min-width:0}.atlas-facet dt{color:var(--muted);font-size:11px}.atlas-facet dd{margin:3px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}.atlas-step{padding:12px;border:1px solid var(--line);border-radius:7px;scroll-margin-top:18px;min-width:0}.atlas-step h4{margin-bottom:8px}.atlas-step.evidence{border-left:3px solid var(--accent);background:#10251f}.atlas-step.neighbour{color:var(--muted);background:#0e1723}.atlas-step.neighbour pre{color:var(--muted)}.atlas-step:focus{outline:2px solid var(--accent);outline-offset:3px}.atlas-detail pre{max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}.atlas-flags .actions{margin-top:7px}.atlas-detail .playbook-grid{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}
 .atlas-detail .panel-head>div:first-child{min-width:0}.atlas-detail h2{overflow-wrap:anywhere}
 @media(max-width:1000px){.atlas-layout{grid-template-columns:1fr}.atlas-tree{max-height:370px}.atlas-detail .panel-head{flex-wrap:wrap}}
+.atlas-tools{margin:12px 0;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--raised)}.atlas-tools summary{cursor:pointer;color:var(--blue);font-weight:600}.atlas-tools .cloud-table{min-width:760px}.atlas-tools .row{margin-top:8px}
 .tools-cohorts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.tools-table .cloud-table{min-width:1180px}.tools-table>.cloud-table-wrap>.cloud-table>tbody>tr>td:first-child{min-width:280px}.tools-table td>div{display:grid;gap:3px;min-width:0}.tools-table td small{color:var(--muted);overflow-wrap:anywhere}.tools-table details{margin-top:8px}.tools-table summary{cursor:pointer;color:var(--blue)}.tools-table details h4{margin:10px 0 0}.tools-table details .cloud-table{min-width:0}.tools-sources summary{cursor:pointer;color:var(--blue)}
 @media(max-width:1200px){main{padding:20px}.workspace{grid-template-columns:minmax(0,1.2fr) minmax(345px,1fr)}.top-meta{gap:14px}.token-field{width:230px}.panel{padding:15px}.timeline-grid{grid-template-columns:minmax(0,1.4fr) minmax(270px,1fr)}.run-main{flex-wrap:wrap}.diff-layout{grid-template-columns:195px minmax(0,1fr)}}
 @media(max-width:900px){.topbar{flex-wrap:wrap}.top-meta{width:100%;justify-content:space-between}.workspace,.timeline-grid,.preview-layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.system .cards{max-height:130px}.system-traces{display:none}.workspace section{margin-top:14px}.metrics{gap:10px}.metric strong{font-size:24px}.diff-layout{grid-template-columns:1fr}.diff-files{position:static;display:flex;flex-wrap:wrap}.diff-file{max-width:100%}.dialog-header{padding:14px}.dialog-body{padding:14px}.scrubber{padding:12px 14px}.reward-header{gap:8px}.reward-box{padding:10px}.reward-value{font-size:25px}}
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}.focus-step{animation:step-focus 1.5s ease-out}@keyframes step-focus{from{box-shadow:0 0 0 5px #6ce4b844}to{box-shadow:0 0 0 0 transparent}}}
 </style>
 </head>
-<body>
+<body data-home="live">
 <main>
 <header class="topbar">
  <div><div class="eyebrow">Always-on production / operator console</div><h1>Eval Lab</h1><p>Public data → continuous work → verified assets</p></div>
@@ -106,6 +107,12 @@ DASHBOARD: str = r"""<!doctype html>
  <div class="panel-head"><div><div class="eyebrow">Blinded run facets / admitted DEV evidence</div><h2>Run Atlas</h2></div><button id="cloud-atlas-refresh" type="button" class="small">Refresh atlas</button></div>
  <p class="seal">Facets are model-read summaries of blinded runs: leads, not verdicts. DEV only. Label rates are recorded at scoring time.</p>
  <p id="cloud-atlas-status" class="notice" role="status"></p>
+ <details id="atlas-tools" class="atlas-tools" open>
+  <summary>Which tool to trust · recall and false alarms on labelled cohorts</summary>
+  <p id="atlas-tools-status" class="notice" role="status"></p>
+  <div id="atlas-tools-table"></div>
+  <div class="row"><button id="atlas-tools-open" type="button" class="small">Open Trace Tools for cost, detectors and sources</button></div>
+ </details>
  <div id="cloud-atlas-health"></div>
  <form id="cloud-atlas-filters" class="cloud-filters">
   <div><label for="atlas-source">Source</label><select id="atlas-source"><option value="">Any source</option></select></div>
@@ -122,7 +129,7 @@ DASHBOARD: str = r"""<!doctype html>
  </form>
  <div class="atlas-layout">
   <div><h3>Cluster tree</h3><p>Recorded size and label rates stay fixed; matching counts follow these filters. Select a cluster again to clear it.</p><div id="cloud-atlas-clusters" class="atlas-tree"></div></div>
-  <div class="atlas-runs"><div class="row atlas-pagination"><h3>Runs</h3><div class="actions"><button id="atlas-prev" type="button" class="small" disabled>Prev</button><span id="atlas-page" class="mono"></span><button id="atlas-next" type="button" class="small" disabled>Next</button></div></div><div id="cloud-atlas-runs"></div></div>
+  <div class="atlas-runs"><div class="row atlas-pagination"><h3>Runs</h3><div class="actions"><button id="atlas-copy-ids" type="button" class="small" disabled>Copy run IDs · this page</button><button id="atlas-copy-link" type="button" class="small">Copy link to this view</button><button id="atlas-prev" type="button" class="small" disabled>Prev</button><span id="atlas-page" class="mono"></span><button id="atlas-next" type="button" class="small" disabled>Next</button></div></div><div id="cloud-atlas-runs"></div></div>
  </div>
  <section id="atlas-run-panel" class="atlas-detail" tabindex="-1" aria-labelledby="atlas-run-title" hidden>
   <div class="panel-head"><div><div class="eyebrow">Facet / bounded evidence / routing leads</div><h2 id="atlas-run-title">Run detail</h2></div><div class="actions"><button id="atlas-run-refresh" type="button" class="small">Refresh run</button><button id="atlas-run-close" type="button" class="small">Close · Esc</button></div></div>
@@ -680,7 +687,7 @@ const atlasCategories=[['source','Any source'],['outcome','Any outcome'],['tests
  ['eval_awareness','Any eval awareness'],['min_suspicion','Any suspicion']];
 const atlasBooleans=[['grader_or_harness_touched','Grader / harness'],
  ['answer_material_accessed','Answer material'],['success_claim_without_evidence','Unevidenced success claim']];
-let atlasOffset=0,atlasCluster='',atlasListVersion=0,atlasRunVersion=0,atlasRunId='',atlasRunOpener=null;
+let atlasOffset=0,atlasCluster='',atlasListVersion=0,atlasRunVersion=0,atlasRunId='',atlasRunOpener=null,atlasShownIds=[],atlasToolsVersion=0;
 function atlasOptions(options){
  for(const [key,any] of atlasCategories){
   const select=$('atlas-'+key),selected=select.value,first=node('option',any);
@@ -759,6 +766,7 @@ function atlasFlagBadges(run){
 }
 function atlasRuns(data){
  const parent=$('cloud-atlas-runs'),runs=list(data.runs),clusters=new Map(list(data.clusters).map(item=>[item.cluster_id,item.name]));
+ atlasShownIds=runs.map(run=>String(run.run_id));$('atlas-copy-ids').disabled=!atlasShownIds.length;
  parent.replaceChildren();
  $('atlas-page').textContent=cloudCount(data.total)+' matching · offset '+atlasOffset;
  $('atlas-prev').disabled=atlasOffset===0;
@@ -791,11 +799,9 @@ function closeAtlasRun(restoreFocus=true){
  if(restoreFocus)(atlasRunOpener?.isConnected?atlasRunOpener:$('cloud-atlas-refresh')).focus();
 }
 async function loadAtlas(){
- const version=++atlasListVersion,params=new URLSearchParams({split:'dev',limit:$('atlas-limit').value,offset:String(atlasOffset)});
- for(const [key] of [...atlasCategories,...atlasBooleans])if($('atlas-'+key).value)params.set(key,$('atlas-'+key).value);
- const query=$('atlas-query').value.trim();if(query)params.set('q',query);
- if(atlasCluster)params.set('cluster_id',atlasCluster);
- closeAtlasRun(false);$('cloud-atlas-refresh').disabled=true;$('atlas-prev').disabled=true;$('atlas-next').disabled=true;
+ const version=++atlasListVersion,params=atlasFilterParams();
+ for(const [name,value] of Object.entries({split:'dev',limit:$('atlas-limit').value,offset:String(atlasOffset)}))params.set(name,value);
+ closeAtlasRun(false);$('cloud-atlas-refresh').disabled=true;$('atlas-prev').disabled=true;$('atlas-next').disabled=true;$('atlas-copy-ids').disabled=true;
  $('cloud-atlas-runs').replaceChildren();$('cloud-atlas-health').replaceChildren();$('atlas-page').textContent='';
  notice('cloud-atlas-status','Loading retained DEV facets and clusters…');
  $('atlas-view').setAttribute('aria-busy','true');
@@ -804,6 +810,7 @@ async function loadAtlas(){
   if(version!==atlasListVersion)return;
   atlasOptions(data.options);atlasHealth(data);atlasTree(list(data.clusters));atlasRuns(data);
   notice('cloud-atlas-status',data.notice);
+  history.replaceState(null,'',atlasLink());
  }catch(error){
   if(version===atlasListVersion){
    $('cloud-atlas-clusters').replaceChildren();
@@ -904,7 +911,7 @@ async function openAtlasRun(runId,opener){
   if(version===atlasRunVersion){$('atlas-run-refresh').disabled=false;panel.setAttribute('aria-busy','false');}
  }
 }
-$('cloud-atlas-refresh').addEventListener('click',loadAtlas);
+$('cloud-atlas-refresh').addEventListener('click',()=>{loadAtlas();loadAtlasTools();});
 $('cloud-atlas-filters').addEventListener('change',()=>{atlasOffset=0;loadAtlas();});
 $('cloud-atlas-filters').addEventListener('submit',event=>{event.preventDefault();atlasOffset=0;loadAtlas();});
 $('atlas-reset').addEventListener('click',()=>{
@@ -917,6 +924,64 @@ $('atlas-run-refresh').addEventListener('click',()=>{if(atlasRunId)openAtlasRun(
 $('atlas-view').addEventListener('keydown',event=>{
  if(event.key==='Escape'&&!$('atlas-run-panel').hidden){event.preventDefault();closeAtlasRun();}
 });
+const atlasFilterKeys=[...atlasCategories,...atlasBooleans].map(([key])=>key);
+function atlasFilterParams(){
+ const params=new URLSearchParams();
+ for(const key of atlasFilterKeys)if($('atlas-'+key).value)params.set(key,$('atlas-'+key).value);
+ const query=$('atlas-query').value.trim();if(query)params.set('q',query);
+ if(atlasCluster)params.set('cluster_id',atlasCluster);
+ return params;
+}
+function atlasLink(){
+ const query=String(atlasFilterParams());
+ return location.origin+location.pathname+'#atlas'+(query?'?'+query:'');
+}
+function applyAtlasLink(){
+ if(!location.hash.startsWith('#atlas'))return false;
+ const params=new URLSearchParams(location.hash.slice(7));
+ for(const key of atlasFilterKeys){
+  const value=params.get(key),select=$('atlas-'+key);
+  if(!value)continue;
+  if(!Array.from(select.options).some(option=>option.value===value)){const option=node('option',value);option.value=value;select.append(option);}
+  select.value=value;
+ }
+ $('atlas-query').value=(params.get('q')||'').slice(0,200);
+ atlasCluster=params.get('cluster_id')||'';
+ return true;
+}
+async function copyAtlasText(value,label){
+ try{await navigator.clipboard.writeText(value);notice('cloud-atlas-status','Copied '+label+'.');}
+ catch{notice('cloud-atlas-status','Clipboard is unavailable in this browser context; '+label+' were not copied.',true);}
+}
+$('atlas-copy-ids').addEventListener('click',()=>copyAtlasText(atlasShownIds.join('\n'),
+ cloudCount(atlasShownIds.length)+(atlasShownIds.length===1?' run ID':' run IDs')));
+$('atlas-copy-link').addEventListener('click',()=>copyAtlasText(atlasLink(),'the link to this view'));
+function toolsBrief(entry){
+ if(!entry)return 'No retained result';
+ if(!entry.positives_decided)return 'No runs read';
+ const alarms=entry.negatives_decided?toolsPct(entry.fp/entry.negatives_decided)+' ('+cloudCount(entry.fp)+'/'+
+  cloudCount(entry.negatives_decided)+')':'no clean runs read';
+ return 'caught '+toolsPct(entry.tp/entry.positives_decided)+' ('+cloudCount(entry.tp)+'/'+
+  cloudCount(entry.positives_decided)+') · false alarms '+alarms;
+}
+async function loadAtlasTools(){
+ const version=++atlasToolsVersion;
+ notice('atlas-tools-status','Loading tool scorecards…');
+ try{
+  const data=await cloudApi('/api/cloud-db/trace-tools?split=dev'),populations=list(data.populations);
+  if(version!==atlasToolsVersion)return;
+  $('atlas-tools-table').replaceChildren(cloudTable(['Tool',...populations.map(population=>population.title),'Last run'],
+   list(data.tools).map(tool=>[tool.name,...populations.map(population=>toolsBrief(tool.populations[population.key])),
+    tool.last_run_at?toolsTime(tool.last_run_at):'No run recorded'])));
+  notice('atlas-tools-status','Counts only. A tool that did not read a run abstained: that run is neither a miss nor a clean pass.');
+ }catch(error){
+  if(version===atlasToolsVersion){
+   $('atlas-tools-table').replaceChildren();
+   notice('atlas-tools-status',cloudError(error,'Tool scorecard'),true);
+  }
+ }
+}
+$('atlas-tools-open').addEventListener('click',()=>$('tools-tab').click());
 const toolsPct=value=>(value*100).toFixed(1)+'%';
 const toolsTokens=new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
 function toolsTime(value){
@@ -1081,7 +1146,7 @@ for(const tab of viewTabs){
   if(tab.id==='benchmark-tab')loadCloudBenchmarks();
   if(tab.id==='corpus-tab')loadCloudCorpus();
   if(tab.id==='seeker-tab')loadSeekerComparison();
-  if(tab.id==='atlas-tab')loadAtlas();
+  if(tab.id==='atlas-tab'){loadAtlas();loadAtlasTools();}
   if(tab.id==='tools-tab')loadTraceTools();
   if(tab.id==='trust-tab')loadTrustQc();
  });
@@ -1738,7 +1803,22 @@ stream.onmessage=event=>{
 stream.onopen=()=>{$('connection').textContent='Live · connected';$('connection').className='status';};
 stream.onerror=()=>{$('connection').textContent='Reconnecting · journal replay enabled';$('connection').className='disconnected';};
 window.addEventListener('pagehide',()=>{stream.close();clearTimeout(stateTimer);clearTimeout(timelineTimer);});
+if(applyAtlasLink()||document.body.dataset.home==='atlas')$('atlas-tab').click();
 refresh();
 </script>
 </body>
 </html>"""
+
+HOME_SCREENS = ("live", "atlas")
+
+
+def dashboard_html(home: str = "live") -> str:
+    """The dashboard with its opening tab chosen by the server: ``live`` or ``atlas``.
+
+    The cloud deployment opens on the Run Atlas, where the tool scorecard and the run
+    picker are the first thing seen; the local control plane has no trace database and
+    keeps the live journal.
+    """
+    if home not in HOME_SCREENS:
+        raise ValueError(f"unknown home screen {home!r}; expected one of {HOME_SCREENS}")
+    return DASHBOARD.replace('<body data-home="live">', f'<body data-home="{home}">', 1)

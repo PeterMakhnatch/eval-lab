@@ -1540,6 +1540,20 @@ Neither endpoint calls a model, joins source labels, or writes anything.
 
 - The dashboard's **Run Atlas** tab shows store health, the recorded cluster tree,
   facet filters and paged DEV runs, with in-page evidence, trace flags and playbook cards.
+- **Opening screen.** The cloud deployment (`CloudRuntime`) serves the dashboard with
+  `home="atlas"`, so it opens on the Run Atlas; the local control plane has no trace
+  database and keeps `home="live"`. The server picks the screen (`dashboard_html(home)`),
+  so there is no probing request and no flicker. A `#atlas?…` link opens it from either.
+- **Which tool to trust.** Above the filters, a collapsible strip shows each tool's recall
+  and false alarms on the two labelled cohorts from `/api/cloud-db/trace-tools` (counts
+  only; abstentions are never misses) with a button to the full **Trace Tools** tab for
+  cost, detectors and sources.
+- **Picking runs.** The view is a link: after every load the address bar carries
+  `#atlas?` plus the active source, outcome, tests, eval-awareness, minimum-suspicion,
+  boolean, free-text and cluster filters (never page size, offset or a token). **Copy link
+  to this view** copies it; opening it restores the filters and cluster, and a link the API
+  refuses (unknown cluster, bad value) shows that refusal instead of an empty page.
+  **Copy run IDs · this page** copies the shown trace IDs, one per line, for an agent.
 - `facets-v1.jsonl` -- one `run-facets/v1` JSON object per line (contract: the Wave 6
   `CONTRACT.md` §3). Cloud-backed `run_id` is `agent_traces.trace_id`: the database's
   `run_id` column is shared by many traces and is never used to look a run up.

@@ -71,3 +71,17 @@ def test_dashboard_uses_text_dom_and_same_origin_without_dynamic_code() -> None:
     )
     assert not any(name.startswith("on") for _, attrs in page.elements for name in attrs)
 
+
+
+def test_home_screen_is_chosen_by_the_server_and_changes_nothing_else() -> None:
+    import pytest
+
+    from evallab.production.dashboard import dashboard_html
+
+    assert dashboard_html() == DASHBOARD
+    atlas = dashboard_html("atlas")
+    assert atlas != DASHBOARD
+    assert atlas.replace('<body data-home="atlas">', '<body data-home="live">') == DASHBOARD
+    for refused in ("", "Atlas", "tools", '"><script>'):
+        with pytest.raises(ValueError, match="unknown home screen"):
+            dashboard_html(refused)

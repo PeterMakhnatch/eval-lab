@@ -90,6 +90,7 @@ DETECTORS: dict[str, str] = {
     "recheck_sol": "evallab.production.trace_harness_experiments:RecheckSolDetector",
     "whole_run_logistic": "evallab.production.trace_harness_experiments:WholeRunLogisticDetector",
     "detcache": "evallab.production.trace_harness_detcache:DetectorCacheDetector",
+    "qa_trace_t0": "evallab.production.trace_harness_qa:QaTraceT0Detector",
 }
 
 Key = tuple[str, str, str, str | None]

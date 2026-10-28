@@ -60,3 +60,6 @@ that demotion to a new model, re-check the original-union flags absent from v8 a
 supplement (ten runs across the same two cohorts). Keep the same frozen prompt, excerpt rules and model;
 do not alter or rerun the original 69-lead pass. Report both cascade versions and attribute reductions
 separately. This corrects lead-set scope, not settings, and does not select runs by their reference labels.
+The initial estimate of seven was corrected by the actual run-set difference before scoring; marginal
+alarm-count subtraction did not establish overlap. All 10 frozen-only leads are retained, including
+three Goodfire confirmed-card alarms, rather than narrowing the operator to seven pass-through-only cases.

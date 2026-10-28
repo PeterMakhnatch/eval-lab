@@ -29,7 +29,7 @@ from adapter import (
 )
 
 OUTPUT = Path(__file__).resolve().parents[1] / "results/profile.json"
-MANIFEST_SHA256 = "c9d4b9ea014026dce1d13acbf5705e644e1dba1969f751c6bb9c05a2328be78c"
+MANIFEST_SHA256 = "df723ba03f6904aac38bcbcea847c97d0d531727dd99a0f89a56e3f53484a4da"
 NOTICE_SHA256 = "ab14f0c04bcc5d72af28b469d7a49675aef25e232074eace09b76c5ad999895f"
 LICENCE_NOTICE_SHA256 = "383df82ea4b14ded75e97d1f66fe947b0a6ee9d15ce5233c5ca97c5ab1231624"
 ASSET = "dosecurve-records-2026-09-14.tar.gz"

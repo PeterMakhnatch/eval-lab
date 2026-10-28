@@ -195,7 +195,7 @@
     "archive_sha256": "dd5151aab55488f5d9b01cac536ced43a77379d82250a504c01284559513e854",
     "files": 80,
     "filesystem_files_including_receipts": 82,
-    "manifest_sha256": "225c8f8125f08a2b53834e2e3638aaa663fc3950776247f54b6bf32bdf0553b0",
+    "manifest_sha256": "c4959328a8aaf526f2e22e00f6915046a3590ede88a2bd238312a6e57687457b",
     "payload_bytes": 81630392,
     "verified_after_lock": true,
     "writable_paths": 0

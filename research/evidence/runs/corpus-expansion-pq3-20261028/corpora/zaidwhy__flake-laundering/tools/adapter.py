@@ -19,11 +19,13 @@ from pathlib import Path
 from typing import Any
 
 REPO = "zaidwhy/flake-laundering"
-REVISION = "v1.0.0"
+REVISION = "59c95631dd2fcd8c2dffb1be03fd58fc58ac94c6"
 COMMIT = "59c95631dd2fcd8c2dffb1be03fd58fc58ac94c6"
 DOI = "10.5281/zenodo.23721576"
 CORPUS = "zaidwhy__flake-laundering"
-ROOT = Path.home() / ".local/state/evallab-cross-test" / CORPUS / REVISION
+# The bundle directory keeps the publisher version label; the pin itself is the commit.
+BUNDLE_DIR = "v1.0.0"
+ROOT = Path.home() / ".local/state/evallab-cross-test" / CORPUS / BUNDLE_DIR
 TOP = "zaidwhy-flake-laundering-6dcc45e"
 RUN_FILES = ("results/runs.jsonl", "results/study2.jsonl")
 JUDGE_FILES = ("results/judge-grid.jsonl", "results/judge-study2.jsonl")

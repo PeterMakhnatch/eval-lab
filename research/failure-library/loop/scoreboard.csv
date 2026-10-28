@@ -1,0 +1,5 @@
+run_id,agent,knowledge,recall,false_alarms,false_alarm_rate,cost_usd,tokens,wall_seconds,selected,reviewed,positives_reviewed,controls_reviewed,status,score_kind,reason
+readonly-20261027-muse-quota,qa-task-source-readonly,off,,,,0,,,1,0,0,0,not_run,source_label_diagnostic_not_independent_verification,Stopped after first route failure; no retry or fallback
+readonly-20261027-muse-quota,qa-task-source-readonly,on,,,,0,,,1,0,0,0,not_run,source_label_diagnostic_not_independent_verification,Stopped after first route failure; no retry or fallback
+readonly-20261027-muse-quota,qa-trace-source-readonly,off,,,,0,,,1,0,0,0,failed,source_label_diagnostic_not_independent_verification,Muse HTTP429 subscription quota exhausted before generation
+readonly-20261027-muse-quota,qa-trace-source-readonly,on,,,,0,,,1,0,0,0,not_run,source_label_diagnostic_not_independent_verification,Stopped after first route failure; no retry or fallback

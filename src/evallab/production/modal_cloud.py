@@ -81,6 +81,7 @@ from evallab.production import (
     cross_test_sets,
     field_reliability,
     file_cache,
+    harness_view,
     repair_board,
     task_evidence,
     tool_runs,
@@ -214,6 +215,12 @@ class CloudRuntime:
         self._gate_progress = file_cache.ChangeCache(
             Path(gate_progress) if gate_progress else self.data_root / gate_progress_module.DEFAULT_FILE,
             gate_progress_module.load_progress,
+        )
+        self._harness_findings = file_cache.ChangeCache(
+            self.data_root / harness_view.FINDINGS_FILE, harness_view.load_findings
+        )
+        self._harness_scorecard = file_cache.ChangeCache(
+            self.data_root / harness_view.SCORECARD_FILE, harness_view.load_scorecard
         )
         self._tool_results = task_evidence.ToolFindingIndex(
             self.data_root / "trace-tools" / task_evidence.RESULTS_FILE
@@ -574,6 +581,76 @@ class CloudRuntime:
             journal=self._journal_tasks.for_keys(keys),
         )
 
+    def _admitted_runs(self, run_ids: Collection[str]) -> dict[str, str]:
+        """Run id to task id for the runs that belong to an admitted DEV task."""
+        admitted = self._admitted_task_ids()
+        found: dict[str, str] = {}
+        ids = sorted(run_ids)
+        for start in range(0, len(ids), 500):
+            page = ids[start : start + 500]
+            placeholders = ", ".join("?" for _ in page)
+            for row in self._query(
+                f"SELECT trace_id, task_id FROM agent_traces WHERE trace_id IN ({placeholders})", tuple(page)
+            ):
+                if row["task_id"] in admitted:
+                    found[row["trace_id"]] = row["task_id"]
+        return found
+
+    def _actor_runs(self, run_ids: Collection[str]) -> set[str]:
+        """Runs holding an agent step with text or a tool call; any other run is unknown, never clean."""
+        found: set[str] = set()
+        ids = sorted(run_ids)
+        for start in range(0, len(ids), 500):
+            page = ids[start : start + 500]
+            placeholders = ", ".join("?" for _ in page)
+            found.update(
+                row["trace_id"]
+                for row in self._query(
+                    "SELECT DISTINCT trace_id FROM trace_steps"
+                    f" WHERE trace_id IN ({placeholders}) AND role IN ('agent', 'assistant')"
+                    " AND (TRIM(COALESCE(content_text, '')) <> '' OR COALESCE(tool_name, '') <> ''"
+                    " OR COALESCE(command_or_action, '') <> '')",
+                    tuple(page),
+                )
+            )
+        return found
+
+    def _harness_overview(self) -> dict[str, Any]:
+        findings = self._harness_findings.get()
+        admitted = self._admitted_runs(findings["by_run"])
+        return harness_view.build_overview(
+            findings, self._harness_scorecard.get(), admitted, self._actor_runs(admitted)
+        )
+
+    def _harness_card(self, run_id: str) -> dict[str, Any]:
+        """Every detector's newest result for one admitted DEV run, from the retained findings file."""
+        if run_id not in self._admitted_runs([run_id]):
+            raise HTTPException(404, "Run is not an admitted DEV run")
+        identity = self._query(
+            "SELECT task_id, step_count, trust_tier FROM agent_traces WHERE trace_id = ?", (run_id,)
+        )[0]
+        steps = frozenset(
+            row["step_index"]
+            for row in self._query("SELECT step_index FROM trace_steps WHERE trace_id = ?", (run_id,))
+        )
+        actor_inputs = run_id in self._actor_runs([run_id])
+        try:
+            facet = self._atlas_store().facets.get(run_id)
+        except HTTPException:
+            facet = None
+        if facet is not None and not set(facet["evidence_steps"]).issubset(steps):
+            facet = None
+        findings = self._harness_findings.get()
+        known = {key for records in findings["by_run"].values() for key in records}
+        return harness_view.build_card(
+            {"run_id": run_id, **identity},
+            findings["by_run"].get(run_id, {}),
+            steps=steps,
+            actor_inputs=actor_inputs,
+            facet=facet,
+            known=known,
+        )
+
     def _task_search(self, query: str) -> dict[str, Any]:
         """Admitted DEV task ids containing the text, with run and issue counts."""
         needle = query.strip()
@@ -867,6 +944,16 @@ class CloudRuntime:
         def gate_progress_route(split: str = "dev"):
             _require_dev(split)
             return self._gate_progress.get()
+
+        @self.app.get("/api/cloud-db/harness")
+        def harness_route(split: str = "dev"):
+            _require_dev(split)
+            return self._harness_overview()
+
+        @self.app.get("/api/cloud-db/harness/card")
+        def harness_card_route(run_id: str = Query(min_length=1, max_length=200), split: str = "dev"):
+            _require_dev(split)
+            return self._harness_card(run_id)
 
     def run_supervisor_step(self, approval: str, max_usd: float) -> dict[str, Any]:
         """One explicitly approved cloud step, never a laptop Docker fallback."""

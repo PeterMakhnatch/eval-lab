@@ -1,0 +1,155 @@
+{
+  "at": "2026-10-28T18:34:50.460390+00:00",
+  "bytes": 889595,
+  "canonical_secret_gate_sha256": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f",
+  "credential_like_generic_hit_files": 0,
+  "current_render_sha256": "96105d0e3c6b76bb49630b4fe011353df9d7fb022ad64ecf35f42031dd6cadb4",
+  "files": 26,
+  "fixed_sample_metadata_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "forensic_skill_body_opened": false,
+  "inventory": [
+    {
+      "bytes": 54349,
+      "path": "continue_codex.py",
+      "sha256": "87c0d0bb6296b28d5a38804fdfc6211e5ad1a61ff8e926f43bf4b8aa811eca28"
+    },
+    {
+      "bytes": 16944,
+      "path": "test_codex_guard.py",
+      "sha256": "1c98a0a88e5b1c85dc1d80f837911ad187c2251231a5575edc6dd9cfb9eb2e6f"
+    },
+    {
+      "bytes": 76137,
+      "path": "score_delta.py",
+      "sha256": "e85ccd303218895c3e8dc741f2c1fd10c9459b2ca62da077f11deed2d0d3a454"
+    },
+    {
+      "bytes": 9824,
+      "path": "test_score_delta.py",
+      "sha256": "86a1d44a20c1750e8f323c1e732470a31332010defb87dc9901a0a2c6c7c6ba6"
+    },
+    {
+      "bytes": 8712,
+      "path": "audit_native_metadata.py",
+      "sha256": "7890c8ef6dc9cd20d908fbf2a8ea40f19b89e5925e1f90e552067862ad340902"
+    },
+    {
+      "bytes": 4599,
+      "path": "test_native_metadata.py",
+      "sha256": "edbef35d0c5b065f89a8f9c47f2b7dc0b673022375450697046cc69456e6e572"
+    },
+    {
+      "bytes": 8191,
+      "path": "close_privacy.py",
+      "sha256": "2d46931bac8b8f2707eaf57833ba10b779d6dc0dc6398e92ac5246e8adedc331"
+    },
+    {
+      "bytes": 2287,
+      "path": "test_close_privacy.py",
+      "sha256": "2f254436512f48172be2d79f212e98d2f5bb2b16a70e09700f97bf89d8369fd7"
+    },
+    {
+      "bytes": 2477,
+      "path": "native_inference_gate.py",
+      "sha256": "1865d8d49f08afcc4b8a86df44ea97c6bf00b236b3efe20b36fe420c80bb2d1b"
+    },
+    {
+      "bytes": 3690,
+      "path": "test_native_inference_gate.py",
+      "sha256": "5e58614acf223fae0eba0851c3668f95e4b80ea3b4f336002815575a196b0b45"
+    },
+    {
+      "bytes": 1487,
+      "path": "metadata-observer.ts",
+      "sha256": "856e9a59c2968f2dea697420c476f5ceed969b56f7579816a2b3ab47aa803416"
+    },
+    {
+      "bytes": 17281,
+      "path": "README.md",
+      "sha256": "e05df94c8ddbb86018358d8ca3d9adf91ac82b2ce222b97b7b19b5c00322b558"
+    },
+    {
+      "bytes": 3532,
+      "path": "checks.json",
+      "sha256": "c498d9400d49299ec3aeb188823bfc0cc5adb68f807bb2fbcdd56cdf25d0e7c7"
+    },
+    {
+      "bytes": 6133,
+      "path": "command-receipts.json",
+      "sha256": "d8d5a0b1332ae4d09d868c0d980c31f75d2af32c9c8dd7199108a2a53f284ba5"
+    },
+    {
+      "bytes": 2740,
+      "path": "native-inference-gate.json",
+      "sha256": "cb0a18253ec5a923426badd9a2810e9c2e255ca73533592bc132650750c2ef4d"
+    },
+    {
+      "bytes": 6024,
+      "path": "deferred-paid-feasibility.json",
+      "sha256": "b0227bc3f08b7da4a1c915f823654ba4148ff76d7318004e030f1f53d634eab7"
+    },
+    {
+      "bytes": 2245,
+      "path": "financial-annotation.json",
+      "sha256": "45c4cadc65f50dae07d62199e1ad2a84174dfdbd85483b52ca04d884300e61b6"
+    },
+    {
+      "bytes": 1415,
+      "path": "render-correction.json",
+      "sha256": "2e29e6cb9979125318238eaf73a41ecd5a8c83f6394824a48908c102b340db0c"
+    },
+    {
+      "bytes": 6872,
+      "path": "native-boundary-incident.json",
+      "sha256": "80c0dea160c65c6344c0e52d68c79a4b9804459a356f8bb26e9396bc1419c317"
+    },
+    {
+      "bytes": 32916,
+      "path": "score-delta-v2.md",
+      "sha256": "96105d0e3c6b76bb49630b4fe011353df9d7fb022ad64ecf35f42031dd6cadb4"
+    },
+    {
+      "bytes": 1993,
+      "path": "privacy-closure.json",
+      "sha256": "8409341d8e51fdc2cbafc2a0b4551a7aa88904a22db2fdb37a9bdde13ef49412"
+    },
+    {
+      "bytes": 1994,
+      "path": "native-metadata-audit.json",
+      "sha256": "bb98b565dc64711e61f1e2014b070595c67e65c7d310cd06a86cc8e929187955"
+    },
+    {
+      "bytes": 31650,
+      "path": "score-delta.md",
+      "sha256": "7dd1584b5483c551643a75de3bd357665cf71bc552a3942ece0d0e2e70f76ce6"
+    },
+    {
+      "bytes": 575195,
+      "path": "score-delta.json",
+      "sha256": "1bac155404dfa7ce83c7d67a957667d0661abef0f374b994264073033703f217"
+    },
+    {
+      "bytes": 4464,
+      "path": "attempt.json",
+      "sha256": "8e3bee536b29f4b511d402d57bce25ea4e2f728e847a7a2a1b99853f39f337f2"
+    },
+    {
+      "bytes": 6444,
+      "path": "route-proof.json",
+      "sha256": "0a80eedc22ab9bdb982a0db2b2f8a81f4c9474cd4ce5f40570b20d33cfa3ae98"
+    }
+  ],
+  "is_audit_of_all_potential_leakage_or_actual_tool_capability": false,
+  "labels_opened": false,
+  "limitations": "Generic pattern and exact-ID scans supplement the reviewed aggregate-only artifact inventory; no claim that they detect every possible secret/trace/semantic leak or establish a safe CLI dispatch boundary.",
+  "method": "Parse JSON artifacts as structured data; scan all26 artifacts with the pinned canonical secret_hits; test exact fixed-sample raw-ID byte exclusion; record only file hashes/counts. No labels or trace content opened for this audit.",
+  "model_calls": 0,
+  "numeric_score_sha256": "1bac155404dfa7ce83c7d67a957667d0661abef0f374b994264073033703f217",
+  "paid_calls": 0,
+  "quota_queries": 0,
+  "raw_fixed_sample_id_hit_files": 0,
+  "retained_initial_markdown_sha256": "7dd1584b5483c551643a75de3bd357665cf71bc552a3942ece0d0e2e70f76ce6",
+  "schema": "tt7.aggregate_publication_audit/v1",
+  "scope": "Exactly the26 listed owned public files before this receipt; Q27 is the authorized content-free appendix only",
+  "trace_bodies_opened": false
+}

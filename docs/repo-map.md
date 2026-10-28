@@ -593,7 +593,7 @@ inputs:
   - path: src/evallab/production/inspector.py
     digest: sha256:5c0f81d453e402c96cc870bbdf53a47fa7a220609556a379220a3b878cd28fbf
   - path: src/evallab/production/ledger_split.py
-    digest: sha256:53a542fc9c5e04a890b94928cbc8c02937f522c63b9d703d3a201e90ee00db96
+    digest: sha256:4ef138913760e3262bfbdeac3d8b55e5d073cfff6bce54d27a729f5f7ef0b2d9
   - path: src/evallab/production/modal_cloud.py
     digest: sha256:1ccb37f6e7218a4cfdd67ab094d7eda5f5571ed47916a84430fe6ac615039e26
   - path: src/evallab/production/monitor_worker.py

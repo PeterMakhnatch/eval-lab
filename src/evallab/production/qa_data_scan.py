@@ -44,7 +44,10 @@ async def _scan(transcripts: Sequence[Any], module: Any, names: Sequence[str]) -
 
 
 def _transcript_lines(path: Path) -> list[str]:
-    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    try:
+        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError, UnicodeDecodeError):
+        raise QaDataError("the transcripts file cannot be read as UTF-8 text") from None  # no byte offset or path
     if len(lines) > MAX_TRANSCRIPTS:
         raise QaDataError(f"at most {MAX_TRANSCRIPTS} transcripts per scan")  # no count: a size is a probe channel
     return lines

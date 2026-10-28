@@ -22,11 +22,20 @@ def _item_admitted(ctx: QaContext, key_id: str, item_id: str, tasks: Sequence[st
             return cheatbench_item_admitted(registry, registry.get(key_id, item_id))
         except KeyError:
             return False
+    try:  # the registry's own identity for the pair is authoritative; a looser ledger alias never overrides it
+        registered = registry.get(key_id, item_id).task_id
+    except KeyError:
+        registered = None
     admitted = ctx.admitted_task_ids()
-    try:
-        return any(match_admitted_task(admitted, task) is not None for task in tasks)
-    except QaDataError:  # several admitted tasks share the bare name: the pair is not one identity
-        return False
+
+    def admitted_exactly(task: str) -> bool:
+        try:
+            return match_admitted_task(admitted, task) is not None
+        except QaDataError:  # several admitted tasks share the bare name: not one identity
+            return False
+
+    wanted = [registered] if registered else list(tasks)
+    return bool(wanted) and all(admitted_exactly(task) for task in wanted)
 
 
 def split(ctx: QaContext, mode: str, ids: Sequence[str]) -> dict[str, Any]:

@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -168,3 +171,44 @@ def test_qa_data_split_usage_error_does_not_depend_on_the_ids(ctx: QaContext) ->
     for mode, ids in (("task", []), ("task", ["a", "b"]), ("item", ["only-one"])):
         with pytest.raises(QaDataError, match="usage"):
             qa_data_split.split(ctx, mode, ids)
+
+
+def test_the_verifier_script_prints_the_ledger_word_from_any_directory(tmp_path: Path) -> None:
+    def run(*argv: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-m", "evallab.production.ledger_split", *argv],
+            cwd=tmp_path, capture_output=True, text=True, check=False, timeout=120,
+        )
+
+    unknown = run("task", "no-such-task-for-the-script-test")
+    assert (unknown.returncode, unknown.stdout.strip()) == (0, '{"split": "UNKNOWN"}')
+    usage = run("task")
+    assert usage.returncode == 2 and usage.stdout == "" and "usage" in usage.stderr
+
+
+def test_a_pair_is_judged_by_its_registered_identity_not_by_a_looser_ledger_alias(
+    ctx: QaContext, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = ctx.retriever.registry
+    monkeypatch.setattr(
+        type(registry), "get",
+        lambda _self, _key, _item: SimpleNamespace(task_id="denied/dev-task", task_digest=None),
+    )
+    # The ledger says suite/dev-task (admitted DEV) but the registry resolves the pair to a denied task.
+    with pytest.raises(QaDataError) as error:
+        qa_data_split.split(ctx, "item", [KEY, "item-dev"])
+    assert str(error.value) == UNAVAILABLE
+    monkeypatch.setattr(
+        type(registry), "get",
+        lambda _self, _key, _item: SimpleNamespace(task_id="suite/dev-task", task_digest=None),
+    )
+    assert qa_data_split.split(ctx, "item", [KEY, "item-dev"]) == {"split": "DEV"}
+
+
+@pytest.mark.parametrize("raw", [b"\xff\xfe\x00bad", b"\x80" * 40])
+def test_scan_refuses_a_file_that_is_not_utf8_with_one_constant_message(tmp_path: Path, raw: bytes) -> None:
+    path = tmp_path / "transcripts.jsonl"
+    path.write_bytes(raw)
+    with pytest.raises(QaDataError) as error:
+        qa_data_scan.scan(path, None, Budget(1000))
+    assert str(error.value) == "the transcripts file cannot be read as UTF-8 text"

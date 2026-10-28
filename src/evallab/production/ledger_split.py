@@ -32,6 +32,7 @@ def _normalized(value: str) -> str:
     return value.strip().casefold()
 
 
+CHECKOUT = Path(__file__).resolve().parents[3]  # the ledger of the checkout this code runs from
 USAGE = "usage: ledger_split task TASK_ID | ledger_split item KEY_ID ITEM_ID"
 
 
@@ -97,7 +98,7 @@ def split(root: Path, mode: str, ids: Sequence[str]) -> dict[str, Any]:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     try:
-        answer = split(Path.cwd(), arguments[0] if arguments else "", arguments[1:])
+        answer = split(CHECKOUT, arguments[0] if arguments else "", arguments[1:])
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 2

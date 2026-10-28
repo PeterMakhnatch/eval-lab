@@ -126,11 +126,11 @@ ITEMS: tuple[Item, ...] = (
          False, MAX_DOCUMENT_BYTES, "aggregate", False, "cascade and Stage 1 DEV counts and the HackBench cross-test counts"),
     Item("gate_progress", gate_progress.DEFAULT_FILE, ("Task Evidence",),
          False, gate_progress.MAX_BYTES, "aggregate", False, "Task QA gate rerun progress: counts per model and arm"),
-    Item("harness_findings", harness_view.FINDINGS_FILE, ("Harness",),
+    Item("harness_findings", harness_view.FINDINGS_FILE, ("Harness", "Run Atlas"),
          False, harness_view.MAX_FINDINGS_BYTES, "findings", True, "trace-findings/v1 records: every detector's result per run"),
     Item("harness_scorecard", harness_view.SCORECARD_FILE, ("Harness",),
          False, harness_view.MAX_SCORECARD_BYTES, "aggregate", False, "combined scorecard: counts per corpus, detector combination and reader"),
-    Item("results", f"{TOOLS_DIR}/{RESULTS_FILE}", ("Trace Tools", "Task Evidence"),
+    Item("results", f"{TOOLS_DIR}/{RESULTS_FILE}", ("Trace Tools", "Task Evidence", "Run Atlas"),
          True, MAX_STREAM_BYTES, "record", True, "per-run tool results behind the run lists"),
     Item("atlas_scorecard", f"{ATLAS_DIR}/{ATLAS_SCORECARD_DIR}/<newest>.json", ("Trace Tools",),
          False, MAX_DOCUMENT_BYTES, "aggregate", False, "facet and cascade detector counts"),
@@ -145,13 +145,14 @@ ITEMS: tuple[Item, ...] = (
 )
 #: Tabs, in page order, with every file whose absence changes what they show.
 TAB_NEEDS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
-    ("Run Atlas", ("facets", "blinding_refresh"), ("clusters",)),
+    ("Run Atlas", ("facets", "blinding_refresh"), ("clusters", "results", "harness_findings")),
     ("Coverage", ("facets", "blinding_refresh"), ("reblinded",)),
     ("Field reliability", ("field_reliability",), ()),
     ("Task Evidence", ("facets", "results"), ("gate_progress",)),
     ("Trace Tools", ("tool_scorecard", "results"), ("atlas_scorecard", "spend", "accounting", "detector_scope")),
-    ("Grader repairs", ("repair_inventory",), ("facets",)),
     ("Harness", (), ("harness_findings", "harness_scorecard", "facets")),
+    ("Grader repairs", ("repair_inventory",), ("facets",)),
+    ("Cross-test sets", ("cross_test_registry",), ()),
 )
 #: Tabs that also read the cloud trace database on the volume (not staged here).
 NEEDS_DATABASE = ("Run Atlas", "Coverage", "Task Evidence", "Trace Tools", "Grader repairs", "Harness")

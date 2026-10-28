@@ -498,6 +498,12 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   printing a reward. `scan` runs the four deterministic Scout text scanners over a
   scout export (re-executing under the scout-watch runtime when this environment
   lacks Scout); no call makes a model call.
+- Every export manifest entry (cloud and CheatBench) carries `actor_inputs_available`: true
+  when some agent-authored step has message text or a tool call. False marks runs with no
+  model actor behind them (native replay receipts, retained event journals, differential
+  receipts); a monitor reading them has nothing to scan, so the answer is unknown, not clean.
+  It is derived from the exported structure, never from a label. `qa-data export` prints it
+  per run.
 - `--pretty` indents any reply for readers that clip long lines; `--budget` and `tokens_est`
   describe the compact form (pretty text is about 30% larger). Store or path errors reply
   with the same JSON envelope (exit 2), never a traceback.

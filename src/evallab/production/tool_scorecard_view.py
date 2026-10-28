@@ -248,7 +248,7 @@ class Source:
         }
 
 
-def _newest(directory: Path, accepts: Callable[[str], bool]) -> list[Path]:
+def newest_regular(directory: Path, accepts: Callable[[str], bool]) -> list[Path]:
     """Regular, non-link files in a directory, newest first; none if it is absent."""
     found: list[tuple[int, str, Path]] = []
     try:
@@ -523,14 +523,14 @@ class _Paths:
 
 def _paths(data_root: Path) -> _Paths:
     atlas = data_root / ATLAS_DIR
-    accounting = _newest(
+    accounting = newest_regular(
         atlas, lambda name: name.startswith(ACCOUNTING_PREFIX) and name.endswith(".jsonl")
     )
     return _Paths(
         data_root / TOOLS_DIR / TOOL_SCORECARD_FILE,
         data_root / TOOLS_DIR / RESULTS_FILE,
         data_root / TOOLS_DIR / SPEND_FILE,
-        _newest(atlas / ATLAS_SCORECARD_DIR, lambda name: name.endswith(".json")),
+        newest_regular(atlas / ATLAS_SCORECARD_DIR, lambda name: name.endswith(".json")),
         accounting[0] if accounting else None,
         atlas / FACET_CALLS_FILE,
         atlas,

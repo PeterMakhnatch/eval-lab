@@ -906,6 +906,26 @@ class CloudRuntime:
             self._closed = True
 
 
+def runtime_from_environment(
+    data_root: Path,
+    repo_root: Path,
+    environ: Mapping[str, str],
+    *,
+    commit: Callable[[], None] | None = None,
+) -> CloudRuntime:
+    """The runtime as the Modal container builds it; the local deploy smoke builds the same one."""
+    inventory = environ.get("EVALLAB_REPAIR_INVENTORY")
+    registry = environ.get("EVALLAB_CROSS_TEST_REGISTRY")
+    return CloudRuntime(
+        data_root,
+        repo_root,
+        environ["EVALLAB_CLOUD_TOKEN"],
+        commit=commit,
+        repair_inventory=Path(inventory) if inventory else None,
+        cross_test_registry=Path(registry) if registry else None,
+    )
+
+
 app = modal.App(APP_NAME)
 store_volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 image = (
@@ -966,13 +986,8 @@ class CloudProduction:
         # Fresh verification artifacts survive scale-down alongside the queues.
         (DATA_ROOT / "runs").mkdir(exist_ok=True)
         (CLOUD_REPO_ROOT / "runs").symlink_to(DATA_ROOT / "runs", target_is_directory=True)
-        self.runtime = CloudRuntime(
-            DATA_ROOT,
-            CLOUD_REPO_ROOT,
-            os.environ["EVALLAB_CLOUD_TOKEN"],
-            commit=store_volume.commit,
-            repair_inventory=Path(path) if (path := os.environ.get("EVALLAB_REPAIR_INVENTORY")) else None,
-            cross_test_registry=Path(registry) if (registry := os.environ.get("EVALLAB_CROSS_TEST_REGISTRY")) else None,
+        self.runtime = runtime_from_environment(
+            DATA_ROOT, CLOUD_REPO_ROOT, os.environ, commit=store_volume.commit
         )
 
     @modal.asgi_app()

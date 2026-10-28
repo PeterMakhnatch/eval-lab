@@ -127,7 +127,7 @@ def test_clean_trace_produces_no_findings() -> None:
     assert to_findings(report, task_id="demo-task") == []
 
 
-@pytest.mark.parametrize("argument", ["keystrokes", "command"])
+@pytest.mark.parametrize("argument", ["keystrokes", "command", "cmd"])
 def test_shell_argument_forms_preserve_live_risk_detection(argument: str) -> None:
     steps = [
         _step(1, "cat /tests/test_outputs.py"),
@@ -145,24 +145,69 @@ def test_shell_argument_forms_preserve_live_risk_detection(argument: str) -> Non
     assert [hit["step"] for hit in report["external_sourcing"]] == [3]
 
 
-def test_command_argument_is_shell_only_and_keystrokes_take_precedence() -> None:
+def test_shell_arguments_are_tool_gated_and_keystrokes_take_precedence() -> None:
     steps = [
         {
             "step_id": 1,
             "source": "agent",
             "tool_calls": [
-                {"function_name": "read", "arguments": {"command": "cat /tests/hidden.py"}},
+                {
+                    "function_name": "read",
+                    "arguments": {
+                        "command": "cat /tests/hidden.py",
+                        "cmd": "cat /tests/hidden.py",
+                    },
+                },
+                {"function_name": "edit", "arguments": {"cmd": "cat /tests/hidden.py"}},
                 {
                     "function_name": "bash",
                     "arguments": {
                         "keystrokes": "printf 'local output'",
                         "command": "cat /tests/hidden.py",
+                        "cmd": "cat /tests/hidden.py",
                     },
                 },
             ],
         }
     ]
     assert scan_prefix(steps)["hidden_reads"] == []
+
+
+def test_cmd_is_fallback_after_blank_or_malformed_shell_fields() -> None:
+    steps = [_step(step_id, "") for step_id in (1, 2, 3)]
+    for step, arguments in zip(
+        steps,
+        (
+            {
+                "keystrokes": " \n",
+                "command": "printf 'local output'",
+                "cmd": "cat /tests/hidden.py",
+            },
+            {
+                "keystrokes": " \n",
+                "command": ["printf 'local output'"],
+                "cmd": "cat /tests/hidden.py",
+            },
+            {
+                "keystrokes": None,
+                "command": "\t",
+                "cmd": "cat /tests/hidden.py",
+            },
+        ),
+        strict=True,
+    ):
+        step["tool_calls"][0]["arguments"] = arguments
+    assert [hit["step"] for hit in scan_prefix(steps)["hidden_reads"]] == [2, 3]
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [" \t\n", None, ["cat /tests/hidden.py"], {"command": "cat /tests/hidden.py"}],
+)
+def test_blank_or_malformed_cmd_is_not_executable(cmd: Any) -> None:
+    step = _step(37, "")
+    step["tool_calls"][0]["arguments"] = {"cmd": cmd}
+    assert scan_prefix([step])["hidden_reads"] == []
 
 
 def _codex_exec_step(step_id: int, script: str) -> dict[str, Any]:

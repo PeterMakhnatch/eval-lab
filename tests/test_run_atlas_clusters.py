@@ -410,7 +410,7 @@ def test_build_appends_snapshots_and_show_uses_latest_with_labels(
     monkeypatch.setattr(atlas, "_admit_facets", lambda facets, root, db: admitted.append(len(facets)))
     args = _parser().parse_args([
         "clusters", "build", "--facets", str(facets_path), "--clusters", str(clusters_path),
-        "--min-size", "2",
+        "--min-size", "2", "--no-queues",
     ])
     assert args.func(args, tmp_path) == 0
     first = atlas.load_clusters(clusters_path)
@@ -524,3 +524,184 @@ def test_build_admission_honors_current_cross_key_test_seal(tmp_path: Path) -> N
     atlas._admit_facets(facets[:1], tmp_path, tmp_path / "no-db")
     with pytest.raises(ValueError, match="cross-key DEV"):
         atlas._admit_facets(facets, tmp_path, tmp_path / "no-db")
+
+def _cheatbench_authority(tmp_path: Path) -> Path:
+    """A registry with two DEV items, one of them cross-key TEST."""
+    keys = _empty_registry(tmp_path)
+    items = [
+        {"item_id": f"cheatbench-actions-v1:{name}", "split": "dev",
+         "subject": {"task_id": "synthetic/" + name}, "source_id": "cb-" + name}
+        for name in ("allowed", "sealed")
+    ]
+    run_atlas.append_jsonl(keys / "cheatbench-actions-v1/items.jsonl", items)
+    assignments = keys / "splits/assignments.csv"
+    assignments.parent.mkdir()
+    assignments.write_text(
+        "key_id,item_id,split\n"
+        "cheatbench-actions-v1,cheatbench-actions-v1:allowed,dev\n"
+        "cheatbench-actions-v1,cheatbench-actions-v1:sealed,dev\n"
+        "other-key,cheatbench-actions-v1:sealed,test\n"
+    )
+    return keys
+
+
+def test_task_identities_fail_closed_without_assignment_authority(tmp_path: Path) -> None:
+    _empty_registry(tmp_path)
+    with pytest.raises(ValueError, match="assignments.csv authority"):
+        atlas.task_identities(tmp_path / "no-db", tmp_path, ["cheatbench-actions-v1:allowed"])
+
+
+def test_task_identities_skip_items_the_gate_refuses(tmp_path: Path) -> None:
+    _cheatbench_authority(tmp_path)
+    identities = atlas.task_identities(tmp_path / "no-db", tmp_path, [
+        "cheatbench-actions-v1:allowed", "cheatbench-actions-v1:sealed",
+        "cheatbench-actions-v1:absent",
+    ])
+    assert set(identities) == {"cheatbench-actions-v1:allowed"}
+    entry = identities["cheatbench-actions-v1:allowed"]
+    assert entry["task_id"] == "synthetic/allowed"
+    assert entry["native_task_id"] == "cb-allowed"
+    assert entry["dataset_id"] == run_atlas.CHEATBENCH_DATASET
+    assert entry["canonical_task_id"]
+
+
+def test_work_queues_report_cluster_and_task_rows_without_run_labels() -> None:
+    clusters = [
+        _cluster([f"p{index}" for index in range(6)], cluster_id="L1-02",
+                 name="Tamper with tests", level=2, parent="L1-01"),
+        _cluster([f"p{index}" for index in range(5)], cluster_id="L1-01", name="Parser repair"),
+        _cluster([f"n{index}" for index in range(6)], cluster_id="L1-03", name="Clean work"),
+    ]
+    labels = {**dict.fromkeys([f"p{index}" for index in range(6)], True),
+              **dict.fromkeys([f"n{index}" for index in range(6)], False)}
+    coverage = {run_id: run_id.startswith("n") for run_id in labels}
+    atlas.cluster_label_rates(clusters, labels, rule_coverage=coverage)
+    identities = {
+        **{f"p{index}": {"task_id": "task-a", "canonical_task_id": "org/task-a",
+                        "native_task_id": "native-a", "dataset_id": "corpus"}
+           for index in range(4)},
+        **{f"p{index}": {"task_id": "task-b", "canonical_task_id": "org/task-b",
+                        "native_task_id": "native-b", "dataset_id": "corpus"}
+           for index in range(4, 6)},
+    }
+    document, rows = atlas.work_queues(
+        clusters, labels, coverage, identities, build_id="build-1", created_at="2026-10-28T00:00:00Z",
+    )
+    assert document["schema"] == atlas.TRIPWIRE_SCHEMA
+    assert document["build_id"] == "build-1"
+    assert [item["cluster_id"] for item in document["clusters"]] == ["L1-02", "L1-01"]
+    entry = document["clusters"][0]
+    assert entry["positive_runs"] == 6 and entry["dev_members"] == 6
+    assert entry["unknown_members"] == 0 and entry["task_ids"] == ["task-a", "task-b"]
+    assert entry["rule_recall"] == 0 and entry["level"] == 2 and entry["parent"] == "L1-01"
+    assert entry["dev_members_by_dataset"] == {"corpus": 6}
+    assert entry["positive_runs_by_dataset"] == {"corpus": 6}
+    assert entry["labelled_by_dataset"] == {"corpus": 6}
+    assert document["counts"] == {"clusters": 2, "dev_members": 11, "tasks": 2}
+    assert rows[0]["schema"] == atlas.TASK_QUEUE_SCHEMA
+    assert [(row["cluster_id"], row["task_id"], row["positive_runs"], row["dev_members"])
+            for row in rows[:2]] == [("L1-02", "task-a", 4, 4), ("L1-02", "task-b", 2, 2)]
+    assert all("labels" not in row and "label" not in row for row in rows)
+    assert rows[0]["run_ids"] == ["p0", "p1", "p2", "p3"]
+    assert rows[0]["cluster_rate"] == 1 and rows[0]["cluster_rule_recall"] == 0
+
+
+def test_work_queues_count_members_without_an_admitted_identity() -> None:
+    clusters = [_cluster([f"p{index}" for index in range(5)] + ["unstored"],
+                         cluster_id="L1-01", name="Parser repair")]
+    labels = dict.fromkeys([f"p{index}" for index in range(5)], True)
+    atlas.cluster_label_rates(clusters, labels, rule_coverage=dict.fromkeys(labels, False))
+    identities = {run_id: {"task_id": "task-a", "canonical_task_id": "org/task-a",
+                           "native_task_id": None, "dataset_id": "corpus"} for run_id in labels}
+    document, rows = atlas.work_queues(
+        clusters, labels, {}, identities, build_id="b", created_at="2026-10-28T00:00:00Z",
+    )
+    entry = document["clusters"][0]
+    assert entry["unknown_members"] == 1 and entry["dev_members"] == 5
+    assert rows[0]["run_ids"] == [f"p{index}" for index in range(5)]
+
+
+def test_queue_thresholds_exclude_thin_clusters() -> None:
+    clusters = [_cluster([f"p{index}" for index in range(4)], cluster_id="L1-01", name="Parser")]
+    labels = dict.fromkeys([f"p{index}" for index in range(4)], True)
+    atlas.cluster_label_rates(clusters, labels, rule_coverage=dict.fromkeys(labels, False))
+    identities = {run_id: {"task_id": "t", "canonical_task_id": "t", "native_task_id": None,
+                           "dataset_id": "corpus"} for run_id in labels}
+    document, rows = atlas.work_queues(clusters, labels, {}, identities, build_id="b")
+    assert document["clusters"] == [] and rows == []
+    assert document["counts"] == {"clusters": 0, "dev_members": 0, "tasks": 0}
+    assert document["selection"]["min_labelled"] == 5
+
+
+def test_queue_files_are_replaced_atomically(tmp_path: Path) -> None:
+    path = tmp_path / "state" / "queue.json"
+    atlas._replace(path, '{"a": 1}\n')
+    first = path.read_text()
+    atlas._replace(path, '{"b": 2}\n')
+    assert first == '{"a": 1}\n' and path.read_text() == '{"b": 2}\n'
+    assert list(path.parent.glob("*.tmp-*")) == []
+
+
+def test_build_writes_queues_unless_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    facets_path, clusters_path = tmp_path / "facets.jsonl", tmp_path / "clusters.jsonl"
+    run_atlas.append_jsonl(facets_path, _facets(12))
+    monkeypatch.setattr(atlas, "_admit_facets", lambda facets, root, db: None)
+    written = []
+    monkeypatch.setattr(atlas, "_write_work_queues", lambda clusters, root, args, *, replay: (
+        written.append((len(clusters), replay)) or {"clusters": 1, "tasks": 0}
+    ))
+    base = ["clusters", "build", "--facets", str(facets_path), "--clusters", str(clusters_path),
+            "--min-size", "2"]
+    args = _parser().parse_args(base)
+    assert args.func(args, tmp_path) == 0
+    assert written == [(len(atlas.load_clusters(clusters_path)), False)]
+    assert "queues" in json.loads(capsys.readouterr().out)
+    disabled = _parser().parse_args(base + ["--no-queues"])
+    assert disabled.func(disabled, tmp_path) == 0
+    assert written == [(len(atlas.load_clusters(clusters_path)), False)]
+    assert "queues" not in json.loads(capsys.readouterr().out)
+
+
+def test_queues_command_requires_an_existing_build(tmp_path: Path) -> None:
+    args = _parser().parse_args(["clusters", "queues", "--clusters", str(tmp_path / "none.jsonl")])
+    with pytest.raises(ValueError, match="atlas clusters build"):
+        args.func(args, tmp_path)
+
+
+def test_queues_command_writes_both_files_from_the_latest_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    clusters_path = tmp_path / "clusters.jsonl"
+    run_atlas.append_jsonl(clusters_path, [_cluster(["a"], cluster_version=atlas.CLUSTER_VERSION,
+        build_id="build-9", facet_count=1, name="Parser")])
+    captured = {}
+
+    def write(clusters, root, args, *, replay):
+        captured.update(build_id=clusters[0]["build_id"], replay=replay,
+                        tripwires=str(args.tripwires), task_queue=str(args.task_queue))
+        return {"clusters": 0, "tasks": 0}
+
+    monkeypatch.setattr(atlas, "_write_work_queues", write)
+    args = _parser().parse_args(["clusters", "queues", "--clusters", str(clusters_path), "--replay-rules"])
+    assert args.func(args, tmp_path) == 0
+    assert captured["build_id"] == "build-9" and captured["replay"] is True
+    assert json.loads(capsys.readouterr().out)["build_id"] == "build-9"
+
+def test_task_identities_refuse_cloud_runs_without_a_database(tmp_path: Path) -> None:
+    _cheatbench_authority(tmp_path)
+    with pytest.raises(FileNotFoundError, match="refusing to write queues"):
+        atlas.task_identities(tmp_path / "no-db", tmp_path, ["cloud-trace-1"])
+
+
+def test_work_queues_record_the_coverage_level_that_produced_them() -> None:
+    clusters = [_cluster([f"p{index}" for index in range(5)], cluster_id="L1-01", name="Parser")]
+    labels = dict.fromkeys([f"p{index}" for index in range(5)], True)
+    atlas.cluster_label_rates(clusters, labels, rule_coverage=dict.fromkeys(labels, False))
+    identities = {run_id: {"task_id": "t", "canonical_task_id": "t", "native_task_id": None,
+                           "dataset_id": "corpus"} for run_id in labels}
+    document, _ = atlas.work_queues(
+        clusters, labels, {}, identities, build_id="b", coverage_level="alarm",
+    )
+    assert document["selection"]["rule_coverage"] == "alarm"

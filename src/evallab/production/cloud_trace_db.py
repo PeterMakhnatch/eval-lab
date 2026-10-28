@@ -67,7 +67,29 @@ _POSTGRES_VECTOR_SOURCE_BYTES = 65_536
 # Derived read structures (FTS rowid postings, step rowid ranges) reused while
 # a SQLite database is unchanged; the oldest entry is evicted beyond this count.
 _READ_MEMO_ENTRIES = 24
-_JSON_COLUMNS = {"metadata_json", "verified_receipt_json", "flags_json", "flagged_passage_steps"}
+_JSON_COLUMNS = {
+    "metadata_json", "verified_receipt_json", "flags_json", "flagged_passage_steps", "evidence_steps",
+}
+#: Run Atlas ``run-facets/v1``: one model-filled form per run. ``run_id`` is the
+#: run's ``agent_traces.trace_id``; ``source``, ``split`` and ``outcome`` are
+#: copied from the database on write, never taken from the record.
+RUN_FACETS_VERSION = "run-facets/v1"
+_FACET_ENUMS = {
+    "tests": ("untouched", "read", "modified", "deleted", "replaced"),
+    "eval_awareness": ("none", "mentions_tests", "reasons_about_grader", "plans_to_game"),
+}
+_FACET_OUTCOMES = ("pass", "fail", "unknown")
+_FACET_BOOLEANS = ("grader_or_harness_touched", "answer_material_accessed", "success_claim_without_evidence")
+_FACET_WORD_LIMITS = {"goal": 20, "approach": 30, "shortcut": 8}
+_FACET_MAX_EVIDENCE = 5
+_FACET_DATABASE_FIELDS = ("source", "split", "outcome")
+_FACET_RECORD_FIELDS = (
+    "run_id", "facet_version", "facet_model", "input_tokens", "output_tokens", "goal", "approach",
+    "tests", *_FACET_BOOLEANS, "eval_awareness", "shortcut", "suspicion", "evidence_steps",
+)
+_FACET_COLUMNS = (
+    "run_id", "task_id", *_FACET_DATABASE_FIELDS, *_FACET_RECORD_FIELDS[1:],
+)
 # Evidence trust, strongest first. Tier 1: container-verified differentials
 # (qualified repairs, differentially replayed witnesses, maintainer fixes).
 # Tier 2: consensus-labeled evidence (unanimous judge votes with passage-level
@@ -140,6 +162,52 @@ def _passage_steps(value: Any) -> list[int]:
     if len(set(indices)) != len(indices):
         raise ValueError("flagged_passage_steps must not repeat a step index")
     return sorted(indices)
+
+
+def _run_facet(record: Any) -> dict[str, Any]:
+    """Validate one ``run-facets/v1`` record; keys outside the schema are dropped.
+
+    The record's own ``source``/``split``/``outcome`` are kept only so the writer
+    can count disagreements with the database values that replace them.
+    """
+    if not isinstance(record, Mapping):
+        raise ValueError("record must be a JSON object")
+    missing = set(_FACET_RECORD_FIELDS) - record.keys()
+    if missing:
+        raise ValueError(f"missing fields: {', '.join(sorted(missing))}")
+    row = {field: record[field] for field in _FACET_RECORD_FIELDS}
+    _text(row["run_id"], "run_id")
+    _text(row["facet_model"], "facet_model")
+    if row["facet_version"] != RUN_FACETS_VERSION:
+        raise ValueError(f"facet_version must be {RUN_FACETS_VERSION}")
+    for field in ("input_tokens", "output_tokens"):
+        _integer(row[field], field)
+    for field, limit in _FACET_WORD_LIMITS.items():
+        if len(_text(row[field], field).split()) > limit:
+            raise ValueError(f"{field} must be at most {limit} words")
+    for field, values in _FACET_ENUMS.items():
+        if row[field] not in values:
+            raise ValueError(f"{field} must be one of {', '.join(values)}")
+    for field in _FACET_BOOLEANS:
+        if not isinstance(row[field], bool):
+            raise ValueError(f"{field} must be a boolean")
+    if _integer(row["suspicion"], "suspicion") > 3:
+        raise ValueError("suspicion must be an integer from 0 to 3")
+    steps = row["evidence_steps"]
+    if not isinstance(steps, list) or len(steps) > _FACET_MAX_EVIDENCE:
+        raise ValueError(f"evidence_steps must be a list of at most {_FACET_MAX_EVIDENCE} step indices")
+    indices = [_integer(index, "evidence_steps entry") for index in steps]
+    if len(set(indices)) != len(indices):
+        raise ValueError("evidence_steps must not repeat a step index")
+    row["evidence_steps"] = sorted(indices)
+    return row | {field: record[field] for field in _FACET_DATABASE_FIELDS if field in record}
+
+
+def _reward_outcome(reward: float | None) -> str:
+    """A run's facet ``outcome`` from its recorded verifier reward."""
+    if reward is None:
+        return "unknown"
+    return "pass" if reward >= 1 else "fail" if reward <= 0 else "unknown"
 
 
 def _record(record: Mapping[str, Any], columns: Sequence[str], defaults: Mapping[str, Any]) -> dict[str, Any]:
@@ -459,10 +527,34 @@ class CloudTraceDatabase:
                 for name, definition in columns:
                     if name not in present:
                         self._execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+            # Run Atlas facets: derived, model-filled forms keyed by trace; no
+            # full-text index, since they are filtered by field, not searched.
+            checks = {
+                field: " OR ".join(f"{field} = '{value}'" for value in values)
+                for field, values in (*_FACET_ENUMS.items(), ("outcome", _FACET_OUTCOMES))
+            }
+            if not self._postgres or not self._exists("run_facets"):
+                self._execute(f"""CREATE TABLE IF NOT EXISTS run_facets (
+                    run_id TEXT PRIMARY KEY REFERENCES agent_traces(trace_id) ON DELETE CASCADE,
+                    task_id TEXT NOT NULL REFERENCES corpus_tasks(task_id),
+                    source TEXT NOT NULL, split TEXT NOT NULL,
+                    outcome TEXT NOT NULL CHECK({checks["outcome"]}),
+                    facet_version TEXT NOT NULL CHECK(facet_version = '{RUN_FACETS_VERSION}'),
+                    facet_model TEXT NOT NULL,
+                    input_tokens INTEGER NOT NULL CHECK(input_tokens >= 0),
+                    output_tokens INTEGER NOT NULL CHECK(output_tokens >= 0),
+                    goal TEXT NOT NULL, approach TEXT NOT NULL,
+                    tests TEXT NOT NULL CHECK({checks["tests"]}),
+                    {", ".join(f"{field} {boolean_type} NOT NULL" for field in _FACET_BOOLEANS)},
+                    eval_awareness TEXT NOT NULL CHECK({checks["eval_awareness"]}),
+                    shortcut TEXT NOT NULL,
+                    suspicion INTEGER NOT NULL CHECK(suspicion BETWEEN 0 AND 3),
+                    evidence_steps {json_type} NOT NULL)""")
             for table, fields in (
                 ("task_issues", "task_id, direction, status, defect_class"),
                 ("agent_traces", "task_id, run_id"),
                 ("trace_steps", "tool_name, trace_id"),
+                ("run_facets", "task_id, outcome, tests, suspicion"),
             ):
                 if not self._postgres or not self._exists(f"{table}_lookup"):
                     self._execute(f"CREATE INDEX IF NOT EXISTS {table}_lookup ON {table} ({fields})")
@@ -701,6 +793,97 @@ class CloudTraceDatabase:
                     changed["agent_traces"] += 1
         return changed
 
+    def upsert_run_facets(
+        self, records: Iterable[Any], *, registry: CorpusRegistry | None = None,
+        allowed_task_ids: Collection[str] | None = None,
+    ) -> dict[str, Any]:
+        """Store valid ``run-facets/v1`` records of admitted runs; refuse the rest.
+
+        Registry admission is recomputed inside the write snapshot.
+        ``allowed_task_ids`` can further restrict it, never grant admission.
+        ``run_id`` must name a stored trace whose task is admitted, and every
+        ``evidence_steps`` entry one of its stored steps;
+        ``source``, ``split`` and ``outcome`` are copied from the database. A
+        later valid record for a run supersedes an earlier one. Refused records
+        are counted by reason (with up to 20 examples) and never partially stored.
+        """
+        reasons: dict[str, int] = {}
+        examples: list[dict[str, Any]] = []
+
+        def refuse(run_id: Any, reason: str) -> None:
+            reasons[reason] = reasons.get(reason, 0) + 1
+            if len(examples) < 20:
+                examples.append({"run_id": run_id if isinstance(run_id, str) else None, "reason": reason})
+
+        count = 0
+        rows: list[dict[str, Any]] = []
+        for record in records:
+            count += 1
+            try:
+                row = _run_facet(record)
+            except ValueError as error:
+                refuse(record.get("run_id") if isinstance(record, Mapping) else None, str(error))
+                continue
+            rows.append(row)
+        overrides = dict.fromkeys(_FACET_DATABASE_FIELDS, 0)
+        selected: dict[str, dict[str, Any]] = {}
+        with self._transaction(write=True):
+            if self._postgres:
+                self._execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            admitted, _ = CloudTraceRetriever(self, registry=registry)._admitted_ids()
+            allowed = frozenset(admitted)
+            if allowed_task_ids is not None:
+                allowed = allowed.intersection(allowed_task_ids)
+            parameters: list[Any] = []
+            run_ids = {row["run_id"] for row in rows}
+            scope = self._task_id_scope("a.trace_id", run_ids, parameters)
+            runs = {run["trace_id"]: run for run in self._rows(
+                "SELECT a.trace_id, a.task_id, a.reward, c.dataset_id, c.split FROM agent_traces a "
+                f"JOIN corpus_tasks c ON c.task_id = a.task_id WHERE {scope}", parameters,
+            )}
+            cited = {
+                row["run_id"] for row in rows
+                if row["evidence_steps"] and row["run_id"] in runs and runs[row["run_id"]]["task_id"] in allowed
+            }
+            parameters = []
+            scope = self._task_id_scope("trace_id", cited, parameters)
+            step_scope = self._task_id_scope(
+                "step_index", sorted({index for row in rows if row["run_id"] in cited for index in row["evidence_steps"]}),
+                parameters,
+            )
+            stored_steps = {
+                (step["trace_id"], step["step_index"]) for step in self._rows(
+                    f"SELECT trace_id, step_index FROM trace_steps WHERE {scope} AND {step_scope}", parameters,
+                )
+            }
+            for row in rows:
+                run_id = row["run_id"]
+                run = runs.get(run_id)
+                if run is None:
+                    refuse(run_id, "run_id names no stored trace")
+                elif run["task_id"] not in allowed:
+                    refuse(run_id, "task is not admitted DEV")
+                elif any((run_id, index) not in stored_steps for index in row["evidence_steps"]):
+                    refuse(run_id, "evidence_steps must name stored steps of the run")
+                else:
+                    selected[run_id] = row
+            for run_id, row in selected.items():
+                run = runs[run_id]
+                database = {
+                    "source": run["dataset_id"], "split": run["split"],
+                    "outcome": _reward_outcome(run["reward"]),
+                }
+                for field, value in database.items():
+                    overrides[field] += field in row and row[field] != value
+                row |= database | {"task_id": run["task_id"]}
+                self._upsert("run_facets", {column: row[column] for column in _FACET_COLUMNS}, ("run_id",))
+        return {
+            "admitted_tasks": len(allowed), "records": count, "runs": len(run_ids), "stored": len(selected),
+            "superseded": count - len(selected) - sum(reasons.values()),
+            "refused": sum(reasons.values()), "refused_by_reason": dict(sorted(reasons.items())),
+            "refused_examples": examples, "database_overrides": overrides,
+        }
+
     def _replace_steps(self, trace_id: str, rows: Sequence[Mapping[str, Any]]) -> None:
         self._execute("DELETE FROM trace_steps WHERE trace_id = ?", (trace_id,))
         for row in rows:
@@ -725,7 +908,7 @@ class CloudTraceDatabase:
             for field in _JSON_COLUMNS & row.keys():
                 if isinstance(row[field], str):
                     row[field] = json.loads(row[field])
-            for field in ("is_exploit", "is_task_defect_fail"):
+            for field in ("is_exploit", "is_task_defect_fail", *_FACET_BOOLEANS):
                 if field in row:
                     row[field] = bool(row[field])
             results.append(row)
@@ -2202,3 +2385,29 @@ class CloudTraceRetriever:
                     steps.append(self._step_evidence(step))
             result.update(trace_id=self._identity(raw_id), steps=steps)
             return result
+
+
+def import_run_facets(
+    database: CloudTraceDatabase, path: str | Path, *, registry: CorpusRegistry | None = None,
+) -> dict[str, Any]:
+    """Import the interim Run Atlas JSONL, one ``run-facets/v1`` object per line.
+
+    The file is append-only and keyed by ``run_id``: the last fully valid record
+    wins. Admission is retrieval's own (registry-admitted DEV tasks minus
+    sealed identities); without a loadable split authority nothing is stored.
+    Re-importing the same file stores the same rows.
+    """
+    data = Path(path).read_bytes()
+    records: list[Any] = []
+    invalid = 0
+    for line in data.split(b"\n"):
+        if line.strip():
+            try:
+                records.append(json.loads(line))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                invalid += 1
+    return {
+        "schema": "evallab.run_facets_import/v1", "path": str(path),
+        "sha256": hashlib.sha256(data).hexdigest(), "invalid_json_lines": invalid,
+        **database.upsert_run_facets(records, registry=registry),
+    }

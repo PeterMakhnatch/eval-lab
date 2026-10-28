@@ -275,3 +275,31 @@ def test_the_cli_prints_the_report_and_exits_nonzero_only_when_a_required_file_b
     (world["state"] / "trace-tools/results-v1.jsonl").unlink()
     assert cli.run_cli(arguments, workspace=world["repo"]) == 1
     assert json.loads(capsys.readouterr().out)["blockers"]
+
+
+def _scope_cell(**extra: Any) -> dict[str, Any]:
+    return {
+        "detector": "cascade", "cohort": "hackbench_natural", "measure": "exact_command", "hits": 1,
+        "version": "window-cascade/v7", "note": "v7-to-v8 compatibility checked in the receipt",
+        "positives": 41, "route": "judge", "recorded_at": "2026-10-28T00:54:07+00:00", "date_basis": "freeze", "source": "receipt", **extra,
+    }
+
+
+def test_the_detector_scope_is_staged_when_valid_and_rejected_when_it_carries_a_record(
+    world: dict[str, Path],
+) -> None:
+    path = world["state"] / "trace-tools/detector-scope-v1.json"
+    _json(path, {"schema": "evallab.detector_scope/v1", "cells": [_scope_cell()]})
+    stage = world["tmp"] / "stage"
+    report = _run(world, stage_directory=stage)
+    assert _by_key(report)["detector_scope"]["status"] == "ok"
+    assert (stage / "trace-tools/detector-scope-v1.json").is_file()
+
+    _json(path, {"schema": "evallab.detector_scope/v1", "cells": [_scope_cell(run_id="r-secret")]})
+    rejected = _by_key(_run(world, stage_directory=world["tmp"] / "stage2"))["detector_scope"]
+    assert rejected["status"] == "invalid" and "cloud loader rejects" in rejected["detail"]
+    assert not (world["tmp"] / "stage2/trace-tools/detector-scope-v1.json").exists()
+
+    path.unlink()
+    absent = _run(world)
+    assert absent["ok"] is True and any(warning.startswith("detector_scope: missing") for warning in absent["warnings"])

@@ -298,3 +298,64 @@ def test_the_cache_rebuilds_only_when_a_retained_file_changes(tmp_path: Path) ->
     second = cache.get()
     assert second is not first
     assert _tool(second, "scout")["last_run_at"] == "2026-10-30T00:00:00+00:00"
+
+
+def _scope_document(hits: int = 1) -> dict[str, Any]:
+    return {
+        "schema": "evallab.detector_scope/v1",
+        "cells": [{
+            "detector": "cascade", "cohort": "hackbench_natural", "measure": "exact_command",
+            "hits": hits, "positives": 41, "route": "judge/route", "recorded_at": "2026-10-28T00:54:07+00:00",
+            "date_basis": "freeze", "source": "receipt/union-command.json",
+            "version": "window-cascade/v7", "note": "v7-to-v8 compatibility checked in the receipt",
+        }],
+    }
+
+
+def _cascade_hackbench(view: dict[str, Any]) -> dict[str, Any]:
+    row = next(item for item in view["where_it_works"]["rows"] if item["tool"] == "cascade")
+    return row["cohorts"]["hackbench_natural"]
+
+
+def test_the_where_each_detector_works_table_reads_the_scope_file_at_the_configured_path(
+    tmp_path: Path,
+) -> None:
+    root = _tree(tmp_path)
+    absent = build_tool_scorecard(root)
+    assert absent["where_it_works"]["present"] is False
+    assert _cascade_hackbench(absent)["state"] == "absent"
+    # The scorecard rows are still served from their own files.
+    scout = next(row for row in absent["where_it_works"]["rows"] if row["tool"] == "scout")
+    assert scout["cohorts"]["cheatbench_dev"]["hits"] == 3
+
+    _write(root / "trace-tools/detector-scope-v1.json", _scope_document(1))
+    default = build_tool_scorecard(root)
+    assert default["where_it_works"]["present"] is True and _cascade_hackbench(default)["hits"] == 1
+    assert next(item for item in default["sources"] if item["file"] == "detector-scope-v1.json")["error"] is None
+
+    elsewhere = tmp_path / "elsewhere" / "receipt.json"
+    _write(elsewhere, _scope_document(2))
+    assert _cascade_hackbench(build_tool_scorecard(root, elsewhere))["hits"] == 2
+
+
+def test_an_invalid_scope_file_blocks_only_its_own_cells(tmp_path: Path) -> None:
+    root = _tree(tmp_path)
+    secret = "private-trace-identifier"
+    _write(root / "trace-tools/detector-scope-v1.json", {**_scope_document(), secret: ["x"]})
+    view = build_tool_scorecard(root)
+    assert view["where_it_works"]["present"] is False and view["where_it_works"]["error"]
+    assert _cascade_hackbench(view)["state"] == "absent"
+    assert _tool(view, "docent")["populations"]["goodfire_cm9"]["tp"] == 3
+    assert secret not in json.dumps(view)  # validation errors must not echo private field names
+
+
+def test_the_cache_follows_the_scope_file(tmp_path: Path) -> None:
+    root = _tree(tmp_path)
+    scope = root / "trace-tools/detector-scope-v1.json"
+    _write(scope, _scope_document(1))
+    cache = ToolScorecardCache(root)
+    first = cache.get()
+    assert cache.get() is first and _cascade_hackbench(first)["hits"] == 1
+    _write(scope, _scope_document(3))
+    os.utime(scope, ns=(1, 1))
+    assert _cascade_hackbench(cache.get())["hits"] == 3

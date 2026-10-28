@@ -164,6 +164,7 @@ def build_coverage(
             **row,
             "facet_versions": dict(sorted(row["facet_versions"].items())),
             "facet_models": dict(sorted(row["facet_models"].items())),
+            "mixed_readers": len(row["facet_models"]) > 1,
             "blinding": {state: row["blinding"].get(state, 0) for state in STATES},
         }
         for _, row in sorted(populations.items())

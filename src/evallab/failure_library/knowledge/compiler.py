@@ -13,14 +13,20 @@ import json
 import math
 import re
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
+from itertools import batched
 from pathlib import Path
 from typing import Any, cast
 
-from evallab.failure_library.knowledge.models import CardDraft, ExampleRef, FailureCard
+from evallab.failure_library.knowledge.models import (
+    CardDraft,
+    ExampleRef,
+    FailureCard,
+    TaxonomyGuidance,
+)
 from evallab.failure_library.records import DefectClass, Finding, RunCode, RunRecord, TaskRef
-from evallab.failure_library.store import LibraryStore
+from evallab.failure_library.store import LibraryStore, RunManifest
 from evallab.hackbook.models import HackbookEntry, load_hackbook
 from evallab.production.cloud_trace_db import (
     _literal_alternation,
@@ -75,15 +81,23 @@ class BM25:
     """Small deterministic lexical index; no embeddings, network or persisted cache."""
 
     def __init__(self, documents: Sequence[str]) -> None:
-        self.rows = [Counter(tokens(text)) for text in documents]
+        cached: dict[str, Counter[str]] = {}
+        self.rows: list[Counter[str]] = []
+        for text in documents:
+            row = cached.get(text)
+            if row is None:
+                row = Counter(tokens(text))
+                cached[text] = row
+            self.rows.append(row)
         self.lengths = [sum(row.values()) for row in self.rows]
         self.average = sum(self.lengths) / max(1, len(self.rows)) or 1.0
         self.df = Counter(term for row in self.rows for term in row)
 
-    def score(self, query: str, position: int) -> float:
+    def score_terms(self, terms: Sequence[str], position: int) -> float:
+        """Score a prepared, sorted set of query terms without repeated tokenization."""
         row = self.rows[position]
         score = 0.0
-        for term in sorted(set(tokens(query))):
+        for term in terms:
             frequency = row[term]
             if frequency:
                 idf = math.log1p((len(self.rows) - self.df[term] + 0.5) / (self.df[term] + 0.5))
@@ -115,6 +129,7 @@ class Knowledge:
     report: dict[str, Any]
     units: dict[str, frozenset[str]]
     subjects: tuple[TaskRef, ...]
+    curated: tuple[TaxonomyGuidance, ...] = ()
 
 
 def ledger_units(root: Path) -> dict[str, frozenset[str]]:
@@ -244,15 +259,21 @@ def compile_cards(
     prose = {draft.hackbook_id: draft for draft in drafts}
     candidates = [e for e in entries if e.id in prose]
     index = BM25([_entry_text(e, prose[e.id]) for e in candidates])
+    positions_by_class: dict[str, list[int]] = defaultdict(list)
+    for position, entry in enumerate(candidates):
+        positions_by_class[entry.taxonomy_class_id].append(position)
     grouped: dict[str, list[KnowledgeExample]] = defaultdict(list)
     by_class: dict[str, list[KnowledgeExample]] = defaultdict(list)
     for example in examples:
+        if not example.defect_classes:
+            continue
+        terms = tuple(sorted(set(tokens(example.search_text))))
         for code in example.defect_classes:
-            positions = [i for i, e in enumerate(candidates) if e.taxonomy_class_id == code]
+            positions = positions_by_class.get(code, [])
             if not positions:
                 continue
             position = min(
-                positions, key=lambda i: (-index.score(example.search_text, i), candidates[i].id)
+                positions, key=lambda i: (-index.score_terms(terms, i), candidates[i].id)
             )
             grouped[candidates[position].id].append(example)
             by_class[code].append(example)
@@ -316,6 +337,116 @@ def validate_card(card: FailureCard, admitted: dict[str, ExampleRef]) -> None:
         seen.add(ref.id)
 
 
+def _stream_records(
+    path: Path,
+    model: type[Finding] | type[RunRecord],
+    digests: dict[str, str],
+    source: str,
+    expected: str | None = None,
+) -> Iterator[Finding | RunRecord]:
+    """Hash the exact bytes being parsed, without materializing a large collection.
+
+    The final hash check completes before compilation can return or publish a pack.
+    Reading and hashing the same open file also avoids a verify-then-reopen race.
+    """
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for line in handle:
+            digest.update(line)
+            if line.strip():
+                yield model.model_validate_json(line)
+    actual = digest.hexdigest()
+    if expected is not None and actual != expected:
+        raise ValueError(f"{source}: sha256 {actual} differs from manifest {expected}")
+    digests[source] = "sha256:" + actual
+
+
+def _source_records(
+    store: LibraryStore, digests: dict[str, str], missing_runs: list[str]
+) -> Iterator[Finding | RunRecord]:
+    # Findings precede runs, so every finding join has already passed admission.
+    for name in store.collections("findings"):
+        path = store.findings_path(name)
+        yield from _stream_records(path, Finding, digests, f"findings/{path.name}")
+    for path in sorted(store.manifest_root.glob("*.manifest.json")):
+        payload = path.read_bytes()
+        manifest = RunManifest.model_validate_json(payload)
+        name = path.name.removesuffix(".manifest.json")
+        digests[f"manifests/{path.name}"] = "sha256:" + hashlib.sha256(payload).hexdigest()
+        runs_path = store.runs_path(name)
+        if not runs_path.is_file():
+            missing_runs.append(name)
+            continue
+        yield from _stream_records(
+            runs_path, RunRecord, digests, f"runs/{runs_path.name}", manifest.sha256
+        )
+
+
+def _admitted_records(
+    records: Iterable[Finding | RunRecord], registry: CorpusRegistry
+) -> Iterator[tuple[Finding | RunRecord, bool]]:
+    """Bound transient models and structured-gate inputs independently of corpus size."""
+    for batch in batched(records, 512):
+        identities = [_identity(record) for record in batch]
+        admitted = admitted_cloud_task_ids(identities, registry=registry)
+        for record, identity in zip(batch, identities, strict=True):
+            yield record, identity["task_id"] in admitted
+
+
+def _same_task_version(left: TaskRef, right: TaskRef) -> bool:
+    """Related task names are not proof that a defect applies to the run's bytes."""
+    if left.task_version_digest and right.task_version_digest:
+        return left.task_version_digest == right.task_version_digest
+    return left.upstream_revision is not None and all(
+        getattr(left, field) == getattr(right, field)
+        for field in ("source_id", "task_id", "upstream_repo", "upstream_revision")
+    )
+
+
+def _taxonomy(root: Path) -> tuple[tuple[TaxonomyGuidance, ...], str]:
+    raw = (root / "research/hackbook/taxonomy.json").read_bytes()
+    payload = json.loads(raw)
+    guidance = tuple(
+        TaxonomyGuidance(
+            code=row["id"],
+            title=row["name"],
+            definition=row["definition"],
+            repair_location=row.get("fix_location", ""),
+        )
+        for row in [*payload["task_side"], *payload["run_side"]]
+    )
+    return guidance, "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
+def compile_curated(root: Path) -> Knowledge:
+    """Use only pre-existing taxonomy fields, never example-conditioned card drafts."""
+    guidance, taxonomy_sha = _taxonomy(root)
+    metadata = {
+        "scope": "pre-existing taxonomy only; no source examples or card drafts",
+        "guidance": [guide.model_dump() for guide in guidance],
+    }
+    digest = "sha256:" + hashlib.sha256(canonical(metadata).encode()).hexdigest()
+    return Knowledge(
+        (),
+        (),
+        (),
+        (),
+        digest,
+        {
+            "admitted_dev_examples": 0,
+            "cards": 0,
+            "curated_mechanisms": len(guidance),
+            "source_records_read": 0,
+            "retrieval_scope": "curated_only",
+            "taxonomy_sha256": taxonomy_sha,
+            "taxonomy_projection": ["id", "name", "definition", "fix_location"],
+        },
+        {},
+        (),
+        guidance,
+    )
+
+
 def compile_library(
     root: Path,
     store: LibraryStore,
@@ -335,37 +466,22 @@ def compile_library(
     draft_ids = [d.hackbook_id for d in drafts]
     if len(set(draft_ids)) != len(draft_ids) or set(draft_ids) - {e.id for e in entries}:
         raise ValueError("drafts must reference unique existing Hackbook ids")
-    findings = list(store.iter_findings())
-    runs: list[RunRecord] = []
     missing_runs: list[str] = []
-    for path in sorted(store.manifest_root.glob("*.manifest.json")):
-        name = path.name.removesuffix(".manifest.json")
-        if not store.runs_path(name).is_file():
-            missing_runs.append(name)
-            continue
-        problems = store.verify_runs(name)
-        if problems:
-            raise ValueError("; ".join(problems))
-        runs.extend(store.iter_runs(name))
-    records: list[Finding | RunRecord] = [*findings, *runs]
-    source_rows: dict[str, list[str]] = defaultdict(list)
-    for record in records:
-        source_rows[record.collection].append(canonical(record.model_dump(mode="json")))
-    source_digests = {
-        name: "sha256:" + hashlib.sha256(("\n".join(sorted(rows)) + "\n").encode()).hexdigest()
-        for name, rows in sorted(source_rows.items())
-    }
-    identities = [_identity(record) for record in records]
-    admitted = admitted_cloud_task_ids(identities, registry=registry)
+    source_digests: dict[str, str] = {}
+    records = _source_records(store, source_digests, missing_runs)
     seals = sealed_pattern(registry.sealed_identifiers() | protected_task_ids(root))
-    classes: dict[str, str] = {}
+    classes: dict[str, tuple[str, TaskRef]] = {}
     examples: dict[str, KnowledgeExample] = {}
+    subjects: dict[str, TaskRef] = {}
     rejected = 0
-    for record, identity in zip(records, identities, strict=True):
+    unbound_links = 0
+    for record, is_admitted in _admitted_records(records, registry):
+        subject_key = canonical(record.task.model_dump(mode="json"))
+        subject = subjects.setdefault(subject_key, record.task)
         # Admission is per-record, not just per task: a DEV sibling cannot admit TEST.
         if (
             record.split != "DEV"
-            or identity["task_id"] not in admitted
+            or not is_admitted
             or any(
                 "cheatbench" in value.casefold() or "hackbench" in value.casefold()
                 for value in (record.collection, record.task.source_id)
@@ -383,23 +499,26 @@ def compile_library(
         if seals is not None and seals.search(text):
             rejected += 1
             continue
-        codes = (
-            (record.defect_class,)
-            if isinstance(record, Finding)
-            else tuple(
-                sorted(
-                    {classes[identifier] for identifier in record.finding_ids}
-                    | {label.rs_code for label in record.labels if label.rs_code}
-                )
+        if isinstance(record, Finding):
+            codes = (record.defect_class,)
+        else:
+            linked_codes: set[str] = set()
+            for identifier in record.finding_ids:
+                code, finding_task = classes[identifier]
+                if _same_task_version(record.task, finding_task):
+                    linked_codes.add(code)
+                else:
+                    unbound_links += 1
+            codes = tuple(
+                sorted(linked_codes | {label.rs_code for label in record.labels if label.rs_code})
             )
-        )
         name = CorpusRegistry.task_name(record.task.task_id)
         instruction = _task_text(record.task, root)
         if seals is not None and seals.search(instruction):
             instruction = ""
         example = KnowledgeExample(
             ref,
-            record.task,
+            subject,
             codes,
             units.get(name, frozenset()),
             " ".join((ref.summary, instruction)),
@@ -408,28 +527,35 @@ def compile_library(
             raise ValueError(f"conflicting library ids: {ref.id}")
         examples[ref.id] = example
         if isinstance(record, Finding):
-            classes[record.finding_id] = record.defect_class
+            classes[record.finding_id] = (record.defect_class, record.task)
     # Model prose cannot smuggle sealed subjects into an otherwise safe card.
     if seals is not None and any(seals.search(canonical(d.model_dump())) for d in drafts):
         raise ValueError("card prose contains a protected task identity")
     selected = tuple(examples[key] for key in sorted(examples))
     cards, sparse = compile_cards(selected, entries, drafts)
+    curated, taxonomy_sha = _taxonomy(root)
     material = {
-        "examples": [
-            {
-                "ref": e.ref.model_dump(mode="json"),
-                "search_text": e.search_text,
-                "classes": e.defect_classes,
-            }
-            for e in selected
-        ],
+        "digest_format": "failure-knowledge-content/v2",
         "drafts": [d.model_dump() for d in drafts],
         "entries": [e.dump() for e in entries],
         "units": {k: sorted(v) for k, v in sorted(units.items())},
         "ledger": registry.split_assignments_digest,
         "source_collection_digests": source_digests,
+        "curated_taxonomy": [guide.model_dump() for guide in curated],
     }
-    digest = "sha256:" + hashlib.sha256(canonical(material).encode()).hexdigest()
+    content_digest = hashlib.sha256(canonical(material).encode())
+    for example in selected:
+        content_digest.update(b"\n")
+        content_digest.update(
+            canonical(
+                {
+                    "ref": example.ref.model_dump(mode="json"),
+                    "search_text": example.search_text,
+                    "classes": example.defect_classes,
+                }
+            ).encode()
+        )
+    digest = "sha256:" + content_digest.hexdigest()
     return Knowledge(
         selected,
         cards,
@@ -445,9 +571,13 @@ def compile_library(
             "by_tier": dict(sorted(Counter(e.ref.tier or "run_label" for e in selected).items())),
             "by_split": {"DEV": len(selected)},
             "missing_run_collections": missing_runs,
+            "unbound_finding_links": unbound_links,
             "split_assignments_digest": registry.split_assignments_digest,
             "source_collection_digests": source_digests,
+            "source_digest_format": "sha256-file-bytes",
+            "taxonomy_sha256": taxonomy_sha,
         },
         units,
-        tuple(record.task for record in records),
+        tuple(subjects[key] for key in sorted(subjects)),
+        curated,
     )

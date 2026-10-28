@@ -6,11 +6,16 @@ import csv
 import json
 from datetime import date
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from evallab.cli import run_cli
-from evallab.failure_library.knowledge.compiler import compile_library, validate_card
+from evallab.failure_library.knowledge.compiler import (
+    compile_curated,
+    compile_library,
+    validate_card,
+)
 from evallab.failure_library.knowledge.export import (
     hackbook_proposals,
     write_agent_pack,
@@ -121,6 +126,9 @@ def library(tmp_path: Path) -> tuple[Path, LibraryStore, list[Finding]]:
     hackbook.joinpath("entries.jsonl").write_bytes(
         (REPO / "research/hackbook/entries.jsonl").read_bytes()
     )
+    hackbook.joinpath("taxonomy.json").write_bytes(
+        (REPO / "research/hackbook/taxonomy.json").read_bytes()
+    )
     records = [
         _finding(
             task,
@@ -151,7 +159,7 @@ def test_non_dev_and_cross_key_laundering_never_reach_any_pack(library) -> None:
         }
     }
     assert knowledge.report["by_split"] == {"DEV": 6}
-    for agent in ("task-qa", "trace-qa", "seeker"):
+    for agent in ("task-qa", "trace-qa"):
         pack = make_pack(knowledge, agent=agent, top_k=100)
         assert not set(pack.example_ids) & rejected
         assert all(identifier not in pack.markdown for identifier in rejected)
@@ -198,8 +206,9 @@ def test_explicit_frozen_canary_ids_exclude_linked_runs_and_group(library) -> No
 def test_missing_group_authority_fails_closed_for_same_source(library) -> None:
     root, store, _ = library
     knowledge = compile_library(root, store)
-    pack = make_pack(knowledge, agent="seeker", task="fixture-source/unknown-subject")
-    assert pack.status == "empty"
+    pack = make_pack(knowledge, agent="trace-qa", task="fixture-source/unknown-subject")
+    assert pack.retrieval_mode == "curated_only"
+    assert pack.curated_guidance_ids and pack.identity_uncertainties
     assert not pack.example_ids and not pack.card_ids
 
 
@@ -263,7 +272,7 @@ def test_rebuild_and_bm25_are_deterministic_and_relevant(library, tmp_path: Path
         assert entry.id in {e.id for e in load_hackbook(root)}
 
 
-@pytest.mark.parametrize("agent", ["task-qa", "trace-qa", "seeker"])
+@pytest.mark.parametrize("agent", ["task-qa", "trace-qa"])
 def test_native_agent_packets_match_existing_extension_shapes(
     library, tmp_path: Path, agent: Agent
 ) -> None:
@@ -292,8 +301,6 @@ def test_native_agent_packets_match_existing_extension_shapes(
         assert prior["task_id"] == "fixture-source/subject"
         assert prior["priors"][0]["matched"] is False
         assert prior["priors"][0]["record"]["kind"] == "dev_analogy"
-    else:
-        assert (directory / "hackbook.md").read_text() == pack.markdown
     with pytest.raises(FileExistsError):
         write_agent_pack(pack, directory, rubric_criteria=criteria)
 
@@ -302,7 +309,7 @@ def test_char_cap_never_clips_citations_and_invalid_budgets_fail(library) -> Non
     root, store, _ = library
     knowledge = compile_library(root, store)
     for limit in (256, 500, 1_000):
-        pack = make_pack(knowledge, agent="seeker", max_chars=limit)
+        pack = make_pack(knowledge, agent="trace-qa", max_chars=limit)
         assert len(pack.markdown) <= limit
         for identifier in pack.example_ids:
             assert identifier in pack.markdown
@@ -342,7 +349,6 @@ def test_missing_split_authority_or_unknown_draft_is_refused(library) -> None:
         what_breaks="Mismatch",
         task_cues=["cue"],
         trace_cues=["cue"],
-        seeker_hypothesis="Mismatch",
         fixes=["fix"],
         counterexamples=["control"],
     )
@@ -468,6 +474,211 @@ def test_unmapped_cross_publisher_identity_cannot_bypass_subject_exclusion(libra
     named = make_pack(knowledge, agent="trace-qa", task="fixture-source/subject", top_k=100)
     assert not set(named.example_ids) & {run.run_id for run in runs}
     opaque_subject = make_pack(knowledge, agent="trace-qa", task="opaque-source/100")
-    assert opaque_subject.status == "empty"
-    with pytest.raises(ValueError, match="admitted DEV subject identities"):
-        make_pack(knowledge, agent="trace-qa", exclude_ids=["missing-frozen-id"])
+    assert opaque_subject.retrieval_mode == "curated_only"
+    assert not opaque_subject.example_ids and not opaque_subject.card_ids
+    unresolved = make_pack(knowledge, agent="trace-qa", exclude_ids=["missing-frozen-id"])
+    assert unresolved.retrieval_mode == "curated_only"
+    assert not unresolved.example_ids and unresolved.identity_uncertainties
+
+
+def test_frozen_clean_controls_without_records_exclude_their_certified_family(
+    library, tmp_path: Path, capsys
+) -> None:
+    root, store, records = library
+    control = "fixture-source/clean-control"
+    with (root / "research/answer-keys/splits/assignments.csv").open(
+        "a", newline="", encoding="utf-8"
+    ) as handle:
+        csv.writer(handle).writerow(
+            ["fixture-controls", "clean-control", "clean-control", "family-and-template-a", "dev"]
+        )
+    knowledge = compile_library(root, store)
+    assert not any(example.task.task_id == "clean-control" for example in knowledge.examples)
+    pack = make_pack(knowledge, agent="trace-qa", exclude_tasks=[control], top_k=100)
+    assert pack.status == "ready"
+    assert pack.excluded_tasks == [control]
+    family_ids = {record.finding_id for record in records[:2]}
+    assert not family_ids & set(pack.example_ids)
+    assert all(identifier not in pack.markdown for identifier in family_ids)
+    output = tmp_path / "control-packet"
+    assert (
+        run_cli(
+            [
+                "failures",
+                "pack",
+                "--for",
+                "trace-qa",
+                "--exclude-task",
+                control,
+                "--exclude-task",
+                control,
+                "--state-root",
+                str(tmp_path / "state"),
+                "--output-dir",
+                str(output),
+            ],
+            workspace=root,
+        )
+        == 0
+    )
+    capsys.readouterr()
+    manifest = json.loads((output / "pack.manifest.json").read_text())
+    assert manifest["excluded_tasks"] == [control]
+    assert not family_ids & set(manifest["example_ids"])
+    uncertified = make_pack(
+        knowledge, agent="trace-qa", exclude_tasks=["fixture-source/uncertified-control"]
+    )
+    assert uncertified.retrieval_mode == "curated_only"
+    assert not uncertified.example_ids and uncertified.identity_uncertainties
+    with pytest.raises(ValueError, match="--exclude-task"):
+        make_pack(knowledge, agent="trace-qa", exclude_tasks=["not-a-source-task"])
+
+
+def test_collection_qualified_exclusions_resolve_only_exact_admitted_native_ids(library) -> None:
+    root, store, records = library
+    knowledge = compile_library(root, store)
+    identifier = records[0].finding_id
+    raw = make_pack(knowledge, agent="task-qa", exclude_ids=[identifier])
+    qualified = make_pack(knowledge, agent="task-qa", exclude_ids=[f"fixture-key::{identifier}"])
+    assert qualified.markdown == raw.markdown
+    assert qualified.example_ids == raw.example_ids
+    assert identifier in qualified.exclusions
+    assert f"fixture-key::{identifier}" in qualified.exclusions
+    unresolved = make_pack(
+        knowledge, agent="task-qa", exclude_ids=[f"wrong-collection::{identifier}"]
+    )
+    assert unresolved.retrieval_mode == "curated_only"
+    assert not unresolved.example_ids
+
+
+def test_streamed_run_bytes_finish_sha_verification_before_any_packet_is_published(
+    library, tmp_path: Path, capsys
+) -> None:
+    root, store, records = library
+    runs = [
+        RunRecord(
+            run_id=f"batch-run-{index:04d}",
+            collection="fixture-runs",
+            task=records[2].task,
+            outcome="fail",
+            transcript_ref=f"https://example.org/unread/{index}",
+            split="DEV",
+        )
+        for index in range(513)
+    ]
+    manifest = store.write_runs("fixture-runs", runs, source_revision=REVISION)
+    knowledge = compile_library(root, store)
+    assert {run.run_id for run in runs} <= {example.ref.id for example in knowledge.examples}
+    assert knowledge.report["source_collection_digests"]["runs/fixture-runs.jsonl"] == (
+        "sha256:" + manifest.sha256
+    )
+    assert knowledge.report["source_digest_format"] == "sha256-file-bytes"
+    with store.runs_path("fixture-runs").open("ab") as handle:
+        handle.write(b"\n")  # Still valid JSONL, but no longer the committed exact bytes.
+    output = tmp_path / "must-not-exist"
+    assert (
+        run_cli(
+            [
+                "failures",
+                "pack",
+                "--for",
+                "trace-qa",
+                "--state-root",
+                str(tmp_path / "state"),
+                "--output-dir",
+                str(output),
+            ],
+            workspace=root,
+        )
+        == 2
+    )
+    failure = json.loads(capsys.readouterr().out)
+    assert failure["status"] == "failed" and "sha256" in failure["error"]
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    ("version_case", "bound"),
+    [
+        ("different_revision", False),
+        ("matching_revision", True),
+        ("matching_digest", True),
+        ("conflicting_digest", False),
+    ],
+)
+def test_identity_links_cannot_apply_a_task_defect_to_an_unbound_run_version(
+    library, version_case: str, bound: bool
+) -> None:
+    root, store, records = library
+    digest = "sha256:" + "a" * 64
+    if "digest" in version_case:
+        records = [
+            record.model_copy(
+                update={"task": record.task.model_copy(update={"task_version_digest": digest})}
+            )
+            for record in records
+        ]
+        store.write_findings("fixture-key", records)
+    runs = []
+    for index, record in enumerate(records[:3]):
+        native_task = record.task
+        if version_case in {"different_revision", "matching_digest"}:
+            native_task = native_task.model_copy(
+                update={
+                    "upstream_repo": "https://example.org/pinned-task-mirror",
+                    "upstream_revision": "f" * 40,
+                }
+            )
+        if version_case == "conflicting_digest":
+            native_task = native_task.model_copy(
+                update={"task_version_digest": "sha256:" + "b" * 64}
+            )
+        runs.append(
+            RunRecord(
+                run_id=f"version-run-{index}",
+                collection="fixture-runs",
+                task=native_task,
+                outcome="unknown",
+                labels=[
+                    RunLabel(
+                        label="test infrastructure modification",
+                        rs_code="RS02",
+                        kind="judge",
+                        source="native behavior annotation, not a replay",
+                    )
+                ],
+                transcript_ref=f"https://example.org/unread-version-run/{index}",
+                split="DEV",
+                finding_ids=[record.finding_id],
+            )
+        )
+    store.write_runs("fixture-runs", runs, source_revision=REVISION)
+    knowledge = compile_library(root, store)
+    examples = [example for example in knowledge.examples if example.ref.kind == "run"]
+    assert len(examples) == 3  # Old-version behavior remains useful, not discarded.
+    for example in examples:
+        assert set(example.defect_classes) == ({"TS01", "RS02"} if bound else {"RS02"})
+        assert example.ref.tier is None
+        assert "[judge, RS02]" in example.ref.summary
+    assert knowledge.report["unbound_finding_links"] == (0 if bound else 3)
+
+
+def test_curated_metadata_never_reads_example_conditioned_drafts(library) -> None:
+    root, _, _ = library
+    (root / "research/failure-library/knowledge/mechanisms.json").write_text("not JSON")
+    knowledge = compile_curated(root)
+    assert not knowledge.examples and not knowledge.cards and not knowledge.drafts
+    assert knowledge.report["source_records_read"] == 0
+    pack = make_pack(
+        knowledge,
+        agent="trace-qa",
+        task="unknown-source/unknown-native-task",
+        exclude_ids=["unresolved-frozen-id"],
+    )
+    assert pack.retrieval_mode == "curated_only"
+    assert pack.curated_guidance_ids
+    assert not pack.example_ids and not pack.card_ids
+    assert "no examples or empirical support claim" in pack.markdown
+    assert all("support_count" not in guide.model_dump() for guide in knowledge.curated)
+    with pytest.raises(ValueError, match="Only defensive"):
+        make_pack(knowledge, agent=cast(Agent, "seeker"))

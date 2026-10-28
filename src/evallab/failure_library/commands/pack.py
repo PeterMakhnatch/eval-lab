@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evallab.failure_library.knowledge.compiler import compile_library
+from evallab.failure_library.knowledge.compiler import compile_curated, compile_library
 from evallab.failure_library.knowledge.export import write_agent_pack, write_knowledge
 from evallab.failure_library.knowledge.packs import make_pack
 from evallab.failure_library.store import LibraryStore
@@ -18,7 +18,7 @@ def register(subparsers: Any) -> None:
         "pack", help="DEV-only failure cards and leave-subject-out examples"
     )
     parser.add_argument(
-        "--for", dest="agent", required=True, choices=("task-qa", "trace-qa", "seeker")
+        "--for", dest="agent", required=True, choices=("task-qa", "trace-qa")
     )
     parser.add_argument(
         "--task", help="Subject <source_id>/<task_id>; always excluded with its group"
@@ -32,9 +32,20 @@ def register(subparsers: Any) -> None:
         "--exclude-id",
         action="append",
         default=[],
-        help="Exclude a frozen canary finding/run id and its entire subject group; repeatable",
+        help="Exclude admitted raw id or COLLECTION::RAW_ID and its subject group; repeatable",
+    )
+    parser.add_argument(
+        "--exclude-task",
+        action="append",
+        default=[],
+        help="Exclude SOURCE/TASK and its group even without a library record; repeatable",
     )
     parser.add_argument("--state-root", type=Path, default=None)
+    parser.add_argument(
+        "--curated-only",
+        action="store_true",
+        help="Use defensive taxonomy metadata only; read no library examples",
+    )
     parser.add_argument(
         "--output-dir", type=Path, help="Create agent-native artifacts in a NEW directory"
     )
@@ -53,7 +64,11 @@ def register(subparsers: Any) -> None:
 
 def _run(args: argparse.Namespace, root: Path, **_: Any) -> int:
     try:
-        knowledge = compile_library(root, LibraryStore.for_repo(root, state_root=args.state_root))
+        knowledge = (
+            compile_curated(root)
+            if args.curated_only
+            else compile_library(root, LibraryStore.for_repo(root, state_root=args.state_root))
+        )
         pack = make_pack(
             knowledge,
             agent=args.agent,
@@ -62,6 +77,7 @@ def _run(args: argparse.Namespace, root: Path, **_: Any) -> int:
             max_chars=args.max_chars,
             top_k=args.top_k,
             exclude_ids=args.exclude_id,
+            exclude_tasks=args.exclude_task,
         )
         criteria = None
         if args.output_dir and args.agent == "task-qa":

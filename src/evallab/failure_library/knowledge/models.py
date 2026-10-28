@@ -9,7 +9,7 @@ from pydantic import Field
 from evallab.failure_library.records import DefectClass, RunCode, Tier
 from evallab.schemas import ContractModel
 
-Agent = Literal["task-qa", "trace-qa", "seeker"]
+Agent = Literal["task-qa", "trace-qa"]
 
 
 class CardDraft(ContractModel):
@@ -19,7 +19,6 @@ class CardDraft(ContractModel):
     what_breaks: str = Field(min_length=1)
     task_cues: list[str] = Field(min_length=1)
     trace_cues: list[str] = Field(min_length=1)
-    seeker_hypothesis: str = Field(min_length=1)
     fixes: list[str] = Field(min_length=1)
     counterexamples: list[str] = Field(min_length=1)
 
@@ -37,10 +36,23 @@ class ExampleRef(ContractModel):
     source_url: str
     summary: str
     tier: Tier | None = None
+    verification_scope: Literal["source_record_not_verified_by_compiler"] = (
+        "source_record_not_verified_by_compiler"
+    )
     evidence_refs: list[str] = Field(default_factory=list)
     evidence_notes: list[str] = Field(default_factory=list)
     status_now: str = "unknown"
     fixed_in_revision: str | None = None
+
+
+class TaxonomyGuidance(ContractModel):
+    """Pre-existing category metadata, without examples or empirical support claims."""
+
+    code: str = Field(pattern=r"^(TS|RS)\d{2}$")
+    title: str
+    definition: str
+    repair_location: str = ""
+
 
 
 class FailureCard(ContractModel):
@@ -54,7 +66,6 @@ class FailureCard(ContractModel):
     what_breaks: str
     task_cues: list[str]
     trace_cues: list[str]
-    seeker_hypothesis: str
     fixes: list[str]
     # Diagnostic non-defect conditions, not invented clean labels on real runs.
     counterexamples: list[str]
@@ -72,5 +83,9 @@ class AgentPack(ContractModel):
     card_ids: list[str]
     library_digest: str
     exclusions: list[str]
+    excluded_tasks: list[str] = Field(default_factory=list)
+    retrieval_mode: Literal["dev_examples", "curated_only", "empty"]
+    curated_guidance_ids: list[str] = Field(default_factory=list)
+    identity_uncertainties: list[str] = Field(default_factory=list)
     task_id: str | None = None
     task_digest: str | None = None

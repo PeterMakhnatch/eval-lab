@@ -1,9 +1,22 @@
 {
+  "active_field_projection": [
+    "hackbook_id",
+    "what_breaks",
+    "task_cues",
+    "trace_cues",
+    "fixes",
+    "counterexamples"
+  ],
+  "active_scope": "defensive_task_and_trace_qa_only",
+  "archived_pre_steering_artifacts": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/archive/20261027-defensive-cutover-d9142e22",
   "draft_count": 9,
   "input_sha256": "7950538a5300b2d87484819143d86451a514e3ed3a6788ba530e5852697536c4",
   "local_evidence": "/Users/petermakhnatch/.local/state/evallab-failure-library/knowledge/drafting/857730824d86332dcd38ef8d3b001c7f3ca0dece5ed254e08077f5a55a847a73",
   "metered_cost_usd": 0,
   "model": "anthropic/claude-sonnet-5-5",
+  "omitted_generated_fields": [
+    "seeker_hypothesis"
+  ],
   "policy": "Only admitted DEV source-native labels; no transcript reads/uploads. Judge behavior labels are not execution proof; baseline is not certified clean.",
   "response_sha256": "857730824d86332dcd38ef8d3b001c7f3ca0dece5ed254e08077f5a55a847a73",
   "route": "subscription",

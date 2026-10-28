@@ -1,4 +1,4 @@
-"""Deterministic artifacts matching the three agents' existing extension points."""
+"""Deterministic defensive Task/Trace QA artifacts and provenance-bearing proposals."""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ _SOURCES = {
     "tb2-to-tb21-fixes": "tb2_to_tb21",
     "mimo-weak-tests": "mimo_atlas",
     "mimo-defect-map": "mimo_atlas",
-    "goodfire": "terminal_wrench",
     "terminal-wrench": "terminal_wrench",
 }
 
@@ -37,6 +36,12 @@ def hackbook_proposals(knowledge: Knowledge) -> list[HackbookEntry]:
     for card in knowledge.cards:
         validate_card(card, admitted)
         payload = entries[card.hackbook_entry_id].dump()
+        represented = {
+            _SOURCES[ref.collection] for ref in card.examples if ref.collection in _SOURCES
+        }
+        if not represented:
+            continue
+        payload["sources"] = sorted(represented)
         payload["version"] = "failure-library-v1-proposal"
         payload["mechanism"] = card.what_breaks
         payload["examples"] = []
@@ -50,7 +55,7 @@ def hackbook_proposals(knowledge: Knowledge) -> list[HackbookEntry]:
                     "item_or_task_id": ref.id,
                     "summary": ref.summary,
                     "source_url": ref.source_url,
-                    "evidence_status": "executed" if ref.tier == "V3_executed" else "claimed",
+                    "evidence_status": "claimed",
                 }
             )
             payload["examples"].append(example.model_dump(mode="json"))
@@ -63,21 +68,19 @@ def hackbook_proposals(knowledge: Knowledge) -> list[HackbookEntry]:
                 *card.task_cues,
                 *card.trace_cues,
                 "Counterexamples: " + "; ".join(card.counterexamples),
+                "Source mapping omissions (kept distinct in the linked card): "
+                + ", ".join(
+                    sorted(
+                        {ref.collection for ref in card.examples if ref.collection not in _SOURCES}
+                    )
+                ),
             ],
             "rule_or_probe": "research/failure-library/knowledge/cards.jsonl#" + card.card_id,
         }
         payload["fix_pattern"]["summary"] = "; ".join(card.fixes)
         payload["fix_pattern"]["checklist"] = card.fixes
-        payload["exploit_template"] = {
-            "applicable": payload["direction"] != "false_fail",
-            "mode": "verification_hypothesis",
-            "goal": card.seeker_hypothesis,
-            "preconditions": card.task_cues,
-            "template_steps": [
-                "Check the stated behavior against the pinned grader in an authorized evaluation.",
-                "Compare independent behavioral evidence with the recorded reward.",
-            ],
-        }
+        # The canonical schema requires this field; no attacker template is generated.
+        payload["exploit_template"] = {"applicable": False}
         result.append(HackbookEntry.model_validate(payload))
     return sorted(result, key=lambda entry: entry.id)
 
@@ -85,12 +88,21 @@ def hackbook_proposals(knowledge: Knowledge) -> list[HackbookEntry]:
 def write_knowledge(knowledge: Knowledge, directory: Path) -> dict[str, Any]:
     """Rebuild only these three generated files; model drafts are immutable inputs."""
     cards = "".join(canonical(card.model_dump(mode="json")) + "\n" for card in knowledge.cards)
-    proposals = "".join(canonical(entry.dump()) + "\n" for entry in hackbook_proposals(knowledge))
+    proposal_entries = hackbook_proposals(knowledge)
+    proposals = "".join(canonical(entry.dump()) + "\n" for entry in proposal_entries)
     files = {"cards.jsonl": cards, "hackbook-proposals.jsonl": proposals}
     manifest = {
         "schema_version": "failure-knowledge/v1",
         "library_digest": knowledge.digest,
         **knowledge.report,
+        "omitted_hackbook_proposals": {
+            card.card_id: {
+                "collections": sorted({ref.collection for ref in card.examples}),
+                "reason": "No approved exact-source mapping to the Hackbook source enum",
+            }
+            for card in knowledge.cards
+            if card.hackbook_entry_id not in {entry.id for entry in proposal_entries}
+        },
         "sha256": {
             name: hashlib.sha256(text.encode()).hexdigest() for name, text in sorted(files.items())
         },
@@ -139,9 +151,7 @@ def write_agent_pack(
     audit. Task QA keeps every baseline criterion name/description unchanged.
     """
     files = {"pack.md": pack.markdown}
-    if pack.agent == "seeker":
-        files["hackbook.md"] = pack.markdown
-    elif pack.agent == "task-qa":
+    if pack.agent == "task-qa":
         if rubric_criteria is None:
             raise ValueError("Task QA export requires baseline rubric criteria")
         files["playbook.md"] = pack.markdown
@@ -162,10 +172,15 @@ def write_agent_pack(
                             "matched": False,
                             "record": {
                                 "schema_version": pack.schema_version,
-                                "kind": "dev_analogy",
+                                "kind": "curated_guidance"
+                                if pack.retrieval_mode == "curated_only"
+                                else "dev_analogy",
                                 "markdown": pack.markdown,
                                 "example_ids": pack.example_ids,
                                 "card_ids": pack.card_ids,
+                                "retrieval_mode": pack.retrieval_mode,
+                                "curated_guidance_ids": pack.curated_guidance_ids,
+                                "identity_uncertainties": pack.identity_uncertainties,
                             },
                         }
                     ],

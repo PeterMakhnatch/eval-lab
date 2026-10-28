@@ -181,13 +181,13 @@ inputs:
   - path: src/evallab/failure_library/knowledge/__init__.py
     digest: sha256:c958c065b96136ff5522b907fc13b56a88dfcad4bfb266a49aea81d5a3da2fc0
   - path: src/evallab/failure_library/knowledge/compiler.py
-    digest: sha256:325ba67e63527a7624a7ea0e833414631ff08e798572beacba2f35aa3d1f1bc2
+    digest: sha256:efb62878c2aca1d6e4be25cac79e9c189e249a3d8a150018bf350adaf90c48fd
   - path: src/evallab/failure_library/knowledge/export.py
     digest: sha256:9b1a322a6c8d2d82420016d15383b278fa371896bb6cfc3737bab3935e63b680
   - path: src/evallab/failure_library/knowledge/models.py
-    digest: sha256:04d82822554603eb53861f5a674cedae2ae0d962491cb2dbb1021fabd741e3d6
+    digest: sha256:53a78107a05a28161a9e10dbf56d0f10d54a06195fff40e0416214b527959480
   - path: src/evallab/failure_library/knowledge/packs.py
-    digest: sha256:af20fb124b94a887ed28d296e7813da57c345d28df3df2c13d3779d70818f0ac
+    digest: sha256:003c4c75a48c89e074c5adf535645b83d79fa7877088a12bc8664dccd151ca5c
   - path: src/evallab/failure_library/records.py
     digest: sha256:e22a03b9d11e1709cff534e16a33cc6b4384af4123b4cd9eb9a495f579ed7b29
   - path: src/evallab/failure_library/store.py

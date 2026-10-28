@@ -129,7 +129,7 @@ inputs:
   - path: docs/rollout.md
     digest: sha256:478b97b1ff840eb80549057203e5626209a4475c14c69aac9caf04fcf6298daf
   - path: docs/run-atlas.md
-    digest: sha256:d9dfbf23b1119af7a601959360e0554c098a05f2b7317a310e168d7c182cec05
+    digest: sha256:84bf122cba91b2b8a47988aa83c61221648c65bf8e7583b2ec4a78c461cba770
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/scaling.md

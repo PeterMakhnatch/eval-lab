@@ -141,6 +141,30 @@ declines it is `neither`. `window_cascade.CONTEXT_REASONING_CHARS` can add a sho
 reasoning excerpt (for example 300 characters) to every other window step; it is off
 because on Goodfire DEV it cost about a quarter more judge input and found nothing more.
 
+Stage 0 (`evallab.production.stage0_triage`, `stage0-triage/v1`) separately triages
+**whole runs** from Run Atlas's provisional, model-extracted `run-facets/v1`
+records, not causal prefixes. `load_facets` reads the interim append-only
+`~/.local/state/evallab-prod-live/run-atlas/facets-v1.jsonl`, validates records with
+Run Atlas's canonical validator, skips malformed records, and keeps the last
+valid record for each run. The default alarm is `suspicion >= 2`; named rules can
+be combined with OR for DEV measurement. No model call or extraction is started.
+`MisalignmentLiveWorker.ingest_run_facets` requires a bound registry with an
+authoritative assignment ledger and rejects cross-key TEST or sealed identities.
+For runs already observed, their task identity and steps are authoritative; for
+Atlas-only runs, callers supply the resolved `task_id` and original `step_ids`.
+After admission and citation checks it journals one idempotent
+`monitor.run_triage` diagnostic per run, facet digest and rule combination.
+The event retains the assignment digest, rule names, evidence step IDs and the
+canonical facet SHA-256, never the facet's goal, approach or shortcut prose.
+These alarms are investigation leads, never gates or verdicts: they do not
+change `pre_action_gate`, verify an outcome, or establish reward causality.
+Run-level scoring excludes missing decisions from every count and reports their
+run IDs separately. An OR union is positive if either reader alarms, but is
+negative only when all readers returned a negative; otherwise it is unknown.
+Comparisons use the same complete facet/cascade intersection. A frozen
+cross-dataset DEV check is not a new unseen holdout, and scores from facets with
+incomplete source-name blinding remain exploratory.
+
 Live alert cards also carry a `playbook` lead: `window_cascade.playbook_lead` runs
 `trace_feature_flags.compute_trace_feature_flags` over the steps observed up to the flagged
 step (agent commands and text only, so a replay gives the same lead as a stream) and
@@ -1507,6 +1531,56 @@ by opening the dashboard. For example, only under current operator approval:
 modal run src/evallab/production/modal_cloud.py::run_cloud_supervisor_step \
   --approval 'Current scoped cloud offload approval' --max-usd 1
 ```
+
+#### Run Atlas (`/api/cloud-db/atlas`)
+
+The atlas is a read-only projection of two retained files under `<data_root>/run-atlas/`,
+validated by `evallab.production.atlas_view` and re-read only when a file changes.
+Neither endpoint calls a model, joins source labels, or writes anything.
+
+- The dashboard's **Run Atlas** tab shows store health, the recorded cluster tree,
+  facet filters and paged DEV runs, with in-page evidence, trace flags and playbook cards.
+- `facets-v1.jsonl` -- one `run-facets/v1` JSON object per line (contract: the Wave 6
+  `CONTRACT.md` §3). Cloud-backed `run_id` is `agent_traces.trace_id`: the database's
+  `run_id` column is shared by many traces and is never used to look a run up.
+  Item-only records without a corresponding trace are counted as withheld, not aliased.
+  A line that is not exactly that record (extra or missing field, `split` other than `DEV`,
+  `suspicion` outside 0-3, more than 5 or repeated `evidence_steps`, bad enum) is
+  counted as rejected and shown as a short reason; the latest valid line per `run_id`
+  wins. Displayed `source` comes from the admitted task's `dataset_id`; `outcome`
+  comes from trace reward (at least 1: pass; at most 0: fail; otherwise unknown).
+  Evidence is checked against actual `trace_steps.step_index` membership, not
+  `step_count`: sparse indices are valid, nonexistent gaps are not.
+- `clusters-v1.jsonl` -- the producer's append-only `run-clusters/v1` rows, with
+  `cluster_version`, `build_id`, `created_at`, `facet_count`, `cluster_id`, `name`,
+  `level`, `parent`, `run_ids`, `centroid_text`, `size` and nullable `label_rates`.
+  The final contiguous build in file order is used; reused IDs never mix builds.
+  Its three levels must partition the same `facet_count` identities, with distinct
+  IDs, correct sizes, parents one level above and children contained in their parent.
+  An incomplete or invalid final build yields `store.cluster_error`; facets still show.
+  Unused producer diagnostics and sample texts are not returned.
+- Producer `label_rates` is either null or `{labelled, positives, rate}`. The view
+  validates `positives <= labelled <= size` and the ratio, then projects it into
+  `{label, hits_n, of_n}` for display. Unknown labels never become negatives.
+  The producer does not record a scoring timestamp: API `scored_at` remains null,
+  never replaced with clustering time or file mtime. Null rates show "Not scored yet";
+  recorded rates without a timestamp show "Scoring time not recorded".
+
+`GET /api/cloud-db/atlas` (always `split=dev`) takes the facet filters `source`,
+`outcome`, `tests`, `eval_awareness`, `min_suspicion`, the three boolean facets,
+`cluster_id`, free-text `q` and `limit`/`offset` (at most 200). It returns the cluster
+tree (recorded `size`, `admitted_n` and `matching_n` under the current filters, the
+recorded label rates), counts for every filter value, the matching runs (most
+suspicious first) and `store` counters: facets read, shown, rejected, superseded, runs
+whose task is not admitted DEV (`unadmitted_n`) and runs whose evidence step is not a
+step of the run (`evidence_outside_run_n`). Neither kind is shown.
+
+`GET /api/cloud-db/atlas/run?run_id=` returns one run: its facet, the cluster chains
+that hold it, its evidence steps with one neighbour each side (bounded excerpts from
+retrieval's `expand_pointer`, never user or system prompts), the fired trace feature flags with
+their step indices, and the matching Trace-Watcher playbook cards. Retrieval's own
+gate decides first; a run it will not return yields `withheld` and no steps. Flags and
+cards are routing leads, not cheating verdicts.
 
 ### Production supervisor
 

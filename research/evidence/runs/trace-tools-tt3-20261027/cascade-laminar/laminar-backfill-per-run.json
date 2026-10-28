@@ -1,0 +1,396 @@
+[
+  {
+    "run_id": "har104-d-002391__WxBjcjX",
+    "trajectory_chars": 502959,
+    "input_tokens_per_signal": "125739.75",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0580828875",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 502959,
+        "sha256": "953525bc54369695eef0a385f419fa4d5bed54cda93de8dace90ae7108d5eca1"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har90-mimo-0036-e__pWmMRr8",
+    "trajectory_chars": 241640,
+    "input_tokens_per_signal": "60410",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0286845",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 241640,
+        "sha256": "a2b6fd8fd211344a5589af5824707c61b1f762f526652ee1f38b6981a8cbb6c8"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har90-mimo-0036-h__eortFrt",
+    "trajectory_chars": 657637,
+    "input_tokens_per_signal": "164409.25",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0754841625",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 657637,
+        "sha256": "9e3e414a9d2683945cf8bc7d16a1abe69e2a7d04c2b5c470ffc1f6c47e3312de"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har90-mimo-0036-g__e4aCCS7",
+    "trajectory_chars": 296857,
+    "input_tokens_per_signal": "74214.25",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0348964125",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 296857,
+        "sha256": "47615d9ee8e0d2d217d571617921d6cd3469a1cc981fd38e24f79ffc9395944c"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "event-summary__5E3btLv",
+    "trajectory_chars": 22279,
+    "input_tokens_per_signal": "5569.75",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0040063875",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 22279,
+        "sha256": "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "event-summary__EKfePmM",
+    "trajectory_chars": 24376,
+    "input_tokens_per_signal": "6094",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0042423",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 24376,
+        "sha256": "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "event-summary__EMsZuvy",
+    "trajectory_chars": 24405,
+    "input_tokens_per_signal": "6101.25",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0042455625",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 24405,
+        "sha256": "0f95d3da753a276143bc460b4089913212a111e0b8c5d12bcae69f71fd5f9c1d"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "event-summary__PbjjFx9",
+    "trajectory_chars": 22840,
+    "input_tokens_per_signal": "5710",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0040695",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 22840,
+        "sha256": "756a4f5adbb34c0495d0bccc54b03c1990ee5da5ef8c8d184a25aac2c2cb6dea"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "event-summary__h2D9f6f",
+    "trajectory_chars": 25091,
+    "input_tokens_per_signal": "6272.75",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0043227375",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 25091,
+        "sha256": "5a2e474bc270a5c9e9591f489a7b20bbc3ad5e31a71104c8aa1d7abb553f7175"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "event-summary__qDnf3Zr",
+    "trajectory_chars": 20822,
+    "input_tokens_per_signal": "5205.5",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.003842475",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 20822,
+        "sha256": "75b9b25515266f043fcb532871e3c4b02c9199b328ef06509db666d0b7b99fd6"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "gepa-terminus-2-format-code-task__CFCbfps",
+    "trajectory_chars": 665256,
+    "input_tokens_per_signal": "166314",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0763413",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 665256,
+        "sha256": "fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har104-d-000226__JCDfZFi",
+    "trajectory_chars": 397366,
+    "input_tokens_per_signal": "99341.5",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.046203675",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 397366,
+        "sha256": "e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har135-c1-001661__axtUtKL",
+    "trajectory_chars": 294369,
+    "input_tokens_per_signal": "73592.25",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0346165125",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 294369,
+        "sha256": "35c1601eff2ec3cc5fac5d02be3d0e19b83c8883ec737d82f0df6bc294f4d79b"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har135-c1-002938__iQaHjxi",
+    "trajectory_chars": 435555,
+    "input_tokens_per_signal": "108888.75",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0504999375",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 435555,
+        "sha256": "22a59ab7def67d91099e0221b86663cf0781dff7e86b634b4806b5a2dfd0c077"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har148-direct-001647__ayTaDa2",
+    "trajectory_chars": 67160,
+    "input_tokens_per_signal": "16790",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0090555",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 67160,
+        "sha256": "7868c6c2e58fa3e76ce5f6ccd44ab3c734eb508020ae412abcf06fa151b63544"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har148-wrapper-001647__9Q5cbAT",
+    "trajectory_chars": 72223,
+    "input_tokens_per_signal": "18055.75",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0096250875",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 72223,
+        "sha256": "25ea1009e39c4f23523a70f76a7d9facadc40fd3af92f415215eac097dae1b38"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har81-l-d-a2-arvo-42485576__YQ3rQ7R",
+    "trajectory_chars": 348267,
+    "input_tokens_per_signal": "87066.75",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0406800375",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 348267,
+        "sha256": "e76a9ebd96d0100213a2e1e8adea4a1ff6c9feefd84a7af9531169ca3aeb02cf"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har81-l-d-a2-candidate-1271-medi__2tAyTq3",
+    "trajectory_chars": 732482,
+    "input_tokens_per_signal": "183120.5",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.083904225",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 486706,
+        "sha256": "04ca77f487ade10fb3a12d690d3969ae327ea018150f299a22ad33dbbd62c9a9"
+      },
+      {
+        "file": "trajectory.cont-1.json",
+        "chars": 245776,
+        "sha256": "1c8ece720b370292168da3e26fafaa3cf878f6f2734304decc2e1618452a70db"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har81-l-d-a2-format-code-task-00__6TqzNQw",
+    "trajectory_chars": 415482,
+    "input_tokens_per_signal": "103870.5",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.048241725",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 415482,
+        "sha256": "5c9ce361437fda2fcdd21535d040ea91331b96491d73ab3b98ea2d022d765140"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har81-l-d-a3-arvo-18737__FygpNSe",
+    "trajectory_chars": 403861,
+    "input_tokens_per_signal": "100965.25",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0469343625",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 403861,
+        "sha256": "f62bcdc5b11b0c2a329421c006925622df6899295c5eae27b95971bd300d176f"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har81-l-d-a3-candidate-1271-medi__xn4sAug",
+    "trajectory_chars": 391545,
+    "input_tokens_per_signal": "97886.25",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0455488125",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 391545,
+        "sha256": "23c941af2496a036196271310b5bf68e45fe0e00eacbe68651b6d0c279090833"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har81-p-d-candidate-1559-ml-eval__bqBv49S",
+    "trajectory_chars": 74433,
+    "input_tokens_per_signal": "18608.25",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0098737125",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 74433,
+        "sha256": "f293cbd27a4f2e973a69b37c95ffd40ed547f15ada8d44b9bda99f1852fe4b93"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har81-p-d-candidate-2684-securit__uwoAzn7",
+    "trajectory_chars": 550607,
+    "input_tokens_per_signal": "137651.75",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0634432875",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 428169,
+        "sha256": "4dac174302a2f5a0dde33cafae60d6ab0fa713f2f427b2c33d7fd98daa4fbb91"
+      },
+      {
+        "file": "trajectory.cont-1.json",
+        "chars": 122438,
+        "sha256": "3ed2e4074fb59ea2a019f9053e11999c0d0a8971456cf2f0afe516e9d81d3bab"
+      }
+    ],
+    "trace_already_present": false
+  },
+  {
+    "run_id": "har81-p-d-format-code-task-00024__9KYGvwT",
+    "trajectory_chars": 147617,
+    "input_tokens_per_signal": "36904.25",
+    "signals": 3,
+    "output_tokens": 3000,
+    "usd": "0.0181069125",
+    "documents": [
+      {
+        "file": "trajectory.json",
+        "chars": 147617,
+        "sha256": "02ded7286ee3ffb5ff02a300895464cd1a8660009ed21f88862d096f49057f48"
+      }
+    ],
+    "trace_already_present": false
+  }
+]

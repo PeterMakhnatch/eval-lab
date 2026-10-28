@@ -69,15 +69,18 @@ from pathlib import Path
 from typing import Any, Literal
 
 import modal
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from evallab.execution_backend import ExecutionBackendConfig
+from evallab.hackbook.playbook_cards import match_playbook_cards
+from evallab.production import atlas_view
 from evallab.production.asset_store import VerifiedAssetStore
 from evallab.production.benchmark_reports import MAX_BENCHMARK_BYTES, validate_benchmark_document
 from evallab.production.cloud_trace_db import (
     CloudTraceDatabase,
+    CloudTraceRetriever,
     S3CompatibleCAS,
     admitted_cloud_task_ids,
 )
@@ -89,6 +92,7 @@ from evallab.production.outbox_relay import LocalJetStreamAdapter, OutboxRelay
 from evallab.production.seeker_worker import RewardSeekerLiveWorker
 from evallab.production.supervisor import ProductionSupervisor
 from evallab.production.tq_worker import TaskQualityLiveWorker
+from evallab.production.trace_feature_flags import compute_trace_feature_flags
 
 APP_NAME = "evallab-cloud-production"
 VOLUME_NAME = "evallab-cloud-store"
@@ -175,6 +179,8 @@ class CloudRuntime:
         self._commit = commit or (lambda: None)
         self._step_lock = threading.Lock()
         self._closed = False
+        self._atlas_lock = threading.Lock()
+        self._atlas_cache: tuple[list[tuple[int, int, int] | None], atlas_view.AtlasStore] | None = None
         self.registry = CorpusRegistry(self.repo_root)
         with ExitStack() as cleanup:
             self.queue = ContinuousWorkQueue(self.data_root / "prod.sqlite", registry=self.registry)
@@ -341,6 +347,146 @@ class CloudRuntime:
             os.close(descriptor)
         return result
 
+    def _atlas_store(self) -> atlas_view.AtlasStore:
+        """The validated atlas files, re-read only when either file changes on disk."""
+        directory = self.data_root / "run-atlas"
+        key: list[tuple[int, int, int] | None] = []
+        try:
+            try:
+                root = os.stat(directory, follow_symlinks=False)
+            except FileNotFoundError:
+                key.append(None)
+            else:
+                if not stat.S_ISDIR(root.st_mode):
+                    raise ValueError("run-atlas must be a non-symlink directory")
+                key.append((root.st_mtime_ns, root.st_size, root.st_ino))
+            for name in (atlas_view.FACETS_FILE, atlas_view.CLUSTERS_FILE):
+                try:
+                    seen = os.stat(directory / name, follow_symlinks=False)
+                except FileNotFoundError:
+                    key.append(None)
+                else:
+                    key.append((seen.st_mtime_ns, seen.st_size, seen.st_ino))
+        except (OSError, ValueError) as error:
+            raise HTTPException(503, f"Atlas store is unreadable: {error}") from error
+        with self._atlas_lock:
+            if self._atlas_cache is None or self._atlas_cache[0] != key:
+                try:
+                    self._atlas_cache = (key, atlas_view.load_atlas_store(directory))
+                except (OSError, ValueError, UnicodeDecodeError) as error:
+                    raise HTTPException(503, f"Atlas store is unreadable: {error}") from error
+            return self._atlas_cache[1]
+
+    def _atlas_traces(self) -> dict[str, dict[str, Any]]:
+        """Admitted DEV identities and exact step indices; no body is read here."""
+        identifiers = sorted(self._admitted_task_ids())
+        traces: dict[str, dict[str, Any]] = {}
+        for start in range(0, len(identifiers), 500):
+            page = identifiers[start : start + 500]
+            placeholders = ", ".join("?" for _ in page)
+            rows = self._query(
+                "SELECT t.trace_id, t.task_id, t.step_count, t.trust_tier, c.dataset_id,"
+                " CASE WHEN t.reward >= 1 THEN 'pass' WHEN t.reward <= 0 THEN 'fail'"
+                " ELSE 'unknown' END AS outcome"
+                " FROM agent_traces t JOIN corpus_tasks c ON c.task_id = t.task_id"
+                f" WHERE t.task_id IN ({placeholders})",
+                tuple(page),
+            )
+            indices: dict[str, set[int]] = {row["trace_id"]: set() for row in rows}
+            for step in self._query(
+                "SELECT s.trace_id, s.step_index FROM trace_steps s"
+                " JOIN agent_traces t ON t.trace_id = s.trace_id"
+                f" WHERE t.task_id IN ({placeholders})",
+                tuple(page),
+            ):
+                found = indices.get(step["trace_id"])
+                if found is not None:
+                    found.add(step["step_index"])
+            for row in rows:
+                row["step_indices"] = frozenset(indices[row["trace_id"]])
+                traces[row["trace_id"]] = row
+        return traces
+
+    def _atlas_run(self, run_id: str) -> dict[str, Any]:
+        """One atlas run: facet, cluster paths, evidence steps, trace flags and playbook cards."""
+        store, traces = self._atlas_store(), self._atlas_traces()
+        shown, _ = atlas_view.visible_facets(store, traces)
+        facet = shown.get(run_id)
+        if facet is None:
+            raise HTTPException(404, "Run is not in the atlas")
+        identity = traces[run_id]
+        result: dict[str, Any] = {
+            "run": {
+                **facet,
+                "task_id": identity["task_id"],
+                "dataset_id": identity["dataset_id"],
+                "trust_tier": identity["trust_tier"],
+                "step_count": identity["step_count"],
+                "cluster_paths": atlas_view.cluster_paths(store, run_id),
+            },
+            "evidence": [],
+            "flags": None,
+            "playbook_cards": [],
+            "withheld": None,
+            "notice": (
+                "Trace flags and playbook cards are routing leads from agent-authored commands "
+                "and text, not cheating verdicts. Evidence steps are bounded excerpts."
+            ),
+        }
+        retriever = CloudTraceRetriever(self.database, registry=self.registry)
+        try:
+            # Retrieval's own gate decides first: admitted DEV task, returnable tier, no sealed identity.
+            retriever.expand_pointer(f"trace:{run_id}:0-0", include_provisional=True)
+            wanted = set(facet["evidence_steps"])
+            collected: dict[int, dict[str, Any]] = {}
+            for index in sorted(wanted):
+                window = retriever.expand_pointer(
+                    f"trace:{run_id}:{max(0, index - 1)}-{index + 1}", include_provisional=True
+                )
+                for step in window["steps"]:
+                    if step["role"] in ("agent", "assistant", "tool", "environment"):
+                        collected[step["step_index"]] = {
+                            **step,
+                            "is_evidence": step["step_index"] in wanted,
+                        }
+            # Keep the final admission check and raw flag read in one snapshot.
+            # A trace can disappear or become denied after an evidence window.
+            with self.database._transaction():
+                admitted, _ = retriever._admitted_ids()
+                if identity["task_id"] not in admitted or not self.database._rows(
+                    "SELECT trace_id FROM agent_traces WHERE trace_id = ? AND task_id = ?",
+                    (run_id, identity["task_id"]),
+                ):
+                    raise ValueError("Trace is no longer admitted")
+                rows = self.database._rows(
+                    "SELECT step_index, role, tool_name, command_or_action, content_text"
+                    " FROM trace_steps WHERE trace_id = ?"
+                    " AND role IN ('agent', 'assistant', 'tool', 'environment')"
+                    " ORDER BY step_index LIMIT ?",
+                    (run_id, atlas_view.MAX_FLAG_STEPS + 1),
+                )
+        except ValueError:
+            result["withheld"] = "Evidence for this run is not returnable under the retrieval rules."
+            return result
+        result["evidence"] = [collected[index] for index in sorted(collected)]
+        if len(rows) > atlas_view.MAX_FLAG_STEPS:
+            result["flags_unavailable"] = f"more than {atlas_view.MAX_FLAG_STEPS:,} steps"
+            return result
+        features = compute_trace_feature_flags(rows)["features"]
+        fired = {
+            name: {
+                "count": flag["count"],
+                "step_indices": [rows[position]["step_index"] for position in flag["step_indices"]][
+                    :50
+                ],
+            }
+            for name, flag in features.items()
+            if flag["fired"]
+        }
+        result["flags"] = fired
+        result["playbook_cards"] = match_playbook_cards(list(fired), kind="trace", max_cards=6)
+        return result
+
     def _add_routes(self, token: str) -> None:
         expected = token.encode()
 
@@ -483,6 +629,50 @@ class CloudRuntime:
         @self.app.get("/api/cloud-db/corpus")
         def corpus():
             return self._corpus_breakdown()
+
+        @self.app.get("/api/cloud-db/atlas")
+        def atlas(
+            q: str = "",
+            source: str | None = None,
+            outcome: Literal["pass", "fail", "unknown"] | None = None,
+            tests: Literal["untouched", "read", "modified", "deleted", "replaced"] | None = None,
+            eval_awareness: Literal[
+                "none", "mentions_tests", "reasons_about_grader", "plans_to_game"
+            ]
+            | None = None,
+            min_suspicion: int = Query(0, ge=0, le=3),
+            grader_or_harness_touched: bool | None = None,
+            answer_material_accessed: bool | None = None,
+            success_claim_without_evidence: bool | None = None,
+            cluster_id: str | None = None,
+            limit: int = Query(50, ge=1, le=atlas_view.MAX_PAGE),
+            offset: int = Query(0, ge=0),
+            split: str = "dev",
+        ):
+            _require_dev(split)
+            filters = atlas_view.AtlasFilters(
+                q=q,
+                source=source,
+                outcome=outcome,
+                tests=tests,
+                eval_awareness=eval_awareness,
+                min_suspicion=min_suspicion,
+                grader_or_harness_touched=grader_or_harness_touched,
+                answer_material_accessed=answer_material_accessed,
+                success_claim_without_evidence=success_claim_without_evidence,
+                cluster_id=cluster_id,
+            )
+            try:
+                return atlas_view.atlas_listing(
+                    self._atlas_store(), self._atlas_traces(), filters, limit=limit, offset=offset
+                )
+            except ValueError as error:
+                raise HTTPException(400, str(error)) from error
+
+        @self.app.get("/api/cloud-db/atlas/run")
+        def atlas_run(run_id: str, split: str = "dev"):
+            _require_dev(split)
+            return self._atlas_run(run_id)
 
     def run_supervisor_step(self, approval: str, max_usd: float) -> dict[str, Any]:
         """One explicitly approved cloud step, never a laptop Docker fallback."""

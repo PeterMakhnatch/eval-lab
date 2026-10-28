@@ -51,10 +51,14 @@ def test_finding_validation_rejects_contract_breaks() -> None:
         th.finding("r", "d", detector_version="v", reader_model=None, verdict="alarm", kind="weird")
 
 
-def test_summary_is_trimmed_to_forty_words() -> None:
+def test_summary_is_trimmed_to_forty_words_and_600_characters() -> None:
     record = th.finding("r", "d", detector_version="v", reader_model=None, verdict="clear",
                         kind="cheat", summary="word " * 60)
     assert len(record["summary"].split()) == th.SUMMARY_WORDS
+    long_words = th.finding("r", "d", detector_version="v", reader_model=None, verdict="clear",
+                            kind="cheat", summary=("x" * 50 + " ") * 30)
+    assert len(long_words["summary"]) == th.SUMMARY_CHARS
+    assert th.validate_finding({**long_words, "summary": "y" * 601})
 
 
 def test_run_without_actor_transcript_is_never_clear(tmp_path: Path) -> None:

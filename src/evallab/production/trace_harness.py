@@ -49,6 +49,7 @@ FINDING_FIELDS = (
     "produced_at",
 )
 SUMMARY_WORDS = 40
+SUMMARY_CHARS = 600  # the cloud DB trace_findings importer refuses longer summaries
 CARD_MAX_TOKENS = 1500
 # The repository's approximate-token convention (``trace_feature_flags``):
 # four characters per token, not a tokenizer guarantee.
@@ -135,7 +136,7 @@ def now_utc() -> str:
 
 def trim_words(text: str, limit: int = SUMMARY_WORDS) -> str:
     words = " ".join(str(text or "").split()).split(" ")
-    return " ".join(words[:limit]) if words != [""] else ""
+    return " ".join(words[:limit])[:SUMMARY_CHARS] if words != [""] else ""
 
 
 def finding(
@@ -183,8 +184,8 @@ def validate_finding(record: Mapping[str, Any]) -> list[str]:
     steps = record["evidence_steps"]
     if not isinstance(steps, list) or any(isinstance(s, bool) or not isinstance(s, int) for s in steps):
         errors.append("evidence_steps must be a list of integer step ids")
-    if len(str(record["summary"]).split()) > SUMMARY_WORDS:
-        errors.append(f"summary exceeds {SUMMARY_WORDS} words")
+    if len(str(record["summary"]).split()) > SUMMARY_WORDS or len(str(record["summary"])) > SUMMARY_CHARS:
+        errors.append(f"summary exceeds {SUMMARY_WORDS} words or {SUMMARY_CHARS} characters")
     for name in ("input_tokens", "output_tokens", "latency_ms"):
         value = record[name]
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:

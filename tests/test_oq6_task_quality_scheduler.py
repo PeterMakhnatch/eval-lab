@@ -110,7 +110,7 @@ class Quota:
     def admit_route(self, route, *, output_directory):
         # Actual flock ownership is exercised, not an always-successful lock mock.
         provider = route.split("/", 1)[0]
-        path = self.lab.root / "locks" / ("provider-" + provider + ".lock")
+        path = self.lab.worker.provider_lock_root / ("provider-" + provider + ".lock")
         with path.open("a") as competing, pytest.raises(BlockingIOError):
             fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
         self.calls.append((route, self.lab.clock()))

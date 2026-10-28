@@ -1,0 +1,345 @@
+{
+  "admitted_counts": {
+    "cheatbench": 150,
+    "goodfire": 200
+  },
+  "admitted_utc": "2026-10-28T10:07:02+00:00",
+  "attested_response_count": 7,
+  "cache": {
+    "hits": 0,
+    "new_calls": 7,
+    "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/cm12/judge-cache.jsonl"
+  },
+  "combined_output": {
+    "disjoint_input_identities": true,
+    "failed_leads_are_not_negatives": true,
+    "inputs": [
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/cm12/recheck.jsonl",
+        "rows": 19,
+        "sha256": "30bb2acf8e3d703a691aa5630bfc5ad3e506ff00235f2279d4a3b5ad1a9c05fe"
+      },
+      {
+        "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/cm12/recheck-frozen-extra.jsonl",
+        "rows": 4,
+        "sha256": "a2ef9076e6c811c8b6de739583a49d4b4f5ed6122377dd6f93fa1463cdd32144"
+      }
+    ],
+    "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/cm12/recheck-combined.jsonl",
+    "rows": 23,
+    "same_frozen_predictor": true,
+    "sha256": "2307a006a9d8199ebc0e63a72caf7b96508991007ed2b597a10fa13a9d922d3d",
+    "successful_judgments_only": true
+  },
+  "counts": {
+    "cheatbench": {
+      "failed": 5,
+      "leads": 6,
+      "ok": 1
+    },
+    "goodfire": {
+      "failed": 1,
+      "leads": 4,
+      "ok": 3
+    }
+  },
+  "excerpt_counts": {
+    "built": 7,
+    "cap_dropped_steps": 43,
+    "max_characters": 59702,
+    "omitted_steps": 325,
+    "retained_steps": 114
+  },
+  "failed_is_unknown": true,
+  "failure_counts": {
+    "cheatbench": {
+      "excerpt": 0,
+      "invalid": 0,
+      "off_final_path": 0,
+      "over_cap": 0,
+      "policy_refusal": 3,
+      "quota": 0,
+      "task_absent": 2,
+      "transport": 0,
+      "unmapped_lead": 0
+    },
+    "goodfire": {
+      "excerpt": 0,
+      "invalid": 0,
+      "off_final_path": 1,
+      "over_cap": 0,
+      "policy_refusal": 0,
+      "quota": 0,
+      "task_absent": 0,
+      "transport": 0,
+      "unmapped_lead": 0
+    }
+  },
+  "failures": [
+    {
+      "corpus": "cheatbench",
+      "failure_kind": "task_absent",
+      "reason_codes": [
+        "missing_task_step"
+      ],
+      "run_id_sha256": "7a9117b85b0f23f1ca184e1c5aecfc69d27dd1431396f8654c1ca71553597860"
+    },
+    {
+      "corpus": "cheatbench",
+      "failure_kind": "task_absent",
+      "reason_codes": [
+        "missing_task_step"
+      ],
+      "run_id_sha256": "cb650af6ab0b41cd7eda9f4020e23b90f7361398e1f50d35da513e112c26c188"
+    },
+    {
+      "corpus": "cheatbench",
+      "failure_kind": "policy_refusal",
+      "reason_codes": [
+        "policy_refusal"
+      ],
+      "run_id_sha256": "31e4cccdddb7933da429627a4e962424f90b7bc7919947ea9cf7cfae99bfa378"
+    },
+    {
+      "corpus": "cheatbench",
+      "failure_kind": "policy_refusal",
+      "reason_codes": [
+        "policy_refusal"
+      ],
+      "run_id_sha256": "9b1b2c350d57ef7b4cb7445cf7bd5e567f139c624048f57633b14f935d197b1c"
+    },
+    {
+      "corpus": "cheatbench",
+      "failure_kind": "policy_refusal",
+      "reason_codes": [
+        "policy_refusal"
+      ],
+      "run_id_sha256": "96bbed0d2b8eae6919240e1e5f4e6ade2a37b242b027a21ef7da60024cbd0a8e"
+    },
+    {
+      "corpus": "goodfire",
+      "failure_kind": "off_final_path",
+      "reason_codes": [
+        "lead_step_not_in_blinded_run"
+      ],
+      "run_id_sha256": "7cc24d0896a432ae2d5cc72e18b714660eb2161dc73b745ceff69b823712fc29"
+    }
+  ],
+  "finished_utc": "2026-10-28T10:08:35+00:00",
+  "freeze_sha256": "7ef9411ed2c8af2c10b0eb4fe549a88137b33417deca218054d0670d6ad8b371",
+  "harness_provenance": {
+    "historical_call_launch": {
+      "binding": "unbound",
+      "commit": null,
+      "explicit_require_subscription_route_guard": "unbound",
+      "guard_added_after_historical_calls": true,
+      "observed_route_basis": [
+        "served_model_attestation",
+        "API_key_environment_scrubbing"
+      ],
+      "script_sha256": null
+    },
+    "metadata_generation": {
+      "checkout_commit": "dcda40d48a9afaad9b0e565d94b35d5172b7eae6",
+      "generated_utc": "2026-10-28T10:17:22+00:00",
+      "script_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cm12-blinded-acceptance-20261028/research/evidence/runs/cm12-blinded-acceptance-20261028/tools/recheck.py",
+      "script_sha256": "e8cdb441f71f7526dedb005bf58ccfac6f312998f43fad05985388b3854b97c9"
+    }
+  },
+  "input_shapes": {
+    "cheatbench": {
+      "loaded": 6,
+      "task_absent": 2,
+      "task_absent_agent_only": 2
+    },
+    "goodfire": {
+      "loaded": 4,
+      "task_absent": 0,
+      "task_absent_agent_only": 0
+    }
+  },
+  "leads": {
+    "bytes": 1810,
+    "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/cm12/leads-frozen-extra.jsonl",
+    "sha256": "04d1e74bfc9f9d74eef66c0fa42e3e0114f69b829ff1c411fbe00e1e8dfc6b21"
+  },
+  "max_active_calls": 1,
+  "new_call_served_model_counts": {
+    "openai-codex/gpt-6.1-sol": 4
+  },
+  "new_call_tokens": {
+    "input_tokens": 55732,
+    "output_tokens": 244
+  },
+  "output": {
+    "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/cm12/recheck-frozen-extra.jsonl",
+    "rows": 4,
+    "sha256": "a2ef9076e6c811c8b6de739583a49d4b4f5ed6122377dd6f93fa1463cdd32144"
+  },
+  "paid_api_calls": 0,
+  "prompt_consistency": {
+    "changed_prompts": 0,
+    "cheat_requires_visible_citation": true,
+    "checked_attempts": 7,
+    "new_call_prompt_sha256_counts": {
+      "3cf2a36b1cbfa69fb29635af8e86f8042874c35b7d48ab47f919866fad7502e1": 7
+    },
+    "transport_retries": 0
+  },
+  "prompt_sha256": "3cf2a36b1cbfa69fb29635af8e86f8042874c35b7d48ab47f919866fad7502e1",
+  "quota_observations": [
+    {
+      "checked_utc": "2026-10-28T10:07:04+00:00",
+      "windows": [
+        {
+          "used_fraction": 0.42,
+          "window": "7d"
+        }
+      ]
+    },
+    {
+      "checked_utc": "2026-10-28T10:07:44+00:00",
+      "windows": [
+        {
+          "used_fraction": 0.42,
+          "window": "7d"
+        }
+      ]
+    },
+    {
+      "checked_utc": "2026-10-28T10:08:17+00:00",
+      "windows": [
+        {
+          "used_fraction": 0.42,
+          "window": "7d"
+        }
+      ]
+    },
+    {
+      "checked_utc": "2026-10-28T10:08:35+00:00",
+      "windows": [
+        {
+          "used_fraction": 0.42,
+          "window": "7d"
+        }
+      ]
+    }
+  ],
+  "quota_stopped": false,
+  "receipt_regeneration": {
+    "cache_bindings": [
+      {
+        "attempts": 1,
+        "cached_record_sha256": "a9e94c2a6fb4856311e1c3b58d81a15679be62d814e637759af05dfd43b1e55b",
+        "corpus": "cheatbench",
+        "key": "8d9fa91900a25f44e64de051036d98091510c5510c5f7b7a301d2ab18cf294a3",
+        "private_attempt_bytes_sha256": "d3314e5d439c782fad4ce002c51cc11079b839f6fe4247f738f6088275e439f1",
+        "run_id_sha256": "da565e774e37e9135f43ccf3161669f5b8d171195a706595dfee5616a55613b0"
+      },
+      {
+        "attempts": 1,
+        "cached_record_sha256": "50c1ac38b941e9cd70e0b90be47a2ec36077106e7a63293027877f2a27fb88bb",
+        "corpus": "cheatbench",
+        "key": "8b7777f2cdb012adeab54ffa0ea9dd12cbf6a62e2c6761799a1c76874812fc83",
+        "private_attempt_bytes_sha256": "45908288816b2e65d7914bb6368f57ddbcb5a4393531d0741b98c328f8e55aab",
+        "run_id_sha256": "31e4cccdddb7933da429627a4e962424f90b7bc7919947ea9cf7cfae99bfa378"
+      },
+      {
+        "attempts": 1,
+        "cached_record_sha256": "6bd0862b5e7a730abceb462990f603171e6ea9cd493825174df68db88e62c93b",
+        "corpus": "cheatbench",
+        "key": "edd67e8e3d2aefd0f9022ea9302f250571a1e6a1e05a54896e8e57155189c45e",
+        "private_attempt_bytes_sha256": "748273e014d918c1f4f690823d879ef013c0f0a78a39458bc1e6e75b37bdad1f",
+        "run_id_sha256": "9b1b2c350d57ef7b4cb7445cf7bd5e567f139c624048f57633b14f935d197b1c"
+      },
+      {
+        "attempts": 1,
+        "cached_record_sha256": "a271eb1a197aa9ca0d7ba0c54c3d9b2f97b187e3de24a29f574383235272da1d",
+        "corpus": "cheatbench",
+        "key": "90cb84f03c82dbd1152970394c510f7ee1274690934e0640efaf181a4b25c844",
+        "private_attempt_bytes_sha256": "41209e323ac578cb99edad1570f74ee87569e694a13597c6a3697bc449ad1d7a",
+        "run_id_sha256": "96bbed0d2b8eae6919240e1e5f4e6ade2a37b242b027a21ef7da60024cbd0a8e"
+      },
+      {
+        "attempts": 1,
+        "cached_record_sha256": "fbfcfe7c72dd43b915aa380f828b362865bfe10ce858ccdb2e589ac451e9d3b4",
+        "corpus": "goodfire",
+        "key": "21140baf853ef59bfce204b94cd52e51757eb986b0fbbdc2dd01c02ce81b7be3",
+        "private_attempt_bytes_sha256": "42f3ed7c610eacce3fba014f5a47afb468c35881408af688ce2489e253e31be3",
+        "run_id_sha256": "1b007c67da654dbd5fbed9e4a2558a384b7a7770f1af9feaf885ef17010d7aad"
+      },
+      {
+        "attempts": 1,
+        "cached_record_sha256": "7ee596461bc863f27ca297e1be8ae6bcdeb9f9ddf77a572844e9a67bd7af51ab",
+        "corpus": "goodfire",
+        "key": "2baa74c574a64696b8a8a5d2e8de7ec1219a0c2894b4348cce0658aa05708b20",
+        "private_attempt_bytes_sha256": "f880820c57d00065a3628a7341fd12a3d28565d77d2c463a4d52a3d898fc07c1",
+        "run_id_sha256": "712cd3b4ccdb35e0aae5d7c0c14b8912f61ca502897777fe6aa2fb805f064580"
+      },
+      {
+        "attempts": 1,
+        "cached_record_sha256": "87428be63189c3b4827515b1dc91a8ef7e380df9f28287be0fbd78900119e42b",
+        "corpus": "goodfire",
+        "key": "14a98fc64ce298f5d035fecb091228638331407e9f05cdb57a9671761ccbb7c7",
+        "private_attempt_bytes_sha256": "dbe19ef9368f99123448848a8e1f2ab1d10650a6ae04f011edb3af8bbdefefee",
+        "run_id_sha256": "dce32cebdf643e4ca008724d7d8896a507b1add3986ac5e478fc92b65f3aa76b"
+      }
+    ],
+    "cache_bindings_sha256": "bb44b3dce62551183536d7d9bf2db08dd420ec33994b6194ac9d8f995171d9b6",
+    "cache_file_sha256": "d28c2a6bde72344c6b31af8108fe4a7ba21f54971ebcb11f49f4019744760c71",
+    "classifier_sha256": "79eac37d46c9e16d7b85608ddd17a37f8f8e6373b336859078e0f64bf8e51a61",
+    "model_calls": 0,
+    "original_reason_codes_preserved": true,
+    "prior_receipt_snapshot": {
+      "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/cm12/receipt-snapshots/recheck-frozen-extra-c815b68c8c149cbe97359acc16bb93a486b755e72508d4c18fa405d9b8bd158c.json",
+      "sha256": "c815b68c8c149cbe97359acc16bb93a486b755e72508d4c18fa405d9b8bd158c"
+    },
+    "taxonomy_generated_by_code": true,
+    "unchanged_cache_verified": true,
+    "unchanged_outputs_verified": true,
+    "unchanged_predictor_verified": true
+  },
+  "reference_labels_loaded": false,
+  "schema": "cm12-recheck-run/v1",
+  "served_model_counts": {
+    "openai-codex/gpt-6.1-sol": 4
+  },
+  "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+  "started_utc": "2026-10-28T10:07:02+00:00",
+  "supplemental_identity_validation": {
+    "actual_run_input_hash_matched": true,
+    "base_leads_sha256": "6c2d4455719da6fca62aca34a041e64c66c58f6ec0f3715bb57691c85a2bac7c",
+    "current_only_flags": 3,
+    "current_union_flags": 69,
+    "extra_leads_sha256": "04d1e74bfc9f9d74eef66c0fa42e3e0114f69b829ff1c411fbe00e1e8dfc6b21",
+    "frozen_only_flags": 10,
+    "frozen_union_flags": 76,
+    "identity_intersection": 0,
+    "reference_labels_loaded": false,
+    "roster": {
+      "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/cm12/union-roster.jsonl",
+      "rows": 350,
+      "sha256": "2d705b12cc478ec0bd9bafa15a522392fb525a4fa5842636698b93f021665fdc"
+    },
+    "set_difference_symmetric_difference": 0,
+    "supplement_counts": {
+      "cheatbench": 6,
+      "goodfire": 4
+    },
+    "validated_after_run": true
+  },
+  "supplemental_to": {
+    "base_output_sha256": "30bb2acf8e3d703a691aa5630bfc5ad3e506ff00235f2279d4a3b5ad1a9c05fe",
+    "new_identities_only": true,
+    "original_combination_base_receipt_sha256": "32c3af409f4bf030b8f9436542e00b2807f551ed00dcda2f090a0f7269b6b1aa",
+    "receipt_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cm12-blinded-acceptance-20261028/research/evidence/runs/cm12-blinded-acceptance-20261028/results/recheck-run.json",
+    "receipt_sha256": "61df75cd1b9ff9c0bda5fa70f7483e74177d49f0cbe4e773b1b70b57560d1161",
+    "same_frozen_predictor": true
+  },
+  "tokens": {
+    "input_tokens": 55732,
+    "output_tokens": 244
+  },
+  "transport_attempts": 7,
+  "unaccounted_token_attempts": 0
+}

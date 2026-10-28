@@ -40,7 +40,7 @@ verifier = [
 ]
 
 [project.scripts]
-evallab = "evallab.cli:main"
+evallab = "evallab.entry:main"
 harbor-lab = "evallab.cli:legacy_main"
 
 [dependency-groups]

@@ -64,7 +64,7 @@ CALLS (all JSON; examples use real flags)
        Equal sizes tie (report all tied clusters). To count a facet over a cluster, intersect cloud_run_ids with
        `runs --facet ... --limit 200` ids (or use `export`/`window` on single runs).
   recount                            facets: interim JSONL vs the database over admitted runs (sha256, counts). It counts
-       admitted TASKS' facets (1,235 in the database); `runs`/`export --facet` also screen sealed text (1,234).
+       the same runs as `runs`/`export --facet` (admitted tasks, facets that name no sealed identity: 1,234).
   findings [--run TRACE_ID | --task T] [--limit N]
        trace-tool rows (Scout, Scout-METR, Docent, Laminar, OMP). With no flag: per-tool rows, runs, admitted runs
        (aggregates: no detector fields). A null flag is not a negative; with --run or --task each row keeps its tool
@@ -107,7 +107,7 @@ CALLS (all JSON; examples use real flags)
 
 OBSERVED ON THE LIVE STORE, 2026-10-28 (counts move while lanes run: quote the date or `recount` digest)
   3,474 admitted tasks, 4,544 admitted runs (pass 2,033, fail 1,297, unknown 1,214). 1,234 admitted faceted runs;
-  answer_material_accessed true on 29; suspicion 2 or 3 on 326 (327 in `recount`, see above). Facets are leads.
+  answer_material_accessed true on 29; suspicion 2 or 3 on 326. Facets are leads.
 
 OUTSIDE qa-data (plain files; no admission needed; run from the checkout root unless a path says otherwise)
   RA=~/Developer/research-context/bridge/2026-10-27-run-atlas

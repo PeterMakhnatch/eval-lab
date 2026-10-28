@@ -260,6 +260,46 @@ projections and 4500 rendered characters, not full instructions, reproducer
 scripts, or CAS objects. Receipt-status filtering is not independent evidence
 verification, and exact-ID exclusion is not task-family deduplication.
 
+**Blinded DEV-only run exports.** `evallab prod export-runs` reads a local SQLite
+store without opening a production queue, running workers, or uploading data.
+It applies `admitted_cloud_task_ids` with `CorpusRegistry` to identity-only rows
+before reading any trace body; a DB `dev` label alone does not admit a task.
+Exports use stable SHA-256-derived `run-<hex>` identities and redact original
+task, item, dataset, trace, model and run identifiers, source benchmark text and
+CAS references. `harbor` writes `<blind>/agent/trajectory.json` and
+`<blind>/result.json`; `atif` writes `<blind>.json`; `scout` writes
+`transcripts.jsonl`. Native ATIF uses one-based step IDs and no internal audit
+metadata; empty or all-annotation traces are refused. Only agent-authored rows
+create tool calls, and standalone recorded observations have no invented call
+reference. For example, from the repository root:
+
+```bash
+uv run evallab prod export-runs \
+  --source-database derived/production/cloud-trace-db.sqlite \
+  --output-directory /private/tmp/blinded-runs \
+  --format harbor \
+  --manifest /private/tmp/blinded-runs.manifest.json
+```
+
+Repeat `--trace-id` to restrict selection, and use `--limit` to cap admitted
+exports. The command prints a JSON receipt with admission/export/refusal counts
+and the manifest SHA-256. The required manifest is a **sealed join file outside
+the export directory**, mapping each blind ID to its original `trace_id`,
+`step_origin` list of database step indices in projected ATIF step order, and
+`reward`. Rewards exist only in that sealed manifest; blinded Harbor results
+always contain a null reward. Keep the manifest separate from reviewer-facing
+exports. Existing output directories or manifest paths are refused, never
+overwritten.
+
+Scout JSONL contains one `inspect_scout.Transcript`-shaped object per line:
+`transcript_id` is the blind ID, `metadata` is only `{"item_id": "<blind>"}`,
+and messages use Inspect roles/content and function tool calls. The optional
+`inspect_scout` dependency is not required to export; when absent, the receipt
+discloses `inspect_scout_installed=false`, `format=jsonl`, and
+`loader=Transcript.model_validate_json`. After installing `inspect_scout`, use
+`Transcript.model_validate_json(line)` for each line; do not assume Scout's
+`transcripts_from` reads arbitrary JSONL.
+
 `S3CompatibleCAS` stores exact bytes under `cas://sha256/<digest>` and verifies
 downloaded or mirrored bytes before returning them. Configure
 `EVALLAB_S3_BUCKET`, `EVALLAB_S3_ENDPOINT_URL` for R2/Tigris/custom S3, and

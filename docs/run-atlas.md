@@ -106,3 +106,40 @@ uv run evallab atlas score --json-out /tmp/atlas-score.json --markdown-out /tmp/
   positive.
 - The scorer refuses any run that is TEST under any answer key
   (`assigned_test_anywhere`) or not DEV in its own source.
+
+## Clusters (`evallab atlas clusters`)
+
+Logic: `src/evallab/production/run_atlas_clusters.py`. Tests:
+`tests/test_run_atlas_clusters.py`. Contract: `run-clusters/v1`.
+
+```bash
+uv run evallab atlas clusters build --name-with-model xai-oauth/grok-4.20-0309-non-reasoning
+uv run evallab atlas clusters show --with-labels      # label and rule rates at scoring time
+```
+
+- Input text per run is `approach + " | " + shortcut` only, embedded with the
+  free 256-dimension `HashingEmbedder` (lexical). A remote embedder requires
+  `--embedder remote`, a positive `--spend-cap-usd`, an approved
+  `--embedding-input-usd-per-million` and pinned endpoint/model/tokenizer.
+  Before each batch, the existing `InvestigationBudget` ledger reserves a
+  conservative UTF-8-size token bound. Failed calls retain their reservation;
+  restarting cannot reset the lifetime cap. No remote embedding calls were
+  used for the Atlas study.
+- Deterministic (seeded) bisecting k-means on cosine builds three levels;
+  every run is in exactly one cluster per level, and a cluster too small to
+  split continues unchanged to the next level. Ids look like `L1-03.2.1`.
+- Names: distinctive terms by default; `--name-with-model ROUTE` asks a
+  subscription model for at most six words from member texts only (no labels,
+  run ids or source names) and falls back to terms on an invalid reply
+  (`name_source` records which). Route exhaustion or a served-model mismatch
+  stops the build immediately, without publishing a partially named snapshot.
+- Builds append to `~/.local/state/evallab-prod-live/run-atlas/clusters-v1.jsonl`
+  with a `build_id`; readers take the latest build. `label_rates` stay null in
+  the store and are filled only by `show --with-labels`, which also reports
+  `rule_recall` (labelled positives flagged by a current monitor rule) and
+  `rule_fpr` (labelled negatives flagged). Rule hits come from the frozen CM-6
+  stage-1 results; `--replay-rules` replays the deterministic stage-1 rules,
+  without a judge, for the other runs. `--coverage alarm` counts only the
+  cascade's confirmed alarms (CM-6 cohort). The uncovered list holds clusters with
+  at least five labelled runs, a positive rate of at least 50% and rule recall
+  of at most 20%, with their three most central member texts.

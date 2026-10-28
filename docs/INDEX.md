@@ -81,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:aa01050ad9110469c86754e3e1a93490f8a79cafb5afaf84b6b8fda05fecf641
+    digest: sha256:00687b4a8669c718a09baa776881432e9e9afbcbd45b15f1bc80aeaaaa3544ba
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
@@ -93,7 +93,7 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
-    digest: sha256:9d80b98194b4f5b98c6abd0963d73489127313cea08992025cb4164f99ee9640
+    digest: sha256:e75ef7cd17cfe8f00e42b958b612baf4dd86f32fa551453559e374579f503115
   - path: docs/open-qa-harness.md
     digest: sha256:cf0a4da37baa714c321301e312826782948bc011e6840a16474f903fe6344b6f
   - path: docs/operating-manual.md
@@ -132,6 +132,8 @@ inputs:
     digest: sha256:ff0260c2c8ad5b2ab30bb988adb025baf99caa0948eb800ac580e44208cac5c8
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
+  - path: docs/run-health.md
+    digest: sha256:42d1b2b8148bb3a8bee46c026df7b992442b45eed347561e3dca8961d2fdfc1c
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/storm-alarms.md
@@ -282,6 +284,7 @@ an operator can see what is archived.
 | `docs/research/trajectory-intelligence.md` | Trajectory intelligence: metrics and failure signals | `living` | `analyst` |
 | `docs/run-atlas.md` | Run Atlas | `living` | `analyst, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
+| `docs/run-health.md` | Run Health | `living` | `analyst, operator` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-quality.md` | Judging whether a task is good | `living` | `analyst, operator` |
@@ -397,6 +400,7 @@ an operator can see what is archived.
 | `docs/rollout.md` | Rollout engine (`evallab rollout`) | `living` | `builder, operator` |
 | `docs/run-atlas.md` | Run Atlas | `living` | `analyst, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
+| `docs/run-health.md` | Run Health | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |

@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.0,
+ "detector": "run_health_infra",
+ "detector_version": "run-health/3",
+ "evidence_steps": [],
+ "explanation": "no component at threshold",
+ "flagged": false,
+ "id": "g6-ovn-g5-001809-tuned__AUVzrvM",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.0
+}

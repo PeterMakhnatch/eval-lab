@@ -271,16 +271,16 @@ def test_a_run_with_no_actor_transcript_is_reported_unknown_even_with_no_finding
 def test_card_stays_within_its_cap_and_counts_what_it_drops(store: CloudTraceDatabase, tmp_path: Path) -> None:
     store_findings(store, *(
         finding(
-            detector=f"detector_{index:02d}", summary=" ".join(f"observation{index}-{word}" for word in range(38)),
+            detector=f"detector_{index:02d}", summary=" ".join(f"obs{index}-{word}" for word in range(38)),
             evidence_steps=[1, 2, 4],
         )
-        for index in range(40)
+        for index in range(120)
     ))
     card = build_card(context(store, tmp_path, tokens=8000), "alpha/agentic")
     assert estimate_tokens(card) <= CARD_TOKENS
-    assert card["truncated"] is True and card["omitted"] > 0
-    assert card["tally"] == {"alarm": 40}  # the tally is counted before anything is dropped
-    assert 0 < len(card["detectors"]) < 40
+    assert card["truncated"] is True and card["omitted"] > 0 and card["shortened"] > 0
+    assert card["tally"] == {"alarm": 120}  # the tally is counted before anything is dropped
+    assert 0 < len(card["detectors"]) < 120 and card["omitted"] >= 120 - len(card["detectors"])
     small = build_card(context(store, tmp_path, tokens=600), "alpha/agentic")
     assert estimate_tokens(small) <= 600  # never above what the caller's budget leaves
 
@@ -291,3 +291,90 @@ def test_card_of_a_store_that_predates_the_table_reports_no_findings(
     store._execute("DROP TABLE trace_findings")
     card = build_card(context(store, tmp_path), "alpha/agentic")
     assert card["detectors"] == [] and card["flags"]
+
+
+def test_a_newer_refused_record_does_not_hide_an_older_valid_one(store: CloudTraceDatabase) -> None:
+    receipt = store_findings(
+        store,
+        finding(summary="valid", produced_at="2026-10-28T09:00:00Z"),
+        finding(summary="newer but cites a step the run does not have", evidence_steps=[3],
+                produced_at="2026-10-28T10:00:00Z"),
+    )
+    assert (receipt["stored"], receipt["refused"], receipt["superseded_in_input"]) == (1, 1, 0)
+    assert rows(store)[0]["summary"] == "valid"
+
+
+def test_hostile_values_refuse_their_own_record_and_never_abort_the_batch(store: CloudTraceDatabase) -> None:
+    receipt = store_findings(
+        store,
+        finding(produced_at="0001-01-01T00:00:00+01:00"),
+        finding(detector="scout", produced_at="9999-12-31T23:59:59-01:00"),
+        finding(detector="cascade", input_tokens=10**20),
+        finding(detector="docent", summary="nul\x00byte"),
+        finding(detector="metr", summary="x" * 601),
+        finding("alpha/agentic\x00"),
+        finding(detector="run_health.loop", kind="loop", summary="valid neighbour"),
+    )
+    assert (receipt["stored"], receipt["refused"]) == (1, 6)
+    assert [row["detector"] for row in rows(store)] == ["run_health.loop"]
+
+
+def test_an_annotation_only_agent_step_is_not_an_actor_transcript(store: CloudTraceDatabase) -> None:
+    add_run(store, "replay", "annotated", [
+        {"step_index": 0, "role": "assistant", "content_text": "[CheatBench annotation - not part of the original trace]"},
+        {"step_index": 1, "role": "tool", "content_text": "output"},
+    ])
+    receipt = store_findings(store, finding("replay/annotated", verdict="clear", evidence_steps=[]))
+    assert receipt["refused_by_reason"] == {"a run with no actor transcript cannot be recorded clear": 1}
+
+
+def test_card_priority_survives_a_tight_budget(store: CloudTraceDatabase, tmp_path: Path) -> None:
+    store_findings(
+        store,
+        finding(summary=" ".join(f"evidence{index}" for index in range(40))),
+        *(finding(detector=f"quiet_{index}", verdict="clear", kind="other", summary="", evidence_steps=[])
+          for index in range(3)),
+    )
+    for tokens in range(120, 400, 10):
+        card = build_card(context(store, tmp_path, tokens=tokens), "alpha/agentic", ledgers=False)
+        shown = [item["verdict"] for item in card["detectors"]]
+        assert "clear" not in shown or shown[0] == "alarm", (tokens, shown)  # never clean without the alarm
+        assert estimate_tokens(card) <= tokens or not shown
+
+
+def test_card_screens_version_reader_and_prose_for_the_runs_dataset_and_sealed_names(
+    store: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    store_findings(store, finding(
+        detector_version="secret-dataset/v2", summary="a classic Secret-Dataset pattern",
+        reader_model="sealed-dataset-name/reader",
+    ))
+    card = build_card(context(store, tmp_path), "alpha/agentic")
+    (item,) = card["detectors"]
+    assert (item["version"], item["summary"], item["reader"]) == ("[withheld]",) * 3
+    assert card["withheld_strings"] == 3
+
+
+def test_a_clear_recorded_before_the_steps_lost_their_actor_is_shown_as_unknown(
+    store: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    store_findings(store, finding(verdict="clear", kind="other", evidence_steps=[], summary=""))
+    store.replace_trace_steps("alpha/agentic", NO_ACTOR_STEPS)
+    card = build_card(context(store, tmp_path), "alpha/agentic")
+    assert card["actor_inputs_available"] is False
+    assert [(item["verdict"], item.get("recorded")) for item in card["detectors"]] == [("unknown", "clear")]
+    assert card["tally"] == {"unknown": 1}
+
+
+def test_ledger_counts_come_from_the_trace_tool_ledgers_and_can_be_skipped(
+    store: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    ledger = tmp_path / "state" / "trace-tools" / "results-v1.jsonl"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text("".join(json.dumps({
+        "schema": "evallab.trace_tool_result/v1", "run_id": "alpha/agentic", "source": "cloud-trace-db",
+        "tool": "scout", "detector": f"d{index}", "detector_version": "v1", "value": 1, "flag": index == 0,
+        "evidence_steps": [1], "scan": "opaque", "at": "2026-10-28T02:00:00Z",
+    }) + "\n" for index in range(3)))
+    assert build_card(context(store, tmp_path), "alpha/agentic")["ledger_readers"] == {"scout": [3, 1]}
+    assert "ledger_readers" not in build_card(context(store, tmp_path), "alpha/agentic", ledgers=False)

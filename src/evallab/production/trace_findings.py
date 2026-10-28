@@ -8,8 +8,10 @@ exports' own rule and never taken from a record; a run with no actor transcript
 cannot be recorded ``clear`` (no model actor to read is unknown, not clean).
 
 Records are keyed by ``(run_id, detector, detector_version, reader_model)``; a
-missing reader is stored as the empty string. Re-importing a file stores the
-same rows, and an older ``produced_at`` never replaces a newer stored record.
+missing reader is stored as the empty string. Among records sharing a key the
+newest ``produced_at`` that passes every check is stored, so a refused newer
+record never hides an older valid one. Re-importing a file stores the same
+rows, and an older ``produced_at`` never replaces a newer stored one.
 """
 
 from __future__ import annotations
@@ -29,16 +31,16 @@ from evallab.production.cloud_trace_db import (
     CloudTraceDatabase,
     CloudTraceRetriever,
     _integer,
-    _text,
 )
 from evallab.production.corpus_queue import CorpusRegistry
 
-TRACE_FINDINGS_VERSION = "trace-findings/v1"
 MAX_EVIDENCE_STEPS = 20
 MAX_SUMMARY_WORDS = 40
+MAX_SUMMARY_CHARS = 600
+_INT32 = 2**31 - 1  # the PostgreSQL INTEGER column limit; SQLite would take more
 _REQUIRED = ("run_id", "detector", "detector_version", "verdict", "kind", "produced_at")
 _DETECTOR = re.compile(r"[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*\Z")
-_VERSION = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.+:\-]*\Z")
+_VERSION = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.+:/@\-]*\Z")
 _READER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/@+\-]*\Z")
 _KEY = ("run_id", "detector", "detector_version", "reader_model")
 COLUMNS = (
@@ -58,6 +60,18 @@ def _number(value: Any, field: str, *, nullable: bool = False, minimum: float | 
     return float(value)
 
 
+def _small_integer(value: Any, field: str) -> int:
+    if _integer(value, field) > _INT32:
+        raise ValueError(f"{field} must be at most {_INT32}")
+    return value
+
+
+def _clean(value: Any, field: str, limit: int) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value) > limit or "\x00" in value:
+        raise ValueError(f"{field} must be a nonempty string of at most {limit} characters without NUL")
+    return value
+
+
 def _token(value: Any, field: str, pattern: re.Pattern[str], limit: int) -> str:
     if not isinstance(value, str) or len(value) > limit or not pattern.match(value):
         raise ValueError(f"{field} must be a short identifier")
@@ -65,16 +79,20 @@ def _token(value: Any, field: str, pattern: re.Pattern[str], limit: int) -> str:
 
 
 def _timestamp(value: Any) -> str:
-    """A timezone-aware ISO instant as canonical UTC text (sorts as time)."""
+    """A timezone-aware ISO instant as canonical, fixed-width UTC text (it sorts as time)."""
     if not isinstance(value, str):
         raise ValueError("produced_at must be a UTC ISO timestamp")
     try:
         moment = datetime.fromisoformat(value)
-    except ValueError:
+        if moment.tzinfo is None:
+            raise ValueError("produced_at must carry a timezone")
+        return moment.astimezone(UTC).isoformat(timespec="microseconds").removesuffix("+00:00") + "Z"
+    except OverflowError:
         raise ValueError("produced_at must be a UTC ISO timestamp") from None
-    if moment.tzinfo is None:
-        raise ValueError("produced_at must carry a timezone")
-    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError as error:
+        if "timezone" in str(error):
+            raise
+        raise ValueError("produced_at must be a UTC ISO timestamp") from None
 
 
 def _finding(record: Any) -> dict[str, Any]:
@@ -95,17 +113,21 @@ def _finding(record: Any) -> dict[str, Any]:
     if kind not in TRACE_FINDING_KINDS:
         raise ValueError(f"kind must be one of {', '.join(TRACE_FINDING_KINDS)}")
     summary = record.get("summary", "")
-    if not isinstance(summary, str) or len(summary.split()) > MAX_SUMMARY_WORDS:
-        raise ValueError(f"summary must be text of at most {MAX_SUMMARY_WORDS} words")
+    if (
+        not isinstance(summary, str) or "\x00" in summary or len(summary) > MAX_SUMMARY_CHARS
+        or len(summary.split()) > MAX_SUMMARY_WORDS
+    ):
+        raise ValueError(
+            f"summary must be text of at most {MAX_SUMMARY_WORDS} words and {MAX_SUMMARY_CHARS} characters",
+        )
     steps = record.get("evidence_steps", [])
     if not isinstance(steps, list) or len(steps) > MAX_EVIDENCE_STEPS:
         raise ValueError(f"evidence_steps must be a list of at most {MAX_EVIDENCE_STEPS} step indices")
-    indices = [_integer(index, "evidence_steps entry") for index in steps]
+    indices = [_small_integer(index, "evidence_steps entry") for index in steps]
     if len(set(indices)) != len(indices):
         raise ValueError("evidence_steps must not repeat a step index")
-    latency = record.get("latency_ms", 0)
     row: dict[str, Any] = {
-        "run_id": _text(record["run_id"], "run_id"),
+        "run_id": _clean(record["run_id"], "run_id", 512),
         "detector": _token(record["detector"], "detector", _DETECTOR, 64),
         "detector_version": _token(record["detector_version"], "detector_version", _VERSION, 64),
         "reader_model": "" if reader is None else _token(reader, "reader_model", _READER, 96),
@@ -114,10 +136,10 @@ def _finding(record: Any) -> dict[str, Any]:
         "kind": kind,
         "evidence_steps": sorted(indices),
         "summary": summary.strip(),
-        "input_tokens": _integer(record.get("input_tokens", 0), "input_tokens"),
-        "output_tokens": _integer(record.get("output_tokens", 0), "output_tokens"),
+        "input_tokens": _small_integer(record.get("input_tokens", 0), "input_tokens"),
+        "output_tokens": _small_integer(record.get("output_tokens", 0), "output_tokens"),
         "cost_usd": _number(record.get("cost_usd", 0.0), "cost_usd", minimum=0.0),
-        "latency_ms": _integer(latency, "latency_ms"),
+        "latency_ms": _small_integer(record.get("latency_ms", 0), "latency_ms"),
         "produced_at": _timestamp(record["produced_at"]),
     }
     if "actor_inputs_available" in record:
@@ -126,7 +148,14 @@ def _finding(record: Any) -> dict[str, Any]:
 
 
 def has_actor_inputs(database: CloudTraceDatabase, run_id: str) -> bool:
-    """The exports' rule (``actor_inputs_available``) applied to the run's stored steps."""
+    """The exports' ``actor_inputs_available`` rule applied to the run's stored steps.
+
+    Same projection as ``cloud_trace_export``: ATIF, then ``blind_atif`` (which drops
+    CheatBench annotation steps), then "some agent step has text or a tool call".
+    Steps are independent in all three, so they are checked one at a time and the
+    scan stops at the first step that counts.
+    """
+    from evallab.cheatbench_fidelity import blind_atif
     from evallab.production.cloud_trace_export import _actor_inputs_available, _atif
 
     cursor = database._execute(
@@ -138,7 +167,7 @@ def has_actor_inputs(database: CloudTraceDatabase, run_id: str) -> bool:
             "step_index": step_index, "role": role, "content_text": content, "tool_name": tool_name,
             "command_or_action": command, "observation_preview": None,
         }
-        if _actor_inputs_available(_atif([step], "probe")["steps"]):
+        if _actor_inputs_available(blind_atif(_atif([step], "probe"), item_id="probe")["steps"]):
             return True
     return False
 
@@ -157,9 +186,9 @@ def upsert_trace_findings(
     """Store valid records of admitted DEV runs; refuse the rest, counted by reason.
 
     Admission is recomputed inside the write snapshot; ``allowed_task_ids`` can
-    only narrow it. Refusals never partly store a record. Among records sharing a
-    key the latest ``produced_at`` wins (a tie goes to the later record), and a
-    stored record is replaced only by one that is at least as new.
+    only narrow it. Refusals never partly store a record. Per key the newest
+    ``produced_at`` that passes (a tie goes to the later record) is the candidate,
+    and a stored record is replaced only by one that is at least as new.
     """
     reasons: dict[str, int] = {}
     examples: list[dict[str, Any]] = []
@@ -170,7 +199,7 @@ def upsert_trace_findings(
             examples.append({"run_id": run_id if isinstance(run_id, str) else None, "reason": reason})
 
     count = 0
-    chosen: dict[tuple[str, ...], dict[str, Any]] = {}
+    candidates: dict[tuple[str, ...], list[tuple[str, int, dict[str, Any]]]] = {}
     for record in records:
         count += 1
         try:
@@ -178,12 +207,8 @@ def upsert_trace_findings(
         except ValueError as error:
             refuse(record.get("run_id") if isinstance(record, Mapping) else None, str(error))
             continue
-        key = tuple(row[field] for field in _KEY)
-        if key not in chosen or row["produced_at"] >= chosen[key]["produced_at"]:
-            chosen[key] = row
-    rows = list(chosen.values())
-    invalid = sum(reasons.values())
-    stored = unchanged = overrides = 0
+        candidates.setdefault(tuple(row[field] for field in _KEY), []).append((row["produced_at"], count, row))
+    stored = unchanged = overrides = superseded = 0
     with database._transaction(write=True):
         if database._postgres:
             database._execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
@@ -191,7 +216,8 @@ def upsert_trace_findings(
         allowed = frozenset(admitted)
         if allowed_task_ids is not None:
             allowed = allowed.intersection(allowed_task_ids)
-        run_ids = {row["run_id"] for row in rows}
+        everything = [row for options in candidates.values() for _, _, row in options]
+        run_ids = {row["run_id"] for row in everything}
         parameters: list[Any] = []
         scope = database._task_id_scope("trace_id", run_ids, parameters)
         tasks = {
@@ -201,7 +227,7 @@ def upsert_trace_findings(
         parameters = []
         scope = database._task_id_scope("trace_id", [run for run in run_ids if tasks.get(run) in allowed], parameters)
         step_scope = database._task_id_scope(
-            "step_index", sorted({index for row in rows for index in row["evidence_steps"]}), parameters,
+            "step_index", sorted({index for row in everything for index in row["evidence_steps"]}), parameters,
         )
         present = {
             (step["trace_id"], step["step_index"]) for step in database._rows(
@@ -209,40 +235,45 @@ def upsert_trace_findings(
             )
         }
         actor: dict[str, bool] = {}
-        for row in rows:
-            run_id = row["run_id"]
-            task_id = tasks.get(run_id)
-            if task_id is None:
-                refuse(run_id, "run_id names no stored trace")
+        for options in candidates.values():
+            selected: dict[str, Any] | None = None
+            for _, _, row in sorted(options, key=lambda option: option[:2], reverse=True):
+                run_id = row["run_id"]
+                task_id = tasks.get(run_id)
+                if task_id is None:
+                    refuse(run_id, "run_id names no stored trace")
+                    continue
+                if task_id not in allowed:
+                    refuse(run_id, "run is not an admitted DEV run")
+                    continue
+                if any((run_id, index) not in present for index in row["evidence_steps"]):
+                    refuse(run_id, "evidence_steps must name stored steps of the run")
+                    continue
+                if run_id not in actor:
+                    actor[run_id] = has_actor_inputs(database, run_id)
+                if not actor[run_id] and row["verdict"] == "clear":
+                    refuse(run_id, "a run with no actor transcript cannot be recorded clear")
+                    continue
+                if selected is not None:
+                    superseded += 1
+                    continue
+                claimed = row.pop("actor_inputs_available", actor[run_id])
+                overrides += claimed != actor[run_id]
+                selected = row | {"task_id": task_id, "actor_inputs_available": actor[run_id]}
+            if selected is None:
                 continue
-            if task_id not in allowed:
-                refuse(run_id, "run is not an admitted DEV run")
-                continue
-            if any((run_id, index) not in present for index in row["evidence_steps"]):
-                refuse(run_id, "evidence_steps must name stored steps of the run")
-                continue
-            if run_id not in actor:
-                actor[run_id] = has_actor_inputs(database, run_id)
-            if not actor[run_id] and row["verdict"] == "clear":
-                refuse(run_id, "a run with no actor transcript cannot be recorded clear")
-                continue
-            claimed = row.pop("actor_inputs_available", actor[run_id])
-            overrides += claimed != actor[run_id]
-            row |= {"task_id": task_id, "actor_inputs_available": actor[run_id]}
-            key = tuple(row[field] for field in _KEY)
-            parameters = list(key)
             existing = database._execute(
                 "SELECT produced_at FROM trace_findings WHERE run_id = ? AND detector = ? "
-                "AND detector_version = ? AND reader_model = ?", parameters,
+                "AND detector_version = ? AND reader_model = ?", [selected[field] for field in _KEY],
             ).fetchone()
-            if existing is not None and existing[0] > row["produced_at"]:
+            if existing is not None and existing[0] > selected["produced_at"]:
                 unchanged += 1
                 continue
-            database._upsert("trace_findings", {column: row[column] for column in COLUMNS}, _KEY)
+            database._upsert("trace_findings", {column: selected[column] for column in COLUMNS}, _KEY)
             stored += 1
     return {
-        "admitted_tasks": len(allowed), "records": count, "keys": len(rows), "stored": stored,
-        "kept_newer_stored": unchanged, "superseded_in_input": count - invalid - len(rows),
+        "admitted_tasks": len(allowed), "records": count, "keys": len(candidates), "stored": stored,
+        "kept_newer_stored": unchanged, "superseded_in_input": superseded,
         "refused": sum(reasons.values()), "refused_by_reason": dict(sorted(reasons.items())),
         "refused_examples": examples, "actor_inputs_overrides": overrides,
     }

@@ -41,11 +41,11 @@ def _clip(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def _screen(ctx: QaContext, sealed: Any, text: str, counter: list[int]) -> str:
-    """Text with opaque identities scrubbed; replaced outright when it names a sealed identity."""
+def _screen(ctx: QaContext, sealed: Any, forbidden: str, text: str, counter: list[int]) -> str:
+    """Free text with opaque identities scrubbed; withheld when it names a sealed identity or the run's dataset."""
     from evallab.production.qa_data_findings import _OPAQUE
 
-    if ctx.retriever._sealed_text(text, sealed):
+    if ctx.retriever._sealed_text(text, sealed) or (forbidden and forbidden in text.casefold()):
         counter[0] += 1
         return _WITHHELD
     return _OPAQUE.sub("[id]", text)
@@ -59,6 +59,9 @@ def _stored(ctx: QaContext, run_id: str) -> dict[str, Any]:
         if row is None or row[0] not in admitted:
             raise QaDataError(UNAVAILABLE)
         task_id = row[0]
+        dataset = ctx.database._execute(
+            "SELECT dataset_id FROM corpus_tasks WHERE task_id = ?", (task_id,),
+        ).fetchone()
         steps = ctx.database._rows(
             "SELECT step_index, role, content_text, tool_name, command_or_action FROM trace_steps "
             "WHERE trace_id = ? AND role IN ('agent', 'assistant') ORDER BY step_index", (run_id,),
@@ -75,6 +78,7 @@ def _stored(ctx: QaContext, run_id: str) -> dict[str, Any]:
         actors = has_actor_inputs(ctx.database, run_id)
     return {
         "task_id": task_id, "sealed": sealed, "steps": steps, "step_count": step_count,
+        "dataset": dataset[0].casefold() if dataset and isinstance(dataset[0], str) else "",
         "facets": facets[0] if facets else None, "findings": findings, "actor_inputs_available": actors,
     }
 
@@ -100,33 +104,43 @@ def build_card(ctx: QaContext, run_id: str, *, ledgers: bool = True) -> dict[str
     sealed = _sealed_pattern(frozenset(data["sealed"]))
     withheld = [0]
     actors = data["actor_inputs_available"]
+
+    def screen(text: str) -> str:
+        return _screen(ctx, sealed, data["dataset"], text, withheld)
+
     header = {
         "run_id": run_id, "task_id": data["task_id"], "steps": data["step_count"],
         "actor_inputs_available": actors, "note": _NOTE,
     }
-    ranked = sorted(
-        sorted(data["findings"], key=lambda row: row["produced_at"], reverse=True),
-        key=lambda row: (_VERDICT_RANK[row["verdict"]], row["detector"]),
-    )
-    detectors = []
-    for row in ranked:
+    entries = []
+    for row in data["findings"]:
+        # A `clear` stored before the run's steps were replaced by ones with no actor transcript is unknown now.
+        stale = row["verdict"] == "clear" and not actors
         item: dict[str, Any] = {
-            "detector": _screen(ctx, sealed, row["detector"], withheld), "version": row["detector_version"],
-            "verdict": row["verdict"], "kind": row["kind"],
+            "detector": screen(row["detector"]), "version": screen(row["detector_version"]),
+            "verdict": "unknown" if stale else row["verdict"], "kind": row["kind"],
         }
+        if stale:
+            item["recorded"] = "clear"
         if row["reader_model"]:
-            item["reader"] = _screen(ctx, sealed, row["reader_model"], withheld)
+            item["reader"] = screen(row["reader_model"])
         if row["score"] is not None:
             item["score"] = round(row["score"], 4)
         if row["evidence_steps"]:
             item["steps"] = row["evidence_steps"]
         if row["summary"]:
-            item["summary"] = _clip(_screen(ctx, sealed, row["summary"], withheld), 280)
-        detectors.append(item)
+            item["summary"] = _clip(screen(row["summary"]), 280)
+        entries.append((row["produced_at"], item))
+    detectors = [
+        item for _, item in sorted(
+            sorted(entries, key=lambda entry: entry[0], reverse=True),
+            key=lambda entry: (_VERDICT_RANK[entry[1]["verdict"]], entry[1]["detector"]),
+        )
+    ]
     facets = None
     if data["facets"] is not None:
         facets = {field: data["facets"][field] for field in _FACET_FIELDS}
-        facets["shortcut"] = _clip(_screen(ctx, sealed, str(facets["shortcut"]), withheld), 60)
+        facets["shortcut"] = _clip(screen(str(facets["shortcut"])), 60)
     flags = compute_trace_feature_flags(data["steps"])
     originals = [row["step_index"] for row in data["steps"]]
     fired = {
@@ -142,43 +156,54 @@ def build_card(ctx: QaContext, run_id: str, *, ledgers: bool = True) -> dict[str
     ]
     ledger = _ledger_counts(ctx, run_id) if ledgers else None
 
-    cap = min(CARD_TOKENS, max(1, ctx.budget.remaining)) - 12  # room for the closing omitted/truncated keys
+    cap = min(CARD_TOKENS, max(1, ctx.budget.remaining)) - 24  # room for the closing omitted/shortened/truncated keys
     card: dict[str, Any] = dict(header)
-    omitted = 0
+    omitted = shortened = 0
 
-    def add(key: str, value: Any) -> bool:
+    def add(key: str, value: Any) -> None:
         nonlocal omitted
-        trial = {**card, key: value}
-        if estimate_tokens(trial) > cap:
-            omitted += len(value) if isinstance(value, list) else 1
-            return False
-        card[key] = value
-        return True
-
-    tally = {verdict: sum(row["verdict"] == verdict for row in data["findings"]) for verdict in _VERDICT_RANK}
-    add("tally", {key: value for key, value in tally.items() if value})
-    shown: list[dict[str, Any]] = []
-    for item in detectors:
-        if estimate_tokens({**card, "detectors": [*shown, item]}) > cap:
+        if estimate_tokens({**card, key: value}) > cap:
             omitted += 1
-            continue
-        shown.append(item)
-    card["detectors"] = shown
+            return
+        card[key] = value
+
+    def fit(key: str, items: list[Any], shorter: Any) -> None:
+        """Whole items in priority order, each shortened before it is dropped; the first drop ends the list."""
+        nonlocal omitted, shortened
+        kept: list[Any] = []
+        card[key] = kept
+        for index, item in enumerate(items):
+            for attempt, candidate in enumerate(shorter(item)):
+                if estimate_tokens({**card, key: [*kept, candidate]}) <= cap:
+                    kept.append(candidate)
+                    shortened += attempt > 0
+                    break
+            else:
+                omitted += len(items) - index
+                return
+
+    verdicts = [item["verdict"] for item in detectors]
+    add("tally", {verdict: verdicts.count(verdict) for verdict in _VERDICT_RANK if verdict in verdicts})
+    fit("detectors", detectors, lambda item: (
+        item, {key: value for key, value in item.items() if key != "summary"},
+        {key: value for key, value in item.items() if key not in {"summary", "steps"}},
+    ))
     if facets is not None:
         add("facets", facets)
-    add("flags", [f"{name}@{step}x{count}" for name, (step, count) in sorted(fired.items(), key=lambda kv: kv[1][0])])
-    for item in playbook:
-        shown_cards = [*card.get("playbook", []), item]
-        if estimate_tokens({**card, "playbook": shown_cards}) > cap:
-            omitted += 1
-            continue
-        card["playbook"] = shown_cards
+    fit(
+        "flags", [f"{name}@{step}x{count}" for name, (step, count) in sorted(fired.items(), key=lambda kv: kv[1][0])],
+        lambda item: (item,),
+    )
+    if playbook:
+        fit("playbook", playbook, lambda item: (item, {key: value for key, value in item.items() if key != "verify"}))
     if ledger is not None:
         add("ledger_readers", ledger)
     if withheld[0]:
         add("withheld_strings", withheld[0])
     card["omitted"] = omitted
-    card["truncated"] = omitted > 0
+    if shortened:
+        card["shortened"] = shortened
+    card["truncated"] = omitted > 0 or shortened > 0
     ctx.budget.used += estimate_tokens(card)
     ctx.budget.omitted += omitted
     return card

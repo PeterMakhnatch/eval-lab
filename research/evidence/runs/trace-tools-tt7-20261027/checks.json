@@ -26,6 +26,36 @@
       "reason": "Stopped by owner while integrating known scorer/summary fixes; not claimed as verification"
     }
   ],
+  "final_integration": {
+    "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-20261027/score.py --readings-finalized research/evidence/runs/trace-tools-tt7-20261027/readings-finalized.json --out research/evidence/runs/trace-tools-tt7-20261027/score.json && make check",
+    "observed_exit_code": 0,
+    "combined_scoring_and_static_elapsed_s": 64.60,
+    "scored_sample_runs": 200,
+    "scored_arms": 16,
+    "replayed_pairs": 68,
+    "static_passed": true,
+    "tests_run": false,
+    "source_scope": "Final explicit ordered-prefix replay keys, refusal-abstention handling, coverage/yield table renderer, and completed README",
+    "ci_green_claim": false
+  },
+  "publication_constraints": {
+    "public_data_files_checked": 11,
+    "original_sample_run_id_hit_files": 0,
+    "aggregate_score_contains_raw_label_field": false,
+    "aggregate_score_contains_per_run_evidence_steps": false,
+    "comparison_table_rows": 688,
+    "comparison_table_columns": 16,
+    "every_table_has_explicit_full_positive_yield": true,
+    "private_failure_credential_key_hit_records": 0
+  },
+  "spend_ledger": {
+    "tt7_batch_lines": 70,
+    "marginal_usd": 0,
+    "known_input_tokens": 14913822,
+    "known_output_tokens": 14488,
+    "omp_known_uncached_list_price_equivalent_usd": 16.4030989,
+    "raw_ledger_committed": false
+  },
   "src_package_changes": false,
   "ci_claim": "No CI-green claim is made by this local checkpoint. Exact-head required GitHub checks and merge evidence are separate."
 }

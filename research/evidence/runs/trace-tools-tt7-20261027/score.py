@@ -380,7 +380,8 @@ def _missing(arm: Arm, reason: str = "missing_record") -> Prediction:
 def _record_prediction(row: dict[str, Any], arm: Arm, key: Key, store: StepStore) -> Prediction:
     usage = _usage(row, arm)
     value = row.get("value") if isinstance(row.get("value"), dict) else {}
-    if value.get("error") or value.get("valid") is False or value.get("schema_valid") is False:
+    if (value.get("error") or value.get("abstention_reason")
+            or value.get("valid") is False or value.get("schema_valid") is False):
         return replace(_missing(arm, "record_abstention"), usage=usage)
     frozen = arm.detector.startswith("tt7_form:")
     evidence = value.get("evidence_steps", row.get("evidence_steps", []))
@@ -721,10 +722,11 @@ def _sum_usage(first: Usage, second: Usage) -> Usage:
 
 
 def _compose(cheap: Arm, frontier: Arm, cheap_predictions: dict[Key, Prediction],
-             frontier_predictions: dict[Key, Prediction], form: str) -> tuple[dict[Key, Prediction], dict[str, Any]]:
+             frontier_predictions: dict[Key, Prediction], form: str,
+             ordered_keys: list[Key]) -> tuple[dict[Key, Prediction], dict[str, Any]]:
     # Retained Stage1 is a secondary GATE, not a secondary form prediction.
     gate_only = form == "secondary" and cheap.kind in BASELINES
-    scoped_keys = list(cheap_predictions)[:min(cheap.target_run_count, frontier.target_run_count)]
+    scoped_keys = ordered_keys[:min(cheap.target_run_count, frontier.target_run_count)]
     in_scope = set(scoped_keys)
     gate = {key: (pred.primary if gate_only else pred.flag(form)) if key in in_scope else None
             for key, pred in cheap_predictions.items()}
@@ -854,7 +856,7 @@ def _cell(value: Any) -> str:
 def _markdown(report: dict[str, Any]) -> str:
     lines = [
         "<!-- Aggregate-only TT-7 table fragment. No run-level data. -->",
-        "Decided-only recall/FPR have Wilson 95% intervals. Abstentions are excluded from confusion counts, never counted as negatives. Full-cohort bounds and class-specific coverage are shown alongside those rates.",
+        "Decided-only recall/FPR have Wilson 95% intervals. Abstentions are excluded from confusion counts, never counted as negatives. Full-positive detection yield is observed TP/all cohort positives, not an imputed capability score. Full-cohort bounds and class-specific coverage are shown alongside those rates.",
         "Main recommendation requires all Goodfire DEV 80 positives/70 negatives. CheatBench DEV (25/25) is cross-test only. The fixed prefix-60 view is supplemental: every model, retained baseline, and replay uses the same first 60 frozen sample rows; it is never used to choose a model.",
         "Unknown usage/cost stays unknown. Subscription marginal inference is $0; list-price equivalents remain separate. Costs per 1k use observed attempted readings only (n shown); no sparse-prefix spend is projected to 200. Replays execute no additional calls and their latency is a sum of observed component times, not observed pipeline latency.",
         "",
@@ -864,8 +866,8 @@ def _markdown(report: dict[str, Any]) -> str:
             for cohort in COHORTS:
                 lines.extend([
                     f"### {view} — {form.title()} — {cohort}", "",
-                    "| Arm / replay | Kind | TP / FP / FN / TN | Abstain + / − | Coverage + / − | Recall [95% CI] | Cohort recall bounds | FPR [95% CI] | Cohort FPR bounds | Evidence hit / annotated+ | Tokens in / out (known) | Observed marginal / list $ total | Marginal / list $ per 1k observed (n) | Median s (observed n) | TP overlap both / arm-only / cascade-only / neither (paired+) |",
-                    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+                    "| Arm / replay | Kind | TP / FP / FN / TN | Abstain + / − | Coverage + / − | TP / all positives (yield) | Recall [95% CI] | Cohort recall bounds | FPR [95% CI] | Cohort FPR bounds | Evidence hit / annotated+ | Tokens in / out (known) | Observed marginal / list $ total | Marginal / list $ per 1k observed (n) | Median s (observed n) | TP overlap both / arm-only / cascade-only / neither (paired+) |",
+                    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
                 ])
                 entries = []
                 for row in report["arms"]:
@@ -891,6 +893,7 @@ def _markdown(report: dict[str, Any]) -> str:
                         " / ".join(str(metric[key]) for key in ("TP", "FP", "FN", "TN")),
                         f"{metric['abstain_pos']} / {metric['abstain_neg']}",
                         f"{_percent(metric['positive_coverage'])} / {_percent(metric['negative_coverage'])}",
+                        f"{metric['TP']} / {metric['n_pos']} ({_percent(metric['confirmed_detection_rate'])})",
                         f"{_percent(metric['recall'])} [{_interval(metric['recall_ci95'])}]",
                         _interval(metric["full_cohort_recall_bounds"]),
                         f"{_percent(metric['fpr'])} [{_interval(metric['fpr_ci95'])}]",
@@ -956,7 +959,8 @@ def main() -> None:
         store.close()
     keys_by_source = {cohort: [key for key in sample if key[1] == source]
                       for cohort, (source, _, _) in COHORTS.items()}
-    prefix_keys = list(sample)[:60]
+    ordered_keys = list(sample)
+    prefix_keys = ordered_keys[:60]
     prefix_by_source = {cohort: [key for key in prefix_keys if key[1] == source]
                         for cohort, (source, _, _) in COHORTS.items()}
     arm_reports = []
@@ -987,10 +991,11 @@ def main() -> None:
                 continue
             by_form = {}
             for form in FORMS:
-                replay, workload = _compose(cheap, frontier, predictions[cheap.id], predictions[frontier.id], form)
+                replay, workload = _compose(cheap, frontier, predictions[cheap.id],
+                                            predictions[frontier.id], form, ordered_keys)
                 prefix_replay, prefix_workload = _compose(
                     cheap, frontier, {key: predictions[cheap.id][key] for key in prefix_keys},
-                    {key: predictions[frontier.id][key] for key in prefix_keys}, form,
+                    {key: predictions[frontier.id][key] for key in prefix_keys}, form, prefix_keys,
                 )
                 by_form[form] = {
                     "workload": workload,

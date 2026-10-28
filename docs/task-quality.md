@@ -390,6 +390,52 @@ default (`auto` for custom endpoints, `us-east-1` for AWS S3). `put_bytes` /
 an offline CAS, or alongside S3 configuration for an atomic local mirror.
 CAS references do not assert that the corresponding object has been ingested.
 
+**QA data access (`evallab qa-data`).** One JSON document per call over the admitted
+DEV cloud trace store, sized for an agent's context. The store is opened
+**read-only** (`CloudTraceDatabase(read_only=True)`: SQLite `mode=ro`, no
+migration, index or rebuild; PostgreSQL in a read-only session). Every call decides
+registry admission (`CorpusRegistry`, cross-key `assignments.csv`, seals) afresh
+**in the same read snapshot** as the rows it returns, and a missing, held-out,
+sealed or cross-key-locked identity gives the **identical** refusal
+(`not available: not an admitted DEV task or run`) with no counts, names or
+partial data. All calls take `--budget N` (default 4000, minimum 200); `meta`
+reports `tokens_est` (ceil(chars/4) of the whole reply), `latency_ms`, `omitted_items` and
+`truncated`. Sections omit whole items and count them rather than cut records; a
+reply that cannot fit becomes a bounded refusal, never an over-budget document.
+
+```bash
+uv run evallab qa-data task TASK_ID [--file tests/check.py]      # instruction, tests, grader, Dockerfile
+uv run evallab qa-data runs --facet outcome=pass --facet tests=modified,deleted,replaced --limit 10
+uv run evallab qa-data runs --cluster CLUSTER_ID | --like RUN_ID | --query "words" | --task TASK_ID
+uv run evallab qa-data window RUN_ID --around 12 --radius 3      # or --first A --last B
+uv run evallab qa-data history TASK_ID [--flag git_history_peek] # past issues, similar issues, playbook cards
+uv run evallab qa-data findings --run RUN_ID | --task TASK_ID    # Scout / Laminar / Docent leads
+```
+
+- `task` bundles the instruction and the task package's Dockerfile, test and
+  grader files in priority order, within budget. The package is found only through
+  the registry's digest-matched locator for that exact task; Goodfire and
+  CheatBench-derived tasks have none and return the instruction with
+  `package: null`. `solution/` and answer-key-named files are listed by name under
+  `withheld`, never read; files that are DEV test content (including expected values
+  inside tests) are returned. `--file` takes a relative path inside the package.
+- `runs` lists every run (not one per task) from stored Run Atlas facets, ranked by
+  facet similarity to `--like`, then query words found in goal/approach/shortcut,
+  then suspicion. Records omit `source`/`split`/model and give only a cluster id
+  and level: cluster names are model-written from stored samples that may include
+  runs the caller cannot see, so they are never returned.
+- `window` returns recorded non-user steps (`step_index`, role, tool, command,
+  content, observation preview), without evaluator flags or CAS pointers.
+- `history` returns the task's own confirmed/provisional issues (refuted ones are
+  counted), similar issues elsewhere with `issue:<id>` pointers, and the matching
+  playbook cards (issue defect classes and `--flag` values are the triggers).
+- `findings` joins the local trace-tool ledgers to run ids that equal the store's
+  trace ids, and returns the tools' own leads (not verdicts) with sealed-identity
+  screening. No finding means the tool did not scan the run or found nothing.
+
+Measured tokens and latency per call type on the live store are in
+`research/evidence/runs/ce14-qa-data-20261028/`.
+
 ### Task Quality proposal review and retained causal descriptions
 
 `TaskQualityLiveWorker.audit_proposals(package, task_id=..., response=...,

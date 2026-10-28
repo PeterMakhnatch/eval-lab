@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-28T17:58:56.998679+00:00",
+  "command": "uv run --no-sync python research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/score_delta.py --readings-closed --render-only --out research/evidence/runs/trace-tools-tt7-codex-continuation-20261028/score-delta-v2.json",
+  "corrections": [
+    "Replay annotations now say total nominal model calls, matching unchanged nominal_total_model_calls_lower_bound/upper_bound fields; not Luna-only or executed calls.",
+    "Adds capability-boundary, invocation-versus-provider-request, and later zero-call privacy closure caveats."
+  ],
+  "current_render": "score-delta-v2.md",
+  "current_render_sha256": "96105d0e3c6b76bb49630b4fe011353df9d7fb022ad64ecf35f42031dd6cadb4",
+  "labels_reopened": false,
+  "metrics_recomputed": false,
+  "model_calls": 0,
+  "numeric_score_or_selection_rule_changed": false,
+  "old_score_artifacts_overwritten": false,
+  "quota_queries": 0,
+  "renderer_source": "score_delta.py",
+  "renderer_source_sha256": "e85ccd303218895c3e8dc741f2c1fd10c9459b2ca62da077f11deed2d0d3a454",
+  "retained_initial_render": "score-delta.md",
+  "retained_initial_render_sha256": "7dd1584b5483c551643a75de3bd357665cf71bc552a3942ece0d0e2e70f76ce6",
+  "schema": "tt7.render_only_correction/v1",
+  "unchanged_sealed_data": "score-delta.json",
+  "unchanged_sealed_data_sha256": "1bac155404dfa7ce83c7d67a957667d0661abef0f374b994264073033703f217"
+}

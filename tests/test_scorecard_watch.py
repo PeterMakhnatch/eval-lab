@@ -389,6 +389,14 @@ def test_a_busy_tick_touches_nothing(case):
     assert (case.state_dir / watch.LAST).read_bytes() == receipt
 
 
+def test_an_unusable_state_directory_reports_error(case):
+    blocker = case.state_dir.parent / "state-blocker"
+    blocker.write_text("x", encoding="utf-8")
+    report = watch.run_once(**_run(case, state_dir=blocker / "state"))
+    assert report["status"] == "error" and report["error_type"]
+    assert not case.card_out.exists()
+
+
 def test_a_snapshot_contradicting_its_identity_is_refused_not_rewritten(case):
     first = watch.run_once(**_run(case))
     snapshot = case.state_dir / first["snapshot"]

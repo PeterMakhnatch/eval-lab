@@ -308,6 +308,31 @@ def register_parser(commands: Any) -> None:
     )
     reliability.set_defaults(func=_command)
 
+    preflight = actions.add_parser(
+        "deploy-preflight",
+        help="Read-only check of the data files the Modal cloud tabs need; prints, never runs, the deploy commands",
+    )
+    preflight.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    preflight.add_argument(
+        "--state-root", type=Path, default=Path("~/.local/state/evallab-prod-live"),
+        help="Live state directory holding run-atlas/ and trace-tools/",
+    )
+    preflight.add_argument(
+        "--inventory", type=Path,
+        default=Path("~/Developer/research-context/bridge/2026-10-27-run-atlas/ts9-defensive-inventory/inventory.json"),
+        help="TS-9 defensive inventory (staged reduced)",
+    )
+    preflight.add_argument(
+        "--registry", type=Path,
+        default=Path("~/Developer/research-context/bridge/2026-10-27-run-atlas/cross-test-registry.json"),
+        help="Cross-test registry (staged reduced)",
+    )
+    preflight.add_argument(
+        "--stage-directory", type=Path,
+        help="Keep the staged copies here (a new or empty directory); default: a temporary directory that is deleted",
+    )
+    preflight.set_defaults(func=_command)
+
     sb1 = actions.add_parser(
         "seeker-error-first",
         help="SB-1 two-turn error-first Reward Seeker campaign; --plan (default) is free",
@@ -920,6 +945,15 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0
+        if args.prod_command == "deploy-preflight":
+            from evallab.production.deploy_preflight import run_preflight
+
+            report = run_preflight(
+                args.state_root, repo_root=root, inventory=args.inventory.expanduser(),
+                registry=args.registry.expanduser(), stage_directory=args.stage_directory,
+            )
+            _emit({"command": args.prod_command, **report}, args)
+            return 0 if report["ok"] else 1
         if args.prod_command == "seeker-error-first":
             receipt, exit_code = _seeker_error_first(args, root)
             _emit({"command": args.prod_command, **receipt}, args)

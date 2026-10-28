@@ -17,7 +17,15 @@ import re
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    ValidationError,
+    field_validator,
+)
 
 from evallab.production.atlas_view import json_reason, read_regular, strict_loads
 
@@ -50,9 +58,33 @@ class _Licence(_Loose):
     redistributable: StrictBool
 
 
+def counts_leaves(counts: Any, prefix: str = "", depth: int = 0) -> dict[str, int]:
+    """Integer counts, flattened to dotted names; a nested group may go three levels deep."""
+    if not isinstance(counts, dict) or depth > 3:
+        raise ValueError(f"counts{('.' + prefix) if prefix else ''} must hold integers or groups of integers")
+    leaves: dict[str, int] = {}
+    for key, value in counts.items():
+        name = f"{prefix}.{key}" if prefix else str(key)
+        if isinstance(value, dict):
+            leaves.update(counts_leaves(value, name, depth + 1))
+        elif isinstance(value, int) and not isinstance(value, bool):
+            leaves[name] = value
+        else:
+            raise ValueError(f"counts.{name} must be an integer")
+    if len(leaves) > 500:
+        raise ValueError("counts has more than 500 entries")
+    return leaves
+
+
 class _Labels(_Loose):
     type: _Prose
-    counts: dict[str, StrictInt]
+    counts: dict[str, Any]
+
+    @field_validator("counts")
+    @classmethod
+    def counts_are_integers(cls, value: dict[str, Any]) -> dict[str, Any]:
+        counts_leaves(value)
+        return value
 
 
 class _Scoring(_Loose):
@@ -71,7 +103,7 @@ class _Entry(_Loose):
     source_url: str
     unit: _Id
     unit_note: _Prose = ""
-    status: _Id
+    status: str = ""  # the validator does not require it; newer entries omit it
     flags: _Flags
     licence: _Licence
     labels: _Labels
@@ -128,7 +160,7 @@ def _entry(raw: Any) -> dict[str, Any]:
         "unit": item.unit,
         "unit_note": _clip(item.unit_note, 400),
         "label_type": _clip(item.labels.type, 200),
-        "counts": dict(item.labels.counts),
+        "counts": counts_leaves(item.labels.counts),
         "command_level": {
             "scorable": item.scoring.command_level_localization_scorable,
             "reason": _clip(item.scoring.command_level_reason, 300),
@@ -206,6 +238,34 @@ def parse_registry(raw: bytes) -> dict[str, Any]:
         "validator": None
         if command is None
         else {"command": command, "quick_command": command + " --quick --offline"},
+    }
+
+
+def project_registry(raw: bytes) -> dict[str, Any]:
+    """The registry reduced to the fields this page reads, for staging to the cloud volume.
+
+    Bundle paths, revisions, caveats, source notes and lane rows are dropped. A registry with a
+    malformed entry is refused rather than staged partially. The result parses to the same board.
+    """
+    board = parse_registry(raw)
+    if board["malformed"]:
+        first = board["malformed"][0]
+        raise ValueError(f"{len(board['malformed'])} malformed entries; first {first['where']}: {first['reason']}")
+    document = strict_loads(raw.decode("utf-8"))
+    validator = document.get("validator")
+    not_staged = document.get("hold_licence_not_staged")
+    return {
+        "schema_version": REGISTRY_SCHEMA,
+        "created": board["created"],
+        "validator": {"script": validator["script"]} if board["validator"] else None,
+        "entries": [_Entry.model_validate(item).model_dump(mode="json") for item in document["entries"]],
+        "hold_access": [
+            _Hold.model_validate(item).model_dump(mode="json", exclude={"bundle_path"})
+            for item in document["hold_access"]
+        ],
+        "hold_licence_not_staged": [{"id": str(item.get("id", ""))} for item in not_staged if isinstance(item, dict)]
+        if isinstance(not_staged, list)
+        else [],
     }
 
 

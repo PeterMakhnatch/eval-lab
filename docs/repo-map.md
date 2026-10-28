@@ -138,6 +138,8 @@ inputs:
     digest: sha256:d6a5169956b6873b4a55eeaddcdcce1bb6c996ad7018c669185993c5ddab273c
   - path: src/evallab/edit_signals.py
     digest: sha256:1d26c2599c7d9d0f03f35e76ba7bac7d709cd1628595678922455bcdf33f0110
+  - path: src/evallab/entry.py
+    digest: sha256:a9733b751a133e84a2806ff0e443fed9a99cf2a81abf6af58c9b7cc802301214
   - path: src/evallab/eventlog.py
     digest: sha256:4824bd5e97787140d8051dede9efe83978558f531046c381327e26b227d9410d
   - path: src/evallab/evidence/__init__.py
@@ -537,7 +539,7 @@ inputs:
   - path: src/evallab/process_job.py
     digest: sha256:f1239e1826783c32776f7de2c1b9b69af25bd14e13d804e065e18baf366d5ac1
   - path: src/evallab/production/__init__.py
-    digest: sha256:12d60fb8fdb41d910503f8e7fd30bae386a63c111c00b1b614c0fa4a53e12cfe
+    digest: sha256:ddd17fd57ba54d5bf8bb61002b0a7a160e94e5143407ac06ce2c42d5226f0731
   - path: src/evallab/production/actor_cas.py
     digest: sha256:db00e98ac9196a6ae445e89ff029411c1cb135b382d23403706208ba4edfca4e
   - path: src/evallab/production/actor_projection.py
@@ -549,7 +551,7 @@ inputs:
   - path: src/evallab/production/atlas_coverage.py
     digest: sha256:3e95c782adb6de4b5dac3f1e0cf57f0c24e26b2a3e30099f363e9af458f41e2a
   - path: src/evallab/production/atlas_view.py
-    digest: sha256:be5ac3beb6dcdd30db6d516f5fc95d478c0d3bf0ebe89c6f8e6326dfa6077b3b
+    digest: sha256:287fb1d2d25a1db9d19dfac081552d96eb2f7d1131f8128882bbb37d7d1ffd48
   - path: src/evallab/production/benchmark_reports.py
     digest: sha256:4e20138d3ba94a6aefebf65aaefcca699e38c2a09675b9140405a54b6ec4fe59
   - path: src/evallab/production/cli.py
@@ -573,9 +575,11 @@ inputs:
   - path: src/evallab/production/cross_test_sets.py
     digest: sha256:8738f4b1dc6d00f03f46bea94a3eb16fc7f4e37bf20614708a68c56c729b43b8
   - path: src/evallab/production/dashboard.py
-    digest: sha256:04f13e22485ff8dfee00da588b3ad6641db4a2209eb6b3eb115293e036e48194
+    digest: sha256:92048279dd78f1f90dcc627bb01bf8bb60a6f122284431dc03806f16ffa01e4f
   - path: src/evallab/production/deploy_preflight.py
-    digest: sha256:bf6486c1dc23cde1cb2d4c21ae42e885dbf63192cb3a1d5e07cdc6273b36ccb0
+    digest: sha256:95b6bfefe430bc36c41be3036ca308c6df49298ac2741201afa3d02296e0251b
+  - path: src/evallab/production/detector_scope.py
+    digest: sha256:330c4710b7bf510487db87da58b8e2a3e1102d28abe8e200752ec0f153bb6f6e
   - path: src/evallab/production/feeder.py
     digest: sha256:596c0ecfa4001bc5f937c365b6e158e3123c5cceda4af3793442b10d0b9bd03e
   - path: src/evallab/production/field_reliability.py
@@ -584,12 +588,16 @@ inputs:
     digest: sha256:283fa6d7f6a2cf62945eb9bb770ed76f89d1b74afd81bf4485513a3ad23d640c
   - path: src/evallab/production/gate_policy.py
     digest: sha256:f14a366bca8e8f77f66ffe6bc1b92d996bb428f6d0e9f3377d7a14d9941b0eb0
+  - path: src/evallab/production/gate_progress.py
+    digest: sha256:c0737b9c65bad106e37f5ee3ebe23024a70a80c8bef9a255a737e881c1a52adc
   - path: src/evallab/production/ingest.py
     digest: sha256:8d9b4a839b8cb0484ad6bad3d46867b7c83761b4376cd8dc586c140e993764c2
   - path: src/evallab/production/inspector.py
     digest: sha256:5c0f81d453e402c96cc870bbdf53a47fa7a220609556a379220a3b878cd28fbf
+  - path: src/evallab/production/ledger_split.py
+    digest: sha256:4ef138913760e3262bfbdeac3d8b55e5d073cfff6bce54d27a729f5f7ef0b2d9
   - path: src/evallab/production/modal_cloud.py
-    digest: sha256:c588939551ba3389c26ddb5428debc3ba4a1e2e97b3aaf1992a6d00f1d747813
+    digest: sha256:18947556ea27a0c011d9ee10878292478c1a0de0fa08822ac27c25b30e3f9f8f
   - path: src/evallab/production/monitor_worker.py
     digest: sha256:028591253c90c2c5b8e5c11cca4e462c24f7e70cddba49908f39428f0b14ad1a
   - path: src/evallab/production/outbox_relay.py
@@ -597,7 +605,7 @@ inputs:
   - path: src/evallab/production/public_corpus_loader.py
     digest: sha256:6dd834cea54b40d742bb4289f1a7ac2b1586197b27483d1e6b1112095adde01f
   - path: src/evallab/production/qa_data.py
-    digest: sha256:cf7916488ac67e8b6f7b45d5a3d34ec6fcc82cc47d5f6a9dda8152dac9ba05b5
+    digest: sha256:7382871dc87992af951119a3cde88933ff35aab20d1ea2c188f337eaba38189a
   - path: src/evallab/production/qa_data_calls.py
     digest: sha256:5793c936388a304db4061fcd213f4fd76da85c64e13f9e671c73034f80d7ce12
   - path: src/evallab/production/qa_data_export.py
@@ -605,13 +613,13 @@ inputs:
   - path: src/evallab/production/qa_data_findings.py
     digest: sha256:7b2e3eeed802ebe29807a08318c1fe54f5af8626927f4f8ebfaff4af58ce3cbb
   - path: src/evallab/production/qa_data_guide.py
-    digest: sha256:29601e662c82abf41b60c9fd91817228d60e533ab5fc81e7296eedb0a9d799cf
+    digest: sha256:a86a80892713627c5d12c2a1a03a32fa3c37921aa118205c0661fc925d93d912
   - path: src/evallab/production/qa_data_inventory.py
-    digest: sha256:03106dd6abfd369ccd3c8416fac2fcaa833a76c0bdcdfa2dcf5296b0fd3133b8
+    digest: sha256:881e34ffbd8f2eceb8d2e069ab0872bfc6f3c492685ec345a8e7563ba0e62b56
   - path: src/evallab/production/qa_data_scan.py
-    digest: sha256:09a1fa7a956303f49745e920914398687720087dac7b01df8698682dd4be3e81
+    digest: sha256:e95c3a94704393eb9a7f30eb8d624f872e6715c295d50ccce0f2329bb0e79292
   - path: src/evallab/production/qa_data_split.py
-    digest: sha256:00c5bae0bcd3ef192ec0d4a5e682353d6fafbf41f9f5f2c9fa0980c6b52f0863
+    digest: sha256:81e212eeb86ac2f7eb58dcc80150c8c0f31b2eb88dbe79a5aee65aa2ae3798a2
   - path: src/evallab/production/qa_data_task.py
     digest: sha256:3b62ccf588d6f89a79743947c752a5c5e4b96457029323a697a1e05acebd8faa
   - path: src/evallab/production/qc_reports.py
@@ -651,7 +659,7 @@ inputs:
   - path: src/evallab/production/tool_runs.py
     digest: sha256:6f0c4385f27a8ee6da3eb2e6488f0807dac9e04e351a5b740ba463d9f3556bae
   - path: src/evallab/production/tool_scorecard_view.py
-    digest: sha256:66bef4365be8ee374829cce0a2f22c4481d56c2e48a7cf52eebbd833061f1f46
+    digest: sha256:4c340a786536f971611811359b395b2ee4a71f0f6f904dad781e7a3e70c675c3
   - path: src/evallab/production/tq_context.py
     digest: sha256:e9b90c3d1ed70c526a090e409783ab5847a400501dffc47255836d03e3bd6f93
   - path: src/evallab/production/tq_fixture.py
@@ -1120,6 +1128,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `docindex` | 400 | Documentation index generator and archive sweep (WS-E item 7). | `python -m evallab.docindex generate`, `python -m evallab.docindex check` |
 | `docker_lock` | 700 | Host-wide FIFO slot lock for shared local Docker (``evallab docker-lock``). | — |
 | `edit_signals` | 300 | Shared edit detectors: tool names and command patterns (HAR-116 fix). | — |
+| `entry` | 100 | Console-script entry point: ``qa-data`` skips the full CLI, everything else is unchanged. | — |
 | `eventlog` | 100 | Serialize event-log operations across both threads and processes. | — |
 | `evidence` | 100 | Canonical evidence projection package. | — |
 | `evidence.atif` | 1200 | Land completed jobs in the catalog, then rebuild their derived Parquet. | — |
@@ -1327,7 +1336,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.atlas_coverage` | 200 | Run Atlas coverage: what is stored versus what could be, and what is not yet ready. | — |
 | `production.atlas_view` | 500 | Read-only Run Atlas view model: validated run facets and clusters on admitted DEV runs. | — |
 | `production.benchmark_reports` | 1100 | Strict, versioned retained-report schemas shared by the cloud API and the exporter. | — |
-| `production.cli` | 1000 | Production queue commands, with dashboard-only serving as the safe default. | — |
+| `production.cli` | 1100 | Production queue commands, with dashboard-only serving as the safe default. | — |
 | `production.cloud_trace_db` | 2800 | Queryable task/defect/trace projections backed by PostgreSQL or local SQLite. | — |
 | `production.cloud_trace_export` | 900 | Local, DEV-admitted run exports with a separate sealed scoring join. | — |
 | `production.cloud_trace_retriever` | 500 | Deterministic compact DEV-only verified-trace retrieval for seeker prompt augmentation. | — |
@@ -1337,14 +1346,17 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.corpus_expansion` | 600 | Import explicitly cleared, locally staged task bundles into a held SQLite store. | — |
 | `production.corpus_queue` | 1100 | Public-corpus admission and the durable production work journal. | — |
 | `production.cross_test_sets` | 300 | Read-only view of the staged cross-test sets, from the registry file only. | — |
-| `production.dashboard` | 2300 | Self-contained, read-only-by-default browser surface for the production journal. | — |
+| `production.dashboard` | 2500 | Self-contained, read-only-by-default browser surface for the production journal. | — |
 | `production.deploy_preflight` | 500 | Read-only preflight for deploying the Modal cloud dashboard with its data files. | — |
+| `production.detector_scope` | 400 | Where each detector can be trusted: DEV and cross-test counts side by side. | — |
 | `production.feeder` | 900 | Replay retained DEV evidence into the real production journal and prefix monitor. | — |
 | `production.field_reliability` | 200 | Which Run Atlas facet fields to trust: measured agreement, read from a retained file. | — |
 | `production.file_cache` | 100 | Serve a parsed retained file, re-reading it only when it changes on disk. | — |
 | `production.gate_policy` | 2200 | Synchronous known-rule action policy for the live gate (TW-P1). | — |
+| `production.gate_progress` | 300 | Task QA gate-rerun progress for the dashboard: counts from the OQ-6 coverage summaries. | — |
 | `production.ingest` | 600 | Admit public DEV corpus records without inventing executable work. | — |
 | `production.inspector` | 900 | Bounded trace projections and root-confined DEV-only grader comparisons. | — |
+| `production.ledger_split` | 100 | Ledger-side split lookup for a Verifier: DEV / TEST / UNKNOWN for a task or a (key, item) pair. | — |
 | `production.modal_cloud` | 1000 | Authenticated Modal production control plane, durable stores, and CPU workers. | — |
 | `production.monitor_worker` | 2600 | Causal trace monitoring and executor-acknowledged run control. | — |
 | `production.outbox_relay` | 1200 | Publish durable production journal envelopes to scoped JetStream subjects. | — |
@@ -1356,7 +1368,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.qa_data_guide` | 100 | The text of ``evallab qa-data --help``: what an agent with no other documentation needs. | — |
 | `production.qa_data_inventory` | 300 | Admission-first QA listings and source-snapshot counts, never blind-reader inputs. | — |
 | `production.qa_data_scan` | 100 | ``qa-data scan``: deterministic Scout text scanners over a blinded ``export --format scout`` file. | — |
-| `production.qa_data_split` | 100 | ``qa-data split``: a label-free DEV / TEST / UNKNOWN lookup for a task or a (key, item) pair. | — |
+| `production.qa_data_split` | 100 | ``qa-data split``: confirms DEV for an admitted id, and refuses every other id the same way. | — |
 | `production.qa_data_task` | 500 | Read-only task packages for the admitted DEV ``qa-data`` surface. | — |
 | `production.qc_reports` | 1400 | Export the Trust & QC retained reports as exact-byte, validated artifacts. | — |
 | `production.relay` | 300 | Initial-open database failover and an acknowledged, at-least-once outbox relay. | — |

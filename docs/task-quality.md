@@ -461,7 +461,7 @@ uv run evallab qa-data history TASK_ID [--flag git_history_peek] # past issues, 
 uv run evallab qa-data findings [--run RUN_ID | --task TASK_ID]  # Scout / Laminar / Docent leads, or per-tool totals
 uv run evallab qa-data clusters [--source db|file] [--level N] [--members CLUSTER_ID]
 uv run evallab qa-data recount                                    # facets interim JSONL vs database
-uv run evallab qa-data split task TASK_ID | split item KEY_ID ITEM_ID   # DEV / TEST / UNKNOWN, never a label
+uv run evallab qa-data split task TASK_ID | split item KEY_ID ITEM_ID   # DEV for an admitted id; any other id is refused
 uv run evallab qa-data export --facet answer_material_accessed=true --limit 5 --out DIR   # blinded, with step map
 uv run evallab qa-data steps DIR.sealed-manifest.json TRACE_OR_BLIND_ID --original N      # original <-> exported step
 uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministic Scout text scanners, no model call
@@ -482,6 +482,12 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   scoring-key-named files (answer keys, `expected_verdict`, `exposures`, scorer-only
   keys) are listed by name under `withheld`, never read; ordinary DEV test content,
   including expected values inside tests, is returned.
+- Start-up: `evallab qa-data` runs through `evallab.entry`, which builds only the `qa-data`
+  parser instead of the whole CLI (about 0.2 s instead of 1.2 s of CPU before the first
+  query on the live store); every other command still goes to `evallab.cli`. Importing
+  one `evallab.production.*` module no longer imports the worker stack either.
+- `recount` counts the same runs as `runs` (facets naming a sealed identity are left out of
+  both the database and the JSONL counts), so their totals agree.
 - `inventory`, `traces`, `clusters`, `recount` and `findings` (no argument) are
   aggregate and list views over admitted runs; only source-wide totals (ledger rows,
   JSONL lines) are not admission-restricted, and they carry no identities or values.
@@ -489,15 +495,22 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   binds every answer to its build id and splits members into cloud runs and
   registry-only DEV items (CheatBench), excluding any id that exists as a cloud trace
   but is not admitted.
-- `split` prints one word (`DEV`, `TEST`, `UNKNOWN`) from the ledger authority: TEST
-  under any key or sealed wins, `UNKNOWN` never authorizes access, and it needs no
-  store. `export` writes a blinded export of admitted runs chosen by facets, ids or an
+- `split` answers `{"split": "DEV"}` for an admitted DEV task or (key, item) pair and refuses
+  every other id (missing, TEST, held out, sealed, cross-key locked) with the refusal and token
+  size `task` gives, so it is not a ledger-membership oracle (VF-21, CE-20). A refusal
+  carries no `with_outcomes` flag, so every refusal has one size. A Verifier who needs the
+  ledger's own word runs the local script, which reads only the safe ledger columns and
+  prints `DEV`, `TEST` or `UNKNOWN` (TEST under any key or sealed wins; `UNKNOWN` never
+  authorizes access):
+  `uv run python -m evallab.production.ledger_split task TASK_ID | item KEY_ID ITEM_ID`.
+  Never hand its output to a QA agent. `export` writes a blinded export of admitted runs chosen by facets, ids or an
   ids file (any non-admitted id fails the whole call and writes nothing), with the
   sealed manifest beside it, and prints the original-to-exported step map for each
   run's cited steps; `steps` converts one step id with a sealed manifest without ever
   printing a reward. `scan` runs the four deterministic Scout text scanners over a
   scout export (re-executing under the scout-watch runtime when this environment
-  lacks Scout); no call makes a model call.
+  lacks Scout); its refusals (more than 200 transcripts, not a file) never repeat the file's
+  size or the path given. No call makes a model call.
 - Every export manifest entry (cloud and CheatBench) carries `actor_inputs_available`: true
   when some agent-authored step has message text or a tool call. False marks runs with no
   model actor behind them (native replay receipts, retained event journals, differential

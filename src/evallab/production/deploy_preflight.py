@@ -28,7 +28,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from evallab.production import atlas_coverage, atlas_view, cross_test_sets, repair_board
+from evallab.production import (
+    atlas_coverage,
+    atlas_view,
+    cross_test_sets,
+    detector_scope,
+    gate_progress,
+    repair_board,
+)
 from evallab.production.field_reliability import FILE as FIELD_RELIABILITY_FILE
 from evallab.production.field_reliability import MAX_BYTES as FIELD_RELIABILITY_BYTES
 from evallab.production.field_reliability import load_field_reliability
@@ -112,6 +119,10 @@ ITEMS: tuple[Item, ...] = (
          True, FIELD_RELIABILITY_BYTES, "record", False, "measured agreement per facet field"),
     Item("tool_scorecard", f"{TOOLS_DIR}/{TOOL_SCORECARD_FILE}", ("Trace Tools",),
          True, MAX_DOCUMENT_BYTES, "aggregate", False, "per tool and detector counts on labelled cohorts"),
+    Item("detector_scope", detector_scope.DEFAULT_FILE, ("Trace Tools",),
+         False, MAX_DOCUMENT_BYTES, "aggregate", False, "cascade and Stage 1 DEV counts and the HackBench cross-test counts"),
+    Item("gate_progress", gate_progress.DEFAULT_FILE, ("Task Evidence",),
+         False, gate_progress.MAX_BYTES, "aggregate", False, "Task QA gate rerun progress: counts per model and arm"),
     Item("results", f"{TOOLS_DIR}/{RESULTS_FILE}", ("Trace Tools", "Task Evidence"),
          True, MAX_STREAM_BYTES, "record", True, "per-run tool results behind the run lists"),
     Item("atlas_scorecard", f"{ATLAS_DIR}/{ATLAS_SCORECARD_DIR}/<newest>.json", ("Trace Tools",),
@@ -130,8 +141,8 @@ TAB_NEEDS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
     ("Run Atlas", ("facets", "blinding_refresh"), ("clusters",)),
     ("Coverage", ("facets", "blinding_refresh"), ("reblinded",)),
     ("Field reliability", ("field_reliability",), ()),
-    ("Task Evidence", ("facets", "results"), ()),
-    ("Trace Tools", ("tool_scorecard", "results"), ("atlas_scorecard", "spend", "accounting")),
+    ("Task Evidence", ("facets", "results"), ("gate_progress",)),
+    ("Trace Tools", ("tool_scorecard", "results"), ("atlas_scorecard", "spend", "accounting", "detector_scope")),
     ("Grader repairs", ("repair_inventory",), ("facets",)),
     ("Cross-test sets", ("cross_test_registry",), ()),
 )
@@ -141,6 +152,8 @@ ENVIRONMENT = (
     ("EVALLAB_CLOUD_TOKEN", "required; Modal secret evallab-cloud-production-auth (not checked here)"),
     ("EVALLAB_REPAIR_INVENTORY", f"optional; default /data/{repair_board.DEFAULT_FILE}"),
     ("EVALLAB_CROSS_TEST_REGISTRY", f"optional; default /data/{cross_test_sets.DEFAULT_FILE}"),
+    ("EVALLAB_DETECTOR_SCOPE", f"optional; default /data/{detector_scope.DEFAULT_FILE}"),
+    ("EVALLAB_GATE_PROGRESS", f"optional; default /data/{gate_progress.DEFAULT_FILE}"),
 )
 
 
@@ -234,6 +247,8 @@ def _sources(state: Path, inventory: Path | None, registry: Path | None) -> dict
         "field_reliability": atlas / FIELD_RELIABILITY_FILE,
         "tool_scorecard": tools / TOOL_SCORECARD_FILE,
         "results": tools / RESULTS_FILE,
+        "detector_scope": tools / detector_scope.FILE,
+        "gate_progress": state / gate_progress.DEFAULT_FILE,
         "atlas_scorecard": scorecards[0] if scorecards else None,
         "spend": tools / SPEND_FILE,
         "accounting": accounting[0] if accounting else None,
@@ -337,9 +352,12 @@ def _loader_checks(stage: Path, staged: dict[str, str]) -> dict[str, str | None]
     if "cross_test_registry" in staged:
         loaded = cross_test_sets.load_registry(stage / cross_test_sets.DEFAULT_FILE)
         errors["cross_test_registry"] = None if loaded["present"] else loaded["error"]
+    if "gate_progress" in staged:
+        loaded = gate_progress.load_progress(stage / gate_progress.DEFAULT_FILE)
+        errors["gate_progress"] = None if loaded["present"] else loaded["error"]
     scorecard = build_tool_scorecard(stage)
     by_file = {source["file"]: source["error"] for source in scorecard["sources"]}
-    for key in ("tool_scorecard", "results", "atlas_scorecard", "spend", "accounting"):
+    for key in ("tool_scorecard", "results", "atlas_scorecard", "spend", "accounting", "detector_scope"):
         if key in staged:
             name = Path(staged[key]).name
             errors[key] = by_file.get(name, "not read by the Trace Tools loader")

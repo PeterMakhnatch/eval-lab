@@ -697,7 +697,7 @@ inputs:
   - path: src/evallab/production/repair_board.py
     digest: sha256:e0d78fb36252a9627e3e6f89255be604c0a1959383b1a114221535552c28d4c1
   - path: src/evallab/production/run_atlas.py
-    digest: sha256:f53bae84fa84bda6c5ffb9db46eb8bdd70d72a3f286be098564664ed9f4add74
+    digest: sha256:a80aa571abdce09ccdfafe08439e026d04d0aaf90ded3e2ab720d420993bd381
   - path: src/evallab/production/run_atlas_clusters.py
     digest: sha256:db02384a6fe8f53d264fecd692ff5fe07c86e541905d27fc4ad455a57581bafc
   - path: src/evallab/production/run_atlas_score.py

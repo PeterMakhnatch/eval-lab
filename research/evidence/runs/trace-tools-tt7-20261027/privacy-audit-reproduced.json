@@ -1,0 +1,33 @@
+{
+  "canonical_gate_sha256": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f",
+  "canonical_gate_source_snapshot": "canonical_secret_gate.py",
+  "elapsed_s": 18.436,
+  "finished_at": "2026-10-28T03:16:57.368516+00:00",
+  "hosted_affected_runs": 0,
+  "hosted_direct_pattern_hit_runs": 0,
+  "hosted_payload_bytes": 34282020,
+  "hosted_payload_runs": 149,
+  "input_runs": 200,
+  "input_runs_by_source": {
+    "cheatbench-actions-v1": 50,
+    "cloud-trace-db": 150
+  },
+  "input_steps": 13957,
+  "input_text_bytes": 45564204,
+  "interpretation": "Policy pattern flags are not proof of real credentials; all200 and original measurements remain",
+  "marginal_cost_usd": 0,
+  "matched_strings_printed": false,
+  "model_calls": 0,
+  "policy_flagged_prefix60_runs": 3,
+  "policy_flagged_runs": 4,
+  "policy_flagged_runs_by_source": {
+    "cheatbench-actions-v1": 3,
+    "cloud-trace-db": 1
+  },
+  "remote_mutations": 0,
+  "safe_eligible_runs": 196,
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "schema": "tt7.privacy_audit_reproduction/v1",
+  "started_at": "2026-10-28T03:16:38.931233+00:00",
+  "terminal_privacy_records_appended": 2
+}

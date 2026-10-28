@@ -184,6 +184,33 @@ def register_parser(commands: Any) -> None:
     scope.add_argument("--manifest", type=Path, required=True, help="New scope file to publish")
     scope.set_defaults(func=_command)
 
+    cheatbench = actions.add_parser(
+        "export-cheatbench-runs",
+        help="Export blinded, registry-admitted DEV CheatBench runs that have no cloud trace; never uploads",
+        description=(
+            "Resolves facet run ids (cheatbench-actions-v1 item ids) through the answer-key registry's "
+            "pinned published trajectories, applies the per-item DEV admission, and writes the same "
+            "blinded formats as export-runs. The trial_ref and the expected-verdict fields stay in the "
+            "sealed manifest outside the export."
+        ),
+    )
+    cheatbench.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    cheatbench.add_argument("--output-directory", type=Path, required=True)
+    cheatbench.add_argument("--format", choices=("harbor", "atif", "scout"), required=True)
+    cheatbench.add_argument(
+        "--manifest", type=Path, required=True, help="New sealed join file outside the export directory",
+    )
+    cheatbench.add_argument(
+        "--run-id", dest="run_ids", action="append",
+        help="Facet run id (item id) to export; repeat to select several (default: every candidate)",
+    )
+    cheatbench.add_argument("--limit", type=int, help="Maximum admitted runs to export")
+    cheatbench.add_argument(
+        "--view", choices=("full", "actions_only"), default="full",
+        help="full = the trajectory the facets were produced from (default)",
+    )
+    cheatbench.set_defaults(func=_command)
+
     export = actions.add_parser(
         "export-qc-reports",
         help="Write validated Trust & QC dashboard reports from a live database; never upload",
@@ -613,6 +640,21 @@ def _export_runs(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     )
 
 
+def _export_cheatbench_runs(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    from evallab.production.cloud_trace_export import export_cheatbench_runs
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    return export_cheatbench_runs(
+        _local_path(root, args.output_directory),
+        format=args.format,
+        registry=CorpusRegistry(root),
+        run_ids=args.run_ids,
+        limit=args.limit,
+        manifest=_local_path(root, args.manifest),
+        view=args.view,
+    )
+
+
 def _export_cluster_scope(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     from evallab.production.cloud_trace_export import export_cluster_scope
     from evallab.production.corpus_queue import CorpusRegistry
@@ -780,6 +822,9 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             return 0
         if args.prod_command == "export-runs":
             _emit({"command": args.prod_command, **_export_runs(args, root)}, args)
+            return 0
+        if args.prod_command == "export-cheatbench-runs":
+            _emit({"command": args.prod_command, **_export_cheatbench_runs(args, root)}, args)
             return 0
         if args.prod_command == "export-cluster-scope":
             _emit({"command": args.prod_command, **_export_cluster_scope(args, root)}, args)

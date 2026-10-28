@@ -1,0 +1,98 @@
+{
+ "forbidden_token_count": 913,
+ "recorded_at_utc": "2026-10-28T07:19:02.735931+00:00",
+ "refused": {
+  "test_items": {
+   "admitted": 0,
+   "exported": 0,
+   "files": 0,
+   "refused": 25,
+   "requested": 25,
+   "wall_seconds": 0.88
+  },
+  "unknown_ids": {
+   "admitted": 0,
+   "exported": 0,
+   "files": 0,
+   "refused": 2,
+   "requested": 2,
+   "wall_seconds": 0.87
+  }
+ },
+ "registry": {
+  "candidates": 300,
+  "dev_items": 150,
+  "test_items": 150
+ },
+ "runs": {
+  "actions_only/atif": {
+   "admitted": 150,
+   "atif_documents": 25,
+   "candidates": 300,
+   "exported": 25,
+   "files": 25,
+   "harbor_trajectory_valid": 25,
+   "identity_or_source_hits": 0,
+   "in_process_ms": null,
+   "join_entries": 25,
+   "join_rewards_non_null": 0,
+   "join_sha256": "afbb21762ccd071def6647c7c7102443bef3ad5fad9f5f54c184e8533ca96b2f",
+   "non_null_rewards": 0,
+   "refused": 150,
+   "scout_transcript_lines": null,
+   "wall_seconds": 1.51
+  },
+  "full/atif": {
+   "admitted": 150,
+   "atif_documents": 25,
+   "candidates": 300,
+   "exported": 25,
+   "files": 25,
+   "harbor_trajectory_valid": 25,
+   "identity_or_source_hits": 0,
+   "in_process_ms": null,
+   "join_entries": 25,
+   "join_rewards_non_null": 0,
+   "join_sha256": "f92f28a1721be32f72f562fdceea8bc1e493dcf657c4d42e46a9bbceadade9cc",
+   "non_null_rewards": 0,
+   "refused": 150,
+   "scout_transcript_lines": null,
+   "wall_seconds": 1.87
+  },
+  "full/harbor": {
+   "admitted": 150,
+   "atif_documents": 25,
+   "candidates": 300,
+   "exported": 25,
+   "files": 50,
+   "harbor_trajectory_valid": 25,
+   "identity_or_source_hits": 0,
+   "in_process_ms": null,
+   "join_entries": 25,
+   "join_rewards_non_null": 0,
+   "join_sha256": "f92f28a1721be32f72f562fdceea8bc1e493dcf657c4d42e46a9bbceadade9cc",
+   "non_null_rewards": 0,
+   "refused": 150,
+   "scout_transcript_lines": null,
+   "wall_seconds": 2.17
+  },
+  "full/scout": {
+   "admitted": 150,
+   "atif_documents": 0,
+   "candidates": 300,
+   "exported": 25,
+   "files": 1,
+   "harbor_trajectory_valid": 0,
+   "identity_or_source_hits": 0,
+   "in_process_ms": null,
+   "join_entries": 25,
+   "join_rewards_non_null": 0,
+   "join_sha256": "f92f28a1721be32f72f562fdceea8bc1e493dcf657c4d42e46a9bbceadade9cc",
+   "non_null_rewards": 0,
+   "refused": 150,
+   "scout_transcript_lines": 25,
+   "wall_seconds": 1.85
+  }
+ },
+ "schema": "evallab.ce16_cheatbench_export_validation/v1"
+}

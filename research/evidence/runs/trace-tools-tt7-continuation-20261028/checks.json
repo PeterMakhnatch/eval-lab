@@ -1,0 +1,48 @@
+{
+  "schema": "tt7.postmerge_checks/v1",
+  "at": "2026-10-28T07:21:58.728615+00:00",
+  "source_code": {
+    "run_omp.py": "0057cb7a2d14052d76a89f51fd37af1d709196ea42c46c67bc072677aea983df",
+    "canonical_secret_gate.py": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f",
+    "finalize.py": "c7b563857813879a428431f3ce9667d1f301ea3ea387c5a785a1be050a2854c3",
+    "campaign.py": "3c1582cd6f5a03187ad22332ca505452b2ba01d37d940a66c1ca7f79b58ecab6",
+    "common.py": "bdf0dd5c3afc29a2c81282f3b7dd8ad7a70b9f0de81a7d1c4db5aa90b37a9fea",
+    "score.py": "d4299369ebfe9a671139fe6ad6fbba30f336fb32563a474fce66df2f072f7d25",
+    "audit_continuation.py": "c46e403d659299945cd382ec823b95de6515112300d65b6ffc751da11aec2bf3"
+  },
+  "final_checkpoint": {
+    "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-continuation-20261028/audit_continuation.py --baseline-terminal /Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-continuation-20261028/baseline-terminal.json --snapshot /Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-continuation-20261028/results-snapshot.jsonl --out research/evidence/runs/trace-tools-tt7-continuation-20261028/continuation-audit.json && env EVALLAB_DISABLE_LOCAL_DOCKER=1 make prepush TESTS='tests/test_repository_contract.py::test_curated_evidence_files_remain_reviewable'",
+    "exit_code": 0,
+    "elapsed_s": 77.8,
+    "audit_elapsed_s": 4.52806,
+    "focused_test_count": 1,
+    "focused_pytest_elapsed_s": 2.08,
+    "static_gates_passed": true,
+    "full_local_suite_run": false,
+    "runtime_smoke_run": false,
+    "ci_green_claim": false,
+    "baseline_warnings": [
+      "semantic_facts construct-field warnings",
+      "primary derived-root ownership warning; no label tests or primary derived writes performed"
+    ]
+  },
+  "execution": {
+    "new_model_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "incremental_inference_usd": 0,
+    "prior_rows_immutable": true,
+    "old_source_tree": "c1cd22eef0da5da24486ead7c72e6f3266a74bb2",
+    "unattempted_per_claude": 125,
+    "reason": "quota telemetry unavailable; not exhaustion or model-negative outcomes"
+  },
+  "financial_basis": {
+    "full_study_provider_billed_usd": null,
+    "full_study_verified_marginal_usd": null,
+    "unverified_route": "openai-codex/gpt-6-luna",
+    "api": "openai-codex-responses",
+    "historical_credential_class": "UNKNOWN",
+    "historical_entitlement_verified": false
+  },
+  "publication_final_audit": "continuation-audit.json"
+}

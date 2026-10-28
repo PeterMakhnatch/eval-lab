@@ -1,0 +1,327 @@
+{
+  "schema": "tt7.readings_finalized/v1",
+  "finalized": true,
+  "at": "2026-10-28T07:10:31.700346+00:00",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "arms": [
+    {
+      "tool": "docent",
+      "detector": "tt7_form:anthropic/claude-sonnet-5-5",
+      "model": "anthropic/claude-sonnet-5-5",
+      "status": "partial",
+      "reason": "docent_usage_limit: 75; docent_usage_limit_route_stopped: 1; hosted_reading_error: 4; secret_scan_rejected: 1; CheatBench50 storage prohibited",
+      "scan": "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/b0dc330a-8202-48f1-8bb0-9a3284306fcf",
+      "roles": [
+        "cheap",
+        "frontier"
+      ],
+      "subscription": false,
+      "marginal_cost_usd_per_run": 0.0,
+      "scope": "full-200",
+      "requested_scope": "goodfire-150",
+      "target_run_count": 200,
+      "expected_runs": 200,
+      "expected_by_source": {
+        "cloud-trace-db": 150,
+        "cheatbench-actions-v1": 50
+      },
+      "excluded_source_reason": "CheatBench storage is prohibited; its 50 full-cohort cells explicitly abstain",
+      "list_price_usd_per_million_input": null,
+      "list_price_usd_per_million_output": null
+    },
+    {
+      "tool": "docent",
+      "detector": "tt7_form:openai/gpt-5.4-mini",
+      "model": "openai/gpt-5.4-mini",
+      "status": "deferred",
+      "reason": "docent_usage_limit: 124; docent_usage_limit_route_stopped: 25; secret_scan_rejected: 1; CheatBench50 storage prohibited",
+      "scan": "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/9f91bae0-2054-4b40-aa00-86778b1053ee",
+      "roles": [
+        "cheap"
+      ],
+      "subscription": false,
+      "marginal_cost_usd_per_run": 0.0,
+      "scope": "full-200",
+      "requested_scope": "goodfire-150",
+      "target_run_count": 200,
+      "expected_runs": 200,
+      "expected_by_source": {
+        "cloud-trace-db": 150,
+        "cheatbench-actions-v1": 50
+      },
+      "excluded_source_reason": "CheatBench storage is prohibited; its 50 full-cohort cells explicitly abstain",
+      "list_price_usd_per_million_input": null,
+      "list_price_usd_per_million_output": null
+    },
+    {
+      "tool": "docent",
+      "detector": "tt7_form:openai/gpt-6.1-sol",
+      "model": "openai/gpt-6.1-sol",
+      "status": "deferred",
+      "reason": "docent_usage_limit: 148; docent_usage_limit_route_stopped: 1; secret_scan_rejected: 1; CheatBench50 storage prohibited",
+      "scan": "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/284f9133-4838-4950-a274-90657f8402ad",
+      "roles": [
+        "frontier"
+      ],
+      "subscription": false,
+      "marginal_cost_usd_per_run": 0.0,
+      "scope": "full-200",
+      "requested_scope": "goodfire-150",
+      "target_run_count": 200,
+      "expected_runs": 200,
+      "expected_by_source": {
+        "cloud-trace-db": 150,
+        "cheatbench-actions-v1": 50
+      },
+      "excluded_source_reason": "CheatBench storage is prohibited; its 50 full-cohort cells explicitly abstain",
+      "list_price_usd_per_million_input": null,
+      "list_price_usd_per_million_output": null
+    },
+    {
+      "tool": "docent",
+      "detector": "tt7_form:google/gemini-3.8-flash",
+      "model": "google/gemini-3.8-flash",
+      "status": "deferred",
+      "reason": "docent_usage_limit: 148; docent_usage_limit_route_stopped: 1; secret_scan_rejected: 1; CheatBench50 storage prohibited",
+      "scan": "https://docent.transluce.org/dashboard/597ecbec-4cba-42ee-ab4b-3b08292de4a5/analysis-plan/a8ac8f90-67dd-492d-a9c9-7d17b1041758",
+      "roles": [
+        "cheap"
+      ],
+      "subscription": false,
+      "marginal_cost_usd_per_run": 0.0,
+      "scope": "full-200",
+      "requested_scope": "goodfire-150",
+      "target_run_count": 200,
+      "expected_runs": 200,
+      "expected_by_source": {
+        "cloud-trace-db": 150,
+        "cheatbench-actions-v1": 50
+      },
+      "excluded_source_reason": "CheatBench storage is prohibited; its 50 full-cohort cells explicitly abstain",
+      "list_price_usd_per_million_input": null,
+      "list_price_usd_per_million_output": null
+    },
+    {
+      "tool": "docent",
+      "detector": "tt7_form:docent/glm-deferred",
+      "model": "glm",
+      "status": "deferred",
+      "reason": "All 64 GLM catalog options are OpenRouter-only with uses_byok=false; TT-7 explicitly prohibits OpenRouter, so no permitted route was invoked; CheatBench50 storage prohibited",
+      "scan": null,
+      "roles": [
+        "cheap"
+      ],
+      "subscription": false,
+      "marginal_cost_usd_per_run": 0.0,
+      "scope": "full-200",
+      "requested_scope": "goodfire-150",
+      "target_run_count": 200,
+      "expected_runs": 200,
+      "expected_by_source": {
+        "cloud-trace-db": 150,
+        "cheatbench-actions-v1": 50
+      },
+      "excluded_source_reason": "CheatBench storage is prohibited; its 50 full-cohort cells explicitly abstain",
+      "list_price_usd_per_million_input": null,
+      "list_price_usd_per_million_output": null
+    },
+    {
+      "tool": "omp",
+      "detector": "tt7_form:anthropic/claude-sonnet-5-5",
+      "model": "anthropic/claude-sonnet-5-5",
+      "status": "partial",
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed; preserved original 75 terminal cells plus 0 separate post-merge terminal cells",
+      "scan": null,
+      "roles": [
+        "cheap",
+        "frontier"
+      ],
+      "subscription": true,
+      "marginal_cost_verified": true,
+      "auth_class": null,
+      "transport_api": null,
+      "scope": "full-200",
+      "target_run_count": 200,
+      "expected_runs": 200,
+      "total_sample": 200,
+      "observed_batch_scope": "original-75+separate-postmerge-continuation",
+      "unattempted_reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "threshold": 0.7,
+      "effective_admission_threshold": 0.65,
+      "expected_by_source": {
+        "cloud-trace-db": 150,
+        "cheatbench-actions-v1": 50
+      },
+      "list_price_usd_per_million_input": 2.0,
+      "list_price_usd_per_million_output": 10.0,
+      "continuation_status": "partial",
+      "phase_records": {
+        "original_terminal_records": 75,
+        "new_terminal_records": 0,
+        "unattempted_positions": 125
+      }
+    },
+    {
+      "tool": "omp",
+      "detector": "tt7_form:anthropic/claude-opus-5-5",
+      "model": "anthropic/claude-opus-5-5",
+      "status": "partial",
+      "reason": "anthropic: usage snapshot older than 120 seconds; fail closed; preserved original 75 terminal cells plus 0 separate post-merge terminal cells",
+      "scan": null,
+      "roles": [
+        "frontier"
+      ],
+      "subscription": true,
+      "marginal_cost_verified": true,
+      "auth_class": null,
+      "transport_api": null,
+      "scope": "full-200",
+      "target_run_count": 200,
+      "expected_runs": 200,
+      "total_sample": 200,
+      "observed_batch_scope": "original-75+separate-postmerge-continuation",
+      "unattempted_reason": "anthropic: usage snapshot older than 120 seconds; fail closed",
+      "threshold": 0.7,
+      "effective_admission_threshold": 0.65,
+      "expected_by_source": {
+        "cloud-trace-db": 150,
+        "cheatbench-actions-v1": 50
+      },
+      "list_price_usd_per_million_input": 4.0,
+      "list_price_usd_per_million_output": 20.0,
+      "continuation_status": "partial",
+      "phase_records": {
+        "original_terminal_records": 75,
+        "new_terminal_records": 0,
+        "unattempted_positions": 125
+      }
+    },
+    {
+      "tool": "omp",
+      "detector": "tt7_form:openai-codex/gpt-6-luna",
+      "model": "openai-codex/gpt-6-luna",
+      "status": "partial",
+      "reason": "90% stop: highest applicable window 90.0%",
+      "scan": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-bakeoff-20261027/research/evidence/runs/trace-tools-tt7-20261027/omp-receipts.json",
+      "roles": [
+        "frontier"
+      ],
+      "subscription": true,
+      "marginal_cost_verified": false,
+      "auth_class": "UNKNOWN: historical credential class was not retained",
+      "transport_api": "openai-codex-responses",
+      "scope": "full-200",
+      "target_run_count": 200,
+      "expected_runs": 200,
+      "total_sample": 200,
+      "observed_batch_scope": "initial-stopped-coverage",
+      "unattempted_reason": "missing_record",
+      "threshold": 0.9,
+      "effective_admission_threshold": 0.9,
+      "expected_by_source": {
+        "cloud-trace-db": 150,
+        "cheatbench-actions-v1": 50
+      },
+      "list_price_usd_per_million_input": 0.1,
+      "list_price_usd_per_million_output": 0.5
+    },
+    {
+      "tool": "omp",
+      "detector": "tt7_form:xai-oauth/grok-4.3",
+      "model": "xai-oauth/grok-4.3",
+      "status": "deferred",
+      "reason": "weekly quota exhausted until 2026-10-30 14:10 ET; no calls",
+      "scan": null,
+      "roles": [
+        "frontier"
+      ],
+      "subscription": true,
+      "expected_runs": 200
+    },
+    {
+      "tool": "laminar",
+      "detector": "tt7_form:laminar/flow-1",
+      "model": "laminar/flow-1",
+      "status": "deferred",
+      "reason": "paid Signals approved but not funded; additionally CheatBench storage is prohibited",
+      "scan": null,
+      "roles": [
+        "cheap"
+      ],
+      "subscription": false,
+      "expected_runs": 200
+    }
+  ],
+  "main_comparison": "all 150 Goodfire DEV hosted readings; CheatBench cross-test never used to choose",
+  "supplemental_comparison": "identical sample[:60], 35 Goodfire and 25 CheatBench, every arm/baseline restricted identically",
+  "labels_read": false,
+  "subscription_scope_authority": "separate post-merge campaign; original 75 preserved, only frozen unattempted 125 authorized",
+  "subscription_admission_fraction": 0.65,
+  "subscription_completed_batch_receipt": "research/evidence/runs/trace-tools-tt7-20261027/omp-prefix60-receipts.json",
+  "subscription_continuation_receipt": "research/evidence/runs/trace-tools-tt7-continuation-20261028/postmerge-continuation-receipts.json",
+  "privacy_audit_receipt": "research/evidence/runs/trace-tools-tt7-continuation-20261028/privacy-audit.json",
+  "privacy_gate_source_snapshot": "research/evidence/runs/trace-tools-tt7-20261027/canonical_secret_gate.py",
+  "privacy_secondary_view": "196 safe-eligible IDs, descriptive only; all original 200 remain",
+  "financial_basis": {
+    "receipt": "research/evidence/runs/trace-tools-tt7-20261027/luna-financial-basis.json",
+    "unverified_route": "openai-codex/gpt-6-luna",
+    "auth_class": "UNKNOWN: historical credential class was not retained",
+    "attested_transport_api": "openai-codex-responses",
+    "included_free_entitlement_verified": false,
+    "provider_billed_usd": null,
+    "marginal_usd": null,
+    "client_reported_usd": 0,
+    "list_price_equivalent_usd": 0.0136769
+  },
+  "privacy_receipt": "research/evidence/runs/trace-tools-tt7-20261027/docent-receipts.json",
+  "pricing_receipt": "research/evidence/runs/trace-tools-tt7-20261027/pricing.json",
+  "expected_arm_count": 10,
+  "campaign": "tt7-continuation-20261028",
+  "lineage": {
+    "baseline_commit": "25f63a3c28a3e02474eeb3014715158ba2b20493",
+    "baseline_tree": "c1cd22eef0da5da24486ead7c72e6f3266a74bb2",
+    "original_directory": "research/evidence/runs/trace-tools-tt7-20261027",
+    "original_source_sha256": {
+      "score.py": "2325d447046b2cd9989f3bdab858126dbbbe689335a25bd5798c6a604986b440",
+      "finalize.py": "ff3baf06d5550e8e73315b522f25af4cb538dab5a17962228d0f6ff8246303eb",
+      "common.py": "bdf0dd5c3afc29a2c81282f3b7dd8ad7a70b9f0de81a7d1c4db5aa90b37a9fea",
+      "canonical_secret_gate.py": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f"
+    },
+    "original_manifest": {
+      "path": "research/evidence/runs/trace-tools-tt7-20261027/readings-finalized.json",
+      "sha256": "9fb06a2fb3d965e36e8bda5c9846bb02a0ebe200f00b6642c5e41cfeb01663a1"
+    },
+    "campaign": {
+      "path": "research/evidence/runs/trace-tools-tt7-continuation-20261028/campaign.json",
+      "sha256": "6463fd41ea8efede4e89e4ceed12ae2d4dc2680807797578a12d3067ccf44378"
+    },
+    "continuation_receipt": {
+      "path": "research/evidence/runs/trace-tools-tt7-continuation-20261028/postmerge-continuation-receipts.json",
+      "sha256": "101bcd7b9700207aed0b7d5a873772bddd1b5df92f68772870d333ce652d227e"
+    },
+    "results_snapshot": {
+      "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-continuation-20261028/results-snapshot.jsonl",
+      "sha256": "12865827a22c777ee32ce76c864dffdf1129c7e683adf2ab53b40b1ba693fbfc"
+    },
+    "phase_separation": {
+      "campaign": "tt7-continuation-20261028",
+      "original_terminal_records_per_route": 75,
+      "allowed_new_per_route": 125,
+      "original_evidence_mutated": false,
+      "canonical_result_store": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/results-v1.jsonl",
+      "scoring_input": "immutable combined snapshot, not the live append-only store",
+      "original_prefix_60": "unchanged paired supplemental view; never a recommendation cohort"
+    }
+  },
+  "results_snapshot": {
+    "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-continuation-20261028/results-snapshot.jsonl",
+    "sha256": "12865827a22c777ee32ce76c864dffdf1129c7e683adf2ab53b40b1ba693fbfc"
+  },
+  "original_subscription_continuation_receipt": "research/evidence/runs/trace-tools-tt7-20261027/continuation-200-receipts.json",
+  "original_privacy_audit_receipt": "research/evidence/runs/trace-tools-tt7-20261027/privacy-audit.json",
+  "private_privacy_audit": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-continuation-20261028/privacy-audit.json",
+  "scoring_source": {
+    "path": "research/evidence/runs/trace-tools-tt7-20261027/score.py",
+    "sha256": "2325d447046b2cd9989f3bdab858126dbbbe689335a25bd5798c6a604986b440"
+  }
+}

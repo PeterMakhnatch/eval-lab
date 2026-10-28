@@ -66,7 +66,20 @@ class SyncState:
                         with path.open("r+b") as repair:
                             repair.truncate(offset)
                         break
-                    self.receipts[row["trace_id"]] = row
+                    if row.get("quarantined"):
+                        matching = next(
+                            (
+                                trace_id for trace_id, receipt in self.receipts.items()
+                                if receipt["remote_id"] == row["remote_id"]
+                                and receipt["content_digest"] == row["content_digest"]
+                            ),
+                            None,
+                        )
+                        if matching is None:
+                            raise ValueError("Quarantine tombstone has no matching sync receipt")
+                        del self.receipts[matching]
+                    else:
+                        self.receipts[row["trace_id"]] = row
                     offset += len(line)
 
     def unchanged(self, trace_id: str, digest: str) -> bool:
@@ -83,6 +96,18 @@ class SyncState:
         }
         append_jsonl(self.path, row)
         self.receipts[trace_id] = row
+
+    def quarantine_secret(self, trace_id: str) -> None:
+        """Retire a proven removed copy; preserve history with opaque IDs only."""
+        receipt = self.receipts[trace_id]
+        tombstone = {
+            "quarantined": True, "remote_id": receipt["remote_id"],
+            "content_digest": receipt["content_digest"], "pattern_ids": ["secret-pattern"],
+            "at": now(),
+            **({"collection_id": receipt["collection_id"]} if "collection_id" in receipt else {}),
+        }
+        append_jsonl(self.path, tombstone)
+        del self.receipts[trace_id]
 
 
 def record_spend(target: str, **details: Any) -> None:

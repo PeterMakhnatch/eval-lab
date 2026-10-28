@@ -24,7 +24,7 @@ from evallab.trace_store.core import (
     select_traces,
     trace_uuid,
 )
-from evallab.trace_store.secrets import secret_hits
+from evallab.trace_store.secrets import SECRET_RE, secret_hits
 
 GOODFIRE = "goodfire-reward-hack-data"
 MIMO = "mimo-defect-map-v1"
@@ -632,3 +632,26 @@ def test_secret_traversal_matches_original_dict_values_and_lists_only() -> None:
     assert secret_hits([{"tool_calls": [{"arguments": {"command": secret}}]}]) == ["secret-pattern"]
     assert secret_hits("TOKENIZER_INFINITY=abcdefgh\nMAX_TOKENS_PER_PAGE=128") == []
     assert secret_hits("hf_short sk-short TOKEN=$VARIABLE PASSWORD='literal'") == []
+
+
+@pytest.mark.parametrize("wrappers", [1, 2, 3])
+def test_secret_scan_decodes_nested_json_content_without_losing_raw_hits(wrappers: int) -> None:
+    key = "sk-" + "proj-" + "A7b" * 16
+    content = json.dumps({"stdout": "heading\n" + key})
+    for _ in range(wrappers - 1):
+        content = json.dumps(content)
+    # The encoded newline's `n` masks the token boundary in a raw-only scan.
+    assert SECRET_RE.search(content) is None
+    payload = {"transcripts": [{"messages": [{"content": content}]}]}
+    original = json.dumps(payload)
+    assert secret_hits(payload) == ["secret-pattern"]
+    assert json.dumps(payload) == original
+    assert key not in json.dumps(secret_hits(payload))
+
+
+def test_json_wrapping_never_relaxes_raw_hits_or_matches_task_hashes() -> None:
+    key = "sk-" + "a" * 20
+    # Retain the original raw-string scan even when the key is a JSON property.
+    assert secret_hits(json.dumps({key: "safe"})) == ["secret-pattern"]
+    task_id = "task-" + "a" * 30
+    assert secret_hits({"content": json.dumps({"stdout": "heading\n" + task_id})}) == []

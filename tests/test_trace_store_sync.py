@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 
 import pytest
 
-from evallab.trace_store.core import TracePayload
+from evallab.trace_store.core import TracePayload, trace_uuid
 from evallab.trace_store.laminar import trace_spans
 from evallab.trace_store.secrets import SecretScanRejected
 from evallab.trace_store.state import SyncState, content_digest
@@ -176,3 +176,54 @@ def test_encoded_secret_skips_only_its_trace_then_continues(
     }]
     state = SyncState(tmp_path / "state" / ("docent-state.jsonl" if batched else "laminar-state.jsonl"))
     assert set(state.receipts) == {good.trace_id}
+
+
+def test_secret_quarantine_tombstones_preserve_history_with_opaque_ids(tmp_path: Path) -> None:
+    path = tmp_path / "state.jsonl"
+    state = SyncState(path)
+    bad = payload()
+    good = replace(payload(), trace_id="other-trace")
+    for trace in (bad, good):
+        state.record(
+            trace.trace_id, content_digest(trace), {"remote_id": trace_uuid(trace.trace_id)},
+            trace.dataset_id,
+        )
+    original = path.read_bytes()
+    state.quarantine_secret(bad.trace_id)
+    assert path.read_bytes().startswith(original)
+    tombstone = json.loads(path.read_text().splitlines()[-1])
+    assert tombstone["remote_id"] == trace_uuid(bad.trace_id)
+    assert tombstone["pattern_ids"] == ["secret-pattern"]
+    assert "trace_id" not in tombstone and "dataset" not in tombstone
+    assert bad.trace_id not in json.dumps(tombstone)
+    reopened = SyncState(path)
+    assert not reopened.unchanged(bad.trace_id, content_digest(bad))
+    assert set(reopened.receipts) == {good.trace_id}
+
+
+@pytest.mark.parametrize("target", ["laminar", "docent"])
+def test_canonical_secret_gate_rechecks_unchanged_receipts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, target: str,
+) -> None:
+    database = _setup(monkeypatch, tmp_path)
+    key = "sk-" + "proj-" + "A7b" * 16
+    trace = replace(payload(), messages=[{
+        "role": "tool", "content": json.dumps({"stdout": "heading\n" + key}),
+    }])
+    monkeypatch.setattr(sync_module, "load_trace", lambda *a, **kw: trace)
+    root = tmp_path / "state"
+    state = SyncState(root / f"{target}-state.jsonl")
+    state.record(
+        trace.trace_id, content_digest(trace), {"remote_id": trace_uuid(trace.trace_id)},
+        trace.dataset_id,
+    )
+    class Uploader:
+        def upload(self, trace):
+            raise AssertionError("An unchanged receipt must not bypass a current secret gate")
+    report = sync_module.sync(
+        target, repo_root=tmp_path, db_path=database, root=root, uploader=Uploader(),
+    )
+    assert report["synced"] == report["unchanged"] == 0
+    assert report["rejected"] == [{
+        "trace_id": trace.trace_id, "dataset": trace.dataset_id, "kind": "secret_scan",
+    }]

@@ -80,9 +80,12 @@ Observation CAS bytes are hash-verified and hydrated, never silently replaced
 by previews. Payloads are secret-scanned before transmission; hits and malformed
 or missing observations are rejected with local, non-secret receipts.
 Provider-prefix patterns require a token boundary, so opaque `task-<hash>` IDs
-are not credentials; the exporter's other secret rules are unchanged. Laminar's
-generated input/output JSON fields are scanned as logical values, not escaped
-JSON text. A secret hit rejects only its trace, including within a Docent batch.
+are not credentials; the exporter's other secret rules are unchanged. Both
+providers inspect raw string values and recursively decoded JSON string wrappers,
+including JSON embedded inside tool-message content. Raw-string hits are never
+lost by decoding. Laminar's generated input/output fields use the same logical
+gate. A hit rejects only its trace, including within a Docent batch, and the gate
+is checked before an unchanged-content receipt can skip a trace.
 
 Laminar uses the existing project and OTLP encoders, preserving text rather than
 the live watch exporter's clipped display values. Import sequence timestamps are
@@ -93,8 +96,11 @@ must be paused before the adapter sends data. Docent uses one owner-only private
 collection named `evallab-trace-store/<dataset_id> (private)` per source, checking
 collaborators before and after each upload.
 
-Per-target successful receipts live under
+Per-target successful receipts and opaque quarantine tombstones live under
 `~/.local/state/evallab-prod-live/trace-store/{laminar,docent}-state.jsonl`.
+Tombstones preserve every original receipt and replay only after a separately
+authorized removal of a proven lane-owned copy, with remote absence verified.
+Sync never automatically deletes remote runs or collections.
 Unchanged content is skipped, new rows are picked up, and quota/access/size
 rejections stop cleanly without marking the rejected run synced. Local error and
 batch receipts report rejected IDs, wire-attempt bytes, hydration bytes and wall

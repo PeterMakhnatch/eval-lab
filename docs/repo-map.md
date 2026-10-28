@@ -923,7 +923,7 @@ inputs:
   - path: src/evallab/trace_store/secrets.py
     digest: sha256:c67b68c3848677a1bb6e8b355c0fe5dea6d1476985488d3181b2cde318721963
   - path: src/evallab/trace_store/state.py
-    digest: sha256:73aa71454ec97d9be08819acd3375e49c4037d9f5ac5b922c57403dea0f8eabf
+    digest: sha256:4816f6a21901b906dc47d877fdd205ef5ab5caf19e997d44f7f74507466a37dc
   - path: src/evallab/trace_store/sync.py
     digest: sha256:a9c709533cf78be51169ba8d0d9a42a19ee889199cc75de4fcbe2978c90a580c
   - path: src/evallab/tracing.py

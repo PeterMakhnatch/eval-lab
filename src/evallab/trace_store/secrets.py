@@ -4,11 +4,13 @@ The patterns and dict-value/list traversal reuse
 research/explorations/trace-lab/docent/export_harbor.py (2026-10-27). Provider
 prefixes additionally require a token boundary so canonical task-<hash> IDs
 cannot be mistaken for sk-prefixed credentials. Assignment/private-key rules
-are unchanged. Results contain only generic, safe counting markers.
+are unchanged. JSON string wrappers are inspected as decoded values too, while
+preserving every raw-string hit. Results contain only generic, safe markers.
 """
 
 from __future__ import annotations
 
+import json
 import re
 
 SECRET_RE = re.compile(
@@ -32,12 +34,21 @@ class SecretScanRejected(ValueError):
 
 
 def secret_hits(payload: object) -> list[str]:
-    """Return one non-sensitive marker per match, without mutating the payload."""
+    """Return safe match markers from raw values and nested JSON string wrappers."""
     hits: list[str] = []
 
     def walk(value: object) -> None:
         if isinstance(value, str):
+            before = len(hits)
             hits.extend("secret-pattern" for _ in SECRET_RE.finditer(value))
+            if len(hits) != before:
+                return
+            try:
+                decoded = json.loads(value)
+            except ValueError:
+                return
+            if isinstance(decoded, (dict, list, str)) and decoded != value:
+                walk(decoded)
         elif isinstance(value, dict):
             for item in value.values():
                 walk(item)

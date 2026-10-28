@@ -168,13 +168,13 @@ def sync(
                         report["rejected"].append(rejection)
                         append_jsonl(root / f"{target}-errors.jsonl", {"at": now(), **rejection})
                         continue
-                    if state.unchanged(trace.trace_id, digest):
-                        report["unchanged"] += 1
-                        continue
                     if secret_hits(asdict(trace)):
                         rejection = {"trace_id": ref.trace_id, "dataset": ref.dataset_id, "kind": "secret_scan"}
                         report["rejected"].append(rejection)
                         append_jsonl(root / f"{target}-errors.jsonl", {"at": now(), **rejection})
+                        continue
+                    if state.unchanged(trace.trace_id, digest):
+                        report["unchanged"] += 1
                         continue
                     size = sum(
                         len(message["content"].encode()) + len((message.get("reasoning") or "").encode())

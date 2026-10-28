@@ -1,0 +1,74 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000847",
+  "variant_digest": "sha256:8469c93fb1bf2686bb98e5d33add4a2806bdcd0b08f40d5024fd76a630dd2b9e",
+  "variant_harbor_digest": "sha256:c899fbf3523bfaa7412e6de2fe541d1d561c91c6f9881affd36182fe2e3d9af3",
+  "parent": {
+    "digest": "sha256:a4f5adc9786868367f9d44a858a32936316b52dbd36ad724c9d859cd992f60d6",
+    "harbor_digest": "sha256:22170f3086e5b009351f841e7eef0c282b4daeca93b3c392c828f4c6a68671ec",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-code",
+      "revision": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
+      "path": "tasks/format-code-task-000847",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@ts9-1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:36aa977881a570d4dc41ae8c91aa1c27471255d29db39d30c31ef6ee325623fa",
+      "after_sha256": "sha256:7ebfbd542aeadd06e01b336b9219b340b05d7e2d61d196eaee7639398d770d7f",
+      "content": "diff --git a/tests/test_env_loader.py b/tests/test_env_loader.py\nindex 2e85a00..83a9fe6 100644\n--- a/tests/test_env_loader.py\n+++ b/tests/test_env_loader.py\n@@ -505,3 +505,161 @@ def test_filtering_unknown_variables_with_prefix():\n     assert not settings.get(\"IGNOREME\")\n     # Smoke test.\n     assert settings.get(\"MYCONFIG\") == \"ham\"\n+\n+\n+_BOOLEAN_ENV_CASES = (\n+    (\"True\", True),\n+    (\"False\", False),\n+    (\"true\", True),\n+    (\"false\", False),\n+    ('\"True\"', \"True\"),\n+    ('\"False\"', \"False\"),\n+    (\"@str True\", \"True\"),\n+    (\"@str False\", \"False\"),\n+    ('[\"True\", \"False\"]', [\"True\", \"False\"]),\n+    ('{on=\"True\", off=\"False\"}', {\"on\": \"True\", \"off\": \"False\"}),\n+)\n+\n+\n+@pytest.mark.parametrize(\"raw, expected\", _BOOLEAN_ENV_CASES)\n+@pytest.mark.parametrize(\"key\", [None, \"VALUE\"])\n+def test_uppercase_boolean_envvars_are_cast_to_bool(\n+    monkeypatch, tmp_path, raw, expected, key\n+):\n+    from dynaconf import Dynaconf\n+\n+    for name in tuple(os.environ):\n+        monkeypatch.delenv(name)\n+    monkeypatch.chdir(tmp_path)\n+    settings_obj = Dynaconf(\n+        envvar_prefix=\"BOOLCAST\", settings_files=[], load_dotenv=False\n+    )\n+    # Initialize before setting the variable so only the explicit load reads it.\n+    settings_obj.set(\"VALUE\", None)\n+    monkeypatch.setenv(\"BOOLCAST_VALUE\", raw)\n+    load_from_env(\n+        obj=settings_obj,\n+        prefix=\"BOOLCAST\",\n+        key=key,\n+        silent=False,\n+        identifier=\"env_global\",\n+        env=False,\n+    )\n+    value = settings_obj.get(\"VALUE\")\n+    if isinstance(expected, bool):\n+        assert value is expected\n+    else:\n+        assert value == expected\n+\n+\n+@pytest.mark.parametrize(\"raw, expected\", _BOOLEAN_ENV_CASES)\n+def test_uppercase_boolean_envvars_work_through_settings_get(\n+    monkeypatch, tmp_path, raw, expected\n+):\n+    from dynaconf import default_settings\n+    from dynaconf import Dynaconf\n+\n+    for name in tuple(os.environ):\n+        monkeypatch.delenv(name)\n+    monkeypatch.chdir(tmp_path)\n+    monkeypatch.setenv(\"DIRECT_BOOL\", raw)\n+    # Read before a Settings instance has initialized any loaders.\n+    early_value = default_settings.get(\"DIRECT_BOOL\")\n+    settings_obj = Dynaconf(settings_files=[], load_dotenv=False)\n+    fallback_value = settings_obj.get(\"DIRECT_BOOL\", sysenv_fallback=True)\n+    for value in (early_value, fallback_value):\n+        if isinstance(expected, bool):\n+            assert value is expected\n+        else:\n+            assert value == expected\n+\n+\n+def test_uppercase_boolean_envvars_work_with_default_dynaconf_prefix(\n+    monkeypatch,\n+):\n+    monkeypatch.setenv(\"DYNACONF_THING\", \"True\")\n+    monkeypatch.setenv(\"DYNACONF_SWITCH\", \"False\")\n+    from dynaconf import Dynaconf\n+\n+    settings_obj = Dynaconf()\n+    assert settings_obj.THING is True\n+    assert settings_obj.SWITCH is False\n+\n+\n+def test_lowercase_boolean_envvars_still_cast_to_bool(monkeypatch):\n+    monkeypatch.setenv(\"BOOLLOWER_ON\", \"true\")\n+    monkeypatch.setenv(\"BOOLLOWER_OFF\", \"false\")\n+    loaded = {}\n+    load_from_env(\n+        obj=loaded,\n+        prefix=\"BOOLLOWER\",\n+        key=None,\n+        silent=True,\n+        identifier=\"env_global\",\n+        env=False,\n+    )\n+    assert loaded[\"ON\"] is True\n+    assert loaded[\"OFF\"] is False\n+\n+\n+def test_uppercase_boolean_strings_inside_envvar_toml_structures_remain_strings(\n+    monkeypatch,\n+):\n+    monkeypatch.setenv(\"BOOLSTRUCT_FLAGS\", '[\"True\", \"False\"]')\n+    monkeypatch.setenv(\"BOOLSTRUCT_OPTIONS\", '{on=\"True\", off=\"False\"}')\n+    loaded = {}\n+    load_from_env(\n+        obj=loaded,\n+        prefix=\"BOOLSTRUCT\",\n+        key=None,\n+        silent=True,\n+        identifier=\"env_global\",\n+        env=False,\n+    )\n+    assert loaded[\"FLAGS\"][0] == \"True\"\n+    assert isinstance(loaded[\"FLAGS\"][0], str)\n+    assert loaded[\"FLAGS\"][1] == \"False\"\n+    assert isinstance(loaded[\"FLAGS\"][1], str)\n+    assert loaded[\"OPTIONS\"][\"on\"] == \"True\"\n+    assert isinstance(loaded[\"OPTIONS\"][\"on\"], str)\n+    assert loaded[\"OPTIONS\"][\"off\"] == \"False\"\n+    assert isinstance(loaded[\"OPTIONS\"][\"off\"], str)\n+\n+\n+def test_toml_file_quoted_uppercase_booleans_remain_strings(tmp_path):\n+    settings_file = tmp_path / \"typed_values.toml\"\n+    settings_file.write_text(\n+        'file_true_word = \"True\"\\n'\n+        'file_false_word = \"False\"\\n'\n+        \"file_true_bool = true\\n\"\n+        \"file_false_bool = false\\n\"\n+    )\n+    from dynaconf import Dynaconf\n+\n+    settings_obj = Dynaconf(settings_file=str(settings_file))\n+    assert settings_obj.FILE_TRUE_WORD == \"True\"\n+    assert isinstance(settings_obj.FILE_TRUE_WORD, str)\n+    assert settings_obj.FILE_FALSE_WORD == \"False\"\n+    assert isinstance(settings_obj.FILE_FALSE_WORD, str)\n+    assert settings_obj.FILE_TRUE_BOOL is True\n+    assert settings_obj.FILE_FALSE_BOOL is False\n+\n+\n+def test_envvar_explicit_string_preservation_for_uppercase_boolean_words(\n+    monkeypatch,\n+):\n+    monkeypatch.setenv(\"BOOLSTRING_AS_STRING\", \"@str True\")\n+    monkeypatch.setenv(\"BOOLSTRING_QUOTED\", '\"False\"')\n+    loaded = {}\n+    load_from_env(\n+        obj=loaded,\n+        prefix=\"BOOLSTRING\",\n+        key=None,\n+        silent=True,\n+        identifier=\"env_global\",\n+        env=False,\n+    )\n+    assert loaded[\"AS_STRING\"] == \"True\"\n+    assert isinstance(loaded[\"AS_STRING\"], str)\n+    assert loaded[\"QUOTED\"] == \"False\"\n+    assert isinstance(loaded[\"QUOTED\"], str)\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,31 @@\n+#!/bin/bash\n+set -uo pipefail\n+cd /testbed\n+\n+case \"${1:-}\" in\n+  base)\n+    python -m pytest tests/test_env_loader.py tests/test_utils.py -v \\\n+      --deselect=tests/test_env_loader.py::test_uppercase_boolean_envvars_are_cast_to_bool \\\n+      --deselect=tests/test_env_loader.py::test_uppercase_boolean_envvars_work_through_settings_get \\\n+      --deselect=tests/test_env_loader.py::test_uppercase_boolean_envvars_work_with_default_dynaconf_prefix \\\n+      --deselect=tests/test_env_loader.py::test_lowercase_boolean_envvars_still_cast_to_bool \\\n+      --deselect=tests/test_env_loader.py::test_uppercase_boolean_strings_inside_envvar_toml_structures_remain_strings \\\n+      --deselect=tests/test_env_loader.py::test_toml_file_quoted_uppercase_booleans_remain_strings \\\n+      --deselect=tests/test_env_loader.py::test_envvar_explicit_string_preservation_for_uppercase_boolean_words\n+    ;;\n+  new)\n+    python -m pytest \\\n+      tests/test_env_loader.py::test_uppercase_boolean_envvars_are_cast_to_bool \\\n+      tests/test_env_loader.py::test_uppercase_boolean_envvars_work_through_settings_get \\\n+      tests/test_env_loader.py::test_uppercase_boolean_envvars_work_with_default_dynaconf_prefix \\\n+      tests/test_env_loader.py::test_lowercase_boolean_envvars_still_cast_to_bool \\\n+      tests/test_env_loader.py::test_uppercase_boolean_strings_inside_envvar_toml_structures_remain_strings \\\n+      tests/test_env_loader.py::test_toml_file_quoted_uppercase_booleans_remain_strings \\\n+      tests/test_env_loader.py::test_envvar_explicit_string_preservation_for_uppercase_boolean_words \\\n+      -v\n+    ;;\n+  *)\n+    echo \"usage: $0 base|new\"\n+    exit 2\n+    ;;\n+esac\n"
+    }
+  ],
+  "rationale": "Extend the existing selected boolean environment tests to cover explicit single-key loading and the early/default environment read in addition to bulk and settings fallback reads. Require real bare True/False booleans while preserving the instruction's lowercase, quoted, @str and embedded TOML string controls. Initialize each real Settings object before the explicit loader read and isolate environment and settings files per case.",
+  "inputs": {
+    "case_id": "D0330",
+    "task_id": "format-code-task-000847",
+    "qa_key_ids": [
+      "mimo-weak-tests-v2.1:format-code-task-000847:block"
+    ],
+    "original_package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000847",
+    "original_package_digest": "sha256:a4f5adc9786868367f9d44a858a32936316b52dbd36ad724c9d859cd992f60d6",
+    "original_source_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-27/oq6-tq-gate-rerun/inputs/dev/D0330/source.txt",
+    "original_source_sha256": "3f53d43c67077437d49d36c601e74508a330eb43f5d0d5728994362e5a009e44",
+    "qa_source_record_sha256": "2b7f84a42c42ec46f228fd574283cf7e83ac125674f05cd40e16974a5e538aee",
+    "qa_keys_sha256": "b2500f156cd449c78902a379d4a2249eb4ab3e84e982d6902892c30557cdf06f",
+    "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "assignment_split": "dev",
+    "base_revision": "837dc7cad1072c93e05ed5eb3bcc4a2c38a07f7e",
+    "validation_mode": "static-only",
+    "native_evidence": [],
+    "semantic_rationale": "Instruction lines 9-11 require bare True/False and lowercase true/false to load as Python booleans; lines 12-14 preserve quoted and @str strings and strings embedded in TOML arrays/tables. Lines 18-20 require supported environment-loading paths without dictating a parser implementation. The original tests covered bulk env loading and sysenv fallback but not key='VALUE' or default_settings.get before instance initialization. Both newly covered reads use the same instruction-supported value matrix. Boolean assertions use identity, not truthiness; structural equality rejects conversion of embedded strings. No new value syntax or TOML-file semantics are introduced.",
+    "intended_regression_behaviors": [
+      "Both load_from_env(key=None) and load_from_env(key='VALUE') return actual booleans for bare True and False.",
+      "default_settings.get reads bare True and False correctly before a new Settings instance initializes loaders.",
+      "Settings.get(sysenv_fallback=True) continues to produce real booleans for both bare spellings.",
+      "Lowercase true/false remain booleans; quoted and @str values remain strings; TOML array/table string leaves remain strings on every expanded path.",
+      "Every parameterized case clears and restores process environment, uses a fresh real Settings object, disables settings files/dotenv, and works in its own tmp_path."
+    ],
+    "normal_runner_inclusion": "Only the bodies/decorators of two existing named selected tests and their shared case matrix change. Existing base deselection and new selection commands remain byte-identical.",
+    "supporting_api_evidence": {
+      "repository": "https://github.com/dynaconf/dynaconf",
+      "revision": "455ee38569d76cd3707c73209b660cf60bd97b29",
+      "paths": [
+        "dynaconf/loaders/env_loader.py",
+        "dynaconf/default_settings.py",
+        "dynaconf/base.py",
+        "tests/test_env_loader.py"
+      ],
+      "binding": "Public upstream API-supporting evidence only, not exact-runtime proof. The admitted setup resolves its base inside the image; the package does not expose that upstream base SHA. No image or solution was opened or executed."
+    },
+    "source_boundary_deviations": [],
+    "qualification": "static only; no native oracle or retained-shortcut trial executed"
+  },
+  "created_by": "TS9DynaconfRepair",
+  "created_at": "2026-10-28T04:06:03Z",
+  "status": "candidate",
+  "evidence": []
+}

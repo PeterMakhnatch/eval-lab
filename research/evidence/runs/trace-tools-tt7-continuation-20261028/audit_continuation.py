@@ -214,12 +214,19 @@ def keyword(call: ast.Call, name: str) -> ast.expr:
 
 
 def expected_runner(source: bytes) -> ast.Module:
-    """Allow only the documented namespace, CLI bounds, and pending intersection."""
+    """Allow documented namespace, scoped cache flag, CLI bounds and pending intersection."""
     tree = ast.parse(source)
     for node in tree.body:
         if (isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
                                                and target.id == "PRIVATE" for target in node.targets)):
             node.value = expression(f'STATE / "{NAMESPACE}/omp"')
+    refresh = function(tree, "refresh_usage")
+    invalidation = expression('["omp", "usage", "invalidate", provider]')
+    calls = [node for node in ast.walk(refresh) if isinstance(node, ast.Call)
+             and node.args and ast_text(node.args[0]) == ast_text(invalidation)]
+    if len(calls) != 1:
+        raise ValueError("unrecognized frozen cache invalidation")
+    calls[0].args[0] = expression('["omp", "usage", "invalidate", "--provider", provider]')
     main = function(tree, "main")
     options = arguments(main)
     changes = {

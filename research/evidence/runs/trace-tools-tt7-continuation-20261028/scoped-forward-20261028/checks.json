@@ -1,0 +1,57 @@
+{
+  "schema": "tt7.scoped_forward_checks/v1",
+  "at": "2026-10-28T08:56:40.073800+00:00",
+  "scope": "forward quota argv + exact offline allowlist; old25f and sealed7274 metric/receipt bytes untouched",
+  "source_sha256": {
+    "run_omp.py": "31b1aa04bae54158993d8b2a9365ca3c133005df5ed8024c157dd0853fb0bde0",
+    "scoped_attempt.py": "d6d8f7dc56b38b4f2836a56ee0194685a73a8894dc7d037b3116018e232a35fd",
+    "audit_continuation.py": "36f5884517e44d27faecab5126554dcf9fddfef211bb6129ab9ea88a72451d92",
+    "test_scoped_guard.py": "8755a27a530e6af95b1b6bc71931022ca7c788fd5446a2f3b5beb8d8c219b591"
+  },
+  "live_verification": {
+    "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-continuation-20261028/scoped_attempt.py --resume",
+    "exit_code": 0,
+    "cli_elapsed_s": 1.24,
+    "attempt_elapsed_s": 0.926364,
+    "actual_quota_reads": 1,
+    "actual_cache_invalidations": 0,
+    "live_scoped_invalidation_branch_exercised": false,
+    "reason_skipped_invalidation": "first authenticated report was already fresh; preserve valid shared telemetry",
+    "fetched_age_s": 2.488217,
+    "five_hour_fraction": 0.73,
+    "weekly_fraction": 0.6,
+    "status": "stopped_threshold",
+    "new_model_calls": 0,
+    "unattempted_per_claude": 125,
+    "account_config_or_reset_changes": false,
+    "installed_exact_handler_build_attested": false
+  },
+  "offline_checkpoint": {
+    "command": "uv run --locked --python 3.12 python research/evidence/runs/trace-tools-tt7-continuation-20261028/audit_continuation.py --baseline-terminal /Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-continuation-20261028/baseline-terminal.json --snapshot /Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-continuation-20261028/results-snapshot.jsonl --out research/evidence/runs/trace-tools-tt7-continuation-20261028/scoped-forward-20261028/offline-audit.json && env EVALLAB_DISABLE_LOCAL_DOCKER=1 make prepush TESTS='research/evidence/runs/trace-tools-tt7-continuation-20261028/test_scoped_guard.py tests/test_repository_contract.py::test_curated_evidence_files_remain_reviewable -n0'",
+    "exit_code": 0,
+    "elapsed_s": 88.59,
+    "audit_elapsed_s": 4.54378,
+    "tests_passed": 4,
+    "pytest_elapsed_s": 1.18,
+    "offline_scoped_invalidation_and_TTL_missing_window_controls_passed": true,
+    "static_gates_passed": true,
+    "full_local_suite_or_runtime_smoke_claim": false,
+    "ci_green_claim": false
+  },
+  "data": {
+    "baseline_score_sha256": "61f55de784d2acdaef356ac361c7e04a05a66c548bbc9589a2050e58b195bd7f",
+    "model_protocol_function_bodies_unchanged": 4,
+    "frozen_constants_unchanged": 6,
+    "baseline_entries_missing_or_changed": 0,
+    "new_canonical_tt7_rows": 0,
+    "new_metric_indexes": 0,
+    "new_replay_shards": 0,
+    "all_original_metrics_reused_without_duplication": true
+  },
+  "financial_basis": {
+    "this_zero_call_inference_usd": 0,
+    "whole_study_verified_marginal_usd": null,
+    "old_luna_entitlement_billing_still_unverified": true,
+    "spend_ledger_batch": "tt7-scoped-forward-20261028"
+  }
+}

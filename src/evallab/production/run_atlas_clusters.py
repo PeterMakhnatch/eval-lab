@@ -13,6 +13,14 @@ member texts, never labels or identities. Builds append complete snapshots to th
 interim JSONL; readers use only the last build. Labels and deterministic rule
 recall/FPR are joined only by ``show --with-labels``. Missing positive coverage is
 unknown, not clean; ``--replay-rules`` opts into expensive, model-free ATIF replay.
+
+Every ``build`` also rewrites two work queues from the scored clusters:
+``tripwires-clusters-v1.json`` (the uncovered high-cheat clusters Tripwires reads)
+and ``task-qa-audit-queue-v1.jsonl`` (the DEV-admitted tasks behind them, one row
+per cluster-task pair, for Task QA). Scoring happens after clustering and naming,
+so labels never reach the embedder or the namer. Both files hold DEV-admitted
+identities only and are replaced atomically; ``queues`` rewrites them from the
+latest build without re-embedding.
 """
 
 from __future__ import annotations
@@ -398,6 +406,207 @@ def uncovered_clusters(
     ))
 
 
+TRIPWIRE_SCHEMA = "run-atlas-tripwires/v1"
+TASK_QUEUE_SCHEMA = "run-atlas-task-audit/v1"
+DEFAULT_TRIPWIRES = run_atlas.ATLAS_ROOT / "tripwires-clusters-v1.json"
+DEFAULT_TASK_QUEUE = run_atlas.ATLAS_ROOT / "task-qa-audit-queue-v1.jsonl"
+QUEUE_DEFAULTS: dict[str, float] = {
+    "min_size": 5, "min_labelled": 5, "min_rate": 0.5, "max_rule_recall": 0.2,
+}
+_RUN_TASK_SQL = (
+    "SELECT a.trace_id, a.task_id, t.dataset_id, t.split,"
+    " CASE WHEN json_valid(t.metadata_json)"
+    " THEN json_extract(t.metadata_json, '$.native_identity.task_name') END AS native_task"
+    " FROM agent_traces AS a LEFT JOIN corpus_tasks AS t ON t.task_id = a.task_id"
+    " WHERE a.trace_id IN (SELECT value FROM json_each(?)) ORDER BY a.trace_id"
+)
+
+
+def task_identities(
+    database: Path, root: Path, run_ids: Iterable[str], *, registry: Any = None,
+) -> dict[str, dict[str, Any]]:
+    """DEV-admitted task identity per run id; refused or unstored runs get no entry.
+
+    Fail closed: without ``assignments.csv`` authority nothing is returned, so a
+    queue file can never certify a run the gate has not admitted. Only identity
+    columns are read; no trace body, label, reward or facet text is touched.
+    """
+    from evallab.production.cloud_trace_export import cheatbench_item_admitted
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    registry = registry or CorpusRegistry(root)
+    if not registry.has_assignment_authority():
+        raise ValueError("assignments.csv authority is required to write the work queues")
+    wanted = set(run_ids)
+    identities: dict[str, dict[str, Any]] = {}
+    cloud = sorted(run_id for run_id in wanted
+                   if not run_id.startswith(run_atlas.CHEATBENCH_DATASET + ":"))
+    if cloud and not Path(database).is_file():
+        raise FileNotFoundError(
+            f"cloud trace database not found: {database}; refusing to write queues without identities"
+        )
+    if cloud:
+        connection = run_atlas.connect_readonly(database)
+        try:
+            admitted = run_atlas.admitted_task_ids(connection, registry)
+            rows = [dict(row) for row in connection.execute(_RUN_TASK_SQL, (json.dumps(cloud),))]
+        finally:
+            connection.close()
+        for row in rows:
+            task_id = row["task_id"]
+            if not isinstance(task_id, str) or task_id not in admitted:
+                continue
+            identities[row["trace_id"]] = {
+                "task_id": task_id, "canonical_task_id": registry.task_name(task_id),
+                "native_task_id": row["native_task"], "dataset_id": row["dataset_id"],
+            }
+    cheatbench = sorted(wanted - set(cloud))
+    if cheatbench:
+        by_id = {item.item_id: item for item in registry.items(dataset_id=run_atlas.CHEATBENCH_DATASET)}
+        for run_id in cheatbench:
+            item = by_id.get(run_id)
+            if item is None or not cheatbench_item_admitted(registry, item):
+                continue
+            item_task = item.task_id
+            if not isinstance(item_task, str) or not item_task:
+                continue
+            identities[run_id] = {
+                "task_id": item_task, "canonical_task_id": registry.task_name(item_task),
+                "native_task_id": (item.metadata or {}).get("source_id"),
+                "dataset_id": run_atlas.CHEATBENCH_DATASET,
+            }
+    return identities
+
+
+def work_queues(
+    clusters: Sequence[Cluster], labels: Mapping[str, bool | None],
+    coverage: Mapping[str, bool | None], identities: Mapping[str, Mapping[str, Any]], *,
+    build_id: str, thresholds: Mapping[str, float] | None = None,
+    created_at: str | None = None, coverage_level: str = "stage1",
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Top uncovered high-cheat clusters and the DEV-admitted tasks behind them.
+
+    Selection is :func:`uncovered_clusters` on the scored clusters, so the file can
+    only contain clusters that already met the published thresholds. Membership is
+    identity-free; per-run labels never leave this function. Tasks are ordered by
+    positive runs so Task QA reads the densest cluster-task pairs first.
+    """
+    bounds = dict(QUEUE_DEFAULTS if thresholds is None else thresholds)
+    stamp = created_at or datetime.now(UTC).isoformat()
+    selected = uncovered_clusters(
+        clusters,
+        min_size=int(bounds["min_size"]), min_labelled=int(bounds["min_labelled"]),
+        min_rate=float(bounds["min_rate"]), max_rule_recall=float(bounds["max_rule_recall"]),
+    )
+    entries: list[dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
+    for cluster in selected:
+        members = list(cluster["run_ids"])
+        dev = [run_id for run_id in members if run_id in identities]
+        positives = [run_id for run_id in dev if labels.get(run_id) is True]
+        labelled = [run_id for run_id in dev if isinstance(labels.get(run_id), bool)]
+        # Provenance matters: a cluster whose rate rests only on one corpus may not be a
+        # DEV tripwire target at all, so each corpus's contribution is stated explicitly.
+        by_dataset: Counter[str] = Counter()
+        positive_by_dataset: Counter[str] = Counter()
+        labelled_by_dataset: Counter[str] = Counter()
+        for run_id in dev:
+            dataset = str(identities[run_id]["dataset_id"])
+            by_dataset[dataset] += 1
+            if run_id in labelled:
+                labelled_by_dataset[dataset] += 1
+            if labels.get(run_id) is True:
+                positive_by_dataset[dataset] += 1
+        by_task: dict[str, list[str]] = {}
+        for run_id in dev:
+            by_task.setdefault(identities[run_id]["task_id"], []).append(run_id)
+        tasks = []
+        for task_id, task_runs in by_task.items():
+            task = dict(identities[task_runs[0]])
+            positive = sorted(run_id for run_id in task_runs if labels.get(run_id) is True)
+            tasks.append((len(positive), len(task_runs), task_id, task, sorted(task_runs)))
+        tasks.sort(key=lambda row: (-row[0], -row[1], row[2]))
+        for positive_count, run_count, task_id, task, task_runs in tasks:
+            rows.append({
+                "schema": TASK_QUEUE_SCHEMA, "created_at": stamp, "build_id": build_id,
+                "cluster_id": cluster["cluster_id"], "cluster_name": cluster.get("name"),
+                "cluster_level": cluster["level"], "cluster_size": cluster["size"],
+                "cluster_rate": (cluster.get("label_rates") or {}).get("rate"),
+                "cluster_rule_recall": cluster.get("rule_recall"),
+                "task_id": task_id, "canonical_task_id": task["canonical_task_id"],
+                "native_task_id": task["native_task_id"], "dataset_id": task["dataset_id"],
+                "positive_runs": positive_count, "dev_members": run_count,
+                "run_ids": task_runs,
+            })
+        entries.append({
+            "cluster_id": cluster["cluster_id"], "name": cluster.get("name"),
+            "level": cluster["level"], "parent": cluster.get("parent"),
+            "size": cluster["size"], "dev_members": len(dev),
+            "unknown_members": len(members) - len(dev), "positive_runs": len(positives),
+            "dev_members_by_dataset": dict(sorted(by_dataset.items())),
+            "labelled_by_dataset": dict(sorted(labelled_by_dataset.items())),
+            "positive_runs_by_dataset": dict(sorted(positive_by_dataset.items())),
+            "label_rates": cluster.get("label_rates"),
+            "rule_recall": cluster.get("rule_recall"), "rule_fpr": cluster.get("rule_fpr"),
+            "rule_labelled": cluster.get("rule_labelled"),
+            "task_ids": sorted(by_task), "member_run_ids": sorted(dev),
+        })
+    document = {
+        "schema": TRIPWIRE_SCHEMA, "created_at": stamp, "build_id": build_id,
+        "selection": {
+            "corpus": "DEV-admitted runs only", "rule_coverage": coverage_level,
+            **bounds,
+        },
+        "counts": {
+            "clusters": len(entries), "dev_members": sum(item["dev_members"] for item in entries),
+            "tasks": len({row["task_id"] for row in rows}),
+        },
+        "clusters": entries,
+    }
+    return document, rows
+
+
+def _replace(path: Path, text: str) -> None:
+    """Atomic replace so a reader never observes a half-written queue."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp-" + uuid4().hex)
+    with temporary.open("w") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+
+
+def _write_work_queues(
+    clusters: Sequence[Cluster], root: Path, args: argparse.Namespace, *,
+    replay: bool,
+) -> dict[str, Any]:
+    ids = {run_id for cluster in clusters for run_id in cluster["run_ids"]}
+    labels = _load_labels(args.database, root, ids)
+    coverage = load_rule_coverage(args.cm6_dir, level=args.coverage)
+    if replay:
+        missing = {run_id for run_id in ids
+                   if isinstance(labels.get(run_id), bool) and run_id not in coverage}
+        coverage.update(_replay_missing(args, root, missing))
+    cluster_label_rates(clusters, labels, rule_coverage=coverage)
+    identities = task_identities(args.database, root, ids)
+    thresholds = {
+        "min_size": QUEUE_DEFAULTS["min_size"], "min_labelled": args.min_labelled,
+        "min_rate": args.min_rate, "max_rule_recall": args.max_rule_recall,
+    }
+    document, rows = work_queues(
+        clusters, labels, coverage, identities, build_id=clusters[0]["build_id"] if clusters else "",
+        thresholds=thresholds, coverage_level=args.coverage,
+    )
+    _replace(Path(args.tripwires), json.dumps(document, indent=1) + "\n")
+    _replace(Path(args.task_queue), "".join(json.dumps(row) + "\n" for row in rows))
+    return {
+        "tripwires": str(args.tripwires), "task_queue": str(args.task_queue),
+        "clusters": len(document["clusters"]), "tasks": len(rows),
+        "dev_members": document["counts"]["dev_members"],
+    }
+
+
 def _admit_facets(facets: Sequence[Mapping[str, Any]], root: Path, database: Path) -> None:
     """Fail closed on stale/non-DEV facets before embedding or naming anything."""
     from evallab.production.corpus_queue import CorpusRegistry
@@ -523,9 +732,12 @@ def _build_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) 
                        seed=args.seed, min_size=args.min_size, embedder=embedder.identity,
                        embedder_digest=embedder.digest)
     run_atlas.append_jsonl(args.clusters, clusters)
-    print(json.dumps({"build_id": build_id, "facet_count": len(facets),
-                      "clusters": len(clusters), "path": str(args.clusters),
-                      "seconds": round(time.perf_counter() - started, 3)}))
+    summary: dict[str, Any] = {"build_id": build_id, "facet_count": len(facets),
+                               "clusters": len(clusters), "path": str(args.clusters),
+                               "seconds": round(time.perf_counter() - started, 3)}
+    if not args.no_queues:
+        summary["queues"] = _write_work_queues(clusters, root, args, replay=args.replay_rules)
+    print(json.dumps(summary))
     return 0
 
 
@@ -604,6 +816,46 @@ def _show_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -
     return 0
 
 
+def _queues_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
+    del harbor
+    clusters = load_clusters(args.clusters)
+    if not clusters:
+        raise ValueError(f"no cluster build found in {args.clusters}; run `atlas clusters build` first")
+    summary = _write_work_queues(clusters, root, args, replay=args.replay_rules)
+    summary["build_id"] = clusters[0]["build_id"]
+    print(json.dumps(summary))
+    return 0
+
+
+def _add_queue_arguments(parser: Any, *, skip: Sequence[str] = ()) -> None:
+    """Flags shared by ``build`` and ``queues``; no I/O at registration time.
+
+    ``skip`` names options the caller already declared, so a build keeps its own
+    ``--database`` instead of colliding on a duplicate flag.
+    """
+    specs: list[tuple[tuple[str, ...], dict[str, Any]]] = [
+        (("--tripwires",), {"type": Path, "default": DEFAULT_TRIPWIRES,
+                            "help": "Tripwires reads this JSON file"}),
+        (("--task-queue",), {"type": Path, "default": DEFAULT_TASK_QUEUE,
+                             "help": "Task QA reads this JSONL audit queue"}),
+        (("--database",), {"type": Path, "default": run_atlas.DEFAULT_DATABASE}),
+        (("--results-root",), {"type": Path,
+                               "help": "Published CheatBench trajectories for rule replay"}),
+        (("--cm6-dir",), {"type": Path, "default": DEFAULT_CM6}),
+        (("--coverage",), {"choices": ("stage1", "alarm"), "default": "stage1",
+                           "help": "stage1: any current stage-1 rule fired; alarm: the cascade alarmed"}),
+        (("--replay-rules",), {"action": "store_true",
+                               "help": "Replay current rules for labelled runs without frozen coverage"}),
+        (("--min-labelled",), {"type": int, "default": int(QUEUE_DEFAULTS["min_labelled"])}),
+        (("--min-rate",), {"type": float, "default": QUEUE_DEFAULTS["min_rate"]}),
+        (("--max-rule-recall",), {"type": float,
+                                  "default": QUEUE_DEFAULTS["max_rule_recall"]}),
+    ]
+    for flags, options in specs:
+        if not set(flags) & set(skip):
+            parser.add_argument(*flags, **options)
+
+
 def add_clusters_parser(actions: Any) -> None:
     """Register ``atlas clusters build|show`` without opening files or databases."""
     clusters = actions.add_parser("clusters", help="Build or inspect three-level run clusters")
@@ -630,6 +882,9 @@ def add_clusters_parser(actions: Any) -> None:
                        default=run_atlas.ATLAS_ROOT / "embedding-spend.jsonl",
                        help="Durable lifetime-cap ledger; failed request reservations are retained")
     build.add_argument("--name-with-model", metavar="ROUTE", help="Opt-in subscription gateway naming")
+    _add_queue_arguments(build, skip=("--database",))
+    build.add_argument("--no-queues", action="store_true",
+                       help="Skip the Tripwires and Task QA queue files for this build")
     build.set_defaults(func=_build_command)
     show = commands.add_parser("show", help="Print the latest build as an indented tree")
     show.add_argument("--clusters", type=Path, default=DEFAULT_CLUSTERS)
@@ -642,3 +897,9 @@ def add_clusters_parser(actions: Any) -> None:
                       help="With labels, scan missing current-rule coverage without a model (may be slow)")
     show.add_argument("--results-root", type=Path, help="Published CheatBench trajectories for rule replay")
     show.set_defaults(func=_show_command)
+    queues = commands.add_parser(
+        "queues", help="Rewrite the Tripwires and Task QA queue files from the latest build",
+    )
+    queues.add_argument("--clusters", type=Path, default=DEFAULT_CLUSTERS)
+    _add_queue_arguments(queues)
+    queues.set_defaults(func=_queues_command)

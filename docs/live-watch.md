@@ -1563,6 +1563,16 @@ verifier log tail and CTRF excerpts; free text is passed through `scrub_blind_ta
 paths are dropped, the repaired grade is never fed back, 6000-character cap), then the blind
 prompt and DEV-only `CloudTraceRetriever` evidence (query enriched with the first failure token).
 
+The live production seeker uses the same bounded runner-feedback renderer on **every retry**:
+after the role/rules header, the immediately preceding attempt's measured ORIGINAL-grader
+output comes first, followed by failed shortcut signatures, then the Hackbook hypothesis/cues,
+and finally retrieved DEV evidence. Repaired rewards and diagnostic output remain in the
+journal, never in the model-facing failure-memory projection. With `hide_tests`, attempt 1
+still has no feedback, cues or retrieval. An unavailable, refused, invalid or skipped preceding
+execution produces an explicit **no runner output / not evaluated** note, not a fabricated
+error or zero reward; older runner output is never reused across that gap. Failure-token
+query enrichment and the cross-key DEV admission rules are unchanged.
+
 ```bash
 # free: counts, Modal upper bound, per-task cross-key DEV gate; writes <out>/plan.json
 uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out

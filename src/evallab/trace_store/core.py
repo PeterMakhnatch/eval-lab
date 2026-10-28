@@ -137,11 +137,16 @@ def _has_evaluator_fields(value: Any) -> bool:
 
 
 def _unsafe_actor_text(text: str) -> bool:
-    if not text.lstrip().startswith(("{", "[", '"')):
+    stripped = text.lstrip()
+    if not stripped.startswith(("{", "[", '"')):
         return False
     try:
         return _has_evaluator_fields(json.loads(text))
     except ValueError:
+        # Only objects/arrays have a meaningful clipped-key fallback. An
+        # invalid quoted string is ordinary prose/code, not a JSON envelope.
+        if stripped.startswith('"'):
+            return False
         # A clipped JSON preview must not hide an evaluator-only key that is
         # already visible. This check does not inspect arbitrary prose/code.
         for match in _JSON_KEY.finditer(text):

@@ -472,6 +472,8 @@ def test_goodfire_inline_evaluator_envelope_is_also_rejected(corpus: Corpus) -> 
 @pytest.mark.parametrize("content", [
     'An example JSON object is {"source_label":"a source-code field"}.',
     json.dumps('An example JSON object is {"source_label":"a source-code field"}.'),
+    '"An example": {"source_label":"a source-code field"}',
+    json.dumps({"stdout": '"An example": {"source_label":"a source-code field"}'}),
     '```json\n{"source_label":"a source-code field"}\n```',
     'payload = {"source_label":"a source-code field"}',
     "{'source_label': 'a Python dict expression, not evaluator JSON'}",

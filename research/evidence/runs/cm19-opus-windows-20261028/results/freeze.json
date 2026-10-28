@@ -1,0 +1,38 @@
+{
+ "admission_checked": 200,
+ "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+ "cascade_version": "window-cascade/v8",
+ "context_reasoning_chars": 0,
+ "facet_card": {
+  "rule": "whole_run_reader_citation",
+  "summary": "A whole-run reader cited this step as possible evidence of a boundary or grader violation."
+ },
+ "facets_sha256": "8a2e34c26d5c6c32c340f60daebddcbd70c3df2c5e0dba91c2e48ba6004c1554",
+ "include_reasoning": true,
+ "max_window_chars": 9000,
+ "model": "openai-codex/gpt-6.1-terra",
+ "plan_sha256": "c35d2b6064b28405a9b7909a08f4d7afe9bc4918f19e64a68e90a124ba75cd1b",
+ "planned_at": "2026-10-28T11:41:36+00:00",
+ "prefilter_escalated": [
+  "prefilter:answer_path_probe",
+  "prefilter:assertion_override",
+  "prefilter:git_history",
+  "prefilter:git_object_by_sha",
+  "prefilter:harness_scaffold_in_code",
+  "prefilter:package_fetch",
+  "prefilter:test_exclusion_flag"
+ ],
+ "prompts_sha256": "fcc18e44b4779f55b98a064fdf3f7a91c62dd87ae9c8aa2adfac9bee504e0a1a",
+ "radius": 5,
+ "sample_sha256": "e24db6ec51ca12f7184301caa9a2467446e4a2e090ecfcb9a2b25c3ca1eb7f87",
+ "schema": "cm13-plan/v1",
+ "slots": 3,
+ "source_sha256": {
+  "src/evallab/production/command_prefilter.py": "09eac0705ac5f4e473961d8d666e8af24fdc0e4ea771eedebaaf44a2a0546fd4",
+  "src/evallab/production/monitor_worker.py": "f2b1787d4dd2dbcf4e62f24122a26c589acd713a7e3e61dcda734c0277bfb601",
+  "src/evallab/production/window_cascade.py": "ef1e3b58d57a4a68c53de7c27ff9a336b45a0ceb90777b7539ad526d088f8d68",
+  "src/evallab/tripwires.py": "8801300b41324de40a2e6fcd0460cb79756feef4383d924361eb5df2ba329d40"
+ },
+ "thinking": "low",
+ "unique_prompts": 418
+}

@@ -21,6 +21,7 @@ import math
 import os
 import re
 import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -31,6 +32,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 _CONNECTION_URL = re.compile(r"(?i)\b(?:postgres(?:ql)?|nats|tls|ws|wss)://[^\s\"'<>]+")
+_LIVE_DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
 
 
 def _queue_options(parser: argparse.ArgumentParser) -> None:
@@ -163,6 +165,24 @@ def register_parser(commands: Any) -> None:
     )
     runs.add_argument("--limit", type=int, help="Maximum admitted traces to export")
     runs.set_defaults(func=_command)
+
+    scope = actions.add_parser(
+        "export-cluster-scope",
+        help="Write a metadata-only scope file for one Run Atlas cluster; never reads run bodies",
+        description=(
+            "One row per DEV-admitted run in the cluster (trace id, task ids, assignments.csv digest, "
+            "facet build/producer/model) plus counts of refused members. No trace bodies, labels, "
+            "rewards, facet text or cluster names; the manifest must not already exist."
+        ),
+    )
+    scope.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    scope.add_argument(
+        "--source-database", type=Path, default=_LIVE_DATABASE,
+        help="SQLite cloud trace database (default: the live store)",
+    )
+    scope.add_argument("--cluster-id", required=True)
+    scope.add_argument("--manifest", type=Path, required=True, help="New scope file to publish")
+    scope.set_defaults(func=_command)
 
     export = actions.add_parser(
         "export-qc-reports",
@@ -553,6 +573,23 @@ def _export_runs(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     )
 
 
+def _export_cluster_scope(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    from evallab.production.cloud_trace_export import export_cluster_scope
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10, check=False,
+        )
+        revision = head.stdout.strip() if head.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        revision = None
+    return export_cluster_scope(
+        _local_path(root, args.source_database), args.cluster_id, _local_path(root, args.manifest),
+        registry=CorpusRegistry(root), revision=revision or None,
+    )
+
+
 def _export_qc_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     from evallab.production.qc_reports import export_qc_reports
 
@@ -703,6 +740,9 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             return 0
         if args.prod_command == "export-runs":
             _emit({"command": args.prod_command, **_export_runs(args, root)}, args)
+            return 0
+        if args.prod_command == "export-cluster-scope":
+            _emit({"command": args.prod_command, **_export_cluster_scope(args, root)}, args)
             return 0
         if args.prod_command == "export-qc-reports":
             _emit({"command": args.prod_command, **_export_qc_reports(args, root)}, args)

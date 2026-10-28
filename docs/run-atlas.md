@@ -143,3 +143,35 @@ uv run evallab atlas clusters show --with-labels      # label and rule rates at 
   cascade's confirmed alarms (CM-6 cohort). The uncovered list holds clusters with
   at least five labelled runs, a positive rate of at least 50% and rule recall
   of at most 20%, with their three most central member texts.
+
+## Always on (`evallab atlas watch`)
+
+Logic: `src/evallab/production/run_atlas_watch.py`. Tests:
+`tests/test_run_atlas_watch.py`. Service template:
+`scripts/ops/launchd/com.petermakhnatch.evallab.run-atlas-watch.plist`.
+
+```bash
+uv run evallab atlas watch --once --dry-run      # count pending runs; no lock, no gateway
+uv run evallab atlas watch --interval 300 --max-per-cycle 25 --max-tokens-per-day 1000000
+```
+
+- No ingestion path publishes a "trace committed" event (`upsert_trace`,
+  `corpus_expansion.import_pack` and replays all write differently), so the
+  watcher polls the committed DB. Each cycle re-applies the DEV/cross-key
+  admission gate, subtracts runs already in the facets JSONL and runs that
+  failed `--max-failures` times (`run-atlas/watch-state.json`), and facets the
+  newest rows first (highest `rowid`). Metadata-only, empty, and incomplete
+  step sets are deferred until their committed row count equals `step_count`.
+- Bounded: at most `--max-per-cycle` runs per cycle and an optional daily
+  token budget (one million in the service template). Its separate
+  `run-atlas/watch-calls-v1.jsonl` receipts prevent historical backfills from
+  exhausting the new-run allowance. Sum both receipt files for total Atlas
+  usage; each budget uses UTC days. Providers whose
+  `omp usage --json` window is at or above 90% are skipped. Quota exhaustion
+  yields the batch promptly and does not consume a trace's failure allowance;
+  the next cycle can resume after a reset.
+- One instance at a time (flock on `run-atlas/watch.lock`). The launchd
+  template runs `--once` every five minutes, releasing the lock between cycles
+  so a backfill driver can use the same lock. Render absolute paths to an
+  immutable release before loading it. Loading starts subscription-backed
+  extraction; the CLI's continuous mode remains available for standalone use.

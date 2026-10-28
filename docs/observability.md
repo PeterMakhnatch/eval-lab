@@ -115,6 +115,40 @@ published storage tariffs are unverified, so ingestion cost is recorded as unkno
 Docent has no supported upsert: different content at an existing deterministic
 remote ID pauses without deleting that evidence.
 
+### Scheduled cloud sync
+
+```bash
+git fetch origin
+scripts/ops/launchd/install-trace-store-sync.sh --load
+```
+
+The separate `com.petermakhnatch.evallab.trace-store-sync` LaunchAgent runs one
+`evallab.trace_store.watch` tick every 600 seconds; it does not run local Scout
+scans. Its `keys run --` command, interpreter, working directory, code, locked
+dependencies and `CorpusRegistry` authority use a full committed runtime snapshot
+under `~/Library/Application Support/evallab/trace-store-sync/releases/`, never a
+disposable worktree or the potentially sparse primary checkout. The primary Git
+repository supplies the merged install revision only. Reinstall after adopting
+code or corpus-policy changes. Both cloud adapters must be installed and their
+dependencies and snapshot registry must validate before replacing the owned job.
+
+The watcher fingerprints the database and WAL, ignoring SHM. An unchanged tick
+makes no hosted calls. Before any changed target syncs, a read-only Laminar GET
+must verify the existing project's Signals are all disabled. Normal sync retains
+every source, admission, secret and Docent owner-only guard, plus each provider's
+independent 2.5 GB monthly byte cap.
+The timer invokes no model or paid Signal API.
+
+`watch-state.json` under the sync state root records compact results and latched
+pauses. Quota, access, size, byte-cap or Signals refusals preserve the cursor and
+are not automatically retried; initial adoption also honors the latest manual
+sync's stop. An operator may run the installed snapshot module with its recorded
+`--repo-root`/`--state-root` and `--resume docent` (or `laminar`/`all`) after fixing
+the cause. Resume still checks Signals and the byte cap; it never clears receipts
+or budget counters. A paused target gives exit status 2 while healthy targets
+can continue. `--uninstall` removes only this installer's owned job and plist,
+leaving receipts, runtime snapshots and logs intact.
+
 
 ## Incremental native ATIF (HAR-168)
 

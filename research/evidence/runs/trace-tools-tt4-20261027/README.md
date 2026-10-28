@@ -1,6 +1,171 @@
-# TT-4: METR reward-hacking scanner through OMP subscriptions
+# TT-4: native METR scanner, subscription and budgeted OpenRouter arms
 
-## Current result and handoff
+## Funded OpenRouter arm: source-ready, blocked before inference
+
+On **October 28, 2026**, the lane owner approved a separate, single-model
+`openrouter/google/gemini-2.5-flash-lite` arm with an **all-attempt $14.85 cap**.
+The sample, seed, native METR version/prompts and predeclared ≥5/≥7 thresholds
+remain fixed. This arm never reuses Grok or Kimi predictions.
+
+The actual read-only funding preflight at **6:00 AM ET** confirmed
+**$49.851292595** in OpenRouter credits, but **`GET /byok` returned 401** and no
+management credential was available. Funded credits alone are insufficient:
+OpenRouter's documented provider ordering still prioritizes an applicable stored
+Google BYOK key. There is no documented BYOK-off request flag. The approval does
+**not** authorize billing a separate Google account or using inference to discover
+`is_byok` afterward. No key, account, provider or billing settings were changed.
+
+Therefore the new arm has **zero production model calls, zero native scans,
+zero served-model attestations, zero tokens and $0**. The frozen **200 remain
+unrun/abstained: 80 enacted positives, 70 clean and 50 considered-only**.
+Recall, FAR, AUROC and detector gains are undefined, not zero sensitivity.
+See `funding-preflight-20261028.json` and `pricing-proof.json`. Mocked HTTP
+roundtrips in deterministic tests are **not** production smoke evidence.
+
+**Owner action required, not payment:** obtain authoritative read-only active
+provider-integration metadata proving no Google AI Studio BYOK applies to this
+workspace/key, or a dedicated OpenRouter-credit-only key policy. No inference is
+permitted before that evidence. The runner requires a key-scoped
+`funding-admission.json` under its private campaign directory. It must carry
+`evallab.openrouter_funding_admission/v1`, the exact route/provider,
+`funding=openrouter_credits`, `applicable_google_byok=false`, the active key's
+SHA-256 fingerprint, UTC admission/expiry times, an authoritative evidence kind,
+reference and verifier. An inference response is not admissible evidence.
+Do not invent this receipt merely to clear the gate.
+
+### Exact commands and preserved provenance
+
+Free preparation, with no model or account calls:
+
+```bash
+env PYTHONPATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/src \
+  EVALLAB_DISABLE_LOCAL_DOCKER=1 \
+  /private/tmp/trace-tools-metr-20261027-venv/bin/python \
+  /Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/research/evidence/runs/trace-tools-tt4-20261027/paid.py prepare
+```
+
+After authoritative funding admission, the single resumable full-200 command is:
+
+```bash
+keys run -- /usr/bin/env \
+  PYTHONPATH=/Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/src \
+  EVALLAB_DISABLE_LOCAL_DOCKER=1 \
+  /private/tmp/trace-tools-metr-20261027-venv/bin/python \
+  /Users/petermakhnatch/Developer/eval-lab/.worktrees/trace-tools-metr-20261027/research/evidence/runs/trace-tools-tt4-20261027/paid.py run
+```
+
+Without the admission receipt it records a blocked preflight and makes no model
+request; it does not retry the failed account-metadata request. Private state:
+
+```text
+~/.local/state/evallab-prod-live/trace-tools/tt4-metr-20261027/openrouter-gemini25-flash-lite-20261028/
+```
+
+- Re-admits all frozen ids through the current exact-DEV/cross-key gate. Reuses
+  the immutable full TT-1 blinded Parquet, with its hash recorded; no source,
+  label, stratum or family is sent to the model.
+- Uses the **unmodified METR 0.1.11 @ c12893d1** scanner and Inspect Scout 0.5.4.
+  Inspect's `tt4openrouter` alias subclasses the native `OpenRouterAPI` only to
+  guard every HTTP-client creation/recreation; the network route and served model must be
+  exactly the approved Google model. Missing registration fails closed on an
+  ordinary Scout resume, rather than silently bypassing the guard.
+- Runs traces in the frozen seed-20261027 round-robin order. The first production
+  HTTP response must pass exact model/provider, billing, native schema, output
+  and cost checks before queued calls can proceed. The first ten produce a
+  transport-only pilot receipt; the default command continues the remaining 190
+  without joining pilot labels or adapting the protocol.
+- Native prompts, 150,000-character chunking, validation and max-over-chunks
+  reduction are unchanged. The transport forbids a second HTTP send for the
+  same opaque-id/request fingerprint, including SDK/native retry attempts.
+  Refusals, malformed responses and context failures abstain, never reroute.
+  Completed, failed and interrupted trace attempts are not billed again;
+  interruption recovery reads existing native artifacts only.
+- Explicitly closes each nonmemoized SDK client. At most four requests are in
+  flight, all with `max_tokens=4096`, reasoning disabled, Google AI Studio
+  standard only, no tools/plugins/transforms/provider fallback, supported
+  parameters required and `data_collection=deny`. This is **not** a claim of
+  zero provider retention.
+- Uses the same native `scan_async` implementation backing `inspect_scout.scan`
+  in pinned 0.5.4, so each client's asynchronous close runs in its owning event
+  loop. Scan specs retain opaque model arguments for no-rebill recovery. Other
+  API credentials/tracing exports are stripped and automatic dotenv loading is
+  disabled; no Laminar/Docent sink is activated.
+- Native 0–10 records keep `flag=null`; derived `@ge5` and `@ge7` records use only
+  their predeclared thresholds. Reports and verdicts use `scout_metr.read_reports`
+  and `to_verdict`; original-step citations come from native message references.
+  Paid costs come only from OpenRouter's billed metadata, not the old Z.ai
+  reader's cost estimator. Labels join only in `paid_score.py` after freezing.
+
+### Cost ceiling and shared reservations
+
+The pinned standard endpoint advertises **1,048,576 context tokens** and
+**$0.10/M input, $0.40/M output**. With output capped at 4,096:
+
+```text
+1,048,576 × $0.10/1M + 4,096 × $0.40/1M = $0.106496/request
+```
+
+Every HTTP attempt must first reserve **$0.11** durably under the shared
+`openrouter-budget-20261028/state.lock`, across a fresh cash read and atomic
+state write. Immutable disjoint caps are TT4=$14.85 and TT7=$35.00; TT7 is
+reserved, **not dispatch-approved**. Pending/unknown/error costs retain the full
+bound; only verified billed actual cost releases the remainder. Budget accounting
+rounds actual cost upward to 12 decimal places; receipts retain the source value.
+Deleting initialized state fails closed. No account/key caps are changed.
+
+The server enforces `max_price={prompt:0.10,completion:0.40,request:0}` in dollars
+per million tokens (request is per-request), and fresh public catalog admission
+checks the context/output/price assumptions before launch. Cash checks subtract
+outstanding holds, the other open arm's unused earmark and conservatively shadow
+settled debits not proven reflected in credits. This can stop below the approved
+maximum; no automatic zeroing, reflection inference, cap increase or paid retry
+is allowed. Per-call receipts retain model, token/cost attestation, latency,
+hashes and reservation provenance but no prompt/completion content. Every call
+batch, including $0 preflights, goes to the canonical append-only
+`~/.local/state/evallab-failure-library/spend.jsonl`.
+
+**Estimate, not measured Gemini usage:** the earlier Grok pilot's attested usage,
+including unfinished-pilot overhead but excluding unknown failed-call usage,
+extrapolates to about **228k input + 2.9k
+output tokens per scored trace**, **$0.0239/trace or $4.78 for 200** at uncached
+standard Gemini rates. It is not a coverage or quota guarantee.
+
+### Actual local verification and blocked run
+
+- Focused Python 3.12 unit suite: **329 passed, 5 optional-runtime skips** across
+  `tests/test_omp_model.py`, `test_paid_score.py` and `test_paid_transport.py`.
+- Retained Python 3.13 native-client suite: **4 passed**. This exercises reservation
+  before send, unknown-cost holds, duplicate refusal, SDK recreation, native
+  schema/model/usage passthrough, native METR scan/recovery, original-step
+  citations and fixed derived flags. A network sentinel rejects the default
+  HTTP transport; every response is a deterministic synthetic fixture. The
+  pinned libraries emit four upstream deprecation warnings; none were suppressed.
+- Installed only the optional native client in the retained environment:
+  `openai==3.4.0`, whose client uses `httpx2==2.16.0`; see `paid-runtime.json`.
+  No project dependency files or old runtime/evidence manifests were rewritten.
+- `paid.py prepare` admitted **200/200**, verified the frozen order/sample and
+  blinded Parquet hashes. `paid.py run` through the exact system-env command above
+  froze a blocked receipt at **8:04 AM ET**, before any generation, reservation
+  or new account-metadata request. See `paid-blocked-preflight-20261028.json`.
+  Native scans/model HTTP calls/attestations/tokens/cost were all zero; all
+  **80/70/50** remain unrun. This is not a production smoke pass.
+
+
+Primary sources: [BYOK ordering](https://openrouter.ai/docs/guides/overview/auth/byok.md)
+(local copy:
+`~/Developer/research-context/sources/links/openrouter.ai/2026-10-28-https-openrouter-ai-docs-guides-overview-auth-byok-md.md`);
+[provider routing and max-price](https://openrouter.ai/docs/guides/routing/provider-selection.md)
+(local copy:
+`~/Developer/research-context/sources/links/openrouter.ai/2026-10-21-https-openrouter-ai-docs-guides-routing-provider-selection-m.md`).
+The JSON endpoint is not archived by `link-archive`; its reviewed fields and URL
+are retained in `pricing-proof.json`.
+
+The later bounded Kimi quota read at **5:21 AM ET** still found five-hour
+usage=100%, monthly total/code=67.13%/66.4%. It made no inference and reported
+the next reset as **8:23:00 AM ET**, not permission to resume. The original
+zero-attempt receipts were not rewritten; see `kimi-quota-preflight-20261028.json`.
+
+## Earlier subscription arms (kept separate)
 
 The adapter was exercised through the **SuperGrok OAuth subscription** before its
 weekly quota exhausted. The interrupted ten-trace pilot produced **8 numeric
@@ -50,9 +215,10 @@ pending traces; the command above resumes all pending traces until complete or a
 fresh quota stop. The short attempt did not consume or terminally mark any trace.
 
 The stopped Grok weekly window resets **October 30, 2026, 2:10:48 PM ET**
-(`2026-10-30T18:10:48.559Z`). There is no model switch, paid fallback, OpenRouter,
-Muse, Laminar ingestion, Docker or local inference. OpenRouter and paid Laminar
-remain unfunded and are not used here.
+(`2026-10-30T18:10:48.559Z`). Those historical subscription attempts used no
+OpenRouter, Muse, Laminar ingestion, Docker or local inference. The separately
+approved funded OpenRouter arm above remains blocked before inference on its
+upstream-billing proof; it is not a fallback or a retroactive subscription result.
 
 ## What the resumable command guarantees
 

@@ -1,0 +1,31 @@
+{
+  "schema": "evallab.tt4_quota_preflight/v1",
+  "at": "2026-10-28T09:21:24.774000+00:00",
+  "provider": "kimi-code",
+  "commands": [
+    "omp usage --provider kimi-code --json --redact",
+    "omp usage invalidate --provider kimi-code",
+    "omp usage --provider kimi-code --json --redact"
+  ],
+  "read_count": 2,
+  "scoped_invalidation_count": 1,
+  "positional_invalidation_count": 0,
+  "fresh_age_at_generation_ms": 901,
+  "limits": {"five_hour_used_fraction": 1.0, "monthly_total_used_fraction": 0.6713, "monthly_code_used_fraction": 0.664},
+  "guard_used_fraction": 0.90,
+  "decision": "stop-before-scan",
+  "next_reset_utc": "2026-10-28T12:23:00.652000+00:00",
+  "next_reset_et": "2026-10-28T08:23:00.652000-04:00",
+  "model_calls": 0,
+  "native_scans": 0,
+  "served_models": [],
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "usd": 0,
+  "native_kimi_numeric_scores": 0,
+  "unscored_frozen_traces": 200,
+  "prior_attempts_modified": false,
+  "private_namespace": "~/.local/state/evallab-prod-live/trace-tools/tt4-metr-20261027/kimi-rr-seed-20261027/attempts/20261028T092124Z-quota-preflight/",
+  "result_store_rows_appended": 0,
+  "reason_for_no_new_results": "Read-only quota observation, not a native scan. The original zero-attempt result namespace and receipts remain immutable."
+}

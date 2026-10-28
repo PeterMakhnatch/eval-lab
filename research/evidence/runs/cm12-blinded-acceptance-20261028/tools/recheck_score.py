@@ -188,10 +188,7 @@ def main() -> None:
             row
             for row in rows
             if all(row[key] is not None for key in ("F", "C_v8", "C_frozen"))
-            and (
-                not (row["F"] or row["C_v8"] or row["C_frozen"])
-                or row["run_id"] in recheck
-            )
+            and (not (row["F"] or row["C_v8"] or row["C_frozen"]) or row["run_id"] in recheck)
         ]
         for name, rows in by_corpus.items()
     }

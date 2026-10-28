@@ -1,0 +1,75 @@
+{
+  "actual_smoke": {
+    "cascade_versions": [
+      "C_frozen",
+      "C_v8"
+    ],
+    "model_leads": 79,
+    "scorer_views": 4,
+    "unknown_judgments": 56,
+    "valid_judgments": 23
+  },
+  "at_utc": "2026-10-28T10:26:12+00:00",
+  "independent_arithmetic": {
+    "boundary_assertions": 33,
+    "goodfire_selected_operating_points_checked": 16,
+    "published_numeric_leaf_mismatches": 0,
+    "scorer_imported": false,
+    "script_sha256": "1ffbdb1881b957098da9b5db77303929b27b399da476e052af3ee7e6be959a80",
+    "worker": "IndependentCounts"
+  },
+  "local_commands": [
+    {
+      "command": "uv run ruff format research/evidence/runs/cm12-blinded-acceptance-20261028/tools",
+      "result": "one file reformatted, two unchanged"
+    },
+    {
+      "command": "uv run ruff check research/evidence/runs/cm12-blinded-acceptance-20261028/tools",
+      "result": "pass"
+    },
+    {
+      "command": "uv run pytest tests/test_stage0_triage.py -q",
+      "result": "pass"
+    },
+    {
+      "command": "make docs && make prepush TESTS='tests/test_stage0_triage.py'",
+      "result": "pass: static gates, ty, 85 focused tests; not full CI",
+      "diagnostic": "lessons emitted a shared-derived-root ownership warning before reporting resolved lineage"
+    }
+  ],
+  "restrictions": {
+    "new_paid_calls": 0,
+    "raw_trace_or_model_prose_in_receipts": false,
+    "registered_gate_unchanged": true,
+    "settings_promoted": false
+  },
+  "schema": "cm12-verification/v1",
+  "scorer_synthetic_smoke": {
+    "assertions": 38,
+    "covers": [
+      "verdict+confidence gate",
+      "partial detector uncertainty",
+      "missingness bounds",
+      "reject-all 101",
+      "no feasible threshold",
+      "considered-only exclusion",
+      "CLI cascade selection and serialization"
+    ],
+    "result": "pass"
+  },
+  "sha256": {
+    "results/blinded-acceptance.json": "a6287762f66d92b9b9acd781d408b5e3112f073c0af2a7d26ce9053a25954a38",
+    "results/input-hash-audit.json": "7293dfd4a1e5c2ea7c0950c13d05e584406e52b379c61b9aac8683b2e24f37d8",
+    "results/recheck-freeze.json": "a44c14f51e32990859216a0247a73d79509c815036a681243808582cc0b1c01b",
+    "results/recheck-frozen-extra-run.json": "a62ed32aff206f14f48b2550991f0550361227db4792f790a7692c74d9da79a7",
+    "results/recheck-run.json": "61df75cd1b9ff9c0bda5fa70f7483e74177d49f0cbe4e773b1b70b57560d1161",
+    "results/recheck-score-frozen-all.json": "782ce76b4cddec47353846f13b37024736d9c7e9ffad20a5b418296cdb9c0e8a",
+    "results/recheck-score-frozen-bound.json": "7c736334eba2e8b2b95b1a03437bb5f034b0fa01ea05044a2c4d4871db36b256",
+    "results/recheck-score-v8-all.json": "9d10fb0cdb2c79cdef8004078882ea142144549a8379c6e51c7df1bdcf4024cd",
+    "results/recheck-score-v8-bound.json": "421f92aa6b02f1b51da1f7b8927974141271331e1f0add2e92d5287bce47effc",
+    "tools/blinded_acceptance.py": "777f720dfd1472339e65fe155b363ba80ffa04885287439d80623b44fa8a1b80",
+    "tools/recheck.py": "e8cdb441f71f7526dedb005bf58ccfac6f312998f43fad05985388b3854b97c9",
+    "tools/recheck_score.py": "d543387392c853f541ea25f8d51f44b61389520add3ca31cca543cfbda735927"
+  },
+  "verification_scope": "Local measurement proof; required exact-head CI is tracked by the PR, not implied here."
+}

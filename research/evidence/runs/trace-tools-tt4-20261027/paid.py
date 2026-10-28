@@ -29,7 +29,9 @@ HERE = Path(__file__).resolve().parent
 AUTHORITY = HERE.parents[3]
 ROOT = Path("/Users/petermakhnatch/Developer/eval-lab")
 STATE = Path.home() / ".local/state/evallab-prod-live/trace-tools"
-CAMPAIGN = STATE / "tt4-metr-20261027/openrouter-gemini25-flash-lite-20261028"
+PROJECTION_VERSION = "native-actor-v2"
+CAMPAIGN = STATE / f"tt4-metr-20261027/openrouter-gemini25-flash-lite-20261028-{PROJECTION_VERSION}"
+TRANSCRIPTS = CAMPAIGN / "transcripts"
 PRIOR = STATE / "tt4-metr-20261027/kimi-rr-seed-20261027"
 BRIDGE = Path.home() / "Developer/research-context/bridge/2026-10-25-systems-and-swarms/raw"
 SAMPLE = BRIDGE / "cm2-monitor-20261026/goodfire-sample.json"
@@ -44,7 +46,8 @@ PROVIDER = "google-ai-studio"
 DETECTOR = "reward_hacking_scanner"
 DETECTOR_VERSION = (
     "metr-scanners/0.1.11@c12893d1;scanner-v0;"
-    "openrouter-google-gemini-2.5-flash-lite;max-output4096;no-reasoning;no-http-retry"
+    "openrouter-google-gemini-2.5-flash-lite;max-output4096;no-reasoning;no-http-retry;"
+    f"projection-{PROJECTION_VERSION}"
 )
 CONTEXT_CAP, OUTPUT_CAP = 1048576, 4096
 INPUT_PRICE, OUTPUT_PRICE = Decimal("0.0000001"), Decimal("0.0000004")
@@ -586,9 +589,15 @@ def register_provider():
 
 
 def prepare():
-    """Re-admit exact frozen ids; reuse immutable full blinded TT1 transcripts."""
-    from evallab.readers.clouddb_blind import dev_trace_refs, opaque_id
+    """Re-admit frozen ids and prove current actor inputs without relabeling old caches."""
+    from paid_projection import prepare_projection
 
+    from evallab.readers import ACTOR_PROJECTION_VERSION
+    from evallab.readers.clouddb_blind import dev_trace_refs, opaque_id
+    from evallab.trace_store.secrets import secret_hits
+
+    if ACTOR_PROJECTION_VERSION != PROJECTION_VERSION:
+        raise AdmissionError("a new actor projection requires a new frozen arm")
     for package, expected in {
         "inspect-scout": "0.5.4",
         "inspect-ai": "0.3.285",
@@ -616,16 +625,26 @@ def prepare():
         admitted = {ref.trace_id for ref in dev_trace_refs(connection, repo_root=AUTHORITY)}
     if set(ordered) - admitted:
         raise AdmissionError("frozen sample failed current exact DEV + cross-key admission")
+    projection = prepare_projection(
+        database,
+        [{"opaque_id": row["opaque_id"], "run_id": row["run_id"]} for row in keys],
+        PRIOR / "transcripts",
+        TRANSCRIPTS,
+        secret_safe=lambda messages: not secret_hits(messages),
+    )
     receipt = {
         "at": now(),
         "sample_n": 200,
         "admitted_n": 200,
         "route": ROUTE,
         "detector_version": DETECTOR_VERSION,
+        "projection_version": PROJECTION_VERSION,
+        "input_projection": projection,
         "seed": 20261027,
         "sample_sha256": previous["sample_sha256"],
         "ordered_ids_sha256": previous["ordered_ids_sha256"],
-        "source_transcripts": str(PRIOR / "transcripts"),
+        "historical_transcripts": str(PRIOR / "transcripts"),
+        "source_transcripts": str(TRANSCRIPTS),
         "no_truncation": True,
         "native_prompts": True,
         "thresholds": [5, 7],
@@ -634,14 +653,9 @@ def prepare():
         "theoretical_request_usd": str(THEORETICAL_BOUND),
         "reservation_usd": str(REQUEST_BOUND),
         "total_cap_usd": "14.85",
-        "privacy": "provider.data_collection=deny; no claim of zero provider retention",
-        "transcript_sha256": {
-            p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in sorted((PRIOR / "transcripts").glob("*.parquet"))
-        },
+        "privacy": "canonical secret_hits gate plus provider.data_collection=deny; no claim of zero provider retention",
+        "transcript_sha256": projection["output_parquet_sha256"],
     }
-    if not receipt["transcript_sha256"]:
-        raise AdmissionError("frozen blinded transcript parquet is unavailable")
     admission = CAMPAIGN / "receipts/admission.json"
     if admission.exists():
         frozen = load(admission)
@@ -764,6 +778,8 @@ def freeze_and_score(keys, reason):
     ]
     result = score_records(records, load(SAMPLE), load(CASCADE))
     calls = [load(path) for path in sorted((CAMPAIGN / "calls").glob("*.json"))]
+    outcomes = [load(path) for path in (CAMPAIGN / "traces").glob("*.json")]
+    projection = load(CAMPAIGN / "receipts/admission.json")["input_projection"]
     result.update(
         {
             "at": now(),
@@ -771,7 +787,11 @@ def freeze_and_score(keys, reason):
             "reason": reason,
             "route": ROUTE,
             "detector_version": DETECTOR_VERSION,
-            "native_scan_attempts": len(list((CAMPAIGN / "traces").glob("*.json"))),
+            "projection_version": PROJECTION_VERSION,
+            "source_eligible_n": len(projection["eligible_opaque_ids"]),
+            "source_rejected_n": len(projection["rejected"]),
+            "terminal_outcomes": sum(row["phase"] == "terminal" for row in outcomes),
+            "native_scan_attempts": sum(row["native_scan_attempted"] for row in outcomes),
             "reserved_attempts": len(calls),
             "http_attempts": sum(row["http_attempted"] for row in calls),
             "attested_calls": sum(row["status"] == "attested" for row in calls),
@@ -869,6 +889,9 @@ def catalog_admission():
 
 def scan_one(opaque):
     """One native scan, with an explicitly closed, nonmemoized SDK client."""
+    from evallab.readers.scout_clouddb import _check_transcripts
+
+    _check_transcripts(TRANSCRIPTS)
     from inspect_ai.model import GenerateConfig, get_model
     from inspect_scout import transcripts_from
     from inspect_scout._scan import scan_async
@@ -890,9 +913,7 @@ def scan_one(opaque):
         ) as model:
             return await scan_async(
                 scanners=[reward_hacking_scanner()],
-                transcripts=transcripts_from(str(PRIOR / "transcripts")).where(
-                    f"transcript_id = '{opaque}'"
-                ),
+                transcripts=transcripts_from(str(TRANSCRIPTS)).where(f"transcript_id = '{opaque}'"),
                 model=model,
                 model_args={"campaign": str(CAMPAIGN), "opaque_id": opaque},
                 model_config=config,
@@ -919,6 +940,9 @@ def run(keys, limit):
     for receipt_path in sorted((CAMPAIGN / "calls").glob("*.json")):
         log_call(CAMPAIGN, load(receipt_path), persist=False)
     register_provider()
+    projection = load(CAMPAIGN / "receipts/admission.json")["input_projection"]
+    eligible = set(projection["eligible_opaque_ids"])
+    rejected = {row["opaque_id"]: row["category"] for row in projection["rejected"]}
     attempted = 0
     for row in keys:
         opaque, trace = row["opaque_id"], row["run_id"]
@@ -940,6 +964,24 @@ def run(keys, limit):
                     },
                 )
             continue
+        if opaque not in eligible:
+            record_result(opaque, trace, None)
+            save(
+                path,
+                {
+                    "at": now(),
+                    "opaque_id": opaque,
+                    "ordinal": row["ordinal"],
+                    "phase": "terminal",
+                    "native_scan_attempted": False,
+                    "location": None,
+                    "scored": False,
+                    "error_type": rejected[opaque],
+                    "complete": False,
+                },
+            )
+            pilot_receipt(keys)
+            continue
         if (CAMPAIGN / "halt.json").exists() or (limit is not None and attempted >= limit):
             break
         try:
@@ -948,7 +990,14 @@ def run(keys, limit):
             halt(CAMPAIGN, "funding admission expired/unavailable; remaining traces unattempted")
             break
         save(
-            path, {"at": now(), "opaque_id": opaque, "phase": "started", "ordinal": row["ordinal"]}
+            path,
+            {
+                "at": now(),
+                "opaque_id": opaque,
+                "phase": "started",
+                "ordinal": row["ordinal"],
+                "native_scan_attempted": True,
+            },
         )
         attempted += 1
         status, error = None, None
@@ -967,6 +1016,7 @@ def run(keys, limit):
                 "opaque_id": opaque,
                 "ordinal": row["ordinal"],
                 "phase": "terminal",
+                "native_scan_attempted": True,
                 "location": location,
                 "scored": score is not None,
                 "error_type": error,

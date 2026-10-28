@@ -510,7 +510,7 @@ def test_native_metr_scan_preserves_original_step_references_without_network(
     pytest.importorskip("metr_scanners")
     from openrouter_budget import Budget
 
-    from evallab.readers.scout_clouddb import to_transcript
+    from evallab.readers.scout_clouddb import _check_transcripts, to_transcript
 
     async def forbidden_network(*args, **kwargs):
         raise AssertionError("native-scanner unit tests must never send a network request")
@@ -535,6 +535,7 @@ def test_native_metr_scan_preserves_original_step_references_without_network(
         async with scout.transcripts_db(str(prior / "transcripts")) as database:
             await database.insert([to_transcript(opaque, messages)])
 
+    _check_transcripts(prior / "transcripts", claim=True)
     asyncio.run(insert())
 
     class Wire(httpx2.AsyncBaseTransport):
@@ -556,7 +557,7 @@ def test_native_metr_scan_preserves_original_step_references_without_network(
     budget = Budget(tmp_path / "budget", "tt4", clock=lambda: MOMENT)
     original_transport = paid.guarded_transport
     monkeypatch.setattr(paid, "CAMPAIGN", campaign)
-    monkeypatch.setattr(paid, "PRIOR", prior)
+    monkeypatch.setattr(paid, "TRANSCRIPTS", prior / "transcripts")
     monkeypatch.setattr(paid, "SCANS", tmp_path / "scans")
     monkeypatch.setattr(paid, "funding_admission", lambda *a, **kw: {"sha256": "fixture"})
     monkeypatch.setattr(paid, "SPEND", tmp_path / "canonical.jsonl")
@@ -595,6 +596,17 @@ def test_native_metr_scan_preserves_original_step_references_without_network(
     }
     assert thresholds["reward_hacking_scanner@ge5"] is True
     assert thresholds["reward_hacking_scanner@ge7"] is False
+
+
+def test_stale_projection_is_refused_before_native_model_creation(paid, tmp_path, monkeypatch):
+    from evallab.readers.scout_clouddb import StaleProjectionError
+
+    stale = tmp_path / "unversioned"
+    stale.mkdir()
+    (stale / "historical.parquet").write_bytes(b"not-read")
+    monkeypatch.setattr(paid, "TRANSCRIPTS", stale)
+    with pytest.raises(StaleProjectionError, match="unversioned"):
+        paid.scan_one("run-" + "e" * 24)
 
 
 def test_inherited_credentials_and_tracing_sinks_are_not_activated(paid, monkeypatch):

@@ -363,13 +363,17 @@ def test_spend_recovery_is_idempotent_across_partial_dual_ledger_writes(monkeypa
 
 @pytest.fixture
 def kimi_quota_report():
-    return {"reports": [{"provider": "kimi-code", "limits": [
+    at = int(datetime.now(UTC).timestamp() * 1000)
+    return {"generatedAt": at, "reports": [{"provider": "kimi-code", "fetchedAt": at - 100, "limits": [
         {
             "label": name, "status": "ok",
+            "scope": {"provider": "kimi-code", "windowId": window_id},
             "amount": {"usedFraction": 0.2, "remainingFraction": 0.8},
-            "window": {"resetsAt": (index + 1) * 1000},
+            "window": {"id": window_id, "resetsAt": (index + 1) * 1000},
         }
-        for index, name in enumerate(("5h", "Monthly total", "Monthly code"))
+        for index, (name, window_id) in enumerate((
+            ("5h", "5h"), ("Monthly total", "limit_month_total"), ("Monthly code", "limit_month_code"),
+        ))
     ]}]}
 
 
@@ -396,6 +400,11 @@ def test_quota_reserves_coding_headroom_in_every_window(
         ["omp", "usage", "invalidate", "--provider", "kimi-code"],
         ["omp", "usage", "--json", "--provider", "kimi-code", "--redact"],
     ]
+    assert result["freshness_ttl_ms"] == 60_000
+    for target in (runner.SPEND, runner.STATE / "spend.jsonl", runner.RECEIPTS / "spend.jsonl"):
+        event = runner.jsonl(target)[0]
+        assert (event["runs"], event["input_tokens"], event["output_tokens"], event["usd"]) == (0, 0, 0, 0)
+        assert event["route"] == runner.INSPECT_MODEL
 
 
 @pytest.mark.parametrize("field", ["usedFraction", "remainingFraction"])
@@ -423,6 +432,74 @@ def test_quota_unknown_status_is_fail_closed(monkeypatch, tmp_path, kimi_quota_r
     )
     with pytest.raises(RuntimeError, match="unknown subscription allowance"):
         runner.quota()
+
+
+@pytest.mark.parametrize("mutation", [
+    "wrong_provider", "scope_provider", "unknown_window", "mismatched_window",
+    "duplicate_window", "missing_window", "stale_fetch", "stale_report",
+    "future_fetch", "future_report", "boolean_fetch", "missing_fetch",
+])
+def test_quota_refuses_stale_or_misidentified_machine_windows(
+    monkeypatch, tmp_path, kimi_quota_report, mutation,
+):
+    runner = load_runner(monkeypatch, tmp_path)
+    provider = kimi_quota_report["reports"][0]
+    limit = provider["limits"][0]
+    if mutation == "wrong_provider":
+        provider["provider"] = "another-provider"
+    elif mutation == "scope_provider":
+        limit["scope"]["provider"] = "another-provider"
+    elif mutation == "unknown_window":
+        limit["scope"]["windowId"] = "unknown"
+    elif mutation == "mismatched_window":
+        limit["window"]["id"] = "unknown"
+    elif mutation == "duplicate_window":
+        provider["limits"][1] = limit.copy()
+    elif mutation == "missing_window":
+        provider["limits"].pop()
+    elif mutation == "stale_fetch":
+        provider["fetchedAt"] = kimi_quota_report["generatedAt"] - 60_001
+    elif mutation == "stale_report":
+        kimi_quota_report["generatedAt"] -= 60_001
+        provider["fetchedAt"] -= 60_001
+    elif mutation == "future_fetch":
+        provider["fetchedAt"] = kimi_quota_report["generatedAt"] + 1
+    elif mutation == "future_report":
+        kimi_quota_report["generatedAt"] += 60_001
+    elif mutation == "boolean_fetch":
+        provider["fetchedAt"] = True
+    else:
+        provider.pop("fetchedAt")
+    monkeypatch.setattr(
+        runner.subprocess, "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=json.dumps(kimi_quota_report)),
+    )
+    with pytest.raises(RuntimeError, match="unknown subscription allowance"):
+        runner.quota()
+    assert runner.jsonl(runner.SPEND)[0]["usd"] == 0
+
+
+def test_canonical_privacy_abstention_never_sends_or_becomes_a_negative(monkeypatch, tmp_path):
+    runner = load_runner(monkeypatch, tmp_path)
+    row = {"run_id": "private-fixture", "opaque_id": "run-" + "f" * 24}
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("privacy abstentions must not invoke a model or usage command")
+
+    monkeypatch.setattr(runner.subprocess, "run", forbidden)
+    runner.source_abstention(row, "secret_unsafe")
+    runner.source_abstention(row, "secret_unsafe")
+    records = runner.jsonl(runner.STATE / "results-v1.jsonl")
+    assert len(records) == 3
+    assert {record["detector"] for record in records} == {
+        "reward_hacking_scanner", "reward_hacking_scanner@ge5", "reward_hacking_scanner@ge7",
+    }
+    assert all(record["value"] is None and record["flag"] is None for record in records)
+    assert all(record["evidence_steps"] == [] and record["scan"].startswith("abstain:") for record in records)
+    assert runner.scores(records) == {}
+    status = json.loads((runner.CAMPAIGN / f'{row["opaque_id"]}-status.json').read_text())
+    assert status["terminal_abstention"] is True and status["native_scan_attempted"] is False
+    assert not runner.SPEND.exists()
 
 
 BUDGET_PATH = (

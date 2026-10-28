@@ -1,5 +1,33 @@
 # TT-4: native METR scanner, subscription and budgeted OpenRouter arms
 
+## Current source-v2 admission (October 28)
+
+After source-provenance fix #1372, **unversioned caches are historical only**.
+`paid_projection.py` reprojects the exact fixed 200 through the merged
+`native-actor-v2` selector and native typed transcript conversion. All **200 full
+message hashes match** the historical frozen inputs, including roles, content,
+reasoning, tool calls, ids and step metadata; the sample/order and native METR
+prompts are unchanged. The canonical `trace_store.secrets.secret_hits` gate
+quarantines **one** input. It is an explicit no-send/null abstention, never a
+negative or replacement sample. The remaining **199** are eligible. No matched
+secret or actor text is copied into this evidence.
+
+Both new transcript derivatives use current projection markers and metadata;
+old Parquet, keys, zero-attempt quota receipts and the Grok pilot stay untouched.
+The Kimi attempt namespace is `kimi-20261028-native-actor-v2`; the funded arm is
+`openrouter-gemini25-flash-lite-20261028-native-actor-v2`. Scanner metadata is
+only `blind_schema`/`projection_version`; labels and source identities remain
+private. See `actor-v2-preflight-20261028.json`.
+
+The one newly authorized scoped Kimi check at **9:57:48 AM ET** fetched a
+**924 ms**-old snapshot: five-hour usage **14%**, monthly total **68.01%**, code
+**67.27%**. All were below the unchanged **90%** guard; the five-hour reset was
+**1:23:00 PM ET**. One cached read was followed by one documented Kimi-only
+invalidate/read, not a global clear or quota reset. This read made **zero model
+calls** and was logged canonically at $0. Native execution still requires a
+fresh, correctly identified guard before each trace; no hourly polling or paid
+fallback is authorized.
+
 ## Funded OpenRouter arm: source-ready, blocked before inference
 
 On **October 28, 2026**, the lane owner approved a separate, single-model
@@ -22,10 +50,11 @@ Recall, FAR, AUROC and detector gains are undefined, not zero sensitivity.
 See `funding-preflight-20261028.json` and `pricing-proof.json`. Mocked HTTP
 roundtrips in deterministic tests are **not** production smoke evidence.
 
-**Owner action required, not payment:** obtain authoritative read-only active
-provider-integration metadata proving no Google AI Studio BYOK applies to this
-workspace/key, or a dedicated OpenRouter-credit-only key policy. No inference is
-permitted before that evidence. The runner requires a key-scoped
+**Owner-session proof required, not payment:** the parent will batch the real
+read-only owner action proving no Google AI Studio BYOK applies to the existing
+workspace/key, or an authoritative existing credit-only policy. This runner does
+not ask for/create credentials or change accounts. No inference is permitted
+before that evidence. It requires a key-scoped
 `funding-admission.json` under its private campaign directory. It must carry
 `evallab.openrouter_funding_admission/v1`, the exact route/provider,
 `funding=openrouter_credits`, `applicable_google_byok=false`, the active key's
@@ -58,12 +87,14 @@ Without the admission receipt it records a blocked preflight and makes no model
 request; it does not retry the failed account-metadata request. Private state:
 
 ```text
-~/.local/state/evallab-prod-live/trace-tools/tt4-metr-20261027/openrouter-gemini25-flash-lite-20261028/
+~/.local/state/evallab-prod-live/trace-tools/tt4-metr-20261027/openrouter-gemini25-flash-lite-20261028-native-actor-v2/
 ```
 
-- Re-admits all frozen ids through the current exact-DEV/cross-key gate. Reuses
-  the immutable full TT-1 blinded Parquet, with its hash recorded; no source,
-  label, stratum or family is sent to the model.
+- Re-admits all frozen ids through the current exact-DEV/cross-key gate. Builds a
+  new current-projection derivative only for exact frozen-message matches that
+  pass the canonical secret gate; it never relabels or modifies old Parquet.
+  No source, label, stratum or family is sent to the model. Rejected inputs get
+  explicit null/no-scan outcomes, not invented native scans or false flags.
 - Uses the **unmodified METR 0.1.11 @ c12893d1** scanner and Inspect Scout 0.5.4.
   Inspect's `tt4openrouter` alias subclasses the native `OpenRouterAPI` only to
   guard every HTTP-client creation/recreation; the network route and served model must be
@@ -132,19 +163,20 @@ standard Gemini rates. It is not a coverage or quota guarantee.
 
 ### Actual local verification and blocked run
 
-- Focused Python 3.12 unit suite: **329 passed, 5 optional-runtime skips** across
-  `tests/test_omp_model.py`, `test_paid_score.py` and `test_paid_transport.py`.
-- Retained Python 3.13 native-client suite: **4 passed**. This exercises reservation
-  before send, unknown-cost holds, duplicate refusal, SDK recreation, native
-  schema/model/usage passthrough, native METR scan/recovery, original-step
-  citations and fixed derived flags. A network sentinel rejects the default
-  HTTP transport; every response is a deterministic synthetic fixture. The
-  pinned libraries emit four upstream deprecation warnings; none were suppressed.
+- Focused Python 3.12 source-v2 suite: **405 passed, 7 optional-runtime skips**
+  across `tests/test_omp_model.py`, `test_paid_score.py`,
+  `test_paid_transport.py` and `test_paid_projection.py`.
+- Retained Python 3.13 suite: **412 passed, zero skips**, including native
+  registration, typed full-message equality, versioned cache refusal, immutable
+  reuse, reservation-before-send, unknown-cost holds, SDK recreation and native
+  METR reports/recovery/citations. Default HTTP transport is forbidden in native
+  fixtures; responses are synthetic. Six upstream deprecation warnings remain
+  visible. The subsequent explicit no-send privacy case separately passed **1/1**.
 - Installed only the optional native client in the retained environment:
   `openai==3.4.0`, whose client uses `httpx2==2.16.0`; see `paid-runtime.json`.
   No project dependency files or old runtime/evidence manifests were rewritten.
-- `paid.py prepare` admitted **200/200**, verified the frozen order/sample and
-  blinded Parquet hashes. `paid.py run` through the exact system-env command above
+- Historical `paid.py prepare` admitted **200/200** and verified the frozen
+  order/sample and old Parquet hashes. Its historical `paid.py run`
   froze a blocked receipt at **8:04 AM ET**, before any generation, reservation
   or new account-metadata request. See `paid-blocked-preflight-20261028.json`.
   Native scans/model HTTP calls/attestations/tokens/cost were all zero; all
@@ -160,7 +192,7 @@ Primary sources: [BYOK ordering](https://openrouter.ai/docs/guides/overview/auth
 The JSON endpoint is not archived by `link-archive`; its reviewed fields and URL
 are retained in `pricing-proof.json`.
 
-The later bounded Kimi quota read at **5:21 AM ET** still found five-hour
+Earlier, the bounded Kimi quota read at **5:21 AM ET** still found five-hour
 usage=100%, monthly total/code=67.13%/66.4%. It made no inference and reported
 the next reset as **8:23:00 AM ET**, not permission to resume. The original
 zero-attempt receipts were not rewritten; see `kimi-quota-preflight-20261028.json`.
@@ -232,8 +264,9 @@ upstream-billing proof; it is not a fallback or a retroactive subscription resul
 - `blind_messages` and `scout_clouddb.to_transcript` preserve full text, reasoning
   and restored tool calls from the merged TT-1 modules; there is no dependency on
   its staging worktree. Transcript ids
-  are salted opaque ids; metadata is only the blind schema, and message metadata
-  only the original step index. Labels/source/cohort/family fields are not sent.
+  are salted opaque ids; metadata is only the blind schema/current projection
+  version, and message metadata only the original step index.
+  Labels/source/cohort/family fields are not sent.
 - The native, unmodified
   `metr_scanners.reward_hacking.reward_hacking_scanner()` is used with
   **`omp/kimi-code/k3.1-pro-highspeed` for the entire campaign**. Scanner prompts,

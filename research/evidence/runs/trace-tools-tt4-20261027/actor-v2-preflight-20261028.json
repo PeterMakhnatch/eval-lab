@@ -1,0 +1,86 @@
+{
+  "schema": "evallab.trace_tools_tt4_actor_v2_preflight/v1",
+  "at": "2026-10-28T14:31:53.857327+00:00",
+  "projection_version": "native-actor-v2",
+  "sample_n": 200,
+  "dev_admitted_n": 200,
+  "actor_history_available_n": 200,
+  "full_typed_message_hash_matches_n": 200,
+  "canonical_secret_safe_n": 199,
+  "privacy_abstentions_n": 1,
+  "privacy_categories": {
+    "secret_unsafe": 1
+  },
+  "model_calls": 0,
+  "native_scans": 0,
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "usd": 0,
+  "scope": "Local network-forbidden preparation only; original artifacts preserved; no secret/content/identity printed.",
+  "sample_sha256": "e24db6ec51ca12f7184301caa9a2467446e4a2e090ecfcb9a2b25c3ca1eb7f87",
+  "ordered_ids_sha256": "8919dedfd5c702b14f995fcb738cea1322536964c679cbb60d15e6fbbf9707c4",
+  "keys_sha256": "000126228f47af98680a9cff185ef5dd427c4329138c75aa83f6a37057c05739",
+  "full_message_lineage_sha256": "c4156079de1dd90adfda5e9c5db856f88218fb74cf92b14018d1eb21f9f09307",
+  "historical_parquet_sha256": {
+    "66c00bfed4e5b630c518c3ce81991d3abaa6d7202581682138e7a7d0ca12a7f3": "81183eadc08a1c69a193ada03070a1b1e4d8cea787df3365a731d23adecab2eb"
+  },
+  "current_parquet_sha256": {
+    "02747da0cb3b1af18ef05d7abc12df935d56ed6f7a61f4eb86b0db777668d3e6": "2022e566fe1ada6a19bd587c755cb02196015ac4f8a162995a62471d7de9b769"
+  },
+  "source_metadata_allowlist": [
+    "blind_schema",
+    "projection_version"
+  ],
+  "message_metadata_allowlist": [
+    "step_index"
+  ],
+  "quota": {
+    "at": "2026-10-28T13:57:49.387862+00:00",
+    "provider": "kimi-code",
+    "fetchedAt": 1793195868455,
+    "generatedAt": 1793195869379,
+    "age_ms": 924,
+    "guard_used_fraction": 0.9,
+    "available": true,
+    "limits": [
+      {
+        "id": "kimi-code:0",
+        "window_id": "5h",
+        "usedFraction": 0.14,
+        "remainingFraction": 0.86,
+        "resetsAt": 1793208180652
+      },
+      {
+        "id": "kimi-code:1",
+        "window_id": "limit_month_total",
+        "usedFraction": 0.6801,
+        "remainingFraction": 0.31989999999999996,
+        "resetsAt": 1795478400000
+      },
+      {
+        "id": "kimi-code:2",
+        "window_id": "limit_month_code",
+        "usedFraction": 0.6727,
+        "remainingFraction": 0.32730000000000004,
+        "resetsAt": 1795478400000
+      }
+    ]
+  },
+  "canonical_spend_batch": "tt4-kimi-native-actor-v2-preflight:20261028T135515936528Z",
+  "tests": {
+    "python312": {
+      "passed": 405,
+      "skipped": 7
+    },
+    "python313_native": {
+      "passed": 412,
+      "skipped": 0,
+      "upstream_deprecation_warnings": 6
+    },
+    "subsequent_explicit_privacy_no_send_case": {
+      "passed": 1
+    }
+  },
+  "paid_arm": "Funding admission remains absent; no paid inference or account modification authorized by this receipt.",
+  "kimi_execution_gate": "Recheck fresh exact machine window identity/TTL and unchanged90% headroom before each trace; one privacy exclusion is null, never replaced or sent."
+}

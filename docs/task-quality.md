@@ -390,6 +390,37 @@ default (`auto` for custom endpoints, `us-east-1` for AWS S3). `put_bytes` /
 an offline CAS, or alongside S3 configuration for an atomic local mirror.
 CAS references do not assert that the corresponding object has been ingested.
 
+**Blinded CheatBench runs (not in the cloud database).** CheatBench facet run ids are
+answer-key registry item ids (`cheatbench-actions-v1:<hash>`); the trajectories live
+under `eval-lab-results/<trial_ref>/agent/trajectory.json`, so `export-runs` cannot
+reach them. `evallab prod export-cheatbench-runs --format harbor|atif|scout
+--output-directory D --manifest M [--run-id ID ...] [--limit N] [--view full|actions_only]`
+resolves each id through the registry and writes the same blinded formats. Admission
+is per item, because CheatBench items share task names across splits: the item's
+effective split must be DEV, `assignments.csv` must say DEV for it, no assignment key
+may mark the item or its task TEST, and its id must not be sealed. TEST, sealed,
+cross-key-locked and unknown ids are refused with no output. The trajectory must match
+the registry's pinned sha256 (`trajectory_sha256`, or `actions_only_sha256` for
+`--view actions_only`), else the export fails whole. The default `full` view is what the
+facets were produced from. Annotation steps are dropped in any letter case, and an
+annotation marker embedded anywhere else fails the export. Each trajectory then goes
+through `blind_atif` and an explicit native-ATIF projection (`extra`, model names,
+timestamps and metrics are dropped; any other unknown step, tool-call or observation
+field refuses the export rather than being dropped or passed through; registry
+answer-key names such as `expected_*` as tool-argument names refuse it too). Identities
+(item, task and benchmark names, trial ids, `trial_ref` path segments, source names)
+are redacted in text, argument values and argument names; a case-folded registry
+identity (for example an uppercase spelling of a non-ASCII name) left in the output
+refuses the export. Role enums are left alone, tool calls get blind per-step ids
+(`call-<step>-<n>`) and each observation points at its call, or at none when the
+recorded id named no call (native ATIF requires pairing). Step ids are renumbered from
+1 and only `ATIF-v<major>.<minor>` schema versions are published. The sealed manifest,
+outside the export and mode 0600, holds per blind id: run id, `trial_ref`, observed
+digest, step origins, `reward: null` and the registry's `expected_*` fields for
+scoring. Blind readers must not receive it. The receipt counts canonical candidates
+(aliases of one id count once) and reports no timing, which would time lookups of
+refused ids.
+
 **Metadata-only cluster scope.** `evallab prod export-cluster-scope --cluster-id ID
 --manifest PATH [--source-database DB]` (default: the live store) writes one new
 JSON file, never replacing one, for a stored Run Atlas cluster. It reads only

@@ -7605,6 +7605,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.production.run_atlas import register_parser as register_atlas_parser
 
     register_atlas_parser(commands)
+    from evallab.production.qa_data import register_parser as register_qa_data_parser
+
+    register_qa_data_parser(commands)
     return root
 
 

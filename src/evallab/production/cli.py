@@ -324,6 +324,26 @@ def register_parser(commands: Any) -> None:
     scope.add_argument("--replace", action="store_true", help="Overwrite an existing, different file")
     scope.set_defaults(func=_command)
 
+    progress = actions.add_parser(
+        "export-gate-progress",
+        help="Write task-qa/gate-progress-v1.json from the OQ-6 coverage summary and v4 checkpoint (counts only)",
+    )
+    progress.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    progress.add_argument(
+        "--coverage-summary", type=Path, required=True,
+        help="coverage.py --aggregate-only output (oq6.stage-continuation-coverage-summary/v1)",
+    )
+    progress.add_argument(
+        "--checkpoint-summary", type=Path, required=True,
+        help="checkpoint-v4-summary.json (oq6.v4-checkpoint-aggregate/v1)",
+    )
+    progress.add_argument(
+        "--output-directory", type=Path, required=True,
+        help="The task-qa state directory that receives gate-progress-v1.json",
+    )
+    progress.add_argument("--replace", action="store_true", help="Overwrite an existing, different file")
+    progress.set_defaults(func=_command)
+
     preflight = actions.add_parser(
         "deploy-preflight",
         help="Read-only check of the data files the Modal cloud tabs need; prints, never runs, the deploy commands",
@@ -973,6 +993,18 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             ])
             receipt = detector_scope.write_scope(
                 _resolve(root, args.output_directory), document, replace=args.replace,
+            )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
+        if args.prod_command == "export-gate-progress":
+            from evallab.production import gate_progress
+
+            receipt = gate_progress.write_progress(
+                _resolve(root, args.output_directory),
+                gate_progress.export_progress(
+                    _resolve(root, args.coverage_summary), _resolve(root, args.checkpoint_summary)
+                ),
+                replace=args.replace,
             )
             _emit({"command": args.prod_command, **receipt}, args)
             return 0

@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.0,
+ "detector": "run_health_loop",
+ "detector_version": "run-health/3",
+ "evidence_steps": [],
+ "explanation": "repeated_error=12 (>= 10)",
+ "flagged": true,
+ "id": "g6-ovn-g5-002302-stock__83xFDnj",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 1.2
+}

@@ -7622,6 +7622,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.production.qa_data import register_parser as register_qa_data_parser
 
     register_qa_data_parser(commands)
+    from evallab.production.run_health import register_parser as register_run_health_parser
+
+    register_run_health_parser(commands)
 
     from evallab.trace_store.cli import register_traces
 

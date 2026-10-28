@@ -556,6 +556,45 @@ class QATrace(Detector):
         return trace.judge_corpus_rows(items)
 
 
+class _RunHealth(Detector):
+    """A deterministic ``run_health.<kind>`` finding (``evallab.production.run_health``)
+    on the trial's stitched trajectory and ``result.json``. ``unknown``/``abstain``
+    verdicts are abstentions, never clean ($0, no model)."""
+
+    kind: ClassVar[str]
+
+    def judge(self, row: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
+        from evallab.production import run_health
+
+        finding = next(
+            f for f in run_health.detect(run_health.trial_run(trial_dir, run_id=row["id"]))
+            if f["kind"] == self.kind
+        )
+        decided = finding["verdict"] in ("alarm", "clear")
+        return {
+            "flagged": finding["verdict"] == "alarm" if decided else None,
+            "score": finding["score"] if decided else None,
+            "explanation": finding["summary"],
+            "evidence_steps": finding["evidence_steps"],
+            "detector_version": finding["detector_version"],
+            "cost_usd": 0.0,
+        }
+
+
+class RunHealthLoop(_RunHealth):
+    name = "run_health_loop"
+    check = "stuck_loop"
+    kind = "loop"
+    description = "run_health.loop: command/message runs, cycles, edit-undo, repeated errors ($0)"
+
+
+class RunHealthInfra(_RunHealth):
+    name = "run_health_infra"
+    check = "infra"
+    kind = "infra"
+    description = "run_health.infra: infra exception or stop, or infra signature ending the run ($0)"
+
+
 class HeldOutRegrade(Detector):
     """Re-run the trial's recorded artifacts under the task's current verifier
     (``evallab.regrade``, local Docker). A pass that no longer holds is flagged.

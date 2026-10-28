@@ -473,10 +473,7 @@ def features(run: HealthRun) -> dict[str, Any]:
         "max_gap_seconds": None if max_gap is None else round(max_gap, 3),
         "max_gap_step": gap_at,
         "agent_timestamps": len(agent_stamps),
-        "last_step_at": stamps[-1][1] if stamps else None,
-        # finished run: how long it sat after its last step (the offline ``silence``)
-        "tail_silence_seconds": (round(finished - stamps[-1][1], 3)
-                                 if stamps and finished is not None and finished >= stamps[-1][1] else None),
+        "last_step_at": _epoch(steps[-1].get("timestamp")) if steps else None,
         "setup_seconds": meta.get("setup_seconds"),
         "verifier_seconds": meta.get("verifier_seconds"),
         "prompt_tokens": prompt_total,
@@ -665,12 +662,13 @@ def triggers(run: HealthRun, *, now: float | None = None,
     """Cheap live triggers for a run that may still be going (Live Supervisor input).
 
     Every Run Health component at its threshold, plus the run-level exception or stop
-    reason, as ``{"trigger", "kind", "value", "threshold", "op", "step"}``. With
-    ``now`` (epoch seconds) and no recorded finish, it also fires ``silence`` (no new
-    step for ``SILENCE_SECONDS``) and ``live_wall_seconds`` (running past
-    ``RUNAWAY_WALL_SECONDS``). Without an actor transcript only run-level facts,
-    infra tail signatures and the clock fire. Same thresholds as :func:`detect`, so a
-    finished run triggers exactly where it alarms.
+    reason, as ``{"trigger", "kind", "value", "threshold", "op", "step"}``. Pass
+    ``now`` (epoch seconds) only for an actively observed run: with no recorded finish,
+    it also fires ``silence`` (no new step for ``SILENCE_SECONDS``) and
+    ``live_wall_seconds`` (running past ``RUNAWAY_WALL_SECONDS``). Silence needs the
+    latest step's timestamp, or the start time before the first step. Without an actor
+    transcript only run-level facts, infra tail signatures and the clock fire. Omit
+    ``now`` for historical store records whose finish time is unavailable.
     """
     f = dict(feats) if feats is not None else features(run)
     components = _kind_components(f)
@@ -684,7 +682,8 @@ def triggers(run: HealthRun, *, now: float | None = None,
                     "op": c.get("op", ">="), "step": c["step"]} for c in components[kind] if c["ratio"] >= 1.0)
     if now is not None and _epoch(run.meta.get("finished_at")) is None:
         started = _epoch(run.meta.get("started_at"))
-        last = f["last_step_at"] if f["last_step_at"] is not None else started
+        # before the first step the run start anchors silence; after it, only step times do
+        last = f["last_step_at"] if f["steps"] else started
         if last is not None and now - last >= SILENCE_SECONDS:
             out.append({"trigger": "silence", "kind": "latency", "value": round(now - last, 3),
                         "threshold": SILENCE_SECONDS, "op": ">=", "step": f["last_step"]})
@@ -695,6 +694,11 @@ def triggers(run: HealthRun, *, now: float | None = None,
     return out
 
 
+#: Numeric feature fields that are step ids or clock readings, not distributions.
+_NOT_DISTRIBUTIONS = frozenset({"last_step", "last_step_at", "max_gap_step", "identical_command_run_step",
+                                "identical_message_run_step", "cycle_step"})
+
+
 def baseline(rows: Iterable[Mapping[str, Any]], *, by: str = "source",
              quantiles: Sequence[float] = (0.5, 0.9, 0.99)) -> dict[str, dict[str, dict[str, float]]]:
     """Per-group quantiles of every numeric feature (``features`` rows), for "far above
@@ -703,9 +707,7 @@ def baseline(rows: Iterable[Mapping[str, Any]], *, by: str = "source",
     for row in rows:
         group = values.setdefault(str(row.get(by)), {})
         for name, value in row.items():
-            # step ids and clock readings are not distributions
-            if (isinstance(value, int | float) and not isinstance(value, bool)
-                    and not name.endswith(("_at", "_step"))):
+            if isinstance(value, int | float) and not isinstance(value, bool) and name not in _NOT_DISTRIBUTIONS:
                 group.setdefault(name, []).append(float(value))
     return {
         group: {name: {"n": len(vals), **{f"p{round(q * 100):g}": round(_quantile(sorted(vals), q) or 0.0, 3)
@@ -920,8 +922,9 @@ def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             if want == "features":
                 yield feats
             elif want == "triggers":
+                # store runs are finished history without a recorded finish time: no clock triggers
                 yield {"run_id": run.run_id, "detector_version": DETECTOR_VERSION,
-                       "triggers": triggers(run, now=now, feats=feats)}
+                       "triggers": triggers(run, now=None if args.db else now, feats=feats)}
             else:
                 yield from detect(run, feats)
 

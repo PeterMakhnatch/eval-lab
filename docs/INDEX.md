@@ -135,7 +135,7 @@ inputs:
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/run-health.md
-    digest: sha256:bb8263d8023b2695b6cea728403af401b9655338657690ca092c82f73101b8ea
+    digest: sha256:dff680c00569f95ce9a53e5cb6a19db8647f066c70beff36eb3f09beb9dc787d
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/storm-alarms.md

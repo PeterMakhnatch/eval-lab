@@ -152,21 +152,32 @@ def test_live_wall_and_silence_fire_before_the_first_step_and_without_a_transcri
     assert fired == {"silence": "latency", "live_wall_seconds": "runaway"}
 
 
+@pytest.mark.parametrize("timestamps", [[None, None, None], [T0, T0 + 10, None]])
+def test_latest_untimed_step_never_goes_silent_from_an_older_timestamp(timestamps: list[int | None]) -> None:
+    steps = [_step(i + 1, cmd, timestamp=stamp)
+             for i, (cmd, stamp) in enumerate(zip(_words(3), timestamps, strict=True))]
+    run = _run(steps, started_at=T0)
+    fired = {t["trigger"] for t in rh.triggers(run, now=T0 + 10 * rh.SILENCE_SECONDS)}
+    assert "silence" not in fired
+    assert "live_wall_seconds" in fired
+
+
 def test_triggers_on_a_finished_run_are_the_detect_alarms() -> None:
     steps = [_step(i + 1, "sleep 5; true", observation="Sandbox not found") for i in range(rh.LOOP_COMMAND_RUN)]
-    run = _run(steps, exception_type="AgentTimeoutError")
-    fired = {(t["kind"], t["trigger"]) for t in rh.triggers(run, now=T0)}
+    run = _run(steps, exception_type="AgentTimeoutError", started_at=T0, finished_at=T0 + 600)
+    fired = {(t["kind"], t["trigger"]) for t in rh.triggers(run, now=T0 + 3 * rh.RUNAWAY_WALL_SECONDS)}
     alarms = {r["kind"] for r in rh.detect(run) if r["verdict"] == "alarm"}
     assert {kind for kind, _ in fired} == alarms
     assert ("loop", "identical_command_run") in fired
     assert ("runaway", "exception:AgentTimeoutError") in fired
+    assert not {name for _, name in fired} & {"silence", "live_wall_seconds"}
 
 
 def test_baseline_quantiles_per_source_skip_missing_ids_and_clocks() -> None:
-    rows = [{"source": "a", "agent_steps": n, "wall_seconds": None, "last_step": n, "last_step_at": T0}
-            for n in range(1, 101)] + [{"source": "b", "agent_steps": 7}]
+    rows = [{"source": "a", "agent_steps": n, "prompt_tokens_per_agent_step": 10.0 * n, "wall_seconds": None,
+             "last_step": n, "last_step_at": T0} for n in range(1, 101)] + [{"source": "b", "agent_steps": 7}]
     out = rh.baseline(rows)
-    assert list(out["a"]) == ["agent_steps"]
+    assert list(out["a"]) == ["agent_steps", "prompt_tokens_per_agent_step"]
     steps = out["a"]["agent_steps"]
     assert steps["n"] == 100 and 49 <= steps["p50"] <= 51 and 89 <= steps["p90"] <= 91 and 98 <= steps["p99"] <= 100
     assert out["b"]["agent_steps"]["p99"] == 7.0

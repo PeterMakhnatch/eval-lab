@@ -46,6 +46,12 @@ uv run evallab run-health score --findings /tmp/findings.jsonl --labels labels.j
 
 # Beside the other detectors on the labelled G6 rows.
 uv run evallab detectors score --detector run_health_loop --detector laminar_stuck_loop --check stuck_loop
+
+# Live triggers for a run that may still be going (the Live Supervisor's cheap input).
+uv run evallab run-health triggers --trial-dir <running-harbor-trial-dir> [--now 2026-10-28T21:00:00Z]
+
+# Per-source p50/p90/p99 of every numeric feature ("far above the usual for this job type").
+uv run evallab run-health baseline --features /tmp/f.jsonl
 ```
 
 `--db` opens the store read-only and keeps only admitted DEV runs. Point it at a

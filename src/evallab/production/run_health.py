@@ -473,6 +473,10 @@ def features(run: HealthRun) -> dict[str, Any]:
         "max_gap_seconds": None if max_gap is None else round(max_gap, 3),
         "max_gap_step": gap_at,
         "agent_timestamps": len(agent_stamps),
+        "last_step_at": stamps[-1][1] if stamps else None,
+        # finished run: how long it sat after its last step (the offline ``silence``)
+        "tail_silence_seconds": (round(finished - stamps[-1][1], 3)
+                                 if stamps and finished is not None and finished >= stamps[-1][1] else None),
         "setup_seconds": meta.get("setup_seconds"),
         "verifier_seconds": meta.get("verifier_seconds"),
         "prompt_tokens": prompt_total,
@@ -585,30 +589,12 @@ def _run_level(f: Mapping[str, Any], kind: str) -> str | None:
     return None
 
 
-def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
-    """One ``trace-findings/v1`` record per kind for ``run`` (loop, runaway, latency, infra).
+def _kind_components(f: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """Every scored component per kind; a component fires at ``ratio >= 1.0``.
 
-    Without an actor transcript a kind is ``unknown``, except that it can still alarm
-    on a run-level exception or stop reason, and infra on a signature that ends the run.
+    Latency is empty when a run has neither enough timestamps nor phase timings
+    (the detector then abstains). Infra holds only the run-ending tail signatures.
     """
-    started = time.perf_counter()
-    f = dict(feats) if feats is not None else features(run)
-    rid = run.run_id
-    tail = [{"name": f"tail:{name}", "value": 1, "threshold": 1, "ratio": 1.0, "step": steps[0], "op": None}
-            for name, steps in f["infra_tail"].items()]
-    if not f["actor_inputs_available"]:
-        reason = "no actor transcript (actor_inputs_available=false): unknown, not clear"
-        out = []
-        for kind in KINDS:
-            forced = _run_level(f, kind)
-            components = tail if kind == "infra" else []
-            if forced or components:
-                out.append(_decide(rid, kind, components, started, forced=forced))
-            else:
-                out.append(_finding(rid, kind, "unknown", 0.0, [], reason, started))
-        return out
-
-    out = []
     loop = _components([
         ("identical_command_run", f["max_identical_command_run"], LOOP_COMMAND_RUN, f["identical_command_run_step"]),
         ("identical_message_run", f["max_identical_message_run"], LOOP_MESSAGE_RUN, f["identical_message_run_step"]),
@@ -618,14 +604,10 @@ def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[
         # fewer distinct commands in the window is worse: ratio = threshold / distinct
         loop.append({"name": "command_cycle", "value": f["cycle_min_distinct"], "threshold": LOOP_CYCLE_DISTINCT,
                      "op": "<=", "ratio": LOOP_CYCLE_DISTINCT / f["cycle_min_distinct"], "step": f["cycle_step"]})
-    out.append(_decide(rid, "loop", loop, started, forced=_run_level(f, "loop")))
-
     runaway = _components([
         ("agent_steps", f["agent_steps"], RUNAWAY_AGENT_STEPS, f["last_step"]),
         ("wall_seconds", f["wall_seconds"], RUNAWAY_WALL_SECONDS, f["last_step"]),
     ])
-    out.append(_decide(rid, "runaway", runaway, started, forced=_run_level(f, "runaway")))
-
     latency = _components([
         ("setup_seconds", f["setup_seconds"], LATENCY_SETUP_SECONDS, None),
         ("verifier_seconds", f["verifier_seconds"], LATENCY_VERIFIER_SECONDS, None),
@@ -636,14 +618,101 @@ def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[
             ("p90_step_seconds", f["seconds_per_agent_step_p90"], LATENCY_P90_STEP_SECONDS, None),
             ("max_gap_seconds", f["max_gap_seconds"], LATENCY_MAX_GAP_SECONDS, f["max_gap_step"]),
         ])
-    if not latency:
-        out.append(_finding(rid, "latency", "abstain", 0.0, [],
-                            f"only {f['agent_timestamps']} timestamped agent steps and no phase timings", started))
-    else:
-        out.append(_decide(rid, "latency", latency, started))
+    infra = [{"name": f"tail:{name}", "value": 1, "threshold": 1, "ratio": 1.0, "step": steps[0], "op": None}
+             for name, steps in f["infra_tail"].items()]
+    return {"loop": loop, "runaway": runaway, "latency": latency, "infra": infra}
 
-    out.append(_decide(rid, "infra", tail, started, forced=_run_level(f, "infra")))
+
+def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
+    """One ``trace-findings/v1`` record per kind for ``run`` (loop, runaway, latency, infra).
+
+    Without an actor transcript a kind is ``unknown``, except that it can still alarm
+    on a run-level exception or stop reason, and infra on a signature that ends the run.
+    """
+    started = time.perf_counter()
+    f = dict(feats) if feats is not None else features(run)
+    rid = run.run_id
+    components = _kind_components(f)
+    if not f["actor_inputs_available"]:
+        reason = "no actor transcript (actor_inputs_available=false): unknown, not clear"
+        out = []
+        for kind in KINDS:
+            forced = _run_level(f, kind)
+            tail = components["infra"] if kind == "infra" else []
+            if forced or tail:
+                out.append(_decide(rid, kind, tail, started, forced=forced))
+            else:
+                out.append(_finding(rid, kind, "unknown", 0.0, [], reason, started))
+        return out
+
+    out = []
+    for kind in KINDS:
+        if kind == "latency" and not components[kind]:
+            out.append(_finding(rid, kind, "abstain", 0.0, [],
+                                f"only {f['agent_timestamps']} timestamped agent steps and no phase timings", started))
+        else:
+            out.append(_decide(rid, kind, components[kind], started, forced=_run_level(f, kind)))
     return out
+
+
+#: Live trigger: no new step (or, before the first step, no start) for this long. The
+#: same 45 minutes as ``LATENCY_MAX_GAP_SECONDS`` (DEV p99 between-step gap 2,528 s).
+SILENCE_SECONDS = LATENCY_MAX_GAP_SECONDS
+
+
+def triggers(run: HealthRun, *, now: float | None = None,
+             feats: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Cheap live triggers for a run that may still be going (Live Supervisor input).
+
+    Every Run Health component at its threshold, plus the run-level exception or stop
+    reason, as ``{"trigger", "kind", "value", "threshold", "op", "step"}``. With
+    ``now`` (epoch seconds) and no recorded finish, it also fires ``silence`` (no new
+    step for ``SILENCE_SECONDS``) and ``live_wall_seconds`` (running past
+    ``RUNAWAY_WALL_SECONDS``). Without an actor transcript only run-level facts,
+    infra tail signatures and the clock fire. Same thresholds as :func:`detect`, so a
+    finished run triggers exactly where it alarms.
+    """
+    f = dict(feats) if feats is not None else features(run)
+    components = _kind_components(f)
+    out: list[dict[str, Any]] = []
+    for kind in KINDS:
+        if (forced := _run_level(f, kind)) is not None:
+            out.append({"trigger": forced, "kind": kind, "value": 1, "threshold": 1, "op": None, "step": None})
+        if not f["actor_inputs_available"] and kind != "infra":
+            continue
+        out.extend({"trigger": c["name"], "kind": kind, "value": c["value"], "threshold": c["threshold"],
+                    "op": c.get("op", ">="), "step": c["step"]} for c in components[kind] if c["ratio"] >= 1.0)
+    if now is not None and _epoch(run.meta.get("finished_at")) is None:
+        started = _epoch(run.meta.get("started_at"))
+        last = f["last_step_at"] if f["last_step_at"] is not None else started
+        if last is not None and now - last >= SILENCE_SECONDS:
+            out.append({"trigger": "silence", "kind": "latency", "value": round(now - last, 3),
+                        "threshold": SILENCE_SECONDS, "op": ">=", "step": f["last_step"]})
+        fired = {t["trigger"] for t in out}
+        if started is not None and now - started >= RUNAWAY_WALL_SECONDS and "wall_seconds" not in fired:
+            out.append({"trigger": "live_wall_seconds", "kind": "runaway", "value": round(now - started, 3),
+                        "threshold": RUNAWAY_WALL_SECONDS, "op": ">=", "step": f["last_step"]})
+    return out
+
+
+def baseline(rows: Iterable[Mapping[str, Any]], *, by: str = "source",
+             quantiles: Sequence[float] = (0.5, 0.9, 0.99)) -> dict[str, dict[str, dict[str, float]]]:
+    """Per-group quantiles of every numeric feature (``features`` rows), for "far above
+    the usual for this job type" triggers. Missing values are skipped, never zero."""
+    values: dict[str, dict[str, list[float]]] = {}
+    for row in rows:
+        group = values.setdefault(str(row.get(by)), {})
+        for name, value in row.items():
+            # step ids and clock readings are not distributions
+            if (isinstance(value, int | float) and not isinstance(value, bool)
+                    and not name.endswith(("_at", "_step"))):
+                group.setdefault(name, []).append(float(value))
+    return {
+        group: {name: {"n": len(vals), **{f"p{round(q * 100):g}": round(_quantile(sorted(vals), q) or 0.0, 3)
+                                          for q in quantiles}}
+                for name, vals in sorted(feats.items())}
+        for group, feats in sorted(values.items())
+    }
 
 
 # --------------------------------------------------------------------------- loaders
@@ -822,6 +891,10 @@ def _runs_from_args(args: argparse.Namespace) -> Iterator[HealthRun]:
 
 def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     del root
+    if args.run_health_command == "baseline":
+        with args.features.open(encoding="utf-8") as handle:
+            print(json.dumps(baseline((json.loads(line) for line in handle if line.strip()), by=args.by), indent=1))
+        return 0
     if args.run_health_command == "score":
         findings = [json.loads(line) for line in args.findings.read_text().splitlines() if line.strip()]
         labels: dict[str, bool] = {}
@@ -833,13 +906,22 @@ def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         for name in detectors:
             print(json.dumps(score_findings(findings, labels, detector=name)))
         return 0
-    want_features = args.run_health_command == "features"
+    want = args.run_health_command
+    now = None
+    if want == "triggers":
+        text = args.now.strip()
+        now = time.time() if text == "now" else _epoch(float(text) if re.fullmatch(r"\d+(?:\.\d+)?", text) else text)
+        if now is None:
+            raise SystemExit(f"run-health triggers: --now {args.now!r} is not 'now', epoch seconds or ISO time")
 
     def rows() -> Iterator[dict[str, Any]]:
         for run in _runs_from_args(args):
             feats = features(run)
-            if want_features:
+            if want == "features":
                 yield feats
+            elif want == "triggers":
+                yield {"run_id": run.run_id, "detector_version": DETECTOR_VERSION,
+                       "triggers": triggers(run, now=now, feats=feats)}
             else:
                 yield from detect(run, feats)
 
@@ -856,7 +938,8 @@ def register_parser(commands: Any) -> None:
     )
     actions = parser.add_subparsers(dest="run_health_command", required=True)
     for name, text in (("features", "per-run deterministic features (JSONL)"),
-                       ("detect", "trace-findings/v1 records for the four run_health detectors (JSONL)")):
+                       ("detect", "trace-findings/v1 records for the four run_health detectors (JSONL)"),
+                       ("triggers", "cheap live triggers per run, for the Live Supervisor (JSONL)")):
         sub = actions.add_parser(name, help=text)
         source = sub.add_mutually_exclusive_group(required=True)
         source.add_argument("--db", type=Path, help="cloud trace DB (read-only; admitted DEV runs only)")
@@ -864,7 +947,14 @@ def register_parser(commands: Any) -> None:
         sub.add_argument("--dataset", action="append", help="with --db: only this dataset id (repeatable)")
         sub.add_argument("--trace-id", action="append", help="with --db: only this trace id (repeatable)")
         sub.add_argument("--out", type=Path, help="output JSONL (default stdout)")
+        if name == "triggers":
+            sub.add_argument("--now", default="now",
+                             help="clock for silence and live wall time: 'now' (default), epoch seconds or ISO")
         sub.set_defaults(func=_command)
+    sub = actions.add_parser("baseline", help="per-source p50/p90/p99 of every numeric feature (JSON)")
+    sub.add_argument("--features", type=Path, required=True, help="`evallab run-health features` JSONL")
+    sub.add_argument("--by", default="source", help="group field (default source)")
+    sub.set_defaults(func=_command)
     sub = actions.add_parser("score", help="precision/recall of findings against run-level labels")
     sub.add_argument("--findings", type=Path, required=True, help="trace-findings/v1 JSONL")
     sub.add_argument("--labels", type=Path, required=True, help='JSONL rows {"run_id": ..., "label": bool}')

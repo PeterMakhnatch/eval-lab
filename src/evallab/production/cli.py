@@ -420,6 +420,30 @@ def register_parser(commands: Any) -> None:
     )
     sb1.set_defaults(func=_command)
 
+    known = actions.add_parser(
+        "seeker-known-hacks",
+        help="Validate retained DEV seeker witnesses; default dry-run writes nothing",
+        description=(
+            "Export full retained trajectories separately from local-only known-hack labels. "
+            "No models or graders run. --stage writes local JSONL; only --apply writes the "
+            "explicit cloud trace database. Never upload the local labels JSONL."
+        ),
+    )
+    known.add_argument("--repo-root", type=Path, default=argparse.SUPPRESS)
+    known.add_argument("--cells-root", type=Path, required=True)
+    known.add_argument("--state-dir", type=Path, help="Local staging/labels directory")
+    known.add_argument("--assignments-csv", type=Path, help="Split ledger (default: repository copy)")
+    known.add_argument("--cloud-trace-db", help="Explicit database target; used only with --apply")
+    known.add_argument(
+        "--visible-tests", action="store_true",
+        help="Require hide_tests=false instead of the default hidden-tests condition",
+    )
+    known_mode = known.add_mutually_exclusive_group()
+    known_mode.add_argument("--dry-run", action="store_true", help="Default: validate/count; write nothing")
+    known_mode.add_argument("--stage", action="store_true", help="Write staging and local labels only")
+    known_mode.add_argument("--apply", action="store_true", help="Stage and ingest ordinary traces; labels stay local")
+    known.set_defaults(func=_command)
+
     once = actions.add_parser("run-once", help="Run selected live consumers, then relay once")
     _queue_options(once)
     _worker_options(once, WORKER_SYSTEMS)
@@ -1021,6 +1045,22 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             receipt, exit_code = _seeker_error_first(args, root)
             _emit({"command": args.prod_command, **receipt}, args)
             return exit_code
+        if args.prod_command == "seeker-known-hacks":
+            from evallab.production.seeker_known_hacks import DEFAULT_STATE_DIR, export_known_hacks
+
+            receipt = export_known_hacks(
+                _local_path(root, args.cells_root),
+                state_dir=_local_path(root, args.state_dir) if args.state_dir else DEFAULT_STATE_DIR,
+                assignments_csv=(
+                    _local_path(root, args.assignments_csv)
+                    if args.assignments_csv else root / "research/answer-keys/splits/assignments.csv"
+                ),
+                mode="apply" if args.apply else "stage" if args.stage else "dry-run",
+                database=_database(root, args.cloud_trace_db) if args.cloud_trace_db else None,
+                expected_hide_tests=not args.visible_tests,
+            )
+            _emit({"command": args.prod_command, **receipt}, args)
+            return 0
         if args.prod_command == "status":
             with _open_status_queue(args, root) as connection:
                 _emit({"command": args.prod_command, **_snapshot(connection)}, args)

@@ -3403,6 +3403,7 @@ def test_harness_endpoints_serve_the_combined_card_and_overview_for_admitted_run
         _harness_finding(VERIFIED, detector="run_health.loop", detector_version="rh/v1", reader_model=None, kind="loop", evidence_steps=[9]),
         _harness_finding(PROVISIONAL, verdict="clear"),
         _harness_finding("not-a-trace"),
+        _harness_finding("not-a-trace", detector="tripwire", detector_version="tw/v1", reader_model=None),
     ]
     (directory / "findings-v1.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
 
@@ -3420,7 +3421,7 @@ def test_harness_endpoints_serve_the_combined_card_and_overview_for_admitted_run
     silent = client.get(card_url, headers=AUTH, params={"run_id": PROVISIONAL}).json()
     assert silent["run"]["actor_inputs_available"] is False  # only a tool step: nothing an actor wrote
     assert silent["groups"][0]["results"][0]["verdict"] == "unknown" and silent["groups"][0]["results"][0]["recorded_verdict"] == "clear"
-    assert silent["no_result"] == ["run_health.loop rh/v1"]
+    assert silent["no_result"] == ["run_health.loop rh/v1"]  # tripwire only read a run that is not admitted
     unread = client.get(card_url, headers=AUTH, params={"run_id": REFUTED}).json()
     assert "not a clean result" in unread["headline"] and unread["tally"]["results"] == 0
     assert client.get(card_url, headers=AUTH, params={"run_id": "no-such-run"}).status_code == 404
@@ -3431,6 +3432,49 @@ def test_harness_endpoints_serve_the_combined_card_and_overview_for_admitted_run
     assert "harnessneedle" not in json.dumps(overview)
     facets = next(row for row in client.get(overview_url, headers=AUTH).json()["findings"]["detectors"] if row["detector"] == "facets")
     assert (facets["alarm"], facets["clear"], facets["unknown"]) == (1, 0, 1)  # PROVISIONAL has no actor transcript
+
+
+def test_atlas_and_harness_sql_runs_once_per_database_and_findings_state_and_is_never_stale(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queries: list[str] = []
+    query = runtime._query
+
+    def counted(sql: str, parameters: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+        queries.append(sql)
+        return query(sql, parameters)
+
+    monkeypatch.setattr(runtime, "_query", counted)
+    late = "trace-late"
+    _write_atlas(runtime, [_atlas_facet(VERIFIED), _atlas_facet(late)])
+    findings = runtime.data_root / "trace-harness" / "findings-v1.jsonl"
+    findings.parent.mkdir()
+    rows = [_harness_finding(VERIFIED), _harness_finding(late)]
+    findings.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+    def atlas() -> list[str]:
+        return sorted(run["run_id"] for run in client.get("/api/cloud-db/atlas", headers=AUTH).json()["runs"])
+
+    def overview() -> tuple[int, int, list[str]]:
+        found = client.get("/api/cloud-db/harness", headers=AUTH).json()["findings"]
+        return found["runs_admitted"], found["runs_outside"], sorted(item["run_id"] for item in found["flagged"])
+
+    assert atlas() == [VERIFIED] and overview() == (1, 1, [VERIFIED])  # trace-late is not in the database yet
+    queries.clear()
+    assert atlas() == [VERIFIED] and overview() == (1, 1, [VERIFIED])
+    assert queries == []  # nothing changed, so no request re-reads the trace database
+
+    rows.append(_harness_finding(PROVISIONAL, detector="tripwire", detector_version="tw/v1", reader_model=None))
+    findings.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    assert overview() == (2, 1, [PROVISIONAL, VERIFIED])  # a findings change is read on the next request
+    assert queries
+
+    card = {"run_id": late}
+    assert client.get("/api/cloud-db/harness/card", headers=AUTH, params=card).status_code == 404
+    trace = {**_trace(late, PRIMARY, {"status": "provisional"}), "step_count": 1}
+    runtime.database.upsert_trace(trace, steps=[{"step_index": 0, "role": "assistant", "content_text": "late step"}])
+    assert atlas() == [late, VERIFIED] and overview() == (3, 0, [late, PROVISIONAL, VERIFIED])  # a database write too
+    assert client.get("/api/cloud-db/harness/card", headers=AUTH, params=card).json()["run"]["actor_inputs_available"]
 
 
 def test_the_container_runtime_reads_data_files_from_the_volume_or_the_environment_settings(

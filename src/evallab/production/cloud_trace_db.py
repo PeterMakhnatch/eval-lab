@@ -1322,19 +1322,27 @@ class CloudTraceDatabase:
                 issue["task"] = tasks[issue["task_id"]]
             return issues
 
+    def change_token(self) -> tuple[int, int] | None:
+        """A token that changes on every committed write to this SQLite file; None on PostgreSQL.
+
+        ``data_version`` moves on commits by other connections and ``total_changes`` on this
+        connection's own, so a value derived under one token is current while the token is equal.
+        PostgreSQL has no equivalent cheap token.
+        """
+        if self._postgres:
+            return None
+        with self._lock:
+            return self._execute("PRAGMA data_version").fetchone()[0], self._connection.total_changes
+
     def _read_memo(self, key: tuple[Any, ...], build: Callable[[], Any]) -> Any:
         """Reuse a derived read structure while this SQLite database is unchanged.
 
-        Caller holds a read transaction. The token combines ``data_version``
-        (commits by other connections) with this connection's own change count,
-        so any committed write discards every entry. PostgreSQL has no
-        equivalent cheap token and always rebuilds.
+        Caller holds a read transaction; any committed write discards every entry. PostgreSQL
+        always rebuilds.
         """
-        if self._postgres:
+        token = self.change_token()
+        if token is None:
             return build()
-        token = (
-            self._execute("PRAGMA data_version").fetchone()[0], self._connection.total_changes,
-        )
         if token != self._memo_token:
             self._memo_values.clear()
             self._memo_token = token

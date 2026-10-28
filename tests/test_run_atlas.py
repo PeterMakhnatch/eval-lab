@@ -471,6 +471,34 @@ def test_cloud_doc_uses_native_ids_and_attaches_tools_without_publisher_flags(tm
             assert key not in text and value not in text
 
 
+def test_cloud_doc_tool_arguments_are_atif_objects_for_monitor_consumers(tmp_path: Path) -> None:
+    from evallab.qa import trace_cheap
+
+    native = json.dumps([{"id": "c1", "name": "bash", "arguments": json.dumps({"command": "ls -la"})}])
+    rows = [
+        ("t", 0, "assistant", "bash", native, "Look around", None, None, "{}"),
+        ("t", 1, "system", "retained-journal", "task_quality.started", "event", None, None, "{}"),
+    ]
+    with closing(sqlite3.connect(tmp_path / "traces.sqlite")) as connection:
+        connection.row_factory = sqlite3.Row
+        connection.execute("""
+            CREATE TABLE trace_steps (
+                trace_id TEXT NOT NULL, step_index INTEGER NOT NULL, role TEXT NOT NULL,
+                tool_name TEXT, command_or_action TEXT, content_text TEXT,
+                observation_preview TEXT, observation_cas_uri TEXT, flags_json TEXT NOT NULL
+            )
+        """)
+        connection.executemany("INSERT INTO trace_steps VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+        doc = atlas.cloud_doc(connection, "t")
+    agent, system = doc["steps"]
+    assert agent["tool_calls"][0]["arguments"] == {"command": "ls -la"}
+    assert system["tool_calls"][0]["arguments"] == {"raw": "task_quality.started"}
+    # The deterministic monitor rules read arguments as mappings (rule replay crashed on strings).
+    assert "ls -la" in json.dumps(trace_cheap.actions_only([agent]))
+    rendered = atlas.render_step(system)
+    assert "<call retained-journal>\ntask_quality.started\n</call>" in rendered
+
+
 def test_cloud_doc_drops_off_path_assistant_and_tool_rows_without_renumbering(
     tmp_path: Path,
 ) -> None:

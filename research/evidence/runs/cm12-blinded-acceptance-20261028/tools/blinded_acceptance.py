@@ -536,16 +536,19 @@ def lead_path_alignment(
     """Metadata-only check: are cited lead steps inside Atlas's causal population?"""
     db = run_atlas.connect_readonly(run_atlas.DEFAULT_DATABASE)
     try:
+        # json_extract returns integer 0 for JSON false; compare json_type text
+        # instead so an explicit false is never mistaken for a kept step.
         flags = {}
         for run_id in sorted(cohorts["goodfire"]):
             rows = db.execute(
-                "SELECT step_index, CASE WHEN json_valid(flags_json) THEN "
-                "json_extract(flags_json,'$.on_final_parent_path') END AS p "
-                "FROM trace_steps WHERE trace_id=?",
+                "SELECT step_index, CASE WHEN NOT json_valid(flags_json) THEN 'invalid' "
+                "WHEN json_type(flags_json,'$.on_final_parent_path')='false' THEN 'off' "
+                "WHEN json_type(flags_json,'$.on_final_parent_path') IS NULL THEN 'absent' "
+                "ELSE 'on' END AS state FROM trace_steps WHERE trace_id=?",
                 (run_id,),
             ).fetchall()
             if rows:
-                flags[run_id] = {row[0]: row[1] is not False for row in rows}
+                flags[run_id] = {row[0]: row[1] for row in rows}
         coverage = db.execute(
             "SELECT COUNT(*) AS steps, SUM(CASE WHEN json_valid(t.flags_json) AND "
             "json_type(t.flags_json,'$.on_final_parent_path')='false' THEN 1 ELSE 0 END) AS off, "
@@ -575,17 +578,27 @@ def lead_path_alignment(
             )
             continue
         known = flags[run_id]
-        off_cited = sum(known.get(step) is False for step in cited)
-        absent_cited = sum(step not in known for step in cited)
+        f_off = sum(known.get(step) == "off" for step in lead["facet_steps"])
+        c_off = sum(known.get(step) == "off" for step in lead["cascade_steps"])
+        off_cited = f_off + c_off
+        absent_cited = sum(known.get(step) in (None, "absent", "invalid") for step in cited)
         near = [i for i in known if cited and min(cited) - 5 <= i <= max(cited) + 5]
-        off_near = sum(known[i] is False for i in near)
+        off_near = sum(known[i] == "off" for i in near)
+        f_on = sum(known.get(step) == "on" for step in lead["facet_steps"])
+        c_on = sum(known.get(step) == "on" for step in lead["cascade_steps"])
         summary["projection_available"] += 1
         summary["cited_steps"] += len(cited)
         summary["cited_steps_off_final_parent_path"] += off_cited
+        summary["facet_cited_steps_off_final_parent_path"] += f_off
+        summary["cascade_cited_steps_off_final_parent_path"] += c_off
         summary["cited_steps_absent_from_projection"] += absent_cited
         summary["context_steps_within_5_off_final_parent_path"] += off_near
         if off_cited or absent_cited:
             summary["leads_with_mismatched_citations"] += 1
+        if cited and not (f_on + c_on):
+            summary["leads_with_no_on_path_cited_step"] += 1
+        if c_off and f_on:
+            summary["leads_with_off_path_cascade_and_on_path_facet"] += 1
         rows_out.append(
             {
                 "run_hash": run_hash(run_id),
@@ -593,8 +606,10 @@ def lead_path_alignment(
                 "detectors": lead["detectors"],
                 "projection": "authenticated_trace_steps",
                 "cited_steps": len(cited),
-                "cited_off_path": off_cited,
+                "facet_cited_off_path": f_off,
+                "cascade_cited_off_path": c_off,
                 "cited_absent": absent_cited,
+                "on_path_cited_steps": f_on + c_on,
                 "context_off_path_within_5": off_near,
             }
         )
@@ -622,7 +637,13 @@ def lead_path_alignment(
         + str(summary["cited_steps_absent_from_projection"])
         + "; off_path_citation_count="
         + str(summary["cited_steps_off_final_parent_path"])
-        + "; CheatBench has no cloud projection rows and is reported unavailable",
+        + "; all off-path citations are cascade flagged steps on resampled alternatives, not facet "
+        "evidence; CheatBench has no cloud projection rows and is reported unavailable",
+        "id_domain": "native trace_steps.step_index, the same domain as BlindRun.origins; "
+        "cited steps absent from that domain: "
+        + str(summary["cited_steps_absent_from_projection"]),
+        "unavailable_boundary": "a lead with no on-path cited step yields no projected anchor; "
+        "its re-check judgment is unknown, never a negative",
         "leads": rows_out,
     }
 

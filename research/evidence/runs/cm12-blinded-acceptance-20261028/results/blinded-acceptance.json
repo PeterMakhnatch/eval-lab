@@ -1,6 +1,6 @@
 {
   "admission": {
-    "all_selected_guarded_utc": "2026-10-28T09:57:35+00:00",
+    "all_selected_guarded_utc": "2026-10-28T09:59:36+00:00",
     "assignment_authority": true,
     "assignments": {
       "bytes": 548722,
@@ -3350,7 +3350,7 @@
     "selected_records_unchanged": 22
   },
   "cohort_records": 350,
-  "completed_utc": "2026-10-28T09:57:35+00:00",
+  "completed_utc": "2026-10-28T09:59:37+00:00",
   "fresh_activity": {
     "cost_usd": 0.0,
     "input_tokens": 0,
@@ -8952,11 +8952,11 @@
       "sha256": "sha256:dd5f95c27adffce956d55429172d26bd07485d5560b73f7f5ac44fabaf692e6e"
     }
   },
-  "label_join_started_utc": "2026-10-28T09:57:35+00:00",
+  "label_join_started_utc": "2026-10-28T09:59:37+00:00",
   "labels_joined_last": true,
   "lead_path_alignment": {
     "authority": "trace_steps.flags_json['$.on_final_parent_path']",
-    "classification": "invalid_facet_citation_count=0; off_path_citation_count=0; CheatBench has no cloud projection rows and is reported unavailable",
+    "classification": "invalid_facet_citation_count=0; off_path_citation_count=6; all off-path citations are cascade flagged steps on resampled alternatives, not facet evidence; CheatBench has no cloud projection rows and is reported unavailable",
     "detector_evidence_inclusion": {
       "both_detector_leads": 7,
       "cascade_only_leads": 27,
@@ -8970,6 +8970,7 @@
       "flag_absent": 0,
       "steps": 15086
     },
+    "id_domain": "native trace_steps.step_index, the same domain as BlindRun.origins; cited steps absent from that domain: 0",
     "leads": [
       {
         "corpus": "cheatbench",
@@ -9361,141 +9362,163 @@
         "run_hash": "sha256:78b106f2c48d067f1ee73d89063006885a0ceb3b37278ef8b23d7f703b459481"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 5,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 1,
         "corpus": "goodfire",
         "detectors": [
           "facet"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 5,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:605bc4bdf3a350f4098494e9b2423ef313efd2e03d70072ddd85b11e963fc5df"
       },
       {
+        "cascade_cited_off_path": 1,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 5,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 6,
         "corpus": "goodfire",
         "detectors": [
           "facet",
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 4,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:d2bde1a1d16105018bcaff177e44d43f8f408c7b51068eb0d1f72d910629d844"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 5,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 13,
         "corpus": "goodfire",
         "detectors": [
           "facet"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 5,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:2373ff2bad1bd0fc3be0b1445baa3c1b8ec1c699d55a315f6c9d85f6960bd7b3"
       },
       {
+        "cascade_cited_off_path": 1,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 1,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 0,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:20c72f2e29ca3278d65f87573b3a31ac2670da47c8f4ffa244c2a4b8c99822f1"
       },
       {
+        "cascade_cited_off_path": 1,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 2,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 0,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:faeecda3611da80a5abe45fb9b5cb4b2443a41b367a67153e25464ccda966ef0"
       },
       {
+        "cascade_cited_off_path": 1,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 1,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 0,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:8c9cc4d44335fde51979bff2e662bb776d99d9b9aa71150756bf228e48d2787a"
       },
       {
+        "cascade_cited_off_path": 1,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 2,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 0,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:1708cdfb6fd33b6a66caf2b50ed26ff8ebaae9a38445a70bb8643ebb649a8edc"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 4,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 7,
         "corpus": "goodfire",
         "detectors": [
           "facet"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 4,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:12013e9f26c1ae5b2164281cc7a97794c6c585a0700448c27f1666008e141f44"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 5,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 7,
         "corpus": "goodfire",
         "detectors": [
           "facet"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 5,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:4e1dada6eb0e37d8dc374b85ddece5fba931331c4bc23809582c5a0c8ff3cc62"
       },
       {
+        "cascade_cited_off_path": 1,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 3,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 0,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:0dd666dcaf1f21fb87207a3c7f1b49faa344a28ed518117103f14677f81640b6"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 5,
-        "context_off_path_within_5": 0,
+        "context_off_path_within_5": 8,
         "corpus": "goodfire",
         "detectors": [
           "facet"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 5,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:ede2017ebfa332fcb9f16ce026dd3ce49c413ef01b8359b1a019a4e9523d0db4"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 6,
         "context_off_path_within_5": 0,
         "corpus": "goodfire",
@@ -9503,126 +9526,152 @@
           "facet",
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 6,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:afafc0291e3acdde7215f2a417de1dc802cae23a151dc38df6a298eedab3b04b"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 2,
         "context_off_path_within_5": 0,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 2,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:1b0accb660f75bc2829111d216d7677ae2e9052b5b7d909f01e6867eb0a6c219"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
         "context_off_path_within_5": 0,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 1,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:393adbb24701e6c63491f9a96b218c7a75acada5e2c833d3e6c8965789a6bee0"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
         "context_off_path_within_5": 0,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 1,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:87c39ca094e1d3ef93a8d15c9d4a418630ba6833aa49041fb4b7c9f3a6973401"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
         "context_off_path_within_5": 0,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 1,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:f16b688e082cc1882a3ae585c1dfd5cab4689056576de3dff8eb5048f2c21d63"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 5,
         "context_off_path_within_5": 0,
         "corpus": "goodfire",
         "detectors": [
           "facet"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 5,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:04923aba7ebd88acadb9449b0b477e95cc6cdca332d3af8a4076916c2ae85842"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 2,
         "context_off_path_within_5": 0,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 2,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:80846c697c8e348e94f1de32801adb248f4a5e9fa37a84e3bd6ad69b30fe7b46"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
         "context_off_path_within_5": 0,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 1,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:863b74432c688e0515adacb30c6bedf4f4a4d8a8d9f1758669082bca6e0e0673"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
         "context_off_path_within_5": 0,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 1,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:8aa6d91720f44d244f00f0357fcbf9c7d36980471c61faa0a837c0b5c11bdbaa"
       },
       {
+        "cascade_cited_off_path": 0,
         "cited_absent": 0,
-        "cited_off_path": 0,
         "cited_steps": 1,
         "context_off_path_within_5": 0,
         "corpus": "goodfire",
         "detectors": [
           "cascade"
         ],
+        "facet_cited_off_path": 0,
+        "on_path_cited_steps": 1,
         "projection": "authenticated_trace_steps",
         "run_hash": "sha256:ba939eca37328f90f74efadee196c63c9e5752ede1c7aaaddf304cc200be4f2f"
       }
     ],
     "summary": {
+      "cascade_cited_steps_off_final_parent_path": 6,
       "cited_steps": 55,
       "cited_steps_absent_from_projection": 0,
-      "cited_steps_off_final_parent_path": 0,
-      "context_steps_within_5_off_final_parent_path": 0,
+      "cited_steps_off_final_parent_path": 6,
+      "context_steps_within_5_off_final_parent_path": 51,
+      "facet_cited_steps_off_final_parent_path": 0,
+      "leads_with_mismatched_citations": 6,
+      "leads_with_no_on_path_cited_step": 5,
+      "leads_with_off_path_cascade_and_on_path_facet": 1,
       "projection_available": 21,
       "projection_unavailable": 48
-    }
+    },
+    "unavailable_boundary": "a lead with no on-path cited step yields no projected anchor; its re-check judgment is unknown, never a negative"
   },
   "outputs_outside_git": {
     "alarms_scoring_time_only": {
@@ -10372,13 +10421,13 @@
     }
   },
   "pre_registration": {
-    "bytes": 3229,
+    "bytes": 4369,
     "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cm12-blinded-acceptance-20261028/research/evidence/runs/cm12-blinded-acceptance-20261028/README.md",
-    "sha256": "sha256:aa29e54d9076a09b15b2350988741b9b39c9e5add597626f1cab793ccca6efba"
+    "sha256": "sha256:c8e02410603595dfb8093738815007a0ec0054e33c8a3b69d8cd1b704cffa7c1"
   },
-  "predictions_fixed_utc": "2026-10-28T09:57:35+00:00",
+  "predictions_fixed_utc": "2026-10-28T09:59:37+00:00",
   "prose_persisted": false,
-  "repo_head_at_measurement": "b86eea1214cea2d1975c0f862040b988b10e9cdf",
+  "repo_head_at_measurement": "1aa494d870097ac62683c9a1cc0c15a7fa2ce084",
   "reselection": {
     "changed_by_corpus": {
       "cheatbench": 0,
@@ -10389,9 +10438,9 @@
   },
   "schema": "cm12-blinded-acceptance/v1",
   "script": {
-    "bytes": 43144,
+    "bytes": 44645,
     "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cm12-blinded-acceptance-20261028/research/evidence/runs/cm12-blinded-acceptance-20261028/tools/blinded_acceptance.py",
-    "sha256": "sha256:5211e80918e0607982f053eb6b148589c0164eb6b8d9b2ffd7d3ee2c421bf7cf"
+    "sha256": "sha256:639c523a375a70d6f0a93d35b3b577e438eff1a57c3fd52563126a453fc35cdd"
   },
   "selected_records": [
     {
@@ -15877,7 +15926,7 @@
       "sha256": "sha256:ef1e3b58d57a4a68c53de7c27ff9a336b45a0ceb90777b7539ad526d088f8d68"
     }
   ],
-  "started_utc": "2026-10-28T09:57:35+00:00",
+  "started_utc": "2026-10-28T09:59:36+00:00",
   "status": "blinding_binding_failed",
   "step_identity_validation": {
     "sha256:010629d25990c3201d1267985308df64ffc6494f3ca9258ec24e312ce8c07545": {

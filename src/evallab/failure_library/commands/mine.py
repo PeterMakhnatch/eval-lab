@@ -1,4 +1,4 @@
-"""``evallab failures mine``: upstream task repairs with two-family attestation."""
+"""``evallab failures mine``: version-pinned upstream-diff candidates, not proof."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ DEFAULT_MODELS = ["openai-codex/gpt-6.1-sol", "anthropic/claude-opus-5-5"]
 
 def register(subparsers: Any) -> None:
     parser = subparsers.add_parser(
-        "mine", help="Mine upstream task repairs, preserving parent and fix provenance"
+        "mine", help="Mine candidate upstream task changes with pinned diff provenance"
     )
     parser.add_argument("--repo", help="HTTPS Git repository URL")
     parser.add_argument("--task-glob", help="Task directories or table files, e.g. tasks/*")
@@ -44,7 +44,12 @@ def register(subparsers: Any) -> None:
     parser.add_argument(
         "--collect-only",
         action="store_true",
-        help="Cache candidates without running subscription classifiers",
+        help="Collect candidates without model calls (the default)",
+    )
+    parser.add_argument(
+        "--classify",
+        action="store_true",
+        help="Explicitly label a bounded candidate subset; requires positive --limit",
     )
     parser.add_argument(
         "--models", nargs=2, default=DEFAULT_MODELS, metavar=("FAMILY_ONE", "FAMILY_TWO")
@@ -58,7 +63,7 @@ def register(subparsers: Any) -> None:
     parser.add_argument(
         "--rebuild",
         action="store_true",
-        help="Offline: reattest stored labels and rebuild findings without new model or network calls",
+        help="Offline: reattest stored labels and rebuild candidate metadata without remote calls",
     )
     parser.add_argument(
         "--cache", type=Path, help="Use an existing query cache (required for offline rebuild)"
@@ -121,6 +126,12 @@ def _run(args: argparse.Namespace, root: Path, **_: Any) -> int:
             raise ValueError("batch size, audit size and limit must be positive")
         if args.rebuild and (args.cache is None or args.refresh or args.collect_only):
             raise ValueError("--rebuild requires --cache and cannot fetch or collect")
+        if args.classify and (args.collect_only or args.rebuild):
+            raise ValueError("--classify cannot be combined with --collect-only or --rebuild")
+        if args.classify and args.limit is None:
+            raise ValueError("new classification requires explicit --classify and positive --limit")
+        if args.audit and not (args.classify or args.rebuild):
+            raise ValueError("--audit requires bounded --classify or offline --rebuild")
         if args.cache is not None:
             mine_root = args.cache.expanduser().resolve()
             candidates = _cached_candidates(mine_root)
@@ -139,7 +150,7 @@ def _run(args: argparse.Namespace, root: Path, **_: Any) -> int:
                 assignments=assignments,
                 license_id=args.license_id,
             )
-        if args.collect_only:
+        if not args.classify and not args.rebuild:
             print(
                 json.dumps(
                     {"cache": str(mine_root), "candidates": len(candidates), "classified": 0},
@@ -170,15 +181,16 @@ def _run(args: argparse.Namespace, root: Path, **_: Any) -> int:
                 mine_root / ("selection-" + digest(payload).removeprefix("sha256:") + ".json"),
                 payload,
             )
-            selection_path.write_bytes(payload)
         decisions = classify_candidates(
             selected, mine_root, models=models, batch_size=batch_size, cache_only=args.rebuild
         )
         audit = None
         audit_config = None
-        audit_path = mine_root / "audit.json"
-        if args.rebuild and audit_path.is_file():
-            previous = json.loads(audit_path.read_text())
+        published_path = mine_root / "report.json"
+        previous = None
+        if args.rebuild and published_path.is_file():
+            previous = json.loads(published_path.read_text()).get("audit")
+        if previous is not None:
             audit_config = {
                 "model": previous["model"],
                 "sample_size": previous["requested_sample_size"],
@@ -194,6 +206,7 @@ def _run(args: argparse.Namespace, root: Path, **_: Any) -> int:
                 **audit_config,
                 cache_only=args.rebuild,
             )
+        selection_path.write_bytes(json_bytes(selection))
         report = publish_collection(
             LibraryStore.for_repo(root, state_root=state),
             candidates,

@@ -16,7 +16,7 @@ from evallab.failure_library.fixmine.miner import (
     task_split,
 )
 from evallab.failure_library.fixmine.models import Candidate, Consensus
-from evallab.failure_library.fixmine.publish import build_findings, publish_collection
+from evallab.failure_library.fixmine.publish import publish_collection
 from evallab.failure_library.store import LibraryStore
 
 
@@ -145,6 +145,13 @@ def test_shared_json_table_maps_only_changed_existing_row(
     patch = (root / candidate.diff_ref).read_text()
     assert "wrong" in patch and "correct" in patch
     assert "unchanged" not in patch and '"id": "2"' not in patch
+    report = publish_collection(
+        LibraryStore.for_repo(tmp_path / "consumer"), candidates, _decisions(candidates), root
+    )
+    label = json.loads((root / "candidate-labels.jsonl").read_text().splitlines()[0])
+    assert label["task_locator"] == candidate.task_path
+    assert label["parent_revision"] == candidate.parent_revision
+    assert report["canonical_findings"] == 0
 
 
 def test_cache_and_publication_rebuild_are_byte_deterministic(
@@ -158,18 +165,23 @@ def test_cache_and_publication_rebuild_are_byte_deterministic(
     decisions = _decisions(candidates)
     store = LibraryStore.for_repo(tmp_path / "consumer", state_root=state)
     first_report = publish_collection(store, candidates, decisions, root)
-    path = store.findings_path(first_report["collection"])
+    path = tmp_path / "consumer" / first_report["candidate_manifest"]
     first_bytes = path.read_bytes()
     second_report = publish_collection(
         store, list(reversed(candidates)), list(reversed(decisions)), root
     )
     assert path.read_bytes() == first_bytes
     assert first_report == second_report
-    findings = list(store.iter_findings(first_report["collection"]))
-    assert all(finding.tier == "V2_upstream_fixed" for finding in findings)
-    assert all(finding.status_now == "fixed_upstream" for finding in findings)
-    assert all(finding.task.upstream_revision != finding.fixed_in_revision for finding in findings)
-    assert all(finding.evidence[0].fix_diff_digest for finding in findings)
+    assert first_report["canonical_findings"] == 0
+    assert list(store.iter_findings()) == []
+    assert not store.findings_path(first_report["collection"]).exists()
+    labels = [
+        json.loads(line) for line in (root / "candidate-labels.jsonl").read_text().splitlines()
+    ]
+    assert all(row["verification_status"] == "unverified" for row in labels)
+    assert all(row["parent_revision"] != row["proposed_revision"] for row in labels)
+    assert all(row["diff_digest"] for row in labels)
+    assert all("summary" not in row for row in labels)
 
 
 def test_rejected_and_disputed_candidates_are_preserved_without_false_claims(
@@ -187,10 +199,12 @@ def test_rejected_and_disputed_candidates_are_preserved_without_false_claims(
     report = publish_collection(
         LibraryStore.for_repo(tmp_path / "consumer"), candidates, decisions, root
     )
-    assert report["accepted"] == 2 and report["rejected"] == 1
+    assert report["agreed_candidate_labels"] == 2 and report["rejected_candidate_labels"] == 1
+    assert report["canonical_findings"] == 0
     assert report["disagreements"] == 2 and report["by_class"]["unclassified"] == 1
     with pytest.raises(ValueError, match="different served model families"):
-        build_findings(
+        publish_collection(
+            LibraryStore.for_repo(tmp_path / "consumer"),
             candidates,
             [
                 decisions[2].model_copy(
@@ -210,7 +224,9 @@ def test_digest_mismatch_refuses_publication(
     path.chmod(0o644)
     path.write_text("tampered\n")
     with pytest.raises(ValueError, match="diff digest mismatch"):
-        build_findings(candidates, _decisions(candidates), root)
+        publish_collection(
+            LibraryStore.for_repo(tmp_path / "consumer"), candidates, _decisions(candidates), root
+        )
 
 
 def test_family_hash_and_existing_nondev_override(tmp_path: Path) -> None:
@@ -298,6 +314,41 @@ def test_mine_cli_publishes_and_rebuilds_without_git_or_network(
 
     monkeypatch.setattr(mine, "audit_candidates", audit_labels)
     monkeypatch.setattr(mine, "classify_candidates", labels)
+    assert (
+        run_cli(
+            [
+                "failures",
+                "mine",
+                "--repo",
+                repo.as_uri(),
+                "--task-glob",
+                "tasks/*",
+                "--state-root",
+                str(state),
+            ],
+            workspace=consumer,
+        )
+        == 0
+    )
+    collected = json.loads(capsys.readouterr().out)
+    assert collected["classified"] == 0 and offline_calls == [] and audit_calls == []
+    assert (
+        run_cli(
+            [
+                "failures",
+                "mine",
+                "--cache",
+                collected["cache"],
+                "--state-root",
+                str(state),
+                "--classify",
+            ],
+            workspace=consumer,
+        )
+        == 2
+    )
+    assert "positive --limit" in capsys.readouterr().out
+    assert offline_calls == []
     code = run_cli(
         [
             "failures",
@@ -308,6 +359,7 @@ def test_mine_cli_publishes_and_rebuilds_without_git_or_network(
             "tasks/*",
             "--state-root",
             str(state),
+            "--classify",
             "--limit",
             "2",
             "--audit",
@@ -318,8 +370,9 @@ def test_mine_cli_publishes_and_rebuilds_without_git_or_network(
     )
     assert code == 0
     first = json.loads(capsys.readouterr().out)
-    assert first["accepted"] == 2 and first["not_classified"] == 1
-    path = consumer / "research/failure-library/findings" / (first["collection"] + ".jsonl")
+    assert first["agreed_candidate_labels"] == 2 and first["not_classified"] == 1
+    assert first["canonical_findings"] == 0
+    path = consumer / first["candidate_manifest"]
     original = path.read_bytes()
 
     def forbid_git(*args: Any, **kwargs: Any) -> Any:
@@ -345,12 +398,55 @@ def test_mine_cli_publishes_and_rebuilds_without_git_or_network(
     assert first == second and path.read_bytes() == original
     assert offline_calls == [False, True]
     assert audit_calls == [False, True]
+    selection_path = Path(first["cache"]) / "selection.json"
+    original_selection = selection_path.read_bytes()
+
+    def unavailable(*args: Any, **kwargs: Any) -> Any:
+        raise ValueError("upstream classifier unavailable")
+
+    cache_args = ["--cache", first["cache"], "--state-root", str(state)]
+    monkeypatch.setattr(mine, "classify_candidates", unavailable)
+    assert (
+        run_cli(
+            ["failures", "mine", *cache_args, "--classify", "--limit", "1"],
+            workspace=consumer,
+        )
+        == 2
+    )
+    assert "upstream classifier unavailable" in capsys.readouterr().out
+    assert selection_path.read_bytes() == original_selection
+    assert path.read_bytes() == original
+
+    monkeypatch.setattr(mine, "classify_candidates", labels)
+    assert (
+        run_cli(
+            ["failures", "mine", *cache_args, "--classify", "--limit", "2"],
+            workspace=consumer,
+        )
+        == 0
+    )
+    unaudited = json.loads(capsys.readouterr().out)
+    assert unaudited["audit"] is None
+    assert (
+        run_cli(
+            ["failures", "mine", *cache_args, "--rebuild"],
+            workspace=consumer,
+        )
+        == 0
+    )
+    assert json.loads(capsys.readouterr().out) == unaudited
+    assert audit_calls == [False, True], "stale unpublished audits must not return on rebuild"
 
 
 def _fake_omp(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
     model = argv[argv.index("--model") + 1]
     provider, model_id = model.split("/", 1)
-    prompt = Path(argv[-1][1:]).read_text()
+    workspace = Path(kwargs["cwd"])
+    prompt_path = Path(argv[-1][1:])
+    assert workspace.parent == Path("/tmp") and workspace.name.startswith("fixmine-worker-")
+    assert prompt_path.parent == workspace and "--system-prompt" in argv
+    assert kwargs["env"]["EVALLAB_FIXMINE_RUN_DIR"] != str(workspace)
+    prompt = prompt_path.read_text()
     payload = json.loads(
         prompt.split("BEGIN_UNTRUSTED_CANDIDATES_JSON\n", 1)[1].split(
             "\nEND_UNTRUSTED_CANDIDATES_JSON", 1
@@ -360,6 +456,9 @@ def _fake_omp(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[byt
         "split" not in item and "task_id" not in item and "repo_url" not in item for item in payload
     )
     assert "--no-tools" in argv and "--no-rules" in argv
+    config = Path(argv[argv.index("--config") + 1])
+    assert json.loads(config.read_text()) == {"retry": {"enabled": False, "modelFallback": False}}
+    assert config.parent == workspace
     rows = []
     for index, item in enumerate(payload):
         rejected = index == 1 and provider in {"anthropic", "xai-oauth"}
@@ -373,6 +472,8 @@ def _fake_omp(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[byt
             }
         )
     text = json.dumps(rows)
+    if provider == "anthropic":
+        text = "```json\n" + text + "\n```"
     message = {
         "role": "assistant",
         "provider": provider,
@@ -382,8 +483,22 @@ def _fake_omp(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[byt
         "resolvedModelIsFallback": False,
     }
     session_dir = Path(argv[argv.index("--session-dir") + 1])
+    assert session_dir.parent == workspace
+    events = [
+        {"type": "session", "cwd": str(workspace)},
+        {
+            "type": "message",
+            "message": {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f'<file name="{prompt_path}">\n{prompt}\n</file>'}
+                ],
+            },
+        },
+        {"type": "message", "message": message},
+    ]
     (session_dir / "fixture.jsonl").write_text(
-        json.dumps({"type": "message", "message": message}) + "\n"
+        "".join(json.dumps(event) + "\n" for event in events)
     )
     return subprocess.CompletedProcess(
         argv, 0, (json.dumps({"type": "message_end", "message": message}) + "\n").encode(), b""
@@ -403,6 +518,8 @@ def test_two_family_consensus_cache_and_blind_third_family_audit(
     assert [item.defect_class for item in decisions] == ["TS01", "unclassified", "unclassified"]
     assert [item.disagreement for item in decisions] == [False, True, True]
     assert all(ref.startswith("state://fixmine/") for item in decisions for ref in item.label_refs)
+    for launch_path in (root / "classifiers").glob("*/*/launch.json"):
+        assert not Path(json.loads(launch_path.read_text())["cwd"]).exists()
 
     def offline(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("cached model calls must be offline")
@@ -411,16 +528,29 @@ def test_two_family_consensus_cache_and_blind_third_family_audit(
         classify_candidates(candidates, root, models=models, runner=offline, cache_only=True)
         == decisions
     )
+    audit_root = tmp_path / "state/fixmine/aggregate/tiny"
+    for candidate in candidates:
+        target = audit_root / candidate.diff_ref
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((root / candidate.diff_ref).read_bytes())
     audit = audit_candidates(
-        candidates, decisions, root, model="xai-oauth/grok-4.7", sample_size=2, runner=_fake_omp
+        candidates,
+        decisions,
+        audit_root,
+        model="xai-oauth/grok-4.7",
+        sample_size=2,
+        runner=_fake_omp,
     )
     assert audit["sample_size"] == 2 and audit["agreement_rate"] == 0.5
     assert len(audit["disagreement_ids"]) == 1
+    for outcome in audit["outcomes"]:
+        assert outcome["label_ref"].startswith("state://fixmine/aggregate/tiny/")
+        assert (tmp_path / "state" / outcome["label_ref"].removeprefix("state://")).is_file()
     assert (
         audit_candidates(
             candidates,
             decisions,
-            root,
+            audit_root,
             model="xai-oauth/grok-4.7",
             sample_size=2,
             runner=offline,
@@ -430,6 +560,22 @@ def test_two_family_consensus_cache_and_blind_third_family_audit(
     )
     with pytest.raises(ValueError, match="third family"):
         audit_candidates(candidates, decisions, root, model=models[0], runner=offline)
+
+
+@pytest.mark.parametrize(
+    "route,family",
+    [
+        ("deepseek/deepseek-flash", "deepseek"),
+        ("openrouter/google/gemma-4-31b-it:free", "google"),
+        ("openrouter/nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia"),
+        ("openrouter/qwen/qwen3.6-plus", "alibaba"),
+        ("openrouter/z-ai/glm-5.2:free", "zai"),
+    ],
+)
+def test_gateway_routes_preserve_underlying_family(route: str, family: str) -> None:
+    from evallab.failure_library.fixmine.classify import model_family
+
+    assert model_family(route) == family
 
 
 def test_classification_rejects_same_family_and_missing_or_tampered_cache(
@@ -474,3 +620,31 @@ def test_attestation_rejects_fallback_and_wrong_served_model(
         attest_sessions(tmp_path, "openai-codex/gpt-6.1-sol")
     assert exc.value.attestation["status"] == "rejected"
     assert exc.value.attestation["sessions"]["session.jsonl"]
+
+
+def test_cached_transport_can_be_redecoded_without_retry(
+    tiny_repo: tuple[Path, list[str]], tmp_path: Path
+) -> None:
+    from evallab.failure_library.fixmine.classify import classify_candidates
+
+    repo, _ = tiny_repo
+    root, candidates = mine_repository(repo.as_uri(), "tasks/*", tmp_path / "state")
+    models = ["openai-codex/gpt-6.1-sol", "anthropic/claude-opus-5-5"]
+    decisions = classify_candidates(candidates, root, models=models, runner=_fake_omp)
+    receipt_path = next((root / "classifiers").glob("*/anthropic-*/receipt.json"))
+    receipt = json.loads(receipt_path.read_text())
+    receipt["status"] = "failed"
+    receipt["error"] = "ClassifierError: final assistant text is not a JSON judgment array"
+    receipt["files"].pop("judgments.json")
+    (receipt_path.parent / "judgments.json").unlink()
+    receipt_path.write_text(json.dumps(receipt))
+
+    def offline(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("format normalization must not retry the model")
+
+    assert (
+        classify_candidates(candidates, root, models=models, runner=offline, cache_only=True)
+        == decisions
+    )
+    assert json.loads(receipt_path.read_text())["status"] == "failed"
+    assert (receipt_path.parent / "judgments.json").is_file()

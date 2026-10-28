@@ -1,0 +1,111 @@
+{
+  "auth_class": "chatgpt_oauth",
+  "baseline": {
+    "privacy_audit_sha256": "92ff0fcbfa8efe813e7c990ac5940374db74ba2510ec25598fd76edbabf8c083",
+    "results_sha256": "02432a21887b7412711a22bc8364b1a13356e2253234900dbebac38caaa2e420",
+    "terminal_sha256": "ab4b234b1ca0ca15a5d39886215aa886bb034641943e9c9e2bdd3b86f8226d78"
+  },
+  "billing": {
+    "new_basis": "included_chatgpt_plan_native_oauth_verified_entitlement",
+    "new_marginal_usd": null,
+    "note": "list_price_usd is an uncached catalog list-price equivalent, not spend",
+    "original_two_financial_basis": "UNKNOWN"
+  },
+  "counts": {
+    "abstention_classes": {
+      "transport_error": 1
+    },
+    "included_basis_attempts": 12,
+    "input_tokens": 497041,
+    "interrupted_cells": 0,
+    "list_price_usd": 0.0503491,
+    "median_latency_s": 4.128736,
+    "model_calls": 13,
+    "new_abstentions": 1,
+    "new_terminal": 13,
+    "new_valid": 12,
+    "original_terminal": 2,
+    "output_tokens": 1290,
+    "pending_at_prepare": 198,
+    "privacy_abstentions": 0,
+    "sample_runs": 200,
+    "unattempted": 185,
+    "unattempted_set_sha256": "99c6b648187297f9cc1a7fb929dc77ef5947173b4955355b94330efddc71b1bb",
+    "unknown_basis_attempts": 1
+  },
+  "entitlement": {
+    "account_identity_sha256": "6626826a059e1fdfaa5851858a6d12444c58a5336b2861bd25807845019d87c0",
+    "api": "openai-codex-responses",
+    "auth_class": "chatgpt_oauth",
+    "endpoint": {
+      "origin": "https://chatgpt.com",
+      "pathname": "/backend-api",
+      "protocol": "https:"
+    },
+    "omp_version": "18.12.6",
+    "plan_type": "prolite",
+    "proof_sha256": "15487f4717a527da0d5a2ae96263efc0872e4513cd53c8b2c105dbb33c7a9f3d",
+    "proof_sha256_all": [
+      "15487f4717a527da0d5a2ae96263efc0872e4513cd53c8b2c105dbb33c7a9f3d"
+    ],
+    "route": "openai-codex/gpt-6-luna",
+    "status": "verified_current_included_native_endpoint"
+  },
+  "finished_at": "2026-10-28T16:27:07.850429+00:00",
+  "invocations": {
+    "count": 1,
+    "statuses": {
+      "stopped": 1
+    }
+  },
+  "labels_read": false,
+  "namespace": "tt7-codex-continuation-20261028",
+  "new_records": {
+    "bytes": 18335,
+    "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-codex-continuation-20261028/new-records.jsonl",
+    "rows": 13,
+    "sha256": "3da2620226539706d9ec5e101504800b362821f278c4bcbd7bb167cf91fb5a14"
+  },
+  "old_terminal_retries": 0,
+  "original_evidence_preserved": true,
+  "plan_type": "prolite",
+  "prefix_contiguous": true,
+  "privacy": {
+    "all_rendered_hashes_match_reference": true,
+    "flagged_pending_luna": 4,
+    "flagged_runs": 4,
+    "gate_sha256": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f",
+    "input_runs": 200,
+    "reference_audit_sha256": "7b3b17dff930aac02e0264c25b1ebc339bf0e2a78b902b7a8d0f33677826dc0f"
+  },
+  "quota": {
+    "check_failures": 0,
+    "checks": 13,
+    "last_max_fraction": 0.84,
+    "threshold": 0.9,
+    "ttl_s": 120
+  },
+  "reason": "model_attestation_unknown: unsuccessful call lacks an accepted exact served-model attestation; route stopped",
+  "route": "openai-codex/gpt-6-luna",
+  "sample_sha256": "f5e1fcd0e7095fe409ad4e5a2d3ab6df42f8b07e4f4204641d8d1094d5271e0a",
+  "schema": "tt7.codex_continuation_attempt/v1",
+  "snapshot": {
+    "bytes": 1515357,
+    "path": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-tools/tt7-codex-continuation-20261028/results-snapshot.jsonl",
+    "rows": 2115,
+    "sha256": "191313cf3f5a3ecb9e950dd37a26b8d041c593e70b9d678eb441305bb78e95b8"
+  },
+  "source_sha256": {
+    "base_campaign.py": "3c1582cd6f5a03187ad22332ca505452b2ba01d37d940a66c1ca7f79b58ecab6",
+    "base_canonical_secret_gate.py": "14b8489b4065955cdd7a91dce768738d54f3fc90a46bdfe0afb3197fa6420a4f",
+    "base_common.py": "bdf0dd5c3afc29a2c81282f3b7dd8ad7a70b9f0de81a7d1c4db5aa90b37a9fea",
+    "base_finalize.py": "c7b563857813879a428431f3ce9667d1f301ea3ea387c5a785a1be050a2854c3",
+    "base_run_omp.py": "31b1aa04bae54158993d8b2a9365ca3c133005df5ed8024c157dd0853fb0bde0",
+    "base_score.json": "61f55de784d2acdaef356ac361c7e04a05a66c548bbc9589a2050e58b195bd7f",
+    "base_score.py": "d4299369ebfe9a671139fe6ad6fbba30f336fb32563a474fce66df2f072f7d25",
+    "continue_codex.py": "87c0d0bb6296b28d5a38804fdfc6211e5ad1a61ff8e926f43bf4b8aa811eca28",
+    "original_score.py": "2325d447046b2cd9989f3bdab858126dbbbe689335a25bd5798c6a604986b440"
+  },
+  "started_at": "2026-10-28T16:22:27.060727+00:00",
+  "status": "partial"
+}

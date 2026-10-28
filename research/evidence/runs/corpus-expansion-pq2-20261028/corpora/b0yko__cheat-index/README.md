@@ -268,8 +268,11 @@ Source bytes live only in the bundle; this PR has exactly the README, adapter,
 profiler and aggregate profile. The manifest individually lists every retained
 file and repository exclusion. Bundle files/directories were locked read-only
 and every byte digest was reverified **after lock**. The profile contains a
-hashed-path digest inventory, hashed ids, source/publisher consistency checks,
-per-class/group counts, writable-path count and the adapter selfcheck.
+SHA-256 commitment to the verified, ordered hashed-path/digest inventory, file-group
+counts/bytes, hashed ids, source/publisher consistency checks, per-class/group
+counts, writable-path count and the adapter selfcheck. The full per-file inventory
+stays in the local manifest rather than duplicating 12,368 rows in a public receipt;
+this keeps the receipt below the repository's 2 MiB curated-evidence limit.
 
 ```sh
 EVALLAB_DISABLE_LOCAL_DOCKER=1 python3 research/evidence/runs/corpus-expansion-pq2-20261028/corpora/b0yko__cheat-index/tools/profile.py

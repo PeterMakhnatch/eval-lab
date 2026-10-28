@@ -146,7 +146,16 @@ def profile(bundle: Path = ROOT) -> dict[str, Any]:
         },
         **hashes,
         "sorted_composite_run_ids_sha256": digest("\n".join(sorted(runs)).encode()),
-        "source_file_digests": inventory,
+        "verified_file_inventory_sha256": digest(
+            json.dumps(inventory, sort_keys=True, separators=(",", ":")).encode()
+        ),
+        "verified_file_groups": {
+            category: {
+                "files": sum(e["category"] == category for e in inventory),
+                "bytes": sum(e["bytes"] for e in inventory if e["category"] == category),
+            }
+            for category in ("native_release", "repository_provenance")
+        },
         "bundle_integrity": {
             "manifest_files": len(files), "manifest_payload_bytes": manifest["total_bytes"],
             "github_blob_verified_files": sum(bool(e.get("git_blob")) for e in manifest["files"]),

@@ -53,6 +53,8 @@ CALLS (all JSON; examples use real flags)
        (--cluster uses the STORED db clusters, `clusters` default view; ids from `clusters --source file` can differ)
        runs --task cad-model --facet tests=modified,deleted,replaced
   window RUN_ID [--first N --last M | --around N --radius R]    steps of one run, original step ids
+       (recorded text as stored: replay-receipt steps of MiMo/TB4 native runs contain their replay "reward";
+       for a blind reader use `export`, not window)
   clusters [--source db|file] [--level 1|2|3] [--members CLUSTER_ID]
        db: stored clusters with admitted sizes (no cluster names: they can reflect hidden runs).
        file: the latest clusters-v1.jsonl build, members split into cloud runs and registry-only DEV

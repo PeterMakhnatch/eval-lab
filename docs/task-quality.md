@@ -524,8 +524,11 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   counted), similar issues elsewhere with `issue:<id>` pointers, and the matching
   playbook cards (issue defect classes and `--flag` values are the triggers).
 - **Label-free by default (CE-19).** A default `task`, `history`, `runs`, `window` or
-  `findings` reply names no dataset or source, no split, no reward and no label tier.
-  Decided per field: `dataset` is dropped from `task` and no opaque family tag replaces
+  `findings` reply has no dataset, source, split, reward or label-tier field. That is a
+  statement about fields: recorded step text is served as recorded, so the 582 native
+  replay runs (565 MiMo, 17 TB4) show their replay `"reward"` inside the text of a
+  `window` step, and `window` text can name a benchmark. Hand a reader that must stay
+  blind an `export`, never `window`/`task` output. Decided per field: `dataset` is dropped from `task` and no opaque family tag replaces
   it (a QA reader needs the task, not the benchmark it came from, and no QA job reads
   it; the package summary key that said `source` is now `stored_in`). `trust_tier`
   (on own and similar issues, in `task` and `history`) and the `differential`

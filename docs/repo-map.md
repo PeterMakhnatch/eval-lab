@@ -605,7 +605,7 @@ inputs:
   - path: src/evallab/production/qa_data_findings.py
     digest: sha256:7b2e3eeed802ebe29807a08318c1fe54f5af8626927f4f8ebfaff4af58ce3cbb
   - path: src/evallab/production/qa_data_guide.py
-    digest: sha256:f40c21560f1c18a8c778b00c44e351768bc94a7ab13b27235b1ccec6cf91d055
+    digest: sha256:29601e662c82abf41b60c9fd91817228d60e533ab5fc81e7296eedb0a9d799cf
   - path: src/evallab/production/qa_data_inventory.py
     digest: sha256:03106dd6abfd369ccd3c8416fac2fcaa833a76c0bdcdfa2dcf5296b0fd3133b8
   - path: src/evallab/production/qa_data_scan.py

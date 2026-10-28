@@ -229,3 +229,25 @@ def test_changed_cross_key_admission_prevents_saved_plan_approval(database: dict
     result = run_once(**database, service=service)
     assert result["reason"] == "active_reading_no_longer_admitted"
     assert service.approvals == 0
+
+
+def test_non_actor_journal_is_quarantined_without_blocking_real_actor_arrivals(database: dict) -> None:
+    service = Service()
+    with sqlite3.connect(database["db_path"]) as con:
+        con.execute("UPDATE agent_traces SET model_id='retained-event-journal/no-model' WHERE trace_id='own'")
+        con.execute("UPDATE trace_steps SET role='system',content_text=?,flags_json=? WHERE trace_id='own'", (
+            json.dumps({"payload": {"original_reward": 1, "repaired_reward": 0}}),
+            json.dumps({"trace_kind": "seeker_event_journal", "is_model_message": False}),
+        ))
+    quarantined = run_once(**database, service=service)
+    assert quarantined["status"] == "quarantined"
+    assert quarantined["quarantined"] == {"actor_history_unavailable": 1}
+    assert service.submissions == [] and not database["results_path"].exists()
+    add_trace(database, "real-actor", "DEV")
+    admitted = run_once(**database, service=service)
+    assert admitted["status"] == "approved"
+    assert admitted["quarantined"] == {"actor_history_unavailable": 1}
+    assert "original_reward" not in service.submissions[0]["text"]
+    service.complete()
+    run_once(**database, service=service)
+    assert json.loads(database["results_path"].read_text())["run_id"] == "real-actor"

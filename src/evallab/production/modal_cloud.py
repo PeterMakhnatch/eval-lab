@@ -180,6 +180,7 @@ class CloudRuntime:
         commit: Callable[[], None] | None = None,
         repair_inventory: Path | None = None,
         cross_test_registry: Path | None = None,
+        detector_scope: Path | None = None,
     ) -> None:
         if not token.strip():
             raise ValueError("EVALLAB_CLOUD_TOKEN is required; public trace access is forbidden")
@@ -193,7 +194,9 @@ class CloudRuntime:
         self._closed = False
         self._atlas_lock = threading.Lock()
         self._atlas_cache: tuple[list[tuple[int, int, int] | None], atlas_view.AtlasStore] | None = None
-        self._tool_scorecard = ToolScorecardCache(self.data_root)
+        self._tool_scorecard = ToolScorecardCache(
+            self.data_root, Path(detector_scope) if detector_scope else None
+        )
         self._atlas_refresh = atlas_coverage.RefreshCache(self.data_root / "run-atlas")
         self._field_reliability = field_reliability.FieldReliabilityCache(self.data_root / "run-atlas")
         self._repair_inventory = file_cache.ChangeCache(
@@ -916,6 +919,7 @@ def runtime_from_environment(
     """The runtime as the Modal container builds it; the local deploy smoke builds the same one."""
     inventory = environ.get("EVALLAB_REPAIR_INVENTORY")
     registry = environ.get("EVALLAB_CROSS_TEST_REGISTRY")
+    scope = environ.get("EVALLAB_DETECTOR_SCOPE")
     return CloudRuntime(
         data_root,
         repo_root,
@@ -923,6 +927,7 @@ def runtime_from_environment(
         commit=commit,
         repair_inventory=Path(inventory) if inventory else None,
         cross_test_registry=Path(registry) if registry else None,
+        detector_scope=Path(scope) if scope else None,
     )
 
 

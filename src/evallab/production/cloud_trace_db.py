@@ -69,12 +69,13 @@ _POSTGRES_VECTOR_SOURCE_BYTES = 65_536
 _READ_MEMO_ENTRIES = 24
 _JSON_COLUMNS = {
     "metadata_json", "verified_receipt_json", "flags_json", "flagged_passage_steps", "evidence_steps",
+    "run_ids", "label_rates", "provenance_json",
 }
 #: Run Atlas ``run-facets/v1``: one model-filled form per run. ``run_id`` is the
 #: run's ``agent_traces.trace_id``; ``source``, ``split`` and ``outcome`` are
 #: copied from the database on write, never taken from the record.
 RUN_FACETS_VERSION = "run-facets/v1"
-_FACET_ENUMS = {
+_FACET_ENUMS: dict[str, tuple[str, ...]] = {
     "tests": ("untouched", "read", "modified", "deleted", "replaced"),
     "eval_awareness": ("none", "mentions_tests", "reasons_about_grader", "plans_to_game"),
 }
@@ -89,6 +90,20 @@ _FACET_RECORD_FIELDS = (
 )
 _FACET_COLUMNS = (
     "run_id", "task_id", *_FACET_DATABASE_FIELDS, *_FACET_RECORD_FIELDS[1:],
+)
+#: Run Atlas ``run-clusters/v1``: a three-level hierarchy over faceted runs.
+RUN_CLUSTERS_VERSION = "run-clusters/v1"
+_CLUSTER_COLUMNS = (
+    "cluster_id", "name", "level", "parent", "run_ids", "centroid_text", "size", "label_rates",
+)
+#: Fields ``search_runs`` filters on, with their accepted values (``None``: any nonempty text).
+_FACET_FILTERS: dict[str, tuple[Any, ...] | None] = {
+    "outcome": _FACET_OUTCOMES, **_FACET_ENUMS,
+    **{field: (False, True) for field in _FACET_BOOLEANS},
+    "suspicion": (0, 1, 2, 3), "source": None, "split": None, "facet_model": None,
+}
+_FACET_SIMILARITY_FIELDS = (
+    "outcome", "tests", "eval_awareness", "shortcut", *_FACET_BOOLEANS, "suspicion",
 )
 # Evidence trust, strongest first. Tier 1: container-verified differentials
 # (qualified repairs, differentially replayed witnesses, maintainer fixes).
@@ -208,6 +223,70 @@ def _reward_outcome(reward: float | None) -> str:
     if reward is None:
         return "unknown"
     return "pass" if reward >= 1 else "fail" if reward <= 0 else "unknown"
+
+
+def _facet_filters(facets: Any) -> list[tuple[str, list[Any]]]:
+    """Validated ``(field, accepted values)`` pairs; a scalar accepts that one value.
+
+    Unknown fields and values are errors, so a typo never reads as "no runs".
+    """
+    if not isinstance(facets, Mapping):
+        raise ValueError("facets must map a field to a value or a collection of values")
+    filters = []
+    for field, value in facets.items():
+        if field not in _FACET_FILTERS:
+            raise ValueError(f"facets cannot filter on {field!r}; use {', '.join(_FACET_FILTERS)}")
+        values = list(value) if isinstance(value, (list, tuple, set, frozenset)) else [value]
+        if not values:
+            raise ValueError(f"facets[{field!r}] must accept at least one value")
+        accepted = _FACET_FILTERS[field]
+        for item in values:
+            if field == "suspicion":
+                _integer(item, f"facets[{field!r}]")
+            if accepted is None:
+                _text(item, f"facets[{field!r}]")
+            elif item not in accepted or isinstance(item, bool) != (field in _FACET_BOOLEANS):
+                raise ValueError(f"facets[{field!r}] must be one of {', '.join(map(str, accepted))}")
+        filters.append((field, values))
+    return filters
+
+
+def _run_cluster(cluster: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate one ``run-clusters/v1`` record's own fields.
+
+    Other keys (build, embedder, seed, samples...) are kept verbatim as the
+    cluster's ``provenance_json``; a stated ``cluster_version`` must be v1.
+    """
+    extra = {key: value for key, value in cluster.items() if key not in _CLUSTER_COLUMNS}
+    if extra.get("cluster_version", RUN_CLUSTERS_VERSION) != RUN_CLUSTERS_VERSION:
+        raise ValueError(f"cluster_version must be {RUN_CLUSTERS_VERSION}")
+    row = _record(
+        {key: value for key, value in cluster.items() if key in _CLUSTER_COLUMNS},
+        _CLUSTER_COLUMNS, {"parent": None, "label_rates": None},
+    )
+    row["provenance_json"] = _json_value(extra)
+    cluster_id = _text(row["cluster_id"], "cluster_id")
+    _text(row["name"], "name")
+    if not isinstance(row["centroid_text"], str):
+        raise ValueError("centroid_text must be a string")
+    if _integer(row["level"], "level", minimum=1) > 3:
+        raise ValueError("level must be 1, 2 or 3")
+    if row["parent"] is not None:
+        _text(row["parent"], "parent")
+    run_ids = row["run_ids"]
+    if (
+        not isinstance(run_ids, list) or not run_ids
+        or any(not isinstance(run_id, str) or not run_id.strip() for run_id in run_ids)
+        or len(set(run_ids)) != len(run_ids)
+    ):
+        raise ValueError(f"cluster {cluster_id!r} run_ids must be a nonempty list of distinct run IDs")
+    if _integer(row["size"], "size", minimum=1) != len(run_ids):
+        raise ValueError(f"cluster {cluster_id!r} size must equal the number of run_ids")
+    row["run_ids"] = list(run_ids)
+    row["label_rates"] = _json_value(row["label_rates"], nullable=True)
+    if row["label_rates"] is not None and not isinstance(row["label_rates"], dict):
+        raise ValueError("label_rates must be an object or null")
+    return row
 
 
 def _record(record: Mapping[str, Any], columns: Sequence[str], defaults: Mapping[str, Any]) -> dict[str, Any]:
@@ -550,11 +629,20 @@ class CloudTraceDatabase:
                     shortcut TEXT NOT NULL,
                     suspicion INTEGER NOT NULL CHECK(suspicion BETWEEN 0 AND 3),
                     evidence_steps {json_type} NOT NULL)""")
+            if not self._postgres or not self._exists("run_clusters"):
+                self._execute(f"""CREATE TABLE IF NOT EXISTS run_clusters (
+                    cluster_id TEXT PRIMARY KEY, name TEXT NOT NULL,
+                    level INTEGER NOT NULL CHECK(level BETWEEN 1 AND 3),
+                    parent TEXT REFERENCES run_clusters(cluster_id),
+                    run_ids {json_type} NOT NULL, centroid_text TEXT NOT NULL,
+                    size INTEGER NOT NULL CHECK(size >= 1), label_rates {json_type},
+                    provenance_json {json_type} NOT NULL)""")
             for table, fields in (
                 ("task_issues", "task_id, direction, status, defect_class"),
                 ("agent_traces", "task_id, run_id"),
                 ("trace_steps", "tool_name, trace_id"),
                 ("run_facets", "task_id, outcome, tests, suspicion"),
+                ("run_clusters", "parent, level"),
             ):
                 if not self._postgres or not self._exists(f"{table}_lookup"):
                     self._execute(f"CREATE INDEX IF NOT EXISTS {table}_lookup ON {table} ({fields})")
@@ -883,6 +971,105 @@ class CloudTraceDatabase:
             "refused": sum(reasons.values()), "refused_by_reason": dict(sorted(reasons.items())),
             "refused_examples": examples, "database_overrides": overrides,
         }
+
+    def replace_run_clusters(
+        self, clusters: Sequence[Mapping[str, Any]], *, registry: CorpusRegistry | None = None,
+        allowed_task_ids: Collection[str] | None = None,
+    ) -> dict[str, int]:
+        """Atomically replace the whole ``run-clusters/v1`` hierarchy.
+
+        Each cluster has ``cluster_id``, ``name``, ``level`` (1-3), ``parent``
+        (``None`` exactly at level 1, otherwise a cluster one level up whose runs
+        include all of this cluster's), ``run_ids`` (distinct runs with stored
+        facets whose current tasks are registry-admitted DEV), ``centroid_text``,
+        ``size`` (``len(run_ids)``) and optional ``label_rates`` (filled only at
+        scoring time). ``allowed_task_ids`` only narrows admission. Any invalid
+        cluster keeps the stored hierarchy.
+        """
+        rows: dict[str, dict[str, Any]] = {}
+        for cluster in clusters:
+            row = _run_cluster(cluster)
+            if row["cluster_id"] in rows:
+                raise ValueError(f"duplicate cluster_id {row['cluster_id']!r}")
+            rows[row["cluster_id"]] = row
+        for cluster_id, row in rows.items():
+            parent = rows.get(row["parent"]) if row["parent"] is not None else None
+            if (row["level"] == 1) != (row["parent"] is None) or (
+                row["level"] > 1 and (parent is None or parent["level"] != row["level"] - 1)
+            ):
+                raise ValueError(f"cluster {cluster_id!r} needs no parent at level 1, else one a level up")
+            if parent is not None and not set(row["run_ids"]) <= set(parent["run_ids"]):
+                raise ValueError(f"cluster {cluster_id!r} has runs outside its parent")
+        members = sorted({run_id for row in rows.values() for run_id in row["run_ids"]})
+        with self._transaction(write=True):
+            if self._postgres:
+                self._execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+                self._execute("LOCK TABLE run_clusters IN EXCLUSIVE MODE")
+            admitted, _ = CloudTraceRetriever(self, registry=registry)._admitted_ids()
+            allowed = frozenset(admitted)
+            if allowed_task_ids is not None:
+                allowed = allowed.intersection(allowed_task_ids)
+            parameters: list[Any] = []
+            scope = self._task_id_scope("f.run_id", members, parameters)
+            task_scope = self._task_id_scope("a.task_id", allowed, parameters)
+            faceted = {
+                row["run_id"] for row in self._rows(
+                    "SELECT f.run_id FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+                    f"WHERE a.task_id = f.task_id AND {scope} AND {task_scope}", parameters,
+                )
+            }
+            missing = [run_id for run_id in members if run_id not in faceted]
+            if missing:
+                raise ValueError(
+                    f"{len(missing)} clustered runs lack stored facets of an admitted DEV task "
+                    f"(first: {missing[0]!r})"
+                )
+            self._execute("DELETE FROM run_clusters")
+            for level in (1, 2, 3):  # parents precede children for the foreign key
+                for row in rows.values():
+                    if row["level"] == level:
+                        self._upsert("run_clusters", row, ("cluster_id",))
+        return {"clusters": len(rows), "runs": len(members)}
+
+    def search_runs(
+        self, facets: Mapping[str, Any] | None = None, *, registry: CorpusRegistry | None = None,
+        allowed_task_ids: Collection[str] | None = None, sealed_task_ids: Iterable[str] = (),
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Admitted ``run-facets/v1`` records matching every filter, most suspicious first.
+
+        ``facets`` maps ``outcome``, ``tests``, ``eval_awareness``, the three
+        booleans, ``suspicion``, ``source``, ``split`` or ``facet_model`` to one
+        value or a collection of accepted values. Registry admission, current
+        trace ownership and facet reads share one snapshot. An optional
+        ``allowed_task_ids`` only narrows admission; an empty scope reads no
+        facet columns. Records naming a sealed identity are withheld.
+        """
+        filters = _facet_filters({} if facets is None else facets)
+        if limit is not None:
+            _integer(limit, "limit", minimum=1)
+        retriever = CloudTraceRetriever(self, registry=registry, sealed_task_ids=sealed_task_ids)
+        with self._transaction():
+            admitted, sealed_ids = retriever._admitted_ids()
+            allowed = frozenset(admitted)
+            if allowed_task_ids is not None:
+                allowed = allowed.intersection(allowed_task_ids)
+            if not allowed:
+                return []
+            parameters: list[Any] = []
+            clauses = [self._task_id_scope("a.task_id", allowed, parameters), "a.task_id = f.task_id"]
+            clauses.extend(self._task_id_scope(f"f.{field}", values, parameters) for field, values in filters)
+            query = (
+                "SELECT f.* FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+                f"WHERE {' AND '.join(clauses)} ORDER BY f.suspicion DESC, f.run_id"
+            )
+            if limit is not None:
+                query += f" LIMIT {limit}"
+            sealed = _sealed_pattern(frozenset(sealed_ids))
+            return [
+                row for row in self._rows(query, parameters)
+                if not retriever._sealed_text(_json_text(row), sealed)
+            ]
 
     def _replace_steps(self, trace_id: str, rows: Sequence[Mapping[str, Any]]) -> None:
         self._execute("DELETE FROM trace_steps WHERE trace_id = ?", (trace_id,))
@@ -1250,7 +1437,7 @@ class CloudTraceDatabase:
                 score = " + ".join(
                     "CASE WHEN (" + self._search_match(table, alias, term, (term,), parameters)
                     + ") THEN 1 ELSE 0 END" for term in terms
-                ) or "1"
+                ) or "0"
             parameters.extend(page)
             confirmed = f" AND {alias}.status = 'confirmed'" if confirmed_only else ""
             rows.extend(self._rows(
@@ -1264,7 +1451,7 @@ class CloudTraceDatabase:
                 rowid = row["query_match"]
                 row["query_match"] = sum(
                     _contains(term_postings, rowid) for term_postings in postings
-                ) if postings else 1
+                ) if postings else 0
         return rows
 
     def _retrieval_step_bounds(
@@ -1841,8 +2028,9 @@ class CloudTraceRetriever:
     def _example(
         self, kind: str | None, task: dict[str, Any], issues: list[dict[str, Any]],
         traces: list[dict[str, Any]], steps: Mapping[str, list[dict[str, Any]]],
-        sealed: re.Pattern[str], terms: Sequence[str], issue_kind: str | None,
-    ) -> tuple[int, int, RetrievedExample, list[dict[str, Any]] | None] | None:
+        sealed: re.Pattern[str], terms: Sequence[str], issue_kind: str | None, *,
+        facet_similarities: Mapping[str, int], trace_backed: bool,
+    ) -> tuple[int, int, int, RetrievedExample, list[dict[str, Any]] | None] | None:
         if self._sealed_text("\n".join(
             str(task[name] or "") for name in ("task_id", "dataset_id", "cas_uri")
         ), sealed):
@@ -1863,6 +2051,8 @@ class CloudTraceRetriever:
             return None
         if not (relevant_issues or relevant_traces):
             return None
+        if trace_backed and not relevant_traces:
+            return None
         if kind == "task_quality" and not relevant_issues:
             return None
         if kind == "reward_seeker" and not (relevant_issues or relevant_traces):
@@ -1875,14 +2065,15 @@ class CloudTraceRetriever:
                 step["query_match"] for step in steps.get(trace["trace_id"], ())
             ) for trace in relevant_traces
         )
-        if not strength:
+        if not strength and terms:
             return None
-        # Stronger trust is chosen first; within a tier, the old evidence order holds.
+        # Stronger trust is chosen first; facets break ties before the old evidence order.
         relevant_issues.sort(key=lambda row: (
             _TRUST_RANK[row["trust_tier"]], -row["query_match"], row["issue_id"],
         ))
         relevant_traces.sort(key=lambda row: (
             _TRUST_RANK[row["trust_tier"]],
+            -facet_similarities.get(row["trace_id"], 0),
             -int(kind == "task_quality" and row["is_task_defect_fail"]),
             -int(kind == "misalignment" and any(
                 step["flagged"] for step in steps.get(row["trace_id"], ())
@@ -2003,6 +2194,9 @@ class CloudTraceRetriever:
                 if isinstance(category, str) and category.strip()
             ] if isinstance(categories, list) else [],
         }
+        similarity = 0 if trace is None else facet_similarities.get(trace["trace_id"], 0)
+        if trace_backed and trace is not None:
+            provenance.update(facet_similarity=similarity, run_facets_matched=trace_backed)
         original = None if issue is None else issue["original_reward"]
         repaired = None if issue is None else issue["repaired_reward"]
         differential = (
@@ -2055,7 +2249,7 @@ class CloudTraceRetriever:
             _json_text(example.to_dict()), sealed,
         ):
             return None
-        return tier, strength, example, trace_rows
+        return tier, similarity, strength, example, trace_rows
 
     def failed_run_summary(self, task_id: str) -> dict[str, Any] | None:
         """Read one same-task DEV failure, admitting identities before any text.
@@ -2103,17 +2297,86 @@ class CloudTraceRetriever:
                 return None
             return trace
 
+    def _retrieval_facets(
+        self, admitted: Sequence[str], sealed: re.Pattern[str],
+        filters: Sequence[tuple[str, list[Any]]], cluster_id: str | None, like_run_id: str | None,
+    ) -> tuple[dict[str, dict[str, Any]], dict[str, int], str | None]:
+        """Matching facets and similarity scores inside the caller's admission snapshot."""
+        database = self.database
+        refused = ValueError("like_run_id must name an admitted trace with stored facets")
+        if not admitted:
+            if cluster_id is not None:
+                raise ValueError("unknown cluster_id")
+            if like_run_id is not None:
+                raise refused
+            return {}, {}, None
+        parameters: list[Any] = []
+        scope = database._task_id_scope("a.task_id", admitted, parameters)
+        # Cluster sizes and membership must depend only on this admitted
+        # projection, before the query's hard filters narrow the candidates.
+        facets = {
+            row["run_id"]: row for row in database._rows(
+                "SELECT f.*, a.trust_tier AS trace_trust_tier "
+                "FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+                f"WHERE {scope} AND a.task_id = f.task_id ORDER BY f.run_id",
+                parameters,
+            ) if not self._sealed_text(
+                "\n".join(value for value in row.values() if isinstance(value, str)), sealed,
+            )
+        }
+        like = None if like_run_id is None else facets.get(like_run_id)
+        if like_run_id is not None and like is None:
+            raise refused
+        members = None
+        if cluster_id is not None:
+            clusters = database._rows(
+                "SELECT run_ids FROM run_clusters WHERE cluster_id = ?", (cluster_id,),
+            )
+            members = set(clusters[0]["run_ids"]).intersection(facets) if clusters else set()
+            if not members:
+                raise ValueError("unknown cluster_id")
+        shared: Collection[str] = ()
+        if like is not None:
+            elements = (
+                "jsonb_array_elements_text(run_ids) AS member(value)"
+                if database._postgres else "json_each(run_ids) AS member"
+            )
+            projected = [
+                (row["level"], row["cluster_id"], set(row["run_ids"]).intersection(facets))
+                for row in database._rows(
+                    f"SELECT cluster_id, level, run_ids FROM run_clusters WHERE EXISTS "
+                    f"(SELECT 1 FROM {elements} WHERE member.value = ?)",
+                    (like_run_id,),
+                )
+            ]
+            if projected:
+                shared = min(projected, key=lambda row: (-row[0], len(row[2]), row[1]))[2]
+        matching = {
+            run_id: row for run_id, row in facets.items()
+            if (members is None or run_id in members)
+            and all(row[field] in values for field, values in filters)
+        }
+        similarities = {} if like is None else {
+            run_id: sum(row[field] == like[field] for field in _FACET_SIMILARITY_FIELDS)
+            + int(run_id in shared)
+            for run_id, row in matching.items()
+        }
+        return matching, similarities, None if like is None else like["task_id"]
+
     def retrieve_similar_examples(
         self, query: str, kind: str | None = None, top_k: int = 3, *,
         issue_kind: str | None = None, exclude_task_ids: Iterable[str] | None = None,
-        include_provisional: bool = False,
+        include_provisional: bool = False, facets: Mapping[str, Any] | None = None,
+        cluster_id: str | None = None, like_run_id: str | None = None,
     ) -> list[RetrievedExample]:
         """Return confirmed issues or explicitly labelled/flagged stored traces.
 
-        Examples rank by trust tier first (container-verified, then
-        consensus-labeled), then by match strength. Tier-3 provisional issues
-        and traces are omitted entirely unless ``include_provisional`` is true,
-        in which case they rank after every stronger example.
+        Examples rank by trust tier, facet similarity to ``like_run_id`` (when
+        supplied), lexical strength, then task identity. Facets and cluster
+        membership hard-filter the trace evidence; any Atlas argument requires
+        a matching trace, even for issue-led queries, and permits an empty query.
+        The like-run must be admitted and faceted; its own task is excluded.
+        Tier-3 provisional evidence is omitted unless requested explicitly.
         """
         if not isinstance(include_provisional, bool):
             raise ValueError("include_provisional must be a boolean")
@@ -2123,6 +2386,10 @@ class CloudTraceRetriever:
         _integer(top_k, "top_k", minimum=1)
         if not isinstance(query, str):
             raise ValueError("query must be a string")
+        filters = _facet_filters({} if facets is None else facets)
+        cluster_id = None if cluster_id is None else _text(cluster_id, "cluster_id")
+        like_run_id = None if like_run_id is None else _text(like_run_id, "like_run_id")
+        trace_backed = facets is not None or cluster_id is not None or like_run_id is not None
         issue_kind = None if issue_kind is None else _text(issue_kind, "issue_kind").strip()
         excluded = {
             identity.casefold()
@@ -2137,51 +2404,68 @@ class CloudTraceRetriever:
             sealed = _sealed_pattern(frozenset(sealed_ids))
             if self._sealed_text(query, sealed):
                 raise ValueError("query contains a sealed task identity")
-            if not terms:
+            if not terms and not trace_backed:
                 return []
+            matching_facets: dict[str, dict[str, Any]] = {}
+            similarities: dict[str, int] = {}
+            if trace_backed:
+                matching_facets, similarities, like_task_id = self._retrieval_facets(
+                    admitted, sealed, filters, cluster_id, like_run_id,
+                )
+                if like_task_id is not None:
+                    excluded.update((
+                        like_task_id.casefold(), CorpusRegistry.task_name(like_task_id).casefold(),
+                    ))
+            matching_tasks = {row["task_id"] for row in matching_facets.values()}
             admitted = [
                 task_id for task_id in admitted
                 if task_id.casefold() not in excluded
                 and CorpusRegistry.task_name(task_id).casefold() not in excluded
+                and (not trace_backed or task_id in matching_tasks)
             ]
             candidates = database._retrieval_task_ids(admitted, query, terms)
             # When fewer than top_k matching tasks hold returnable evidence,
             # every kind (issue-led included) widens to documents matching any
-            # term; ranking stays (tier, per-term strength), so tier 1 still
-            # outranks tier 2 and matching more terms ranks higher within a
-            # tier. Widening is seeded by matches backed by evidence at any
-            # tier, but its size is judged only by evidence that can actually
-            # be returned (lookahead only; screening and the rest of the
-            # pipeline are unchanged). With no backed match there is nothing
-            # to widen.
+            # term. Widening never leaves the admitted, Atlas-filtered task pool.
             eligible = 0
             if candidates:
-                eligible = sum(
-                    task_id in database._evidence_task_ids(allowed) for task_id in candidates
-                )
-            if eligible < top_k:
+                eligible_tasks = {
+                    row["task_id"] for row in matching_facets.values() if row["trace_trust_tier"] in allowed
+                } if trace_backed else database._evidence_task_ids(allowed)
+                eligible = sum(task_id in eligible_tasks for task_id in candidates)
+            if terms and eligible < top_k:
                 widened = database._retrieval_task_ids(
                     admitted, query, terms, conjunction=False,
                 )
-                if any(
-                    task_id in database._evidence_task_ids(TRUST_TIERS) for task_id in widened
-                ):
-                    candidates = sorted(set(candidates) | set(widened))
+                if widened:
+                    backed_tasks = matching_tasks if trace_backed else database._evidence_task_ids(TRUST_TIERS)
+                    if any(task_id in backed_tasks for task_id in widened):
+                        candidates = sorted(set(candidates) | set(widened))
             tasks = database._retrieval_matches(
                 "corpus_tasks", "t", "task_id", candidates, query, terms, columns="t.task_id",
             )
             issues = database._retrieval_matches(
                 "task_issues", "i", "task_id", candidates, query, terms, confirmed_only=True,
             )
+            trace_column = "task_id"
+            trace_values = candidates
+            if trace_backed:
+                candidate_ids = frozenset(candidates)
+                trace_column = "trace_id"
+                trace_values = [
+                    run_id for run_id, row in matching_facets.items() if row["task_id"] in candidate_ids
+                ]
             traces = [
                 trace for trace in database._retrieval_matches(
-                    "agent_traces", "a", "task_id", candidates, query, terms,
-                    columns="a.trace_id, a.task_id, a.is_exploit, a.trust_tier",
+                    "agent_traces", "a", trace_column, trace_values, query, terms,
+                    columns="a.trace_id, a.task_id, a.is_exploit, a.trust_tier, a.step_count",
                 ) if trace["trust_tier"] in allowed
             ]
             bounds = database._retrieval_step_bounds(
                 [trace["trace_id"] for trace in traces], terms,
-            )
+            ) if terms else {
+                trace["trace_id"]: 0 for trace in traces if trace["step_count"]
+            }
             issues_by_task: dict[str, list[dict[str, Any]]] = {}
             traces_by_task: dict[str, list[dict[str, Any]]] = {}
             for issue in issues:
@@ -2191,29 +2475,29 @@ class CloudTraceRetriever:
                     issues_by_task.setdefault(issue["task_id"], []).append(issue)
             for trace in traces:
                 traces_by_task.setdefault(trace["task_id"], []).append(trace)
-            # Screening and step hydration only remove evidence, so each task's
-            # (best tier, strength) bound is never outranked by its example:
-            # tasks are expanded best-first, a batch at a time, until no
-            # unexpanded task can outrank the current top_k. Ranking uses each
-            # expanded task's step matches; only returnable evidence (the task,
-            # its issues/traces, selected steps, and the final example) is
-            # screened against sealed identities.
+            # Screening and step hydration only remove evidence. Each task's
+            # (tier, -similarity, -strength, identity) bound must therefore never
+            # be outranked by its example. Expand best-first until no remaining
+            # task can outrank top_k, using precomputed facet similarity bounds.
             bounded = []
             for task in tasks:
                 task_id = task["task_id"]
-                tier, bound = self._strength_bound(
+                tier, similarity, bound = self._strength_bound(
                     kind, task, issues_by_task.get(task_id, []),
                     traces_by_task.get(task_id, []), bounds, issue_kind,
+                    facet_similarities=similarities, trace_backed=trace_backed,
                 )
-                if bound:
-                    bounded.append((tier, -bound, task_id))
+                if tier < len(TRUST_TIERS) and (bound or not terms):
+                    bounded.append((tier, -similarity, -bound, task_id))
             bounded.sort()
-            ranked: list[tuple[int, int, str, RetrievedExample, list[dict[str, Any]] | None]] = []
+            ranked: list[
+                tuple[int, int, int, str, RetrievedExample, list[dict[str, Any]] | None]
+            ] = []
             position = 0
             while position < len(bounded) and not (
-                len(ranked) >= top_k and ranked[top_k - 1][:3] < bounded[position]
+                len(ranked) >= top_k and ranked[top_k - 1][:4] < bounded[position]
             ):
-                batch = [task_id for _, _, task_id in bounded[position:position + top_k]]
+                batch = [task_id for _, _, _, task_id in bounded[position:position + top_k]]
                 position += len(batch)
                 # Unreturned metadata is not hydrated, and step flags stay raw
                 # text: only the screened/returned steps are decoded in _example.
@@ -2222,8 +2506,11 @@ class CloudTraceRetriever:
                     columns="t.task_id, t.dataset_id, t.instruction_text, t.cas_uri",
                 )
                 batch_traces: dict[str, list[dict[str, Any]]] = {}
+                trace_values = batch if not trace_backed else [
+                    trace["trace_id"] for task_id in batch for trace in traces_by_task.get(task_id, [])
+                ]
                 for trace in database._retrieval_matches(
-                    "agent_traces", "a", "task_id", batch, query, terms,
+                    "agent_traces", "a", trace_column, trace_values, query, terms,
                 ):
                     if trace["trust_tier"] in allowed:
                         batch_traces.setdefault(trace["task_id"], []).append(trace)
@@ -2252,23 +2539,23 @@ class CloudTraceRetriever:
                             trace for trace in batch_traces.get(task_id, [])
                             if not self._sealed_text(self._guarded_text(trace), sealed)
                         ], steps_by_trace, sealed, terms, issue_kind,
+                        facet_similarities=similarities, trace_backed=trace_backed,
                     )
                     if found is not None:
-                        ranked.append((found[0], -found[1], task_id, found[2], found[3]))
-                ranked.sort(key=lambda entry: entry[:3])
-        return [_with_feature_flags(entry[3], entry[4]) for entry in ranked[:top_k]]
+                        ranked.append((found[0], -found[1], -found[2], task_id, found[3], found[4]))
+                ranked.sort(key=lambda entry: entry[:4])
+        return [_with_feature_flags(entry[4], entry[5]) for entry in ranked[:top_k]]
 
     @staticmethod
     def _strength_bound(
         kind: str | None, task: Mapping[str, Any], issues: Sequence[Mapping[str, Any]],
         traces: Sequence[Mapping[str, Any]], step_bounds: Mapping[str, int],
-        issue_kind: str | None,
-    ) -> tuple[int, int]:
-        """Upper bound of ``_example``'s (tier rank, strength); strength zero when
-        it must return ``None``. The tier is the strongest relevant evidence's.
+        issue_kind: str | None, *, facet_similarities: Mapping[str, int], trace_backed: bool,
+    ) -> tuple[int, int, int]:
+        """Optimistic tier, facet similarity and lexical strength for ``_example``.
 
         Misalignment relevance needs a flagged step, so any trace with steps
-        is counted as possibly relevant.
+        is counted as possibly relevant. The sentinel tier means no example.
         """
         relevant_issues = [
             issue for issue in issues
@@ -2281,16 +2568,28 @@ class CloudTraceRetriever:
             or (kind == "misalignment" and trace["trace_id"] in step_bounds)
         ]
         if (issue_kind is not None or kind == "task_quality") and not relevant_issues:
-            return len(TRUST_TIERS), 0
-        if kind == "misalignment" and not relevant_traces:
-            return len(TRUST_TIERS), 0
+            return len(TRUST_TIERS), 0, 0
+        if (trace_backed or kind == "misalignment") and not relevant_traces:
+            return len(TRUST_TIERS), 0, 0
         if not (relevant_issues or relevant_traces):
-            return len(TRUST_TIERS), 0
+            return len(TRUST_TIERS), 0, 0
         tier = min(_TRUST_RANK[row["trust_tier"]] for row in (*relevant_issues, *relevant_traces))
-        return tier, task["query_match"] + sum(issue["query_match"] for issue in relevant_issues) + sum(
+        trace_tier = min(
+            (_TRUST_RANK[trace["trust_tier"]] for trace in relevant_traces), default=len(TRUST_TIERS),
+        )
+        # A strong issue can mask a screened trace's downgrade in trust. Bound
+        # every trace's similarity in that case, since the next-best trace may
+        # be more similar while the example's issue keeps its original tier.
+        issue_keeps_tier = any(_TRUST_RANK[issue["trust_tier"]] <= trace_tier for issue in relevant_issues)
+        similarity = max((
+            facet_similarities.get(trace["trace_id"], 0) for trace in relevant_traces
+            if issue_keeps_tier or _TRUST_RANK[trace["trust_tier"]] == trace_tier
+        ), default=0)
+        strength = task["query_match"] + sum(issue["query_match"] for issue in relevant_issues) + sum(
             trace["query_match"] + step_bounds.get(trace["trace_id"], 0)
             for trace in relevant_traces
         )
+        return tier, similarity, strength
 
     @staticmethod
     def format_for_prompt(
@@ -2385,6 +2684,18 @@ class CloudTraceRetriever:
                     steps.append(self._step_evidence(step))
             result.update(trace_id=self._identity(raw_id), steps=steps)
             return result
+
+    def search_runs(
+        self, facets: Mapping[str, Any] | None = None, *, limit: int | None = 50,
+    ) -> list[dict[str, Any]]:
+        """``CloudTraceDatabase.search_runs`` over admitted DEV runs only.
+
+        Admission is decided before any facet is read; a record that names a
+        sealed identity is dropped, so fewer than ``limit`` may return.
+        """
+        return self.database.search_runs(
+            facets, registry=self.registry, sealed_task_ids=self._sealed_ids, limit=limit,
+        )
 
 
 def import_run_facets(

@@ -1,0 +1,13 @@
+{
+  "schema": "evallab.trace_tools_runtime_note/v1",
+  "at": "2026-10-27T22:10:57.180089+00:00",
+  "issue": "inspect-scout 0.5.4 index compaction calls DuckDB fetch_arrow_table; unbounded external dependency resolution installed duckdb 2.0.0, which removed that method",
+  "observed_error": "Index compaction failed (data is consistent): '_duckdb.DuckDBPyConnection' object has no attribute 'fetch_arrow_table'",
+  "invalid_scan_id": "kfgPkoX6j6JNdgQEtmGLVA",
+  "invalid_scan_transcript_count": 0,
+  "invalid_scan_model_calls": 0,
+  "invalid_scan_usd": 0,
+  "correction": "Pinned isolated external scanner runtime to duckdb==1.5.5; retained the native zero-work scan as evidence, archived its batch state, and started a fresh smoke snapshot against the intact blinded Parquet data",
+  "source_or_scanner_changes": false,
+  "model_changed": false
+}

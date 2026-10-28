@@ -190,6 +190,19 @@ def cloud_trace_ids(
     return [row["trace_id"] for row in rows if row["task_id"] in admitted]
 
 
+def _arguments(value: Any) -> dict[str, Any]:
+    """ATIF tool-call arguments are objects; native rows often store JSON strings."""
+    if isinstance(value, Mapping):
+        return dict(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            return {"raw": value}
+        return dict(parsed) if isinstance(parsed, Mapping) else {"raw": value}
+    return {} if value is None else {"raw": value}
+
+
 def _tool_calls(tool_name: str | None, command: str | None) -> list[dict[str, Any]]:
     if not command and not tool_name:
         return []
@@ -205,11 +218,12 @@ def _tool_calls(tool_name: str | None, command: str | None) -> list[dict[str, An
                 {
                     "tool_call_id": str(call.get("id") or ""),
                     "function_name": str(call.get("name") or ""),
-                    "arguments": call.get("arguments"),
+                    "arguments": _arguments(call.get("arguments")),
                 }
                 for call in parsed
             ]
-    return [{"tool_call_id": "", "function_name": tool_name or "action", "arguments": command or ""}]
+    return [{"tool_call_id": "", "function_name": tool_name or "action",
+             "arguments": _arguments(command or "")}]
 
 
 def cloud_doc(connection: sqlite3.Connection, trace_id: str) -> dict[str, Any]:
@@ -403,7 +417,10 @@ def render_step(step: Mapping[str, Any], *, pattern: re.Pattern[str] = SOURCE_NA
         if not isinstance(call, Mapping):
             continue
         name = str(call.get("function_name") or call.get("name") or "tool")
-        lines += [f"<call {name}>", bound(_text(call.get("arguments")), ACTION_CHARS), "</call>"]
+        arguments = call.get("arguments")
+        if isinstance(arguments, Mapping) and set(arguments) == {"raw"}:
+            arguments = arguments["raw"]
+        lines += [f"<call {name}>", bound(_text(arguments), ACTION_CHARS), "</call>"]
     observation = step.get("observation")
     results = observation.get("results") if isinstance(observation, Mapping) else None
     if results:
@@ -938,6 +955,8 @@ def load_facets(path: Path = DEFAULT_FACETS) -> dict[str, dict[str, Any]]:
     if not path.is_file():
         return records
     with path.open(encoding="utf-8") as handle:
+        # Append writers hold LOCK_EX until a complete batch of lines is flushed.
+        fcntl.flock(handle, fcntl.LOCK_SH)
         for line in handle:
             if line.strip():
                 record = json.loads(line)
@@ -988,6 +1007,10 @@ class RoutePool:
                     route = min(free, key=lambda r: (self.active[r], order.index(r)))
                     self.active[route] += 1
                     return route
+                if not any(route not in exclude and self.benched.get(route, 0.0) <= self.clock()
+                           for route in self.routes):
+                    # Let the quota-aware outer scheduler retry after a reset.
+                    return None
                 self.condition.wait(timeout=30)
 
     def release(self, route: str, *, quota: bool = False) -> None:
@@ -1062,8 +1085,12 @@ def extract_runs(
 
 def _record(outcome: ExtractOutcome, summary: dict[str, Any], lock: threading.Lock,
             facets_path: Path, calls_path: Path, log: Callable[[str], None]) -> None:
-    final = {"run_id": outcome.run_id, "status": "ok" if outcome.record else "failed",
-             "purpose": "run", "error": outcome.error}
+    final: dict[str, Any] = {"run_id": outcome.run_id, "status": "ok" if outcome.record else "failed",
+                             "purpose": "run", "error": outcome.error}
+    if outcome.record is None and (
+        outcome.error == "no route available" or (outcome.calls and outcome.calls[-1].get("quota"))
+    ):
+        final["quota_exhausted"] = True
     with lock:
         append_jsonl(calls_path, [*outcome.calls, final])
         summary["input_tokens"] += sum(c.get("input_tokens", 0) for c in outcome.calls)
@@ -1121,6 +1148,12 @@ def register_parser(commands: Any) -> None:
     from evallab.production.run_atlas_score import add_score_parser
 
     add_score_parser(actions)
+    from evallab.production.run_atlas_clusters import add_clusters_parser
+
+    add_clusters_parser(actions)
+    from evallab.production.run_atlas_watch import add_watch_parser
+
+    add_watch_parser(actions)
 
 
 def _run_ids(args: argparse.Namespace) -> list[str] | None:

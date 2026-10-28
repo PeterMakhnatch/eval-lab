@@ -1,0 +1,32 @@
+[
+  {
+    "at": "2026-10-27T22:10:57.180089+00:00",
+    "basis": "Explicit TT-4 lane approval: SuperGrok OAuth subscription; $0 marginal; no API keys or fallback",
+    "batch": "smoke-00",
+    "calls": 0,
+    "input_tokens": 0,
+    "model": "xai-oauth/grok-4.3",
+    "output_tokens": 0,
+    "route": "omp-subscription",
+    "runs": 10,
+    "served_models": [],
+    "tool": "scout_metr",
+    "usd": 0
+  },
+  {
+    "at": "2026-10-27T22:23:00.603909+00:00",
+    "basis": "Explicit TT-4 lane approval: SuperGrok OAuth subscription; $0 marginal; no API keys or fallback; interrupted at exhausted weekly quota; token counts cover attested calls only",
+    "batch": "smoke-00-interrupted",
+    "calls": 47,
+    "input_tokens": 1820079,
+    "model": "xai-oauth/grok-4.3",
+    "output_tokens": 22988,
+    "route": "omp-subscription",
+    "runs": 10,
+    "served_models": [
+      "xai-oauth/grok-4.3"
+    ],
+    "tool": "scout_metr",
+    "usd": 0
+  }
+]

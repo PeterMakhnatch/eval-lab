@@ -91,6 +91,7 @@ from evallab.production.monitor_worker import MisalignmentLiveWorker
 from evallab.production.outbox_relay import LocalJetStreamAdapter, OutboxRelay
 from evallab.production.seeker_worker import RewardSeekerLiveWorker
 from evallab.production.supervisor import ProductionSupervisor
+from evallab.production.tool_scorecard_view import ToolScorecardCache
 from evallab.production.tq_worker import TaskQualityLiveWorker
 from evallab.production.trace_feature_flags import compute_trace_feature_flags
 
@@ -181,6 +182,7 @@ class CloudRuntime:
         self._closed = False
         self._atlas_lock = threading.Lock()
         self._atlas_cache: tuple[list[tuple[int, int, int] | None], atlas_view.AtlasStore] | None = None
+        self._tool_scorecard = ToolScorecardCache(self.data_root)
         self.registry = CorpusRegistry(self.repo_root)
         with ExitStack() as cleanup:
             self.queue = ContinuousWorkQueue(self.data_root / "prod.sqlite", registry=self.registry)
@@ -192,6 +194,7 @@ class CloudRuntime:
             self.app = create_app(
                 self.queue,
                 operator_tokens={token: "Peter"},
+                home="atlas",
                 asset_store=VerifiedAssetStore(
                     self.queue,
                     self.registry,
@@ -673,6 +676,11 @@ class CloudRuntime:
         def atlas_run(run_id: str, split: str = "dev"):
             _require_dev(split)
             return self._atlas_run(run_id)
+
+        @self.app.get("/api/cloud-db/trace-tools")
+        def trace_tools(split: str = "dev"):
+            _require_dev(split)
+            return self._tool_scorecard.get()
 
     def run_supervisor_step(self, approval: str, max_usd: float) -> dict[str, Any]:
         """One explicitly approved cloud step, never a laptop Docker fallback."""

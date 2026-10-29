@@ -1,0 +1,26 @@
+{
+ "inputs_sha256": {
+  "assignments.csv": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+  "cm11b/after-cheatbench.jsonl": "b8d5bafbf7903a6c77848215deb5862354e91973a65189f6216388e7a936b43c",
+  "cm11b/after-goodfire.jsonl": "59260bc901c141d56a186818e89c33855fd20a7fe353671e4e6cdd27fb6f0eb4",
+  "cm11b/before-cheatbench.jsonl": "ba874c78e390fbc67661d686179c74c00a431fb0d5039c1d945ef96936b43c6c",
+  "cm11b/before-goodfire.jsonl": "f581706ab1605681906eb57cd23d73769e3ae463f5c4d66e54ae3670c6d58471",
+  "cm11b/manifest.json": "7e5d8227102988bf2f36f881136aa3f00272df2bd037f09754ce96aa06e41407",
+  "cm6/e2escore-cheatbench-pf_r.json": "7b746b34eae3ce8ea774a0d273a0d65dca210af5ee3d6d9851d50546445ea68e",
+  "cm6/e2escore-goodfire-pf_r.json": "a8a64d626941fe29303dba231699163fb2e5bce588707b270ec59ef3493d7d54",
+  "facet-calls-v1.jsonl": "c76d49d31e5a1fb9ecf5de30eec9f69d7090864f842a713d62c77b54c1c5be24",
+  "facets-v1.jsonl": "22de9f5c63e8273876ac1b7e32e668b1cae1c23da6d2a3ce82ab098f5e232001",
+  "flake/cascade-v8.jsonl": "4eda406126d9b506dd06d216c5b6c973ae954db7df9598c729e38a617523cbcc",
+  "flake/facets.jsonl": "8bc021feac4615a2bdc87757ab930f471d3b515796d4d86a6036c2c247e64beb",
+  "flake/reasons.json": "1cebb7680b3d0e8ca876282d473b6ca60e4195b22f79f60568545bbd36e133ce",
+  "flake/runs.pkl": "3f675469c78107fe68e1c207d55f776a0bcac3835f630e91c99aa0fb19b9bd16",
+  "goodfire-sample.json": "e24db6ec51ca12f7184301caa9a2467446e4a2e090ecfcb9a2b25c3ca1eb7f87"
+ },
+ "tool_sha256": {
+  "data": "a58a4595bd90df8b61b308c8b5782a809cf66c5c60cadfd685110712075c6da0",
+  "membership": "76cb3424e963c81cd1dee7c1a72a637fb1be6779c3cce98124d1b2faaab18f50",
+  "score": "3f0c26a7fa5ba00dd8ae91e89fe0bb1d70648edde17ca3883755326cec9bc888",
+  "stats": "f153e4920ba84d1917d6b52bda51219a1878f22a70ea2172fb5dcda16164c255",
+  "test_edits": "c82f820453b464a984c19172f8e89bea803c8c89eb1a27fb59fabcc0b4a2b913"
+ }
+}

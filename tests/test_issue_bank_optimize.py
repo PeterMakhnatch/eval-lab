@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
@@ -95,6 +96,26 @@ def test_missing_family_authority_and_single_group_never_fall_back_to_rows() -> 
         example["units"] = ["one-family"]
     with pytest.raises(opt.PrerequisiteError, match="no row-level fallback"):
         opt.grouped_split(examples, seed=17, train=1, validation=1)
+
+
+def test_tasks_outside_the_ledger_group_by_task_and_are_counted() -> None:
+    population: Counter = Counter()
+    ledger = {"known": frozenset({"family-a"})}
+    assert opt._units("known", ledger, population) == ["family-a"]
+    assert opt._units("goodfire-task", ledger, population) == ["task-only:goodfire-task"]
+    assert population == Counter({"task_only_grouping": 1})
+    # Two runs of one unledgered task can never straddle train and validation.
+    examples = [
+        {
+            "id": f"trace-{i}",
+            "prompt": "trace",
+            "task": task,
+            "units": opt._units(task, ledger, population),
+        }
+        for i, task in enumerate(["goodfire-task", "goodfire-task", "other", "known"])
+    ]
+    groups = opt.grouped_split(examples, seed=1, train=1, validation=1)["groups"]
+    assert groups["trace-0"] == groups["trace-1"]
 
 
 def test_plan_is_opaque_to_cross_labels_and_separates_truth(

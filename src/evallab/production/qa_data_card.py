@@ -75,6 +75,8 @@ def _stored(ctx: QaContext, run_id: str) -> dict[str, Any]:
         facets = ctx.database._rows(
             "SELECT * FROM run_facets WHERE run_id = ? AND task_id = ?", (run_id, task_id),
         )
+        if facets and run_id not in ctx.served_facet_run_ids((task_id,)):
+            facets = []  # a record `runs` withholds for naming a sealed identity is not shown here either
         findings = ctx.database._rows(
             "SELECT * FROM trace_findings WHERE run_id = ? AND task_id = ?", (run_id, task_id),
         ) if has_table(ctx.database) else []

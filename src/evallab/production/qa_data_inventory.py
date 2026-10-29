@@ -186,8 +186,14 @@ def traces(
                 selected = [row for row in selected if alarmed_by in by_run.get(row["trace_id"], {}).get("alarms", ())]
             if sort == "alarms":  # stable: equal counts keep the dataset, task, model, trace order
                 selected.sort(key=lambda row: -len(by_run.get(row["trace_id"], {}).get("alarms", ())))
+        page = selected[:limit]
+        # ``faceted`` means ``runs`` would serve this run's facet record; a record withheld for naming
+        # a sealed identity is not one (the raw join below only says a row exists).
+        served = set() if ids_only else ctx.served_facet_run_ids(
+            {row["task_id"] for row in page if row["faceted"]},
+        )
         actors = {
-            row["trace_id"]: has_actor_inputs(ctx.database, row["trace_id"]) for row in selected[:limit]
+            row["trace_id"]: has_actor_inputs(ctx.database, row["trace_id"]) for row in page
         } if found is not None and not ids_only else {}
     matched: list[Any] = []
     for row in selected:
@@ -195,7 +201,8 @@ def traces(
             matched.append(row["trace_id"])
             continue
         item = {key: row[key] for key in ("trace_id", "task_id", "dataset_id", "model_id", "step_count")} | {
-            "outcome": outcome_from_reward(row["reward"]), "faceted": bool(row["faceted"]),
+            "outcome": outcome_from_reward(row["reward"]),
+            "faceted": bool(row["faceted"]) and row["trace_id"] in served,
         }
         if found is not None:
             entry = by_run.get(row["trace_id"], {"alarms": (), "results": 0})

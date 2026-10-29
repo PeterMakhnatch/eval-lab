@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
+from psycopg.conninfo import conninfo_to_dict
 from psycopg.types.json import Jsonb
 
 from evallab.production.corpus_queue import DATASETS, CorpusRegistry
@@ -422,11 +423,14 @@ class S3CompatibleCAS:
 
 
 # Retrieval hydrates step flags as raw text in schema column order; only the
-# steps screened for return are decoded.
-_RAW_FLAG_STEP_COLUMNS = ", ".join(
-    f"s.{column} AS flags_text" if column == "flags_json" else f"s.{column}"
-    for column in _STEP_COLUMNS
-)
+# steps screened for return are decoded. PostgreSQL JSONB is cast back to text
+# (the driver would decode it eagerly), keyed by ``CloudTraceDatabase._postgres``.
+_RAW_FLAG_STEP_COLUMNS = {
+    postgres: ", ".join(
+        f"s.{column}{'::text' if postgres else ''} AS flags_text" if column == "flags_json" else f"s.{column}"
+        for column in _STEP_COLUMNS
+    ) for postgres in (False, True)
+}
 
 
 _PASSAGE_POSITIVE = re.compile(r'"passage_positive"\s*:\s*true')
@@ -515,9 +519,12 @@ class CloudTraceDatabase:
         self._memo_values: dict[tuple[Any, ...], Any] = {}
         self._connection: Any
         if self._postgres:
+            # ``options=`` replaces, not extends, the DSN's own (e.g. a ``-csearch_path``): carry it over.
+            read_only_option = "-c default_transaction_read_only=on"
+            carried = conninfo_to_dict(target).get("options") if read_only else None
             self._connection = psycopg.connect(
                 target, autocommit=True,
-                **({"options": "-c default_transaction_read_only=on"} if read_only else {}),
+                **({"options": f"{carried} {read_only_option}" if carried else read_only_option} if read_only else {}),
             )
         else:
             if "://" in target and not target.startswith("sqlite:///"):
@@ -2698,7 +2705,7 @@ class CloudTraceRetriever:
                 steps_by_trace: dict[str, list[dict[str, Any]]] = {}
                 for step in database._retrieval_matches(
                     "trace_steps", "s", "trace_id", list(labeled), query, terms,
-                    columns=_RAW_FLAG_STEP_COLUMNS,
+                    columns=_RAW_FLAG_STEP_COLUMNS[database._postgres],
                 ):
                     if step["role"] not in _STEP_ROLE_RANK:
                         step["query_match"] = 0
@@ -2851,7 +2858,7 @@ class CloudTraceRetriever:
             labeled = set(row["flagged_passage_steps"] or ())
             steps = []
             for step in database._rows(
-                f"SELECT {_RAW_FLAG_STEP_COLUMNS} FROM trace_steps s WHERE s.trace_id = ? "
+                f"SELECT {_RAW_FLAG_STEP_COLUMNS[database._postgres]} FROM trace_steps s WHERE s.trace_id = ? "
                 "AND s.step_index BETWEEN ? AND ? AND s.role != 'user' ORDER BY s.step_index",
                 (raw_id, first, last),
             ):

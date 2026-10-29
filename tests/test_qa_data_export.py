@@ -113,7 +113,8 @@ def test_facets_export_most_suspicious_first_with_original_and_blinded_evidence(
     before = Path(ctx.database_path or "").read_bytes()
     data = _export(ctx, out, limit=2)
     assert [run["trace_id"] for run in data["runs"]] == ["trace-z", "trace-b"]
-    assert (data["receipt"]["admitted"], data["receipt"]["exported"], data["receipt"]["refused"]) == (2, 2, 0)
+    # admitted counts every facet match, so the run the limit left out stays visible.
+    assert (data["receipt"]["admitted"], data["receipt"]["exported"], data["receipt"]["refused"]) == (3, 2, 0)
     assert data["receipt"]["format"] == "atif"
     assert data["receipt"]["manifest_sha256"] == hashlib.sha256(_manifest(out).read_bytes()).hexdigest()
     assert data["output_directory"] == str(out) and data["sealed_manifest"] == str(_manifest(out))
@@ -132,6 +133,18 @@ def test_facets_export_most_suspicious_first_with_original_and_blinded_evidence(
     assert not data["truncated"] and data["omitted"] == 0
     assert Path(ctx.database_path or "").read_bytes() == before
     assert estimate_tokens(data) <= ctx.budget.used <= ctx.budget.limit
+
+
+def test_a_limit_smaller_than_the_facet_match_count_still_reports_every_match(
+    ctx: QaContext, tmp_path: Path,
+) -> None:
+    """A limited facet export names the matched runs it did not publish, so none vanish silently."""
+    out = tmp_path / "limited-selection"
+    data = _export(ctx, out, limit=1)
+    assert (data["receipt"]["admitted"], data["receipt"]["exported"], data["receipt"]["refused"]) == (3, 1, 0)
+    assert len(data["runs"]) == 1 and len(json.loads(_manifest(out).read_text())) == 1
+    # The selection count is a pre-limit count, not a reply-budget omission.
+    assert not data["truncated"] and data["omitted"] == 0
 
 
 def test_explicit_ids_merge_file_comments_and_duplicates_and_preserve_requested_order(ctx: QaContext, tmp_path: Path) -> None:

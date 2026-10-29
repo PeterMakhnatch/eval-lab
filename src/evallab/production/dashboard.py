@@ -118,27 +118,6 @@ DASHBOARD: str = r"""<!doctype html>
  <div class="panel-head"><div><div class="eyebrow">Blinded run facets / admitted DEV evidence</div><h2>Run Atlas</h2></div><button id="cloud-atlas-refresh" type="button" class="small">Refresh atlas</button></div>
  <p class="seal">Facets are model-read summaries of blinded runs: leads, not verdicts. DEV only. Label rates are recorded at scoring time.</p>
  <p id="cloud-atlas-status" class="notice" role="status"></p>
- <details id="atlas-tools" class="atlas-tools" open>
-  <summary>Which tool to trust · recall and false alarms on labelled cohorts</summary>
-  <p id="atlas-tools-status" class="notice" role="status"></p>
-  <div id="atlas-tools-table"></div>
-  <div class="row"><button id="atlas-tools-open" type="button" class="small">Open Trace Tools for cost, detectors and sources</button></div>
- </details>
-<details id="atlas-readers" class="atlas-tools" open>
- <summary>Reader mix · which model read each population's stored facets</summary>
- <p id="atlas-readers-status" class="notice" role="status"></p>
- <div id="atlas-readers-body"></div>
-</details>
-<details id="atlas-coverage" class="atlas-tools" open>
- <summary>Coverage · stored facets versus admitted runs, and what is not yet ready</summary>
- <p id="atlas-coverage-status" class="notice" role="status"></p>
- <div id="atlas-coverage-body"></div>
-</details>
-<details id="atlas-reliability" class="atlas-tools" open>
- <summary>Field reliability · how often a blind re-rating agreed with each facet field</summary>
- <p id="atlas-reliability-status" class="notice" role="status"></p>
- <div id="atlas-reliability-body"></div>
-</details>
  <div id="cloud-atlas-health"></div>
  <form id="cloud-atlas-filters" class="cloud-filters">
   <div><label for="atlas-source">Source</label><select id="atlas-source"><option value="">Any source</option></select></div>
@@ -146,11 +125,13 @@ DASHBOARD: str = r"""<!doctype html>
   <div><label for="atlas-tests">Tests</label><select id="atlas-tests"><option value="">Any tests</option></select></div>
   <div><label for="atlas-eval_awareness">Eval awareness</label><select id="atlas-eval_awareness"><option value="">Any eval awareness</option></select></div>
   <div><label for="atlas-facet_model">Reader (facet model)</label><select id="atlas-facet_model"><option value="">Any reader</option></select></div>
+  <div><label for="atlas-alarmed_by">Detector alarm</label><select id="atlas-alarmed_by"><option value="">Any detector alarm</option></select></div>
   <div><label for="atlas-min_suspicion">Min suspicion · counts at exact value</label><select id="atlas-min_suspicion"><option value="">Any suspicion</option></select></div>
   <div><label for="atlas-grader_or_harness_touched">Grader / harness touched</label><select id="atlas-grader_or_harness_touched"><option value="">Any</option></select></div>
   <div><label for="atlas-answer_material_accessed">Answer material accessed</label><select id="atlas-answer_material_accessed"><option value="">Any</option></select></div>
   <div><label for="atlas-success_claim_without_evidence">Success claim without evidence</label><select id="atlas-success_claim_without_evidence"><option value="">Any</option></select></div>
   <div><label for="atlas-limit">Page size</label><select id="atlas-limit"><option value="25">25</option><option value="50">50</option><option value="100">100</option><option value="200">200</option></select></div>
+  <div><label for="atlas-sort">Order</label><select id="atlas-sort"><option value="suspicion">Most suspicious first</option><option value="alarms">Most detector alarms first</option></select></div>
   <div class="cloud-query"><label for="atlas-query">Search run ID, task, goal, approach or shortcut</label><input id="atlas-query" type="search" autocomplete="off" placeholder="Search blinded facets…"></div>
   <div class="actions"><button type="submit" class="primary">Search DEV facets</button><button id="atlas-reset" type="button">Reset filters and cluster</button><small>Option counts describe all admitted facets, not the current filter. Boolean counts are supplied for Yes only.</small></div>
  </form>
@@ -163,6 +144,27 @@ DASHBOARD: str = r"""<!doctype html>
   <p class="seal">Trace flags and playbook cards are routing leads, not verdicts. No wrong submission or grader weakness is established by a flag alone.</p>
   <p id="atlas-run-status" class="notice" role="status"></p><div id="atlas-run-content"></div>
  </section>
+ <details id="atlas-tools" class="atlas-tools" open>
+  <summary>Which tool to trust · recall and false alarms on labelled cohorts</summary>
+  <p id="atlas-tools-status" class="notice" role="status"></p>
+  <div id="atlas-tools-table"></div>
+  <div class="row"><button id="atlas-tools-open" type="button" class="small">Open Trace Tools for cost, detectors and sources</button></div>
+ </details>
+<details id="atlas-readers" class="atlas-tools" open>
+ <summary>Reader mix · which model read each population's stored facets</summary>
+ <p id="atlas-readers-status" class="notice" role="status"></p>
+ <div id="atlas-readers-body"></div>
+</details>
+<details id="atlas-coverage" class="atlas-tools">
+ <summary>Coverage · stored facets versus admitted runs, and what is not yet ready</summary>
+ <p id="atlas-coverage-status" class="notice" role="status"></p>
+ <div id="atlas-coverage-body"></div>
+</details>
+<details id="atlas-reliability" class="atlas-tools">
+ <summary>Field reliability · how often a blind re-rating agreed with each facet field</summary>
+ <p id="atlas-reliability-status" class="notice" role="status"></p>
+ <div id="atlas-reliability-body"></div>
+</details>
 </section>
 <section id="tools-view" class="panel" role="tabpanel" aria-labelledby="tools-tab" hidden>
  <div class="panel-head"><div><div class="eyebrow">Whole-run tools / rule cascade / blinded facets</div><h2>Trace Tools</h2></div><button id="cloud-tools-refresh" type="button" class="small">Refresh scorecard</button></div>
@@ -780,10 +782,19 @@ function cloudSystemPlaybook(report,parent){
  parent.append(grid,flags);
 }
 const atlasCategories=[['source','Any source'],['outcome','Any outcome'],['tests','Any tests'],
- ['eval_awareness','Any eval awareness'],['facet_model','Any reader'],['min_suspicion','Any suspicion']];
+ ['eval_awareness','Any eval awareness'],['facet_model','Any reader'],['alarmed_by','Any detector alarm'],['min_suspicion','Any suspicion']];
 const atlasBooleans=[['grader_or_harness_touched','Grader / harness'],
  ['answer_material_accessed','Answer material'],['success_claim_without_evidence','Unevidenced success claim']];
 let atlasOffset=0,atlasCluster='',atlasListVersion=0,atlasRunVersion=0,atlasRunId='',atlasRunOpener=null,atlasShownIds=[],atlasToolsVersion=0;
+function atlasAlarms(run,available){
+ const chips=node('div',undefined,'chips');
+ for(const name of list(run.alarms))chips.append(badge(name,'warn'));
+ if(!available)chips.append(node('small','No detector results retained'));
+ else if(!chips.children.length)chips.append(node('small',run.detector_results_n===0?'No detector read this run':
+  run.actor_inputs_available===false?'No actor transcript: unknown, not clean':'No detector alarm'));
+ if(available&&run.detector_results_n>0)chips.append(node('small','read by '+cloudCount(run.detector_results_n)+(run.detector_results_n===1?' detector':' detectors')));
+ return chips;
+}
 function atlasOptions(options){
  for(const [key,any] of atlasCategories){
   const select=$('atlas-'+key),selected=select.value,first=node('option',any);
@@ -872,7 +883,7 @@ function atlasRuns(data){
    'No facets have been written yet. Nothing is fabricated.':
    'No admitted DEV runs match these filters. Reset filters or inspect store health.','empty'));return;
  }
-const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Dataset / task','Goal','Approach','Shortcut',
+const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Detector alarms','Dataset / task','Goal','Approach','Shortcut',
   'Tests','Facet flags','Eval awareness','Tokens in / out','Clusters','Reader · facet version · blinding'],runs.map(run=>{
   const open=button(String(run.run_id).slice(0,20),()=>openAtlasRun(run.run_id,open),'link');
   open.title=run.run_id;open.setAttribute('aria-label','Open run '+run.run_id);open.dataset.runId=run.run_id;openers.push(open);
@@ -880,7 +891,7 @@ const openers=[],table=cloudTable(['Suspicion','Run ID · open detail','Dataset 
   identity.append(node('small',run.task_id));
   for(const id of list(run.cluster_ids)){const chip=badge(clusters.get(id)??id);chip.title=id;chips.append(chip);}
   if(!chips.children.length)chips.append(node('small','No retained cluster'));
-  return [badge(cloudCount(run.suspicion),run.suspicion>0?'warn':''),open,identity,run.goal,run.approach,
+  return [badge(cloudCount(run.suspicion),run.suspicion>0?'warn':''),open,atlasAlarms(run,data.alarms_available),identity,run.goal,run.approach,
    run.shortcut,run.tests,atlasFlagBadges(run),run.eval_awareness,
    cloudCount(run.input_tokens)+' / '+cloudCount(run.output_tokens),chips,atlasVersion(run)];
  }));
@@ -1128,10 +1139,13 @@ $('atlas-run-refresh').addEventListener('click',()=>{if(atlasRunId)openAtlasRun(
 $('atlas-view').addEventListener('keydown',event=>{
  if(event.key==='Escape'&&!$('atlas-run-panel').hidden){event.preventDefault();closeAtlasRun();}
 });
-const atlasFilterKeys=[...atlasCategories,...atlasBooleans].map(([key])=>key);
+const atlasFilterKeys=[...atlasCategories,...atlasBooleans].map(([key])=>key).concat('sort');
 function atlasFilterParams(){
  const params=new URLSearchParams();
- for(const key of atlasFilterKeys)if($('atlas-'+key).value)params.set(key,$('atlas-'+key).value);
+ for(const key of atlasFilterKeys){
+  const value=$('atlas-'+key).value;
+  if(value&&!(key==='sort'&&value==='suspicion'))params.set(key,value);
+ }
  const query=$('atlas-query').value.trim();if(query)params.set('q',query);
  if(atlasCluster)params.set('cluster_id',atlasCluster);
  return params;

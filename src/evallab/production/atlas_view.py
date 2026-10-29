@@ -23,7 +23,7 @@ import math
 import os
 import stat
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -314,6 +314,8 @@ class AtlasFilters:
     answer_material_accessed: bool | None = None
     success_claim_without_evidence: bool | None = None
     cluster_id: str | None = None
+    alarmed_by: str | None = None
+    sort: Literal["suspicion", "alarms"] = "suspicion"
 
 
 _CATEGORIES = ("source", "outcome", "tests", "eval_awareness", "suspicion", "facet_model")
@@ -384,11 +386,15 @@ def atlas_listing(
     limit: int = 50,
     offset: int = 0,
     blinding: Mapping[str, str] | None = None,
+    alarms: Mapping[str, Collection[str]] | None = None,
+    read: Mapping[str, int] | None = None,
+    alarms_available: bool = False,
 ) -> dict[str, Any]:
     """Cluster tree, filter counts and one page of matching runs for the admitted DEV set."""
     if not 1 <= limit <= MAX_PAGE or offset < 0:
         raise ValueError(f"limit must be 1..{MAX_PAGE} and offset non-negative")
     shown, withheld = visible_facets(store, traces)
+    alarmed: Mapping[str, Collection[str]] = alarms or {}
     members: set[str] | None = None
     tree = list((store.clusters or {}).get("clusters", []))
     if filters.cluster_id is not None:
@@ -399,10 +405,15 @@ def atlas_listing(
     matching = [
         run_id
         for run_id, facet in shown.items()
-        if (members is None or run_id in members) and _matches(facet, traces[run_id], filters)
+        if (members is None or run_id in members)
+        and (filters.alarmed_by is None or filters.alarmed_by in alarmed.get(run_id, ()))
+        and _matches(facet, traces[run_id], filters)
     ]
     matching_set = set(matching)
-    matching.sort(key=lambda run_id: (-shown[run_id]["suspicion"], run_id))
+    if filters.sort == "alarms":
+        matching.sort(key=lambda run_id: (-len(alarmed.get(run_id, ())), -shown[run_id]["suspicion"], run_id))
+    else:
+        matching.sort(key=lambda run_id: (-shown[run_id]["suspicion"], run_id))
     page = matching[offset : offset + limit]
     by_run: dict[str, list[str]] = {run_id: [] for run_id in page}
     for item in tree:
@@ -413,6 +424,9 @@ def atlas_listing(
         name: dict(sorted(Counter(str(facet[name]) for facet in shown.values()).items()))
         for name in _CATEGORIES
     } | {name: sum(1 for facet in shown.values() if facet[name]) for name in _FLAGS}
+    options["alarmed_by"] = dict(
+        sorted(Counter(name for run_id in shown for name in alarmed.get(run_id, ())).items())
+    )
     return {
         "store": {
             "facets_n": len(store.facets),
@@ -426,6 +440,7 @@ def atlas_listing(
         },
         "scored_at": (store.clusters or {}).get("scored_at"),
         "options": options,
+        "alarms_available": alarms_available,
         "clusters": [
             {
                 "cluster_id": item["cluster_id"],
@@ -449,6 +464,8 @@ def atlas_listing(
                 "trust_tier": traces[run_id]["trust_tier"],
                 "step_count": traces[run_id]["step_count"],
                 "cluster_ids": by_run[run_id],
+                "alarms": sorted(alarmed.get(run_id, ())),
+                "detector_results_n": (read or {}).get(run_id, 0),
                 "blinding": None if blinding is None else blinding.get(run_id),
             }
             for run_id in page

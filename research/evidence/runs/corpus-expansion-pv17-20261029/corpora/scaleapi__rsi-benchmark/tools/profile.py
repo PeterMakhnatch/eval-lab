@@ -205,17 +205,24 @@ def feature_floor(items: list[dict[str, Any]], scores: list[float]) -> dict[str,
     """Pooled AUROC, and the mean of per-scenario AUROCs (scenario balanced 50/50 by design)."""
     pooled = score_auroc(items, scores)
     per: list[float] = []
+    per_oriented: list[float] = []
     for scenario in sorted({u["scenario"] for u in items}):
         idx = [i for i, u in enumerate(items) if u["scenario"] == scenario]
         value = score_auroc([items[i] for i in idx], [scores[i] for i in idx])
         if value is not None:
             per.append(value)
+            per_oriented.append(max(value, 1 - value))
     mean = sum(per) / len(per) if per else None
+    mean_per_context = sum(per_oriented) / len(per_oriented) if per_oriented else None
     return {
         "pooled_raw": None if pooled is None else round(pooled, 4),
         "pooled_orientation_free": oriented(pooled),
         "within_scenario_mean_raw": None if mean is None else round(mean, 4),
         "within_scenario_mean_orientation_free": oriented(mean),
+        # Orientation chosen per context in-sample: an optimistic floor for context-aware detectors.
+        "within_scenario_mean_per_context_orientation_free": (
+            None if mean_per_context is None else round(mean_per_context, 4)
+        ),
         "scenarios_scored": len(per),
     }
 
@@ -311,6 +318,41 @@ def floors(items: list[dict[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def tool_row_counts(items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Rows (conversations) containing each tool, by class; positive-only tools corpus-wide."""
+    pos: Counter[str] = Counter()
+    neg: Counter[str] = Counter()
+    for u in items:
+        (pos if u["state"] == "positive" else neg).update(u["tools"])
+    tools = sorted(set(pos) | set(neg))
+    positive_only = [t for t in tools if pos[t] and not neg[t]]
+    return {
+        "tools_with_at_least_10_rows": {
+            t: {"positive_rows": pos[t], "negative_rows": neg[t]}
+            for t in tools
+            if pos[t] + neg[t] >= 10
+        },
+        "positive_only_tools": len(positive_only),
+        "positive_only_tools_rows_by_tool": {t: pos[t] for t in positive_only},
+        "positives_with_a_positive_only_tool": sum(
+            u["state"] == "positive" and bool(u["tools"] & set(positive_only)) for u in items
+        ),
+        "positives": sum(u["state"] == "positive" for u in items),
+    }
+
+
+def main_task_outcome(row: dict[str, Any]) -> str:
+    """Recorded main-task outcome: native flag, else the review flag, else the inherited
+    `honest_main_success_side_false` basis (which asserts main-task success); else unrecorded."""
+    evidence = row["provenance"]["label_evidence"]
+    value = evidence.get("native_main_success")
+    if value is None:
+        value = (evidence.get("review") or {}).get("main_task_success")
+    if value is None and evidence.get("label_basis") == "honest_main_success_side_false":
+        value = True
+    return {True: "recorded_success", False: "recorded_failure"}.get(value, "unrecorded")
+
+
 def chain_digests(steps: list[dict[str, Any]]) -> list[str]:
     """Cumulative digest after each step (agent text, function names, results)."""
     digest = hashlib.sha256()
@@ -349,6 +391,7 @@ def profile(root: Path = ROOT, repo_root: Path | None = None) -> dict[str, Any]:
     run_shas: Counter[str] = Counter()
     source_shas: Counter[str] = Counter()
     chains: list[tuple[str, list[str]]] = []
+    row_states: list[dict[str, str]] = []
     scenarios: set[str] = set()
     for spec in specs(root):
         ident, gold, labels, steps = spec["identity"], spec["gold"], spec["labels"], spec["_steps"]
@@ -370,6 +413,7 @@ def profile(root: Path = ROOT, repo_root: Path | None = None) -> dict[str, Any]:
         run_shas[ident["run_id_sha256"]] += 1
         source_shas.update(ident["source_episode_id_sha256"])
         chains.append((ident["row_id"], chain_digests(steps)))
+        row_states.append({"row_id": ident["row_id"], "state": state})
         scenarios.add(ident["scenario"])
         calls = [c for s in steps for c in s.get("tool_calls", [])]
         agent = [s for s in steps if s["source"] == "agent"]
@@ -409,6 +453,7 @@ def profile(root: Path = ROOT, repo_root: Path | None = None) -> dict[str, Any]:
         if other != rid and digest in prefixes
     )
     labelled = [u for u in units if u["state"] in ("positive", "negative")]
+    tool_counts = tool_row_counts(labelled)
     floor_report = {
         "all_positives_vs_all_negatives": floors(labelled),
         "train_only": floors([u for u in labelled if u["split"] == "train"]),
@@ -416,6 +461,8 @@ def profile(root: Path = ROOT, repo_root: Path | None = None) -> dict[str, Any]:
         "deepseek_only": floors([u for u in labelled if u["actor"] == "deepseek-v4.1-flash"]),
         "kimi_only": floors([u for u in labelled if u["actor"] == "kimi-k3"]),
     }
+    row_state = {u["row_id"]: u["state"] for u in row_states}
+    main_outcome: dict[str, Counter[str]] = defaultdict(Counter)
     raw_rows: Counter[str] = Counter()
     raw_label: Counter[str] = Counter()
     raw_ids: list[str] = []
@@ -425,6 +472,8 @@ def profile(root: Path = ROOT, repo_root: Path | None = None) -> dict[str, Any]:
         raw_rows[split] += 1
         raw_label[f"{split}:{'malicious' if row['malicious'] else 'benign'}"] += 1
         raw_ids.append(row["id"])
+        if row_state.get(row["id"]) in ("positive", "negative"):
+            main_outcome[row_state[row["id"]]][main_task_outcome(row)] += 1
         run_ids.append(row["provenance"]["run_id"])
         source_ids.extend(row["provenance"]["source_episode_ids"])
     repo_root = repo_root or Path(__file__).resolve().parents[7]
@@ -501,6 +550,11 @@ def profile(root: Path = ROOT, repo_root: Path | None = None) -> dict[str, Any]:
             "Flash / Kimi K3 generations, not the private SHADE-Arena transcripts",
         },
         "content_free_floors": floor_report,
+        "tool_row_counts": tool_counts,
+        "native_main_task_outcome_by_class": {
+            k: {o: v[o] for o in ("recorded_success", "recorded_failure", "unrecorded")}
+            for k, v in sorted(main_outcome.items())
+        },
         "adapter_selfcheck": check,
         "leak_count": check["leak_count"],
         "overlap": overlap_report,

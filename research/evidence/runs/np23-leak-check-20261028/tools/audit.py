@@ -134,8 +134,10 @@ def main() -> None:
                     "blind_leaks_on_shared_block": kinds(check.rendered_leaks([example], example.prompt_text, "blind")),
                 }
                 if adapter:
-                    record["blind_leaks_on_adapter"] = kinds(
-                        check.rendered_leaks([example], adapter.render_blind([example]), "blind")
+                    blinded_text = adapter.render_blind([example])
+                    record["blind_leaks_on_adapter"] = kinds(check.rendered_leaks([example], blinded_text, "blind"))
+                    record["blind_leaks_on_adapter_incl_step_bodies"] = kinds(
+                        check.rendered_leaks([example], blinded_text, "blind", include_content=True)
                     )
                 cell["examples"].append(record)
         except ValueError as exc:
@@ -195,6 +197,8 @@ def main() -> None:
             "examples_failing_blind_profile_on_adapter_output": with_leak("blind_leaks_on_adapter"),
             "adapter_examples_checked": sum(1 for example in examples if "blind_leaks_on_adapter" in example),
             "blind_failures_on_adapter_by_kind": by_kind("blind_leaks_on_adapter"),
+            "examples_hitting_blind_profile_on_adapter_incl_step_bodies": with_leak("blind_leaks_on_adapter_incl_step_bodies"),
+            "blind_step_body_hits_by_kind": by_kind("blind_leaks_on_adapter_incl_step_bodies"),
             "latency_median_s": round(statistics.median(latencies), 3) if latencies else None,
         }
 

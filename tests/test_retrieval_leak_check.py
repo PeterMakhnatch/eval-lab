@@ -104,6 +104,39 @@ def test_a_receipt_status_shown_as_the_issue_status_or_outcome_is_not_the_receip
     assert "receipt status confirmed" in rendered_leaks([separate], "- verify: receipt confirmed", "shared")
 
 
+@pytest.mark.parametrize(
+    "variant", ("terminal-wrench-v2/x.py", "Terminal-Wrench", "my-terminal-wrench", "TERMINAL-WRENCH"),
+)
+def test_a_dataset_name_is_found_in_case_and_hyphen_variants(variant: str) -> None:
+    example = labelled(dataset_id="terminal-wrench", provenance={})
+    assert "dataset name terminal-wrench" in rendered_leaks([example], f"- citation: {variant}", "shared")
+    assert rendered_leaks([example], "- citation: terminal-wrenchers", "shared") == []
+
+
+def test_a_short_identifier_does_not_blank_a_dataset_name_or_match_inside_words() -> None:
+    example = labelled(task_id="corpus", dataset_id="reward-hack-corpus", provenance={}, issue_id="7", trace_id=None)
+    assert "dataset name reward-hack-corpus" in rendered_leaks([example], "- source: from reward-hack-corpus data", "shared")
+    blind = rendered_leaks([example], "- step 17 of abc", "blind")
+    assert not [leak for leak in blind if leak.startswith("original identifier")]
+
+
+def test_the_blocks_own_header_words_are_not_an_examples_receipt_status() -> None:
+    example = labelled(provenance={"receipt_status": "verified"}, status="other", outcome="other")
+    assert rendered_leaks([example], format_retrieval_prompt_block([example]), "shared") == []
+
+
+def test_a_bracket_in_a_role_or_tool_name_cannot_hide_text_in_the_step_body() -> None:
+    example = labelled(steps=(RetrievedStep(4, "tool", f"bash] {DATASET} [x", "ls", None),), provenance={})
+    text = "\n".join(example.prompt_lines(1))
+    assert f"dataset name {DATASET}" in rendered_leaks([example], text, "shared")
+
+
+def test_a_label_equal_to_the_defect_class_or_direction_is_rendered_on_purpose() -> None:
+    example = labelled(provenance={"label_categories": ["wrong_pass", "category-marker"]})
+    assert rendered_leaks([example], "### 1. t - wrong_pass (wrong_pass, confirmed)", "shared") == []
+    assert "label category category-marker" in rendered_leaks([example], "- mechanism: category-marker", "shared")
+
+
 def test_step_bodies_are_evidence_and_only_reported_on_request() -> None:
     example = labelled(steps=(RetrievedStep(4, "tool", "bash", None, f"{DATASET} category-marker"),))
     text = "\n".join(example.prompt_lines(1))

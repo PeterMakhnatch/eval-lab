@@ -32,6 +32,7 @@ top-k 8: 704 calls per tree. Positive control: the same calls without the exclus
 | examples failing the **shared** profile | 1,561 | 1,561 (`dev split` header only) | **0** |
 | examples failing the **blind** profile after the blind adapter | 1,561 | 1,561 | **0** |
 | shared block failing the **blind** profile (by design) | 1,561 | 1,561 | 1,561 |
+| descriptive, not gated: blind output whose step bodies contain `reward` | n/a (header and ids fail first) | n/a | 26 |
 
 | positive control (no exclusion, 352 calls) | pre-NP22 | main | this change |
 |---|---|---|---|

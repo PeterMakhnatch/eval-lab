@@ -32,7 +32,18 @@ import re
 from collections.abc import Iterable
 from typing import Any, Literal
 
-from evallab.production.cloud_trace_db import RetrievedExample
+from evallab.production.cloud_trace_db import (
+    _RETRIEVAL_CARDS_EXPAND,
+    _RETRIEVAL_CARDS_HEADER,
+    _RETRIEVAL_PROMPT_HEADER,
+    _RETRIEVAL_PROMPT_NOTICE,
+    RetrievedExample,
+)
+
+#: Text every block carries regardless of the example. Searched for the forbidden fields
+#: and tokens, but not for an example's own values: a receipt status ``verified`` is not
+#: leaked by the header word "Verified".
+_BLOCK_CONSTANTS = (_RETRIEVAL_PROMPT_HEADER, _RETRIEVAL_CARDS_HEADER, _RETRIEVAL_PROMPT_NOTICE, _RETRIEVAL_CARDS_EXPAND)
 
 Profile = Literal["shared", "blind"]
 
@@ -77,24 +88,30 @@ def _split_lines(text: str) -> tuple[str, str]:
     return "\n".join(metadata), "\n".join(content)
 
 
-def _value_pattern(value: str) -> re.Pattern[str]:
-    return re.compile(r"(?<![\w-])" + re.escape(value) + r"(?![\w-])")
+def _value_pattern(value: str, *, hyphen_joins: bool = False) -> re.Pattern[str]:
+    """Case-insensitive, bounded by non-word characters: a hyphen or slash is a boundary.
+
+    Identifiers set ``hyphen_joins``: ``corpus`` is not an identifier inside ``reward-hack-corpus``.
+    """
+    word = r"[\w-]" if hyphen_joins else r"\w"
+    return re.compile(rf"(?<!{word})" + re.escape(value) + rf"(?!{word})", re.IGNORECASE)
 
 
 def _example_values(example: RetrievedExample) -> dict[str, list[str]]:
     """Per-example values that must not render.
 
-    A receipt status or label equal to the example's own ``status`` or ``outcome``
-    is skipped: those two fields are rendered on purpose (the issue's confirmation
-    and the trace outcome), and a word shown through them is not the withheld
-    receipt or label channel.
+    A receipt status or label equal to a field the block renders on purpose
+    (``status``, ``outcome``, ``defect_class``, ``direction``) is skipped: a word shown
+    through those fields is not the withheld receipt or label channel. That also means
+    those four fields are a named residual for both profiles.
     """
-    rendered_on_purpose = {example.status, example.outcome}
+    rendered_on_purpose = {example.status, example.outcome, example.defect_class, example.direction}
     categories = example.provenance.get("label_categories") or []
+    labels = [str(item) for item in categories] if isinstance(categories, list) else []
     status = example.provenance.get("receipt_status")
     return {
         "dataset name": [example.dataset_id],
-        "label category": [str(item) for item in categories if isinstance(categories, list) and item not in rendered_on_purpose],
+        "label category": [label for label in labels if label not in rendered_on_purpose],
         "receipt status": [status] if isinstance(status, str) and status not in rendered_on_purpose else [],
     }
 
@@ -104,8 +121,10 @@ def rendered_leaks(
 ) -> list[str]:
     """Forbidden items of ``profile`` found in the rendered ``text``, sorted and unique.
 
-    ``examples`` are the examples as retrieved, before any blinding: their values
-    (dataset name, labels, receipt status, identifiers) define what must not appear.
+    ``examples`` must be the examples as retrieved, before any blinding: their values
+    (dataset name, labels, receipt status, identifiers) define what must not appear,
+    and a blinded example no longer carries them, so checking against blinded
+    examples proves nothing about the dataset name or the identifiers.
     """
     if profile not in PROFILES:
         raise ValueError(f"unknown profile {profile!r}; expected one of {PROFILES}")
@@ -121,17 +140,22 @@ def rendered_leaks(
             found.add(f"token {token}")
     for example in examples:
         haystack = searched
+        for constant in _BLOCK_CONSTANTS:
+            haystack = haystack.replace(constant, "")
         if profile == "shared":
-            for identifier in _identifiers(example):
-                haystack = haystack.replace(identifier, "\x00")
+            identifiers = [item for item in _identifiers(example) if len(item) >= _MIN_VALUE_CHARS]
+            for identifier in identifiers:
+                haystack = _value_pattern(identifier, hyphen_joins=True).sub("\x00", haystack)
             if example.dataset_id:
-                haystack = re.sub(re.escape(example.dataset_id) + r"(?=[/@])\S*", "\x00", haystack)
+                haystack = re.sub(
+                    re.escape(example.dataset_id) + r"(?=[/@])\S*", "\x00", haystack, flags=re.IGNORECASE,
+                )
         for kind, values in _example_values(example).items():
             for value in values:
                 if len(value) >= _MIN_VALUE_CHARS and _value_pattern(value).search(haystack):
                     found.add(f"{kind} {value}")
         if profile == "blind":
             for identifier in _identifiers(example):
-                if identifier in searched:
+                if len(identifier) >= _MIN_VALUE_CHARS and _value_pattern(identifier, hyphen_joins=True).search(searched):
                     found.add(f"original identifier {identifier}")
     return sorted(found)

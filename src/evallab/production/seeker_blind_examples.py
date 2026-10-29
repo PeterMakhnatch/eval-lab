@@ -34,39 +34,22 @@ from typing import Any, Protocol
 from evallab.production.cloud_trace_db import RetrievedExample
 from evallab.production.corpus_queue import CorpusRegistry
 
-#: Provenance keys that name a label, a split, a confidence tier, a source store
-#: or an identifier that embeds one. They stay available to QA workers through
-#: the shared API; a blind reader never sees them.
-BLIND_WITHHELD_PROVENANCE = frozenset(
-    {
-        "dataset_id",
-        "split",
-        "label_categories",
-        "receipt_status",
-        "trust_tier",
-        "issue_trust_tier",
-        "trace_trust_tier",
-        "raw_cas_uri",
-        "issue_cas_uri",
-        "task_cas_uri",
-        "observation_cas_uris",
-        # Where the publisher's passage label sits: the label itself, by position.
-        "flagged_step_indices",
-        "passage_window",
-        # Identifiers embed the source benchmark's name; the example fields carry
-        # their opaque handles instead.
-        "run_id",
-        "task_id",
-        "issue_id",
-        "trace_id",
-        "trace_ids",
-    }
+#: The only provenance keys a blind reader sees. Everything else (labels, split,
+#: trust tiers, CAS URIs, passage markers, identifiers that embed the source
+#: benchmark's name, and any key a later change adds) is dropped: an allowlist,
+#: because a denylist leaks the next key someone stores.
+BLIND_ALLOWED_PROVENANCE = frozenset(
+    {"step_indices", "model_id", "facet_similarity", "run_facets_matched"}
+)
+
+#: Step keys the renderers read; a step's own ``trace_id``, CAS URI and feature
+#: flags are not among them.
+_STEP_KEYS = frozenset(
+    {"step_index", "role", "tool_name", "command_or_action", "content_text", "observation_preview", "flagged"}
 )
 
 #: Flat fields that reproduce another task's prompt or its graded verdict.
 BLIND_WITHHELD_FIELDS = ("instruction", "differential", "reproducer")
-
-_OPAQUE = re.compile(r"^(example|issue|trace)-[0-9a-f]{10}$")
 
 
 class ExampleRetriever(Protocol):
@@ -81,17 +64,13 @@ def opaque_id(kind: str, value: str | None) -> str | None:
     Idempotent, so blinding an already blinded example changes nothing. The handle
     is not a lookup key: a blind reader has no tool to expand it.
     """
-    if not value or _OPAQUE.match(value):
+    if not value or re.fullmatch(r"(example|issue|trace)-[0-9a-f]{10}", value):
         return value
     return f"{kind}-{hashlib.sha256(value.encode()).hexdigest()[:10]}"
 
 
-def _withheld(provenance: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        key: value
-        for key, value in provenance.items()
-        if key not in BLIND_WITHHELD_PROVENANCE
-    }
+def _allowed(provenance: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in provenance.items() if key in BLIND_ALLOWED_PROVENANCE}
 
 
 def blind_example(example: RetrievedExample) -> RetrievedExample:
@@ -113,12 +92,14 @@ def blind_example(example: RetrievedExample) -> RetrievedExample:
         instruction=None,
         differential=None,
         reproducer=None,
+        citation=None,
+        issue=None,
         dataset_id="",
         split="",
         trust_tier=None,
         steps=tuple(replace(step, flagged=False) for step in example.steps),
-        trace_steps=[{**step, "flagged": False} if "flagged" in step else step for step in example.trace_steps],
-        provenance=_withheld(example.provenance),
+        trace_steps=[{**{k: v for k, v in step.items() if k in _STEP_KEYS}, "flagged": False} for step in example.trace_steps],
+        provenance=_allowed(example.provenance),
         prompt_text="",
     )
 

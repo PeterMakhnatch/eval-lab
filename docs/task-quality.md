@@ -87,12 +87,16 @@ example's dataset name, label categories and receipt status as values; identifie
 (including a clipped `<dataset>/...` or `<dataset>@...` token) are blanked first, a
 named residual. `blind` (the seeker): all of that with no blanking, plus the
 original identifiers, the fields `flagged_step_indices` and `passage_window`, the word
-`reward` and the marker `FLAGGED`. Step bodies (what the agent ran or saw) are
-evidence and are only reported on request. A blind reader goes through
-`seeker_blind_examples.blind_examples`: it withholds instruction, differential,
-reproducer and trust tier, replaces task, issue and trace identifiers with opaque
-stable handles (`example-<10 hex>`, not lookup keys), and clears the passage label,
-so its rendered block passes `blind`; the shared block fails `blind` by design.
+`reward` and the marker `FLAGGED`. Matching is case-insensitive, and a non-word
+character (a hyphen, a slash) bounds a value. Step bodies (what the agent ran or saw)
+are evidence and are only reported on request; a status, outcome, defect class or
+direction shown on purpose is a named residual for both profiles. A blind reader goes
+through `seeker_blind_examples.blind_examples`: it withholds instruction,
+differential, reproducer, citation, the issue record and trust tier, replaces task,
+issue and trace identifiers with opaque stable handles (`example-<10 hex>`, not lookup
+keys), clears the passage label, and keeps only an allowlist of provenance keys, so
+its rendered block (full and `compact_cards`) passes `blind`; the shared block fails
+`blind` by design. Check against the examples as retrieved, never the blinded copies.
 
 ```python
 from evallab.production import (

@@ -286,7 +286,12 @@ def fake_structural(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Replace the structural module by a scripted one; ``state['records']`` is what it returns."""
     state: dict[str, Any] = {"records": [], "calls": []}
 
-    def scan(steps: Sequence[Mapping[str, Any]], *, context: Mapping[str, Any] | None = None):
+    def scan(
+        steps: Sequence[Mapping[str, Any]],
+        *,
+        context: Mapping[str, Any] | None = None,
+        **_retained_state: Any,
+    ):
         state["calls"].append((list(steps), context))
         if isinstance(state["records"], Exception):
             raise state["records"]

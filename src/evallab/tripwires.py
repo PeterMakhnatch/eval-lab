@@ -96,7 +96,11 @@ from evallab.edit_signals import (
     step_bash_commands,
     unwrap_shell_wrapper,
 )
-from evallab.hackbook.prefix_checks import STRUCTURAL_CHECKS, scan_structural_prefix
+from evallab.hackbook.prefix_checks import (
+    STRUCTURAL_CHECKS,
+    StructuralPrefixState,
+    scan_structural_prefix,
+)
 from evallab.history_mining import history_mining_signals
 from evallab.peer_content import content_corroboration
 from evallab.separate_verifier import V3_TAMPER_SIGNATURES
@@ -6223,7 +6227,9 @@ def _normalized_structural_record(
 
 
 def structural_prefix_checks(
-    steps: Sequence[dict[str, Any]], context: Mapping[str, Any] | None
+    steps: Sequence[dict[str, Any]],
+    context: Mapping[str, Any] | None,
+    state: StructuralPrefixState | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """``(records, dropped)``: one record per ``(check, entry_id)`` of the structural registry.
 
@@ -6234,12 +6240,14 @@ def structural_prefix_checks(
     ``unavailable`` with the reason, never ``clear``. ``clear`` is passed through only when the
     check reported it; it means the predicate was false with all inputs present, not that the
     run is clean. ``dropped`` counts returned records outside the registry or duplicated.
+    ``state`` is the retained extraction of exactly ``steps`` (a streaming caller advances it
+    per step); the records are identical with or without it.
     """
     pairs = [
         (spec, entry_id) for spec in HACKBOOK_STRUCTURAL_CHECKS for entry_id in spec["entry_ids"]
     ]
     try:
-        returned = list(scan_structural_prefix(steps, context=context))
+        returned = list(scan_structural_prefix(steps, context=context, state=state))
     except Exception as exc:  # noqa: BLE001 - a failing structural scan must not hide action rules
         reason = f"structural_scan_failed: {type(exc).__name__}: {exc}"[:300]
         return [_unavailable_record(spec, entry_id, reason) for spec, entry_id in pairs], 0
@@ -6492,6 +6500,7 @@ class PrefixScanner:
         #: target retired; a sibling episode may keep their origin step in the window.
         self._upstream_retired: set[tuple[Any, ...]] = set()
         self._steps: list[dict[str, Any]] = []
+        self._structural = StructuralPrefixState()
         self._agent_steps: list[dict[str, Any]] = []
         self.report: dict[str, Any] = {key: [] for key in PREFIX_REPORT_KEYS}
         self._refresh_structural()
@@ -6549,7 +6558,9 @@ class PrefixScanner:
             self._refresh_structural()
 
     def _refresh_structural(self) -> list[dict[str, Any]]:
-        records, dropped = structural_prefix_checks(self._steps, self._structural_context)
+        records, dropped = structural_prefix_checks(
+            self._steps, self._structural_context, self._structural
+        )
         self.report["structural_checks"] = records
         self.report["structural_context"] = {
             "provided": self._structural_context is not None,
@@ -6572,6 +6583,7 @@ class PrefixScanner:
             "mining": self._mining.snapshot(),
             "corroboration": self._corroboration.snapshot(),
             "hackbook": self._hackbook.snapshot(),
+            "structural": self._structural.snapshot(),
             "prompt_parts": len(self._prompt_parts),
             "prompt": self._prompt,
             "chain": list(self._upstream_chain),
@@ -6590,6 +6602,7 @@ class PrefixScanner:
         self._mining.restore(snapshot["mining"])
         self._corroboration.restore(snapshot["corroboration"])
         self._hackbook.restore(snapshot["hackbook"])
+        self._structural.restore(snapshot["structural"])
         del self._prompt_parts[snapshot["prompt_parts"] :]
         self._prompt = snapshot["prompt"]
         self._upstream_chain = list(snapshot["chain"])
@@ -6608,6 +6621,7 @@ class PrefixScanner:
         delta: dict[str, list[dict[str, Any]]] = {key: [] for key in PREFIX_REPORT_KEYS}
         recorded_step = dict(step)
         self._steps.append(recorded_step)
+        self._structural.advance(recorded_step)
         if step.get("source") != "agent":
             message = step.get("message")
             if isinstance(message, str) and message:

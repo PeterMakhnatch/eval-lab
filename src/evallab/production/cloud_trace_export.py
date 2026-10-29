@@ -39,6 +39,10 @@ from evallab.production.cloud_trace_db import (
     _PROTECTED_TASKS_FROZEN,
     TRUST_TIERS,
     admitted_cloud_task_ids,
+    decode_row,
+    registry_seals,
+    served_facet_rows,
+    unadmitted_seals,
 )
 from evallab.production.corpus_queue import DATASETS, CorpusRegistry
 
@@ -503,14 +507,34 @@ _CLUSTER_SCOPE_SCHEMA = "evallab.cluster_scope/v1"
 _CLUSTER_SCOPE_SQL = (
     "SELECT m.value AS member, a.trace_id, a.task_id, t.split AS stored_split,"
     " CASE WHEN json_valid(t.metadata_json)"
-    " THEN json_extract(t.metadata_json, '$.native_identity.task_name') END AS native_task,"
-    " f.facet_version, f.facet_model"
+    " THEN json_extract(t.metadata_json, '$.native_identity.task_name') END AS native_task"
     " FROM json_each(?) AS m"
     " LEFT JOIN agent_traces AS a ON a.trace_id = m.value"
     " LEFT JOIN corpus_tasks AS t ON t.task_id = a.task_id"
-    " LEFT JOIN run_facets AS f ON f.run_id = a.trace_id AND f.task_id = a.task_id"
     " ORDER BY m.value"
 )
+_FACET_SCOPE_SQL = (
+    "SELECT f.* FROM run_facets AS f"
+    " JOIN agent_traces AS a ON a.trace_id = f.run_id AND a.task_id = f.task_id"
+    " WHERE f.run_id IN (SELECT value FROM json_each(?))"
+)
+
+
+def _served_facets(
+    connection: sqlite3.Connection, identities: Sequence[Mapping[str, Any]], admitted: frozenset[str],
+    registry: CorpusRegistry, run_ids: Sequence[str],
+) -> dict[str, dict[str, Any]]:
+    """Facet records of ``run_ids`` that ``CloudTraceDatabase.search_runs`` serves, in the caller's snapshot."""
+    if not run_ids:
+        return {}
+    cursor = connection.execute(_FACET_SCOPE_SQL, (json.dumps(run_ids),))
+    columns = [column[0] for column in cursor.description]
+    seals = unadmitted_seals(
+        identities, admitted,
+        registry_seals(registry, (identity.casefold() for identity in _PROTECTED_TASKS_FROZEN)),
+    )
+    records = served_facet_rows([decode_row(columns, values) for values in cursor], seals)
+    return {record["run_id"]: record for record in records}
 
 
 def _cluster_members(raw: Any) -> list[str]:
@@ -535,7 +559,10 @@ def export_cluster_scope(
     which includes the strict cross-key TEST check) admits as DEV. Members that
     are not admitted get no row, name and id: only counts by coarse reason are
     published, so the file cannot say which hidden runs exist. No trace body,
-    label, reward, facet text, cluster name or run source is read or written.
+    label, reward, cluster name or run source is read or written. A member's facet
+    record is read only to screen it like ``qa-data runs`` does (one that names a
+    sealed identity is withheld) and only its producer revision and served model are
+    written; a withheld or missing record leaves both null.
     The manifest must not exist; it is published whole, never replaced.
     """
     if not isinstance(cluster_id, str) or not cluster_id.strip() or "\x00" in cluster_id:
@@ -563,7 +590,7 @@ def export_cluster_scope(
         provenance = json.loads(cluster["provenance_json"])
         identities = [dict(row) for row in connection.execute(_IDENTITY_SQL)]
         admitted = admitted_cloud_task_ids(identities, registry=authority)
-        rows = []
+        rows: list[dict[str, Any]] = []
         refused = {"db_non_dev_split": 0, "registry_cross_key_or_sealed": 0, "unstored_run": 0}
         for row in connection.execute(_CLUSTER_SCOPE_SQL, (json.dumps(members),)):
             if row["trace_id"] is None:
@@ -583,9 +610,17 @@ def export_cluster_scope(
                     "assignments_sha256": assignments_sha256,
                     "admission": "dev-admitted",
                     "facet_build_id": provenance.get("build_id"),
-                    "facet_producer_revision": row["facet_version"],
-                    "facet_served_model": row["facet_model"],
+                    "facet_producer_revision": None,
+                    "facet_served_model": None,
                 })
+        # The same screened read as ``qa-data runs``: a facet record that names a sealed identity is
+        # not served, so its run shows no facet fields, exactly like an unfaceted member.
+        served = _served_facets(connection, identities, admitted, authority, [row["trace_id"] for row in rows])
+        for row in rows:
+            facet = served.get(row["trace_id"])
+            if facet is not None:
+                row["facet_producer_revision"] = facet["facet_version"]
+                row["facet_served_model"] = facet["facet_model"]
     document = {
         "schema": _CLUSTER_SCOPE_SCHEMA,
         "cluster": {

@@ -460,7 +460,10 @@ refused ids.
 --manifest PATH [--source-database DB]` (default: the live store) writes one new
 JSON file, never replacing one, for a stored Run Atlas cluster. It reads only
 `run_clusters`, `agent_traces`, `run_facets` and task identity columns, through a
-read-only connection: no step, label, reward, issue, facet text or cluster name.
+read-only connection: no step, label, reward, issue, facet text or cluster name is
+written. A member's facet record is screened like `qa-data runs` screens it, in the
+same snapshot; one that names a sealed identity is not served, so that row's
+`facet_producer_revision` and `facet_served_model` are null, as for an unfaceted run.
 Each row is a member run that `admitted_cloud_task_ids` + `CorpusRegistry` admit as
 DEV (this includes the cross-key TEST check in `assignments.csv`): `trace_id`,
 `task_id`, `native_task_id` (the stored native name, or null),
@@ -558,6 +561,9 @@ uv run evallab qa-data scan DIR/transcripts.jsonl                 # deterministi
   receipts); a monitor reading them has nothing to scan, so the answer is unknown, not clean.
   It is derived from the exported structure, never from a label. `qa-data export` prints it
   per run.
+- `qa-data export` reports `evidence_steps_original`/`evidence_steps_blinded` only from
+  facet records that `runs` serves; a record withheld for naming a sealed identity cites
+  nothing, exactly like a run with no facet.
 - `trace-card RUN_ID`: the `trace_findings` table holds every detector's `trace-findings/v1`
   record (`run_id`, `detector`, `detector_version`, `reader_model`, `verdict`
   alarm|clear|abstain|unknown, `score`, `kind`, `evidence_steps`, `summary` of at most 40

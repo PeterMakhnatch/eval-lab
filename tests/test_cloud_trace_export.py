@@ -1175,6 +1175,50 @@ def test_cluster_scope_membership_is_decided_by_current_admission_not_stored_clu
     assert len(json.loads(first.read_text(encoding="utf-8"))["rows"]) == 3
 
 
+def test_cluster_scope_shows_facet_fields_only_for_runs_whose_facet_record_is_served(
+    clustered: Path, registry: SyntheticRegistry, tmp_path: Path,
+) -> None:
+    """A record that names a sealed identity (in its text, or just by its admitted task's id) is withheld."""
+    twin_task, twin_trace = TASKS[2][0] + "-twin", "trace-twin-private"
+    registry._assignments[(DATASET, "export-item-twin")] = "dev"
+    names_sealed, served = sorted(ADMITTED_TRACES)[0], sorted(ADMITTED_TRACES)[2]
+    with CloudTraceDatabase(clustered, sqlite_fts=False) as database:
+        database.upsert_task({
+            "task_id": twin_task, "dataset_id": DATASET, "split": "dev", "instruction_text": "twin",
+            "metadata_json": {"item_id": "export-item-twin"},
+        })
+        database.upsert_trace({
+            "trace_id": twin_trace, "task_id": twin_task, "run_id": "twin", "model_id": "twin-model",
+        }, steps=[])
+    with closing(sqlite3.connect(clustered)) as connection:
+        connection.row_factory = sqlite3.Row
+        template = dict(connection.execute("SELECT * FROM run_facets WHERE run_id = ?", (served,)).fetchone())
+        template.update(run_id=twin_trace, task_id=twin_task)
+        connection.execute(
+            f"INSERT INTO run_facets ({', '.join(template)}) VALUES ({', '.join('?' for _ in template)})",
+            list(template.values()),
+        )
+        connection.execute(
+            "UPDATE run_facets SET approach = ? WHERE run_id = ?", ("Compared with " + TASKS[2][0], names_sealed),
+        )
+        connection.execute(
+            "UPDATE run_clusters SET run_ids = json_insert(run_ids, '$[#]', ?) WHERE cluster_id = ?",
+            (twin_trace, CLUSTER_ID),
+        )
+        connection.commit()
+    manifest = tmp_path / "scope.json"
+    cloud_trace_export.export_cluster_scope(clustered, CLUSTER_ID, manifest, registry=registry)
+    rows = {row["trace_id"]: row for row in json.loads(manifest.read_text(encoding="utf-8"))["rows"]}
+    assert set(rows) == {*ADMITTED_TRACES, twin_trace}
+    with CloudTraceDatabase(clustered, read_only=True) as database:
+        served_by_runs = {row["run_id"] for row in database.search_runs({}, registry=registry)}
+    assert served_by_runs == {*ADMITTED_TRACES} - {names_sealed}
+    for trace_id, row in rows.items():
+        shown = (row["facet_producer_revision"], row["facet_served_model"])
+        assert shown == (("run-facets/v1", "provider/facet-model") if trace_id in served_by_runs else (None, None))
+        assert row["facet_build_id"] == "build-abc"
+
+
 def test_cli_exports_cluster_scope_from_an_explicit_database(
     clustered: Path, tmp_path: Path, isolated_cli: Any, capsys: pytest.CaptureFixture[str],
 ) -> None:

@@ -1144,20 +1144,25 @@ class CloudTraceDatabase:
 
     def _admitted_facets(
         self, retriever: CloudTraceRetriever, filters: Sequence[tuple[str, list[Any]]] = (), *,
-        allowed_task_ids: Collection[str] | None = None, limit: int | None = None,
+        allowed_task_ids: Collection[str] | None = None, run_ids: Collection[str] | None = None,
+        limit: int | None = None, admission: tuple[Sequence[str], set[str]] | None = None,
     ) -> tuple[list[dict[str, Any]], set[str]]:
         """``search_runs`` rows for validated ``filters``, with the sealed identities that screened them.
 
         The caller owns the snapshot, so admission, facet reads and the returned seals agree.
+        ``run_ids`` only narrows the runs read, never grants admission; ``admission`` is the caller's
+        ``retriever._admitted_ids()`` from the same snapshot, when it already holds it.
         """
-        admitted, sealed_ids = retriever._admitted_ids()
+        admitted, sealed_ids = admission if admission is not None else retriever._admitted_ids()
         allowed = frozenset(admitted)
         if allowed_task_ids is not None:
             allowed = allowed.intersection(allowed_task_ids)
-        if not allowed:
+        if not allowed or (run_ids is not None and not run_ids):
             return [], sealed_ids
         parameters: list[Any] = []
         clauses = [self._task_id_scope("a.task_id", allowed, parameters), "a.task_id = f.task_id"]
+        if run_ids is not None:
+            clauses.append(self._task_id_scope("f.run_id", run_ids, parameters))
         clauses.extend(self._task_id_scope(f"f.{field}", values, parameters) for field, values in filters)
         query = (
             "SELECT f.* FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
@@ -1165,9 +1170,7 @@ class CloudTraceDatabase:
         )
         if limit is not None:
             query += f" LIMIT {limit}"
-        rows = self._rows(query, parameters)
-        withheld = _sealed_texts([_json_text(row) for row in rows], frozenset(sealed_ids))
-        return [row for row, hidden in zip(rows, withheld, strict=True) if not hidden], sealed_ids
+        return served_facet_rows(self._rows(query, parameters), sealed_ids), sealed_ids
 
     def _replace_steps(self, trace_id: str, rows: Sequence[Mapping[str, Any]]) -> None:
         self._execute("DELETE FROM trace_steps WHERE trace_id = ?", (trace_id,))
@@ -1186,18 +1189,7 @@ class CloudTraceDatabase:
     def _rows(self, query: str, parameters: Sequence[Any] = ()) -> list[dict[str, Any]]:
         cursor = self._execute(query, parameters)
         columns = [column[0] for column in cursor.description]
-        results = []
-        for values in cursor.fetchall():
-            row = dict(zip(columns, values, strict=True))
-            row.pop("search_vector", None)
-            for field in _JSON_COLUMNS & row.keys():
-                if isinstance(row[field], str):
-                    row[field] = json.loads(row[field])
-            for field in ("is_exploit", "is_task_defect_fail", *_FACET_BOOLEANS):
-                if field in row:
-                    row[field] = bool(row[field])
-            results.append(row)
-        return results
+        return [decode_row(columns, values) for values in cursor.fetchall()]
 
     def row_counts(self) -> dict[str, int]:
         """Exact live row counts per projection table, with no search/admission filter.
@@ -1810,6 +1802,51 @@ def _sealed_texts(texts: Sequence[str], identities: frozenset[str]) -> list[bool
     ]
 
 
+def decode_row(columns: Sequence[str], values: Sequence[Any]) -> dict[str, Any]:
+    """One stored row as the read API serves it: JSON columns parsed, flags as ``bool``."""
+    row = dict(zip(columns, values, strict=True))
+    row.pop("search_vector", None)
+    for field in _JSON_COLUMNS & row.keys():
+        if isinstance(row[field], str):
+            row[field] = json.loads(row[field])
+    for field in ("is_exploit", "is_task_defect_fail", *_FACET_BOOLEANS):
+        if field in row:
+            row[field] = bool(row[field])
+    return row
+
+
+def registry_seals(registry: CorpusRegistry, sealed_ids: Iterable[str]) -> set[str]:
+    """``sealed_ids`` plus every identity the registry seals, casefolded."""
+    return set(sealed_ids) | {
+        identity.strip().casefold() for identity in registry.sealed_identifiers() if identity.strip()
+    }
+
+
+def unadmitted_seals(
+    identities: Iterable[Mapping[str, Any]], admitted: Collection[str], sealed_ids: Iterable[str],
+) -> set[str]:
+    """``sealed_ids`` plus the id and bare name of every identity row the gate did not admit.
+
+    The one seal set that screens served facet records, shared by ``CloudTraceRetriever`` and the
+    exporters that read facets outside a ``CloudTraceDatabase``.
+    """
+    seals = set(sealed_ids)
+    for row in identities:
+        if row["task_id"] not in admitted:
+            seals.update(
+                identity for identity in (
+                    row["task_id"].strip().casefold(), CorpusRegistry.task_name(row["task_id"]),
+                ) if identity
+            )
+    return seals
+
+
+def served_facet_rows(rows: Sequence[dict[str, Any]], sealed_ids: Iterable[str]) -> list[dict[str, Any]]:
+    """Facet records (as ``decode_row`` serves them) that do not name any sealed identity."""
+    withheld = _sealed_texts([_json_text(row) for row in rows], frozenset(sealed_ids))
+    return [row for row, hidden in zip(rows, withheld, strict=True) if not hidden]
+
+
 def _clip(text: str, limit: int) -> str:
     flat = " ".join(text.split())
     return flat if len(flat) <= limit else flat[:limit - 1].rstrip() + "…"
@@ -2077,11 +2114,7 @@ class CloudTraceRetriever:
     def _admitted_ids(self) -> tuple[list[str], set[str]]:
         if self.registry is None:
             return [], set(self._sealed_ids)
-        sealed_ids = self._sealed_ids | {
-            identity.strip().casefold()
-            for identity in self.registry.sealed_identifiers()
-            if identity.strip()
-        }
+        sealed_ids = registry_seals(self.registry, self._sealed_ids)
         if not self.registry.has_assignment_authority():
             return [], sealed_ids
         database = self.database
@@ -2106,15 +2139,7 @@ class CloudTraceRetriever:
         admitted = admitted_cloud_task_ids(
             identities, registry=self.registry, sealed_task_ids=self._sealed_ids,
         )
-        for row in identities:
-            if row["task_id"] not in admitted:
-                sealed_ids.update(
-                    identity for identity in (
-                        row["task_id"].strip().casefold(),
-                        CorpusRegistry.task_name(row["task_id"]),
-                    ) if identity
-                )
-        return sorted(admitted), sealed_ids
+        return sorted(admitted), unadmitted_seals(identities, admitted, sealed_ids)
 
     def _snippet(self, value: str | None) -> str | None:
         return None if value is None else value[:self.snippet_chars]

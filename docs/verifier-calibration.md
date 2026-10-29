@@ -74,11 +74,11 @@ For suite tasks with $k \ge 3$ execution attempts:
 
 ### Never-Measured Trials Are Not Failures
 
-A trial with a non-null `exception_class` (such as container crash `NonZeroAgentExitCodeError`
-or parameter parsing `ValueError`) produced **no execution measurement**. Conflating harness
-exceptions with capability failures inverts statistical conclusions.
+An agent exception does not by itself establish whether the verifier measured
+the final state. Preserve a recorded score even when an exception is present;
+an absent, nonfinite, or `-1` reward remains unmeasured, not a failure.
 
-- **Rule**: All unmeasured exception trials are strictly excluded from agreement and confusion
+- **Rule**: Unmeasured trials are excluded from agreement and confusion
   matrices and reported separately as `never_measured_trials`.
 
 ### Metric Choice for Class-Imbalanced Corpora

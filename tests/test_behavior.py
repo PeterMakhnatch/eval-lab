@@ -396,3 +396,22 @@ def test_cli_behavior_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     assert parsed["total_trials"] == 7
     assert parsed["total_measured"] == 5
     assert parsed["token_coverage_summary"] == "4 of 7 trials"
+
+
+def test_behavior_sql_and_python_agree_on_scored_exits() -> None:
+    from evallab.behavior import _classify_outcome
+
+    with duckdb.connect(":memory:") as con:
+        con.execute(Path("sql/behavior.sql").read_text())
+        con.executemany(
+            "INSERT INTO trial_facts (trial_id, primary_reward, exception_class) VALUES (?, ?, ?)",
+            [("pass", 1.0, "AgentTimeoutError"), ("fail", 0.0, "AgentTimeoutError"),
+             ("missing", None, "AgentTimeoutError"), ("sentinel", -1.0, None)],
+        )
+        outcomes = dict(con.execute("SELECT trial_id, outcome FROM v_behavior_trial_summary").fetchall())
+        assert outcomes == {"pass": "passed", "fail": "scored_zero",
+                            "missing": "never_measured", "sentinel": "never_measured"}
+        assert _classify_outcome(1.0) == outcomes["pass"]
+        assert _classify_outcome(0.0) == outcomes["fail"]
+        assert _classify_outcome(None) == outcomes["missing"]
+        assert _classify_outcome(-1.0) == outcomes["sentinel"]

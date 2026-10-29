@@ -19,7 +19,7 @@ inputs:
   - path: src/evallab/analysis_statistics.py
     digest: sha256:8383487abae3e5c62104b785320bfda2df378a3fc877355a34cea47a2258830e
   - path: src/evallab/analysis_worker.py
-    digest: sha256:bbb58d4c102892307b6ab916aa52393ffab93910b477a46814a9dc240f971281
+    digest: sha256:5025179ea3f9e721aaf5421c8ef23086b2e0ce2822eb322355c6e2f5ef6bbd49
   - path: src/evallab/analyst.py
     digest: sha256:e06b6a73713bd9ccf6fd595896e11bc07add35b3aaf8388135b7b345d4c60310
   - path: src/evallab/antigravity.py
@@ -521,7 +521,7 @@ inputs:
   - path: src/evallab/interpretation/feature_registry.py
     digest: sha256:e335d79f3fe90ccb3ee301237adcbeb623c9cc8a920d6ac15d5d4d536bee06de
   - path: src/evallab/interpretation/features.py
-    digest: sha256:72f7c7ffe60e5f740ad4b0eb4f6a41b0e14b92c80919e01c2884d1585fd06d13
+    digest: sha256:92d0171794e06f9026a73c35ebfdcc09c940330fdba18855775649c5fdb3d529
   - path: src/evallab/interpretation/monitor_agent.py
     digest: sha256:cfef7bc85ff4481f95b26235d96aa3ea742060e5a26d248baf814781f7641ef7
   - path: src/evallab/interpretation/monitor_calibration.py
@@ -669,7 +669,7 @@ inputs:
   - path: src/evallab/price_bench.py
     digest: sha256:76bf5bb7387418e0369a598741c7b917bbff83300ddf8fc153210dfb3504f615
   - path: src/evallab/probe03.py
-    digest: sha256:2a979e4860e14e6cf4a63bd21b5e51d37cdf739b7b617d651122d87ca948bd51
+    digest: sha256:5f989b85248338102b1caf1031c7a58acb77b7ce03ec7c11f3cd8bd3c4e31149
   - path: src/evallab/process_job.py
     digest: sha256:f1239e1826783c32776f7de2c1b9b69af25bd14e13d804e065e18baf366d5ac1
   - path: src/evallab/production/__init__.py

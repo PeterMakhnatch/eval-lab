@@ -353,3 +353,20 @@ def test_promoted_only_subset_fails_coverage_assertions() -> None:
         )
         # Promoted subset has 0 never_measured trials for html-js-filter (fails non-zero check)
         assert summary["terminal-bench/html-js-filter"] == 0
+
+
+def test_scored_agent_exits_are_measured_in_sql() -> None:
+    with duckdb.connect(":memory:") as con:
+        con.execute(Path("sql/evidence_queries.sql").read_text())
+        con.executemany(
+            "INSERT INTO trial_facts (trial_id, task_name, agent_name, primary_reward, exception_class) "
+            "VALUES (?, 'task', 'agent', ?, ?)",
+            [("pass", 1.0, "AgentTimeoutError"), ("fail", 0.0, "AgentTimeoutError"),
+             ("missing", None, "AgentTimeoutError"), ("sentinel", -1.0, None)],
+        )
+        row = con.execute(
+            "SELECT n, never_measured, measured, passes, scored_failures FROM v_task_summary"
+        ).fetchone()
+        assert row == (4, 2, 2, 1, 1)
+        outcomes = dict(con.execute("SELECT failure_type, n FROM v_failure_classification").fetchall())
+        assert outcomes == {"passed": 1, "scored_failure": 1, "unscored_exception": 1, "never_measured": 1}

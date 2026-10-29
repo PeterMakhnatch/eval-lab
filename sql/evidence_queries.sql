@@ -56,6 +56,12 @@ CREATE TABLE IF NOT EXISTS trial_facts (
     cost_usd DOUBLE
 );
 
+-- Verifier measurement is independent of the separately retained agent exit.
+CREATE OR REPLACE VIEW v_trial_raw_scores AS
+SELECT *, primary_reward IS NOT NULL AND isfinite(primary_reward)
+    AND primary_reward <> -1 AS reward_scored
+FROM trial_facts;
+
 -- --------------------------------------------------------------------------- --
 -- v_outcome_by_task_agent: n, passes, pass rate, Wilson-ready counts, split failures
 -- --------------------------------------------------------------------------- --
@@ -64,15 +70,15 @@ SELECT
     coalesce(task_name, 'unknown') AS task_name,
     coalesce(agent_name, 'unknown') AS agent_name,
     count(*) AS n,
-    sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END) AS measured_n,
-    sum(CASE WHEN exception_class IS NOT NULL THEN 1 ELSE 0 END) AS never_measured_n,
-    sum(CASE WHEN primary_reward >= 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS passes,
-    round(100.0 * sum(CASE WHEN primary_reward >= 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END), 0), 2) AS pass_rate_pct,
+    sum(CASE WHEN reward_scored THEN 1 ELSE 0 END) AS measured_n,
+    sum(CASE WHEN NOT reward_scored THEN 1 ELSE 0 END) AS never_measured_n,
+    sum(CASE WHEN reward_scored AND primary_reward >= 1.0 THEN 1 ELSE 0 END) AS passes,
+    round(100.0 * sum(CASE WHEN reward_scored AND primary_reward >= 1.0 THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN reward_scored THEN 1 ELSE 0 END), 0), 2) AS pass_rate_pct,
     sum(CASE WHEN exception_class IS NOT NULL THEN 1 ELSE 0 END) AS harness_exceptions_n,
-    sum(CASE WHEN coalesce(primary_reward, 0.0) < 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS scored_failures_n,
-    sum(CASE WHEN primary_reward >= 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS k_for_wilson,
-    sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END) AS n_for_wilson
-FROM trial_facts
+    sum(CASE WHEN reward_scored AND primary_reward < 1.0 THEN 1 ELSE 0 END) AS scored_failures_n,
+    sum(CASE WHEN reward_scored AND primary_reward >= 1.0 THEN 1 ELSE 0 END) AS k_for_wilson,
+    sum(CASE WHEN reward_scored THEN 1 ELSE 0 END) AS n_for_wilson
+FROM v_trial_raw_scores
 GROUP BY task_name, agent_name
 ORDER BY n DESC, task_name, agent_name;
 
@@ -83,12 +89,12 @@ CREATE OR REPLACE VIEW v_task_summary AS
 SELECT
     coalesce(task_name, 'unknown') AS task_name,
     count(*) AS n,
-    sum(CASE WHEN exception_class IS NOT NULL THEN 1 ELSE 0 END) AS never_measured,
-    sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END) AS measured,
-    sum(CASE WHEN primary_reward >= 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS passes,
-    sum(CASE WHEN coalesce(primary_reward, 0.0) < 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS scored_failures,
-    round(100.0 * sum(CASE WHEN primary_reward >= 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END), 0), 2) AS pass_rate_pct
-FROM trial_facts
+    sum(CASE WHEN NOT reward_scored THEN 1 ELSE 0 END) AS never_measured,
+    sum(CASE WHEN reward_scored THEN 1 ELSE 0 END) AS measured,
+    sum(CASE WHEN reward_scored AND primary_reward >= 1.0 THEN 1 ELSE 0 END) AS passes,
+    sum(CASE WHEN reward_scored AND primary_reward < 1.0 THEN 1 ELSE 0 END) AS scored_failures,
+    round(100.0 * sum(CASE WHEN reward_scored AND primary_reward >= 1.0 THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN reward_scored THEN 1 ELSE 0 END), 0), 2) AS pass_rate_pct
+FROM v_trial_raw_scores
 GROUP BY task_name
 ORDER BY task_name;
 
@@ -104,11 +110,12 @@ WITH classified AS (
         primary_reward,
         exception_class,
         CASE
-            WHEN exception_class IS NOT NULL THEN 'harness_exception'
-            WHEN coalesce(primary_reward, 0.0) < 1.0 THEN 'scored_failure'
+            WHEN NOT reward_scored AND exception_class IS NOT NULL THEN 'unscored_exception'
+            WHEN NOT reward_scored THEN 'never_measured'
+            WHEN primary_reward < 1.0 THEN 'scored_failure'
             ELSE 'passed'
         END AS failure_type
-    FROM trial_facts
+    FROM v_trial_raw_scores
 )
 SELECT
     failure_type,
@@ -146,8 +153,8 @@ SELECT
     END AS date_bucket,
     count(*) AS n,
     sum(CASE WHEN exception_class IS NOT NULL THEN 1 ELSE 0 END) AS exceptions_n,
-    sum(CASE WHEN exception_class IS NULL THEN 1 ELSE 0 END) AS measured_n,
-    sum(CASE WHEN primary_reward >= 1.0 AND exception_class IS NULL THEN 1 ELSE 0 END) AS passes_n
-FROM trial_facts
+    sum(CASE WHEN reward_scored THEN 1 ELSE 0 END) AS measured_n,
+    sum(CASE WHEN reward_scored AND primary_reward >= 1.0 THEN 1 ELSE 0 END) AS passes_n
+FROM v_trial_raw_scores
 GROUP BY date_bucket
 ORDER BY date_bucket;

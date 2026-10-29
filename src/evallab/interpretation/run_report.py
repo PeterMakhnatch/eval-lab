@@ -2300,14 +2300,10 @@ def _outcome(
     rewards = {
         str(k): float(v) for k, v in _dict(verifier.get("rewards")).items() if _float(v) is not None
     }
-    # The primary reward is `reward` (or the only metric). Several metrics without a
-    # primary still score the trial: all at 1 passes, all at 0 fails, anything else is partial.
-    reward = (
-        rewards.get("reward")
-        if "reward" in rewards
-        else (next(iter(rewards.values())) if len(rewards) == 1 else None)
-    )
-    judged = [reward] if reward is not None else list(rewards.values())
+    from evallab.probe03 import read_reward
+
+    reward, scored, _source = read_reward(trial_dir)
+    judged = [reward] if scored and reward is not None else []
     exception = _dict(result.get("exception_info"))
     if not judged:
         verdict = "errored" if exception else "not_scored"
@@ -2329,7 +2325,7 @@ def _outcome(
         # HAR-92: verifier outcome, stop reason, and execution problems are
         # three separate facts. A scored timeout still passes or fails on its
         # reward; the stop reason says why the agent phase ended.
-        "verifier_outcome": verifier_outcome(rewards),
+        "verifier_outcome": verifier_outcome({"reward": reward} if scored else {}),
         "stop_reason": stop_reason,
         "stop_detail": stop_detail,
         # HAR-156: execution lens on how the run ended, separate from the

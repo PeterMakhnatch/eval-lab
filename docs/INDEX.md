@@ -133,7 +133,7 @@ inputs:
   - path: docs/run-atlas.md
     digest: sha256:4a139e65b2adede59609ae5310538a930dc4cad77a96ff384bd2fd73b17653e9
   - path: docs/run-explorer.md
-    digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
+    digest: sha256:6c38610c14c7c3173cd90739767e733c8d33c212f4ae1d4ddd3ff6e0e5ea9daf
   - path: docs/run-health.md
     digest: sha256:8bab1d17040209d7dca7b6cd88e90b8c2c43e439f1376fa7f9125ef37c0f74b6
   - path: docs/scaling.md

@@ -19,7 +19,7 @@ The repository defines six reusable DuckDB views in `sql/behavior.sql`. Every ag
 
 ### `v_behavior_trial_summary`
 Per-trial unified classification joining `trial_facts` with outcome categories and computed per-trial efficiency metrics:
-- `outcome`: Categorized into `'passed'` (`primary_reward >= 1.0` and no exception), `'scored_zero'` (`primary_reward == 0.0` and no exception), or `'never_measured'` (harness exception or null reward).
+- `outcome`: `'passed'` for reward >= 1, `'scored_zero'` for reward 0, `'partial'` for other scored rewards, or `'never_measured'` for absent, nonfinite, or -1 reward. Agent exceptions remain separate.
 - `seconds_per_step`: `agent_execution_seconds / step_count` (`NULL` when `step_count = 0`).
 - `steps_per_reward_point`: `step_count / primary_reward` (`NULL` when reward is 0 or trial is unmeasured).
 
@@ -64,13 +64,15 @@ Tracks token consumption and inference cost with explicit coverage reporting:
 
 ## 2. Metric Conventions and Edge Cases
 
-### The Three-Way Outcome Split
-Trials are partitioned into three distinct, non-overlapping outcome states:
-1. **`passed`**: `primary_reward >= 1.0` and `exception_class IS NULL`.
-2. **`scored_zero`**: `primary_reward == 0.0` and `exception_class IS NULL`.
-3. **`never_measured`**: `exception_class IS NOT NULL` or `primary_reward IS NULL`.
+### Outcome Split
+Trials are partitioned by verifier measurement, independent of agent exit:
+1. **`passed`**: `primary_reward >= 1.0`.
+2. **`scored_zero`**: `primary_reward == 0.0`.
+3. **`partial`**: another measured reward below 1.
+4. **`never_measured`**: absent, nonfinite, or sentinel `-1` reward.
 
-Harness exceptions are never folded into scored failures. Folding exceptions into zero scores corrupts agent behavioral averages with harness crashes.
+An exception without a verifier score never becomes a zero. An exception with a
+score keeps that score, and the exception remains independently visible.
 
 ### Undefined Efficiency Ratios
 When an agent scores 0.0, the ratio of steps to reward points is **undefined** ($0 / 0$ or $N / 0$).

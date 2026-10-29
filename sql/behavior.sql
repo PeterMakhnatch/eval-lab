@@ -118,7 +118,7 @@ SELECT
     exception_class,
     exception_phase,
     CASE
-        WHEN exception_class IS NOT NULL OR primary_reward IS NULL THEN 'never_measured'
+        WHEN primary_reward IS NULL OR NOT isfinite(primary_reward) OR primary_reward = -1 THEN 'never_measured'
         WHEN primary_reward >= 1.0 THEN 'passed'
         WHEN primary_reward = 0.0 THEN 'scored_zero'
         ELSE 'partial'

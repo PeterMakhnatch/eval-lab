@@ -74,7 +74,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -1015,22 +1014,13 @@ def coverage_record(
 
 
 def verifier_outcome(rewards: Mapping[str, Any]) -> VerifierOutcome:
-    """pass (reward >= 1.0), fail (a reward that is not a pass), or none."""
-    values = [
-        float(value)
-        for value in rewards.values()
-        if not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
-    ]
-    judged = values[0] if len(values) == 1 else None
-    if not values:
+    """Interpret the primary verifier reward independently of agent exit."""
+    from evallab.probe03 import normalize_reward
+
+    reward, scored = normalize_reward(rewards.get("reward"))
+    if not scored or reward is None:
         return "none"
-    if judged is None:
-        # Several metrics without a primary: all at 1 pass, all at 0 fail,
-        # anything else is a non-pass with a real score.
-        if all(value >= 1.0 for value in values):
-            return "pass"
-        return "fail"
-    return "pass" if judged >= 1.0 else "fail"
+    return "pass" if reward >= 1.0 else "fail"
 
 
 def _exception_type(exception_info: Any) -> str | None:

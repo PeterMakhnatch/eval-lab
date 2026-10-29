@@ -1,7 +1,7 @@
 {
  "cost_usd": 0.0,
  "detector": "run_health_infra",
- "detector_version": "run-health/5",
+ "detector_version": "run-health/6",
  "evidence_steps": [],
  "explanation": "no component at threshold",
  "flagged": false,

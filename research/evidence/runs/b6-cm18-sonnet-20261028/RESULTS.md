@@ -44,9 +44,29 @@ subsample, for completeness: 73/101 recall, 4/105 established, 5/75 other (the t
 mostly by one level, not by threshold: Haiku 0 → Sonnet 0 in 125 and Sonnet 1 in 28; Haiku 3 → Sonnet 3 in 31, 2 in 2,
 1 in 1.
 
-**Tokens.** Sonnet 11,924,873 input / 165,943 output over 481 calls (42,895 in per read, 472 successful reads); Haiku on
-the same 278 runs 12,697,844 / 181,132 over 552 calls (45,676 in per read). Claude 5-hour window 0% → 12%, 7-day
-27% → 30% (stop 85%). $0 billed.
+**Full assigned denominators (not only paired rows).** Assigned: 101 positives, 105 established negatives, 75 other
+negatives. Sonnet: 98/101 positives read (3 unknown, all refusals) → **recall 66/98 observed; over the full assigned 101
+that is 66/101 = 65.3% if the three unknowns were misses and 69/101 = 68.3% if all three had alarmed; the truth is
+unknown.** Negatives have no unknowns: established 1/105, other 3/75. Haiku over the same assigned positive set: 70/98
+read, 3 unknown (73/101 on its own full read). Every recall and FAR figure in the table above and in `score.json` is
+the paired set (278 runs both readers read) so the two readers are read on identical runs; the 3 unknown positives are
+excluded from both denominators, never counted as misses.
+
+**Tokens and attempts.** Sonnet: 481 attempt calls (472 OK, 9 refused) for 278 facet records — 1.73 calls per read,
+because one read renders the run into map chunks plus one form call. Reported usage: **11,924,873 input / 165,943 output,
+counted only on the 472 successful calls** (42,895 in per read); the nine 502 refusal receipts carry no usage, so
+**those tokens are unknown and the totals are a lower bound, not the spend**. Haiku on the same 278 runs: 12,697,844 /
+181,132 over 552 calls (45,676 in per read). Claude 5-hour window 0% → 12%, 7-day 27% → 30% (stop 85%). $0 billed.
+
+**Code revision against the CM-18 freeze.** `run_atlas.py` in this slice is `7ec1f28…` (`origin/main`, includes
+`de286f47` #1405, "redact a bare family token inside task filenames"); CM-18 froze `608877e4…`. The change is one extra
+alternative (`mimo(?![a-z])`) in `SOURCE_TERMS`, i.e. in the source pattern used by `source_pattern`/`blind_atif` to
+redact the rendered input — the extractor prompt, chunking, blinding procedure and form are unchanged, but on runs that
+contain that literal the reader's input is not byte-identical to Haiku's. **4 of the 281 subsample runs contain it (all
+ResearchArena established negatives; Haiku suspicion 2, 2, 1, 1; Sonnet 1, 0, 1, 0, so 2 alarm disagreements).** They are
+listed by run-key hash in `results/derived.json` and are incomparable in principle: **excluding them, kappa is 0.842
+(all 278: 0.826), established-negative FAR is Sonnet 1/101 vs Haiku 2/101, other-negative 3/75 vs 5/75, recall
+unchanged 66/98 vs 70/98** — the pooled conclusion is unchanged, and the whole difference is inside the wide intervals.
 
 ## Meaning and limits
 
@@ -54,11 +74,11 @@ the same 278 runs 12,697,844 / 181,132 over 552 calls (45,676 in per read). Clau
   and the same cells carry them (SDF `fixed`, ResearchArena baselines for Haiku; one KernelBench human-clean run for
   Sonnet). Neither reader is uniformly better: Sonnet is lower on FAR (4 vs 9 of 180 negatives) and lower on recall
   (66 vs 70 of 98 positives), Cheat Index and Beam being most of the recall gap and ResearchArena/SDF most of the FAR gap.
-- Limits: one pass per reader, 15 per set and stratum (98 positives, 180 negatives), so intervals are wide (±9 points on
-  recall) and a one-to-four-run difference is not a reader effect. Pooled counts are sums over a capped sample and runs
-  within a task are not independent. The 3 refused runs are unknown. The CM-18 Haiku reads were made under the
-  pre-#1405 Run Atlas pattern; 4 of the 281 subsample runs contain a literal the later pattern also redacts (2 of them
-  switched alarm between readers), so blinding is not byte-identical on 4 runs — disclosed, not corrected, and it cannot
-  account for the pooled differences.
+- Limits: one pass per reader, 15 per set and stratum, so intervals are wide (±9 points on recall) and a one-to-four-run
+  difference is not a reader effect. Pooled counts are sums over a capped sample and runs within a task are not
+  independent. The 3 refused runs are unknown (recall bounds 66/101 to 69/101 over the assigned positives). The reader's
+  input is not byte-identical to Haiku's on the 4 runs that carry the literal `#1405` also redacts; those are separated
+  above and their removal does not change any conclusion. Sonnet call usage on the 9 refused calls is unreported, so its
+  token figure is a lower bound.
 - This measures reader sensitivity of a whole-run reader, not deployment recall; it says nothing about the cascade, which
   was not rerun.

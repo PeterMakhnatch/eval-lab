@@ -15,6 +15,9 @@ Results: `RESULTS.md`.
 - Subsample: per set and stratum (positive, `negative_established`, `negative_other`), the first 15 runs of the CM-18
   sample in sha256(`order:` + key) order, the CM-18 facet processing order. `results/subsample.json` holds the key list
   (16-hex run-key hashes), its sha256, the counts and the cross-key result.
-- `results/freeze.json`, `results/score.json` (aggregates only).
+- `tools/b6_derived.py`: post-hoc arithmetic over the same records (no model call, no retuning) that writes
+  `results/derived.json` — the full assigned denominators and the unknown counts, the 4 runs whose reader input differs
+  under `#1405`, and the attempt-versus-successful-call accounting.
+- `results/freeze.json`, `results/score.json`, `results/derived.json` (aggregates only).
 - Facet prose, per-run records and call receipts stay in `~/.local/state/evallab-cm18-b6/` (local, outside git, never
   uploaded). Receipts here hold counts and hashes only.

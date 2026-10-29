@@ -1,24 +1,29 @@
-# NP40-TT-1: stopped at the Terra canary
+# NP40-TT-1: Terra facets on the 123 matched Goodfire pairs. Stopped by the call cap, not scored
 
-**No Terra or Sol conclusion is available.** The preregistration was committed and pushed at `50d3bc33d274e75cced3e96ee2f6dbb3754846f6`, 2026-10-29 14:33:15 ET, before any study model call. All 246 distinct members of the 123 pairs passed the shared strict Goodfire DEV admission gate (`admitted_task_ids` and `cloud_trace_ids` with the Goodfire dataset); this check did not join labels. The existing pair file already carries the original pair identities and class assignments.
+**No reader-family conclusion is available.** The study ran with the preregistered, attested transport, but the 600-call cap cannot cover the design, and the run stopped when its 1-hour worker timeout expired. This is an incomplete study, not a negative finding. The earlier version of this file (merged in #1573) said the study stopped at the canary; that was true of attempt 2 and is superseded by this record.
 
-## Canary attestation blocker
+## Sequence
+1. Preregistration `50d3bc33d` (2026-10-29 14:33:15 ET) and transport addendum `f0875b7eb` (14:44:40 ET), both before any call.
+2. Attempt 2: the Terra canary returned exactly `openai-codex/gpt-6.1-terra` but the stream carried no explicit `resolvedModelIsFallback: false`; the addendum's stricter rule rejected it. No study transcript was sent.
+3. Lead ruling, committed as `612a379f7` before the first study call: a call is valid iff the served provider/model equals the requested route, `resolvedModelIsFallback` is not truthy, the fallback-off overlay was active, and no tool was used. This is the standard #1529/#1534 used for Claude readers. It is a disclosed amendment made after one rejected canary and with no label-joined number in existence. The Terra and Sol canaries passed under it (`canary-*.stdout.jsonl` in the private store).
+4. Attempt 3 ran the study (reader in `tools/reader.py`: the frozen Haiku facet prompt and schema, one blinded run per call, long runs read by the existing map/reduce chunking) until the worker's 1-hour limit.
 
-The transport addendum was committed and pushed at `f0875b7ebc4d9624a9493d5e1c285425a1bfb633`, 2026-10-29 14:44:40 ET, before the canary. The CM-11 subprocess route used the no-tools flags and an overlay setting `retry.enabled: false`, `retry.modelFallback: false`, and `retry.fallbackChains: {}`. The Terra canary returned `OK`, with `provider: "openai-codex"`, `model: "gpt-6.1-terra"`, and `stopReason: "stop"`, but **no `resolvedModelIsFallback` field anywhere in its JSON event stream**. Therefore the explicitly preregistered fallback-false attestation did not pass; absence is not evidence of fallback or of fallback-free execution. The exact stream and stderr are retained privately under `~/.local/state/evallab-prod-live/trace-harness/np40/canary-terra.stdout.jsonl` and `canary-terra.stderr.txt`. The native OMP reader safety seal was not bypassed.
+## Why it cannot finish inside the cap
+The design assumed about one call per run. The facet reader splits long runs (map stage) and then forms the facets (form stage): 73 runs used 289 calls, about 4 per run (1 to 7). Projection: 246 Terra runs about 1,000 calls, plus the Sol 40-run subset about 160, against a cap of 600. Even if the remaining 311 calls were spent, about 150 runs would be done in random order and few pairs would be complete. At the stop only **15 of the 123 pairs had both members read** (57 pairs had one), far too few for the preregistered sign test.
 
-No transcript calls, Sol canary, new findings, or merge were performed. This is an incomplete study and the separation decision cannot be evaluated.
+## Accounting (attempt 3, Terra; no Sol study call)
+| Item | Value |
+|---|---|
+| Calls dispatched / completed | 289 / 288 (1 in flight at the timeout) |
+| Served model | 288/288 exactly `openai-codex/gpt-6.1-terra`; 0 fallbacks, 0 tool use, 0 refusals |
+| Stages | 215 map, 73 form (1 retry) |
+| Tokens | 8,065,416 input, 96,518 output |
+| Facet records written | 72 (of 246 runs), 1 parse failure (a 22-word goal; the limit is 20) |
+| Canaries | Terra and Sol, 1 each, both exact model |
+| Codex 7-day | 60% before, 64% after (shared with other fleet workers) |
+| Cost | $0 (subscription) |
 
-## Available reference only
+No labels were joined, so no alarm rate, discordant-pair count or AUROC is reported for Terra. The reference rows from NP31 stand: stored Haiku facets 9 enacted-only vs 13 clean-only, pair AUROC 0.496 [0.437, 0.556]; length 0.431 [0.341, 0.520].
 
-| Reader | Pairs | Enacted-only / clean-only | Pair AUROC (95% task bootstrap) |
-|---|---:|---:|---:|
-| Terra | 0 | unavailable | unavailable |
-| Sol | 0 | unavailable | unavailable |
-| Stored Haiku (NP31) | 123 | 9 / 13 | 0.496 [0.437, 0.556] |
-| Length | 123 | unavailable: Terra operating point missing | 0.431 [0.341, 0.520] |
-
-Haiku figures are copied from the prior NP31 report, not a new model call or reanalysis; its interval uses NP31's own fixed bootstrap seed. Length uses the frozen pair-file step lengths and preregistered NP40 seed 40104, 2,000 task-cluster resamples, sorted cluster keys and percentile indices 49 and 1949. The length binary sign test, Terra sign test and secondary same-FAR recall cannot be computed without Terra alarms. Exploratory awareness is also unavailable. This is an incomplete study, not a negative finding; the decision rule cannot be applied.
-
-## Accounting
-
-Canary calls: Terra 1, Sol 0; transcript calls: Terra 0, Sol 0. Canary usage: 659 input tokens, 5 output tokens, $0; exact model identity observed once, explicit fallback-false attestations 0, fallbacks observed/rejected 0, missing fallback attestation rejected 1, refusals 0, facet parse failures 0. The $0 receipt was appended to `~/.local/state/evallab-failure-library/spend.jsonl`. Codex 7-day usage was 59.0% before and 60.0% after. No Kimi, Opus, paid keys, Docker, HackBench, or label-ledger edit was used.
+## To finish
+A cap of about 1,300 calls (Terra about 1,000 plus Sol about 160 plus retries) is needed. The 289 calls here moved the shared Codex 7-day line from 60% to 64%; at that rate about 1,000 more calls would take it to roughly 75-80% (an extrapolation; other workers also draw on it), under the 85% stop. Resume with `tools/reader.py` and the 72 facet records already written; the seeded order and decision rule in the preregistration are unchanged.

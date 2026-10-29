@@ -2,7 +2,7 @@
  "schema": "np33-sample-public/v1",
  "rule": "key = sha256(set + ':' + native id)[:16]; order = sha256(SEED + ':' + key); caught_not_taught: the untrusted arm drawn whole; agentcheck: scored positives whole, negatives capped; PostTrainBench: stratified by benchmark, water-filled, equal positives and negatives per stratum, negatives matched to their positive on step count",
  "seed": "20261029",
- "ptb_pos_cap": 30,
+ "ptb_pos_cap": 60,
  "neg_ratio": 1,
  "agentcheck_neg_cap": 40,
  "registry_counts_positive_negative": {
@@ -50,10 +50,10 @@
     "positive": 109
    },
    "drawn": {
-    "positive": 30,
-    "negative": 30
+    "positive": 60,
+    "negative": 60
    },
-   "pos_cap": 30,
+   "pos_cap": 60,
    "neg_ratio": 1,
    "pool_by_benchmark": {
     "aime2025": {
@@ -87,21 +87,21 @@
    },
    "drawn_positive_by_benchmark": {
     "aime2025": 0,
-    "arenahardwriting": 6,
-    "bfcl": 6,
-    "gpqamain": "<3",
-    "gsm8k": "<3",
-    "healthbench": 6,
-    "humaneval": 6
+    "arenahardwriting": 8,
+    "bfcl": 18,
+    "gpqamain": 5,
+    "gsm8k": 1,
+    "healthbench": 18,
+    "humaneval": 10
    },
    "drawn_negative_by_benchmark": {
     "aime2025": 0,
-    "arenahardwriting": 6,
-    "bfcl": 6,
-    "gpqamain": "<3",
-    "gsm8k": "<3",
-    "healthbench": 6,
-    "humaneval": 6
+    "arenahardwriting": 8,
+    "bfcl": 18,
+    "gpqamain": 5,
+    "gsm8k": 1,
+    "healthbench": 18,
+    "humaneval": 10
    },
    "rule": "positives water-filled over benchmark strata up to pos_cap, first in sha256(SEED:key) order; for each positive the NEG_RATIO unused same-benchmark negatives nearest in step count (ties sha256(SEED:key)); round r = the r-th positive of every stratum with its matched negatives"
   }
@@ -118,32 +118,32 @@
    "negatives": 40
   },
   "ptb": {
-   "runs": 60,
-   "positives": 30,
-   "negatives": 30
+   "runs": 120,
+   "positives": 60,
+   "negatives": 60
   }
  },
- "total_runs": 236,
- "keys_sha256": "96d3aafdc8b65e05704788e4cda56614d9bedd99c71aa19a5669664d6dcd7c60",
+ "total_runs": 296,
+ "keys_sha256": "485a06cd446b53fb953c0cc30017de5b5ac8d5ddaa2a96a77d312c1045116742",
  "key_lists_sha256": {
   "cnt:negative_untrusted": "92e42be841a5d5f5495c183f5762acef80c6b42ac7071eff1f1bcbd3139856a5",
   "cnt:positive": "a35398c4ddf5d7156e479addab2459def991e6b59a471b660a5d94b2c24c787e",
   "agentcheck:negative": "5e495216893af3de52068e839034415f870195a23c86c1ecfba6d6e4f3c5ccf6",
   "agentcheck:positive": "6b51d635013d68a231a501e03750889bbdb4562362935f518d03f7893dbfc909",
-  "ptb:negative": "724d426fbeda222d43ae230e5fc7408dde236495fa589a8c679cb8e174a6c592",
-  "ptb:positive": "1aad83a91edc308e9212ec536c85a9a0a9357fb468e8aa1eb9adc403a41a9580"
+  "ptb:negative": "f52253de272f8b19b79b209fe8430bf5e7118bea1f5dc27a05d308c4f0b62d00",
+  "ptb:positive": "8316992b47df590eb1e69e14217a96d44af4fcc1b0ba24b21f374a19b4b5ca55"
  },
  "steps_per_run_median": {
   "cnt": 18,
   "agentcheck": 40,
-  "ptb": 131
+  "ptb": 165
  },
  "cross_key": {
   "assignments_sha256": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
-  "literals_checked": 2102,
+  "literals_checked": 2522,
   "test_or_sealed_hits": 0
  },
- "runs_manifest_sha256": "56b63f0e1af2254840305d51f02a43e261a4d5a621ac6ec79e49f45bfd2823f5",
- "sample_sha256": "d611b599e295573a6b493d92cdbd79e9b04c155fb792313da36f3fabc901394d",
- "features_sha256_at_sample": "3990ea1da17d511b2fb4acd953541ee2925a2eabae3b6a9561e921a29820ce4d"
+ "runs_manifest_sha256": "524f601d9d523b96409dff7340dc10acfdbf1e87c4ce651ab1f054aa024d5523",
+ "sample_sha256": "20f54ee5a742bd67472d43c308e2ab957210ed76215ee9f610b49e526f35fb20",
+ "features_sha256_at_sample": "6726e979b01f9f4e27ac5d7b842725aac5d6f0a0e149fa5a8cde29db2ca572e1"
 }

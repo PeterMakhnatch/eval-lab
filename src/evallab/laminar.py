@@ -38,6 +38,12 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from evallab.trace_store.laminar_quarantine import (
+    assert_not_signal_selectable,
+    is_quarantined,
+    skip_quarantined,
+)
+
 LAMINAR_ENDPOINT = "https://api.lmnr.ai"
 LAMINAR_KEY_ENV = "LMNR_PROJECT_API_KEY"
 LAMINAR_ENDPOINT_ENV = "EVALLAB_LAMINAR_ENDPOINT"
@@ -472,11 +478,14 @@ class LaminarExporter:
         self.state.setdefault("exported", {})
         self.state.setdefault("errors", [])
         self._sdk_references: dict[str, tuple[str | None, str | None]] = {}
+        self._quarantined = 0
 
     def _queue(self, spans: Iterable[dict[str, Any]]) -> None:
         done = self.state["exported"]
         for span in spans:
-            if span["span_id"] not in done.get(span["trace_id"], ()):
+            if is_quarantined(span["trace_id"]):
+                self._quarantined += 1
+            elif span["span_id"] not in done.get(span["trace_id"], ()):
                 self._pending.append(span)
 
     def sync_trial(self, job_dir: Path, trial_dir: Path, *, finished: bool) -> str | None:
@@ -539,7 +548,9 @@ class LaminarExporter:
             "spans": len(pending),
             "ok": True,
             "withheld": self._clean.withheld,
+            "quarantined": self._quarantined,
         }
+        self._quarantined = 0
         if pending:
             headers = {
                 "authorization": f"Bearer {self._key}",
@@ -784,6 +795,12 @@ def apply_signals(
 
     Laminar Cloud creates API Signals only with an LLM profile (``llm_profile_id``).
     """
+    assert_not_signal_selectable(
+        lambda query, parameters: _sql(
+            query, parameters, api_key=api_key, endpoint=endpoint, opener=opener
+        ),
+        opt_in_tag=SIGNAL_OPT_IN_TAG,
+    )
     listed = _json_call("GET", "/v1/signals", api_key=api_key, endpoint=endpoint, opener=opener)
     existing = {s["name"]: s for s in (listed or {}).get("signals", [])}
     route = {"llmProfileId": llm_profile_id, "model": model} if llm_profile_id else {}
@@ -858,8 +875,12 @@ def compare_signals(
     api_key: str,
     endpoint: str = LAMINAR_ENDPOINT,
     opener: Callable[..., Any] = urlopen,
+    skipped: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Per trial: Eval Lab's verdict vs each Signal (``True``/``False``/``None`` = not run)."""
+    """Per trial: Eval Lab's verdict vs each Signal (``True``/``False``/``None`` = not run).
+
+    Quarantined Laminar copies are skipped; their trial names are appended to ``skipped``.
+    """
     from evallab.live_watch import discover_trials, run_watch
 
     call = {"api_key": api_key, "endpoint": endpoint, "opener": opener}
@@ -871,6 +892,9 @@ def compare_signals(
         if s["name"] in {d["name"] for d in SIGNALS}
     }
     trials = [(job, trial) for job, trial in discover_trials(runs_dirs) if trial.name in by_trial]
+    trials, quarantined = skip_quarantined(trials, lambda item: _trial_cloud_trace_uuid(item[1]))
+    if skipped is not None:
+        skipped.extend(trial.name for _, trial in quarantined)
     ids = [_trial_cloud_trace_uuid(trial) for _, trial in trials]
     params = {"ids": [trace for trace in ids if trace is not None], "signals": list(names)}
     fired = {
@@ -951,7 +975,12 @@ def _laminar_command(args: Any, root: Path, *, harbor: Any | None = None) -> int
         return 0
     runs = [p if p.is_absolute() else (root / p).resolve() for p in args.runs_dir]
     out = args.out if args.out.is_absolute() else (root / args.out).resolve()
-    rows = compare_signals(runs_dirs=runs, out_dir=out, api_key=key, endpoint=endpoint)
+    quarantined: list[str] = []
+    rows = compare_signals(
+        runs_dirs=runs, out_dir=out, api_key=key, endpoint=endpoint, skipped=quarantined
+    )
+    if quarantined:
+        print(f"laminar: skipped {len(quarantined)} quarantined trial(s)", file=sys.stderr)
     table = format_comparison(rows)
     out.mkdir(parents=True, exist_ok=True)
     (out / "signals-vs-evallab.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")

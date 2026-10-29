@@ -831,6 +831,26 @@ def test_retained_issues_exclude_reproducers_and_runs_use_rewards_and_facets(cas
     assert runs["list"][3]["tests"] is None and runs["list"][3]["suspicion"] is None
 
 
+def test_a_withheld_facet_record_leaves_its_run_unfaceted_in_the_task_view(case: Case) -> None:
+    cas_task(case)
+    add_triage(case, "terminal-bench/cas-task")
+    assert case.database.upsert_run_facets([{
+        "run_id": "terminal-bench/cas-task/run-1", "source": "synthetic-corpus", "split": "DEV",
+        "facet_version": "run-facets/v1", "facet_model": "synthetic/model",
+        "input_tokens": 1, "output_tokens": 1, "goal": "Review task",
+        "approach": "Compared with sealed-task", "outcome": "pass", "tests": "modified",
+        "grader_or_harness_touched": True, "answer_material_accessed": True,
+        "success_claim_without_evidence": False, "eval_awareness": "none", "shortcut": "none",
+        "suspicion": 3, "evidence_steps": [0],
+    }], registry=SyntheticRegistry(case.root, case.package))["stored"] == 1
+    runs = task(case.context(), "cas-task")["runs"]
+    assert (runs["total"], runs["faceted"], runs["suspicion_ge_2"]) == (4, 2, 1)
+    withheld = runs["list"][1]
+    assert withheld["trace_id"].endswith("/run-1")
+    assert [withheld[key] for key in ("tests", "suspicion", "grader_or_harness_touched", "answer_material_accessed")] == [None] * 4
+    assert runs["list"][0]["tests"] == "read" and runs["list"][2]["suspicion"] == 3
+
+
 @pytest.mark.parametrize("limit", [480, 600, 900])
 def test_counts_survive_budget_omission_of_entire_lists(case: Case, limit: int) -> None:
     cas_task(case, variants=[{"original_package": {"tests/test.sh": b"pytest\n"}}])

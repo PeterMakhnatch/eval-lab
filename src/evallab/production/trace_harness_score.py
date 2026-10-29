@@ -31,6 +31,7 @@ import itertools
 import json
 import math
 import os
+import random
 import re
 import sys
 import tempfile
@@ -605,6 +606,48 @@ def gate_blockers(unit: Unit, gate: Sequence[Mapping[str, Any]]) -> list[str]:
     return blockers
 
 
+def _length_baseline(rows: Sequence[Row], lengths: Mapping[str, int]) -> dict[str, Any] | None:
+    """Compare native decisions and length on the same evaluated labelled runs."""
+    from evallab.production.trace_harness_length import best_cut, weighted_auroc
+
+    usable = [r for r in rows if r.evaluated and r.label is not None and r.run_id in lengths]
+    positives = [r for r in usable if r.label is True]
+    negatives = [r for r in usable if r.label is False]
+    if not positives or not negatives:
+        return None
+    lengths_array = [float(lengths[r.run_id]) for r in usable]
+    labels_array = [r.label is True for r in usable]
+    length_auc = weighted_auroc(lengths_array, labels_array)
+    if length_auc is None:
+        return None
+    scores = [r.scores[0] if r.scores is not None and len(r.scores) == 1
+              else float(r.state == "alarm") for r in usable]
+    detector_auc = weighted_auroc(scores, labels_array)
+    rng = random.Random(20261029)
+    pos_indices = [i for i, r in enumerate(usable) if r.label is True]
+    neg_indices = [i for i, r in enumerate(usable) if r.label is False]
+    draws = []
+    for _ in range(1000):
+        indices = rng.choices(pos_indices, k=len(pos_indices)) + rng.choices(neg_indices, k=len(neg_indices))
+        auc = weighted_auroc([scores[i] for i in indices], [labels_array[i] for i in indices])
+        if auc is not None:
+            draws.append(auc)
+    draws.sort()
+    lower, upper = draws[24], draws[974]
+    fp = sum(r.state == "alarm" for r in negatives)
+    threshold, tp, length_fp = best_cut(lengths_array, labels_array, fp)
+    return {
+        "n": len(usable), "positives": len(positives), "negatives": len(negatives),
+        "length_auroc": length_auc,
+        "detector_auroc": detector_auc,
+        "detector_auroc_95_stratified_run_bootstrap": [lower, upper],
+        "lower_bound_does_not_exceed_length": lower <= length_auc,
+        "detector_far": rate(fp, len(negatives)),
+        "threshold": threshold, "recall": rate(tp, len(positives)), "far": rate(length_fp, len(negatives)),
+        "basis": "in-sample threshold; native evaluated labelled runs with length",
+    }
+
+
 # --------------------------------------------------------------------------- #
 # scoring one corpus
 # --------------------------------------------------------------------------- #
@@ -613,13 +656,14 @@ def gate_blockers(unit: Unit, gate: Sequence[Mapping[str, Any]]) -> list[str]:
 def _unit_result(
     unit: Unit, labels: CorpusLabels, index: Mapping[Identity, Mapping[str, Mapping[str, Any]]],
     *, budgets: Sequence[float], calibration: tuple[CorpusLabels, Mapping[Identity, Any]] | None,
+    lengths: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     rows = build_rows(unit, labels, index)
     cal_rows = cal_name = None
     if calibration is not None and calibration[0].name != labels.name:
         cal_rows = build_rows(unit, calibration[0], calibration[1])
         cal_name = calibration[0].name
-    return {
+    result = {
         "label": unit.label, "mode": unit.mode, "reader": reader_text(unit, index),
         "members": [
             {"detector": m.detector, "version": m.version, "reader": m.reader} for m in unit.members
@@ -630,6 +674,11 @@ def _unit_result(
         "localization": localization(rows, labels),
         "cost": cost_summary(unit, rows),
     }
+    if lengths:
+        baseline = _length_baseline(rows, lengths)
+        if baseline is not None:
+            result["length_baseline"] = baseline
+    return result
 
 
 def score_corpus(
@@ -637,6 +686,7 @@ def score_corpus(
     detectors: Sequence[str] | None = None, combos: Sequence[str] = (),
     far_budgets: Sequence[float] = DEFAULT_FAR_BUDGETS,
     calibrate_labels: CorpusLabels | None = None, force_combos: bool = False,
+    lengths: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """Score every requested detector identity and combination on one labelled corpus."""
     detector_tokens = [parse_token(spec) for spec in detectors or ()]
@@ -661,7 +711,7 @@ def score_corpus(
             calibrate_labels,
             with_pools(index_findings(records, calibrate_labels.run_ids), pool_tokens),
         )
-    common: dict[str, Any] = {"budgets": far_budgets, "calibration": calibration}
+    common: dict[str, Any] = {"budgets": far_budgets, "calibration": calibration, "lengths": lengths}
 
     singles = {i: _unit_result(Unit("single", (i,)), labels, index, **common) for i in chosen}
     # Pooled published checks apply even when their pooled identity was not requested.
@@ -772,6 +822,26 @@ def render_markdown(result: Mapping[str, Any]) -> str:
                   + "; ".join(combo["blockers"])]
 
     units = _units(result)
+    baseline_units = [u for u in units if "length_baseline" in u]
+    if baseline_units:
+        lines += [
+            "", "## Length baseline (in-sample, native operating point)", "",
+            "Same labelled, evaluated runs with length; abstentions and missing lengths excluded. "
+            "AUROC intervals are stratified run bootstrap, not task-cluster intervals. "
+            "A flag is descriptive, not a test of the paired AUROC difference.", "",
+            "| Detector | Reader | n | Length AUROC | Detector AUROC [95% CI] | Detector FAR | "
+            "Length recall | Length FAR | Flag |",
+            "|---|---|---:|---:|---|---|---|---|---|",
+        ]
+        for unit in baseline_units:
+            b = unit["length_baseline"]
+            lo, hi = b["detector_auroc_95_stratified_run_bootstrap"]
+            flag = "lower bound does not exceed length" if b["lower_bound_does_not_exceed_length"] else "—"
+            lines.append(
+                f"| {_esc(unit['label'])} | {_esc(unit['reader'])} | {b['n']} | {b['length_auroc']:.3f} | "
+                f"{b['detector_auroc']:.3f} [{lo:.3f}, {hi:.3f}] | {_cell(b['detector_far'])} | "
+                f"{_cell(b['recall'])} | {_cell(b['far'])} | {flag} |"
+            )
     lines += [
         "", "## Native operating point (verdict alarm = predicted positive)", "",
         "| Detector | Reader | Cohort | Scored | Excluded miss/abst/unk | Recall (TP/pos) | FAR (FP/neg) | Considered-only alarmed |",
@@ -1200,10 +1270,20 @@ def _score_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) 
         if args.calibrate_on else None
     )
     detectors = [part for part in (args.detectors or "").split(",") if part.strip()]
+    lengths: dict[str, int] = {}
+    if any(labels.positive.get(r) is True for r in labels.run_ids) and any(
+        labels.positive.get(r) is False for r in labels.run_ids
+    ):
+        from evallab.production.trace_harness import resolve_runs
+
+        lengths = {run.run_id: len(run.steps) for run in resolve_runs(
+            args.corpus, database=args.database, repo_root=root
+        ) if run.run_id in labels.run_ids}
     try:
         result = score_corpus(
             labels, FindingStore(args.findings).records(), detectors=detectors, combos=args.combo,
             far_budgets=args.far_budgets, calibrate_labels=calibrate, force_combos=args.force_combos,
+            lengths=lengths,
         )
     except ValueError as error:
         print(f"trace score: {error}", file=sys.stderr)

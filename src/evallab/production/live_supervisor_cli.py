@@ -33,6 +33,7 @@ from evallab.production import live_supervisor as ls
 #: One cycle per launchd ``StartInterval``; the plist renders this interval.
 DEFAULT_INTERVAL = 120.0
 LOCK_FILE = "supervisor.lock"
+CYCLES_FILE = "cycles-v1.jsonl"
 MODULE_PREFIX = "evallab.production."
 READERS = ("rules", "model")
 #: A model reader without a daily cap is refused: no unattended run spends tokens uncapped.
@@ -168,14 +169,20 @@ def _headroom_check() -> Callable[[Sequence[str]], tuple[list[str], list[str], s
     return routes_with_headroom
 
 
-def _model_decider(root: Path, daily_token_budget: int) -> tuple[ls.Decider, Callable[[], None]]:
+def _model_decider(root: Path, daily_token_budget: int, *, triage_model: str | None = None,
+                   decide_model: str | None = None) -> tuple[ls.Decider, Callable[[], None]]:
     """The model reader plus a closer for the gateway child it starts on the first call."""
-    from evallab.production.run_atlas import GatewayTransport
+    from evallab.production.run_atlas import GatewayTransport, require_subscription_route
 
+    models = {name: route for name, route in (("triage_model", triage_model),
+                                                ("decide_model", decide_model))
+              if route is not None}
+    for route in models.values():
+        require_subscription_route(route)
     cls = _attr(_import("live_supervisor_triage", "the model reader"), "ModelDecider", "the model reader")
     transport = GatewayTransport()
     try:
-        return cls(transport, root, daily_token_budget=daily_token_budget), transport.close
+        return cls(transport, root, daily_token_budget=daily_token_budget, **models), transport.close
     except BaseException:
         transport.close()
         raise
@@ -183,6 +190,7 @@ def _model_decider(root: Path, daily_token_budget: int) -> tuple[ls.Decider, Cal
 
 @contextmanager
 def decider_for(reader: str, *, root: Path, daily_token_budget: int | None = None,
+                triage_model: str | None = None, decide_model: str | None = None,
                 override: ls.Decider | None = None, check: Callable[..., Any] | None = None,
                 clock: Callable[[], datetime] = utcnow) -> Iterator[ls.Decider]:
     """``rules`` (free, the rule table) or ``model`` (triage/decide, capped, headroom-gated)."""
@@ -198,7 +206,10 @@ def decider_for(reader: str, *, root: Path, daily_token_budget: int | None = Non
         raise ValueError(CAP_REQUIRED)
     if daily_token_budget < 0:
         raise ValueError("--max-tokens-per-day must not be negative")
-    decider, close = _model_decider(root, daily_token_budget)
+    model_options = {name: route for name, route in (("triage_model", triage_model),
+                                                       ("decide_model", decide_model))
+                     if route is not None}
+    decider, close = _model_decider(root, daily_token_budget, **model_options)
     models = [route for route in (getattr(decider, attr, None)
                                   for attr in ("triage_model", "decide_model", "deep_model"))
               if isinstance(route, str) and route]
@@ -247,8 +258,39 @@ def _payload(report: ls.ScanReport, *, sources: Sequence[ls.Source], moment: dat
             "records": report.records, "observed_at": _stamp(moment)}
 
 
+def _write_heartbeat(root: Path, report: ls.ScanReport, sources: Sequence[ls.Source],
+                     reader: str, decider: ls.Decider, moment: datetime, started: float) -> None:
+    """Append aggregate-only cycle metadata; failures cannot affect a completed scan."""
+    try:
+        inner = decider.decider if isinstance(decider, HeadroomGatedDecider) else decider
+        budget = getattr(inner, "budget", None) if reader == "model" else None
+        used = budget.spent() if budget is not None else 0
+        cap = budget.limit if budget is not None else 0
+        if reader == "rules":
+            status = "rules"
+        elif isinstance(decider, HeadroomGatedDecider) and decider.blocked() is not None:
+            status = "headroom_blocked"
+        elif budget is not None and used >= cap:
+            status = "budget_exhausted"
+        else:
+            status = "ok"
+        source_errors = sorted({source.name for source in sources
+                                if source.name in report.errors
+                                or any(key.startswith(f"trigger:{source.name}:") for key in report.errors)})
+        row = {"started_at": _stamp(moment), "duration_seconds": round(time.monotonic() - started, 3),
+               "observed": report.observed, "quiet": report.quiet, "terminal": report.terminal,
+               "suppressed": report.suppressed, "recorded": len(report.records),
+               "source_errors": source_errors, "reader_mode": reader, "reader_status": status,
+               "reader_tokens_used": used, "reader_tokens_cap": cap}
+        with (root / CYCLES_FILE).open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
+    except Exception as exc:  # noqa: BLE001 - telemetry must not break or lose a completed cycle
+        report.errors["heartbeat"] = f"{type(exc).__name__}: {exc}"
+
+
 def run_scan(*, root: Path, names: Sequence[str] = (), reader: str = "rules",
              daily_token_budget: int | None = None, now: datetime | None = None,
+             triage_model: str | None = None, decide_model: str | None = None,
              sources: Sequence[ls.Source] | None = None,
              decider: ls.Decider | None = None) -> dict[str, Any]:
     """One shadow-mode cycle under the lock; returns the printed report payload."""
@@ -256,13 +298,17 @@ def run_scan(*, root: Path, names: Sequence[str] = (), reader: str = "rules",
     root = root.expanduser()
     with hold_lock(root / LOCK_FILE):
         chosen = list(sources) if sources is not None else build_sources(names, root=root)
-        with decider_for(reader, root=root, daily_token_budget=daily_token_budget, override=decider) as active:
+        with decider_for(reader, root=root, daily_token_budget=daily_token_budget, override=decider,
+                         triage_model=triage_model, decide_model=decide_model) as active:
+            started = time.monotonic()
             report = ls.scan_once(chosen, active, ls.DecisionLog(root), now=moment, windows=_window_log(root))
+            _write_heartbeat(root, report, chosen, reader, active, moment, started)
     return _payload(report, sources=chosen, moment=moment)
 
 
 def serve(*, root: Path, names: Sequence[str] = (), interval: float = DEFAULT_INTERVAL,
           reader: str = "rules", daily_token_budget: int | None = None, cycles: int | None = None,
+          triage_model: str | None = None, decide_model: str | None = None,
           clock: Callable[[], datetime] = utcnow, sleep: Callable[[float], None] = time.sleep,
           emit: Callable[[dict[str, Any]], None] | None = None,
           sources: Sequence[ls.Source] | None = None,
@@ -281,12 +327,15 @@ def serve(*, root: Path, names: Sequence[str] = (), interval: float = DEFAULT_IN
     say = emit or print_cycle
     with hold_lock(root / LOCK_FILE):
         chosen = list(sources) if sources is not None else build_sources(names, root=root)
-        with decider_for(reader, root=root, daily_token_budget=daily_token_budget, override=decider) as active:
+        with decider_for(reader, root=root, daily_token_budget=daily_token_budget, override=decider,
+                         triage_model=triage_model, decide_model=decide_model) as active:
             log, windows = ls.DecisionLog(root), _window_log(root)
             done = 0
             while cycles is None or done < cycles:
                 moment = clock()
+                started = time.monotonic()
                 report = ls.scan_once(chosen, active, log, now=moment, windows=windows)
+                _write_heartbeat(root, report, chosen, reader, active, moment, started)
                 say(_payload(report, sources=chosen, moment=moment))
                 done += 1
                 if cycles is not None and done >= cycles:
@@ -534,8 +583,11 @@ def print_route(payload: dict[str, Any], *, as_json: bool) -> None:
 
 def _scan_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
     del root, harbor
+    models = {name: value for name, value in (("triage_model", args.triage_model),
+                                               ("decide_model", args.decide_model))
+              if value is not None}
     payload = run_scan(names=args.source or SOURCE_NAMES, root=args.root, reader=args.reader,
-                       daily_token_budget=args.max_tokens_per_day)
+                       daily_token_budget=args.max_tokens_per_day, **models)
     print_report(payload, as_json=args.json)
     return 0
 
@@ -544,7 +596,8 @@ def _serve_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) 
     del root, harbor
     try:
         return serve(names=args.source or SOURCE_NAMES, root=args.root, interval=args.interval,
-                     reader=args.reader, daily_token_budget=args.max_tokens_per_day)
+                     reader=args.reader, daily_token_budget=args.max_tokens_per_day,
+                     triage_model=args.triage_model, decide_model=args.decide_model)
     except KeyboardInterrupt:
         print("live-supervisor serve stopped", file=sys.stderr)
         return 0
@@ -611,7 +664,7 @@ def _fleet_report_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         return 2
     updated: Path | None = None
     try:
-        data, text = report.run_fleet_report(bridge, window_hours=args.window_hours)
+        data, text = report.run_fleet_report(bridge, window_hours=args.window_hours, root=args.root)
         if args.write:
             updated = (args.out if args.out is not None else bridge / report.TARGET_FILE).expanduser()
             report.write_section(updated, text)
@@ -633,6 +686,11 @@ def _add_cycle_options(parser: argparse.ArgumentParser) -> None:
                         help=f"state root for decisions and locks (default: {ls.DEFAULT_ROOT})")
     parser.add_argument("--max-tokens-per-day", type=int,
                         help="UTC input+output cap; required with --reader model")
+    parser.add_argument("--triage-model",
+                        help="subscription route for model triage (default: Claude Haiku)")
+    parser.add_argument("--decide-model",
+                        help="subscription route for model decisions (default: Claude Sonnet; "
+                             "deep kill review still uses Claude Opus)")
 
 
 def register_parser(commands: Any) -> None:
@@ -715,6 +773,8 @@ def register_parser(commands: Any) -> None:
     fleet.add_argument("--bridge", type=Path,
                        help="bridge run directory holding _queue.log, queue.json and queue-state.json "
                             "(default: ~/Developer/research-context/bridge/2026-10-27-run-atlas)")
+    fleet.add_argument("--root", type=Path, default=ls.DEFAULT_ROOT,
+                       help="supervisor state root holding cycles-v1.jsonl")
     fleet.add_argument("--window-hours", type=float, default=24.0,
                        help="hours before now that the report covers (default: 24)")
     fleet.add_argument("--out", type=Path,

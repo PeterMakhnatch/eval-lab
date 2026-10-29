@@ -67,10 +67,13 @@ as counted, with the exclusions listed.
 | CheatBench port (3 environments, 50 tasks): cheap open models cheated in 38 of 39 judged trials; every success was a cheat | [cheatbench-port](research/experiments/cheatbench-port/REPORT.md) |
 | First SFT and GEPA pilot: no detectable effect (55 counted outcomes, Holm-adjusted p = 1). A test of the pipeline, not of SFT | [ovn-sft-v0](research/experiments/ovn-sft-v0/RESULTS.md) |
 
-Not done yet: most clean-set rows are still `unverified` because the census
-sampled the fleet (1,729 rebuilt tasks have no v5 ladder run); the other MiMo
-domains have not been cleaned; and `vcheck`, the red/blue grader audit modelled
-on Tokenless EnvCheck, is built but has not run a campaign.
+Not done yet: most clean-set rows are still `unverified`. In the 567-task v6
+full fleet only 5 are `v6_verified` and 562 `v6_unverified` (reference/nop
+controls only; see [docs/mimo/README.md](docs/mimo/README.md)); the v5 census
+had sampled the fleet, leaving 1,729 rebuilt tasks without a v5 ladder run
+(history). The other MiMo domains have not been cleaned; and `vcheck`, the
+red/blue grader audit modelled on Tokenless EnvCheck, is built but has not run
+a campaign.
 
 ## Quick start
 

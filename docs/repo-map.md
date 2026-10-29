@@ -173,7 +173,7 @@ inputs:
   - path: src/evallab/failure_library/__init__.py
     digest: sha256:54d43eef14b171bfc3bc173c8e3922e10616cc5bb161ef2edbf3eb1284c87a98
   - path: src/evallab/failure_library/bank/__init__.py
-    digest: sha256:cd23963c9b542810f9c9a4c88473f52604f0073321ae0ea36d896cdc8cb7e34c
+    digest: sha256:283e17ddef2ae61b22b67f33a32e9f1a874aa2afec112d2ac2304b03b48db56c
   - path: src/evallab/failure_library/bank/actors/__init__.py
     digest: sha256:86e9809ad537fa14a7e93b8fad75ab7dcb043a8168fea41c66e101c16512194a
   - path: src/evallab/failure_library/bank/actors/ablation.py
@@ -190,14 +190,20 @@ inputs:
     digest: sha256:522b8a79ea5d413475fcbca6d725c5de051238ed700a066be67ac7bcc3c6120e
   - path: src/evallab/failure_library/bank/actors/wrench.py
     digest: sha256:e1fdac8b27062bf842a71f33968e14523f43a9da42c398902a83a115ba5b9150
+  - path: src/evallab/failure_library/bank/crosstest_adapters.py
+    digest: sha256:63e3983f6f6365f04b19826bfa78b9a69c3c52713ce3a0c6cd1b000db5b9b6c3
+  - path: src/evallab/failure_library/bank/crosstest_gate.py
+    digest: sha256:200180b80cd914f2795a6ca08c876344a41d441f6c9bd9e087bb7a79cb835222
+  - path: src/evallab/failure_library/bank/crosstest_retest.py
+    digest: sha256:5861fb777229fcf3a1f2475d1b9371c6de0d09ffe7bbbad63f0dfdbb8f5b3e1a
   - path: src/evallab/failure_library/bank/examples.py
-    digest: sha256:644ebc755780074d1c9e6517d6ab6419b053f692850729539620241f9da32a9e
+    digest: sha256:7fc5467abc9d55106f1be8b9fb53cfe164da8668684dc567e8f8439f061ede0b
   - path: src/evallab/failure_library/bank/hard_cases.py
     digest: sha256:46e4c4a9b0f8015fb590b737e5287713573afacae2085161811f121ad935c81c
   - path: src/evallab/failure_library/bank/matrix.py
     digest: sha256:737218aeccc4bdc879110617c1d6a2b98ae51c0c5d44d61dcd4731e4b3865db2
   - path: src/evallab/failure_library/bank/optimize.py
-    digest: sha256:ed14b2344dfbc89e658f41ec22dcb810201f39e7fe8ee61c3ff0307d283686c4
+    digest: sha256:ad2f1eb475f51e1e13c2359d005a9af6fc6444047bfe3f64851ef7737e847d59
   - path: src/evallab/failure_library/bank/refresh.py
     digest: sha256:f480fe7e1ab096d00ded45f32d5d4619e8955cc5b616abfd871c7c2fdc6c0770
   - path: src/evallab/failure_library/bank/sources/__init__.py
@@ -591,7 +597,7 @@ inputs:
   - path: src/evallab/ladder.py
     digest: sha256:142f028f50d04045289a40ffbc1d69c3d760785a57c356fa23fd70b585dca705
   - path: src/evallab/laminar.py
-    digest: sha256:0a0c4b3c75d93a4fe1cee7f24b71ffade6296ed03cf513e4be7afe0f48e1e002
+    digest: sha256:b1227d5312e0eab93cf0c075d616745fb5d6c5ff8d2cd41c226eaf573f681b78
   - path: src/evallab/laminar_tracing.py
     digest: sha256:078d8b5e796574b398daf441ac2ea27ec1d87fc5f739bc788c214019e324f2cb
   - path: src/evallab/lance.py
@@ -683,9 +689,9 @@ inputs:
   - path: src/evallab/production/cli.py
     digest: sha256:02f3a17aa273500044c972a31a53ee24350b2a25aeda9982dc5dd7b1897e718d
   - path: src/evallab/production/cloud_trace_db.py
-    digest: sha256:943e8ef10a458ce30106669528162a53619f455334e7779509834e183813424e
+    digest: sha256:a3bb794c2ad81aa15a92a82f922247a9344568a63342de9be80454196d6cf428
   - path: src/evallab/production/cloud_trace_export.py
-    digest: sha256:5aa7b044f41c88c57cec50cdd92f501682ba8b81ec6b060bb6a34b550e2d6927
+    digest: sha256:51d9ed6947ea0972cb438d6ec81cd07f4ef2162316942b9750575fd0492a0097
   - path: src/evallab/production/cloud_trace_retriever.py
     digest: sha256:a05d1104be6200f831910e8cc5a7be8ca092cd87027e50b7ca071dcff3b520f5
   - path: src/evallab/production/command_prefilter.py
@@ -731,19 +737,19 @@ inputs:
   - path: src/evallab/production/live_supervisor_act.py
     digest: sha256:306aff466f20ef0cbc64d07cb79952ad7ffc379c0b70885d7f0c80c4e2d46b69
   - path: src/evallab/production/live_supervisor_adjudicate.py
-    digest: sha256:5071b5680fdecde41da0b4ea1b97221346182fa35de9d1372a2a0e7588462715
+    digest: sha256:c20db60f848c3eef3c8b24ac75555705af3fe29ce9e76d4608fe0f4bd6c2c7ec
   - path: src/evallab/production/live_supervisor_cheat.py
     digest: sha256:1e188516bcf81016337781db5e81133638c8f53e11947ca2767e4dd0797e44f9
   - path: src/evallab/production/live_supervisor_cli.py
-    digest: sha256:dac6ca2f422f81f0de548cfe14c9d7b580657097bc27c8a88e6edc0d34a57877
+    digest: sha256:b6ebe64960c1494816f71ddae43f581c0bedbc28556fa34ae1d5365ab9dccf24
   - path: src/evallab/production/live_supervisor_fleet.py
     digest: sha256:275f9f39858ec2c53d077f9522d4cb46d0085e0167779253c7b9547ea8d39135
   - path: src/evallab/production/live_supervisor_fleet_report.py
-    digest: sha256:677e5b1ef7db4af15e8dba348df0e4f435b545a5ad2a306aae87dcc2b73c42ee
+    digest: sha256:b7b1979026d9d775173209c584448fbd1fed3a6b4927a10e6f3fb35161e1aa01
   - path: src/evallab/production/live_supervisor_gate.py
     digest: sha256:85f96ff0cab8a4a7e9e2a740c67bfd39fa0fa4942d1227c8276613a4dfabb14c
   - path: src/evallab/production/live_supervisor_harbor.py
-    digest: sha256:9d348849b6d125ac32b7e2504b7b741142a6f07f057808552a0905efc15943a4
+    digest: sha256:9058f61a2a5319c91c77f364a9e99bf2c086652f3ebd98853019db42a3d993be
   - path: src/evallab/production/live_supervisor_replay.py
     digest: sha256:3b8540d25ff588bc70acb5c37bb8fd8de19402ea8fa757c28e42acaf263c0cc2
   - path: src/evallab/production/live_supervisor_services.py
@@ -755,23 +761,23 @@ inputs:
   - path: src/evallab/production/modal_cloud.py
     digest: sha256:8dcd262bf273a13b1cdf6387a4a954ccbd80b9847cd0431166cfb5a19ee9bdf0
   - path: src/evallab/production/monitor_worker.py
-    digest: sha256:028591253c90c2c5b8e5c11cca4e462c24f7e70cddba49908f39428f0b14ad1a
+    digest: sha256:be07fffac58ae498382ef328464d190c8626ab44edb1153339500c1a452b67fd
   - path: src/evallab/production/outbox_relay.py
     digest: sha256:ab1adc2f16421d334c953e1da45d7c8937426e7bf0918e5a8ecd855c6f20fe1f
   - path: src/evallab/production/public_corpus_loader.py
     digest: sha256:6dd834cea54b40d742bb4289f1a7ac2b1586197b27483d1e6b1112095adde01f
   - path: src/evallab/production/qa_data.py
-    digest: sha256:9bf1623c4b66b6d486a2675cb95db1c3ba28073dae0db2f891d8af66eb484abe
+    digest: sha256:d0c48a593a97dbaee3b74592f34d3a703aa065a3179d79d16565057ebbe882dd
   - path: src/evallab/production/qa_data_calls.py
     digest: sha256:6d427e2f67bf76f965f615b1da975f1e4f5b8128cf55e6d9dd6a3095b954c6b9
   - path: src/evallab/production/qa_data_card.py
     digest: sha256:c7d6efe181ce39ea135bb86bb15e05e8146d7cbb92724564041d896248a05a35
   - path: src/evallab/production/qa_data_export.py
-    digest: sha256:a9c24ed386420ec40ff9fe4b4232aa2c3b372bdcd40b86e991cabb09948dc620
+    digest: sha256:a60981c6385caa9e4c7f572aa8a0c8eb9dc3c6d497444a18f195f18fd9c2ab88
   - path: src/evallab/production/qa_data_findings.py
     digest: sha256:06ed6e7d985c3d51698625a40b43513fb2f5988fd02315c33663516fa33deb2b
   - path: src/evallab/production/qa_data_guide.py
-    digest: sha256:4a8517dd9fdfc0501a12b7f92631f1d4f9f8bd59e5b25a9b2a92ee66de0d6aad
+    digest: sha256:491872b5b4b94b0cd7d5fadc3db853c14ee1cea9fdde5fcc581a0c7b2b53a738
   - path: src/evallab/production/qa_data_inventory.py
     digest: sha256:2a7eedc876e87e93793e22d4268e2b895c09331edccd570ba42c0c14f395c9af
   - path: src/evallab/production/qa_data_scan.py
@@ -837,7 +843,7 @@ inputs:
   - path: src/evallab/production/trace_findings.py
     digest: sha256:8276e8db66ecdf68c40fc47527b531e679e0fe3d966140b37fd878675d85ad78
   - path: src/evallab/production/trace_harness.py
-    digest: sha256:344912d0d80809d13d3a6173ea41fb07502b7815ba9618e45741d64e3c877b62
+    digest: sha256:8672509ca7efb89154eae1b0bfe4013e8806d989877f01e8b33f07c5967b7ac5
   - path: src/evallab/production/trace_harness_cascade.py
     digest: sha256:72c74d90fdb570b63b32d54fb3a3fb64d90013cd77ef9ae985f23076cfba3596
   - path: src/evallab/production/trace_harness_corpora.py
@@ -863,13 +869,13 @@ inputs:
   - path: src/evallab/production/trace_harness_rules.py
     digest: sha256:5c6f1eeb485361246679d91eeed8324517b3a78a8e686d1d33ff361e850b0965
   - path: src/evallab/production/trace_harness_score.py
-    digest: sha256:3a8d706673fa2c9cfa3ac4f6541f3fa9adbc954ea001570637363e00af54ca37
+    digest: sha256:643696886fc686b08af0ffc9dd0fb08f2aa9c2d613b2dd20f05403e2a4d168f1
   - path: src/evallab/production/trace_harness_staged.py
     digest: sha256:8bd789c9aae04288a39de29e6062b3e6670bbc508702f2362c5cc86b7f047d2d
   - path: src/evallab/production/trace_harness_stream.py
-    digest: sha256:91ccc6952bdf71d8f94640d0caae162847fc988824818477e2cdcf6e202d2d18
+    digest: sha256:d007c6b45e93acdb60252ca73dfaa6eddb168b4636b196229ff587994b4c063a
   - path: src/evallab/production/trace_harness_tools.py
-    digest: sha256:e301b7190b6c26aecbb01c621d68cf7b797ffeb827310d5dfe5c27257c6467ac
+    digest: sha256:1965ea4a5a9281921f4ed2474ee9b1422e71a831464aca3e8a55c6aa04475db0
   - path: src/evallab/production/window_cascade.py
     digest: sha256:6f5213a670a73487426f185fa79837a58f81820a4328dc459ec629ad998b772e
   - path: src/evallab/profiles.py
@@ -953,9 +959,9 @@ inputs:
   - path: src/evallab/readers/harbor_trace_inputs.py
     digest: sha256:e2a9fa984c174d68eea8a66cf3d1f6cc72a0644dca6c2b745bb47552a893cf9c
   - path: src/evallab/readers/laminar_import.py
-    digest: sha256:922f7805df1ad44f08a79d235639a231d440a66c036bd3a6a5d3227f08b04249
+    digest: sha256:083bcdcef7c017cabc72e21968c8d10b35aec9c5d117ea88fe5046d697ebc7e5
   - path: src/evallab/readers/laminar_signals.py
-    digest: sha256:4a4b1f47880b7c0b305cf28d673e75d5412085184d8517980a69570de9d9273a
+    digest: sha256:d696a97d98a82f2530b5724aa27d4cad48290f475b2a70828681e0bf4bc0985c
   - path: src/evallab/readers/metr_campaign_plan.py
     digest: sha256:4c674024523be1ec1428fd0d854d18775e9f66814b439aef257b7be7f05ffef4
   - path: src/evallab/readers/omp_model.py
@@ -1183,9 +1189,11 @@ inputs:
   - path: src/evallab/trace_store/docent.py
     digest: sha256:0a51e1db7a2c0f39a011d9025732e5015da95c0405fcc11c858f500d02cabf86
   - path: src/evallab/trace_store/fetch.py
-    digest: sha256:5705216772cf96c544daf95d0607a4b421ebd455ccdf22024f4e7dc6b6762c7d
+    digest: sha256:2043f0afb85f1dd58a0921577a6d5581b988f04eec0451b7264810a34a1a2288
   - path: src/evallab/trace_store/laminar.py
-    digest: sha256:472bbd865e736443926e65191c63e1a1149be61f972b238f5322d8d9e888390e
+    digest: sha256:2dcdfaec23ed0ed4bf78bbd49f83ba5df91444ddf4af4b50e6ded881c4570a12
+  - path: src/evallab/trace_store/laminar_quarantine.py
+    digest: sha256:3cf98fc8e493dd5c031c4e0c7f437e044a368cf0b7e51f638dde11a8b2480e43
   - path: src/evallab/trace_store/owner_cleanup.py
     digest: sha256:455579da218146f1b97f28a81ea94314967988d873d7275a87031734a5c24d1d
   - path: src/evallab/trace_store/secrets.py
@@ -1193,7 +1201,7 @@ inputs:
   - path: src/evallab/trace_store/state.py
     digest: sha256:ca71ba6eb9662d21e53ecb1bb07b23fe1d811c7ab8cc5e00f6256888262128b8
   - path: src/evallab/trace_store/sync.py
-    digest: sha256:a9c709533cf78be51169ba8d0d9a42a19ee889199cc75de4fcbe2978c90a580c
+    digest: sha256:e9b41106fbc59d6dd67fd36651bf10cc7b2c04c530e50427ed9563b6b8dda8d7
   - path: src/evallab/trace_store/watch.py
     digest: sha256:c5bf9d6960e25a7fa5cff1911755c678443b5f8f47474731fd05e4cc4e33fa9b
   - path: src/evallab/tracing.py
@@ -1219,7 +1227,7 @@ inputs:
   - path: src/evallab/trial_treatment.py
     digest: sha256:932748bb92147c7a6c240d9e40ad1baae5b028ade560ee69abc8c93a05fc0d5b
   - path: src/evallab/tripwires.py
-    digest: sha256:29d601da70cc38e9e7b5f302a68b4ff1c18ca07ef4efd877b3504563a5623bdf
+    digest: sha256:8ebef1b062b150a25bf43e0854ff059ef05311467b63b9aea971edbadf6de880
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7ecf5e66b3e99887465bada34fcc09729dbffdc4346f95d79cb793bdd9bb82fb
   - path: src/evallab/upstream_fetch.py
@@ -1374,10 +1382,13 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `failure_library.bank.actors.messages` | 200 | Source-native actor projection for HackTrace and OLMo message transcripts. | — |
 | `failure_library.bank.actors.resolve` | 200 | Resolve ``RunRecord.transcript_ref`` locators to native actor projections. | — |
 | `failure_library.bank.actors.wrench` | 200 | Source-native actor projection for Terminal Wrench ATIF trajectories. | — |
-| `failure_library.bank.examples` | 700 | Compile local, target-excluded defensive demos from ``issue-hard-case/v1``. | — |
+| `failure_library.bank.crosstest_adapters` | 200 | Metadata-safe access to the registry's staged adapter projections. | — |
+| `failure_library.bank.crosstest_gate` | 100 | Promotion decisions from paired DEV and frozen cross-test measurements. | — |
+| `failure_library.bank.crosstest_retest` | 500 | Frozen, once-only paired FW-4 cross-tests; persist aggregate metadata, never text. | — |
+| `failure_library.bank.examples` | 800 | Compile local, target-excluded defensive demos from ``issue-hard-case/v1``. | — |
 | `failure_library.bank.hard_cases` | 700 | DEV-only, unadjudicated trace hard cases and a frozen offline review sample. | — |
 | `failure_library.bank.matrix` | 600 | Catch/miss matrix: every DEV issue item against every detector identity. | — |
-| `failure_library.bank.optimize` | 1700 | FW-4: real GEPA over the retained CM-13 and OQ-6 defensive readers. | `python -m evallab.failure_library.bank.optimize plan` |
+| `failure_library.bank.optimize` | 1800 | FW-4: real GEPA over the retained CM-13 and OQ-6 defensive readers. | `python -m evallab.failure_library.bank.optimize plan`, `python -m evallab.failure_library.bank.optimize retest-crosstest` |
 | `failure_library.bank.refresh` | 700 | Incremental, local-only refresh of the lab's own issue-bank collections. | — |
 | `failure_library.bank.sources` | 100 | Issue-bank source builders, one module per source, discovered in name order. | — |
 | `failure_library.bank.sources.answer_keys` | 600 | Answer keys: every labelled item of ``research/answer-keys/*/items.jsonl``. | — |
@@ -1620,8 +1631,8 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.atlas_view` | 500 | Read-only Run Atlas view model: validated run facets and clusters on admitted DEV runs. | — |
 | `production.benchmark_reports` | 1100 | Strict, versioned retained-report schemas shared by the cloud API and the exporter. | — |
 | `production.cli` | 1200 | Production queue commands, with dashboard-only serving as the safe default. | — |
-| `production.cloud_trace_db` | 2900 | Queryable task/defect/trace projections backed by PostgreSQL or local SQLite. | — |
-| `production.cloud_trace_export` | 900 | Local, DEV-admitted run exports with a separate sealed scoring join. | — |
+| `production.cloud_trace_db` | 3000 | Queryable task/defect/trace projections backed by PostgreSQL or local SQLite. | — |
+| `production.cloud_trace_export` | 1000 | Local, DEV-admitted run exports with a separate sealed scoring join. | — |
 | `production.cloud_trace_retriever` | 500 | Deterministic compact DEV-only verified-trace retrieval for seeker prompt augmentation. | — |
 | `production.command_prefilter` | 200 | High-recall Stage-1 command cues for the live monitor cascade. | — |
 | `production.control_plane` | 700 | Single production dashboard over the durable, ordered production event journal. | — |
@@ -1644,11 +1655,11 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.ledger_split` | 100 | Ledger-side split lookup for a Verifier: DEV / TEST / UNKNOWN for a task or a (key, item) pair. | — |
 | `production.live_supervisor` | 400 | Live Supervisor core: triggered subjects -> one decision -> one ``trace-findings/v1`` record. | — |
 | `production.live_supervisor_act` | 700 | Live Supervisor actuator (LS-4): carry out one decision on one lab subject, capped and receipted. | — |
-| `production.live_supervisor_adjudicate` | 400 | Live Supervisor adjudication (LS-3): a blind strong reader re-decides sampled decisions. | — |
+| `production.live_supervisor_adjudicate` | 700 | Live Supervisor adjudication (LS-3): a blind strong reader re-decides sampled decisions. | — |
 | `production.live_supervisor_cheat` | 600 | Live Supervisor LS-5: route ``flag_cheating`` decisions to the Trace Watcher lane. | `python -m evallab.production.live_supervisor_cheat latency` |
-| `production.live_supervisor_cli` | 700 | Live Supervisor CLI: ``evallab live-supervisor`` scan, serve, rows, replay, adjudicate and fleet-report. | — |
+| `production.live_supervisor_cli` | 800 | Live Supervisor CLI: ``evallab live-supervisor`` scan, serve, rows, replay, adjudicate and fleet-report. | — |
 | `production.live_supervisor_fleet` | 800 | Live Supervisor source ``fleet``: the OMP lanes (herdr panes), the queue keeper and provider quotas. | — |
-| `production.live_supervisor_fleet_report` | 600 | Live Supervisor fleet-health report: idle lane-hours, item durations, blocked loops and open items. | — |
+| `production.live_supervisor_fleet_report` | 700 | Live Supervisor fleet-health report: idle lane-hours, item durations, blocked loops and open items. | — |
 | `production.live_supervisor_gate` | 300 | Live Supervisor adjudication gate: a measurable, digest-pinned reason to allow a real action. | — |
 | `production.live_supervisor_harbor` | 500 | Live Supervisor source ``harbor``: live Harbor trials on this Mac, read-only. | — |
 | `production.live_supervisor_replay` | 900 | Live Supervisor replay: run the supervisor over a historical case as if it were live. | — |
@@ -1710,7 +1721,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.trace_harness_own` | 300 | Trace-harness view of our OWN Harbor runs and the own-run window cascade. | — |
 | `production.trace_harness_qa` | 100 | Trace-harness adapter for QA Trace T0 (``qa_trace_t0``): deterministic, no judge, no network. | — |
 | `production.trace_harness_rules` | 100 | Trace-harness adapters for the model-free rule layers (no judge, no network). | — |
-| `production.trace_harness_score` | 1200 | Score trace-findings/v1 detectors and detector combinations against corpus labels. | — |
+| `production.trace_harness_score` | 1300 | Score trace-findings/v1 detectors and detector combinations against corpus labels. | — |
 | `production.trace_harness_staged` | 300 | Staged cross-test sets as trace-harness runs and labels (local-only, eval-only). | — |
 | `production.trace_harness_stream` | 800 | Streaming cascade detector (``cascade_stream``): the live monitor path inside the harness. | — |
 | `production.trace_harness_tools` | 900 | Import-only trace-harness detectors over results the Trace Tools lane stored. | — |
@@ -1872,6 +1883,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `trace_store.docent` | 300 | Private, deterministic Docent ingestion using the pinned 0.1.88 wire format. | — |
 | `trace_store.fetch` | 200 | Read stored Laminar spans or private Docent runs without model calls. | — |
 | `trace_store.laminar` | 200 | Lossless DB-message projection through Eval Lab's existing OTLP encoders. | — |
+| `trace_store.laminar_quarantine` | 200 | Laminar traces that Eval Lab must never upload to, read from, or score again. | — |
 | `trace_store.owner_cleanup` | 1000 | Read-only verification that the 108 granted Laminar copies are gone. | — |
 | `trace_store.secrets` | 100 | Pure export secret gate, without optional Docent integration imports. | — |
 | `trace_store.state` | 200 | Append-only, crash-resumable trace-store receipts and spend accounting. | — |
@@ -1888,7 +1900,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `trial_decision` | 900 | One-page trial decision, composed from records already on disk. | — |
 | `trial_diagnosis` | 1300 | Deterministic trial diagnosis: trajectory -> failure modes + bounded Reef feedback. | — |
 | `trial_treatment` | 1400 | Per-trial treatment keys and capture records (HAR-93). | — |
-| `tripwires` | 6900 | Deterministic trace tripwires: one shared rule surface for live + offline. | — |
+| `tripwires` | 7000 | Deterministic trace tripwires: one shared rule surface for live + offline. | — |
 | `upstream_adapter` | 600 | Offline, file-only boundaries for pinned upstream evaluation results. | — |
 | `upstream_fetch` | 1100 | Detect agent trials that fetched upstream remote content (answer-leak guard). | — |
 | `upstream_grader` | 2400 | Run an unchanged Harbor task's native verifier in a fresh declared-resource environment. | — |
@@ -2063,6 +2075,7 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `python -m evallab.docindex generate` | `docindex` | Write a deterministic documentation index |
 | `python -m evallab.docindex check` | `docindex` | Fail-closed validation of front-matter and index freshness |
 | `python -m evallab.failure_library.bank.optimize plan` | `failure_library.bank.optimize` | preregister frozen DEV inputs without a model request |
+| `python -m evallab.failure_library.bank.optimize retest-crosstest` | `failure_library.bank.optimize` | preview or execute frozen paired cross-tests |
 | `python -m evallab.file_access_capture probe` | `file_access_capture` | report sandbox discovery as JSON |
 | `python -m evallab.file_access_capture snapshot` | `file_access_capture` | hash protected roots as JSON |
 | `python -m evallab.file_access_capture capture` | `file_access_capture` | supervise inotifywait for one window |

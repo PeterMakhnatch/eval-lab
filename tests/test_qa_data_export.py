@@ -445,3 +445,42 @@ def test_qa_export_never_follows_a_final_component_symlink_created_during_path_r
     assert not target.exists()
     other = manifest if racing == "output" else out
     assert not other.exists() and not other.is_symlink()
+
+
+def _served_run_ids(ctx: QaContext) -> set[str]:
+    return {row["run_id"] for row in ctx.database.search_runs({}, registry=ctx.retriever.registry)}
+
+
+@pytest.mark.parametrize("sealed_text", ["synthetic/sealed", "sealed-item", "atrx-vep-crispr"])
+def test_a_run_whose_facet_record_names_a_sealed_task_cites_no_evidence_like_an_unfaceted_run(
+    ctx: QaContext, tmp_path: Path, sealed_text: str,
+) -> None:
+    with CloudTraceDatabase(ctx.database_path, sqlite_fts=False) as database:
+        named = {**_facet("trace-b", 2), "approach": "Compared with " + sealed_text}
+        assert database.upsert_run_facets([named], registry=ctx.retriever.registry)["stored"] == 1
+    assert _served_run_ids(ctx) == {"trace-a", "trace-z"}  # `runs` withholds the record
+    data = _export(ctx, tmp_path / "out", facets={}, trace_ids=["trace-a", "trace-b", "trace-unfaceted"])
+    cited = {run["trace_id"]: run for run in data["runs"]}
+    assert cited["trace-a"]["evidence_steps_original"] == [2, 5, 9, 99]
+    for trace in ("trace-b", "trace-unfaceted"):
+        assert cited[trace]["evidence_steps_original"] == cited[trace]["evidence_steps_blinded"] == []
+
+
+def test_an_admitted_task_whose_id_contains_a_sealed_name_has_no_served_evidence(
+    ctx: QaContext, tmp_path: Path,
+) -> None:
+    twin_task, twin_trace = "synthetic/sealed-twin", "trace-twin"
+    ctx.retriever.registry._assignments[(DATASET, "twin-item")] = "dev"  # type: ignore[union-attr]
+    with CloudTraceDatabase(ctx.database_path, sqlite_fts=False) as database:
+        database.upsert_task({
+            "task_id": twin_task, "dataset_id": DATASET, "split": "dev", "metadata_json": {"item_id": "twin-item"},
+            "instruction_text": "Inspect the parser and report its output.",
+        })
+        _trace(database, twin_trace, twin_task)
+        assert database.upsert_run_facets(
+            [_facet(twin_trace, 3)], registry=ctx.retriever.registry,
+        )["stored"] == 1
+    assert twin_trace not in _served_run_ids(ctx)
+    data = _export(ctx, tmp_path / "out", facets={}, trace_ids=[twin_trace, "trace-a"])
+    cited = {run["trace_id"]: run["evidence_steps_original"] for run in data["runs"]}
+    assert cited == {twin_trace: [], "trace-a": [2, 5, 9, 99]}

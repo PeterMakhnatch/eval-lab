@@ -1,0 +1,217 @@
+{
+  "clusters_containing_withheld_run": [
+    "L1-02",
+    "L1-02.2",
+    "L1-02.2.1"
+  ],
+  "cpu_seconds": {
+    "export_ordinary": {
+      "new": {
+        "median": 0.52,
+        "samples": [
+          0.405,
+          0.52,
+          0.437,
+          0.416,
+          0.679,
+          0.6,
+          0.68
+        ]
+      },
+      "old": {
+        "median": 0.523,
+        "samples": [
+          0.38,
+          0.398,
+          0.416,
+          0.55,
+          0.523,
+          0.583,
+          0.7
+        ]
+      }
+    },
+    "export_withheld": {
+      "new": {
+        "median": 0.538,
+        "samples": [
+          0.4,
+          0.538,
+          0.443,
+          0.463,
+          0.688,
+          0.617,
+          0.895
+        ]
+      },
+      "old": {
+        "median": 0.587,
+        "samples": [
+          0.4,
+          0.482,
+          0.525,
+          0.61,
+          0.736,
+          0.587,
+          0.598
+        ]
+      }
+    },
+    "scope_L1-07": {
+      "new": {
+        "median": 1.08,
+        "samples": [
+          0.82,
+          0.958,
+          1.22,
+          1.11,
+          1.301,
+          1.051,
+          1.08
+        ]
+      },
+      "old": {
+        "median": 0.946,
+        "samples": [
+          0.74,
+          0.918,
+          0.759,
+          1.111,
+          1.079,
+          0.946,
+          1.117
+        ]
+      }
+    }
+  },
+  "export_ordinary": {
+    "new_runs": [
+      {
+        "actor_inputs_available": true,
+        "evidence_steps_blinded": [
+          3
+        ],
+        "evidence_steps_original": [
+          2
+        ],
+        "steps": 3,
+        "trace_id": "retained-trace:227bec15e5cf1617b2d3f56225f8e1a3"
+      }
+    ],
+    "old_runs": [
+      {
+        "actor_inputs_available": true,
+        "evidence_steps_blinded": [
+          3
+        ],
+        "evidence_steps_original": [
+          2
+        ],
+        "steps": 3,
+        "trace_id": "retained-trace:227bec15e5cf1617b2d3f56225f8e1a3"
+      }
+    ],
+    "rest_identical": true
+  },
+  "export_withheld": {
+    "new_runs": [
+      {
+        "actor_inputs_available": true,
+        "evidence_steps_blinded": [],
+        "evidence_steps_original": [],
+        "steps": 2,
+        "trace_id": "retained-trace:b493cd8d3a512fe3bd44d165bfb0f6a4"
+      }
+    ],
+    "old_runs": [
+      {
+        "actor_inputs_available": true,
+        "evidence_steps_blinded": [
+          1,
+          2
+        ],
+        "evidence_steps_original": [
+          0,
+          1
+        ],
+        "steps": 2,
+        "trace_id": "retained-trace:b493cd8d3a512fe3bd44d165bfb0f6a4"
+      }
+    ],
+    "rest_identical": true
+  },
+  "n": 7,
+  "scope_L1-02": {
+    "counts_identical": true,
+    "document_identical_except_rows": true,
+    "members": 129,
+    "reply_identical": true,
+    "rows_changed": {
+      "retained-trace:b493cd8d3a512fe3bd44d165bfb0f6a4": {
+        "new": [
+          null,
+          null
+        ],
+        "old": [
+          "run-facets/v1",
+          "xai-oauth/grok-4.20-0309-non-reasoning"
+        ]
+      }
+    },
+    "rows_new": 129,
+    "rows_old": 129,
+    "same_trace_ids": true
+  },
+  "scope_L1-02.2": {
+    "counts_identical": true,
+    "document_identical_except_rows": true,
+    "members": 127,
+    "reply_identical": true,
+    "rows_changed": {
+      "retained-trace:b493cd8d3a512fe3bd44d165bfb0f6a4": {
+        "new": [
+          null,
+          null
+        ],
+        "old": [
+          "run-facets/v1",
+          "xai-oauth/grok-4.20-0309-non-reasoning"
+        ]
+      }
+    },
+    "rows_new": 127,
+    "rows_old": 127,
+    "same_trace_ids": true
+  },
+  "scope_L1-02.2.1": {
+    "counts_identical": true,
+    "document_identical_except_rows": true,
+    "members": 107,
+    "reply_identical": true,
+    "rows_changed": {
+      "retained-trace:b493cd8d3a512fe3bd44d165bfb0f6a4": {
+        "new": [
+          null,
+          null
+        ],
+        "old": [
+          "run-facets/v1",
+          "xai-oauth/grok-4.20-0309-non-reasoning"
+        ]
+      }
+    },
+    "rows_new": 107,
+    "rows_old": 107,
+    "same_trace_ids": true
+  },
+  "scope_L1-07": {
+    "counts_identical": true,
+    "document_identical_except_rows": true,
+    "members": 165,
+    "reply_identical": true,
+    "rows_changed": {},
+    "rows_new": 165,
+    "rows_old": 165,
+    "same_trace_ids": true
+  }
+}

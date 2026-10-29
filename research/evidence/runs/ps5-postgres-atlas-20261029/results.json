@@ -1,0 +1,2418 @@
+{
+ "all": [
+  {
+   "against": "sqlite-fts",
+   "call": "build",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "schema_scoped_read_only:row_counts",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:all",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:suspicion",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:tests",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:tests-list-limit",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:bool",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:bool-false+outcome",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:eval",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:allowed-beta",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:allowed-empty",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:allowed-many",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:source+split",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:facet_model",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_runs:no-match",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retriever.search_runs",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "_admitted_facets:all",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "_admitted_facets:filters+limit",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "_admitted_facets:allowed-set",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "_admitted_facets:allowed-frozenset-many",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "served_facet_run_ids:tuple",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "served_facet_run_ids:set",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "served_facet_run_ids:frozenset",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "served_facet_run_ids:single-withheld",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "served_facet_run_ids:empty",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "served_facet_run_ids:empty-set",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "served_facet_run_ids:denied",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "served_facet_run_ids:many",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "served_facet_run_ids:bulk",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:plain",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:limit3",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:dataset+limit",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:dataset-b",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:task",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:task-bare",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:outcome",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:model+limit",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:ids_only",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:alarms-sort",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:alarmed_by",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:withheld-task",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:denied-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:limit0",
+   "detail": "QaDataError: '--limit must be at least 1' vs QaDataError: '--limit must be at least 1'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.inventory",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.clusters:db-list",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.clusters:db-members",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.clusters:db-level2",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:namespace/alpha",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:alpha",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:beta",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:sealed-task2",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:empty",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:sealed-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:test-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:bulk/t03",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:with_outcomes",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task_rows:alpha",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:run-a",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:run-a",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:run-b",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:run-b",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:run-c",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:run-c",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:run-d",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:run-d",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:run-e",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:run-e",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:run-h",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:run-h",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:run-nosteps",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:run-nosteps",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:bulk/t00/r00",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:bulk/t00/r00",
+   "detail": "/findings[0]/detector: 'tripwire' vs 'run_health.loop'",
+   "status": "order_only"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:bulk/t39/r29",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:bulk/t39/r29",
+   "detail": "/findings[0]/detector: 'tripwire' vs 'run_health.loop'",
+   "status": "order_only"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:sealed-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:sealed-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:test-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:test-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:locked-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:locked-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:nope",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:nope",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:no-ledgers",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:nul",
+   "detail": "DataError: 'PostgreSQL text fields cannot contain NUL (0x00) bytes' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "differs_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:nul",
+   "detail": "DataError: 'PostgreSQL text fields cannot contain NUL (0x00) bytes' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "differs_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:nul",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:nul",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.findings:summary",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.findings:run-a",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.findings:run-c",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.findings:task-alpha",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.findings:bulk-run",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:lexical",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:lexical-multiword",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:lexical-issue-kind",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:lexical-reward_seeker",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:lexical-widen",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:empty-misalignment-flagged",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:facets-empty-map",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:facets-tests",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:facets-bool-int",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:facets-outcome-source",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:cluster-c2",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:cluster-c3+query",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:cluster+facets",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:cluster-unknown",
+   "detail": "ValueError: 'unknown cluster_id' vs ValueError: 'unknown cluster_id'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:anchor",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:anchor-empty-query",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:anchor-top1",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:cluster+anchor",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:cluster+anchor+facets",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:anchor-withheld-facet",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:anchor-withheld-task-name",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:anchor-denied",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:sealed-query",
+   "detail": "ValueError: 'query contains a sealed task identity' vs ValueError: 'query contains a sealed task identity'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:bulk-anchor",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:bulk-facets",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "failed_run_summary:beta",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "failed_run_summary:sealed",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_traces:identifier-term",
+   "detail": "/: length 0 vs 1",
+   "status": "differs"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_traces:identifier-whole",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:identifier-term",
+   "detail": "/: length 0 vs 1",
+   "status": "differs"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "row_counts",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "build",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "schema_scoped_read_only:row_counts",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:all",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:suspicion",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:tests",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:tests-list-limit",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:bool",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:bool-false+outcome",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:eval",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:allowed-beta",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:allowed-empty",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:allowed-many",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:source+split",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:facet_model",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_runs:no-match",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retriever.search_runs",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "_admitted_facets:all",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "_admitted_facets:filters+limit",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "_admitted_facets:allowed-set",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "_admitted_facets:allowed-frozenset-many",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "served_facet_run_ids:tuple",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "served_facet_run_ids:set",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "served_facet_run_ids:frozenset",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "served_facet_run_ids:single-withheld",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "served_facet_run_ids:empty",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "served_facet_run_ids:empty-set",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "served_facet_run_ids:denied",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "served_facet_run_ids:many",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "served_facet_run_ids:bulk",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:plain",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:limit3",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:dataset+limit",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:dataset-b",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:task",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:task-bare",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:outcome",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:model+limit",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:ids_only",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:alarms-sort",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:alarmed_by",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:withheld-task",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:denied-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:limit0",
+   "detail": "QaDataError: '--limit must be at least 1' vs QaDataError: '--limit must be at least 1'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.inventory",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.clusters:db-list",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.clusters:db-members",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.clusters:db-level2",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:namespace/alpha",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:alpha",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:beta",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:sealed-task2",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:empty",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:sealed-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:test-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:bulk/t03",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:with_outcomes",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task_rows:alpha",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:run-a",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:run-a",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:run-b",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:run-b",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:run-c",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:run-c",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:run-d",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:run-d",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:run-e",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:run-e",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:run-h",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:run-h",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:run-nosteps",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:run-nosteps",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:bulk/t00/r00",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:bulk/t00/r00",
+   "detail": "/findings[0]/detector: 'tripwire' vs 'run_health.loop'",
+   "status": "order_only"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:bulk/t39/r29",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:bulk/t39/r29",
+   "detail": "/findings[0]/detector: 'tripwire' vs 'run_health.loop'",
+   "status": "order_only"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:sealed-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:sealed-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:test-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:test-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:locked-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:locked-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:nope",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:nope",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:no-ledgers",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:nul",
+   "detail": "DataError: 'PostgreSQL text fields cannot contain NUL (0x00) bytes' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "differs_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:nul",
+   "detail": "DataError: 'PostgreSQL text fields cannot contain NUL (0x00) bytes' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "differs_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:nul",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:nul",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.findings:summary",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.findings:run-a",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.findings:run-c",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.findings:task-alpha",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.findings:bulk-run",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:lexical",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:lexical-multiword",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:lexical-issue-kind",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:lexical-reward_seeker",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:lexical-widen",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:empty-misalignment-flagged",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:facets-empty-map",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:facets-tests",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:facets-bool-int",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:facets-outcome-source",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:cluster-c2",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:cluster-c3+query",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:cluster+facets",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:cluster-unknown",
+   "detail": "ValueError: 'unknown cluster_id' vs ValueError: 'unknown cluster_id'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:anchor",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:anchor-empty-query",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:anchor-top1",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:cluster+anchor",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:cluster+anchor+facets",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:anchor-withheld-facet",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:anchor-withheld-task-name",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:anchor-denied",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:sealed-query",
+   "detail": "ValueError: 'query contains a sealed task identity' vs ValueError: 'query contains a sealed task identity'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:bulk-anchor",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:bulk-facets",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "failed_run_summary:beta",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "failed_run_summary:sealed",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_traces:identifier-term",
+   "detail": "/: length 0 vs 1",
+   "status": "differs"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_traces:identifier-whole",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:identifier-term",
+   "detail": "/: length 0 vs 1",
+   "status": "differs"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "row_counts",
+   "detail": "",
+   "status": "equal"
+  }
+ ],
+ "not_equal": [
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:denied-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.traces:limit0",
+   "detail": "QaDataError: '--limit must be at least 1' vs QaDataError: '--limit must be at least 1'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:sealed-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.task:test-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:bulk/t00/r00",
+   "detail": "/findings[0]/detector: 'tripwire' vs 'run_health.loop'",
+   "status": "order_only"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:bulk/t39/r29",
+   "detail": "/findings[0]/detector: 'tripwire' vs 'run_health.loop'",
+   "status": "order_only"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:sealed-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:sealed-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:test-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:test-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:locked-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:locked-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.build_card:nope",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "qa.card_stored:nope",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:nul",
+   "detail": "DataError: 'PostgreSQL text fields cannot contain NUL (0x00) bytes' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "differs_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:nul",
+   "detail": "DataError: 'PostgreSQL text fields cannot contain NUL (0x00) bytes' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "differs_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:nul",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:nul",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:build_card:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:task_of_run:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:require_task:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "weird-id:traces-task:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:cluster-unknown",
+   "detail": "ValueError: 'unknown cluster_id' vs ValueError: 'unknown cluster_id'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:anchor-withheld-facet",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:anchor-withheld-task-name",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:anchor-denied",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:sealed-query",
+   "detail": "ValueError: 'query contains a sealed task identity' vs ValueError: 'query contains a sealed task identity'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "search_traces:identifier-term",
+   "detail": "/: length 0 vs 1",
+   "status": "differs"
+  },
+  {
+   "against": "sqlite-fts",
+   "call": "retrieve:identifier-term",
+   "detail": "/: length 0 vs 1",
+   "status": "differs"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:denied-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.traces:limit0",
+   "detail": "QaDataError: '--limit must be at least 1' vs QaDataError: '--limit must be at least 1'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:sealed-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.task:test-task",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:bulk/t00/r00",
+   "detail": "/findings[0]/detector: 'tripwire' vs 'run_health.loop'",
+   "status": "order_only"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:bulk/t39/r29",
+   "detail": "/findings[0]/detector: 'tripwire' vs 'run_health.loop'",
+   "status": "order_only"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:sealed-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:sealed-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:test-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:test-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:locked-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:locked-run",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.build_card:nope",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "qa.card_stored:nope",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:nul",
+   "detail": "DataError: 'PostgreSQL text fields cannot contain NUL (0x00) bytes' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "differs_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:nul",
+   "detail": "DataError: 'PostgreSQL text fields cannot contain NUL (0x00) bytes' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "differs_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:nul",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:nul",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:surrogate",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:long",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:quote",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:empty",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:build_card:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:task_of_run:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:require_task:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "weird-id:traces-task:unicode",
+   "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:cluster-unknown",
+   "detail": "ValueError: 'unknown cluster_id' vs ValueError: 'unknown cluster_id'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:anchor-withheld-facet",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:anchor-withheld-task-name",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:anchor-denied",
+   "detail": "ValueError: 'like_run_id must name an admitted trace with stored facets' vs ValueError: 'like_run_id must name an admitted trace with stored facets'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:sealed-query",
+   "detail": "ValueError: 'query contains a sealed task identity' vs ValueError: 'query contains a sealed task identity'",
+   "status": "equal_exception"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "search_traces:identifier-term",
+   "detail": "/: length 0 vs 1",
+   "status": "differs"
+  },
+  {
+   "against": "sqlite-like",
+   "call": "retrieve:identifier-term",
+   "detail": "/: length 0 vs 1",
+   "status": "differs"
+  }
+ ],
+ "summary": {
+  "bulk": {
+   "runs": 1200,
+   "tasks": 40
+  },
+  "by_status": {
+   "differs": 4,
+   "differs_exception": 4,
+   "equal": 198,
+   "equal_exception": 78,
+   "order_only": 4
+  },
+  "calls": 144,
+  "comparisons": 288,
+  "pg_exceptions": [
+   "qa.build_card:locked-run",
+   "qa.build_card:nope",
+   "qa.build_card:sealed-run",
+   "qa.build_card:test-run",
+   "qa.card_stored:locked-run",
+   "qa.card_stored:nope",
+   "qa.card_stored:sealed-run",
+   "qa.card_stored:test-run",
+   "qa.task:sealed-task",
+   "qa.task:test-task",
+   "qa.traces:denied-task",
+   "qa.traces:limit0",
+   "retrieve:anchor-denied",
+   "retrieve:anchor-withheld-facet",
+   "retrieve:anchor-withheld-task-name",
+   "retrieve:cluster-unknown",
+   "retrieve:sealed-query",
+   "weird-id:build_card:empty",
+   "weird-id:build_card:long",
+   "weird-id:build_card:nul",
+   "weird-id:build_card:quote",
+   "weird-id:build_card:surrogate",
+   "weird-id:build_card:unicode",
+   "weird-id:require_task:empty",
+   "weird-id:require_task:long",
+   "weird-id:require_task:nul",
+   "weird-id:require_task:quote",
+   "weird-id:require_task:surrogate",
+   "weird-id:require_task:unicode",
+   "weird-id:task_of_run:empty",
+   "weird-id:task_of_run:long",
+   "weird-id:task_of_run:nul",
+   "weird-id:task_of_run:quote",
+   "weird-id:task_of_run:surrogate",
+   "weird-id:task_of_run:unicode",
+   "weird-id:traces-task:empty",
+   "weird-id:traces-task:long",
+   "weird-id:traces-task:nul",
+   "weird-id:traces-task:quote",
+   "weird-id:traces-task:surrogate",
+   "weird-id:traces-task:unicode"
+  ],
+  "sqlite_fts_exceptions": [
+   "qa.build_card:locked-run",
+   "qa.build_card:nope",
+   "qa.build_card:sealed-run",
+   "qa.build_card:test-run",
+   "qa.card_stored:locked-run",
+   "qa.card_stored:nope",
+   "qa.card_stored:sealed-run",
+   "qa.card_stored:test-run",
+   "qa.task:sealed-task",
+   "qa.task:test-task",
+   "qa.traces:denied-task",
+   "qa.traces:limit0",
+   "retrieve:anchor-denied",
+   "retrieve:anchor-withheld-facet",
+   "retrieve:anchor-withheld-task-name",
+   "retrieve:cluster-unknown",
+   "retrieve:sealed-query",
+   "weird-id:build_card:empty",
+   "weird-id:build_card:long",
+   "weird-id:build_card:nul",
+   "weird-id:build_card:quote",
+   "weird-id:build_card:surrogate",
+   "weird-id:build_card:unicode",
+   "weird-id:require_task:empty",
+   "weird-id:require_task:long",
+   "weird-id:require_task:nul",
+   "weird-id:require_task:quote",
+   "weird-id:require_task:surrogate",
+   "weird-id:require_task:unicode",
+   "weird-id:task_of_run:empty",
+   "weird-id:task_of_run:long",
+   "weird-id:task_of_run:nul",
+   "weird-id:task_of_run:quote",
+   "weird-id:task_of_run:surrogate",
+   "weird-id:task_of_run:unicode",
+   "weird-id:traces-task:empty",
+   "weird-id:traces-task:long",
+   "weird-id:traces-task:nul",
+   "weird-id:traces-task:quote",
+   "weird-id:traces-task:surrogate",
+   "weird-id:traces-task:unicode"
+  ],
+  "sqlite_like_exceptions": [
+   "qa.build_card:locked-run",
+   "qa.build_card:nope",
+   "qa.build_card:sealed-run",
+   "qa.build_card:test-run",
+   "qa.card_stored:locked-run",
+   "qa.card_stored:nope",
+   "qa.card_stored:sealed-run",
+   "qa.card_stored:test-run",
+   "qa.task:sealed-task",
+   "qa.task:test-task",
+   "qa.traces:denied-task",
+   "qa.traces:limit0",
+   "retrieve:anchor-denied",
+   "retrieve:anchor-withheld-facet",
+   "retrieve:anchor-withheld-task-name",
+   "retrieve:cluster-unknown",
+   "retrieve:sealed-query",
+   "weird-id:build_card:empty",
+   "weird-id:build_card:long",
+   "weird-id:build_card:nul",
+   "weird-id:build_card:quote",
+   "weird-id:build_card:surrogate",
+   "weird-id:build_card:unicode",
+   "weird-id:require_task:empty",
+   "weird-id:require_task:long",
+   "weird-id:require_task:nul",
+   "weird-id:require_task:quote",
+   "weird-id:require_task:surrogate",
+   "weird-id:require_task:unicode",
+   "weird-id:task_of_run:empty",
+   "weird-id:task_of_run:long",
+   "weird-id:task_of_run:nul",
+   "weird-id:task_of_run:quote",
+   "weird-id:task_of_run:surrogate",
+   "weird-id:task_of_run:unicode",
+   "weird-id:traces-task:empty",
+   "weird-id:traces-task:long",
+   "weird-id:traces-task:nul",
+   "weird-id:traces-task:quote",
+   "weird-id:traces-task:surrogate",
+   "weird-id:traces-task:unicode"
+  ]
+ }
+}

@@ -1,0 +1,11 @@
+{
+  "origin_main": {"pytest_exit": 0, "old_postmaster_alive": true, "old_directory_exists": true},
+  "changed": {"pytest_exit": 0, "old_postmaster_alive": false, "old_directory_exists": false},
+  "local_postgres_cases_passed": 47,
+  "local_postgres_cases_skipped": 0,
+  "prior_ci_shard_pytest_seconds": 364.76,
+  "prior_ci_shard_all_skipped": 374,
+  "ci_postgres_passed": null,
+  "ci_postgres_skipped": null,
+  "ci_wall_time_delta_seconds": null
+}

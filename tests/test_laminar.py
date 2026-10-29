@@ -147,7 +147,10 @@ def test_apply_signals_creates_missing_and_patches_existing() -> None:
 
     def opener(request: Any, timeout: float) -> Any:
         body = json.loads(request.data) if request.data else None
-        calls.append((request.get_method(), request.full_url.split("api.lmnr.ai")[1], body))
+        path = request.full_url.split("api.lmnr.ai")[1]
+        if path == "/v1/sql/query":  # the quarantine guard: no quarantined copy is selectable
+            return io.BytesIO(b'{"data": []}')
+        calls.append((request.get_method(), path, body))
         reply = (
             existing
             if request.get_method() == "GET"
@@ -277,6 +280,8 @@ def test_byok_route_is_sent_with_every_signal() -> None:
     bodies: list[Any] = []
 
     def opener(request: Any, timeout: float) -> Any:
+        if request.full_url.endswith("/v1/sql/query"):
+            return io.BytesIO(b'{"data": []}')
         if request.get_method() == "GET":
             return io.BytesIO(b'{"signals": []}')
         bodies.append(json.loads(request.data))

@@ -1,0 +1,810 @@
+{
+ "cheatbench_admitted_with_verdict": 150,
+ "groups": {
+  "cheatbench_clean": {
+   "alarm_runs": 0,
+   "creation_only_frac": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   },
+   "event_kind_a_frac": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   },
+   "event_kinds": {
+    "a": 0,
+    "b": 0,
+    "c": 0,
+    "d": 0
+   },
+   "event_subkinds": {},
+   "events": 0,
+   "events_with_failed_hint": 0,
+   "events_with_rm_same_step": 0,
+   "kind_a_by_mechanism": {},
+   "run_category": {
+    "creation_only": 0,
+    "survives": 0,
+    "undetermined": 0
+   },
+   "runs": 75,
+   "runs_with_any_creation_event": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   },
+   "survives_existing_only": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   },
+   "survives_frac": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   },
+   "undetermined_frac": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   }
+  },
+  "cheatbench_enacted": {
+   "alarm_runs": 1,
+   "creation_only_frac": {
+    "k": 0,
+    "n": 1,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     79.3
+    ]
+   },
+   "event_kind_a_frac": {
+    "k": 0,
+    "n": 2,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     65.8
+    ]
+   },
+   "event_kinds": {
+    "a": 0,
+    "b": 2,
+    "c": 0,
+    "d": 0
+   },
+   "event_subkinds": {
+    "b:existing_listing": 1,
+    "b:existing_probe": 1
+   },
+   "events": 2,
+   "events_with_failed_hint": 0,
+   "events_with_rm_same_step": 0,
+   "kind_a_by_mechanism": {},
+   "run_category": {
+    "creation_only": 0,
+    "survives": 1,
+    "undetermined": 0
+   },
+   "runs": 75,
+   "runs_with_any_creation_event": {
+    "k": 0,
+    "n": 1,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     79.3
+    ]
+   },
+   "survives_existing_only": {
+    "k": 1,
+    "n": 1,
+    "pct": 100.0,
+    "wilson": [
+     20.7,
+     100.0
+    ]
+   },
+   "survives_frac": {
+    "k": 1,
+    "n": 1,
+    "pct": 100.0,
+    "wilson": [
+     20.7,
+     100.0
+    ]
+   },
+   "undetermined_frac": {
+    "k": 0,
+    "n": 1,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     79.3
+    ]
+   }
+  },
+  "goodfire_dev_clean": {
+   "alarm_runs": 89,
+   "creation_only_frac": {
+    "k": 0,
+    "n": 89,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     4.1
+    ]
+   },
+   "event_kind_a_frac": {
+    "k": 0,
+    "n": 265,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     1.4
+    ]
+   },
+   "event_kinds": {
+    "a": 0,
+    "b": 265,
+    "c": 0,
+    "d": 0
+   },
+   "event_subkinds": {
+    "b:existing_listing": 53,
+    "b:existing_probe": 48,
+    "b:own_file": 163,
+    "b:semantic_no_prior_evidence": 1
+   },
+   "events": 265,
+   "events_with_failed_hint": 1,
+   "events_with_rm_same_step": 0,
+   "kind_a_by_mechanism": {},
+   "run_category": {
+    "creation_only": 0,
+    "survives": 89,
+    "undetermined": 0
+   },
+   "runs": 752,
+   "runs_with_any_creation_event": {
+    "k": 0,
+    "n": 89,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     4.1
+    ]
+   },
+   "survives_existing_only": {
+    "k": 41,
+    "n": 89,
+    "pct": 46.1,
+    "wilson": [
+     36.1,
+     56.4
+    ]
+   },
+   "survives_frac": {
+    "k": 89,
+    "n": 89,
+    "pct": 100.0,
+    "wilson": [
+     95.9,
+     100.0
+    ]
+   },
+   "undetermined_frac": {
+    "k": 0,
+    "n": 89,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     4.1
+    ]
+   }
+  },
+  "goodfire_dev_enacted": {
+   "alarm_runs": 390,
+   "creation_only_frac": {
+    "k": 0,
+    "n": 390,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     1.0
+    ]
+   },
+   "event_kind_a_frac": {
+    "k": 10,
+    "n": 1317,
+    "pct": 0.8,
+    "wilson": [
+     0.4,
+     1.4
+    ]
+   },
+   "event_kinds": {
+    "a": 10,
+    "b": 1307,
+    "c": 0,
+    "d": 0
+   },
+   "event_subkinds": {
+    "a:redirect": 1,
+    "a:script": 9,
+    "b:existing_listing": 214,
+    "b:existing_probe": 338,
+    "b:own_file": 752,
+    "b:semantic_no_prior_evidence": 3
+   },
+   "events": 1317,
+   "events_with_failed_hint": 0,
+   "events_with_rm_same_step": 1,
+   "kind_a_by_mechanism": {
+    "shell:script": 9,
+    "shell:shell_redirect": 1
+   },
+   "run_category": {
+    "creation_only": 0,
+    "survives": 390,
+    "undetermined": 0
+   },
+   "runs": 1636,
+   "runs_with_any_creation_event": {
+    "k": 8,
+    "n": 390,
+    "pct": 2.1,
+    "wilson": [
+     1.0,
+     4.0
+    ]
+   },
+   "survives_existing_only": {
+    "k": 200,
+    "n": 390,
+    "pct": 51.3,
+    "wilson": [
+     46.3,
+     56.2
+    ]
+   },
+   "survives_frac": {
+    "k": 390,
+    "n": 390,
+    "pct": 100.0,
+    "wilson": [
+     99.0,
+     100.0
+    ]
+   },
+   "undetermined_frac": {
+    "k": 0,
+    "n": 390,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     1.0
+    ]
+   }
+  },
+  "goodfire_other_clean": {
+   "alarm_runs": 61,
+   "creation_only_frac": {
+    "k": 0,
+    "n": 61,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     5.9
+    ]
+   },
+   "event_kind_a_frac": {
+    "k": 0,
+    "n": 175,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     2.1
+    ]
+   },
+   "event_kinds": {
+    "a": 0,
+    "b": 175,
+    "c": 0,
+    "d": 0
+   },
+   "event_subkinds": {
+    "b:existing_listing": 38,
+    "b:existing_probe": 40,
+    "b:own_file": 96,
+    "b:semantic_no_prior_evidence": 1
+   },
+   "events": 175,
+   "events_with_failed_hint": 1,
+   "events_with_rm_same_step": 0,
+   "kind_a_by_mechanism": {},
+   "run_category": {
+    "creation_only": 0,
+    "survives": 61,
+    "undetermined": 0
+   },
+   "runs": 629,
+   "runs_with_any_creation_event": {
+    "k": 0,
+    "n": 61,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     5.9
+    ]
+   },
+   "survives_existing_only": {
+    "k": 29,
+    "n": 61,
+    "pct": 47.5,
+    "wilson": [
+     35.5,
+     59.8
+    ]
+   },
+   "survives_frac": {
+    "k": 61,
+    "n": 61,
+    "pct": 100.0,
+    "wilson": [
+     94.1,
+     100.0
+    ]
+   },
+   "undetermined_frac": {
+    "k": 0,
+    "n": 61,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     5.9
+    ]
+   }
+  },
+  "goodfire_other_enacted": {
+   "alarm_runs": 351,
+   "creation_only_frac": {
+    "k": 0,
+    "n": 351,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     1.1
+    ]
+   },
+   "event_kind_a_frac": {
+    "k": 9,
+    "n": 1164,
+    "pct": 0.8,
+    "wilson": [
+     0.4,
+     1.5
+    ]
+   },
+   "event_kinds": {
+    "a": 9,
+    "b": 1155,
+    "c": 0,
+    "d": 0
+   },
+   "event_subkinds": {
+    "a:redirect": 1,
+    "a:script": 8,
+    "b:existing_listing": 205,
+    "b:existing_probe": 312,
+    "b:own_file": 635,
+    "b:semantic_no_prior_evidence": 3
+   },
+   "events": 1164,
+   "events_with_failed_hint": 0,
+   "events_with_rm_same_step": 1,
+   "kind_a_by_mechanism": {
+    "shell:script": 8,
+    "shell:shell_redirect": 1
+   },
+   "run_category": {
+    "creation_only": 0,
+    "survives": 351,
+    "undetermined": 0
+   },
+   "runs": 1513,
+   "runs_with_any_creation_event": {
+    "k": 7,
+    "n": 351,
+    "pct": 2.0,
+    "wilson": [
+     1.0,
+     4.1
+    ]
+   },
+   "survives_existing_only": {
+    "k": 184,
+    "n": 351,
+    "pct": 52.4,
+    "wilson": [
+     47.2,
+     57.6
+    ]
+   },
+   "survives_frac": {
+    "k": 351,
+    "n": 351,
+    "pct": 100.0,
+    "wilson": [
+     98.9,
+     100.0
+    ]
+   },
+   "undetermined_frac": {
+    "k": 0,
+    "n": 351,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     1.1
+    ]
+   }
+  },
+  "linuxarena_S": {
+   "alarm_runs": 27,
+   "creation_only_frac": {
+    "k": 14,
+    "n": 27,
+    "pct": 51.9,
+    "wilson": [
+     34.0,
+     69.3
+    ]
+   },
+   "event_kind_a_frac": {
+    "k": 18,
+    "n": 47,
+    "pct": 38.3,
+    "wilson": [
+     25.8,
+     52.6
+    ]
+   },
+   "event_kinds": {
+    "a": 18,
+    "b": 28,
+    "c": 0,
+    "d": 1
+   },
+   "event_subkinds": {
+    "a:tool_create": 18,
+    "b:existing_listing": 12,
+    "b:existing_probe": 16,
+    "d:prior_listing_output_missing_or_truncated": 1
+   },
+   "events": 47,
+   "events_with_failed_hint": 1,
+   "events_with_rm_same_step": 0,
+   "kind_a_by_mechanism": {
+    "tool:whole": 18
+   },
+   "run_category": {
+    "creation_only": 14,
+    "survives": 12,
+    "undetermined": 1
+   },
+   "runs": 60,
+   "runs_with_any_creation_event": {
+    "k": 14,
+    "n": 27,
+    "pct": 51.9,
+    "wilson": [
+     34.0,
+     69.3
+    ]
+   },
+   "survives_existing_only": {
+    "k": 12,
+    "n": 27,
+    "pct": 44.4,
+    "wilson": [
+     27.6,
+     62.7
+    ]
+   },
+   "survives_frac": {
+    "k": 12,
+    "n": 27,
+    "pct": 44.4,
+    "wilson": [
+     27.6,
+     62.7
+    ]
+   },
+   "undetermined_frac": {
+    "k": 1,
+    "n": 27,
+    "pct": 3.7,
+    "wilson": [
+     0.7,
+     18.3
+    ]
+   }
+  },
+  "linuxarena_nonS": {
+   "alarm_runs": 0,
+   "creation_only_frac": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   },
+   "event_kind_a_frac": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   },
+   "event_kinds": {
+    "a": 0,
+    "b": 0,
+    "c": 0,
+    "d": 0
+   },
+   "event_subkinds": {},
+   "events": 0,
+   "events_with_failed_hint": 0,
+   "events_with_rm_same_step": 0,
+   "kind_a_by_mechanism": {},
+   "run_category": {
+    "creation_only": 0,
+    "survives": 0,
+    "undetermined": 0
+   },
+   "runs": 60,
+   "runs_with_any_creation_event": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   },
+   "survives_existing_only": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   },
+   "survives_frac": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   },
+   "undetermined_frac": {
+    "k": 0,
+    "n": 0,
+    "pct": null,
+    "wilson": [
+     0.0,
+     100.0
+    ]
+   }
+  },
+  "pairs_clean": {
+   "alarm_runs": 28,
+   "creation_only_frac": {
+    "k": 0,
+    "n": 28,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     12.1
+    ]
+   },
+   "event_kind_a_frac": {
+    "k": 0,
+    "n": 90,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     4.1
+    ]
+   },
+   "event_kinds": {
+    "a": 0,
+    "b": 90,
+    "c": 0,
+    "d": 0
+   },
+   "event_subkinds": {
+    "b:existing_listing": 15,
+    "b:existing_probe": 8,
+    "b:own_file": 67
+   },
+   "events": 90,
+   "events_with_failed_hint": 0,
+   "events_with_rm_same_step": 0,
+   "kind_a_by_mechanism": {},
+   "run_category": {
+    "creation_only": 0,
+    "survives": 28,
+    "undetermined": 0
+   },
+   "runs": 123,
+   "runs_with_any_creation_event": {
+    "k": 0,
+    "n": 28,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     12.1
+    ]
+   },
+   "survives_existing_only": {
+    "k": 12,
+    "n": 28,
+    "pct": 42.9,
+    "wilson": [
+     26.5,
+     60.9
+    ]
+   },
+   "survives_frac": {
+    "k": 28,
+    "n": 28,
+    "pct": 100.0,
+    "wilson": [
+     87.9,
+     100.0
+    ]
+   },
+   "undetermined_frac": {
+    "k": 0,
+    "n": 28,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     12.1
+    ]
+   }
+  },
+  "pairs_enacted": {
+   "alarm_runs": 39,
+   "creation_only_frac": {
+    "k": 0,
+    "n": 39,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     9.0
+    ]
+   },
+   "event_kind_a_frac": {
+    "k": 1,
+    "n": 153,
+    "pct": 0.7,
+    "wilson": [
+     0.1,
+     3.6
+    ]
+   },
+   "event_kinds": {
+    "a": 1,
+    "b": 152,
+    "c": 0,
+    "d": 0
+   },
+   "event_subkinds": {
+    "a:script": 1,
+    "b:existing_listing": 9,
+    "b:existing_probe": 26,
+    "b:own_file": 117
+   },
+   "events": 153,
+   "events_with_failed_hint": 0,
+   "events_with_rm_same_step": 0,
+   "kind_a_by_mechanism": {
+    "shell:script": 1
+   },
+   "run_category": {
+    "creation_only": 0,
+    "survives": 39,
+    "undetermined": 0
+   },
+   "runs": 123,
+   "runs_with_any_creation_event": {
+    "k": 1,
+    "n": 39,
+    "pct": 2.6,
+    "wilson": [
+     0.5,
+     13.2
+    ]
+   },
+   "survives_existing_only": {
+    "k": 16,
+    "n": 39,
+    "pct": 41.0,
+    "wilson": [
+     27.1,
+     56.6
+    ]
+   },
+   "survives_frac": {
+    "k": 39,
+    "n": 39,
+    "pct": 100.0,
+    "wilson": [
+     91.0,
+     100.0
+    ]
+   },
+   "undetermined_frac": {
+    "k": 0,
+    "n": 39,
+    "pct": 0.0,
+    "wilson": [
+     0.0,
+     9.0
+    ]
+   }
+  }
+ },
+ "linuxarena_integrity": {
+  "S": 60,
+  "non_S": 60,
+  "runs_manifest_sha256_matches": true,
+  "sample_sha256_matches_np38_public": true
+ },
+ "strict_gate": {
+  "others_with_verdict": 2142,
+  "pair_file_sha256": "3e18a9e4c01058f2f4b7678db10f178b9c785edda72a7c37e0aeb7d374caec69",
+  "pair_file_sha256_matches_np36": true,
+  "pair_runs_in_strict_gate": 246,
+  "pairs": 123,
+  "strict_goodfire_dev_with_verdict": 2388
+ }
+}

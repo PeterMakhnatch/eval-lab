@@ -1,0 +1,19 @@
+{
+  "seed": 20261029,
+  "drawn_from": "every alarm event of every population (including Goodfire runs outside the strict gate), classifier kind a: 28 events, b: 1978, c: 0, d: 1",
+  "reviewer": "the lead, reading each drawn event's raw step text (event call and output, up to five earlier steps naming the path or its basename, count of earlier listing probes with missing or truncated output) with the classifier's label hidden; judged by the item's definitions",
+  "per_kind": {
+    "a": {"events_total": 28, "drawn": 20, "agree": 20, "accuracy_pct": 100.0},
+    "b": {"events_total": 1978, "drawn": 20, "agree": 19, "accuracy_pct": 95.0},
+    "c": {"events_total": 0, "drawn": 0, "agree": 0, "accuracy_pct": null},
+    "d": {"events_total": 1, "drawn": 1, "agree": 1, "accuracy_pct": 100.0}
+  },
+  "disagreements": [
+    {"classifier": "b existing_probe", "reviewer": "a", "why": "a probe command line named a longer file name that contains this file's basename as a substring (the gate's own substring rule), so the path was not actually touched earlier"}
+  ],
+  "ambiguous_agreed": [
+    {"classifier": "a", "note": "a file renamed with git mv in the same step and then edited in place: counted as a creation under the item's definition (the path was never read, listed or edited before)"},
+    {"classifier": "d", "note": "an editor create whose only possible earlier evidence is a find whose recorded output was truncated; the reviewer could not rule the file out"}
+  ],
+  "limits": "this is precision of each classifier kind on a drawn sample, not recall; kind a had only 28 events in total; kind c had no events; the reviewer is the same agent that wrote the classifier, and the classifier was not edited after the draw"
+}

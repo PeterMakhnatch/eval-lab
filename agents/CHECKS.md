@@ -33,6 +33,16 @@ or neutral check conclusions; the gate's unconditional execution and explicit
 success comparisons are therefore essential. Review changes to these workflows
 as changes to the merge boundary, not just plumbing.
 
+Because a cancelled prerequisite fails the gate by contract, `ci.yml` and
+`typecheck.yml` set `cancel-in-progress: false`: a run that publishes a required
+check is never killed in flight. Cancellation is not evidence about the commit —
+GitHub delivered two events for an unchanged head (55da087, #1566), the second
+cancelled the first, and its gate published `typecheck-required` as failed on a
+commit whose typecheck was green (HAR-232). The per-PR concurrency group is kept,
+so GitHub still replaces a pending, superseded run and the matrix does not fan
+out per push, while the newest head always gets its own verdict. Auxiliary
+workflows publish no required check and keep cancelling superseded PR runs.
+
 All required checks originate from GitHub Actions CI runs. There is no mandatory
 independent review gate or review attestation status (`independent-review`).
 Past `independent-review` commit statuses in GitHub history are historical artifacts,
@@ -114,11 +124,19 @@ full local reproduction:
    the commands on Python 3.12, but do not substitute for hosted gates or branch
    enforcement.
 
-Benchmark and certification workflows declare `concurrency` groups with
-`cancel-in-progress: true` to terminate superseded PR runs promptly. Heavy
-certification suites retain automatic PR path triggers (including workbench edits);
-no weekly schedule is added as implied authorization. Similarly, the dose-ladder
-workflow retains automatic triggers; its dispatch-only reduction is superseded.
+All workflows group PR runs by pull-request number and other events by
+`github.run_id`, so each push retains its own CI evidence. A shared push group is
+insufficient even with cancellation disabled: GitHub can replace an older pending
+run in that group. Auxiliary workflows set
+`cancel-in-progress: ${{ github.event_name == 'pull_request' }}` and cancel
+superseded PR revisions promptly; `ci.yml` and `typecheck.yml` set
+`cancel-in-progress: false`, because a cancelled prerequisite fails their required
+gate (HAR-232).
+
+Heavy certification suites retain automatic PR path triggers (including workbench
+edits); no weekly schedule is added as implied authorization. Similarly, the
+dose-ladder workflow retains automatic triggers; its dispatch-only reduction is
+superseded.
 
 ## Deterministic-test rule
 

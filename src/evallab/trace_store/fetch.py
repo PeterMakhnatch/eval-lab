@@ -11,7 +11,16 @@ from urllib.request import urlopen
 
 from evallab import laminar
 from evallab.trace_store.core import ALLOWED_DATASETS, trace_uuid
+from evallab.trace_store.laminar_quarantine import is_quarantined, skip_quarantined
 from evallab.trace_store.state import record_spend
+
+
+def _row_trace_id(row: Any) -> str | None:
+    """The Laminar trace id a stored span/trace row names, if any."""
+    if not isinstance(row, Mapping):
+        return None
+    value = row.get("trace_id") or row.get("id")
+    return value if isinstance(value, str) else None
 
 
 def _laminar_fetch(
@@ -24,6 +33,12 @@ def _laminar_fetch(
         raise ValueError("LMNR_PROJECT_API_KEY is required (use keys run --)")
     parameters: dict[str, Any] = {}
     remote_id = trace_uuid(run_id) if run_id is not None else None
+    if run_id is not None and is_quarantined(run_id):
+        # Undeletable copy: answer without any hosted call.
+        return {
+            "source": "laminar", "run_id": run_id, "remote_id": remote_id, "dataset": dataset,
+            "rows": [], "skipped_quarantined": 1, "server": {},
+        }
     if run_id is not None:
         query = "SELECT * FROM spans WHERE trace_id = {trace_id:UUID}"
         parameters["trace_id"] = remote_id
@@ -45,11 +60,11 @@ def _laminar_fetch(
     )
     if not isinstance(response, Mapping) or not isinstance(response.get("data"), list):
         raise RuntimeError("Laminar SQL did not return stored query rows")
-    rows = response["data"]
+    rows, skipped = skip_quarantined(response["data"], _row_trace_id)
     stats["rows"] = len(rows)
     return {
         "source": "laminar", "run_id": run_id, "remote_id": remote_id,
-        "dataset": dataset, "rows": rows,
+        "dataset": dataset, "rows": rows, "skipped_quarantined": len(skipped),
         "server": {key: value for key, value in response.items() if key != "data"},
     }
 
@@ -115,6 +130,9 @@ def fetch(
     No client-side row/text caps are imposed. Provider pagination/truncation
     fields are retained in ``server``. For raw Laminar SQL, ``dataset`` supplies
     the bound ``{dataset:String}`` parameter, not an implicit aggregate rewrite.
+    Laminar rows of quarantined copies (``laminar_quarantine``) are dropped and counted in
+    ``skipped_quarantined``; a quarantined ``run_id`` makes no hosted call. A raw aggregate
+    query still counts them, since no row names them.
     Inject the client/opener and spend recorder for entirely local tests.
     """
     if source not in {"laminar", "docent"}:

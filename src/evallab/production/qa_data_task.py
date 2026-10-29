@@ -327,6 +327,12 @@ def _task_rows(
             "FROM agent_traces a LEFT JOIN run_facets f ON f.run_id = a.trace_id AND f.task_id = a.task_id "
             "WHERE a.task_id = ? ORDER BY a.trace_id", (canonical,),
         )
+        # Only served facet records count: one withheld for naming a sealed identity leaves its run unfaceted.
+        served = ctx.served_facet_run_ids((canonical,))
+        for run in runs:
+            if run["trace_id"] not in served:
+                run.update(faceted=None, tests=None, answer_material_accessed=None,
+                           grader_or_harness_touched=None, suspicion=None)
     return rows[0], issues, runs
 
 

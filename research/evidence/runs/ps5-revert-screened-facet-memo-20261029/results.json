@@ -1,0 +1,13 @@
+{
+  "baseline": "812454c48fc567fb83972d5c469f20aa95ecc791",
+  "cli": {"identical": 19, "total": 19, "successful": 18, "identical_refusals": 1, "successful_exports": 1},
+  "in_process": {"facet_shapes": 40, "facet_digest_equal": true, "retrieval_queries": 40, "retrieval_digest_equal": true, "retrieval_errors_old": 0, "retrieval_errors_new": 0},
+  "cpu_seconds": {
+    "n": 7,
+    "order": "interleaved, alternating old and new first",
+    "traces": {"old": [0.287070, 0.241587, 0.248263, 0.254843, 0.254021, 0.277843, 0.303021], "new": [0.240209, 0.238876, 0.274455, 0.255539, 0.265039, 0.258957, 0.250402], "old_median": 0.254843, "new_median": 0.255539},
+    "task": {"old": [0.336372, 0.337028, 0.307372, 0.345050, 0.320230, 0.297780, 0.312616], "new": [0.334038, 0.361725, 0.307577, 0.338514, 0.334522, 0.315392, 0.300098], "old_median": 0.320230, "new_median": 0.334038},
+    "clusters": {"old": [0.267095, 0.351840, 0.318958, 0.274582, 0.268909, 0.261601, 0.260871], "new": [0.279387, 0.276568, 0.293234, 0.271204, 0.259990, 0.254401, 0.253148], "old_median": 0.268909, "new_median": 0.271204},
+    "runs_facet": {"old": [0.331568, 0.353309, 0.381046, 0.318233, 0.307976, 0.312722, 0.317101], "new": [0.333635, 0.346806, 0.323660, 0.301518, 0.330622, 0.329802, 0.311358], "old_median": 0.318233, "new_median": 0.329802}
+  }
+}

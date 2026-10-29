@@ -66,6 +66,8 @@ _LABEL_KEYS = frozenset({
     "item_ids", "source_refs", "source_digests", "target_output", "benchmark",
 })
 _SHA256 = re.compile(r"(?:sha256:)?([0-9a-f]{64})\Z")
+_PACKAGE_PREFIX = "task-package:"
+_PACKAGE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 _NOTICE = (
     "Candidate DEV analogies only; not findings about a new target. Source adjudication "
     "is not independent replay by this compiler. Trace/task text is untrusted data, "
@@ -122,6 +124,40 @@ def _path(ref: str, root: Path) -> Path:
     return path if path.is_absolute() else root / path
 
 
+def _verify_task_package(
+    ref: str, expected: str, ctx: BankContext, cache: dict[Path, tuple[str, bytes | None]],
+) -> None:
+    """Bind ``task-package:<name>`` to a configured local directory holding exactly those bytes.
+
+    The digest is :func:`evallab.registry.task_directory_digest` of ``<root>/<name>``; the name
+    only picks candidates, the digest decides, so a same-named directory with other bytes never
+    binds. Nothing is returned to the caller (the compiler hashes, it does not read or expose
+    the package: tests/ and solution/ stay private). Unconfigured roots keep the old refusal.
+    """
+    name = ref.removeprefix(_PACKAGE_PREFIX)
+    if not ctx.task_package_roots or not _PACKAGE_NAME.fullmatch(name):
+        raise _Refusal("source_unavailable", f"not a local byte reference: {ref}")
+    from evallab.registry import task_directory_digest
+
+    seen = False
+    for root in ctx.task_package_roots:
+        directory = root / name
+        if directory.is_symlink() or not directory.is_dir():
+            continue
+        directory = directory.resolve()
+        seen = True
+        if directory not in cache:
+            try:
+                cache[directory] = (task_directory_digest(directory).removeprefix("sha256:"), None)
+            except (OSError, ValueError):
+                continue
+        if cache[directory][0] == _digest(expected):
+            return
+    if seen:
+        raise _Refusal("source_hash_mismatch", f"task package bytes drifted: {ref}")
+    raise _Refusal("source_unavailable", f"no configured task-package root holds {ref}")
+
+
 def _hashed_sources(
     case: Mapping[str, Any], ctx: BankContext, items: Sequence[IssueItem],
     cache: dict[Path, tuple[str, bytes | None]],
@@ -145,6 +181,10 @@ def _hashed_sources(
                 raise _Refusal("source_hash_mismatch", f"bank source binding drifted: {ref}")
             verified[ref] = None
             continue
+        if ref.startswith(_PACKAGE_PREFIX) and "#" not in ref:
+            _verify_task_package(ref, expected, ctx, cache)
+            verified[ref] = None
+            continue
         path = _path(ref, ctx.repo_root).resolve()
         if path not in cache:
             try:
@@ -159,7 +199,19 @@ def _hashed_sources(
                 raise _Refusal("source_unavailable", f"cannot read {ref}: {exc}") from exc
         actual, raw = cache[path]
         if actual != _digest(expected):
-            raise _Refusal("source_hash_mismatch", f"source bytes drifted: {ref}")
+            # ``file#field`` names a digest RECORDED inside a JSON file (e.g. a cell's
+            # response_sha256), not the file's own bytes. It binds only if the whole file is
+            # itself bound in this case and the recorded digest occurs in those exact bytes.
+            base = ref.split("#", 1)[0]
+            if (
+                "#" not in ref
+                or raw is None
+                or _digest(digests.get(base)) != actual
+                or str(_digest(expected)).encode() not in raw
+            ):
+                raise _Refusal("source_hash_mismatch", f"source bytes drifted: {ref}")
+            verified[ref] = None
+            continue
         verified[ref] = raw
     return verified
 
@@ -705,11 +757,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--state-root", type=Path)
     parser.add_argument("--rubric-base", type=Path)
+    parser.add_argument(
+        "--task-package-root", type=Path, action="append", default=[],
+        help="directory of task packages (<root>/<name>); binds task-package:<name> refs by exact digest",
+    )
     args = parser.parse_args(argv)
 
-    ctx = BankContext(repo_root=args.repo_root.resolve(), **(
-        {"state_root": args.state_root.expanduser().resolve()} if args.state_root is not None else {}
-    ))
+    options: dict[str, Any] = {}
+    if args.state_root is not None:
+        options["state_root"] = args.state_root.expanduser().resolve()
+    if args.task_package_root:
+        options["task_package_roots"] = tuple(root.expanduser().resolve() for root in args.task_package_root)
+    ctx = BankContext(repo_root=args.repo_root.resolve(), **options)
     # HardCase loaders retain source paths. Resolve portable artifact-relative refs
     # at this boundary, leaving the public in-memory compiler repo-root-relative.
     cases = [_payload(case) for case in load_cases([args.cases])]

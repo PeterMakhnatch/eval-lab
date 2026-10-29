@@ -48,6 +48,32 @@ def rec(
 def store(*records: dict[str, Any]) -> dict[Any, dict[str, Any]]:
     return {cache_key(record): record for record in records}
 
+def test_length_baseline_ties_monotonic_and_abstention() -> None:
+    cohort = labels("c", {"p": True, "p2": True, "n": False, "a": False})
+    records = store(rec("p", score=5), rec("p2", score=3), rec("n", "clear", score=3),
+                    rec("a", "abstain", score=10))
+    result = ths.score_corpus(cohort, records, lengths={"p": 5, "p2": 3, "n": 3, "a": 10})
+    baseline = only(result)["length_baseline"]
+    assert baseline["n"] == 3
+    assert baseline["length_auroc"] == baseline["detector_auroc"] == 0.75
+    assert baseline["lower_bound_does_not_exceed_length"]
+    assert baseline["recall"]["k"] == 1 and baseline["far"]["k"] == 0
+    assert "Length baseline" in ths.render_markdown(result)
+    no_lengths = ths.score_corpus(cohort, records)
+    assert "length_baseline" not in only(no_lengths)
+    assert "Length baseline" not in ths.render_markdown(no_lengths)
+
+
+def test_length_baseline_perfect_monotone() -> None:
+    cohort = labels("c", {"p": True, "n": False})
+    result = ths.score_corpus(cohort, store(rec("p", score=2), rec("n", "clear", score=1)),
+                              lengths={"p": 2, "n": 1})
+    baseline = only(result)["length_baseline"]
+    assert baseline["length_auroc"] == 1.0
+    assert baseline["recall"]["k"] == 1 and baseline["far"]["k"] == 0
+
+
+
 
 def only(result: dict[str, Any], detector: str | None = None) -> dict[str, Any]:
     units = [u for u in result["detectors"] if detector in (None, u["members"][0]["detector"])]
@@ -437,6 +463,7 @@ def test_cli_scores_from_findings_file_and_writes_outputs(tmp_path: Path, monkey
     fake = types.ModuleType("evallab.production.trace_harness_corpora")
     fake.load_corpus_labels = load_corpus_labels  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "evallab.production.trace_harness_corpora", fake)
+    monkeypatch.setattr("evallab.production.trace_harness.resolve_runs", lambda *args, **kwargs: [])
 
     parser = argparse.ArgumentParser()
     ths.add_score_parser(parser.add_subparsers())
@@ -763,6 +790,7 @@ def test_cli_publish_flag_default_and_exit_codes(tmp_path: Path, monkeypatch: py
     fake = types.ModuleType("evallab.production.trace_harness_corpora")
     fake.load_corpus_labels = lambda name, *, database, repo_root: cohort  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "evallab.production.trace_harness_corpora", fake)
+    monkeypatch.setattr("evallab.production.trace_harness.resolve_runs", lambda *args, **kwargs: [])
     parser = argparse.ArgumentParser()
     ths.add_score_parser(parser.add_subparsers())
     assert parser.parse_args(["score", "--corpus", "c", "--publish"]).publish == ths.DEFAULT_PUBLISH

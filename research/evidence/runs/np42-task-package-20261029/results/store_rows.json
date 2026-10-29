@@ -1,0 +1,12 @@
+{
+ "note": "NP42-CE-1: the DB task rows and local bundles for the 12 packages. Counts only.",
+ "corpus_tasks_rows": 12,
+ "rows_split_DEV": 12,
+ "rows_dataset_terminal_bench": 12,
+ "bundle_in_local_content_store": 12,
+ "bundle_keys": {"metadata": 12, "schema": 12, "task_id": 12},
+ "bundles_carrying_package_bytes_or_task_dir_pointer": 0,
+ "harbor_task_cache_names_present": 0,
+ "library_name_only_hits_without_task_toml": 3,
+ "hf_cache": "not applicable (SWE-bench Verified only)"
+}

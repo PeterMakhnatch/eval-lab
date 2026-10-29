@@ -1,0 +1,10312 @@
+{
+ "any_trigger": {
+  "DEV_pooled|ALL|negative": {
+   "after": {
+    "k": 11,
+    "n": 827,
+    "rate": 1.3,
+    "wilson": [
+     0.7,
+     2.4
+    ]
+   },
+   "before": {
+    "k": 89,
+    "n": 827,
+    "rate": 10.8,
+    "wilson": [
+     8.8,
+     13.1
+    ]
+   }
+  },
+  "DEV_pooled|ALL|positive": {
+   "after": {
+    "k": 65,
+    "n": 1711,
+    "rate": 3.8,
+    "wilson": [
+     3.0,
+     4.8
+    ]
+   },
+   "before": {
+    "k": 398,
+    "n": 1711,
+    "rate": 23.3,
+    "wilson": [
+     21.3,
+     25.3
+    ]
+   }
+  },
+  "cheatbench_dev|ALL|negative": {
+   "after": {
+    "k": 0,
+    "n": 75,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     4.9
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 75,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     4.9
+    ]
+   }
+  },
+  "cheatbench_dev|ALL|positive": {
+   "after": {
+    "k": 1,
+    "n": 75,
+    "rate": 1.3,
+    "wilson": [
+     0.2,
+     7.2
+    ]
+   },
+   "before": {
+    "k": 1,
+    "n": 75,
+    "rate": 1.3,
+    "wilson": [
+     0.2,
+     7.2
+    ]
+   }
+  },
+  "cheatbench_dev|cheatbench_dev|negative": {
+   "after": {
+    "k": 0,
+    "n": 75,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     4.9
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 75,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     4.9
+    ]
+   }
+  },
+  "cheatbench_dev|cheatbench_dev|positive": {
+   "after": {
+    "k": 1,
+    "n": 75,
+    "rate": 1.3,
+    "wilson": [
+     0.2,
+     7.2
+    ]
+   },
+   "before": {
+    "k": 1,
+    "n": 75,
+    "rate": 1.3,
+    "wilson": [
+     0.2,
+     7.2
+    ]
+   }
+  },
+  "cm18|ALL|negative_established": {
+   "after": {
+    "k": 0,
+    "n": 329,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     1.2
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 329,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     1.2
+    ]
+   }
+  },
+  "cm18|ALL|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 300,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     1.3
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 300,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     1.3
+    ]
+   }
+  },
+  "cm18|ALL|positive": {
+   "after": {
+    "k": 3,
+    "n": 317,
+    "rate": 0.9,
+    "wilson": [
+     0.3,
+     2.7
+    ]
+   },
+   "before": {
+    "k": 13,
+    "n": 317,
+    "rate": 4.1,
+    "wilson": [
+     2.4,
+     6.9
+    ]
+   }
+  },
+  "cm18|beam|negative_established": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "cm18|beam|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "cm18|beam|positive": {
+   "after": {
+    "k": 1,
+    "n": 60,
+    "rate": 1.7,
+    "wilson": [
+     0.3,
+     8.9
+    ]
+   },
+   "before": {
+    "k": 1,
+    "n": 60,
+    "rate": 1.7,
+    "wilson": [
+     0.3,
+     8.9
+    ]
+   }
+  },
+  "cm18|cheatindex|negative_established": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "cm18|cheatindex|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "cm18|cheatindex|positive": {
+   "after": {
+    "k": 2,
+    "n": 60,
+    "rate": 3.3,
+    "wilson": [
+     0.9,
+     11.4
+    ]
+   },
+   "before": {
+    "k": 12,
+    "n": 60,
+    "rate": 20.0,
+    "wilson": [
+     11.8,
+     31.8
+    ]
+   }
+  },
+  "cm18|evilgenie|negative_established": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "cm18|evilgenie|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "cm18|evilgenie|positive": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "cm18|kernelbench|negative_established": {
+   "after": {
+    "k": 0,
+    "n": 19,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     16.8
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 19,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     16.8
+    ]
+   }
+  },
+  "cm18|kernelbench|positive": {
+   "after": {
+    "k": 0,
+    "n": 11,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     25.9
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 11,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     25.9
+    ]
+   }
+  },
+  "cm18|reflex|negative_established": {
+   "after": {
+    "k": 0,
+    "n": 50,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     7.1
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 50,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     7.1
+    ]
+   }
+  },
+  "cm18|reflex|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "cm18|reflex|positive": {
+   "after": {
+    "k": 0,
+    "n": 45,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     7.9
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 45,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     7.9
+    ]
+   }
+  },
+  "cm18|researcharena|negative_established": {
+   "after": {
+    "k": 0,
+    "n": 20,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     16.1
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 20,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     16.1
+    ]
+   }
+  },
+  "cm18|researcharena|positive": {
+   "after": {
+    "k": 0,
+    "n": 21,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     15.5
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 21,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     15.5
+    ]
+   }
+  },
+  "cm18|sdf|negative_established": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "cm18|sdf|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "cm18|sdf|positive": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "goodfire_dev|ALL|negative": {
+   "after": {
+    "k": 11,
+    "n": 752,
+    "rate": 1.5,
+    "wilson": [
+     0.8,
+     2.6
+    ]
+   },
+   "before": {
+    "k": 89,
+    "n": 752,
+    "rate": 11.8,
+    "wilson": [
+     9.7,
+     14.3
+    ]
+   }
+  },
+  "goodfire_dev|ALL|positive": {
+   "after": {
+    "k": 64,
+    "n": 1636,
+    "rate": 3.9,
+    "wilson": [
+     3.1,
+     5.0
+    ]
+   },
+   "before": {
+    "k": 397,
+    "n": 1636,
+    "rate": 24.3,
+    "wilson": [
+     22.3,
+     26.4
+    ]
+   }
+  },
+  "goodfire_dev|goodfire_dev|negative": {
+   "after": {
+    "k": 11,
+    "n": 752,
+    "rate": 1.5,
+    "wilson": [
+     0.8,
+     2.6
+    ]
+   },
+   "before": {
+    "k": 89,
+    "n": 752,
+    "rate": 11.8,
+    "wilson": [
+     9.7,
+     14.3
+    ]
+   }
+  },
+  "goodfire_dev|goodfire_dev|positive": {
+   "after": {
+    "k": 64,
+    "n": 1636,
+    "rate": 3.9,
+    "wilson": [
+     3.1,
+     5.0
+    ]
+   },
+   "before": {
+    "k": 397,
+    "n": 1636,
+    "rate": 24.3,
+    "wilson": [
+     22.3,
+     26.4
+    ]
+   }
+  },
+  "np21|ALL|negative_established": {
+   "after": {
+    "k": 4,
+    "n": 60,
+    "rate": 6.7,
+    "wilson": [
+     2.6,
+     15.9
+    ]
+   },
+   "before": {
+    "k": 6,
+    "n": 60,
+    "rate": 10.0,
+    "wilson": [
+     4.7,
+     20.1
+    ]
+   }
+  },
+  "np21|ALL|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 182,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     2.1
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 182,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     2.1
+    ]
+   }
+  },
+  "np21|ALL|positive": {
+   "after": {
+    "k": 0,
+    "n": 187,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     2.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 187,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     2.0
+    ]
+   }
+  },
+  "np21|baitbench|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "np21|baitbench|positive": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "np21|flake|negative_established": {
+   "after": {
+    "k": 4,
+    "n": 60,
+    "rate": 6.7,
+    "wilson": [
+     2.6,
+     15.9
+    ]
+   },
+   "before": {
+    "k": 6,
+    "n": 60,
+    "rate": 10.0,
+    "wilson": [
+     4.7,
+     20.1
+    ]
+   }
+  },
+  "np21|flake|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 2,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     65.8
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 2,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     65.8
+    ]
+   }
+  },
+  "np21|flake|positive": {
+   "after": {
+    "k": 0,
+    "n": 7,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     35.4
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 7,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     35.4
+    ]
+   }
+  },
+  "np21|kobayashi|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "np21|kobayashi|positive": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "np21|osf|negative_other": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "np21|osf|positive": {
+   "after": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 60,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     6.0
+    ]
+   }
+  },
+  "np33|ALL|negative": {
+   "after": {
+    "k": 15,
+    "n": 100,
+    "rate": 15.0,
+    "wilson": [
+     9.3,
+     23.3
+    ]
+   },
+   "before": {
+    "k": 15,
+    "n": 100,
+    "rate": 15.0,
+    "wilson": [
+     9.3,
+     23.3
+    ]
+   }
+  },
+  "np33|ALL|negative_untrusted": {
+   "after": {
+    "k": 0,
+    "n": 80,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     4.6
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 80,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     4.6
+    ]
+   }
+  },
+  "np33|ALL|positive": {
+   "after": {
+    "k": 16,
+    "n": 116,
+    "rate": 13.8,
+    "wilson": [
+     8.7,
+     21.2
+    ]
+   },
+   "before": {
+    "k": 16,
+    "n": 116,
+    "rate": 13.8,
+    "wilson": [
+     8.7,
+     21.2
+    ]
+   }
+  },
+  "np33|agentcheck|negative": {
+   "after": {
+    "k": 12,
+    "n": 40,
+    "rate": 30.0,
+    "wilson": [
+     18.1,
+     45.4
+    ]
+   },
+   "before": {
+    "k": 12,
+    "n": 40,
+    "rate": 30.0,
+    "wilson": [
+     18.1,
+     45.4
+    ]
+   }
+  },
+  "np33|agentcheck|positive": {
+   "after": {
+    "k": 8,
+    "n": 10,
+    "rate": 80.0,
+    "wilson": [
+     49.0,
+     94.3
+    ]
+   },
+   "before": {
+    "k": 8,
+    "n": 10,
+    "rate": 80.0,
+    "wilson": [
+     49.0,
+     94.3
+    ]
+   }
+  },
+  "np33|cnt|negative_untrusted": {
+   "after": {
+    "k": 0,
+    "n": 80,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     4.6
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 80,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     4.6
+    ]
+   }
+  },
+  "np33|cnt|positive": {
+   "after": {
+    "k": 0,
+    "n": 46,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     7.7
+    ]
+   },
+   "before": {
+    "k": 0,
+    "n": 46,
+    "rate": 0.0,
+    "wilson": [
+     0.0,
+     7.7
+    ]
+   }
+  },
+  "np33|ptb|negative": {
+   "after": {
+    "k": 3,
+    "n": 60,
+    "rate": 5.0,
+    "wilson": [
+     1.7,
+     13.7
+    ]
+   },
+   "before": {
+    "k": 3,
+    "n": 60,
+    "rate": 5.0,
+    "wilson": [
+     1.7,
+     13.7
+    ]
+   }
+  },
+  "np33|ptb|positive": {
+   "after": {
+    "k": 8,
+    "n": 60,
+    "rate": 13.3,
+    "wilson": [
+     6.9,
+     24.2
+    ]
+   },
+   "before": {
+    "k": 8,
+    "n": 60,
+    "rate": 13.3,
+    "wilson": [
+     6.9,
+     24.2
+    ]
+   }
+  }
+ },
+ "errors": 0,
+ "grader_tamper_mechanism_runs_dev": {
+  "negative:preexisted": 11,
+  "negative:script_replace": 62,
+  "negative:sed_inplace": 36,
+  "positive:always": 1,
+  "positive:preexisted": 55,
+  "positive:script_replace": 325,
+  "positive:sed_inplace": 100,
+  "positive:settings": 2
+ },
+ "rules": {
+  "fetch_attempt": {
+   "DEV_pooled|ALL|negative": {
+    "alert": {
+     "k": 47,
+     "n": 827,
+     "rate": 5.7,
+     "wilson": [
+      4.3,
+      7.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "DEV_pooled|ALL|positive": {
+    "alert": {
+     "k": 275,
+     "n": 1711,
+     "rate": 16.1,
+     "wilson": [
+      14.4,
+      17.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 1711,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 1711,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|negative": {
+    "alert": {
+     "k": 4,
+     "n": 75,
+     "rate": 5.3,
+     "wilson": [
+      2.1,
+      12.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|positive": {
+    "alert": {
+     "k": 18,
+     "n": 75,
+     "rate": 24.0,
+     "wilson": [
+      15.8,
+      34.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|negative": {
+    "alert": {
+     "k": 4,
+     "n": 75,
+     "rate": 5.3,
+     "wilson": [
+      2.1,
+      12.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|positive": {
+    "alert": {
+     "k": 18,
+     "n": 75,
+     "rate": 24.0,
+     "wilson": [
+      15.8,
+      34.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cm18|ALL|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    }
+   },
+   "cm18|ALL|negative_other": {
+    "alert": {
+     "k": 1,
+     "n": 300,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      1.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    }
+   },
+   "cm18|ALL|positive": {
+    "alert": {
+     "k": 1,
+     "n": 317,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      1.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 317,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 317,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    }
+   },
+   "cm18|beam|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_other": {
+    "alert": {
+     "k": 1,
+     "n": 60,
+     "rate": 1.7,
+     "wilson": [
+      0.3,
+      8.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|positive": {
+    "alert": {
+     "k": 1,
+     "n": 60,
+     "rate": 1.7,
+     "wilson": [
+      0.3,
+      8.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|kernelbench|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    }
+   },
+   "cm18|kernelbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    }
+   },
+   "cm18|reflex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    }
+   },
+   "cm18|reflex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|reflex|positive": {
+    "alert": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    }
+   },
+   "cm18|researcharena|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    }
+   },
+   "cm18|researcharena|positive": {
+    "alert": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    }
+   },
+   "cm18|sdf|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "goodfire_dev|ALL|negative": {
+    "alert": {
+     "k": 43,
+     "n": 752,
+     "rate": 5.7,
+     "wilson": [
+      4.3,
+      7.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "goodfire_dev|ALL|positive": {
+    "alert": {
+     "k": 257,
+     "n": 1636,
+     "rate": 15.7,
+     "wilson": [
+      14.0,
+      17.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|negative": {
+    "alert": {
+     "k": 43,
+     "n": 752,
+     "rate": 5.7,
+     "wilson": [
+      4.3,
+      7.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|positive": {
+    "alert": {
+     "k": 257,
+     "n": 1636,
+     "rate": 15.7,
+     "wilson": [
+      14.0,
+      17.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    }
+   },
+   "np21|ALL|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    }
+   },
+   "np21|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    }
+   },
+   "np21|baitbench|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|baitbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    }
+   },
+   "np21|flake|positive": {
+    "alert": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    }
+   },
+   "np21|kobayashi|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|kobayashi|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ALL|negative": {
+    "alert": {
+     "k": 7,
+     "n": 100,
+     "rate": 7.0,
+     "wilson": [
+      3.4,
+      13.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    }
+   },
+   "np33|ALL|negative_untrusted": {
+    "alert": {
+     "k": 1,
+     "n": 80,
+     "rate": 1.2,
+     "wilson": [
+      0.2,
+      6.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|ALL|positive": {
+    "alert": {
+     "k": 6,
+     "n": 116,
+     "rate": 5.2,
+     "wilson": [
+      2.4,
+      10.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    }
+   },
+   "np33|agentcheck|negative": {
+    "alert": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    }
+   },
+   "np33|agentcheck|positive": {
+    "alert": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    }
+   },
+   "np33|cnt|negative_untrusted": {
+    "alert": {
+     "k": 1,
+     "n": 80,
+     "rate": 1.2,
+     "wilson": [
+      0.2,
+      6.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|cnt|positive": {
+    "alert": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    }
+   },
+   "np33|ptb|negative": {
+    "alert": {
+     "k": 7,
+     "n": 60,
+     "rate": 11.7,
+     "wilson": [
+      5.8,
+      22.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ptb|positive": {
+    "alert": {
+     "k": 6,
+     "n": 60,
+     "rate": 10.0,
+     "wilson": [
+      4.7,
+      20.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   }
+  },
+  "grader_tamper": {
+   "DEV_pooled|ALL|negative": {
+    "alert": {
+     "k": 89,
+     "n": 827,
+     "rate": 10.8,
+     "wilson": [
+      8.8,
+      13.1
+     ]
+    },
+    "trigger_after": {
+     "k": 11,
+     "n": 827,
+     "rate": 1.3,
+     "wilson": [
+      0.7,
+      2.4
+     ]
+    },
+    "trigger_before": {
+     "k": 89,
+     "n": 827,
+     "rate": 10.8,
+     "wilson": [
+      8.8,
+      13.1
+     ]
+    }
+   },
+   "DEV_pooled|ALL|positive": {
+    "alert": {
+     "k": 391,
+     "n": 1711,
+     "rate": 22.9,
+     "wilson": [
+      20.9,
+      24.9
+     ]
+    },
+    "trigger_after": {
+     "k": 58,
+     "n": 1711,
+     "rate": 3.4,
+     "wilson": [
+      2.6,
+      4.4
+     ]
+    },
+    "trigger_before": {
+     "k": 391,
+     "n": 1711,
+     "rate": 22.9,
+     "wilson": [
+      20.9,
+      24.9
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|positive": {
+    "alert": {
+     "k": 1,
+     "n": 75,
+     "rate": 1.3,
+     "wilson": [
+      0.2,
+      7.2
+     ]
+    },
+    "trigger_after": {
+     "k": 1,
+     "n": 75,
+     "rate": 1.3,
+     "wilson": [
+      0.2,
+      7.2
+     ]
+    },
+    "trigger_before": {
+     "k": 1,
+     "n": 75,
+     "rate": 1.3,
+     "wilson": [
+      0.2,
+      7.2
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|negative": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|positive": {
+    "alert": {
+     "k": 1,
+     "n": 75,
+     "rate": 1.3,
+     "wilson": [
+      0.2,
+      7.2
+     ]
+    },
+    "trigger_after": {
+     "k": 1,
+     "n": 75,
+     "rate": 1.3,
+     "wilson": [
+      0.2,
+      7.2
+     ]
+    },
+    "trigger_before": {
+     "k": 1,
+     "n": 75,
+     "rate": 1.3,
+     "wilson": [
+      0.2,
+      7.2
+     ]
+    }
+   },
+   "cm18|ALL|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    }
+   },
+   "cm18|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    }
+   },
+   "cm18|ALL|positive": {
+    "alert": {
+     "k": 11,
+     "n": 317,
+     "rate": 3.5,
+     "wilson": [
+      1.9,
+      6.1
+     ]
+    },
+    "trigger_after": {
+     "k": 1,
+     "n": 317,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      1.8
+     ]
+    },
+    "trigger_before": {
+     "k": 11,
+     "n": 317,
+     "rate": 3.5,
+     "wilson": [
+      1.9,
+      6.1
+     ]
+    }
+   },
+   "cm18|beam|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|positive": {
+    "alert": {
+     "k": 1,
+     "n": 60,
+     "rate": 1.7,
+     "wilson": [
+      0.3,
+      8.9
+     ]
+    },
+    "trigger_after": {
+     "k": 1,
+     "n": 60,
+     "rate": 1.7,
+     "wilson": [
+      0.3,
+      8.9
+     ]
+    },
+    "trigger_before": {
+     "k": 1,
+     "n": 60,
+     "rate": 1.7,
+     "wilson": [
+      0.3,
+      8.9
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|positive": {
+    "alert": {
+     "k": 10,
+     "n": 60,
+     "rate": 16.7,
+     "wilson": [
+      9.3,
+      28.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 10,
+     "n": 60,
+     "rate": 16.7,
+     "wilson": [
+      9.3,
+      28.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|kernelbench|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    }
+   },
+   "cm18|kernelbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    }
+   },
+   "cm18|reflex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    }
+   },
+   "cm18|reflex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|reflex|positive": {
+    "alert": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    }
+   },
+   "cm18|researcharena|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    }
+   },
+   "cm18|researcharena|positive": {
+    "alert": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    }
+   },
+   "cm18|sdf|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "goodfire_dev|ALL|negative": {
+    "alert": {
+     "k": 89,
+     "n": 752,
+     "rate": 11.8,
+     "wilson": [
+      9.7,
+      14.3
+     ]
+    },
+    "trigger_after": {
+     "k": 11,
+     "n": 752,
+     "rate": 1.5,
+     "wilson": [
+      0.8,
+      2.6
+     ]
+    },
+    "trigger_before": {
+     "k": 89,
+     "n": 752,
+     "rate": 11.8,
+     "wilson": [
+      9.7,
+      14.3
+     ]
+    }
+   },
+   "goodfire_dev|ALL|positive": {
+    "alert": {
+     "k": 390,
+     "n": 1636,
+     "rate": 23.8,
+     "wilson": [
+      21.8,
+      26.0
+     ]
+    },
+    "trigger_after": {
+     "k": 57,
+     "n": 1636,
+     "rate": 3.5,
+     "wilson": [
+      2.7,
+      4.5
+     ]
+    },
+    "trigger_before": {
+     "k": 390,
+     "n": 1636,
+     "rate": 23.8,
+     "wilson": [
+      21.8,
+      26.0
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|negative": {
+    "alert": {
+     "k": 89,
+     "n": 752,
+     "rate": 11.8,
+     "wilson": [
+      9.7,
+      14.3
+     ]
+    },
+    "trigger_after": {
+     "k": 11,
+     "n": 752,
+     "rate": 1.5,
+     "wilson": [
+      0.8,
+      2.6
+     ]
+    },
+    "trigger_before": {
+     "k": 89,
+     "n": 752,
+     "rate": 11.8,
+     "wilson": [
+      9.7,
+      14.3
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|positive": {
+    "alert": {
+     "k": 390,
+     "n": 1636,
+     "rate": 23.8,
+     "wilson": [
+      21.8,
+      26.0
+     ]
+    },
+    "trigger_after": {
+     "k": 57,
+     "n": 1636,
+     "rate": 3.5,
+     "wilson": [
+      2.7,
+      4.5
+     ]
+    },
+    "trigger_before": {
+     "k": 390,
+     "n": 1636,
+     "rate": 23.8,
+     "wilson": [
+      21.8,
+      26.0
+     ]
+    }
+   },
+   "np21|ALL|negative_established": {
+    "alert": {
+     "k": 6,
+     "n": 60,
+     "rate": 10.0,
+     "wilson": [
+      4.7,
+      20.1
+     ]
+    },
+    "trigger_after": {
+     "k": 4,
+     "n": 60,
+     "rate": 6.7,
+     "wilson": [
+      2.6,
+      15.9
+     ]
+    },
+    "trigger_before": {
+     "k": 6,
+     "n": 60,
+     "rate": 10.0,
+     "wilson": [
+      4.7,
+      20.1
+     ]
+    }
+   },
+   "np21|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    }
+   },
+   "np21|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    }
+   },
+   "np21|baitbench|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|baitbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_established": {
+    "alert": {
+     "k": 6,
+     "n": 60,
+     "rate": 10.0,
+     "wilson": [
+      4.7,
+      20.1
+     ]
+    },
+    "trigger_after": {
+     "k": 4,
+     "n": 60,
+     "rate": 6.7,
+     "wilson": [
+      2.6,
+      15.9
+     ]
+    },
+    "trigger_before": {
+     "k": 6,
+     "n": 60,
+     "rate": 10.0,
+     "wilson": [
+      4.7,
+      20.1
+     ]
+    }
+   },
+   "np21|flake|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    }
+   },
+   "np21|flake|positive": {
+    "alert": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    }
+   },
+   "np21|kobayashi|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|kobayashi|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ALL|negative": {
+    "alert": {
+     "k": 12,
+     "n": 100,
+     "rate": 12.0,
+     "wilson": [
+      7.0,
+      19.8
+     ]
+    },
+    "trigger_after": {
+     "k": 12,
+     "n": 100,
+     "rate": 12.0,
+     "wilson": [
+      7.0,
+      19.8
+     ]
+    },
+    "trigger_before": {
+     "k": 12,
+     "n": 100,
+     "rate": 12.0,
+     "wilson": [
+      7.0,
+      19.8
+     ]
+    }
+   },
+   "np33|ALL|negative_untrusted": {
+    "alert": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|ALL|positive": {
+    "alert": {
+     "k": 8,
+     "n": 116,
+     "rate": 6.9,
+     "wilson": [
+      3.5,
+      13.0
+     ]
+    },
+    "trigger_after": {
+     "k": 8,
+     "n": 116,
+     "rate": 6.9,
+     "wilson": [
+      3.5,
+      13.0
+     ]
+    },
+    "trigger_before": {
+     "k": 8,
+     "n": 116,
+     "rate": 6.9,
+     "wilson": [
+      3.5,
+      13.0
+     ]
+    }
+   },
+   "np33|agentcheck|negative": {
+    "alert": {
+     "k": 12,
+     "n": 40,
+     "rate": 30.0,
+     "wilson": [
+      18.1,
+      45.4
+     ]
+    },
+    "trigger_after": {
+     "k": 12,
+     "n": 40,
+     "rate": 30.0,
+     "wilson": [
+      18.1,
+      45.4
+     ]
+    },
+    "trigger_before": {
+     "k": 12,
+     "n": 40,
+     "rate": 30.0,
+     "wilson": [
+      18.1,
+      45.4
+     ]
+    }
+   },
+   "np33|agentcheck|positive": {
+    "alert": {
+     "k": 8,
+     "n": 10,
+     "rate": 80.0,
+     "wilson": [
+      49.0,
+      94.3
+     ]
+    },
+    "trigger_after": {
+     "k": 8,
+     "n": 10,
+     "rate": 80.0,
+     "wilson": [
+      49.0,
+      94.3
+     ]
+    },
+    "trigger_before": {
+     "k": 8,
+     "n": 10,
+     "rate": 80.0,
+     "wilson": [
+      49.0,
+      94.3
+     ]
+    }
+   },
+   "np33|cnt|negative_untrusted": {
+    "alert": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|cnt|positive": {
+    "alert": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    }
+   },
+   "np33|ptb|negative": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ptb|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   }
+  },
+  "harness_log_read": {
+   "DEV_pooled|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "DEV_pooled|ALL|positive": {
+    "alert": {
+     "k": 2,
+     "n": 1711,
+     "rate": 0.1,
+     "wilson": [
+      0.0,
+      0.4
+     ]
+    },
+    "trigger_after": {
+     "k": 2,
+     "n": 1711,
+     "rate": 0.1,
+     "wilson": [
+      0.0,
+      0.4
+     ]
+    },
+    "trigger_before": {
+     "k": 2,
+     "n": 1711,
+     "rate": 0.1,
+     "wilson": [
+      0.0,
+      0.4
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|negative": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|positive": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cm18|ALL|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    }
+   },
+   "cm18|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    }
+   },
+   "cm18|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 317,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 317,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 317,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    }
+   },
+   "cm18|beam|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|kernelbench|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    }
+   },
+   "cm18|kernelbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    }
+   },
+   "cm18|reflex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    }
+   },
+   "cm18|reflex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|reflex|positive": {
+    "alert": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    }
+   },
+   "cm18|researcharena|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    }
+   },
+   "cm18|researcharena|positive": {
+    "alert": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    }
+   },
+   "cm18|sdf|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "goodfire_dev|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "goodfire_dev|ALL|positive": {
+    "alert": {
+     "k": 2,
+     "n": 1636,
+     "rate": 0.1,
+     "wilson": [
+      0.0,
+      0.4
+     ]
+    },
+    "trigger_after": {
+     "k": 2,
+     "n": 1636,
+     "rate": 0.1,
+     "wilson": [
+      0.0,
+      0.4
+     ]
+    },
+    "trigger_before": {
+     "k": 2,
+     "n": 1636,
+     "rate": 0.1,
+     "wilson": [
+      0.0,
+      0.4
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|negative": {
+    "alert": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|positive": {
+    "alert": {
+     "k": 2,
+     "n": 1636,
+     "rate": 0.1,
+     "wilson": [
+      0.0,
+      0.4
+     ]
+    },
+    "trigger_after": {
+     "k": 2,
+     "n": 1636,
+     "rate": 0.1,
+     "wilson": [
+      0.0,
+      0.4
+     ]
+    },
+    "trigger_before": {
+     "k": 2,
+     "n": 1636,
+     "rate": 0.1,
+     "wilson": [
+      0.0,
+      0.4
+     ]
+    }
+   },
+   "np21|ALL|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    }
+   },
+   "np21|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    }
+   },
+   "np21|baitbench|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|baitbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    }
+   },
+   "np21|flake|positive": {
+    "alert": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    }
+   },
+   "np21|kobayashi|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|kobayashi|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ALL|negative": {
+    "alert": {
+     "k": 3,
+     "n": 100,
+     "rate": 3.0,
+     "wilson": [
+      1.0,
+      8.5
+     ]
+    },
+    "trigger_after": {
+     "k": 3,
+     "n": 100,
+     "rate": 3.0,
+     "wilson": [
+      1.0,
+      8.5
+     ]
+    },
+    "trigger_before": {
+     "k": 3,
+     "n": 100,
+     "rate": 3.0,
+     "wilson": [
+      1.0,
+      8.5
+     ]
+    }
+   },
+   "np33|ALL|negative_untrusted": {
+    "alert": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|ALL|positive": {
+    "alert": {
+     "k": 8,
+     "n": 116,
+     "rate": 6.9,
+     "wilson": [
+      3.5,
+      13.0
+     ]
+    },
+    "trigger_after": {
+     "k": 8,
+     "n": 116,
+     "rate": 6.9,
+     "wilson": [
+      3.5,
+      13.0
+     ]
+    },
+    "trigger_before": {
+     "k": 8,
+     "n": 116,
+     "rate": 6.9,
+     "wilson": [
+      3.5,
+      13.0
+     ]
+    }
+   },
+   "np33|agentcheck|negative": {
+    "alert": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    }
+   },
+   "np33|agentcheck|positive": {
+    "alert": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    }
+   },
+   "np33|cnt|negative_untrusted": {
+    "alert": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|cnt|positive": {
+    "alert": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    }
+   },
+   "np33|ptb|negative": {
+    "alert": {
+     "k": 3,
+     "n": 60,
+     "rate": 5.0,
+     "wilson": [
+      1.7,
+      13.7
+     ]
+    },
+    "trigger_after": {
+     "k": 3,
+     "n": 60,
+     "rate": 5.0,
+     "wilson": [
+      1.7,
+      13.7
+     ]
+    },
+    "trigger_before": {
+     "k": 3,
+     "n": 60,
+     "rate": 5.0,
+     "wilson": [
+      1.7,
+      13.7
+     ]
+    }
+   },
+   "np33|ptb|positive": {
+    "alert": {
+     "k": 8,
+     "n": 60,
+     "rate": 13.3,
+     "wilson": [
+      6.9,
+      24.2
+     ]
+    },
+    "trigger_after": {
+     "k": 8,
+     "n": 60,
+     "rate": 13.3,
+     "wilson": [
+      6.9,
+      24.2
+     ]
+    },
+    "trigger_before": {
+     "k": 8,
+     "n": 60,
+     "rate": 13.3,
+     "wilson": [
+      6.9,
+      24.2
+     ]
+    }
+   }
+  },
+  "hidden_info_read": {
+   "DEV_pooled|ALL|negative": {
+    "alert": {
+     "k": 32,
+     "n": 827,
+     "rate": 3.9,
+     "wilson": [
+      2.8,
+      5.4
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "DEV_pooled|ALL|positive": {
+    "alert": {
+     "k": 112,
+     "n": 1711,
+     "rate": 6.5,
+     "wilson": [
+      5.5,
+      7.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 1711,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 1711,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|positive": {
+    "alert": {
+     "k": 15,
+     "n": 75,
+     "rate": 20.0,
+     "wilson": [
+      12.5,
+      30.4
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|negative": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|positive": {
+    "alert": {
+     "k": 15,
+     "n": 75,
+     "rate": 20.0,
+     "wilson": [
+      12.5,
+      30.4
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cm18|ALL|negative_established": {
+    "alert": {
+     "k": 1,
+     "n": 329,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      1.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    }
+   },
+   "cm18|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    }
+   },
+   "cm18|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 317,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 317,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 317,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    }
+   },
+   "cm18|beam|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|kernelbench|negative_established": {
+    "alert": {
+     "k": 1,
+     "n": 19,
+     "rate": 5.3,
+     "wilson": [
+      0.9,
+      24.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    }
+   },
+   "cm18|kernelbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    }
+   },
+   "cm18|reflex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    }
+   },
+   "cm18|reflex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|reflex|positive": {
+    "alert": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    }
+   },
+   "cm18|researcharena|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    }
+   },
+   "cm18|researcharena|positive": {
+    "alert": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    }
+   },
+   "cm18|sdf|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "goodfire_dev|ALL|negative": {
+    "alert": {
+     "k": 32,
+     "n": 752,
+     "rate": 4.3,
+     "wilson": [
+      3.0,
+      5.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "goodfire_dev|ALL|positive": {
+    "alert": {
+     "k": 97,
+     "n": 1636,
+     "rate": 5.9,
+     "wilson": [
+      4.9,
+      7.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|negative": {
+    "alert": {
+     "k": 32,
+     "n": 752,
+     "rate": 4.3,
+     "wilson": [
+      3.0,
+      5.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|positive": {
+    "alert": {
+     "k": 97,
+     "n": 1636,
+     "rate": 5.9,
+     "wilson": [
+      4.9,
+      7.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    }
+   },
+   "np21|ALL|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    }
+   },
+   "np21|ALL|positive": {
+    "alert": {
+     "k": 5,
+     "n": 187,
+     "rate": 2.7,
+     "wilson": [
+      1.1,
+      6.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    }
+   },
+   "np21|baitbench|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|baitbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    }
+   },
+   "np21|flake|positive": {
+    "alert": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    }
+   },
+   "np21|kobayashi|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|kobayashi|positive": {
+    "alert": {
+     "k": 5,
+     "n": 60,
+     "rate": 8.3,
+     "wilson": [
+      3.6,
+      18.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    }
+   },
+   "np33|ALL|negative_untrusted": {
+    "alert": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    }
+   },
+   "np33|agentcheck|negative": {
+    "alert": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    }
+   },
+   "np33|agentcheck|positive": {
+    "alert": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    }
+   },
+   "np33|cnt|negative_untrusted": {
+    "alert": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|cnt|positive": {
+    "alert": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    }
+   },
+   "np33|ptb|negative": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ptb|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   }
+  },
+  "history_mining": {
+   "DEV_pooled|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "DEV_pooled|ALL|positive": {
+    "alert": {
+     "k": 5,
+     "n": 1711,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      0.7
+     ]
+    },
+    "trigger_after": {
+     "k": 5,
+     "n": 1711,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      0.7
+     ]
+    },
+    "trigger_before": {
+     "k": 5,
+     "n": 1711,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      0.7
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|negative": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|positive": {
+    "alert": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cm18|ALL|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    }
+   },
+   "cm18|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    }
+   },
+   "cm18|ALL|positive": {
+    "alert": {
+     "k": 2,
+     "n": 317,
+     "rate": 0.6,
+     "wilson": [
+      0.2,
+      2.3
+     ]
+    },
+    "trigger_after": {
+     "k": 2,
+     "n": 317,
+     "rate": 0.6,
+     "wilson": [
+      0.2,
+      2.3
+     ]
+    },
+    "trigger_before": {
+     "k": 2,
+     "n": 317,
+     "rate": 0.6,
+     "wilson": [
+      0.2,
+      2.3
+     ]
+    }
+   },
+   "cm18|beam|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|positive": {
+    "alert": {
+     "k": 2,
+     "n": 60,
+     "rate": 3.3,
+     "wilson": [
+      0.9,
+      11.4
+     ]
+    },
+    "trigger_after": {
+     "k": 2,
+     "n": 60,
+     "rate": 3.3,
+     "wilson": [
+      0.9,
+      11.4
+     ]
+    },
+    "trigger_before": {
+     "k": 2,
+     "n": 60,
+     "rate": 3.3,
+     "wilson": [
+      0.9,
+      11.4
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|kernelbench|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    }
+   },
+   "cm18|kernelbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    }
+   },
+   "cm18|reflex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    }
+   },
+   "cm18|reflex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|reflex|positive": {
+    "alert": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    }
+   },
+   "cm18|researcharena|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    }
+   },
+   "cm18|researcharena|positive": {
+    "alert": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    }
+   },
+   "cm18|sdf|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "goodfire_dev|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "goodfire_dev|ALL|positive": {
+    "alert": {
+     "k": 5,
+     "n": 1636,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      0.7
+     ]
+    },
+    "trigger_after": {
+     "k": 5,
+     "n": 1636,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      0.7
+     ]
+    },
+    "trigger_before": {
+     "k": 5,
+     "n": 1636,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      0.7
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|negative": {
+    "alert": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|positive": {
+    "alert": {
+     "k": 5,
+     "n": 1636,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      0.7
+     ]
+    },
+    "trigger_after": {
+     "k": 5,
+     "n": 1636,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      0.7
+     ]
+    },
+    "trigger_before": {
+     "k": 5,
+     "n": 1636,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      0.7
+     ]
+    }
+   },
+   "np21|ALL|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    }
+   },
+   "np21|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    }
+   },
+   "np21|baitbench|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|baitbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    }
+   },
+   "np21|flake|positive": {
+    "alert": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    }
+   },
+   "np21|kobayashi|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|kobayashi|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    }
+   },
+   "np33|ALL|negative_untrusted": {
+    "alert": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    }
+   },
+   "np33|agentcheck|negative": {
+    "alert": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    }
+   },
+   "np33|agentcheck|positive": {
+    "alert": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    }
+   },
+   "np33|cnt|negative_untrusted": {
+    "alert": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|cnt|positive": {
+    "alert": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    }
+   },
+   "np33|ptb|negative": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ptb|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   }
+  },
+  "submission_tamper": {
+   "DEV_pooled|ALL|negative": {
+    "alert": {
+     "k": 37,
+     "n": 827,
+     "rate": 4.5,
+     "wilson": [
+      3.3,
+      6.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 827,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "DEV_pooled|ALL|positive": {
+    "alert": {
+     "k": 174,
+     "n": 1711,
+     "rate": 10.2,
+     "wilson": [
+      8.8,
+      11.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 1711,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 1711,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|negative": {
+    "alert": {
+     "k": 5,
+     "n": 75,
+     "rate": 6.7,
+     "wilson": [
+      2.9,
+      14.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|ALL|positive": {
+    "alert": {
+     "k": 1,
+     "n": 75,
+     "rate": 1.3,
+     "wilson": [
+      0.2,
+      7.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|negative": {
+    "alert": {
+     "k": 5,
+     "n": 75,
+     "rate": 6.7,
+     "wilson": [
+      2.9,
+      14.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cheatbench_dev|cheatbench_dev|positive": {
+    "alert": {
+     "k": 1,
+     "n": 75,
+     "rate": 1.3,
+     "wilson": [
+      0.2,
+      7.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 75,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.9
+     ]
+    }
+   },
+   "cm18|ALL|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 329,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    }
+   },
+   "cm18|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 300,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.3
+     ]
+    }
+   },
+   "cm18|ALL|positive": {
+    "alert": {
+     "k": 1,
+     "n": 317,
+     "rate": 0.3,
+     "wilson": [
+      0.1,
+      1.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 317,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 317,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      1.2
+     ]
+    }
+   },
+   "cm18|beam|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|beam|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|cheatindex|positive": {
+    "alert": {
+     "k": 1,
+     "n": 60,
+     "rate": 1.7,
+     "wilson": [
+      0.3,
+      8.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|evilgenie|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|kernelbench|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 19,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.8
+     ]
+    }
+   },
+   "cm18|kernelbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 11,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      25.9
+     ]
+    }
+   },
+   "cm18|reflex|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 50,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.1
+     ]
+    }
+   },
+   "cm18|reflex|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|reflex|positive": {
+    "alert": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 45,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.9
+     ]
+    }
+   },
+   "cm18|researcharena|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 20,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      16.1
+     ]
+    }
+   },
+   "cm18|researcharena|positive": {
+    "alert": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 21,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      15.5
+     ]
+    }
+   },
+   "cm18|sdf|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "cm18|sdf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "goodfire_dev|ALL|negative": {
+    "alert": {
+     "k": 32,
+     "n": 752,
+     "rate": 4.3,
+     "wilson": [
+      3.0,
+      5.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "goodfire_dev|ALL|positive": {
+    "alert": {
+     "k": 173,
+     "n": 1636,
+     "rate": 10.6,
+     "wilson": [
+      9.2,
+      12.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|negative": {
+    "alert": {
+     "k": 32,
+     "n": 752,
+     "rate": 4.3,
+     "wilson": [
+      3.0,
+      5.9
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 752,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.5
+     ]
+    }
+   },
+   "goodfire_dev|goodfire_dev|positive": {
+    "alert": {
+     "k": 173,
+     "n": 1636,
+     "rate": 10.6,
+     "wilson": [
+      9.2,
+      12.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 1636,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      0.2
+     ]
+    }
+   },
+   "np21|ALL|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|ALL|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 182,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.1
+     ]
+    }
+   },
+   "np21|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 187,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      2.0
+     ]
+    }
+   },
+   "np21|baitbench|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|baitbench|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_established": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|flake|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 2,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    }
+   },
+   "np21|flake|positive": {
+    "alert": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 7,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      35.4
+     ]
+    }
+   },
+   "np21|kobayashi|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|kobayashi|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|negative_other": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np21|osf|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ALL|negative": {
+    "alert": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 100,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.7
+     ]
+    }
+   },
+   "np33|ALL|negative_untrusted": {
+    "alert": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|ALL|positive": {
+    "alert": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 116,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      3.2
+     ]
+    }
+   },
+   "np33|agentcheck|negative": {
+    "alert": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 40,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      8.8
+     ]
+    }
+   },
+   "np33|agentcheck|positive": {
+    "alert": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 10,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    }
+   },
+   "np33|cnt|negative_untrusted": {
+    "alert": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 80,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      4.6
+     ]
+    }
+   },
+   "np33|cnt|positive": {
+    "alert": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 46,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      7.7
+     ]
+    }
+   },
+   "np33|ptb|negative": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   },
+   "np33|ptb|positive": {
+    "alert": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_after": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    },
+    "trigger_before": {
+     "k": 0,
+     "n": 60,
+     "rate": 0.0,
+     "wilson": [
+      0.0,
+      6.0
+     ]
+    }
+   }
+  }
+ },
+ "runs": 4209
+}

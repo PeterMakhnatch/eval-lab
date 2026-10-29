@@ -1,0 +1,6 @@
+{
+  "p0f5": {"expected": 555, "resolved": 555, "recomputed_J_matches": 555, "unjudged_gate_runs": 117, "unjudged_gate_cards": 340, "unavailable": 0},
+  "goodfire_150": {"runs": 150, "unjudged_gate_runs": 2},
+  "np31_pairs": {"runs": 246, "unjudged_gate_runs": 67},
+  "note": "P0f5 replay used its attested cached judge verdicts and compared confirmed non-pass-through rule sets with its stored decomposition. Other populations count stored decomposition rows with a grader_tamper pass-through; v8 did not judge those cards. Card counts for those populations not yet audited."
+}

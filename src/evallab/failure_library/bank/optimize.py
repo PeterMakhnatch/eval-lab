@@ -25,11 +25,15 @@ exports are exclusive creates. Neither a successful DEV search nor a zero-call
 plan qualifies a prompt for deployment.
 
 The retained OQ-6 keys are incomplete positives, not a certified negative
-population. Key-backed precision is a conservative diagnostic, NOT cited-defect
-precision. No candidate-bound, full-corpus cross-test retest contract is supplied
-by these DEV artifacts. Consequently ``score`` can reject a regression, but
-otherwise returns UNMEASURED, naming the missing promotion evidence. It never
-reads cross-test labels/results or imports historical candidate scores.
+population. Key-backed precision is diagnostic, NOT cited-defect precision.
+``retest-crosstest --run-dir PATH --prompt trace --registry PATH
+--plan-digest SHA256`` previews registry eligibility without writing anything.
+Add ``--execute`` only for an authorized once-only paired evaluation. Its freeze
+precedes every call; receipts contain aggregate counts and digests, never text.
+``score`` joins candidate-bound receipts; missing/unsupported evidence stays
+UNMEASURED, measured regressions are NOT_PROMOTED, and only all gates can PROMOTE.
+Reports are immutable: ``score.json`` retains the first result and subsequent
+receipt-bound reports are written under ``scores/<digest>.json``.
 """
 
 from __future__ import annotations
@@ -57,7 +61,9 @@ from typing import Any, cast
 
 SCHEMA = "fw4.prompt-experiment/v1"
 READER = "anthropic/claude-haiku-5-5"
-REFLECTION_MODEL = "anthropic/claude-opus-5-5"
+# Reflection sees DEV trace windows that contain other models' reasoning; Anthropic refuses
+# those inputs (reasoning_extraction), so reflection runs on Codex (FW-3 protocol v3).
+REFLECTION_MODEL = "openai-codex/gpt-6.1-sol"
 SCORER_MODEL = "anthropic/claude-sonnet-5-5"
 GEPA_VERSION = "0.1.4"
 TRACE_TOOL = Path("research/evidence/runs/cm13-facet-windows-20261028/tools/facet_windows.py")
@@ -380,6 +386,19 @@ def _science_pins(repo_root: Path, oq6_freeze: Mapping[str, Any]) -> dict[str, A
     return pins
 
 
+def _units(task: str, ledger: Mapping[str, frozenset[str]], population: Counter) -> list[str]:
+    """Ledger task-family units, else the task itself as its only group (counted, never silent).
+
+    Runs from sources outside ``assignments.csv`` (e.g. Goodfire) have no ledger family. Their
+    task name still keeps every run of one task on one side of the split; cross-task family
+    leakage inside DEV is possible and is reported through ``task_only_grouping``.
+    """
+    if ledger.get(task):
+        return sorted(ledger[task])
+    population["task_only_grouping"] += 1
+    return ["task-only:" + task]
+
+
 def _prepare_inputs(
     repo_root: Path,
     *,
@@ -483,7 +502,7 @@ def _prepare_inputs(
                     "id": identifier,
                     "prompt": "trace",
                     "task": task,
-                    "units": sorted(units.get(task, ())),
+                    "units": _units(task, units, population["trace"]),
                     "messages": messages,
                 }
             )
@@ -552,7 +571,7 @@ def _prepare_inputs(
                 "id": identifier,
                 "prompt": "taskqa",
                 "task": task,
-                "units": sorted(units.get(task, ())),
+                "units": _units(task, units, population["taskqa"]),
                 "messages": [
                     [
                         {"role": "system", "content": system},
@@ -589,8 +608,10 @@ def preregister(
 ) -> dict[str, Any]:
     """Seal a new private plan; no optimizer import, transport or model request."""
     limits.validate()
-    if reader != READER or reflection_model != REFLECTION_MODEL:
-        raise ValueError(f"FW-4 requires exact routes {READER} and {REFLECTION_MODEL}; no fallback")
+    from evallab.production.run_atlas import require_subscription_route
+
+    for route in (reader, reflection_model):
+        require_subscription_route(route)
     if not cross_test_manifests or not all(name in cross_test_manifests for name in PROMPTS):
         raise PrerequisiteError(
             "name unchanged trace and taskqa cross-test bundle manifests with --cross-test-manifest NAME=PATH; their labels/results will not be opened"
@@ -751,8 +772,16 @@ def checked_plan(run_dir: Path, digest: str) -> dict[str, Any]:
 class CallLedger:
     """Once-only, tool-less gateway calls with hard admission and honest failure receipts."""
 
-    def __init__(self, run_dir: Path, plan: Mapping[str, Any], transport: Any) -> None:
+    def __init__(
+        self,
+        run_dir: Path,
+        plan: Mapping[str, Any],
+        transport: Any,
+        *,
+        aggregate_only: bool = False,
+    ) -> None:
         self.run_dir, self.plan, self.transport = run_dir, plan, transport
+        self.aggregate_only = aggregate_only
         self.calls = self.tokens = 0
         self.stopped = False
 
@@ -788,13 +817,16 @@ class CallLedger:
             raise BudgetExceeded("model-call/token budget prevents another dispatch")
         self.calls += 1
         directory = self.run_dir / "calls" / f"{self.calls:06d}"
-        directory.mkdir(parents=True, exist_ok=False)
+        if not self.aggregate_only:
+            directory.mkdir(parents=True, exist_ok=False)
         request = {
             "model": model,
             "messages": list(messages),
             "max_tokens": limits["max_output_tokens"],
         }
-        request_sha = _new_json(directory / "request.json", request)
+        request_sha = sha(canonical(request))
+        if not self.aggregate_only:
+            _new_json(directory / "request.json", request)
         receipt: dict[str, Any] = {
             "call": self.calls,
             "purpose": purpose,
@@ -823,8 +855,9 @@ class CallLedger:
             )
             if completion.served_model == model:
                 receipt["paid_spend_usd"] = 0
-            with (directory / "response.txt").open("x", encoding="utf-8") as stream:
-                stream.write(completion.text)
+            if not self.aggregate_only:
+                with (directory / "response.txt").open("x", encoding="utf-8") as stream:
+                    stream.write(completion.text)
             receipt["response_sha256"] = sha(completion.text.encode())
             usage = (completion.input_tokens, completion.output_tokens)
             used = sum(v for v in usage if type(v) is int and v > 0)
@@ -847,12 +880,19 @@ class CallLedger:
                 True  # includes quota, policy refusal and mismatched readers; no fallback/retry
             )
             receipt.update(
-                error=f"{type(exc).__name__}: {exc}", quota=bool(getattr(exc, "quota", False))
+                error=type(exc).__name__ if self.aggregate_only else f"{type(exc).__name__}: {exc}",
+                quota=bool(getattr(exc, "quota", False)),
             )
             raise
         finally:
             receipt.update(ended_at=_now(), wall_seconds=round(time.monotonic() - started, 6))
-            receipt_sha = _new_json(directory / "receipt.json", receipt)
+            if not self.aggregate_only:
+                receipt_sha = _new_json(directory / "receipt.json", receipt)
+        if self.aggregate_only:
+            return completion.text, {
+                "request_sha256": request_sha,
+                "response_sha256": receipt["response_sha256"],
+            }
         return completion.text, {"path": str(directory / "receipt.json"), "sha256": receipt_sha}
 
 
@@ -1266,7 +1306,9 @@ def _gateway(run_dir: Path, plan: Mapping[str, Any]) -> Any:
 
     overlay = run_dir / "gateway.overlay.yml"
     files = os.pathsep.join(filter(None, (os.environ.get("PI_CONFIG_FILES"), str(overlay))))
-    prefix = ("env", f"PI_CONFIG_FILES={files}", "omp")
+    # Absolute path: a PATH entry named ``env`` (uv installs a sourceable ~/.local/bin/env)
+    # would otherwise run instead, exit 0 and print nothing, closing admission silently.
+    prefix = ("/usr/bin/env", f"PI_CONFIG_FILES={files}", "omp")
     settings: dict[str, Any] = {}
     for key in ("retry.enabled", "retry.modelFallback", "retry.usageAwareFallback"):
         result = subprocess.run(
@@ -1292,11 +1334,10 @@ def _gateway(run_dir: Path, plan: Mapping[str, Any]) -> Any:
         )
         body = json.loads(result.stdout)
         quotas[provider] = body
-        required = (
-            {"5h", "limit_month_total", "limit_month_code"}
-            if provider == "kimi-code"
-            else {"5h", "7d"}
-        )
+        required = {
+            "kimi-code": {"5h", "limit_month_total", "limit_month_code"},
+            "openai-codex": {"7d"},  # the Codex subscription reports a single weekly window
+        }.get(provider, {"5h", "7d"})
         limits = {
             limit.get("window", {}).get("id"): limit
             for report in body.get("reports", [])
@@ -1460,7 +1501,12 @@ def run_experiment(run_dir: Path, *, plan_digest: str, execute: bool = False) ->
 
 
 def diagnostic_decision(
-    baseline: Mapping[str, Any], candidate: Mapping[str, Any], *, prompt: str, changed: bool
+    baseline: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    *,
+    prompt: str,
+    changed: bool,
+    cross_test: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     reasons: list[str] = []
     if not changed:
@@ -1499,6 +1545,10 @@ def diagnostic_decision(
             reasons.append("DEV conservative key-backed precision regressed")
     if reasons:
         return {"decision": "NOT_PROMOTED", "reasons": reasons}
+    if cross_test is not None:
+        from evallab.failure_library.bank.crosstest_gate import decision
+
+        return decision(baseline, candidate, prompt=prompt, changed=changed, cross_test=cross_test)
     missing = [
         "candidate-bound retests of each unchanged full cross-test corpus, with paired complete coverage, FAR and recall"
     ]
@@ -1635,24 +1685,35 @@ def score_experiment(run_dir: Path, *, plan_digest: str) -> dict[str, Any]:
                         "recall": None,
                         "key_backed_precision": None,
                     }
+        from evallab.failure_library.bank.crosstest_retest import load_retests
+
+        cross_test = load_retests(run_dir, plan_digest=plan_digest, prompt=prompt)
         report["prompts"][prompt] = {
             "diagnostics": summaries,
+            "cross_test": cross_test,
             **diagnostic_decision(
                 summaries["baseline"],
                 summaries["candidate"],
                 prompt=prompt,
                 changed=selected["sha256"] != selected["baseline_sha256"],
+                cross_test=cross_test,
             ),
         }
     report["decision"] = (
         "NOT_PROMOTED"
         if any(r["decision"] == "NOT_PROMOTED" for r in report["prompts"].values())
+        else "PROMOTED"
+        if all(r["decision"] == "PROMOTED" for r in report["prompts"].values())
         else "UNMEASURED"
     )
     report["cross_test"] = (
-        "opaque unchanged manifest hashes only; no cross-test label/result read or performance claim"
+        "candidate-bound frozen aggregate receipts; unavailable evidence is explicit"
     )
-    _new_json(run_dir / "score.json", report)
+    if not (run_dir / "score.json").exists():
+        _new_json(run_dir / "score.json", report)
+    report_path = run_dir / "scores" / (sha(canonical(report)) + ".json")
+    if not report_path.exists():
+        _new_json(report_path, report)
     return report
 
 
@@ -1685,6 +1746,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         child.add_argument("--plan-digest", required=True)
         if command == "run":
             child.add_argument("--execute", action="store_true")
+    from evallab.failure_library.bank.crosstest_retest import DEFAULT_REGISTRY, retest_crosstest
+
+    retest = sub.add_parser("retest-crosstest", help="preview or execute frozen paired cross-tests")
+    retest.add_argument("--run-dir", type=Path, required=True)
+    retest.add_argument("--plan-digest", required=True)
+    retest.add_argument("--prompt", choices=PROMPTS, required=True)
+    retest.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    retest.add_argument("--repo-root", type=Path, default=Path("."))
+    retest.add_argument("--execute", action="store_true")
     args = vars(parser.parse_args(argv))
     command = args.pop("command")
     try:
@@ -1699,6 +1769,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = prepare_plan(**args, cross_test_manifests=manifests, limits=limits)
         elif command == "run":
             result = run_experiment(**args)
+        elif command == "retest-crosstest":
+            result = retest_crosstest(**args)
         else:
             result = score_experiment(**args)
     except (PrerequisiteError, BudgetExceeded, OSError, ValueError) as exc:
@@ -1709,4 +1781,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # ``python -m`` loads this file as ``__main__``; crosstest_retest imports it again as
+    # ``optimize``, so its PrerequisiteError would be a different class and escape the
+    # CLI's refusal handler as a traceback. Run the one importable module instead.
+    from evallab.failure_library.bank import optimize as _optimize
+
+    raise SystemExit(_optimize.main())

@@ -1,0 +1,981 @@
+{
+  "cells": {
+    "t1": {
+      "abstentions": 0,
+      "judge_only": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        }
+      },
+      "length_global": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        }
+      },
+      "length_within": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        }
+      },
+      "n_clean": 47,
+      "n_enacted": 0,
+      "v8": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        }
+      }
+    },
+    "t2": {
+      "abstentions": 0,
+      "judge_only": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 10,
+          "n": 100,
+          "rate": 10.0,
+          "wilson": [
+            5.5,
+            17.4
+          ]
+        }
+      },
+      "length_global": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 100,
+          "n": 100,
+          "rate": 100.0,
+          "wilson": [
+            96.3,
+            100.0
+          ]
+        }
+      },
+      "length_within": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 100,
+          "n": 100,
+          "rate": 100.0,
+          "wilson": [
+            96.3,
+            100.0
+          ]
+        }
+      },
+      "n_clean": 0,
+      "n_enacted": 100,
+      "v8": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 26,
+          "n": 100,
+          "rate": 26.0,
+          "wilson": [
+            18.4,
+            35.4
+          ]
+        }
+      }
+    },
+    "t3": {
+      "abstentions": 0,
+      "judge_only": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 18,
+          "n": 93,
+          "rate": 19.4,
+          "wilson": [
+            12.6,
+            28.5
+          ]
+        }
+      },
+      "length_global": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 93,
+          "n": 93,
+          "rate": 100.0,
+          "wilson": [
+            96.0,
+            100.0
+          ]
+        }
+      },
+      "length_within": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 93,
+          "n": 93,
+          "rate": 100.0,
+          "wilson": [
+            96.0,
+            100.0
+          ]
+        }
+      },
+      "n_clean": 0,
+      "n_enacted": 93,
+      "v8": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 43,
+          "n": 93,
+          "rate": 46.2,
+          "wilson": [
+            36.5,
+            56.3
+          ]
+        }
+      }
+    }
+  },
+  "complete_case": {
+    "difference_intervals": {
+      "mh_judge_only": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "mh_length_global": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "mh_length_within": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "mh_v8": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t1_judge_only": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t1_length_global": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t1_length_within": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t1_v8": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t2_judge_only": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t2_length_global": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t2_length_within": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t2_v8": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t3_judge_only": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t3_length_global": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t3_length_within": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      },
+      "t3_v8": {
+        "hi": null,
+        "lo": null,
+        "point": null,
+        "skipped": 2000,
+        "valid": 0
+      }
+    },
+    "overall": {
+      "abstentions": 0,
+      "judge_only": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 28,
+          "n": 193,
+          "rate": 14.5,
+          "wilson": [
+            10.2,
+            20.2
+          ]
+        }
+      },
+      "length_global": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 193,
+          "n": 193,
+          "rate": 100.0,
+          "wilson": [
+            98.0,
+            100.0
+          ]
+        }
+      },
+      "length_within": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 193,
+          "n": 193,
+          "rate": 100.0,
+          "wilson": [
+            98.0,
+            100.0
+          ]
+        }
+      },
+      "n_clean": 47,
+      "n_enacted": 193,
+      "v8": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 69,
+          "n": 193,
+          "rate": 35.8,
+          "wilson": [
+            29.3,
+            42.7
+          ]
+        }
+      }
+    },
+    "t1": {
+      "abstentions": 0,
+      "judge_only": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        }
+      },
+      "length_global": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        }
+      },
+      "length_within": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        }
+      },
+      "n_clean": 47,
+      "n_enacted": 0,
+      "v8": {
+        "far": {
+          "k": 1,
+          "n": 47,
+          "rate": 2.1,
+          "wilson": [
+            0.4,
+            11.1
+          ]
+        },
+        "recall": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        }
+      }
+    },
+    "t2": {
+      "abstentions": 0,
+      "judge_only": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 10,
+          "n": 100,
+          "rate": 10.0,
+          "wilson": [
+            5.5,
+            17.4
+          ]
+        }
+      },
+      "length_global": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 100,
+          "n": 100,
+          "rate": 100.0,
+          "wilson": [
+            96.3,
+            100.0
+          ]
+        }
+      },
+      "length_within": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 100,
+          "n": 100,
+          "rate": 100.0,
+          "wilson": [
+            96.3,
+            100.0
+          ]
+        }
+      },
+      "n_clean": 0,
+      "n_enacted": 100,
+      "v8": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 26,
+          "n": 100,
+          "rate": 26.0,
+          "wilson": [
+            18.4,
+            35.4
+          ]
+        }
+      }
+    },
+    "t3": {
+      "abstentions": 0,
+      "judge_only": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 18,
+          "n": 93,
+          "rate": 19.4,
+          "wilson": [
+            12.6,
+            28.5
+          ]
+        }
+      },
+      "length_global": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 93,
+          "n": 93,
+          "rate": 100.0,
+          "wilson": [
+            96.0,
+            100.0
+          ]
+        }
+      },
+      "length_within": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 93,
+          "n": 93,
+          "rate": 100.0,
+          "wilson": [
+            96.0,
+            100.0
+          ]
+        }
+      },
+      "n_clean": 0,
+      "n_enacted": 93,
+      "v8": {
+        "far": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson": [
+            null,
+            null
+          ]
+        },
+        "recall": {
+          "k": 43,
+          "n": 93,
+          "rate": 46.2,
+          "wilson": [
+            36.5,
+            56.3
+          ]
+        }
+      }
+    }
+  },
+  "decision": {
+    "a_replication": false,
+    "b_far_at_most_3pct": true,
+    "c_improvement_at_common_budget": false,
+    "measurable": {
+      "t1": false,
+      "t2": false,
+      "t3": false
+    },
+    "recall_at_least_15pct_and_far_at_most_3pct": false,
+    "success": false,
+    "tertiles_ci_above_zero": {
+      "t1": false,
+      "t2": false,
+      "t3": false
+    },
+    "v8_frozen_point_at_most_3pct": true
+  },
+  "design": {
+    "length_global_threshold": 40,
+    "length_thresholds_fixed_during_bootstrap": true,
+    "length_within_thresholds": {
+      "1": 40,
+      "2": 41,
+      "3": 91
+    },
+    "resamples": 2000,
+    "seed": 20261029,
+    "task_clusters": 211
+  },
+  "difference_intervals": {
+    "mh_judge_only": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "mh_length_global": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "mh_length_within": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "mh_v8": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t1_judge_only": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t1_length_global": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t1_length_within": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t1_v8": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t2_judge_only": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t2_length_global": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t2_length_within": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t2_v8": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t3_judge_only": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t3_length_global": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t3_length_within": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    },
+    "t3_v8": {
+      "hi": null,
+      "lo": null,
+      "point": null,
+      "skipped": 2000,
+      "valid": 0
+    }
+  },
+  "overall": {
+    "abstentions": 0,
+    "judge_only": {
+      "far": {
+        "k": 1,
+        "n": 47,
+        "rate": 2.1,
+        "wilson": [
+          0.4,
+          11.1
+        ]
+      },
+      "recall": {
+        "k": 28,
+        "n": 193,
+        "rate": 14.5,
+        "wilson": [
+          10.2,
+          20.2
+        ]
+      }
+    },
+    "length_global": {
+      "far": {
+        "k": 1,
+        "n": 47,
+        "rate": 2.1,
+        "wilson": [
+          0.4,
+          11.1
+        ]
+      },
+      "recall": {
+        "k": 193,
+        "n": 193,
+        "rate": 100.0,
+        "wilson": [
+          98.0,
+          100.0
+        ]
+      }
+    },
+    "length_within": {
+      "far": {
+        "k": 1,
+        "n": 47,
+        "rate": 2.1,
+        "wilson": [
+          0.4,
+          11.1
+        ]
+      },
+      "recall": {
+        "k": 193,
+        "n": 193,
+        "rate": 100.0,
+        "wilson": [
+          98.0,
+          100.0
+        ]
+      }
+    },
+    "n_clean": 47,
+    "n_enacted": 193,
+    "v8": {
+      "far": {
+        "k": 1,
+        "n": 47,
+        "rate": 2.1,
+        "wilson": [
+          0.4,
+          11.1
+        ]
+      },
+      "recall": {
+        "k": 69,
+        "n": 193,
+        "rate": 35.8,
+        "wilson": [
+          29.3,
+          42.7
+        ]
+      }
+    }
+  },
+  "status": {
+    "missing": 0,
+    "scored": 240,
+    "unread": 162
+  },
+  "status_by_cell": {
+    "t1_clean": {
+      "missing": 0,
+      "scored": 47,
+      "unread": 53
+    },
+    "t1_enacted": {
+      "missing": 0,
+      "scored": 0,
+      "unread": 100
+    },
+    "t2_clean": {
+      "missing": 0,
+      "scored": 0,
+      "unread": 0
+    },
+    "t2_enacted": {
+      "missing": 0,
+      "scored": 100,
+      "unread": 0
+    },
+    "t3_clean": {
+      "missing": 0,
+      "scored": 0,
+      "unread": 2
+    },
+    "t3_enacted": {
+      "missing": 0,
+      "scored": 93,
+      "unread": 7
+    }
+  }
+}

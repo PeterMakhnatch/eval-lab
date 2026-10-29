@@ -68,7 +68,7 @@ MAX_TOKENS = 600
 
 #: Metric keys that could carry a dataset name, label, reward or verifier outcome never reach a prompt.
 _FORBIDDEN_KEY = re.compile(
-    r"reward|label|dataset|benchmark|split|verdict|verifier|ground|truth|resolved|passed|score|gold",
+    r"^source$|reward|label|dataset|benchmark|split|verdict|verifier|ground|truth|resolved|passed|score|gold",
     re.IGNORECASE,
 )
 

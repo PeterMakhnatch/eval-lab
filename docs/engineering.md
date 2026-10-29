@@ -347,6 +347,19 @@ CI ratchet: `scripts/profile/budgets.json` + `.github/workflows/perf.yml`.
 An injected `digest=500` slowdown against a 5 ms budget fails with
 `digest: median 653.170 ms exceeds budget 5.000 ms + 10%`.
 
+### `projection` and `facts` measured the runner's disk (2026-10-29)
+
+Both paths publish parquet tables with `durable_replace`, so each rep fsyncs 16
+(`projection`) or 24 (`facts`) times. On `ubuntu-latest` the same commit measured
+`projection` 4.9-225.5 ms (median 7.5) and `facts` 11.6-104.5 ms (median 16.1) over 18
+`workflow_dispatch` runs, and 5 of the 18 runs failed a budget; the failures were not
+clustered in time and passed on rerun. With the harness scratch directory on tmpfs
+(`--scratch-dir /dev/shm/evallab-speed`) 18 further runs gave 1.1-2.9 ms and
+4.0-7.6 ms with no failure, matching the 2026-08-14 laptop capture. Budgets were
+lowered with it (`projection` 25 -> 4 ms, `facts` 25 -> 12 ms); a ceiling is never
+raised to absorb noise. The gate no longer times fsync latency. See the notes in
+`scripts/profile/budgets.json`.
+
 ### `ingest` re-baselined against CI evidence (2026-08-15)
 
 The `profile` check failed on a docs-only PR (#52) with `ingest: median

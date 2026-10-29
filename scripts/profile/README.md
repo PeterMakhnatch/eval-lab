@@ -31,6 +31,14 @@ anything else. Such a report will fail `check_budgets.py` on purpose: the
 committed budgets only describe the pinned corpus, and a run on another corpus
 is not a valid re-baseline sample either.
 
+`--scratch-dir <path>` moves every file the timed paths write (parquet exports,
+digest and queue roots) away from `<output-dir>/scratch`. CI passes
+`/dev/shm/evallab-speed`: `projection` and `facts` fsync each table they publish
+(16 and 24 fsyncs per rep), so on a shared runner their medians tracked the disk's
+fsync latency, not the code (18 runs of unchanged code: `projection` 4.9-225.5 ms,
+`facts` 11.6-104.5 ms; on tmpfs 1.1-2.9 and 4.0-7.6 ms). The report stays in
+`--output-dir`. See `budgets.json` notes for the evidence.
+
 `--cpu-only` skips the scratch-Postgres connect and still drives
 `database.ingest_job` against a recording connection (pytest / no-daemon).
 `--inject-ms PATH=N` adds N milliseconds to one path (ratchet proof).

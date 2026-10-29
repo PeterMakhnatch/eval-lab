@@ -106,6 +106,30 @@ def test_cpu_only_profile_names_six_paths_and_never_uses_shared_catalog(
         assert f"| {name} |" in markdown
 
 
+def test_scratch_dir_takes_every_file_the_timed_paths_write_and_leaves_the_output_dir_clean(
+    tmp_path: Path,
+) -> None:
+    """CI points scratch at tmpfs; the report directory must then hold no scratch files."""
+    harness = _load_harness()
+    output_dir, scratch_dir = tmp_path / "report", tmp_path / "tmpfs-stand-in"
+    harness.run_profile(
+        corpus_roots=_pinned_roots(harness),
+        warmup=1,
+        reps=5,
+        database_url=None,
+        admin_url="postgresql://unused.example/evallab",
+        cpu_only=True,
+        inject_ms={},
+        work_dir=output_dir,
+        scratch_dir=scratch_dir,
+        tick_n=5,
+        fleet_fn=lambda: None,
+    )
+    assert list(scratch_dir.rglob("*.parquet")), "the projection and facts exports landed in scratch"
+    assert not (output_dir / "scratch").exists()
+    assert list(output_dir.rglob("*.parquet")) == []
+
+
 def test_refuses_shared_catalog_url() -> None:
     harness = _load_harness()
     try:

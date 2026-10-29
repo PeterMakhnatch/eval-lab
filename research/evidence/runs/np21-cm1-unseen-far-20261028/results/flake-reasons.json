@@ -1,0 +1,18 @@
+{
+ "schema": "np21-flake-reasons/v1",
+ "drawn_by_stratum_and_reason": {
+  "negative_established": {
+   "app_fixed_no_masking_test_change": 50,
+   "legitimate_test_repair": 10
+  },
+  "negative_other": {
+   "stopped_without_change": 2
+  },
+  "positive": {
+   "publisher_mock_edited_and_judge_masks_bug": 6,
+   "publisher_weakened_and_judge_masks_bug": 1
+  }
+ },
+ "reasons_sha256": "1cebb7680b3d0e8ca876282d473b6ca60e4195b22f79f60568545bbd36e133ce",
+ "sample_sha256": "297447304522913b93cd5bef9f620c222f9e17c6b6da2186262bf71e24497bdf"
+}

@@ -94,7 +94,7 @@ _SEALED_KEYS = frozenset({
     "record_binding_sha256",
 })
 _IDENTITY_KEYS = {
-    AUTOMATIONBENCH: frozenset({"task_name"}),
+    AUTOMATIONBENCH: frozenset({"task_name", "example_id", "domain", "cluster_key"}),
     PAICHECKER: frozenset({"instance_id", "sub_corpus", "repo"}),
 }
 _SOURCE_BINDING = (
@@ -463,7 +463,8 @@ class _Sealed(NamedTuple):
     corpus: str
     view: str
     join: tuple[str, str]  # (native sub-corpus tag or "" for AutomationBench, native task key)
-    repo: str | None
+    repo: str | None  # native cluster (PAIChecker repo, AutomationBench domain)
+    alias: str | None = None  # AutomationBench native example_id
 
 
 def _source_hash(value: Any, label: str) -> str | None:
@@ -530,7 +531,11 @@ def _sealed_case(row: Mapping[str, Any]) -> _Sealed:
             raise ScoringBridgeError(f"sealed case {case_id}: AutomationBench sub-corpus malformed")
         if row["task_id"] != identity["task_name"]:
             raise ScoringBridgeError(f"sealed case {case_id}: task_id differs from identity.task_name")
-        return _Sealed(case_id, corpus, subcorpus, ("", identity["task_name"]), None)
+        if identity["domain"] != identity["cluster_key"]:
+            raise ScoringBridgeError(f"sealed case {case_id}: identity domain differs from its cluster_key")
+        return _Sealed(
+            case_id, corpus, subcorpus, ("", identity["task_name"]), identity["domain"], identity["example_id"],
+        )
     if subcorpus not in PAI_SUBCORPORA or identity["sub_corpus"] != subcorpus:
         raise ScoringBridgeError(f"sealed case {case_id}: PAIChecker sub-corpus binding differs")
     if row["task_id"] != f"{subcorpus}:{identity['instance_id']}":
@@ -630,6 +635,8 @@ def _views(native: NativeGold, sealed: Sequence[_Sealed]) -> dict[str, _View]:
             raise ScoringBridgeError(f"sealed case {case.case_id}: identity absent from the native gold")
         if case.repo is not None and task.cluster != case.repo:
             raise ScoringBridgeError(f"sealed case {case.case_id}: identity repo differs from the native repo")
+        if case.alias is not None and case.alias not in task.aliases:
+            raise ScoringBridgeError(f"sealed case {case.case_id}: identity example_id differs from the native aliases")
         corpus_of[case.view] = case.corpus
         selected.setdefault(case.view, []).append(_Selected(case.case_id, task))
     views: dict[str, _View] = {}

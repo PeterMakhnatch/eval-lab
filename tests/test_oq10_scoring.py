@@ -90,10 +90,10 @@ PAI_TASKS = {
           ("syn-gym__3", "repo-three", [])],
 }
 SELECTED = [
-    ("C0001", AB, AB_VIEW, {"task_name": "syn-ab-alpha"}),
-    ("C0002", AB, AB_VIEW, {"task_name": "syn-ab-bravo"}),
-    ("C0003", AB, AB_VIEW, {"task_name": "syn-ab-delta"}),
-    ("C0004", AB, AB_VIEW, {"task_name": "syn-ab-foxtrot"}),
+    ("C0001", AB, AB_VIEW, {"task_name": "syn-ab-alpha", "example_id": "ex-0", "domain": "dom-one", "cluster_key": "dom-one"}),
+    ("C0002", AB, AB_VIEW, {"task_name": "syn-ab-bravo", "example_id": "ex-1", "domain": "dom-one", "cluster_key": "dom-one"}),
+    ("C0003", AB, AB_VIEW, {"task_name": "syn-ab-delta", "example_id": "ex-3", "domain": "dom-two", "cluster_key": "dom-two"}),
+    ("C0004", AB, AB_VIEW, {"task_name": "syn-ab-foxtrot", "example_id": "ex-5", "domain": "dom-two", "cluster_key": "dom-two"}),
     ("C0005", PAI, ML, {"instance_id": "syn-shared__1", "sub_corpus": ML, "repo": "repo-one"}),
     ("C0006", PAI, ML, {"instance_id": "syn-ml__2", "sub_corpus": ML, "repo": "repo-two"}),
     ("C0007", PAI, GYM, {"instance_id": "syn-shared__1", "sub_corpus": GYM, "repo": "repo-three"}),
@@ -418,6 +418,9 @@ def test_manifest_binding_errors_stop_before_scoring(library, name):
     ("index", "path", "value", "message"),
     [
         (0, ("identity", "task_name"), "syn-ab-unknown", "absent from the native gold"),
+        (0, ("identity", "example_id"), "ex-3", "example_id differs from the native aliases"),
+        (0, ("identity", "domain"), "dom-two", "domain differs from its cluster_key"),
+        (0, ("identity", "cluster_key"), "dom-two", "domain differs from its cluster_key"),
         (5, ("identity", "repo"), "repo-one", "repo differs from the native repo"),
     ],
 )

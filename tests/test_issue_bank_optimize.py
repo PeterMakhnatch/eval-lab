@@ -107,15 +107,16 @@ def test_tasks_outside_the_ledger_group_by_task_and_are_counted() -> None:
     # Two runs of one unledgered task can never straddle train and validation.
     examples = [
         {
-            "id": f"trace-{i}",
-            "prompt": "trace",
+            "id": f"{prompt}-{i}",
+            "prompt": prompt,
             "task": task,
             "units": opt._units(task, ledger, population),
         }
+        for prompt in opt.PROMPTS
         for i, task in enumerate(["goodfire-task", "goodfire-task", "other", "known"])
     ]
     groups = opt.grouped_split(examples, seed=1, train=1, validation=1)["groups"]
-    assert groups["trace-0"] == groups["trace-1"]
+    assert groups["trace-0"] == groups["trace-1"] == groups["taskqa-0"]
 
 
 def test_plan_is_opaque_to_cross_labels_and_separates_truth(

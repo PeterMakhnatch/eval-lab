@@ -89,6 +89,15 @@ record per (run, detector):
 - `coverage --corpus … [--corpus …]` lists findings per detector identity and corpus,
   and every registered detector that has no findings there.
 - The Phoenix shipper is `evallab trace otel <path>`.
+- `--detectors cascade_stream` is the only live path: it feeds a run's steps one
+  `trace.step` event at a time to `MisalignmentLiveWorker`
+  (`production/trace_harness_stream.py`), and it is the second adapter that may
+  generate, gated the same way: Stage 2 serves only stored or injected verdicts, so a
+  missing verdict is an unavailable judgment and the run abstains, and `--allow-model`
+  is the only route to a fresh Kimi call. Its summary keeps two clocks apart: the causal
+  prefix the first alarm's judgment was frozen on (comparable with ID-CM-1) and the step
+  at which that alarm was actually emitted, with the agent turns elapsed at each. The
+  `cascade*` adapters stay stored-result views.
 
 ## Gaps and duplicates
 

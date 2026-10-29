@@ -131,10 +131,16 @@ record per (run, detector):
   (`production/trace_harness_stream.py`), and it is the second adapter that may
   generate, gated the same way: Stage 2 serves only stored or injected verdicts, so a
   missing verdict is an unavailable judgment and the run abstains, and `--allow-model`
-  is the only route to a fresh Kimi call. Its summary keeps two clocks apart: the causal
+  is the only route to a fresh call. The reader is `kimi-code/k3.1-pro-highspeed` unless
+  overridden: `--detectors cascade_stream:anthropic/claude-haiku-5-5 --allow-model` keeps Stage 1 and the
+  v8 prompt, keys the verdict cache by that model (`judge-cache-<reader>.jsonl` beside the Kimi cache), gates fresh
+  calls on that provider's `omp usage` windows (stop at 85%, empty usage reads retried), requires the served model to
+  equal the requested one on every call, replays runs concurrently, and writes no finding for a run whose call was
+  refused for quota (so it is retried, never cached as abstain). Its summary keeps two clocks apart: the causal
   prefix the first alarm's judgment was frozen on (comparable with ID-CM-1) and the step
   at which that alarm was actually emitted, with the agent turns elapsed at each. The
-  `cascade*` adapters stay stored-result views.
+  `cascade*` adapters stay stored-result views. P0-F9D7D6-3
+  (`research/evidence/runs/p0-f9d7d6-3-matched-cascade-20261029/`) ran it with Haiku 5.5 on the matched Goodfire pairs.
 
 ## Gaps and duplicates
 

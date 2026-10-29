@@ -7,6 +7,7 @@ import pytest
 
 from evallab.copy_check import copy_check
 from evallab.counts import classify_counts
+from evallab.edit_signals import EDIT_COMMAND_PATTERNS
 
 FIX = [
     "def bind_args(signature, args, kwargs):",
@@ -94,6 +95,48 @@ def test_outside_lines_the_agent_had_already_typed_do_not_count(tmp_path: Path) 
 def test_below_the_matched_line_floor_is_not_copied(tmp_path: Path) -> None:
     trial = _trial(tmp_path, [("sed -n 1,9p /tmp/x/pkg/core.py\n", "\n".join(FIX[:4]))], FIX)
     assert copy_check(trial) is None
+
+
+@pytest.mark.parametrize("command", [
+    "git show deadbeef",
+    "GIT_DIR=/var/lib/mimo/git-hidden git show deadbeef",
+    "git --git-dir=/var/lib/mimo/git-hidden show deadbeef",
+    "git --git-dir /var/lib/mimo/git-hidden cat-file blob deadbeef",
+])
+def test_exact_short_git_hunk_is_evidence(tmp_path: Path, command: str) -> None:
+    short = FIX[:4]
+    trial = _trial(tmp_path, [(command, "\n".join(f"+{line}" for line in short))], short)
+    flag = copy_check(trial)
+    assert flag is not None
+    assert flag["match_method"] == "exact_git_hunk"
+    assert flag["matched_lines"] == 4
+
+
+def test_git_read_without_matching_hunk_is_not_copy(tmp_path: Path) -> None:
+    trial = _trial(tmp_path, [("git show deadbeef", "+different = True")], FIX[:4])
+    assert copy_check(trial) is None
+
+
+def test_git_read_of_previously_typed_hunk_is_not_copy(tmp_path: Path) -> None:
+    short = FIX[:4]
+    trial = _trial(tmp_path, [
+        ("cat > file <<'EOF'\n" + "\n".join(short) + "\nEOF", ""),
+        ("git show deadbeef", "\n".join(f"+{line}" for line in short)),
+    ], short)
+    assert copy_check(trial) is None
+
+@pytest.mark.parametrize("command", [
+    "git cherry-pick -n deadbeef",
+    "git am change.patch",
+    "git apply change.patch",
+    "patch -p1 < change.patch",
+])
+def test_patch_commands_are_edit_signals(command: str) -> None:
+    assert EDIT_COMMAND_PATTERNS.search(command)
+
+
+def test_git_show_is_not_an_edit_signal() -> None:
+    assert not EDIT_COMMAND_PATTERNS.search("git show deadbeef")
 
 
 def test_copied_code_excludes_a_pass_and_leaves_a_failure_counted() -> None:

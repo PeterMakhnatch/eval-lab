@@ -627,6 +627,10 @@ Integrity rules are deterministic only (HAR-024 contract, no LLM judge):
 | `evallab.copy_check` | `copy_check/v1` (`copy_check.RULE`) | `evallab.copy_check.copy_check`. Its outside-source matcher already subsumes the "build/lib / site-packages / out-of-base git read followed by matching lines" source rule. |
 | `evallab.upstream_fetch` | `confirmed_fetch` (the strict evidence predicate) | `assess_upstream_fetch` + `confirmed_fetch`: attempts without confirmed acquisition evidence never fire. |
 | `evallab.grader_tamper` | `v1` (new as a reward rule here) | `evallab.live_watch._grader_tamper_hits` (imported, not edited). |
+For Git object reads, copy evidence also includes an exact match of a submitted
+non-test diff hunk (or its resulting file text) against printed output, without
+the folded-line minimum. A read or patch command by itself is not copy proof.
+
 
 Detector preference: the stored `<job>/processed/trial-<name>.json` taint
 verdict is used for copy_check / upstream_fetch when present and trustworthy

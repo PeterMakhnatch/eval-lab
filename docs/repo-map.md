@@ -761,7 +761,7 @@ inputs:
   - path: src/evallab/production/modal_cloud.py
     digest: sha256:8dcd262bf273a13b1cdf6387a4a954ccbd80b9847cd0431166cfb5a19ee9bdf0
   - path: src/evallab/production/monitor_worker.py
-    digest: sha256:028591253c90c2c5b8e5c11cca4e462c24f7e70cddba49908f39428f0b14ad1a
+    digest: sha256:be07fffac58ae498382ef328464d190c8626ab44edb1153339500c1a452b67fd
   - path: src/evallab/production/outbox_relay.py
     digest: sha256:ab1adc2f16421d334c953e1da45d7c8937426e7bf0918e5a8ecd855c6f20fe1f
   - path: src/evallab/production/public_corpus_loader.py
@@ -843,7 +843,7 @@ inputs:
   - path: src/evallab/production/trace_findings.py
     digest: sha256:8276e8db66ecdf68c40fc47527b531e679e0fe3d966140b37fd878675d85ad78
   - path: src/evallab/production/trace_harness.py
-    digest: sha256:344912d0d80809d13d3a6173ea41fb07502b7815ba9618e45741d64e3c877b62
+    digest: sha256:8672509ca7efb89154eae1b0bfe4013e8806d989877f01e8b33f07c5967b7ac5
   - path: src/evallab/production/trace_harness_cascade.py
     digest: sha256:72c74d90fdb570b63b32d54fb3a3fb64d90013cd77ef9ae985f23076cfba3596
   - path: src/evallab/production/trace_harness_corpora.py
@@ -873,7 +873,7 @@ inputs:
   - path: src/evallab/production/trace_harness_staged.py
     digest: sha256:8bd789c9aae04288a39de29e6062b3e6670bbc508702f2362c5cc86b7f047d2d
   - path: src/evallab/production/trace_harness_stream.py
-    digest: sha256:91ccc6952bdf71d8f94640d0caae162847fc988824818477e2cdcf6e202d2d18
+    digest: sha256:d007c6b45e93acdb60252ca73dfaa6eddb168b4636b196229ff587994b4c063a
   - path: src/evallab/production/trace_harness_tools.py
     digest: sha256:1965ea4a5a9281921f4ed2474ee9b1422e71a831464aca3e8a55c6aa04475db0
   - path: src/evallab/production/window_cascade.py

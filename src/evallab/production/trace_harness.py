@@ -72,6 +72,7 @@ DETECTORS: dict[str, str] = {
     "cascade_v7": "evallab.production.trace_harness_cascade:CascadeV7Detector",
     "cascade_v4": "evallab.production.trace_harness_cascade:CascadeV4Detector",
     "cascade_stream": "evallab.production.trace_harness_stream:CascadeStreamDetector",
+    "cascade_stream_judge_only": "evallab.production.trace_harness_stream:CascadeJudgeOnlyStreamDetector",
     "facets": "evallab.production.trace_harness_facets:FacetsDetector",
     "scout": "evallab.production.trace_harness_tools:ScoutDetector",
     "scout_legacy": "evallab.production.trace_harness_tools:ScoutLegacyDetector",

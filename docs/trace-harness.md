@@ -41,6 +41,23 @@ local-only, counts only here). "Reader" is the model that reads the trace.
 Run health is **pending**: the only code is one local commit on
 `run-health/rh-1-features` (5f124f60b), not on `origin/main`.
 
+Trace Tools operations (offline, read-only unless stated):
+
+- `python -m evallab.readers.cost_inventory`: counts the exact actor bytes of admitted DEV
+  traces by safe, actor-history-unavailable, hydration-unavailable and secret-veto bucket.
+  Prices only an explicit versioned scenario; a missing rate, token count, generation,
+  retry or tariff stays `null`, never a full-corpus quote.
+- `python -m evallab.readers.scorecard_watch`: re-derives the existing whole-run scorecard
+  into identity-bound immutable snapshots, moving `current.json` atomically only after a
+  complete valid calculation. Incomplete, malformed or other-projection inputs keep the
+  last valid card; missing results remain abstentions.
+- `python -m evallab.trace_store.owner_cleanup`: read-only check that exactly the 108
+  owner-action Laminar copies are absent. Only a complete, project-bound inventory with
+  108 `absent` returns exit 0; partial, failed, empty or wrong-project output is `unknown`.
+- `scout-watch` keeps a derived `coverage-v1.json` (ledger SHA-256 plus projection and
+  scanner contract) and opens the transcript store only when a transcript exists.
+  Admission is re-decided every sweep.
+
 ## The harness
 
 `evallab trace run|card|score` (branch `th/trace-harness-core`, lands with the

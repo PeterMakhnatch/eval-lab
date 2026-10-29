@@ -108,7 +108,8 @@ _LIMITS = (
 class TokenCounter(Protocol):
     """An installed offline encoder: a name for the receipt and a count method."""
 
-    name: str
+    @property
+    def name(self) -> str: ...
 
     def count(self, text: str) -> int: ...
 
@@ -147,7 +148,7 @@ def load_tokenizer(spec: str = "auto") -> TokenCounter | None:
         if required:
             raise RuntimeError("tiktoken is not installed in this environment")
         return None
-    import tiktoken
+    import tiktoken  # ty: ignore[unresolved-import]
 
     try:
         encoding = tiktoken.get_encoding(encoding_name)
@@ -566,9 +567,8 @@ def price_quote(
             ("output_tokens_per_call", scenario.output_tokens_per_call),
         ) if value is None
     ]
-    output_tokens = None if output_missing else (
-        scenario.calls_per_generation * scenario.output_tokens_per_call * traces
-    )
+    calls, per_call = scenario.calls_per_generation, scenario.output_tokens_per_call
+    output_tokens = None if calls is None or per_call is None else calls * per_call * traces
     output = _priced(
         output_tokens, scenario.rate.output_usd_per_mtok,
         token_reasons=output_missing or ("output_tokens_per_call",),
@@ -581,9 +581,8 @@ def price_quote(
             ("retries_per_generation", scenario.retries_per_generation),
         ) if value is None
     ]
-    scale = None if scale_missing else (
-        scenario.generations * (1 + scenario.retries_per_generation)
-    )
+    generations, retries = scenario.generations, scenario.retries_per_generation
+    scale = None if generations is None or retries is None else generations * (1 + retries)
 
     storage = {
         "usd": None if scenario.storage_usd_per_gb_month is None else (

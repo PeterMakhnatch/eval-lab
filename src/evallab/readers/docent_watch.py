@@ -206,7 +206,7 @@ def run_once(
                         by_id = {ref.trace_id: ref for ref in refs}
                         if job["run_id"] not in by_id:
                             raise ReadingBlocked("active_reading_no_longer_admitted")
-                        trace = load_trace(con, by_id[job["run_id"]], cas_root=cas_root)
+                        trace = load_trace(con, by_id[str(job["run_id"])], cas_root=cas_root)
                         text = render(trace.messages)
                         if secret_hits(text) or hashlib.sha256(
                             text.encode()

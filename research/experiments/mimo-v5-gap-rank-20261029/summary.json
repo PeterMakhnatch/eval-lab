@@ -1,0 +1,179 @@
+{
+  "inputs_sha256": {
+    "digest_refresh": "14231d03ea06bd6b3565ec5e397c24543d4d5f1a187f461d56dca34ef55e81cc",
+    "download_census": "5af9366383d0059df0ab61ba93590054398d493978c3b098daf7ed368c379746",
+    "findings": "a615bfec8f1c7b84e3d8c4c4c5ea3d97f3c939236a63cb8635ce9064e1310fce",
+    "hack_scan": "c8d0b4439be031ba8844f369ad5845f4c990f8c2941e41d99700e765dc4e7e01",
+    "manifest": "4cb3e71fa7da716ce0c973cd5ee00edcc2ec55605dfc1213a08751b804b075bb",
+    "predictions": "a7f75988209844e3649eeb10b9b1e9854b74667bceb5708fe2df35aa5a24e889",
+    "python_ledger": "47f4f7f9cae7a12ea04b2896345b1fc1da1aa2ef8fc5ec595ce5215dc1bbb020",
+    "results": "a1d7d072b1e61a39c102aa43b7aa8279d7cdd9eabca07ff0dff619b605ebc2ce",
+    "split": "6a6cd1a5fff00e758db6bebd1223a316ee7a9adecd9c9b45b9da8a34aba2f334",
+    "v3_results": "0f5ba4f32f9fa4aca57eba2f58bda334522fd9de4bfb6e5585547e66679ed89a",
+    "v4_results": "96ec004d425e2f16b4f5e3fb5f66d25889b5bbe20a98fcd655d0c0c38bec6f89",
+    "v6_fleet": "cc9ee1b6f0309391b6752639b6d571825abd2e9389d787c8480ee4b4fd9a74fc",
+    "v6_manifest": "2333f79ad19780ebc9d185cc2f4b6642de84571e70007a7d3a141917cfeee1f9",
+    "v6_results": "a64e34c0a88b39f4a4a1a0da392ed048d28c2bf4c45db39c6c4f42d280583d64",
+    "verify_detail": "89efbcde09da694828daacdce12c3fe6138234d25c47b609fa81be9c78285da6",
+    "verify_overrides": "7a23e3b7302c555331e549a905ba1ccb66020fcd7e344534b12ce580b45217e1"
+  },
+  "plan": {
+    "distinct_repo_groups": 210,
+    "local_minutes_per_task": 15.5,
+    "local_workers": 2,
+    "sample_n": 120,
+    "top_n": 100,
+    "wall_hours_wave_a": 12.9,
+    "wall_hours_wave_b": 15.5,
+    "wave_a": 100,
+    "wave_a_by_family": {
+      "go": 2,
+      "js_ts": 75,
+      "python": 22,
+      "unknown": 1
+    },
+    "wave_a_by_finding_class": {
+      "grader-surface": 60,
+      "known-defect": 33,
+      "leak-env": 1,
+      "triage-note": 6
+    },
+    "wave_b": 120,
+    "wave_b_by_family": {
+      "go": 27,
+      "js_ts": 29,
+      "other_typed": 13,
+      "python": 37,
+      "unknown": 14
+    },
+    "wave_b_by_finding_class": {
+      "grader-surface": 18,
+      "known-defect": 11,
+      "leak-env": 31,
+      "none": 48,
+      "triage-note": 12
+    },
+    "zero_crack_upper_bound_95_wave_b": 0.0247
+  },
+  "population": {
+    "built": 2666,
+    "eligible_by_band": {
+      "five-plus": 36,
+      "pair-to-4": 138,
+      "singleton": 2161
+    },
+    "eligible_by_family": {
+      "go": 675,
+      "js_ts": 503,
+      "other_typed": 105,
+      "python": 931,
+      "unknown": 121
+    },
+    "eligible_by_finding_class": {
+      "grader-surface": 311,
+      "known-defect": 113,
+      "leak-env": 576,
+      "none": 1247,
+      "triage-note": 88
+    },
+    "eligible_retry_flag": 10,
+    "eligible_with_supported_finding": 113,
+    "gap_eligible": 2335,
+    "gap_held": 20,
+    "gap_held_by_reason": {
+      "excluded-from-training": 20
+    },
+    "gap_historical_label": {
+      "env-broken": 11,
+      "fail:open-leak:env-dependency": 5,
+      "fail:open-leak:node-build-pnpm": 1,
+      "fail:unfair-task:prompt-misaligned": 2,
+      "fail:vacuous-grader:compile-only": 1,
+      "override:@10 fold: local-Docker oracle x3 [1.0, 1.0, 1.0] + ": 1,
+      "unverified:baseline-unreliable": 1,
+      "unverified:cells-missing": 127,
+      "unverified:ladder-1.4.0-incomplete": 115,
+      "unverified:ladder-healthcheck": 1,
+      "unverified:ladder-missing": 1677,
+      "unverified:ladder-no-reward": 1,
+      "unverified:ladder-unscored": 6,
+      "unverified:node-build-fold": 13,
+      "unverified:node-build-leak": 1,
+      "unverified:noexec": 73,
+      "unverified:nop-missing": 128,
+      "unverified:oracle-missing": 31,
+      "unverified:pre-existing-failures": 1,
+      "unverified:probe-pending": 157,
+      "unverified:timeout": 2
+    },
+    "gap_tasks": 2355,
+    "gap_with_prior_v3_clean": 235,
+    "gap_with_prior_v4_clean": 95,
+    "manifest_rows": 2698,
+    "scored_bound_to_current_v5_digest": 0,
+    "scored_bound_to_prerefresh_v5_digest": 306,
+    "v5_ladder_cracked_tasks": 0,
+    "v5_ladder_scored_tasks": 311,
+    "v5_ladder_unscored_only_tasks": 7,
+    "v6_digests_with_ladder_run": 0,
+    "v6_fleet_verified_tasks": 5
+  },
+  "seed": 20261029,
+  "sensitivity": [
+    {
+      "spearman_vs_baseline": 0.6451,
+      "top_n": 100,
+      "top_overlap": 29,
+      "variant": "drop surface"
+    },
+    {
+      "spearman_vs_baseline": 0.9275,
+      "top_n": 100,
+      "top_overlap": 67,
+      "variant": "drop evidence"
+    },
+    {
+      "spearman_vs_baseline": 0.814,
+      "top_n": 100,
+      "top_overlap": 47,
+      "variant": "drop leak_env"
+    },
+    {
+      "spearman_vs_baseline": 0.982,
+      "top_n": 100,
+      "top_overlap": 86,
+      "variant": "drop leverage"
+    },
+    {
+      "spearman_vs_baseline": 0.9529,
+      "top_n": 100,
+      "top_overlap": 94,
+      "variant": "drop prior"
+    },
+    {
+      "spearman_vs_baseline": 0.9257,
+      "top_n": 100,
+      "top_overlap": 68,
+      "variant": "equal weights (25/25/25/25, no prior)"
+    },
+    {
+      "spearman_vs_baseline": 0.9818,
+      "top_n": 100,
+      "top_overlap": 68,
+      "variant": "evidence x2"
+    },
+    {
+      "spearman_vs_baseline": 0.9774,
+      "top_n": 100,
+      "top_overlap": 73,
+      "variant": "surface x2"
+    }
+  ],
+  "weights": {
+    "evidence": 30.0,
+    "leak_env": 20.0,
+    "leverage": 10.0,
+    "prior": -10.0,
+    "surface": 30.0
+  }
+}

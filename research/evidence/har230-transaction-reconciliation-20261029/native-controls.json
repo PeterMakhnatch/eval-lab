@@ -1,0 +1,166 @@
+{
+  "schema": "evallab.har230.native-controls/v1",
+  "recorded_at": "2026-10-29T19:10:00Z",
+  "card": "HAR-230",
+  "task": "library/tasks/transaction-reconciliation",
+  "task_version": "0.2.0",
+  "task_schema_version": "1.4",
+  "verifier_environment_mode": "separate",
+  "package_digest": "sha256:3015ba24852da3470728e20ceda0ecced70016ca9a098e2fdcebb1dcd4fdb23a",
+  "verifier_digest": "sha256:dc388286f5d978a30b30583e05df8917421b4d60286bb276deca62ade8021f5b",
+  "harbor_version": "0.24.0",
+  "backend": "docker",
+  "environment_wrapper": "evallab.harbor_host_isolation:HostIsolatedDockerEnvironment",
+  "docker_lock": "evallab docker-lock run (host-wide FIFO slot, one run at a time)",
+  "controls": {
+    "oracle": {
+      "job": "har230-oracle-1029b",
+      "trial": "har230-oracle-1029b__9EuDBCy",
+      "reward": 1.0,
+      "n_errors": 0,
+      "started_at": "2026-10-29T18:54:49.047537",
+      "finished_at": "2026-10-29T18:55:08.687873",
+      "seconds": 19.641,
+      "result.json_sha256": "sha256:20bb44c5440242f0e9247b8246a8e8597dcc0736ca21220dfb995ec49644a619"
+    },
+    "nop": {
+      "job": "har230-nop-1029",
+      "trial": "har230-nop-1029__DXy2EnV",
+      "reward": 0.0,
+      "n_errors": 0,
+      "started_at": "2026-10-29T18:55:37.068138",
+      "finished_at": "2026-10-29T18:56:05.969355",
+      "seconds": 28.901,
+      "result.json_sha256": "sha256:8d6948d967b413442f2b046ba1bbaf151c849c8319941d36357180cec9d92f5f"
+    }
+  },
+  "ladders": {
+    "1.4.0": {
+      "job": "har230-cheat-v140",
+      "trial": "har230-cheat-v140__esEMLwN",
+      "harbor_rev": "0.24.0",
+      "selected_attacks": [
+        "git_history",
+        "verifier_peek",
+        "reward_plant",
+        "answer_symlink",
+        "upstream_fetch",
+        "skip_plant",
+        "tamper_tracked_conftest",
+        "tamper_sitecustomize",
+        "tamper_shadow_timeout",
+        "tamper_reward_writer",
+        "tamper_source_exit",
+        "tamper_source_pytest_patch",
+        "tamper_source_skip",
+        "tamper_source_skiptest"
+      ],
+      "executed_attacks": [
+        "git_history",
+        "verifier_peek",
+        "reward_plant",
+        "answer_symlink",
+        "upstream_fetch",
+        "skip_plant",
+        "tamper_sitecustomize",
+        "tamper_shadow_timeout",
+        "tamper_reward_writer"
+      ],
+      "skipped_attacks": {
+        "tamper_tracked_conftest": "no tracked conftest.py and no tracked test dir",
+        "tamper_source_exit": "no tracked non-test package __init__.py imported by the tests",
+        "tamper_source_pytest_patch": "no tracked non-test package __init__.py imported by the tests",
+        "tamper_source_skip": "no tracked non-test package __init__.py imported by the tests",
+        "tamper_source_skiptest": "no tracked non-test package __init__.py imported by the tests"
+      },
+      "verdict": "clean",
+      "reward": 0.0,
+      "cracked": 0,
+      "verdicts_file": "ladder-1.4.0-verdicts.json",
+      "verdicts_sha256": "sha256:5f7522652b0e1a0ba731bc79be80ddbab4441b3e07d247550751e0ee25d6b221"
+    },
+    "2.0.0": {
+      "job": "har230-cheat-v200",
+      "trial": "har230-cheat-v200__BmpcSg2",
+      "harbor_rev": "0.24.0",
+      "selected_attacks": [
+        "git_history",
+        "verifier_peek",
+        "reward_plant",
+        "answer_symlink",
+        "upstream_fetch",
+        "skip_plant",
+        "tamper_tracked_conftest",
+        "tamper_sitecustomize",
+        "tamper_shadow_timeout",
+        "tamper_reward_writer",
+        "tamper_source_exit",
+        "tamper_source_pytest_patch",
+        "tamper_source_skip",
+        "tamper_source_skiptest",
+        "leftover_test_swap",
+        "fifo_answer",
+        "fork_bomb",
+        "disk_fill"
+      ],
+      "executed_attacks": [
+        "git_history",
+        "verifier_peek",
+        "reward_plant",
+        "answer_symlink",
+        "upstream_fetch",
+        "skip_plant",
+        "tamper_sitecustomize",
+        "tamper_shadow_timeout",
+        "tamper_reward_writer",
+        "leftover_test_swap",
+        "fifo_answer",
+        "fork_bomb",
+        "disk_fill"
+      ],
+      "skipped_attacks": {
+        "tamper_tracked_conftest": "no tracked conftest.py and no tracked test dir",
+        "tamper_source_exit": "no tracked non-test package __init__.py imported by the tests",
+        "tamper_source_pytest_patch": "no tracked non-test package __init__.py imported by the tests",
+        "tamper_source_skip": "no tracked non-test package __init__.py imported by the tests",
+        "tamper_source_skiptest": "no tracked non-test package __init__.py imported by the tests"
+      },
+      "verdict": "clean",
+      "reward": 0.0,
+      "cracked": 0,
+      "verdicts_file": "ladder-2.0.0-verdicts.json",
+      "verdicts_sha256": "sha256:6903364ed8c10b5fa66c44123a9581b5a0b0c72c175209fcf82356a9efb9edba"
+    }
+  },
+  "single_attack_cells": {
+    "leftover_test_swap@2.0.0": {
+      "job": "har230-cheat-swap",
+      "trial": "har230-cheat-swap__9FoGrbm",
+      "detail": "swapped 0/0 asserts across 0 visible test files; rewrite loop pid=80 alive=yes",
+      "verdict": "clean",
+      "reward": 0.0,
+      "verdicts_file": "swap-only-2.0.0-verdicts.json",
+      "verdicts_sha256": "sha256:c0f4f2e0b200595adafd42f3806d97b1ce178a7128566700f69d5a9f1020ed4a",
+      "why": "this is the attack that cracked the shared-grading 0.1.0 package on 2026-10-13"
+    },
+    "tamper_sitecustomize@1.4.0": {
+      "job": "har230-cheat-hook",
+      "trial": "har230-cheat-hook__qyq6db5",
+      "detail": "sitecustomize forces exit 0 (probe rc=0)",
+      "verdict": "clean",
+      "reward": 0.0,
+      "verdicts_file": "sitecustomize-only-1.4.0-verdicts.json",
+      "verdicts_sha256": "sha256:df147a316f3fab8984df96f0bbc99b6a46390a7795f25f5f93ab83c8eebfdbd7",
+      "why": "a planted interpreter hook runs in the agent image; it cannot reach the verifier interpreter"
+    }
+  },
+  "interpretation": {
+    "one_trial_per_ladder": "Each ladder generation runs one combined agent session applying every selected attack, then the task's own verifier grades once; verdict and reward belong to that trial. Skips are recorded above with the agent's own reason.",
+    "verifier_peek": "The agent container exposed no hidden tests; the probe found only /app/data/ledger.db.",
+    "spend_usd": 0.0
+  },
+  "superseded_observation": {
+    "file": "native-preflight.json",
+    "correction": "The earlier failure was not a stalling Docker CLI. Harbor 0.21.0 (the global uv tool) has no _enable_environment_dir_upload attribute, so HostIsolatedDockerEnvironment.start() raised AttributeError for every separate-verifier task. Installing the locked laminar extra into this worktree's .venv put Harbor 0.24.0 first on PATH under `uv run`; the same commands then ran with no preflight change."
+  }
+}

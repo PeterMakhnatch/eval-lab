@@ -420,6 +420,7 @@ def _nightly(tmp_path, *, stager, ingester):
     from evallab.schemas import (
         HeadlessDoctorChecks,
         HeadlessDoctorReport,
+        LaunchAgentAudit,
     )
 
     class StaticDoctor:
@@ -430,8 +431,14 @@ def _nightly(tmp_path, *, stager, ingester):
                 docker_reachable=True,
                 postgres_reachable=True,
                 disk_headroom=True,
+                launch_agents_intact=True,
             )
-            return HeadlessDoctorReport(checked_at=FROZEN, healthy=True, checks=checks)
+            return HeadlessDoctorReport(
+                checked_at=FROZEN,
+                healthy=True,
+                checks=checks,
+                launch_agents=LaunchAgentAudit(checked=0),
+            )
 
     queue = DirectoryQueue(tmp_path / "queue")
     service = Executor(

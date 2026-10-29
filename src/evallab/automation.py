@@ -31,8 +31,11 @@ from evallab.queue import (
 from evallab.researchers import DEFAULT_ROLE_LIMITS, pass_wall_clock_bound_seconds
 from evallab.runner import database_url_from_environment, subscription_environment
 from evallab.schemas import (
+    BrokenLaunchAgent,
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
+    LaunchAgentAudit,
+    LaunchAgentPathKind,
     QueueEvent,
 )
 from evallab.status_generator import update_status_file
@@ -640,8 +643,146 @@ def _analysis_stage_issue_reason(report: object, *, limit: int = 512) -> str | N
     return reason[:limit]
 
 
+LAUNCH_AGENT_LABEL_PREFIX = "com.petermakhnatch.evallab."
+_SHELL_PROGRAMS = frozenset({"/bin/zsh", "/bin/bash", "/bin/sh"})
+_SHELL_COMMAND_FLAGS = frozenset({"-lc", "-cl", "-c"})
+
+
+def _shell_command_string(argv: Sequence[str]) -> str | None:
+    """The command string a ``<shell> -lc '<command>'`` plist passes to the shell."""
+    for index, token in enumerate(argv):
+        if index == 0 or token not in _SHELL_COMMAND_FLAGS:
+            continue
+        return argv[index + 1] if index + 1 < len(argv) else None
+    return None
+
+
+def _shell_command_references(command: str) -> list[tuple[LaunchAgentPathKind, str]]:
+    """Working directory and runtime a shell command string names.
+
+    Only the installer's shape is read — an optional leading
+    ``cd <dir> &&`` followed by the command word — because any other absolute
+    argument is data the agent may create on first run, not a path it needs to
+    start.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return []
+    references: list[tuple[LaunchAgentPathKind, str]] = []
+    start = 0
+    if len(tokens) >= 4 and tokens[0] == "cd" and tokens[2] == "&&":
+        references.append(("working_directory", tokens[1]))
+        start = 3
+    if start < len(tokens) and os.path.isabs(tokens[start]):
+        references.append(("interpreter", tokens[start]))
+    return references
+
+
+def _launch_agent_references(
+    definition: Mapping[str, Any],
+) -> list[tuple[LaunchAgentPathKind, str]]:
+    """Every absolute path an installed plist must resolve to start."""
+    references: list[tuple[LaunchAgentPathKind, str]] = []
+
+    def add(kind: LaunchAgentPathKind, value: object) -> None:
+        if isinstance(value, str) and os.path.isabs(value):
+            references.append((kind, value))
+
+    add("program", definition.get("Program"))
+    add("working_directory", definition.get("WorkingDirectory"))
+    arguments = definition.get("ProgramArguments")
+    argv = (
+        [argument for argument in arguments if isinstance(argument, str)]
+        if isinstance(arguments, list)
+        else []
+    )
+    if not argv:
+        return references
+    add("program", argv[0])
+    if argv[0] in _SHELL_PROGRAMS:
+        command = _shell_command_string(argv)
+        if command is None:
+            add("program", argv[1] if len(argv) > 1 else None)
+        else:
+            references.extend(_shell_command_references(command))
+    else:
+        # An exec wrapper (`keys run -- <interpreter> ...`) starts the runtime
+        # it names; a direct interpreter is already covered as argv[0], and its
+        # own script/value arguments may legitimately be created on first run.
+        rest = argv[1:]
+        if rest[:2] == ["run", "--"] and len(rest) > 2:
+            add("interpreter", rest[2])
+    return references
+
+
+def _launch_agent_missing_references(
+    definition: Mapping[str, Any],
+) -> list[tuple[LaunchAgentPathKind, str]]:
+    return [
+        (kind, path)
+        for kind, path in dict.fromkeys(_launch_agent_references(definition))
+        if not Path(path).exists()
+    ]
+
+
+def audit_launch_agents(
+    home: Path, *, label_prefix: str = LAUNCH_AGENT_LABEL_PREFIX
+) -> LaunchAgentAudit:
+    """List installed evallab LaunchAgents whose program or runtime path is gone.
+
+    Read-only: it parses ``<home>/Library/LaunchAgents/*.plist`` and checks the
+    paths they name. It never calls launchctl, so a run cannot install, load,
+    unload or rewrite a single agent.
+    """
+    directory = home / "Library/LaunchAgents"
+    try:
+        candidates = sorted(directory.glob("*.plist"))
+    except OSError:
+        candidates = []
+    checked = 0
+    broken: list[BrokenLaunchAgent] = []
+    for path in candidates:
+        filename_label = path.name[: -len(".plist")]
+        if not filename_label.startswith(label_prefix):
+            continue
+        try:
+            raw = plistlib.loads(path.read_bytes())
+        except (OSError, ValueError, plistlib.InvalidFileException):
+            raw = None
+        definition: Mapping[str, Any] = raw if isinstance(raw, dict) else {}
+        label = definition.get("Label")
+        if not isinstance(label, str) or not label:
+            checked += 1
+            broken.append(
+                BrokenLaunchAgent(
+                    label=filename_label,
+                    plist_path=str(path),
+                    kind="unreadable",
+                    path=str(path),
+                )
+            )
+            continue
+        if not label.startswith(label_prefix):
+            # The filename claims our prefix; the plist belongs to someone else.
+            continue
+        checked += 1
+        broken.extend(
+            BrokenLaunchAgent(
+                label=label, plist_path=str(path), kind=kind, path=missing_path
+            )
+            for kind, missing_path in _launch_agent_missing_references(definition)
+        )
+    return LaunchAgentAudit(checked=checked, broken=broken)
+
+
 class HeadlessDoctor:
-    """Return boolean-only readiness without reading credential values into Python."""
+    """Return readiness without reading credential values into Python.
+
+    The audit of installed evallab LaunchAgents is read-only: it parses plists
+    and checks the paths they name. It never calls launchctl, so it cannot load,
+    unload, install or rewrite an agent.
+    """
 
     def __init__(
         self,
@@ -663,12 +804,14 @@ class HeadlessDoctor:
         self._disk_probe = disk_probe or self._probe_disk
 
     def run(self) -> HeadlessDoctorReport:
+        launch_agents = audit_launch_agents(self.home)
         checks = HeadlessDoctorChecks(
             keychain_readable=self._keychain_probe(),
             codex_auth_present=(self.home / ".codex/auth.json").is_file(),
             docker_reachable=self._docker_probe(),
             postgres_reachable=self._postgres_probe(),
             disk_headroom=self._disk_probe(),
+            launch_agents_intact=launch_agents.intact,
         )
         infrastructure_ok = (
             checks.docker_reachable and checks.postgres_reachable and checks.disk_headroom
@@ -678,9 +821,11 @@ class HeadlessDoctor:
             # Credential availability is informational and enforced per spec
             # by Executor.tick(). Controls need no credential, so a machine
             # with healthy infrastructure and zero model credentials remains
-            # capable of useful, free work.
+            # capable of useful, free work. A broken schedule is reported
+            # alongside it; `ready` is the operator gate (see the schema).
             healthy=infrastructure_ok,
             checks=checks,
+            launch_agents=launch_agents,
         )
 
     def _probe_keychain(self) -> bool:

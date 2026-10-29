@@ -9,7 +9,7 @@ inputs:
   - path: docs/ACTIVE-VS-HISTORICAL.md
     digest: sha256:be0eb686a7c6956c7c53fe435c5a7fbe1ef5d24e885102b174e4e53a0a7761ca
   - path: docs/GENERATED-CACHE-POLICY.md
-    digest: sha256:4d70e54cef4c3ace6add3d1d8bf3eb1fc4faacc4c33dc1a18d73df847ea21b58
+    digest: sha256:f1da8676305f3f6cddd0ebc0c97d1587930b2b95e771511ac109eda44ad1559c
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
@@ -39,7 +39,7 @@ inputs:
   - path: docs/blind-review.md
     digest: sha256:7f133de2910eec169b03e21af24d239aa02c87bc74aed5db6c66f82731312d79
   - path: docs/canaries.md
-    digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
+    digest: sha256:71550fb643b44577fbd1a129cf438e867e49c246e9c97cfafb6f1c8200d4ef0f
   - path: docs/catalog-tables.md
     digest: sha256:0392155288dbabcf02852f4eb1625ec3fe0bd4954019d3591b4c83258cd4ef2c
   - path: docs/context-packs.md
@@ -63,7 +63,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:a7d771ec4cb764fd164557e30a5f3fa31b6b03862b1cf51c2d3dd8a7f4877c48
+    digest: sha256:27c954be78fd297f809bec812ea4f5d0582cdd3edbf2b48f70155891ad1de9f9
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -81,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
-    digest: sha256:2e415e8f74d8b5c2e56f01944d25067d341f3c0f6e6815e1654c40d865468011
+    digest: sha256:0d868b483db449df4a0a787e19888e054f77d3c843fcecfe7b9958d7647f1955
   - path: docs/live-watch.md
     digest: sha256:715acdba0981feb39df990cf26495507fa93cd5c5c498f66fa8aba193cd866dc
   - path: docs/lora-sft-runbook.md
@@ -101,7 +101,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:637cdc7a97591e037629207de5db21b9f837bcc47e9a43cef73204912167a4d5
+    digest: sha256:7c27c537357d73b57165134756ba6aed29c51bf451ad7329c88bcf97960011f5
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/qa-contract.md
@@ -161,7 +161,7 @@ inputs:
   - path: docs/trace-harness.md
     digest: sha256:48366de064152f909ba0dfa009805b7662d30466ac85141eb0b863c5d90159a7
   - path: docs/trial-treatment.md
-    digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
+    digest: sha256:1c6e4147cc2ba6cc215482e6315f53cb4a0aec7ec2ef768a72d8d87bb85b7023
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

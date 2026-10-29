@@ -24,7 +24,9 @@ Both are paired catalog tables, with catalog root `derived/parquet/external/task
 On 2026-10-01 every MiMo trial ran with the sandbox network open and nobody
 noticed. The setup fingerprint closes that gap: every batch carries
 `setup-fingerprint.json`, and every trial carries its own copy with the lock
-as applied (trial `egress-lock.json` → `applied`; an absent file reads `open`,
+as enforced (trial `egress-lock.json` → `lock_enforced`: applied and, on Daytona,
+`verified` from inside the sandbox since HAR-205, so a provider
+acknowledgement alone reads `open`; an absent file reads `open`,
 the pre-HAR-140 default). The fingerprint records harness id and version, the
 server (model revision, SGLang image digest, tool-call parser, reasoning
 parser, context length), the sampling actually sent (proxy-enforced

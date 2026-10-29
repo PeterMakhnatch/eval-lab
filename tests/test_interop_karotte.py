@@ -177,9 +177,8 @@ def test_lenient_load_solution_less_task(tmp_path):
 def test_resolve_spec_real_tasks(tmp_path):
     txn = ik.resolve_spec(load_harbor_task(TXN_TASK))
     assert txn.workdir == "/app"
-    assert txn.submission_paths == ("/app",)
+    assert txn.submission_paths == ("/app/data/ledger.db",)
     assert txn.base_kind == "dockerfile" and txn.has_solution
-    assert (txn.cpus, txn.memory) == (ik.RUN_CPUS, ik.RUN_MEMORY)
     evsum = ik.resolve_spec(load_harbor_task(EVSUM_TASK))
     assert evsum.workdir == "/app"
     assert evsum.submission_paths == (

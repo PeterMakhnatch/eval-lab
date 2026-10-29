@@ -75,3 +75,17 @@ Before removal, record all of:
 Then use native `git worktree remove`, without force, and measure the result.
 Protect dirty, detached-but-unproven, nested-copy, and unknown trees. Do not run a
 blanket prune or delete `.worktrees/`, `runs/`, `derived/`, or `backups/` wholesale.
+
+The disposition manifest in item 5 is produced by `uv run evallab worktrees
+--markdown-out <path> --json-out <path>` (`src/evallab/worktree_disposition.py`). It
+lists every registration from `git worktree list --porcelain` with branch,
+ahead/behind against `origin/main`, PR state from one batched `gh pr list`, and a
+mechanical verdict: `delivered` (every commit is on the base by ancestry, patch-id,
+or the head of a merged PR into the base branch), `unique-unmerged` (a branch-attached
+HEAD carries commits the base lacks), or `blocked` (missing or prunable tree, Git
+cannot report state, a detached HEAD with unaccounted commits, or a delivered HEAD
+with uncommitted work or a merge/rebase in progress). Locked registrations, open PRs,
+and ignored `runs/`/`derived/`/`queue/` entries (presence only) are per-row retirement
+blockers, never verdict changes. The command only reads; a dated report is evidence of
+state at generation time, not approval to retire any tree. The first report is
+`docs/checkpoints/2026-10-29-worktree-disposition.md`.

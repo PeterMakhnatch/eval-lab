@@ -2,16 +2,16 @@
   "schema_version": 2,
   "task_id": "transaction-reconciliation",
   "task_family": "transaction-reconciliation",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "task_path": "library/tasks/transaction-reconciliation",
   "digests": {
-    "task_toml": "sha256:e41321431aaa811dfb8ec15c4262f441aa4d6d7b32759485350771b1bfedae45",
+    "task_toml": "sha256:173c3cf248cfca523c9837ea6c4a8d62e6340fd3b1a47629557582dc3e872d93",
     "instruction": "sha256:b80061c213826ea3a292428e5f8830564e2dfe4b028a2cd435d9e3eddabcff7c",
     "environment": "sha256:bc3e3dcd3140e0a900b952920acc21c70d5d43b38ecf94456c09bbd695742020",
-    "verifier": "sha256:980dc81c50f81116d31b73b8dca7d94c564b538a892871a53cea63d7a5991e03",
-    "package": "sha256:f2bb698dbcb990ce1be2a6319efc1c4264da4f7394637d33f103ebb053262820"
+    "verifier": "sha256:dc388286f5d978a30b30583e05df8917421b4d60286bb276deca62ade8021f5b",
+    "package": "sha256:3015ba24852da3470728e20ceda0ecced70016ca9a098e2fdcebb1dcd4fdb23a"
   },
-  "source_uri": "local/transaction-reconciliation@0.1.0",
+  "source_uri": "local/transaction-reconciliation@0.2.0",
   "source_ref": null,
   "license": "MIT",
   "provenance_zone": "02-local-evidence",

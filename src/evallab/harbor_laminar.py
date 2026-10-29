@@ -1011,18 +1011,19 @@ def _wrap_egress_lock() -> None:
                 _set_span_metadata(
                     span,
                     {
-                        "applied": False,
+                        "verified": False,
                         "network_block_all": getattr(sandbox, "network_block_all", None),
                     },
                 )
             _end_span(span, error_type=type(exc).__name__)
             raise
-        # Provider acknowledgement: the original already required the cached
-        # ``network_block_all is True`` response. Read the cache only.
+        # ``original`` returns only after the provider acknowledged the lock
+        # AND the in-sandbox self-test showed it blocks (HAR-205). Read the
+        # cached acknowledgement only; no extra provider call.
         with contextlib.suppress(Exception):
             sandbox = getattr(self, "_sandbox", None)
             observed = {
-                "applied": True,
+                "verified": True,
                 "network_block_all": getattr(sandbox, "network_block_all", None),
                 "sandbox_id": getattr(sandbox, "id", None),
             }
@@ -1031,7 +1032,7 @@ def _wrap_egress_lock() -> None:
                 live = _TRACES.get(trace.trial_id)
                 if live is not None and not live.closed:
                     lock_metadata = {
-                        "egress_lock_observed": "applied",
+                        "egress_lock_observed": "verified",
                         "network_block_all": observed["network_block_all"],
                     }
                     # Native spans inherit this snapshot later. Keep it in sync

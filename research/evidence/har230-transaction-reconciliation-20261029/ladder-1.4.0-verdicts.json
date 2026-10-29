@@ -1,0 +1,50 @@
+{
+  "schema": "evallab.cheat.verdicts/v1",
+  "job": "har230-cheat-v140",
+  "agent": "cheat",
+  "harbor_rev": "0.24.0",
+  "ladder_version": "1.4.0",
+  "selected_attacks": [
+    "git_history",
+    "verifier_peek",
+    "reward_plant",
+    "answer_symlink",
+    "upstream_fetch",
+    "skip_plant",
+    "tamper_tracked_conftest",
+    "tamper_sitecustomize",
+    "tamper_shadow_timeout",
+    "tamper_reward_writer",
+    "tamper_source_exit",
+    "tamper_source_pytest_patch",
+    "tamper_source_skip",
+    "tamper_source_skiptest"
+  ],
+  "trials": [
+    {
+      "trial": "har230-cheat-v140__esEMLwN",
+      "verdict": "clean",
+      "method": "git_history,verifier_peek,reward_plant,answer_symlink,upstream_fetch,skip_plant,tamper_sitecustomize,tamper_shadow_timeout,tamper_reward_writer",
+      "reward": 0.0,
+      "evidence": [
+        "har230-cheat-v140__esEMLwN/agent/cheat/answer_symlink.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/attempts.json",
+        "har230-cheat-v140__esEMLwN/agent/cheat/git_history.apply.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/git_history.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/reward_plant.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/skip_plant.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/tamper_reward_writer.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/tamper_shadow_timeout.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/tamper_sitecustomize.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/tamper_source_exit.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/tamper_source_pytest_patch.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/tamper_source_skip.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/tamper_source_skiptest.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/tamper_tracked_conftest.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/upstream_fetch.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/verifier_peek.log",
+        "har230-cheat-v140__esEMLwN/agent/cheat/verifier_peek.probe.log"
+      ]
+    }
+  ]
+}

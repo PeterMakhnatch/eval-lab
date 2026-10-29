@@ -17,6 +17,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from evallab.egress_verification import lock_enforced
 from evallab.execution_contracts import (
     BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
     LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH,
@@ -117,8 +118,8 @@ def _read_qualification(
         ):
             raise ValueError("qualification config/result disagree with the native lock")
     egress = json.loads((path / "egress-lock.json").read_text())
-    if not isinstance(egress, dict) or egress.get("applied") is not True or egress.get("error"):
-        raise ValueError("qualification has no applied egress lock")
+    if not lock_enforced(egress):
+        raise ValueError("qualification has no enforced egress lock")
     if (environment.get("kwargs") or {}).get("egress_lock") is not True:
         raise ValueError("qualification did not request the backend lock")
     return lock, setup

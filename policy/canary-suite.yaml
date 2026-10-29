@@ -4,9 +4,9 @@ agents: [codex]
 members:
   - name: transaction-reconciliation
     task_path: library/tasks/transaction-reconciliation
-    task_version: 0.1.0
-    task_digest: sha256:f2bb698dbcb990ce1be2a6319efc1c4264da4f7394637d33f103ebb053262820
-    source_ref: local/transaction-reconciliation@0.1.0
+    task_version: 0.2.0
+    task_digest: sha256:3015ba24852da3470728e20ceda0ecced70016ca9a098e2fdcebb1dcd4fdb23a
+    source_ref: local/transaction-reconciliation@0.2.0
     est_cost_usd: 2.5
   - name: terminal-bench-html-js-filter
     task_path: library/tasks/terminal-bench-html-js-filter

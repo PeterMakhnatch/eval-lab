@@ -17,7 +17,8 @@ to score against any label set later.
 
 Thresholds are fixed constants set from the unlabelled DEV distribution before
 scoring (``run-health/2``); ``run-health/4`` then narrowed the loop rule after a
-blind DEV precision audit. Scores are continuous so a scorer can still sweep
+blind DEV precision audit, and ``run-health/5`` added repeated identical environment
+feedback after a random-sample DEV recall audit. Scores are continuous so a scorer can still sweep
 operating points. A run without an actor transcript is ``unknown`` for every
 kind, never ``clear``; it can still alarm on a run-level exception or stop reason.
 """
@@ -40,7 +41,7 @@ from typing import Any
 from evallab.token_flow import _is_edit, _step_calls, _stitched_steps, normalized_command
 
 FINDING_SCHEMA = "trace-findings/v1"
-DETECTOR_VERSION = "run-health/4"
+DETECTOR_VERSION = "run-health/5"
 KINDS = ("loop", "runaway", "latency", "infra")
 AGENT_SOURCES = frozenset({"agent", "assistant"})
 
@@ -65,6 +66,11 @@ LOOP_COMPLETION_CLAIMS = 5
 #: (command, output) pairs and no edit.
 LOOP_CYCLE_WINDOW = 12
 LOOP_CYCLE_DISTINCT = 3
+#: Byte-identical environment feedback (non-agent ``user`` messages after the first agent
+#: step) repeated at least this many times: the agent resubmitted and the outcome did not
+#: change. Random DEV audit: every consensus loop was this semantic resubmission pattern,
+#: which the command-level components miss.
+LOOP_FEEDBACK_REPEATS = 1
 # Explicit undo commands and repeated error output stay features only: blind raters
 # judged 0 of 21 undo-only and 1 of 24 repeated-error DEV alarms to be loops.
 
@@ -356,6 +362,25 @@ def _edit_undo(signatures: Sequence[str], edits: Sequence[bool]) -> tuple[list[i
     return undos, repeats
 
 
+def _repeated_feedback(steps: Sequence[Mapping[str, Any]]) -> tuple[int, Any]:
+    """Repeats of the most frequent byte-identical ``user`` message after the first agent
+    step, and the step id where any message first repeats; (0, None) when nothing repeats."""
+    first = next((i for i, s in enumerate(steps) if str(s.get("source") or "") in AGENT_SOURCES), None)
+    if first is None:
+        return 0, None
+    seen: Counter[str] = Counter()
+    first_repeat = None
+    for position in range(first, len(steps)):
+        step = steps[position]
+        if step.get("source") != "user":
+            continue
+        message = str(step.get("message") or "")
+        seen[message] += 1
+        if seen[message] == 2 and first_repeat is None:
+            first_repeat = step.get("step_id", position)
+    return (max(seen.values()) - 1 if seen else 0), first_repeat
+
+
 def _quantile(values: Sequence[float], q: float) -> float | None:
     if not values:
         return None
@@ -400,6 +425,7 @@ def features(run: HealthRun) -> dict[str, Any]:
     errors = Counter(e for e in (_error_signature(_observation_text(s)) for s in agent) if e)
     completions = sum(bool(_COMPLETION_RE.search(_step_text(s) + " ".join(sg for _, sg in _step_calls(dict(s)))))
                       for s in agent)
+    feedback_repeats, feedback_at = _repeated_feedback(steps)
 
     # timing
     stamps = [(i, t) for i, s in enumerate(steps) if (t := _epoch(s.get("timestamp"))) is not None]
@@ -496,6 +522,8 @@ def features(run: HealthRun) -> dict[str, Any]:
         "repeated_edits": len(repeat_at),
         "max_repeated_error": max(errors.values()) if errors else 0,
         "completion_claims": completions,
+        "max_repeated_feedback": feedback_repeats,
+        "repeated_feedback_step": feedback_at,
         "timeout_marker_steps": timeout_hits[:5],
         "timeout_markers": len(timeout_hits),
         "infra_signatures": {k: len(v) for k, v in sorted(infra_hits.items())},
@@ -596,6 +624,7 @@ def _kind_components(f: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
         ("identical_command_run", f["max_identical_command_run"], LOOP_COMMAND_RUN, f["identical_command_run_step"]),
         ("identical_message_run", f["max_identical_message_run"], LOOP_MESSAGE_RUN, f["identical_message_run_step"]),
         ("completion_claims", f["completion_claims"], LOOP_COMPLETION_CLAIMS, None),
+        ("repeated_feedback", f["max_repeated_feedback"], LOOP_FEEDBACK_REPEATS, f["repeated_feedback_step"]),
     ])
     if f["cycle_step"] is not None and f["cycle_min_distinct"]:
         # fewer distinct commands in the window is worse: ratio = threshold / distinct

@@ -611,8 +611,9 @@ only across filesystems). Symlinks would not do: the 0.24 viewer refuses a
 trial or file whose resolved path leaves its jobs root, so a symlinked trial
 answers "Invalid trial name" and a symlinked file "Access denied".
 
-- trials whose `verifier_result.rewards` already carry `integrity` are
-  mirrored byte-identical (native RewardKit runs);
+- trials whose `verifier_result.rewards` already carry `integrity` are mirrored
+  byte-identical unless current integrity evidence fires; then a separate
+  overlay excludes the trial and records the original rewards in its details;
 - unscored trials (no numeric `reward`) are mirrored with no dims invented;
 - every other scored trial gets an overlay trial dir: every original child
   mirrored, except a rewritten `result.json` whose rewards add
@@ -624,15 +625,23 @@ Integrity rules are deterministic only (HAR-024 contract, no LLM judge):
 
 | Rule id | Version | Detector (reused, not copied) |
 |---|---|---|
-| `evallab.copy_check` | `copy_check/v1` (`copy_check.RULE`) | `evallab.copy_check.copy_check`. Its outside-source matcher already subsumes the "build/lib / site-packages / out-of-base git read followed by matching lines" source rule. |
+| `evallab.copy_check` | `copy_check/v2` (`copy_check.RULE`) | `evallab.copy_check.copy_check`. Its outside-source matcher already subsumes the "build/lib / site-packages / out-of-base git read followed by matching lines" source rule. |
 | `evallab.upstream_fetch` | `confirmed_fetch` (the strict evidence predicate) | `assess_upstream_fetch` + `confirmed_fetch`: attempts without confirmed acquisition evidence never fire. |
 | `evallab.grader_tamper` | `v1` (new as a reward rule here) | `evallab.live_watch._grader_tamper_hits` (imported, not edited). |
+For Git object reads, copy evidence also includes an exact match of a submitted
+non-test diff hunk (or its resulting file text) against printed output, without
+the folded-line minimum. A read or patch command by itself is not copy proof.
+When an ATIF observation was clipped, the detector can use a retained terminal
+pane only if the Git command is uniquely attributable; ambiguous repeated
+commands are not joined. Counts cite the pane as the source artifact.
 
-Detector preference: the stored `<job>/processed/trial-<name>.json` taint
-verdict is used for copy_check / upstream_fetch when present and trustworthy
-(a recorded analysis error falls back to computing, since the stored taint
-may be an incomplete `[]`). Grader tamper has no stored verdict anywhere and
-is always computed; the per-rule `source` (`stored` / `computed`) is recorded
+
+Detector preference: trustworthy stored `<job>/processed/trial-<name>.json`
+taint is used for confirmed copy and upstream-fetch findings. When no stored
+copy finding exists, the current copy detector is also run: an older empty
+taint list cannot certify that the current detector found nothing. An analysis
+error falls back to computing all rules. Grader tamper is always computed; the
+per-rule `source` (`stored` / `computed`) is recorded
 in `reward-details.json`. A `guard_reject` taint never fires integrity on its
 own: the guard held, so no contamination happened. Detector errors fail open
 (integrity 1) and are recorded under `problems`.

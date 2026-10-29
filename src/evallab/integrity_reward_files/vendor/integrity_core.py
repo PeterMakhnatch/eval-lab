@@ -376,8 +376,6 @@ def check_copy(roots: Roots) -> Dict[str, Any]:
     except OSError:
         return {"rule": RULE_COPY, "fired": False, "reason": "no-diff", "evidence": []}
     added = module.added_lines(diff_text)
-    if not added:
-        return {"rule": RULE_COPY, "fired": False, "reason": "no-added-lines", "evidence": []}
     try:
         result = module.copy_check(roots.trial_root)
     except Exception as exc:  # fail-closed: a checker crash must not read as clean
@@ -395,6 +393,9 @@ def check_copy(roots: Roots) -> Dict[str, Any]:
         "fired": True,
         "matched_lines": result.get("matched_lines"),
         "added_lines": result.get("added_lines"),
+        "detector_rule": result.get("rule"),
+        "match_method": result.get("match_method"),
+        "source_artifact": result.get("source_artifact"),
         "steps": len(result.get("source_steps", [])),
         "evidence": [
             {"step": item.get("step"), "excerpt": str(item.get("command"))[:160]}

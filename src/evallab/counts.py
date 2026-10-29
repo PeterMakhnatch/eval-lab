@@ -504,6 +504,7 @@ def _copy_evidence(copies: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 path="verifier/agent.diff",
             ),
             "rule": flag.get("rule"),
+            "source_artifact": flag.get("source_artifact") or "agent/trajectory.json",
             "source_steps": flag.get("source_steps") or [],
             "examples": flag.get("examples") or [],
         }

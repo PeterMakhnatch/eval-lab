@@ -18,8 +18,9 @@ up to that step, and terminal echo of heredoc input (``> `` continuation
 lines after a prompt that opened a heredoc or quote), are removed first.
 Only substantive added lines in non-test files are compared (at least
 ``MIN_LINE_CHARS`` characters after whitespace folding, not bare keywords
-or punctuation). A trial is ``copied`` at ``MIN_MATCHED_LINES`` matched
-lines. No model judgment.
+or punctuation). The folded-line rule requires ``MIN_MATCHED_LINES`` matches.
+For Git object reads, an exact non-test diff hunk or its resulting file text
+also provides evidence without a line-count threshold. No model judgment.
 """
 
 from __future__ import annotations
@@ -30,15 +31,17 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
-RULE = "copy_check/v1"
+RULE = "copy_check/v2"
 MIN_MATCHED_LINES = 5
 MIN_LINE_CHARS = 16
 
 _OUTSIDE = re.compile(
     r"build/lib|site-packages|dist-packages|\.whl\b|\.tar\.gz|\.tgz\b|\.zip\b"
     r"|\bpip3? (?:download|show|install)|\buv pip\b"
-    r"|\bgit (?:show|cat-file|fetch|clone)\b|\bgit log\b[^\n;|&]*\s-p\b"
-    r"|\bgit diff\b[^\n;|&]*\b(?:origin|FETCH_HEAD|[0-9a-f]{7,40})\b"
+    r"|\bgit\s+(?:(?:--git-dir(?:=\S+|\s+\S+)|--work-tree(?:=\S+|\s+\S+)"
+    r"|--no-pager|-C\s+\S+)\s+)*(?:show|cat-file|fetch|clone)\b"
+    r"|\bgit\s+log\b[^\n;|&]*\s-p\b"
+    r"|\bgit\s+diff\b[^\n;|&]*\b(?:origin|FETCH_HEAD|[0-9a-f]{7,40})\b"
     r"|\bcurl\b|\bwget\b|/root/\.cache|/usr(?:/local)?/lib/python|\.egg-info"
     r"|\bunzip\b|\btar\b[^\n]*\s-?x"
     r"|/tmp/\S*/\S+\.(?:py|pyi|txt|cfg|toml|md|rst|json)\b"
@@ -54,6 +57,7 @@ _PREFIXES = (
     re.compile(r"^[+\-<>!](?: |\t|$)"),
 )
 _PROMPT = re.compile(r"^\S*@\S+:.*[#$] ")
+_ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _SPILL = re.compile(r"/logs/agent/evallab-output/(step-\d{4,}\.txt)")
 _WHITESPACE = re.compile(r"\s+")
 
@@ -181,6 +185,68 @@ def agent_steps(
         steps.append((step_id, "\n".join(commands), observation))
     return steps
 
+_GIT_OBJECT_READ = re.compile(
+    r"\bgit\s+(?:(?:--git-dir(?:=\S+|\s+\S+)|--work-tree(?:=\S+|\s+\S+)"
+    r"|--no-pager|-C\s+\S+)\s+)*(?:(?:show|cat-file)\b"
+    r"|diff\b[^\n;|&]*\b(?:HEAD|origin|FETCH_HEAD|[0-9a-f]{7,40})\b"
+    r"[^\n;|&]*\s(?:HEAD|origin|FETCH_HEAD|[0-9a-f]{7,40})\b)"
+)
+
+
+def _diff_hunks(diff_text: str) -> Iterable[tuple[str, str, list[str]]]:
+    """Yield exact patch and resulting-file hunk text for non-test files."""
+    include = False
+    body: list[str] = []
+
+    def emit() -> tuple[str, str, list[str]] | None:
+        additions = [line[1:] for line in body if line.startswith("+")]
+        if not include or not additions:
+            return None
+        patch = "\n".join(body)
+        result = "\n".join(line[1:] for line in body if line.startswith((" ", "+")))
+        return patch, result, additions
+
+    for line in diff_text.splitlines():
+        if line.startswith(("diff --git ", "@@ ", "+++ ")):
+            hunk = emit()
+            if hunk:
+                yield hunk
+            body = []
+            if line.startswith("diff --git "):
+                include = False
+            elif line.startswith("+++ "):
+                include = not _TEST_FILE.search(line[4:].strip())
+        elif include and line.startswith((" ", "+", "-")) and not line.startswith("--- "):
+            body.append(line)
+    hunk = emit()
+    if hunk:
+        yield hunk
+
+def _git_output_chunks(commands: str, observation: str) -> Iterable[tuple[str, str]]:
+    """Bind terminal output to a Git read rather than another call in the step."""
+    lines = observation.splitlines()
+    if not any(_PROMPT.match(line) for line in lines):
+        command_lines = [line for line in commands.splitlines() if line.strip()]
+        if len(command_lines) == 1 and _GIT_OBJECT_READ.search(command_lines[0]):
+            yield command_lines[0], "\n".join(_output_lines(observation))
+        return
+    source: str | None = None
+    output: list[str] = []
+    for line in lines:
+        if _PROMPT.match(line):
+            if source is not None:
+                yield source, "\n".join(_output_lines("\n".join(output)))
+            source = line if _GIT_OBJECT_READ.search(line) and any(
+                command.strip()[:40] in line
+                for command in commands.splitlines()
+                if _GIT_OBJECT_READ.search(command)
+            ) else None
+            output = []
+        elif source is not None:
+            output.append(line)
+    if source is not None:
+        yield source, "\n".join(_output_lines("\n".join(output)))
+
 
 def copied_code(steps: list[tuple[Any, str, str]], diff_text: str) -> dict[str, Any] | None:
     """A ``copied_code`` taint flag when ``diff_text``'s added lines came from outside.
@@ -190,27 +256,44 @@ def copied_code(steps: list[tuple[Any, str, str]], diff_text: str) -> dict[str, 
     if not any(_OUTSIDE.search(commands) for _, commands, _ in steps):
         return None
     added = added_lines(diff_text)
-    if not added:
-        return None
     typed: set[str] = set()
     matched: dict[str, Any] = {}
     sources: dict[Any, str] = {}
+    hunks = list(_diff_hunks(diff_text))
+    exact = False
     for step_id, commands, observation in steps:
         typed |= _typed(commands)
         if not _OUTSIDE.search(commands):
             continue
+        if _GIT_OBJECT_READ.search(commands):
+            for source, chunk in _git_output_chunks(commands, observation):
+                output = "\n" + chunk + "\n"
+                for patch, result, additions in hunks:
+                    evidence = [
+                        line for line in additions
+                        if _fold(line) not in typed and _fold(line) and not _TRIVIAL.match(_fold(line))
+                    ]
+                    if evidence and any("\n" + candidate + "\n" in output for candidate in (patch, result)):
+                        exact = True
+                        for line in evidence:
+                            matched[_fold(line)] = step_id
+                        sources.setdefault(step_id, source[:200])
         for line in _output_lines(observation):
             folded = _strip_prefixes(line)
             if folded in added and folded not in typed and folded not in matched:
                 matched[folded] = step_id
                 sources.setdefault(step_id, commands.strip().splitlines()[0][:200])
-    if len(matched) < MIN_MATCHED_LINES:
+    if not exact and len(matched) < MIN_MATCHED_LINES:
         return None
     return {
         "kind": "copied_code",
         "rule": RULE,
+        "match_method": "exact_git_hunk" if exact else "folded_lines",
         "matched_lines": len(matched),
-        "added_lines": len(added),
+        "added_lines": len({
+            _fold(line) for _, _, lines in hunks for line in lines
+            if _fold(line) and not _TRIVIAL.match(_fold(line))
+        }) if exact else len(added),
         "source_steps": [
             {"step": step, "command": command}
             for step, command in sorted(sources.items(), key=lambda item: str(item[0]).zfill(8))
@@ -236,4 +319,41 @@ def copy_check(trial_dir: Path) -> dict[str, Any] | None:
         except OSError:
             return None
 
-    return copied_code(agent_steps(trajectory, read_spill), diff_text)
+    steps = agent_steps(trajectory, read_spill)
+    flag = copied_code(steps, diff_text)
+    if flag is not None:
+        return flag
+    try:
+        pane = (trial_dir / "agent" / "terminus_2.pane").read_text(errors="replace")
+    except OSError:
+        return None
+    pane = _ANSI.sub("", pane).replace("\r", "")
+
+    # A full terminal pane can retain output clipped from ATIF. Only join a
+    # command prefix that occurs exactly once in both the trajectory and pane;
+    # repeated commands cannot be ordered safely from this evidence alone.
+    prefixes: dict[str, int] = {}
+    for _, commands, _ in steps:
+        for command in commands.splitlines():
+            if _GIT_OBJECT_READ.search(command):
+                prefix = command.strip()[:40]
+                prefixes[prefix] = prefixes.get(prefix, 0) + 1
+    chunks = list(_git_output_chunks("\n".join(command for _, command, _ in steps), pane))
+    enriched = []
+    for step_id, commands, observation in steps:
+        for source, output in chunks:
+            candidates = [
+                command.strip()[:40] for command in commands.splitlines()
+                if _GIT_OBJECT_READ.search(command) and command.strip()[:40] in source
+            ]
+            if len(candidates) != 1:
+                continue
+            prefix = candidates[0]
+            if prefixes[prefix] != 1 or sum(prefix in prompt for prompt, _ in chunks) != 1:
+                continue
+            observation += "\n" + source + "\n" + output
+        enriched.append((step_id, commands, observation))
+    flag = copied_code(enriched, diff_text)
+    if flag is not None:
+        flag["source_artifact"] = "agent/terminus_2.pane"
+    return flag

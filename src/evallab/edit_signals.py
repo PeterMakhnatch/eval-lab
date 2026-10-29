@@ -36,7 +36,7 @@ EDIT_TOOL_NAMES = frozenset(
 #: Shell commands that count as a file edit.
 EDIT_COMMAND_PATTERNS = re.compile(
     r"\b("
-    r"apply_patch|git\s+(?:apply|checkout\s+--)|"
+    r"apply_patch|git\s+(?:apply|am|cherry-pick|checkout\s+--)|patch|"
     r"sed\s+-i|echo\s+.*>|cat\s+.*>|tee\s+|touch\s+|truncate\s+|"
     r"python\s+.*(?:write|open\(|write_text)|"
     r"node\s+.*(?:writeFileSync|writeFile)|fs\.writeFileSync"

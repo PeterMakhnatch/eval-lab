@@ -11,8 +11,8 @@ copying bytes: directories are recreated and files hard-linked (see
 :func:`_link`), so every path resolves inside the viewer root, which Harbor's
 viewer requires before it serves a trial or file.
 
-* trials whose ``verifier_result.rewards`` already carry ``integrity`` are
-  mirrored as-is (native RewardKit runs);
+* native RewardKit dimensions are mirrored as-is unless current integrity
+  evidence requires an exclusion overlay;
 * unscored trials (no numeric ``reward``) are mirrored with no dims invented;
 * every other scored trial gets an overlay trial directory: every original
   child mirrored, except a rewritten ``result.json`` whose
@@ -23,7 +23,7 @@ viewer requires before it serves a trial or file.
 
 Integrity rules are deterministic only (HAR-024 contract):
 
-* ``evallab.copy_check`` (copy check v1, ``copy_check.RULE``) -- this detector
+* ``evallab.copy_check`` (``copy_check.RULE``) -- this detector
   already subsumes the "build/lib / site-packages / out-of-base git read
   followed by matching lines" source rule via its outside-source matcher;
 * ``evallab.upstream_fetch`` (confirmed acquisitions only, via
@@ -34,10 +34,9 @@ Integrity rules are deterministic only (HAR-024 contract):
 No LLM judge. A ``guard_reject`` taint never fires integrity on its own: the
 guard held, so no contamination happened.
 
-Detector preference: the stored ``<job>/processed/trial-<name>.json`` taint
-verdict is used for copy_check / upstream_fetch when present and trustworthy
-(no analysis error recorded); grader tamper has no stored verdict anywhere
-and is always computed. Everything is best-effort: a detector error fails
+Trustworthy stored copy and upstream findings are reused; absent stored copy
+findings are recomputed because older empty records cannot attest to the current
+detector. Grader tamper is always computed. Everything is best-effort: a detector error fails
 open (integrity 1) and is recorded in ``reward-details.json``.
 """
 
@@ -167,6 +166,7 @@ def _copy_hit_from_flag(flag: dict[str, Any]) -> dict[str, Any] | None:
         "evidence": {
             "matched_lines": flag.get("matched_lines"),
             "added_lines": flag.get("added_lines"),
+            "source_artifact": flag.get("source_artifact") or "agent/trajectory.json",
             "examples": flag.get("examples"),
         },
     }
@@ -307,6 +307,22 @@ def trial_integrity(
         tamper_hits, tamper_problems = compute_hits_grader_only(trial_dir)
         problems.extend(tamper_problems)
         seen = {hit["id"] for hit in hits}
+        # Older stored empty taint lists do not attest which copy detector ran.
+        # Recheck them so a detector improvement is not hidden by a stale record.
+        if RULE_COPY_CHECK not in seen:
+            from evallab.copy_check import copy_check
+
+            try:
+                flag = copy_check(trial_dir)
+            except Exception as exc:  # noqa: BLE001 -- retain explicit detector failure
+                problems.append(f"copy_check: {type(exc).__name__}: {exc}")
+            else:
+                hit = _copy_hit_from_flag(flag) if flag is not None else None
+                if hit is not None:
+                    hit["source"] = "computed"
+                    hits.append(hit)
+                    seen.add(hit["id"])
+                    provenance = "stored+computed"
         for hit in tamper_hits:
             if hit["id"] not in seen:
                 hits.append(hit)
@@ -359,6 +375,11 @@ def _is_native(rewards: dict[str, Any]) -> bool:
     return isinstance(rewards.get("integrity"), (int, float)) and not isinstance(
         rewards.get("integrity"), bool
     )
+
+def _native_needs_overlay(trial_dir: Path, job_dir: Path) -> bool:
+    """Re-evaluate native successes against current deterministic evidence."""
+    return bool(trial_integrity(trial_dir, job_dir)["fired"])
+
 
 
 def _scored_reward(rewards: Any) -> float | int | None:
@@ -506,6 +527,10 @@ def overlay_trial(
         "hits": verdict["hits"],
         "problems": verdict["problems"],
     }
+    original_verifier = original.get("verifier_result") or {}
+    original_rewards = original_verifier.get("rewards") if isinstance(original_verifier, dict) else None
+    if isinstance(original_rewards, dict) and _is_native(original_rewards):
+        details["original_rewards"] = original_rewards
     if arm is not None:
         details["arm"] = arm
     if source_job is not None:
@@ -603,7 +628,7 @@ def _plan_overlays(
         reward = _scored_reward(rewards)
         if reward is None:
             continue
-        if isinstance(rewards, dict) and _is_native(rewards):
+        if isinstance(rewards, dict) and _is_native(rewards) and not _native_needs_overlay(trial_dir, trial_dir.parent):
             continue
         plan[trial_dir.name] = (reward, rewards or {})
     return plan
@@ -844,7 +869,10 @@ def write_merged_trial(
     verifier = original.get("verifier_result") or {}
     rewards = verifier.get("rewards") if isinstance(verifier, dict) else None
     reward = _scored_reward(rewards)
-    if reward is not None and not (isinstance(rewards, dict) and _is_native(rewards)):
+    if reward is not None and (
+        not (isinstance(rewards, dict) and _is_native(rewards))
+        or _native_needs_overlay(trial_dir, job_dir)
+    ):
         verdict = overlay_trial(
             trial_dir,
             job_dir,

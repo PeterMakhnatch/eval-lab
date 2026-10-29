@@ -215,6 +215,23 @@ def test_clean_stored_trial_scores_full(tmp_path: Path) -> None:
     assert details["provenance"] == "stored"
 
 
+def test_stale_empty_taint_rechecks_copy_detector(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    src = tmp_path / "src"
+    _make_job(src, "job-a", {"trial-c": {"reward": 1.0}},
+              processed={"trial-c": _stored_record([])})
+    monkeypatch.setattr("evallab.copy_check.copy_check", lambda _: {
+        "kind": "copied_code", "matched_lines": 1, "added_lines": 1,
+        "examples": ["new evidence"],
+    })
+    out = tmp_path / "view"
+    build_viewer_root([src / "job-a"], out)
+    result = json.loads((out / "job-a" / "trial-c" / "result.json").read_text())
+    assert result["verifier_result"]["rewards"]["reward_gated"] == 0
+    details = json.loads((out / "job-a" / "trial-c" / "reward-details.json").read_text())
+    assert details["fired_rules"] == [RULE_COPY_CHECK]
+    assert details["provenance"] == "stored+computed"
+
+
 def test_native_dims_trials_pass_through_byte_identical(tmp_path: Path) -> None:
     src = tmp_path / "src"
     job = _make_job(
@@ -230,6 +247,24 @@ def test_native_dims_trials_pass_through_byte_identical(tmp_path: Path) -> None:
     assert not (out / "job-a" / "trial-n" / "reward-details.json").exists()
     assert report["jobs"]["job-a"]["native"] == 1
     assert report["jobs"]["job-a"]["overlay"] == 0
+
+
+def test_native_copied_success_gets_overlay_without_mutating_evidence(tmp_path: Path, monkeypatch) -> None:
+    src = tmp_path / "src"
+    rewards = {"reward": 1.0, "integrity": 1.0, "reward_gated": 1.0}
+    job = _make_job(src, "job-a", {"trial-c": rewards}, processed={"trial-c": _stored_record([])})
+    before = _snapshot(src)
+    monkeypatch.setattr("evallab.copy_check.copy_check", lambda _: {
+        "kind": "copied_code", "matched_lines": 1, "added_lines": 1, "examples": ["exact"],
+    })
+    out = tmp_path / "view"
+    build_viewer_root([job], out)
+    result = json.loads((out / "job-a/trial-c/result.json").read_text())
+    assert result["verifier_result"]["rewards"] == {"reward": 1.0, "integrity": 0, "reward_gated": 0.0}
+    details = json.loads((out / "job-a/trial-c/reward-details.json").read_text())
+    assert details["original_rewards"] == rewards
+    assert RULE_COPY_CHECK in details["fired_rules"]
+    assert _snapshot(src) == before
 
 
 @pytest.mark.parametrize("rewards", [None, {}])

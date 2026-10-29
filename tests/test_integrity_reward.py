@@ -84,6 +84,27 @@ def test_rule_copy_fires_on_synthetic() -> None:
     assert finding["matched_lines"] == len(ADDED)
 
 
+def test_short_git_hunk_reaches_host_and_packaged_detector(tmp_path: Path, monkeypatch) -> None:
+    import importlib.util
+
+    patch = "diff --git a/pkg/mod.py b/pkg/mod.py\n--- a/pkg/mod.py\n+++ b/pkg/mod.py\n@@ -1 +1 @@\n-x=0\n+x=1\n"
+    steps = [agent_step(1, "git show deadbeef", patch)]
+    trial = write_trial(tmp_path, reward="1\n", steps=steps, diff=patch)
+    roots = core.resolve_roots(trial_dir=trial)
+    host = core.check_copy(roots)
+    assert host["fired"] is True
+    assert host["detector_rule"] == "copy_check/v2"
+    assert host["match_method"] == "exact_git_hunk"
+
+    vendor = Path(integrity_reward.__file__).parent / "integrity_reward_files/vendor/copy_check_vendored.py"
+    spec = importlib.util.spec_from_file_location("isolated_copy_detector", vendor)
+    assert spec is not None and spec.loader is not None
+    detector = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(detector)
+    monkeypatch.setattr(core, "_load_copy_check", lambda: detector)
+    assert core.check_copy(roots) == host
+
+
 def test_rule_fetch_requires_success() -> None:
     ok = [
         agent_step(

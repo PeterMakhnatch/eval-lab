@@ -285,26 +285,29 @@ class IssueBank:
 
     def build(self, ctx: BankContext, sources: Iterable[str] | None = None) -> dict[str, Any]:
         """Rebuild the named sources (all by default); return the updated manifest."""
-        known = available_sources()
-        wanted = list(known) if sources is None else list(sources)
-        unknown = sorted(set(wanted) - set(known))
-        if unknown:
-            raise ValueError(f"unknown bank sources: {unknown}; known: {sorted(known)}")
-        manifest = self.read_manifest()
-        entries: dict[str, Any] = dict(manifest.get("sources", {}))
-        # Persist after each source, so a long rebuild keeps finished sources.
-        for slug in wanted:
-            entries[slug] = self._build_source(ctx, slug, _load_source(known[slug]))
-            manifest = {
-                "schema_version": SCHEMA_VERSION,
-                "split_assignments_digest": ctx.registry.split_assignments_digest,
-                "sources": dict(sorted(entries.items())),
-                "totals": _totals(entries),
-            }
-            _atomic_write(
-                self.manifest_path, json.dumps(manifest, indent=2, sort_keys=True) + "\n"
-            )
-        return manifest
+        from evallab.failure_library.bank.refresh import bank_writer_lock
+
+        with bank_writer_lock(self):
+            known = available_sources()
+            wanted = list(known) if sources is None else list(sources)
+            unknown = sorted(set(wanted) - set(known))
+            if unknown:
+                raise ValueError(f"unknown bank sources: {unknown}; known: {sorted(known)}")
+            manifest = self.read_manifest()
+            entries: dict[str, Any] = dict(manifest.get("sources", {}))
+            # Persist after each source, so a long rebuild keeps finished sources.
+            for slug in wanted:
+                entries[slug] = self._build_source(ctx, slug, _load_source(known[slug]))
+                manifest = {
+                    "schema_version": SCHEMA_VERSION,
+                    "split_assignments_digest": ctx.registry.split_assignments_digest,
+                    "sources": dict(sorted(entries.items())),
+                    "totals": _totals(entries),
+                }
+                _atomic_write(
+                    self.manifest_path, json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+                )
+            return manifest
 
     def _build_source(self, ctx: BankContext, slug: str, module: Any) -> dict[str, Any]:
         items: dict[str, IssueItem] = {}

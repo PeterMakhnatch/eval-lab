@@ -16,9 +16,16 @@ on:
 permissions:
   contents: read
 
+# `typecheck-required` fails whenever `ty` is cancelled (agents/CHECKS.md), so a
+# running run must never be killed: GitHub delivered two pull_request events for
+# the unchanged head 55da087 (#1566), cancel-in-progress killed the first run,
+# and its gate published `typecheck-required` as failed on a commit whose
+# typecheck was green (HAR-232). With cancel-in-progress false, GitHub keeps one
+# running and one pending run per group and only replaces the pending one — a
+# superseded head — so the newest head always gets its own verdict.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   # Zero-diagnostic gate. Any ty diagnostic fails the job.

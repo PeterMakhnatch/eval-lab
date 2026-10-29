@@ -33,6 +33,16 @@ or neutral check conclusions; the gate's unconditional execution and explicit
 success comparisons are therefore essential. Review changes to these workflows
 as changes to the merge boundary, not just plumbing.
 
+Because a cancelled prerequisite fails the gate by contract, `ci.yml` and
+`typecheck.yml` set `cancel-in-progress: false`. A run that publishes a required
+check is never killed in flight: cancellation is not evidence about the commit,
+and GitHub delivered two events for an unchanged head (55da087, #1566) whose
+second run cancelled the first, publishing `typecheck-required` as failed on a
+commit whose typecheck was green (HAR-232). The per-PR concurrency group is kept
+so GitHub still drops a pending, superseded run and the matrix does not fan out
+per push; only the newest head's run survives to report. Auxiliary workflows that
+publish no required check keep `cancel-in-progress: true`.
+
 All required checks originate from GitHub Actions CI runs. There is no mandatory
 independent review gate or review attestation status (`independent-review`).
 Past `independent-review` commit statuses in GitHub history are historical artifacts,

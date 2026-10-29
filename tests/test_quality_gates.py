@@ -320,6 +320,11 @@ def test_workflows_with_pr_or_push_declare_cancel_in_progress_concurrency(
     if not (trigger_names & {"pull_request", "push"}):
         return
 
+    # Workflows owning a `*-required` gate are asserted by
+    # test_required_gate_workflows_never_cancel_a_running_run: they must not cancel.
+    if any(name.endswith("-required") for name in (workflow.get("jobs") or {})):
+        return
+
     if workflow_path.name in WORKFLOW_CONCURRENCY_EXEMPTIONS:
         pytest.skip(
             f"Workflow {workflow_path.name} is intentionally exempt from concurrency check: "
@@ -340,6 +345,42 @@ def test_workflows_with_pr_or_push_declare_cancel_in_progress_concurrency(
     assert concurrency.get("cancel-in-progress") is True, (
         f"Workflow '{workflow_path.name}' concurrency must set cancel-in-progress: true."
     )
+
+
+def test_required_gate_workflows_never_cancel_a_running_run() -> None:
+    """A cancelled prerequisite fails its own gate, so a running gate run is never killed.
+
+    Cancellation is not evidence about the commit: GitHub delivered two
+    pull_request events for the unchanged head 55da087, the concurrency group
+    cancelled the first run, and its `always()` gate reported
+    `typecheck-required` failed on a commit whose typecheck was green (HAR-232).
+    Gate workflows keep a per-PR group but set `cancel-in-progress: false`, so
+    GitHub may only replace a pending, superseded run and the newest head always
+    gets its own verdict.
+    """
+    gate_workflows: set[str] = set()
+    for workflow_path in WORKFLOW_FILES:
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        gates = {name for name in (workflow.get("jobs") or {}) if name.endswith("-required")}
+        if not gates:
+            continue
+        gate_workflows.add(workflow_path.name)
+        concurrency = workflow.get("concurrency")
+        assert isinstance(concurrency, dict), (
+            f"Workflow '{workflow_path.name}' owns {sorted(gates)} and must declare a "
+            "per-PR concurrency group with cancel-in-progress: false."
+        )
+        assert concurrency.get("group"), (
+            f"Workflow '{workflow_path.name}' must declare a non-empty concurrency group."
+        )
+        assert concurrency.get("cancel-in-progress") is False, (
+            f"Workflow '{workflow_path.name}' owns {sorted(gates)} and must set "
+            "cancel-in-progress: false: a cancelled run fails its always() gate and "
+            "publishes a failed required check for a commit that was never evaluated."
+        )
+
+    assert gate_workflows == {"ci.yml", "typecheck.yml"}
+
 
 def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:
     """Preserved automatic triggers: no weekly schedule, task_workbench paths retained.

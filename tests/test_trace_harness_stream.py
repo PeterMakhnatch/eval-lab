@@ -149,8 +149,8 @@ def test_quota_gate_stops_before_any_subprocess(
         raise AssertionError("omp must not run past the quota gate")
 
     monkeypatch.setattr(stream.subprocess, "run", no_subprocess)
-    row = stream.kimi_call(MODEL, "s", "u", gate=stream.QuotaGate(reader=lambda _: 0.85),
-                           ledger=tmp_path / "attempts.jsonl")  # fmt: skip
+    row = stream.judge_call(MODEL, "s", "u", gate=stream.QuotaGate(reader=lambda _: 0.85),
+                            ledger=tmp_path / "attempts.jsonl")  # fmt: skip
     assert row["ok"] is False and row["errors"][0].startswith("QuotaStop")
     assert json.loads((tmp_path / "attempts.jsonl").read_text())["error"] == "QuotaStop"
 
@@ -178,10 +178,67 @@ def test_every_attempt_keeps_its_usage_served_model_and_ledger_row(
         "P", (), {"returncode": 0, "stdout": replies.pop(0)})())
     monkeypatch.setattr(stream.time, "sleep", lambda _seconds: None)
     ledger = tmp_path / "attempts.jsonl"
-    row = stream.kimi_call(MODEL, "s", "u", ledger=ledger)
+    row = stream.judge_call(MODEL, "s", "u", ledger=ledger)
     assert row["ok"] is True and row["answer"]["label"] == "neither"
     assert (row["input_tokens"], row["output_tokens"]) == (24, 6)  # both attempts, not the last one
     rows = [json.loads(line) for line in ledger.read_text().splitlines()]
     assert [(r["attempt"], r["ok"], r["served"]) for r in rows] == [
         (1, False, "other/model"), (2, True, MODEL),
     ]
+
+
+HAIKU = "anthropic/claude-haiku-5-5"
+
+
+def test_reader_override_labels_the_finding_and_uses_its_own_cache(tmp_path: Path) -> None:
+    seen: list[str] = []
+    cache_path = tmp_path / "haiku.jsonl"
+    detector = stream.CascadeStreamDetector(
+        HarnessOptions(allow_model=True, reader=HAIKU),
+        cache=stream.VerdictCache(cache_path, model=HAIKU), call=_fake_call("exploit-pass", seen),
+    )
+    (record,) = detector.detect([_run("run-a", _flagged_steps())])
+    assert (record["reader_model"], record["verdict"]) == (HAIKU, "alarm")
+    assert detector.reader_model == HAIKU and detector.stats.served == {HAIKU: 1}
+    assert json.loads(cache_path.read_text())["served"] == HAIKU
+    assert stream.reader_cache_path(HAIKU) != stream.reader_cache_path(MODEL) == stream.DEFAULT_CACHE
+    assert stream.provider_of(HAIKU) == "anthropic"
+    with pytest.raises(ValueError, match="reader is"):
+        stream.CascadeStreamDetector(HarnessOptions(reader=HAIKU), cache=stream.VerdictCache(None))
+
+
+def test_concurrent_replay_keeps_input_order_and_per_run_accounting(tmp_path: Path) -> None:
+    seen: list[str] = []
+    detector = stream.CascadeStreamDetector(
+        HarnessOptions(allow_model=True), cache=stream.VerdictCache(tmp_path / "c.jsonl"),
+        call=_fake_call("exploit-pass", seen), workers=3,
+    )
+    runs = [_run(f"run-{n}", _flagged_steps(f"git log --oneline -{n + 1}")) for n in range(6)]
+    records = list(detector.detect(runs))
+    assert [r["run_id"] for r in records] == [r.run_id for r in runs]
+    assert all(detector.runs[r.run_id]["fresh"] == 1 for r in runs)
+    assert detector.stats.fresh == 6 and detector.stats.input_tokens == 600
+
+
+def test_a_quota_stopped_run_yields_no_finding_so_it_is_not_cached_as_abstain(tmp_path: Path) -> None:
+    def stopped(model: str, system: str, user: str) -> dict[str, Any]:
+        return {"ok": False, "attempts": 1, "errors": ["QuotaStop: anthropic window at 85% (stop at 85%)"],
+                "requested_model": model, "input_tokens": 0, "output_tokens": 0, "elapsed_s": 0.0}
+
+    detector = stream.CascadeStreamDetector(
+        HarnessOptions(allow_model=True, reader=HAIKU),
+        cache=stream.VerdictCache(tmp_path / "c.jsonl", model=HAIKU), call=stopped,
+    )
+    assert list(detector.detect([_run("run-a", _flagged_steps())])) == []
+    assert detector.stats.quota_stopped and "run-a" not in detector.runs
+
+    def refused(model: str, system: str, user: str) -> dict[str, Any]:
+        return {"ok": False, "attempts": 3, "errors": ["OmpRouteError: refused"], "requested_model": model,
+                "input_tokens": 5, "output_tokens": 0, "elapsed_s": 0.0}
+
+    other = stream.CascadeStreamDetector(
+        HarnessOptions(allow_model=True, reader=HAIKU),
+        cache=stream.VerdictCache(tmp_path / "d.jsonl", model=HAIKU), call=refused,
+    )
+    (record,) = other.detect([_run("run-a", _flagged_steps())])
+    assert record["verdict"] == "abstain"  # a refusal is unknown, kept as abstain; only quota is retried

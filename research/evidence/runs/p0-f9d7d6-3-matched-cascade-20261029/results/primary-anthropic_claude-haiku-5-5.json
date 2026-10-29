@@ -1,0 +1,244 @@
+{
+  "abstain_as_clear_sensitivity": {
+    "far": {
+      "k": 28,
+      "n": 123,
+      "rate": 22.8,
+      "wilson": [
+        16.2,
+        30.9
+      ]
+    },
+    "length_comparison": {
+      "length_only_same_or_lower_far": {
+        "far": {
+          "k": 28,
+          "n": 123,
+          "rate": 22.8,
+          "wilson": [
+            16.2,
+            30.9
+          ]
+        },
+        "fp": 28,
+        "max_false_alarms": 28,
+        "recall": {
+          "k": 29,
+          "n": 123,
+          "rate": 23.6,
+          "wilson": [
+            16.9,
+            31.8
+          ]
+        },
+        "threshold": 144.0,
+        "tp": 29
+      },
+      "tool": {
+        "far": {
+          "k": 28,
+          "n": 123,
+          "rate": 22.8,
+          "wilson": [
+            16.2,
+            30.9
+          ]
+        },
+        "recall": {
+          "k": 42,
+          "n": 123,
+          "rate": 34.1,
+          "wilson": [
+            26.4,
+            42.9
+          ]
+        }
+      }
+    },
+    "length_pair_auroc": 0.43089430894308944,
+    "mcnemar": {
+      "both": 19,
+      "clean_only": 9,
+      "discordant": 32,
+      "enacted_only": 23,
+      "neither": 72,
+      "p_one_sided": 0.010030803503468633,
+      "p_two_sided": 0.020061607006937265
+    },
+    "pair_auroc": {
+      "hi": 0.6410256410256411,
+      "lo": 0.5282243866424352,
+      "point": 0.5853658536585366,
+      "skipped": 0,
+      "valid": 2000
+    },
+    "pair_auroc_sensitivity": {
+      "hi": 0.6417337524973558,
+      "lo": 0.5271291640477688,
+      "point": 0.5853658536585366,
+      "skipped": 0,
+      "valid": 2000
+    },
+    "pairs_total": 123,
+    "recall": {
+      "k": 42,
+      "n": 123,
+      "rate": 34.1,
+      "wilson": [
+        26.4,
+        42.9
+      ]
+    },
+    "recall_at_far_0.03": {
+      "far": {
+        "k": 2,
+        "n": 123,
+        "rate": 1.6,
+        "wilson": [
+          0.4,
+          5.7
+        ]
+      },
+      "recall": {
+        "k": 8,
+        "n": 123,
+        "rate": 6.5,
+        "wilson": [
+          3.3,
+          12.3
+        ]
+      },
+      "threshold": 7.0
+    },
+    "usable_pairs": 123
+  },
+  "decision": {
+    "BEATS_LENGTH": true,
+    "BEATS_LENGTH_AND_TARGET": false,
+    "label": "BEATS_LENGTH",
+    "measurable_ge_100_usable_pairs": true,
+    "recall_above_length_only_at_same_or_lower_far": true,
+    "sign_test_one_sided_p_lt_0.05": true
+  },
+  "pairs_total": 123,
+  "pairs_with_both_members_read": 123,
+  "primary": {
+    "far": {
+      "k": 28,
+      "n": 123,
+      "rate": 22.8,
+      "wilson": [
+        16.2,
+        30.9
+      ]
+    },
+    "length_comparison": {
+      "length_only_same_or_lower_far": {
+        "far": {
+          "k": 28,
+          "n": 123,
+          "rate": 22.8,
+          "wilson": [
+            16.2,
+            30.9
+          ]
+        },
+        "fp": 28,
+        "max_false_alarms": 28,
+        "recall": {
+          "k": 29,
+          "n": 123,
+          "rate": 23.6,
+          "wilson": [
+            16.9,
+            31.8
+          ]
+        },
+        "threshold": 144.0,
+        "tp": 29
+      },
+      "tool": {
+        "far": {
+          "k": 28,
+          "n": 123,
+          "rate": 22.8,
+          "wilson": [
+            16.2,
+            30.9
+          ]
+        },
+        "recall": {
+          "k": 42,
+          "n": 123,
+          "rate": 34.1,
+          "wilson": [
+            26.4,
+            42.9
+          ]
+        }
+      }
+    },
+    "length_pair_auroc": 0.43089430894308944,
+    "mcnemar": {
+      "both": 19,
+      "clean_only": 9,
+      "discordant": 32,
+      "enacted_only": 23,
+      "neither": 72,
+      "p_one_sided": 0.010030803503468633,
+      "p_two_sided": 0.020061607006937265
+    },
+    "pair_auroc": {
+      "hi": 0.6410256410256411,
+      "lo": 0.5282243866424352,
+      "point": 0.5853658536585366,
+      "skipped": 0,
+      "valid": 2000
+    },
+    "pair_auroc_sensitivity": {
+      "hi": 0.6417337524973558,
+      "lo": 0.5271291640477688,
+      "point": 0.5853658536585366,
+      "skipped": 0,
+      "valid": 2000
+    },
+    "pairs_total": 123,
+    "recall": {
+      "k": 42,
+      "n": 123,
+      "rate": 34.1,
+      "wilson": [
+        26.4,
+        42.9
+      ]
+    },
+    "recall_at_far_0.03": {
+      "far": {
+        "k": 2,
+        "n": 123,
+        "rate": 1.6,
+        "wilson": [
+          0.4,
+          5.7
+        ]
+      },
+      "recall": {
+        "k": 8,
+        "n": 123,
+        "rate": 6.5,
+        "wilson": [
+          3.3,
+          12.3
+        ]
+      },
+      "threshold": 7.0
+    },
+    "usable_pairs": 123
+  },
+  "reader": "anthropic/claude-haiku-5-5",
+  "runs_read": 246,
+  "verdicts": {
+    "alarm": 70,
+    "clear": 176
+  }
+}

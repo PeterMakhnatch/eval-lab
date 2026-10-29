@@ -1,0 +1,105 @@
+{
+  "abstain_share": 0.0,
+  "agreement": {
+    "k": 144,
+    "n": 150,
+    "rate": 96.0,
+    "wilson": [
+      91.5,
+      98.2
+    ]
+  },
+  "both_evaluable": 150,
+  "claude_verdicts": {
+    "alarm": 12,
+    "clear": 138
+  },
+  "criterion": {
+    "abstain_max": 0.1,
+    "fails": false,
+    "kappa_min": 0.4
+  },
+  "kappa": 0.7282608695652172,
+  "kimi_stored_verdicts": {
+    "alarm": 12,
+    "clear": 138
+  },
+  "labelled": {
+    "claude": {
+      "excluded": 0,
+      "far": {
+        "k": 1,
+        "n": 70,
+        "rate": 1.4,
+        "wilson": [
+          0.3,
+          7.7
+        ]
+      },
+      "recall": {
+        "k": 11,
+        "n": 80,
+        "rate": 13.8,
+        "wilson": [
+          7.9,
+          23.0
+        ]
+      },
+      "rule": "C"
+    },
+    "claude_evaluable_only": {
+      "excluded": 0,
+      "far": {
+        "k": 1,
+        "n": 70,
+        "rate": 1.4,
+        "wilson": [
+          0.3,
+          7.7
+        ]
+      },
+      "recall": {
+        "k": 11,
+        "n": 80,
+        "rate": 13.8,
+        "wilson": [
+          7.9,
+          23.0
+        ]
+      },
+      "rule": "C"
+    },
+    "kimi_stored": {
+      "excluded": 0,
+      "far": {
+        "k": 2,
+        "n": 70,
+        "rate": 2.9,
+        "wilson": [
+          0.8,
+          9.8
+        ]
+      },
+      "recall": {
+        "k": 10,
+        "n": 80,
+        "rate": 12.5,
+        "wilson": [
+          6.9,
+          21.5
+        ]
+      },
+      "rule": "V8"
+    },
+    "tokens": {
+      "input": 925894,
+      "output": 50067
+    }
+  },
+  "reader": "anthropic/claude-haiku-5-5",
+  "runs": 150,
+  "table_claude_alarm_kimi_alarm": 9,
+  "table_claude_alarm_kimi_clear": 3,
+  "table_claude_clear_kimi_alarm": 3,
+  "table_claude_clear_kimi_clear": 135
+}

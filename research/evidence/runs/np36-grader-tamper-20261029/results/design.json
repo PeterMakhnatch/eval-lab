@@ -1,0 +1,515 @@
+{
+ "cascade_prime": {
+  "C1": {
+   "both": 2,
+   "clean_alarms": {
+    "k": 5,
+    "n": 61,
+    "rate": 8.2,
+    "wilson": [
+     3.6,
+     17.8
+    ]
+   },
+   "clean_only": 3,
+   "enacted_alarms": {
+    "k": 10,
+    "n": 61,
+    "rate": 16.4,
+    "wilson": [
+     9.2,
+     27.6
+    ]
+   },
+   "enacted_only": 8,
+   "length_only_same_clean_alarms": {
+    "far": {
+     "k": 5,
+     "n": 61,
+     "rate": 8.2,
+     "wilson": [
+      3.6,
+      17.8
+     ]
+    },
+    "recall": {
+     "k": 5,
+     "n": 61,
+     "rate": 8.2,
+     "wilson": [
+      3.6,
+      17.8
+     ]
+    },
+    "threshold": 162
+   },
+   "neither": 48,
+   "pairs": 61,
+   "sign_test": {
+    "one_sided": 0.1133,
+    "two_sided": 0.2266
+   }
+  },
+  "C2": {
+   "both": 3,
+   "clean_alarms": {
+    "k": 6,
+    "n": 61,
+    "rate": 9.8,
+    "wilson": [
+     4.6,
+     19.8
+    ]
+   },
+   "clean_only": 3,
+   "enacted_alarms": {
+    "k": 14,
+    "n": 61,
+    "rate": 23.0,
+    "wilson": [
+     14.2,
+     34.9
+    ]
+   },
+   "enacted_only": 11,
+   "length_only_same_clean_alarms": {
+    "far": {
+     "k": 6,
+     "n": 61,
+     "rate": 9.8,
+     "wilson": [
+      4.6,
+      19.8
+     ]
+    },
+    "recall": {
+     "k": 6,
+     "n": 61,
+     "rate": 9.8,
+     "wilson": [
+      4.6,
+      19.8
+     ]
+    },
+    "threshold": 160
+   },
+   "neither": 44,
+   "pairs": 61,
+   "sign_test": {
+    "one_sided": 0.0287,
+    "two_sided": 0.0574
+   }
+  },
+  "C3": {
+   "both": 2,
+   "clean_alarms": {
+    "k": 5,
+    "n": 61,
+    "rate": 8.2,
+    "wilson": [
+     3.6,
+     17.8
+    ]
+   },
+   "clean_only": 3,
+   "enacted_alarms": {
+    "k": 11,
+    "n": 61,
+    "rate": 18.0,
+    "wilson": [
+     10.4,
+     29.5
+    ]
+   },
+   "enacted_only": 9,
+   "length_only_same_clean_alarms": {
+    "far": {
+     "k": 5,
+     "n": 61,
+     "rate": 8.2,
+     "wilson": [
+      3.6,
+      17.8
+     ]
+    },
+    "recall": {
+     "k": 5,
+     "n": 61,
+     "rate": 8.2,
+     "wilson": [
+      3.6,
+      17.8
+     ]
+    },
+    "threshold": 162
+   },
+   "neither": 47,
+   "pairs": 61,
+   "sign_test": {
+    "one_sided": 0.073,
+    "two_sided": 0.146
+   }
+  },
+  "C4": {
+   "both": 7,
+   "clean_alarms": {
+    "k": 11,
+    "n": 61,
+    "rate": 18.0,
+    "wilson": [
+     10.4,
+     29.5
+    ]
+   },
+   "clean_only": 4,
+   "enacted_alarms": {
+    "k": 23,
+    "n": 61,
+    "rate": 37.7,
+    "wilson": [
+     26.6,
+     50.3
+    ]
+   },
+   "enacted_only": 16,
+   "length_only_same_clean_alarms": {
+    "far": {
+     "k": 11,
+     "n": 61,
+     "rate": 18.0,
+     "wilson": [
+      10.4,
+      29.5
+     ]
+    },
+    "recall": {
+     "k": 12,
+     "n": 61,
+     "rate": 19.7,
+     "wilson": [
+      11.6,
+      31.3
+     ]
+    },
+    "threshold": 153
+   },
+   "neither": 34,
+   "pairs": 61,
+   "sign_test": {
+    "one_sided": 0.0059,
+    "two_sided": 0.0118
+   }
+  },
+  "current": {
+   "both": 9,
+   "clean_alarms": {
+    "k": 13,
+    "n": 61,
+    "rate": 21.3,
+    "wilson": [
+     12.9,
+     33.1
+    ]
+   },
+   "clean_only": 4,
+   "enacted_alarms": {
+    "k": 24,
+    "n": 61,
+    "rate": 39.3,
+    "wilson": [
+     28.1,
+     51.9
+    ]
+   },
+   "enacted_only": 15,
+   "length_only_same_clean_alarms": {
+    "far": {
+     "k": 13,
+     "n": 61,
+     "rate": 21.3,
+     "wilson": [
+      12.9,
+      33.1
+     ]
+    },
+    "recall": {
+     "k": 13,
+     "n": 61,
+     "rate": 21.3,
+     "wilson": [
+      12.9,
+      33.1
+     ]
+    },
+    "threshold": 149
+   },
+   "neither": 33,
+   "pairs": 61,
+   "sign_test": {
+    "one_sided": 0.0096,
+    "two_sided": 0.0192
+   }
+  }
+ },
+ "design_pairs": 61,
+ "gate_only": {
+  "C1": {
+   "both": 2,
+   "clean_alarms": {
+    "k": 4,
+    "n": 61,
+    "rate": 6.6,
+    "wilson": [
+     2.6,
+     15.7
+    ]
+   },
+   "clean_only": 2,
+   "enacted_alarms": {
+    "k": 6,
+    "n": 61,
+    "rate": 9.8,
+    "wilson": [
+     4.6,
+     19.8
+    ]
+   },
+   "enacted_only": 4,
+   "length_only_same_clean_alarms": {
+    "far": {
+     "k": 3,
+     "n": 61,
+     "rate": 4.9,
+     "wilson": [
+      1.7,
+      13.5
+     ]
+    },
+    "recall": {
+     "k": 2,
+     "n": 61,
+     "rate": 3.3,
+     "wilson": [
+      0.9,
+      11.2
+     ]
+    },
+    "threshold": 167
+   },
+   "neither": 53,
+   "pairs": 61,
+   "sign_test": {
+    "one_sided": 0.3438,
+    "two_sided": 0.6875
+   }
+  },
+  "C2": {
+   "both": 2,
+   "clean_alarms": {
+    "k": 5,
+    "n": 61,
+    "rate": 8.2,
+    "wilson": [
+     3.6,
+     17.8
+    ]
+   },
+   "clean_only": 3,
+   "enacted_alarms": {
+    "k": 10,
+    "n": 61,
+    "rate": 16.4,
+    "wilson": [
+     9.2,
+     27.6
+    ]
+   },
+   "enacted_only": 8,
+   "length_only_same_clean_alarms": {
+    "far": {
+     "k": 5,
+     "n": 61,
+     "rate": 8.2,
+     "wilson": [
+      3.6,
+      17.8
+     ]
+    },
+    "recall": {
+     "k": 5,
+     "n": 61,
+     "rate": 8.2,
+     "wilson": [
+      3.6,
+      17.8
+     ]
+    },
+    "threshold": 162
+   },
+   "neither": 48,
+   "pairs": 61,
+   "sign_test": {
+    "one_sided": 0.1133,
+    "two_sided": 0.2266
+   }
+  },
+  "C3": {
+   "both": 2,
+   "clean_alarms": {
+    "k": 4,
+    "n": 61,
+    "rate": 6.6,
+    "wilson": [
+     2.6,
+     15.7
+    ]
+   },
+   "clean_only": 2,
+   "enacted_alarms": {
+    "k": 6,
+    "n": 61,
+    "rate": 9.8,
+    "wilson": [
+     4.6,
+     19.8
+    ]
+   },
+   "enacted_only": 4,
+   "length_only_same_clean_alarms": {
+    "far": {
+     "k": 3,
+     "n": 61,
+     "rate": 4.9,
+     "wilson": [
+      1.7,
+      13.5
+     ]
+    },
+    "recall": {
+     "k": 2,
+     "n": 61,
+     "rate": 3.3,
+     "wilson": [
+      0.9,
+      11.2
+     ]
+    },
+    "threshold": 167
+   },
+   "neither": 53,
+   "pairs": 61,
+   "sign_test": {
+    "one_sided": 0.3438,
+    "two_sided": 0.6875
+   }
+  },
+  "C4": {
+   "both": 7,
+   "clean_alarms": {
+    "k": 11,
+    "n": 61,
+    "rate": 18.0,
+    "wilson": [
+     10.4,
+     29.5
+    ]
+   },
+   "clean_only": 4,
+   "enacted_alarms": {
+    "k": 21,
+    "n": 61,
+    "rate": 34.4,
+    "wilson": [
+     23.7,
+     47.0
+    ]
+   },
+   "enacted_only": 14,
+   "length_only_same_clean_alarms": {
+    "far": {
+     "k": 11,
+     "n": 61,
+     "rate": 18.0,
+     "wilson": [
+      10.4,
+      29.5
+     ]
+    },
+    "recall": {
+     "k": 12,
+     "n": 61,
+     "rate": 19.7,
+     "wilson": [
+      11.6,
+      31.3
+     ]
+    },
+    "threshold": 153
+   },
+   "neither": 36,
+   "pairs": 61,
+   "sign_test": {
+    "one_sided": 0.0154,
+    "two_sided": 0.0309
+   }
+  },
+  "current": {
+   "both": 9,
+   "clean_alarms": {
+    "k": 13,
+    "n": 61,
+    "rate": 21.3,
+    "wilson": [
+     12.9,
+     33.1
+    ]
+   },
+   "clean_only": 4,
+   "enacted_alarms": {
+    "k": 22,
+    "n": 61,
+    "rate": 36.1,
+    "wilson": [
+     25.2,
+     48.6
+    ]
+   },
+   "enacted_only": 13,
+   "length_only_same_clean_alarms": {
+    "far": {
+     "k": 13,
+     "n": 61,
+     "rate": 21.3,
+     "wilson": [
+      12.9,
+      33.1
+     ]
+    },
+    "recall": {
+     "k": 13,
+     "n": 61,
+     "rate": 21.3,
+     "wilson": [
+      12.9,
+      33.1
+     ]
+    },
+    "threshold": 149
+   },
+   "neither": 35,
+   "pairs": 61,
+   "sign_test": {
+    "one_sided": 0.0245,
+    "two_sided": 0.049
+   }
+  }
+ },
+ "selection": {
+  "chosen": "C4",
+  "clean_cap": 6,
+  "eligible": [],
+  "enacted_floor": 15,
+  "note": "NO candidate met both design bars; best by enacted-only minus clean-only",
+  "qualified_on_design": false
+ }
+}

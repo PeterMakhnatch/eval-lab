@@ -1,0 +1,8 @@
+{
+ "chosen": "C4",
+ "clean_cap": 6,
+ "eligible": [],
+ "enacted_floor": 15,
+ "note": "NO candidate met both design bars; best by enacted-only minus clean-only",
+ "qualified_on_design": false
+}

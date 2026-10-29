@@ -1,0 +1,38 @@
+{
+ "cuts": [
+  72.5,
+  131.0
+ ],
+ "half_of_task_sha256": "23cdfe97f8b23726e36a012649cf8005d46a681ee1139046258780e72bae5748",
+ "pairs": 123,
+ "pairs_by_half_and_task_stratum": {
+  "design/stratum1": {
+   "pairs": 20
+  },
+  "design/stratum2": {
+   "pairs": 22
+  },
+  "design/stratum3": {
+   "pairs": 19
+  },
+  "heldout/stratum1": {
+   "pairs": 20
+  },
+  "heldout/stratum2": {
+   "pairs": 24
+  },
+  "heldout/stratum3": {
+   "pairs": 18
+  }
+ },
+ "pairs_per_half": {
+  "design": 61,
+  "heldout": 62
+ },
+ "rule": "Deterministic design / held-out split of the frozen 123 pairs, by task, stratified by length tertile. Label-free.",
+ "tasks": 101,
+ "tasks_per_half": {
+  "design": 51,
+  "heldout": 50
+ }
+}

@@ -12,9 +12,11 @@ Public contract:
   compatible ``search_traces`` method — caller-owned and never closed by the
   retriever) or a plain local SQLite path. Path mode opens the source
   read-only through a SQLite ``mode=ro`` URI and projects only SQL-filtered
-  DEV tasks and their linked issues/traces/steps into a private temporary
-  database. Protected-split content is never copied or hydrated. The receipt
-  records the resolved source path and SHA-256 of the DEV snapshot queried.
+  DEV tasks, their issues, and the traces whose receipt status is
+  ``confirmed``/``verified`` with those traces' steps, into a private temporary
+  database (``retrieve`` can return no other trace). Protected-split content is
+  never copied or hydrated. The receipt records the resolved source path and
+  SHA-256 of the DEV snapshot queried.
   The original file is never opened for write, which matters because
   ``CloudTraceDatabase.__init__`` executes DDL. A caller-owned store instead
   requires explicit ``source_path``/``source_digest`` keyword provenance: the
@@ -364,20 +366,34 @@ class CloudTraceRetriever:
             try:
                 # Filter in SQL before content is hydrated: a whole-file backup
                 # would copy protected splits even when retrieval later hid them.
+                # ``retrieve`` only ever asks ``search_traces(only_verified=True)``,
+                # which returns a trace only when its receipt status is exactly
+                # 'confirmed' or 'verified'; every other trace and all of its
+                # steps are unreachable, so they are not copied either. The step
+                # FTS index dominates the cost of a copy, and almost all stored
+                # steps belong to unverified traces. ``json_valid`` is strict
+                # JSON, so a receipt that only SQLite's lenient ``json_extract``
+                # accepts (NaN, unquoted keys) or that is not JSON at all is
+                # left out rather than aborting the copy; the store's own writer
+                # refuses such receipts.
                 readonly.execute("BEGIN")
                 dev_tasks = (
                     "SELECT task_id FROM corpus_tasks "
                     "WHERE lower(split) = 'dev' AND lower(dataset_id) != 'tb2-to-tb21-v1'"
+                )
+                verified_traces = (
+                    f"task_id IN ({dev_tasks}) AND CASE WHEN json_valid(verified_receipt_json) "
+                    "THEN json_extract(verified_receipt_json, '$.status') END "
+                    "IN ('confirmed', 'verified')"
                 )
                 predicates = {
                     "corpus_tasks": (
                         "lower(split) = 'dev' AND lower(dataset_id) != 'tb2-to-tb21-v1'"
                     ),
                     "task_issues": f"task_id IN ({dev_tasks})",
-                    "agent_traces": f"task_id IN ({dev_tasks})",
+                    "agent_traces": verified_traces,
                     "trace_steps": (
-                        "trace_id IN (SELECT trace_id FROM agent_traces "
-                        f"WHERE task_id IN ({dev_tasks}))"
+                        f"trace_id IN (SELECT trace_id FROM agent_traces WHERE {verified_traces})"
                     ),
                 }
                 with sqlite3.connect(snapshot) as target:

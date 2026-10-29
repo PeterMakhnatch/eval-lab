@@ -14,16 +14,19 @@ even if a retriever returns one anyway, and withholds the answer, label, split a
 source fields before the block is rendered. The shared API keeps its documented
 behaviour, so worker-facing callers are unchanged.
 
-SB-5 measured the input to this decision on the 44-task DEV cohort (44 targets x
-3 modes, 396 examples): zero same-task examples, zero ``differential`` or
-``reproducer`` fields, but every facet-path example carried an ``instruction``
-and label-bearing provenance keys, and ``dataset_id``/``split`` rendered into the
-prompt text. The adapter makes those channels impossible for the seeker
-regardless of what the store holds later.
+What "blind" means is defined, and checkable, in
+:mod:`evallab.production.retrieval_leak_check` (profile ``blind``): a fixed list of
+forbidden fields and tokens searched in the rendered text. SB-5 measured the input
+to this decision on the 44-task DEV cohort; NP23 found that the first version of
+this adapter still rendered the benchmark name (inside task and trace identifiers),
+the word "reward" (inside the same identifiers) and ``FLAGGED`` passage markers, so
+identifiers are now opaque handles and the passage label is cleared.
 """
 
 from __future__ import annotations
 
+import hashlib
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, Protocol
@@ -31,9 +34,9 @@ from typing import Any, Protocol
 from evallab.production.cloud_trace_db import RetrievedExample
 from evallab.production.corpus_queue import CorpusRegistry
 
-#: Provenance keys that name a label, a split, a confidence tier or a source
-#: store. They stay available to QA workers through the shared API; a blind
-#: reader never sees them.
+#: Provenance keys that name a label, a split, a confidence tier, a source store
+#: or an identifier that embeds one. They stay available to QA workers through
+#: the shared API; a blind reader never sees them.
 BLIND_WITHHELD_PROVENANCE = frozenset(
     {
         "dataset_id",
@@ -47,17 +50,40 @@ BLIND_WITHHELD_PROVENANCE = frozenset(
         "issue_cas_uri",
         "task_cas_uri",
         "observation_cas_uris",
+        # Where the publisher's passage label sits: the label itself, by position.
+        "flagged_step_indices",
+        "passage_window",
+        # Identifiers embed the source benchmark's name; the example fields carry
+        # their opaque handles instead.
+        "run_id",
+        "task_id",
+        "issue_id",
+        "trace_id",
+        "trace_ids",
     }
 )
 
 #: Flat fields that reproduce another task's prompt or its graded verdict.
 BLIND_WITHHELD_FIELDS = ("instruction", "differential", "reproducer")
 
+_OPAQUE = re.compile(r"^(example|issue|trace)-[0-9a-f]{10}$")
+
 
 class ExampleRetriever(Protocol):
     """The subset of ``CloudTraceDatabase.CloudTraceRetriever`` this adapter uses."""
 
     def retrieve_similar_examples(self, query: str, *args: Any, **kwargs: Any) -> list[RetrievedExample]: ...
+
+
+def opaque_id(kind: str, value: str | None) -> str | None:
+    """A stable, one-way handle for an identifier that embeds the source benchmark's name.
+
+    Idempotent, so blinding an already blinded example changes nothing. The handle
+    is not a lookup key: a blind reader has no tool to expand it.
+    """
+    if not value or _OPAQUE.match(value):
+        return value
+    return f"{kind}-{hashlib.sha256(value.encode()).hexdigest()[:10]}"
 
 
 def _withheld(provenance: Mapping[str, Any]) -> dict[str, Any]:
@@ -74,16 +100,24 @@ def blind_example(example: RetrievedExample) -> RetrievedExample:
     ``dataset_id`` and ``trust_tier`` are cleared as attributes too, not only in
     provenance: the rendered block prints them in its ``- source:`` and
     ``- trust:`` lines, which is how the source benchmark name and the label
-    tier would otherwise reach a blind reader.
+    tier would otherwise reach a blind reader. Task, issue and trace identifiers
+    embed the benchmark name (and, for a reward-hacking corpus, the word
+    "reward"), so they become opaque handles, and the publisher's per-step
+    ``FLAGGED`` passage label is cleared.
     """
     return replace(
         example,
+        task_id=opaque_id("example", example.task_id) or "",
+        issue_id=opaque_id("issue", example.issue_id),
+        trace_id=opaque_id("trace", example.trace_id),
         instruction=None,
         differential=None,
         reproducer=None,
         dataset_id="",
         split="",
         trust_tier=None,
+        steps=tuple(replace(step, flagged=False) for step in example.steps),
+        trace_steps=[{**step, "flagged": False} if "flagged" in step else step for step in example.trace_steps],
         provenance=_withheld(example.provenance),
         prompt_text="",
     )

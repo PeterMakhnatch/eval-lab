@@ -430,6 +430,9 @@ def test_outcomes_sql_join_counts_infra_not_fail() -> None:
         {"trial_id": "e1", "task_digest": "sha256:hb1", "agent_name": "agentx",
          "model_name": "m", "environment_type": "docker",
          "primary_reward": None, "exception_class": "VerifierError"},
+        {"trial_id": "scored-timeout", "task_digest": "sha256:hb1", "agent_name": "agentx",
+         "model_name": "m", "environment_type": "docker",
+         "primary_reward": 1.0, "exception_class": "AgentTimeoutError"},
         {"trial_id": "m1", "task_digest": "sha256:hb2", "agent_name": "agentx",
          "model_name": "m", "environment_type": "daytona",
          "primary_reward": -1.0, "exception_class": None},
@@ -440,7 +443,7 @@ def test_outcomes_sql_join_counts_infra_not_fail() -> None:
     nop = by_key[("t1", "docker", "nop")]
     assert (nop[7], nop[8], nop[9], nop[10], nop[12], nop[15]) == (1, 1, 0, 0, 0.0, "always_fail")
     ctl = by_key[("t1", "docker", "agentx")]
-    assert (ctl[7], ctl[8], ctl[9], ctl[15]) == (1, 0, 1, "infra_only")
+    assert (ctl[7], ctl[8], ctl[9], ctl[10], ctl[15]) == (2, 1, 1, 1, "always_pass")
     neg = by_key[("t2", "daytona", "agentx")]
     assert (neg[8], neg[9], neg[15]) == (0, 1, "infra_only")
     bare = by_key[("t3", "unknown", "")]

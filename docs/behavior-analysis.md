@@ -23,6 +23,10 @@ Per-trial unified classification joining `trial_facts` with outcome categories a
 - `seconds_per_step`: `agent_execution_seconds / step_count` (`NULL` when `step_count = 0`).
 - `steps_per_reward_point`: `step_count / primary_reward` (`NULL` when reward is 0 or trial is unmeasured).
 
+The lessons verifier and failure-facet rollups use the same measured-score
+denominator. Their exception count is an independent exit signal and can
+overlap scored trials; only unscored trials are excluded.
+
 ### `v_behavior_effort_by_outcome`
 Aggregates execution effort by `task_name`, `agent_name`, and `outcome`:
 - `n`: Total trials in slice.

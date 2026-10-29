@@ -35,7 +35,7 @@ inputs:
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
-    digest: sha256:9c7476d169ae4df601c52ba273e438cd6cf8b8f4e9d9be16b5149127af71cf0b
+    digest: sha256:77034e839d86e4b1fb55f43a24c4d4014a448afa1e2f67823f10bf62a71cbd15
   - path: docs/blind-review.md
     digest: sha256:7f133de2910eec169b03e21af24d239aa02c87bc74aed5db6c66f82731312d79
   - path: docs/canaries.md
@@ -165,7 +165,7 @@ inputs:
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
-    digest: sha256:22f01a0f9b9ad3ea437dcaa3c253de41dafb9039dbbde201def191f280e9088a
+    digest: sha256:a9ac946943ac70d4f00d80e033dbb83864301a5bb9c2593d4a302e6ccff68bac
   - path: docs/verifier-check.md
     digest: sha256:85aa6dfcf11a3d7895f885fb81827bec244ab9a7fa806772cd40e52204b82b01
 ---

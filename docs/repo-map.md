@@ -35,7 +35,7 @@ inputs:
   - path: src/evallab/backups.py
     digest: sha256:1a73b6b9a65c10724a0ce5c1bf45539a347ae5a5366ac5eba129d0407b2895a9
   - path: src/evallab/behavior.py
-    digest: sha256:722dc12cfdaf94e60623c8a5e901d9a8e21cc3e7a1435a2bc404826a048479d1
+    digest: sha256:a452ab7ce86d4402998aedb65873162bfbb69438d66cbeb92629c319c424385d
   - path: src/evallab/behavior_calibration.py
     digest: sha256:b3ffca51b53eb9c2bcb94195d2ac75ee8046faaec10fe67e9e4958a7eee833ec
   - path: src/evallab/behavior_catalog.py
@@ -669,7 +669,7 @@ inputs:
   - path: src/evallab/price_bench.py
     digest: sha256:76bf5bb7387418e0369a598741c7b917bbff83300ddf8fc153210dfb3504f615
   - path: src/evallab/probe03.py
-    digest: sha256:5f989b85248338102b1caf1031c7a58acb77b7ce03ec7c11f3cd8bd3c4e31149
+    digest: sha256:1f16993b9c7303731496d599b62602193b0626235003b8e88e61f10e7dcde992
   - path: src/evallab/process_job.py
     digest: sha256:f1239e1826783c32776f7de2c1b9b69af25bd14e13d804e065e18baf366d5ac1
   - path: src/evallab/production/__init__.py
@@ -1105,7 +1105,7 @@ inputs:
   - path: src/evallab/status_generator.py
     digest: sha256:c61016ce6fce4c3f1a977a702590f5b89a1d63e0f906708c9fd563e09138e185
   - path: src/evallab/step_layers.py
-    digest: sha256:08176f7e66594694f4897718e8d6cb72a0575bd217e21ce1676a39b06cd9fd12
+    digest: sha256:dcb17505db9dec0cc0c720f427e0f4a93b91c7e4762ec839739dad602ba8437e
   - path: src/evallab/storage/__init__.py
     digest: sha256:7276bb505f87769117c2c3e16f7e2c83dbd33806fc791adbdfc6353dd6fc0b11
   - path: src/evallab/storage/attach.py
@@ -2251,6 +2251,7 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `v_craft_human_anchor` | `sql/craft_views.sql` | `craft` |
 | `v_craft_unresolved` | `sql/craft_views.sql` | `craft` |
 | `v_craft_corpus` | `sql/craft_views.sql` | `craft` |
+| `v_trial_raw_scores` | `sql/evidence_queries.sql` | — |
 | `v_outcome_by_task_agent` | `sql/evidence_queries.sql` | — |
 | `v_task_summary` | `sql/evidence_queries.sql` | — |
 | `v_failure_classification` | `sql/evidence_queries.sql` | — |

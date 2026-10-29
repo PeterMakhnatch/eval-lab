@@ -134,7 +134,7 @@ SELECT
         ELSE NULL
     END AS seconds_per_step,
     CASE
-        WHEN exception_class IS NULL AND primary_reward IS NOT NULL AND primary_reward > 0.0
+        WHEN primary_reward IS NOT NULL AND isfinite(primary_reward) AND primary_reward > 0.0
             THEN round(coalesce(step_count, 0) / primary_reward, 2)
         ELSE NULL
     END AS steps_per_reward_point,

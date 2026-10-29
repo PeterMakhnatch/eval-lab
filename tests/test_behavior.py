@@ -404,7 +404,7 @@ def test_behavior_sql_and_python_agree_on_scored_exits() -> None:
     with duckdb.connect(":memory:") as con:
         con.execute(Path("sql/behavior.sql").read_text())
         con.executemany(
-            "INSERT INTO trial_facts (trial_id, primary_reward, exception_class) VALUES (?, ?, ?)",
+            "INSERT INTO trial_facts (trial_id, primary_reward, exception_class, step_count) VALUES (?, ?, ?, 10)",
             [("pass", 1.0, "AgentTimeoutError"), ("fail", 0.0, "AgentTimeoutError"),
              ("missing", None, "AgentTimeoutError"), ("sentinel", -1.0, None)],
         )
@@ -415,3 +415,6 @@ def test_behavior_sql_and_python_agree_on_scored_exits() -> None:
         assert _classify_outcome(0.0) == outcomes["fail"]
         assert _classify_outcome(None) == outcomes["missing"]
         assert _classify_outcome(-1.0) == outcomes["sentinel"]
+        assert con.execute(
+            "SELECT steps_per_reward_point FROM v_behavior_trial_summary WHERE trial_id = 'pass'"
+        ).fetchone()[0] == 10.0

@@ -83,13 +83,13 @@ inputs:
   - path: research/observations/reframe-post-move-oracle-20260814-1756/event-summary__BbbWLYW.md
     digest: sha256:6d860a550273904a9954c3b76a73285f4da27bfef1646dd4da05568dd73d54c1
   - path: sql/lessons.sql
-    digest: sha256:41f9922e9133800df2c9fb3b9e4a7169c1e5b8d3b3e1a079550516a63bad2888
+    digest: sha256:bb1a0a5449dd64b75a0a02f7dd98909422a1e82be4facbf129fff504da21359b
 ---
 
 <!-- generated-by: lessons v1 -->
 # Statistical Lessons & Aggregation Views
 
-- **Generated at:** 2026-10-07 19:11:09Z
+- **Generated at:** 2026-10-29 23:43:48Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
 - **Corpus Summary:** 551 craft tasks, 499 trials, 25 observation records, 0 analysis sidecars
 - **Evidence Quality Ledger:** 374 evaluated trials (pass 314, warn 10, fail 36, quarantine 14)
@@ -99,9 +99,9 @@ inputs:
 
 ## 1. Outcome by Verifier Type (`v_outcome_by_verifier_type`)
 
-Cross-tabulation of task verifier architecture against measured trial pass rates. Exception and never-measured trials are reported but excluded from the capability denominator.
+Cross-tabulation of task verifier architecture against measured trial pass rates. Exceptions are reported separately; a usable verifier score is included regardless of agent exit. Unscored trials are excluded.
 
-| Source Repo | Verifier Type | Total Trials | Eligible n | Passed | Pass Rate | Wilson 95% CI | Excluded Exceptions | Excluded Never Measured | Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |
+| Source Repo | Verifier Type | Total Trials | Eligible n | Passed | Pass Rate | Wilson 95% CI | Exceptions | Unscored Without Exception | Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |
 |---|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---|---|
 | - | none | 0 | 0 | 0 | 0.0% | n/a | 0 | 0 | 0 | 0 | 0 | 0 | `insufficient n` | insufficient n |
 

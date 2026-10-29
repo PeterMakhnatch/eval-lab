@@ -58,23 +58,20 @@ def steps(
 
 
 def _evidence(ctx: QaContext, ids: Sequence[str]) -> dict[str, list[int]]:
-    """Admission, current trace ownership and facet citations share one read snapshot."""
+    """Admission, current trace ownership and served facet citations share one read snapshot.
+
+    A facet record that ``runs`` withholds for naming a sealed identity cites nothing here either.
+    """
     with ctx.database._transaction():
-        admitted, _sealed = ctx.retriever._admitted_ids()
-        selected = json.dumps(ids)
+        admission = ctx.retriever._admitted_ids()
+        admitted = admission[0]
         owners = ctx.database._rows(
             "SELECT trace_id, task_id FROM agent_traces WHERE trace_id IN (SELECT value FROM json_each(?))",
-            (selected,),
+            (json.dumps(ids),),
         )
         if len(owners) != len(ids) or any(row["task_id"] not in admitted for row in owners):
             raise QaDataError(UNAVAILABLE)
-        rows = ctx.database._rows(
-            "SELECT f.run_id, f.evidence_steps FROM run_facets f"
-            " JOIN agent_traces a ON a.trace_id = f.run_id AND a.task_id = f.task_id"
-            " WHERE a.task_id IN (SELECT value FROM json_each(?))"
-            " AND a.trace_id IN (SELECT value FROM json_each(?))",
-            (json.dumps(admitted), selected),
-        )
+        rows, _sealed = ctx.database._admitted_facets(ctx.retriever, run_ids=ids, admission=admission)
     return {row["run_id"]: row["evidence_steps"] for row in rows}
 
 

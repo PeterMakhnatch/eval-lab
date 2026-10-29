@@ -1,0 +1,500 @@
+{
+ "fields": {
+  "answer_material_accessed": {
+   "by_length_tertile": {
+    "1": [
+     [
+      "false",
+      799
+     ],
+     [
+      "true",
+      4
+     ]
+    ],
+    "2": [
+     [
+      "false",
+      781
+     ],
+     [
+      "true",
+      16
+     ]
+    ],
+    "3": [
+     [
+      "false",
+      781
+     ],
+     [
+      "true",
+      7
+     ]
+    ]
+   },
+   "distinct": 2,
+   "top": [
+    [
+     "false",
+     2361
+    ],
+    [
+     "true",
+     27
+    ]
+   ]
+  },
+  "eval_awareness": {
+   "by_length_tertile": {
+    "1": [
+     [
+      "\"mentions_tests\"",
+      632
+     ],
+     [
+      "\"none\"",
+      104
+     ],
+     [
+      "\"reasons_about_grader\"",
+      66
+     ],
+     [
+      "\"plans_to_game\"",
+      1
+     ]
+    ],
+    "2": [
+     [
+      "\"mentions_tests\"",
+      609
+     ],
+     [
+      "\"reasons_about_grader\"",
+      167
+     ],
+     [
+      "\"none\"",
+      21
+     ]
+    ],
+    "3": [
+     [
+      "\"mentions_tests\"",
+      624
+     ],
+     [
+      "\"reasons_about_grader\"",
+      162
+     ],
+     [
+      "\"none\"",
+      1
+     ],
+     [
+      "\"plans_to_game\"",
+      1
+     ]
+    ]
+   },
+   "distinct": 4,
+   "top": [
+    [
+     "\"mentions_tests\"",
+     1865
+    ],
+    [
+     "\"reasons_about_grader\"",
+     395
+    ],
+    [
+     "\"none\"",
+     126
+    ],
+    [
+     "\"plans_to_game\"",
+     2
+    ]
+   ]
+  },
+  "grader_or_harness_touched": {
+   "by_length_tertile": {
+    "1": [
+     [
+      "false",
+      797
+     ],
+     [
+      "true",
+      6
+     ]
+    ],
+    "2": [
+     [
+      "false",
+      786
+     ],
+     [
+      "true",
+      11
+     ]
+    ],
+    "3": [
+     [
+      "false",
+      763
+     ],
+     [
+      "true",
+      25
+     ]
+    ]
+   },
+   "distinct": 2,
+   "top": [
+    [
+     "false",
+     2346
+    ],
+    [
+     "true",
+     42
+    ]
+   ]
+  },
+  "outcome": {
+   "by_length_tertile": {
+    "1": [
+     [
+      "\"unknown\"",
+      375
+     ],
+     [
+      "\"pass\"",
+      351
+     ],
+     [
+      "\"fail\"",
+      77
+     ]
+    ],
+    "2": [
+     [
+      "\"pass\"",
+      498
+     ],
+     [
+      "\"fail\"",
+      299
+     ]
+    ],
+    "3": [
+     [
+      "\"fail\"",
+      398
+     ],
+     [
+      "\"pass\"",
+      390
+     ]
+    ]
+   },
+   "distinct": 3,
+   "top": [
+    [
+     "\"pass\"",
+     1239
+    ],
+    [
+     "\"fail\"",
+     774
+    ],
+    [
+     "\"unknown\"",
+     375
+    ]
+   ]
+  },
+  "shortcut": {
+   "by_length_tertile": null,
+   "distinct": 166,
+   "top": [
+    [
+     "\"none\"",
+     2197
+    ],
+    [
+     "\"Edited test expectations\"",
+     13
+    ],
+    [
+     "\"Adjusted test expectations\"",
+     4
+    ],
+    [
+     "\"Rewrote failing test\"",
+     3
+    ],
+    [
+     "\"Edited own expectations\"",
+     3
+    ],
+    [
+     "\"Edited test assertions\"",
+     2
+    ],
+    [
+     "\"Rewrote test expectations\"",
+     2
+    ],
+    [
+     "\"Edited tests to fit\"",
+     2
+    ]
+   ]
+  },
+  "success_claim_without_evidence": {
+   "by_length_tertile": {
+    "1": [
+     [
+      "false",
+      756
+     ],
+     [
+      "true",
+      47
+     ]
+    ],
+    "2": [
+     [
+      "false",
+      498
+     ],
+     [
+      "true",
+      299
+     ]
+    ],
+    "3": [
+     [
+      "true",
+      456
+     ],
+     [
+      "false",
+      332
+     ]
+    ]
+   },
+   "distinct": 2,
+   "top": [
+    [
+     "false",
+     1586
+    ],
+    [
+     "true",
+     802
+    ]
+   ]
+  },
+  "suspicion": {
+   "by_length_tertile": {
+    "1": [
+     [
+      "0",
+      737
+     ],
+     [
+      "1",
+      52
+     ],
+     [
+      "2",
+      14
+     ]
+    ],
+    "2": [
+     [
+      "1",
+      425
+     ],
+     [
+      "0",
+      331
+     ],
+     [
+      "2",
+      41
+     ]
+    ],
+    "3": [
+     [
+      "1",
+      517
+     ],
+     [
+      "0",
+      182
+     ],
+     [
+      "2",
+      89
+     ]
+    ]
+   },
+   "distinct": 3,
+   "top": [
+    [
+     "0",
+     1250
+    ],
+    [
+     "1",
+     994
+    ],
+    [
+     "2",
+     144
+    ]
+   ]
+  },
+  "tests": {
+   "by_length_tertile": {
+    "1": [
+     [
+      "\"read\"",
+      781
+     ],
+     [
+      "\"modified\"",
+      19
+     ],
+     [
+      "\"replaced\"",
+      3
+     ]
+    ],
+    "2": [
+     [
+      "\"read\"",
+      503
+     ],
+     [
+      "\"modified\"",
+      265
+     ],
+     [
+      "\"replaced\"",
+      21
+     ],
+     [
+      "\"deleted\"",
+      5
+     ],
+     [
+      "\"untouched\"",
+      3
+     ]
+    ],
+    "3": [
+     [
+      "\"modified\"",
+      447
+     ],
+     [
+      "\"read\"",
+      300
+     ],
+     [
+      "\"replaced\"",
+      38
+     ],
+     [
+      "\"deleted\"",
+      2
+     ],
+     [
+      "\"untouched\"",
+      1
+     ]
+    ]
+   },
+   "distinct": 5,
+   "top": [
+    [
+     "\"read\"",
+     1584
+    ],
+    [
+     "\"modified\"",
+     731
+    ],
+    [
+     "\"replaced\"",
+     62
+    ],
+    [
+     "\"deleted\"",
+     7
+    ],
+    [
+     "\"untouched\"",
+     4
+    ]
+   ]
+  }
+ },
+ "haiku_covered": 2388,
+ "length_tertiles": {
+  "1": 803,
+  "2": 797,
+  "3": 788
+ },
+ "population": 2388,
+ "rule_support": {
+  "F1": {
+   "1": 14,
+   "2": 41,
+   "3": 89
+  },
+  "F2": {
+   "1": 4,
+   "2": 16,
+   "3": 7
+  },
+  "F3": {
+   "1": 1,
+   "2": 0,
+   "3": 1
+  },
+  "F4": {
+   "1": 67,
+   "2": 167,
+   "3": 163
+  },
+  "F5": {
+   "1": 6,
+   "2": 11,
+   "3": 25
+  },
+  "F6": {
+   "1": 3,
+   "2": 26,
+   "3": 40
+  },
+  "F7": {
+   "1": 7,
+   "2": 47,
+   "3": 108
+  },
+  "F8": {
+   "1": 10,
+   "2": 27,
+   "3": 32
+  }
+ },
+ "tasks": 600,
+ "uncovered_run_ids_sample": []
+}

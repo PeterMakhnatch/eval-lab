@@ -396,9 +396,10 @@ def _unexplained_gap(agent: Sequence[Mapping[str, Any]]) -> tuple[float | None, 
     best: float | None = None
     at = None
     for n in range(1, len(agent)):
-        if stamps[n] is None or stamps[n - 1] is None:
+        later, earlier = stamps[n], stamps[n - 1]
+        if later is None or earlier is None:
             continue
-        delta = stamps[n] - stamps[n - 1]
+        delta = later - earlier
         best = 0.0 if best is None else best
         previous = dict(agent[n - 1])
         commands = " ".join(text for _, text in _step_calls(previous))

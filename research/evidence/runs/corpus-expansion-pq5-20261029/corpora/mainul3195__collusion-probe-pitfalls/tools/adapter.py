@@ -110,7 +110,27 @@ CONDITION_TOKEN = re.compile(
     r"collusion_success|target_option|fair_option)\b",
     re.IGNORECASE,
 )
-PRIVATE_MARKER = re.compile(r"\n\s*\n(?:Private chat with|DISCUSSION HISTORY:)")
+# Every public-discussion prompt is "<scenario + options>\n\nDISCUSSION HISTORY:..." for
+# honest agents. Step 0 is built ONLY from that honest public prefix (positive whitelist):
+# no private-block opener wording is ever needed to find the cut.
+SCENARIO_END = "\n\nDISCUSSION HISTORY:"
+# Wide word scan (reported per label class, never silently ignored). Natural prose may hit.
+WIDE_WORDS = {
+    "collusion": r"collu(?:sion|de|ding|sive)",
+    "colluder": r"colluders?",
+    "coalition": r"coalitions?",
+    "briefed": r"brief(?:ed|ing)",
+    "decline": r"decliners?",
+    "coordinator": r"coordinators?",
+    "private_word": r"privately|private (?:thread|chat|channel|coordination|message)",
+    "side_channel": r"side[ -]channel",
+    "fair_option": r"fair option",
+    "target_option": r"target option",
+    "mode_name": r"benign[ _-]?coord|briefed[ _-]?decline|cost[ _-]?pressure|"
+    r"independent[ _-]?bias|choice[ _-]?benign|tacit",
+    "monitor": r"monitor(?:ed|ing|s)?",
+}
+WIDE_PATTERNS = {k: re.compile(v, re.IGNORECASE) for k, v in WIDE_WORDS.items()}
 ERROR_RESPONSE = re.compile(r"^\s*\[ERROR")
 
 
@@ -123,14 +143,30 @@ def _sentences(text: str, minimum: int = 40) -> set[str]:
     return {n for n in (_norm(part) for part in parts) if len(n) >= minimum}
 
 
+def public_scenario(calls: list[dict[str, Any]]) -> tuple[str, bool]:
+    """Step-0 text and whether it is unambiguous.
+
+    Positive whitelist: the part before ``DISCUSSION HISTORY:`` of an HONEST agent's
+    PUBLIC discussion prompt. Private-channel prompts, non-honest prompts and system
+    prompts never contribute. ``unique`` is False when honest agents saw more than one
+    prefix (e.g. an announcement) or none; then the shortest honest prefix is used and
+    the episode cannot be scored.
+    """
+    prefixes = {
+        call["user_prompt"].split(SCENARIO_END, 1)[0].strip()
+        for call in calls
+        if call["channel"] == "public"
+        and call["role"] in HONEST_ROLES
+        and call["phase"] == "discussion"
+        and SCENARIO_END in call["user_prompt"]
+    }
+    if not prefixes:
+        return "", False
+    return min(prefixes, key=len), len(prefixes) == 1
+
+
 def scenario_text(calls: list[dict[str, Any]]) -> str:
-    """Scenario + options block: the user prompt up to the first instruction section."""
-    prompt = calls[0]["user_prompt"]
-    cut = PRIVATE_MARKER.search(prompt)
-    text = prompt[: cut.start()] if cut else prompt
-    # Discussion/final prompts end with a task instruction after the history; the scenario
-    # always precedes the first blank line before "DISCUSSION HISTORY".
-    return text.strip()
+    return public_scenario(calls)[0]
 
 
 def to_steps(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -153,22 +189,31 @@ def to_steps(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def instruction_sentences(calls: list[dict[str, Any]]) -> set[str]:
-    """Sentences (>=40 chars) that reached non-honest agents as instruction: their
-    system-prompt text absent from honest agents' system prompts and the scenario,
-    plus the private-channel instruction that follows the scenario/options block."""
-    honest: set[str] = set()
-    special: set[str] = set()
-    private: set[str] = set()
-    scenario = _sentences(scenario_text(calls))
+    """Sentences (>=40 chars, normalised) of everything a non-public channel or a
+    non-honest agent was told or said in private, minus the public scenario and the
+    honest agents' own system text. No marker or opener wording is involved:
+
+    * system prompts of non-honest agents (role briefs);
+    * the whole user prompt of every private-channel call (private-thread instruction,
+      coalition names, "Messages so far" private history);
+    * the part of non-honest agents' public prompts before the discussion history
+      (the private-coordination recap);
+    * private-channel responses.
+    """
+    shared = _norm(scenario_text(calls))  # public scenario text, any sentence boundary
+    honest: list[str] = []
+    needles: set[str] = set()
     for call in calls:
-        sentences = _sentences(call["system_prompt"])
-        (honest if call["role"] in HONEST_ROLES else special).update(sentences)
+        if call["role"] in HONEST_ROLES:
+            honest.append(_norm(call["system_prompt"]))
+            continue
+        needles |= _sentences(call["system_prompt"])
         if call["channel"] == "private":
-            prompt = call["user_prompt"]
-            cut = PRIVATE_MARKER.search(prompt)
-            if cut:
-                private.update(_sentences(prompt[cut.start() :]))
-    return (special - honest - scenario) | private
+            needles |= _sentences(call["user_prompt"]) | _sentences(call["response"] or "")
+        elif SCENARIO_END in call["user_prompt"]:
+            needles |= _sentences(call["user_prompt"].split(SCENARIO_END, 1)[0])
+    shared_text = " ".join([shared, *honest])
+    return {sentence for sentence in needles if sentence not in shared_text}
 
 
 def label_state(row: dict[str, Any], calls: list[dict[str, Any]]) -> tuple[str, str]:
@@ -221,7 +266,9 @@ def _classify(
     calls = json.loads(row["calls"])
     steps = to_steps(calls)
     state, reason = label_state(row, calls)
-    if state in {"positive", "negative"} and echoes_instruction(steps, calls):
+    if state in {"positive", "negative"} and not public_scenario(calls)[1]:
+        state, reason = "ambiguous", "no_unique_honest_public_scenario"
+    elif state in {"positive", "negative"} and echoes_instruction(steps, calls):
         state, reason = "ambiguous", "instruction_sentence_echoed_in_public_text"
     return calls, steps, state, reason, trace_digest(steps)
 
@@ -289,18 +336,24 @@ def _keys(value: Any) -> set[str]:
 
 
 def leak_audit(spec: dict[str, Any]) -> Counter[str]:
-    """Search ALL step text (whitespace-normalised) for label/instruction material."""
+    """Search ALL step text (whitespace-normalised) for label/instruction material.
+
+    Needles come from private/non-honest text minus the honest scenario (no marker, no
+    reuse of the step-0 cut), so a step-0 that carries a private block is caught.
+    ``word:*`` keys count episodes whose text contains a condition/role word; natural
+    scenario prose can hit those, so they are reported per label class, not failed."""
     steps, calls = spec["_steps"], spec["_calls"]
     leaks: Counter[str] = Counter()
     leaks["label_fields_in_steps"] = len(_keys(steps) & FIELDS_DETECTOR_MUST_NOT_SEE)
     leaks["step_field_violations"] = sum(bool(set(s) - STEP_FIELDS) for s in steps)
-    blob = " ".join(_norm(s["message"]) for s in steps)
-    leaks["condition_name_tokens"] = len(
-        CONDITION_TOKEN.findall(" ".join(s["message"] for s in steps))
-    )
+    text = " ".join(s["message"] for s in steps)
+    blob = _norm(text)
+    leaks["condition_name_tokens"] = len(CONDITION_TOKEN.findall(text))
     for sentence in instruction_sentences(calls):
         if sentence in blob:
             leaks["instruction_sentences_in_steps"] += 1
+            if sentence in _norm(steps[0]["message"]):
+                leaks["instruction_sentences_in_step0"] += 1
     for name in (spec["identity"]["run_id"], spec["identity"]["task_id"]):
         if _norm(name) in blob:
             leaks["id_tokens"] += 1
@@ -308,17 +361,50 @@ def leak_audit(spec: dict[str, Any]) -> Counter[str]:
         private = _norm(call["response"])
         if call["channel"] == "private" and len(private) >= 40 and private in blob:
             leaks["private_message_in_steps"] += 1
+    step0 = _norm(steps[0]["message"])
+    # Step 0 must be a prefix of every public discussion prompt (scenario only).
+    leaks["step0_not_prefix_of_public_prompt"] = sum(
+        not _norm(call["user_prompt"]).startswith(step0)
+        for call in calls
+        if call["channel"] == "public" and SCENARIO_END in call["user_prompt"]
+    )
+    for name, pattern in WIDE_PATTERNS.items():
+        if pattern.search(text):
+            leaks[f"word:{name}"] += 1
     return leaks
 
 
+def scan_unscored_files(root: Path) -> dict[str, Any]:
+    """Same step-text needle scan over the staged-but-unscored files (no labels)."""
+    totals: dict[str, Counter[str]] = {}
+    for name in EXCLUDED_FILES:
+        counter: Counter[str] = Counter()
+        for row in iter_rows(root, (name,)):
+            calls = json.loads(row["calls"])
+            steps = to_steps(calls)
+            blob = " ".join(_norm(s["message"]) for s in steps)
+            counter["rows"] += 1
+            counter["rows_with_step0_private_text"] += any(
+                sentence in _norm(steps[0]["message"]) for sentence in instruction_sentences(calls)
+            )
+            counter["rows_with_instruction_sentence"] += any(
+                sentence in blob for sentence in instruction_sentences(calls)
+            )
+        totals[name] = counter
+    return {name: dict(counter) for name, counter in totals.items()}
+
+
 def selfcheck(
-    root: Path = ROOT, observe: Callable[[dict[str, Any]], None] | None = None
+    root: Path = ROOT,
+    observe: Callable[[dict[str, Any]], None] | None = None,
+    scan_unscored: bool = True,
 ) -> dict[str, Any]:
     issues: Counter[str] = Counter()
     counts: Counter[str] = Counter()
     leak_totals: Counter[str] = Counter()
     reasons: Counter[str] = Counter()
     by_mode: dict[str, Counter[str]] = defaultdict(Counter)
+    words: dict[str, Counter[str]] = defaultdict(Counter)
     for spec in specs(root):
         if observe is not None:
             observe(spec)
@@ -330,10 +416,17 @@ def selfcheck(
         by_mode[spec["labels"]["mode"]][state] += 1
         counts["steps"] += len(steps)
         leaks = leak_audit(spec)
-        if state not in {"positive", "negative"}:
-            counts["instruction_echo_in_unscored"] += leaks.pop("instruction_sentences_in_steps", 0)
+        for key in [k for k in leaks if k.startswith("word:")]:
+            words[state][key.removeprefix("word:")] += leaks.pop(key)
+        words[state]["rows"] += 1
+        scored = state in {"positive", "negative"}
+        if not scored:
+            for key in ("instruction_sentences_in_steps", "instruction_sentences_in_step0"):
+                counts[f"{key}_in_unscored"] += leaks.pop(key, 0)
         leak_totals.update(leaks)
         issues["instruction_echo_in_scored"] += leaks["instruction_sentences_in_steps"]
+        issues["instruction_in_step0_scored"] += leaks["instruction_sentences_in_step0"]
+        issues["step0_not_prefix_of_public_prompt"] += leaks["step0_not_prefix_of_public_prompt"]
         issues["nonsequential_step_ids"] += [s["step_id"] for s in steps] != list(range(len(steps)))
         public = [c for c in spec["_calls"] if c["channel"] == "public"]
         issues["public_roundtrip"] += [s["message"].split("\n", 1)[1] for s in steps[1:]] != [
@@ -348,6 +441,10 @@ def selfcheck(
         "label_reasons": dict(sorted(reasons.items())),
         "per_mode": {k: dict(v) for k, v in sorted(by_mode.items())},
         "leak_audit": dict(leak_totals),
+        "wide_word_episodes_by_state": {
+            k: dict(sorted(v.items())) for k, v in sorted(words.items())
+        },
+        "unscored_files_scan": scan_unscored_files(root) if scan_unscored else None,
         "issue_count": sum(issues.values()),
         "issues": nonzero,
     }

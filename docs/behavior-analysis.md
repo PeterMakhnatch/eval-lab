@@ -25,7 +25,9 @@ Per-trial unified classification joining `trial_facts` with outcome categories a
 
 The lessons verifier and failure-facet rollups use the same measured-score
 denominator. Their exception count is an independent exit signal and can
-overlap scored trials; only unscored trials are excluded.
+overlap scored trials; only unscored trials are excluded. Trajectory cards and
+interpretation IR also retain the verifier outcome while reporting missing
+trajectory evidence or agent exceptions separately.
 
 ### `v_behavior_effort_by_outcome`
 Aggregates execution effort by `task_name`, `agent_name`, and `outcome`:

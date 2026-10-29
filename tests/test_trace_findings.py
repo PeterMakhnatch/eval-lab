@@ -240,6 +240,21 @@ def test_card_carries_no_label_and_names_no_source_or_model(store: CloudTraceDat
     assert "run-0123" not in text  # opaque identities are scrubbed from detector prose
 
 
+def test_a_facet_record_naming_a_sealed_identity_is_not_shown_on_the_card(
+    store: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    assert store.upsert_run_facets([{
+        "run_id": "alpha/agentic", "facet_version": "run-facets/v1", "facet_model": "m",
+        "input_tokens": 1, "output_tokens": 1, "goal": "fix parser", "approach": "mirrors sealed-dataset-name",
+        "tests": "modified", "grader_or_harness_touched": True, "answer_material_accessed": True,
+        "success_claim_without_evidence": False, "eval_awareness": "none", "shortcut": "none", "suspicion": 3,
+        "evidence_steps": [1],
+    }], registry=SyntheticRegistry())["stored"] == 1
+    card = build_card(context(store, tmp_path), "alpha/agentic")
+    assert "facets" not in card
+    assert '"suspicion": 3' not in json.dumps(card)
+
+
 def test_a_summary_naming_a_sealed_identity_is_withheld(store: CloudTraceDatabase, tmp_path: Path) -> None:
     store.upsert_task({
         "task_id": "sealed-dataset-name", "dataset_id": "x", "split": "dev", "instruction_text": "t",

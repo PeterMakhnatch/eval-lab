@@ -177,6 +177,26 @@ def test_traces_list_unfaceted_runs_and_filter_by_canonical_task(ctx: QaContext)
     assert listing(ctx, outcome="unknown", ids_only=True)["traces"] == ["run-c"]
 
 
+def test_traces_call_a_run_faceted_only_when_its_facet_record_is_served(ctx: QaContext) -> None:
+    registry = ctx.retriever.registry
+    # Two ways a record is withheld: free text naming a sealed task, and an admitted task whose own id
+    # contains a sealed name (the real store's `layout-config-recreation2` beside `layout-config-recreation`).
+    ctx.database.upsert_task({
+        "task_id": "sealed-task2", "dataset_id": "dataset-a", "split": "dev", "instruction_text": "Repair output",
+    })
+    ctx.database.upsert_trace({
+        "trace_id": "run-d", "run_id": "batch", "task_id": "sealed-task2", "model_id": "model-a", "reward": 1,
+    }, steps=[])
+    records = [facet("run-a", approach="Compared with sealed-task"), facet("run-d")]
+    assert ctx.database.upsert_run_facets(records, registry=registry)["stored"] == 2
+    flags = {row["trace_id"]: row["faceted"] for row in listing(ctx)["traces"]}
+    assert flags == {"run-a": False, "run-b": False, "run-c": True, "run-d": False}
+    served = {row["run_id"] for row in ctx.database.search_runs({}, registry=registry, sealed_task_ids=ctx.retriever._sealed_ids)}
+    assert served == {"run-c"}  # what `runs` serves is what `traces` calls faceted
+    # The check follows the page that is shown, not the unfiltered first rows.
+    assert [row["faceted"] for row in listing(ctx, dataset="dataset-b", limit=1)["traces"]] == [True]
+
+
 @pytest.mark.parametrize("task_id", ["test-task", "locked-task", "sealed-task", "missing-task"])
 def test_non_admitted_task_filters_refuse_uniformly(ctx: QaContext, task_id: str) -> None:
     with pytest.raises(QaDataError) as error:

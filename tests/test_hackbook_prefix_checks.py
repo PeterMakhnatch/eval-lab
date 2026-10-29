@@ -16,8 +16,10 @@ from typing import Any
 
 import pytest
 
+from evallab.hackbook import prefix_checks
 from evallab.hackbook.prefix_checks import (
     STRUCTURAL_CHECKS,
+    StructuralPrefixState,
     package_context,
     scan_structural_prefix,
 )
@@ -924,6 +926,75 @@ def test_check_status(entry: str, status: str, factory: Callable[[], Scenario]) 
         assert "evidence" in record and record["evidence"] == []
     if status == "clear":
         assert record["basis"]
+
+
+@pytest.mark.parametrize(("entry", "status", "factory"), CASES)
+def test_retained_prefix_state_scans_like_a_scan_from_scratch(
+    entry: str, status: str, factory: Callable[[], Scenario]
+) -> None:
+    """Streaming a prefix through ``StructuralPrefixState`` never changes a record.
+
+    At every prefix the retained scan equals the from-scratch scan, including after a speculative
+    step was advanced and rolled back with snapshot/restore.
+    """
+    steps, context = factory()
+    state = StructuralPrefixState()
+    for count, step in enumerate(steps, start=1):
+        prefix = steps[:count]
+        speculative = {**step, "step_id": 10_000 + count}
+        rolled = [*steps[: count - 1], speculative]
+        snapshot = state.snapshot()
+        state.advance(speculative)
+        assert state.matches(rolled), "the speculative scan must use the retained trace"
+        assert scan_structural_prefix(rolled, context=context, state=state) == (
+            scan_structural_prefix(rolled, context=context)
+        )
+        state.restore(snapshot)
+        state.advance(step)
+        assert state.matches(prefix), "the restored scan must use the retained trace"
+        assert scan_structural_prefix(prefix, context=context, state=state) == (
+            scan_structural_prefix(prefix, context=context)
+        )
+
+
+def test_retained_state_ignores_a_prefix_it_has_not_observed() -> None:
+    steps, context = _rs01_002(
+        'def sanitize(page):\n    if "<script" in page:\n        return ""\n    return page\n'
+    )
+    state = StructuralPrefixState()
+    for step in steps[:-1]:
+        state.advance(step)
+    assert scan_structural_prefix(steps, context=context, state=state) == (
+        scan_structural_prefix(steps, context=context)
+    )
+
+
+def test_a_step_whose_extraction_fails_fails_every_scan_that_includes_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = prefix_checks._extract_step
+
+    def flaky(trace: Any, step: Any, index: int) -> None:
+        if step.get("boom"):
+            raise RuntimeError("boom")
+        real(trace, step, index)
+
+    monkeypatch.setattr(prefix_checks, "_extract_step", flaky)
+    steps = [_user(1, "Do the task."), _bash(2, "ls", "a.py"), {**_bash(3, "pwd"), "boom": True}]
+    state = StructuralPrefixState()
+    for step in steps[:2]:
+        state.advance(step)
+    clean = scan_structural_prefix(steps[:2], state=state)
+    assert clean == scan_structural_prefix(steps[:2])
+    snapshot = state.snapshot()
+    state.advance(steps[2])
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="boom"):
+            scan_structural_prefix(steps, state=state)
+    with pytest.raises(RuntimeError, match="boom"):
+        scan_structural_prefix(steps)
+    state.restore(snapshot)
+    assert scan_structural_prefix(steps[:2], state=state) == clean
 
 
 def test_every_gap_entry_is_accounted_for_without_a_hit_on_a_bare_prefix() -> None:

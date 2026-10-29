@@ -9,7 +9,14 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Literal, cast, get_args
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from evallab.benchmark_program_contracts import (
     CampaignCalibrationLedger,
@@ -921,12 +928,49 @@ class PolicyDecision(ContractModel):
     message: str
 
 
+LaunchAgentPathKind = Literal["program", "interpreter", "working_directory", "unreadable"]
+
+
+class BrokenLaunchAgent(ContractModel):
+    """One reference an installed evallab LaunchAgent can no longer resolve.
+
+    ``kind`` names what the reference is, so an operator reading a doctor line
+    does not have to open the plist: ``program`` is what launchd execs,
+    ``interpreter`` is the runtime an exec wrapper (a shell ``-lc`` command or
+    ``keys run --``) hands to, ``working_directory`` is where it starts, and
+    ``unreadable`` is a plist this build cannot parse. ``path`` is the missing
+    path (or the plist itself for ``unreadable``).
+    """
+
+    label: str
+    plist_path: str
+    kind: LaunchAgentPathKind
+    path: str
+
+    def describe(self) -> str:
+        if self.kind == "unreadable":
+            return f"{self.label}: unreadable plist {self.plist_path}"
+        return f"{self.label}: {self.kind} {self.path} missing"
+
+
+class LaunchAgentAudit(ContractModel):
+    """Read-only census of installed evallab LaunchAgents and their dead paths."""
+
+    checked: int = Field(ge=0)
+    broken: list[BrokenLaunchAgent] = Field(default_factory=list)
+
+    @property
+    def intact(self) -> bool:
+        return not self.broken
+
+
 class HeadlessDoctorChecks(ContractModel):
     keychain_readable: bool
     codex_auth_present: bool
     docker_reachable: bool
     postgres_reachable: bool
     disk_headroom: bool
+    launch_agents_intact: bool
 
 
 class HeadlessDoctorReport(ContractModel):
@@ -934,6 +978,7 @@ class HeadlessDoctorReport(ContractModel):
     checked_at: datetime
     healthy: bool
     checks: HeadlessDoctorChecks
+    launch_agents: LaunchAgentAudit
 
     @model_validator(mode="after")
     def healthy_matches_checks(self) -> HeadlessDoctorReport:
@@ -945,7 +990,21 @@ class HeadlessDoctorReport(ContractModel):
         expected = infrastructure_ok
         if self.healthy != expected:
             raise ValueError("healthy must equal all infrastructure checks")
+        if self.checks.launch_agents_intact != self.launch_agents.intact:
+            raise ValueError("launch_agents_intact must match the audited LaunchAgents")
         return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def ready(self) -> bool:
+        """Operator-facing headless readiness; ``healthy`` alone gates quarantine.
+
+        A stale unrelated agent must not suspend useful work already dispatched,
+        so ``healthy`` stays infrastructure-only. ``ready`` is what the
+        ``doctor --headless`` exit code answers: health plus every installed
+        evallab LaunchAgent still resolvable.
+        """
+        return self.healthy and self.checks.launch_agents_intact
 
 
 class DigestJob(ContractModel):

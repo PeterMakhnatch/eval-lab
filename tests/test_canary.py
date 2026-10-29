@@ -19,6 +19,7 @@ from evallab.schemas import (
     ExperimentSpec,
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
+    LaunchAgentAudit,
     StandingApprovalsPolicy,
 )
 
@@ -49,11 +50,13 @@ class StaticDoctor:
             docker_reachable=True,
             postgres_reachable=True,
             disk_headroom=True,
+            launch_agents_intact=True,
         )
         return HeadlessDoctorReport(
             checked_at=datetime.now(UTC),
             healthy=True,
             checks=checks,
+            launch_agents=LaunchAgentAudit(checked=0),
         )
 
 

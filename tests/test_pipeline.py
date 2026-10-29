@@ -25,6 +25,7 @@ from evallab.schemas import (
     ExperimentSpec,
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
+    LaunchAgentAudit,
     StandingApprovalsPolicy,
 )
 
@@ -269,16 +270,18 @@ def test_nightly_uses_completed_job_ingester_and_records_projection_failure(
         consecutive_harness_failures=lambda: 0,
     )
     checks = HeadlessDoctorChecks(
-        keychain_readable=True,
-        codex_auth_present=False,
+        keychain_readable=False,
+        codex_auth_present=True,
         docker_reachable=True,
         postgres_reachable=True,
         disk_headroom=True,
+        launch_agents_intact=True,
     )
     report = HeadlessDoctorReport(
         checked_at=datetime.now(UTC),
         healthy=True,
         checks=checks,
+        launch_agents=LaunchAgentAudit(checked=0),
     )
     doctor = SimpleNamespace(run=lambda: report)
     result = NightlyCycle(
@@ -333,7 +336,7 @@ def test_doctor_fails_when_catalog_projection_invariant_is_broken(
         ),
     )
 
-    assert _doctor(tmp_path) == 1
+    assert _doctor(tmp_path, home=tmp_path / "home") == 1
     assert "FAIL  catalog-parquet catalog=1 projected=0" in capsys.readouterr().out
 
 

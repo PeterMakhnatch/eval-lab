@@ -20,6 +20,7 @@ from evallab.schemas import (
     ExperimentSpec,
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
+    LaunchAgentAudit,
     QueueEvent,
     StandingApprovalsPolicy,
 )
@@ -370,7 +371,9 @@ def _healthy_doctor_report() -> HeadlessDoctorReport:
             docker_reachable=True,
             postgres_reachable=True,
             disk_headroom=True,
+            launch_agents_intact=True,
         ),
+        launch_agents=LaunchAgentAudit(checked=0),
     )
 
 

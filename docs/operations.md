@@ -763,6 +763,23 @@ whose own credential is absent. The default Keychain service remains
 only the service/account names with `HARBOR_CLAUDE_KEYCHAIN_SERVICE` and
 `HARBOR_CLAUDE_KEYCHAIN_ACCOUNT`.
 
+It also audits the installed schedule. Every
+`~/Library/LaunchAgents/com.petermakhnatch.evallab.*.plist` is parsed and the
+paths it must resolve to start are checked: `Program`, the runtime an exec
+wrapper names (a shell `-lc` command word or `keys run -- <interpreter>`), the
+`WorkingDirectory`, and a shell command's leading `cd` target. A plist this
+build cannot parse counts as broken for its own filename label. Each broken
+agent is named with its missing path — `evallab doctor` prints one
+`launchagent` line per problem, for example
+`FAIL  launchagent    com.petermakhnatch.evallab.tick: interpreter /path/python missing`,
+and the headless report carries `launch_agents.broken` entries of
+`{label, plist_path, kind, path}` plus `checks.launch_agents_intact`. The audit
+is read-only: it reads plists and never calls `launchctl`, so a doctor run
+cannot install, load, unload or rewrite an agent. `healthy` stays
+infrastructure-only so one stale agent cannot quarantine an in-flight cycle;
+the `ready` field and the `doctor --headless` exit code require both healthy
+infrastructure and every installed evallab LaunchAgent resolvable.
+
 Install the two user-session LaunchAgents:
 
 ```bash

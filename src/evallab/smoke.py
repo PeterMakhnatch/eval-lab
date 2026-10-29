@@ -23,6 +23,7 @@ from evallab.schemas import (
     ExperimentSpec,
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
+    LaunchAgentAudit,
     TrialAnalysisSidecar,
 )
 from evallab.status import StatusSnapshot, build_status_snapshot
@@ -54,11 +55,14 @@ def _docker_free_report(report_date: date) -> HeadlessDoctorReport:
         docker_reachable=True,
         postgres_reachable=True,
         disk_headroom=True,
+        launch_agents_intact=True,
     )
     return HeadlessDoctorReport(
         checked_at=datetime.combine(report_date, time.min, tzinfo=UTC),
         healthy=True,
         checks=checks,
+        # The docker-free smoke never inspects a host schedule.
+        launch_agents=LaunchAgentAudit(checked=0),
     )
 
 

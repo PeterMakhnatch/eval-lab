@@ -156,6 +156,23 @@ def test_copy_acquired_fires_on_confirmed_chain(tmp_path: Path) -> None:
     assert "hpccm" in copy_alerts[0]["quote"]
 
 
+def test_integrity_alerts_are_the_leading_alerts_of_evaluate_alerts_and_wire_signals_round_trip(tmp_path: Path) -> None:
+    from evallab.live_watch import integrity_alerts, wire_signals
+    from evallab.tripwires import scan_prefix
+
+    steps = [*COPY_STEPS, _step(30, "sed -i 's/x/y/' tests/test_foo.py\n", content="ok\n")]
+    trial = _write_trial(tmp_path, "job", "task__abc", steps)
+    status = _signals(trial)
+    full = evaluate_alerts(status, thresholds=WatchThresholds())
+    integrity = integrity_alerts(status)
+    assert {a["rule"] for a in integrity} >= {"copy_acquired", "grader_tamper"}
+    assert full[: len(integrity)] == integrity
+    wires = scan_prefix(steps, steps=steps)
+    assert {k: status[k] for k in wire_signals(wires)} == wire_signals(wires)
+    rebuilt = {"job": status["job"], "trial": status["trial"], "task": status["task"], **wire_signals(wires)}
+    assert integrity_alerts(rebuilt) == integrity
+
+
 def test_copy_prefix_before_read_is_not_acquired(tmp_path: Path) -> None:
     # Pip download alone (no observed unpack/read yet) is an attempt, not an
     # acquisition. (The synthetic unzip step at k=2 already shows the

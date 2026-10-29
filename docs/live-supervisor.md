@@ -199,6 +199,18 @@ evallab live-supervisor adjudicate --rows /tmp/replay-rows.jsonl --windows /tmp/
   --out /tmp/adjudicated.jsonl --limit 120
 ```
 
+Replay hands the Harbor source the `live_watch` integrity alerts a live job would have written to
+`watch/alerts.jsonl` (`live_supervisor_replay.WatchAlerts`: `tripwires.scan_prefix` over the visible
+steps through `live_watch.integrity_alerts`, so `trace_alarm` and `flag_cheating` exist in replay).
+Only the trajectory-derived rules can fire in a replay (`grader_tamper`, `history_mining`,
+`copy_acquired`, `harness_log_read`, plus the diagnostic `fetch_attempt`, `hidden_info_read` and
+`submission_tamper`); `hidden_test_read`, `git_object_read` and file-evidenced `grader_tamper` need the
+file-access sensor and a pre-agent git baseline, which history does not have. `--no-watch-alerts`
+replays without them. Each row carries `first_hits` (every distinct trigger seen, including those whose
+rule proposal was `continue`) and `watch` (first alert prefix, rules and step; every rule on the whole trace).
+Measured on 2026-10-28 (cheat-watch-replay): the trigger-table rules fire on 2/80 Goodfire CM-6 and 1/75
+CheatBench DEV positives and 0/145 negatives; `flag_cheating` as the first replay decision is 2/80 and 1/75.
+
 ### Failure policy
 
 - A reader that fails, returns unusable output, has exhausted its daily token budget, or has a

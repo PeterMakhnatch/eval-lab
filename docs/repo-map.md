@@ -203,7 +203,7 @@ inputs:
   - path: src/evallab/failure_library/bank/matrix.py
     digest: sha256:737218aeccc4bdc879110617c1d6a2b98ae51c0c5d44d61dcd4731e4b3865db2
   - path: src/evallab/failure_library/bank/optimize.py
-    digest: sha256:82e9869817402f4eed9eb0155ccbf7544d5f5fa01ddb88e45491cb6d27f2492e
+    digest: sha256:ad2f1eb475f51e1e13c2359d005a9af6fc6444047bfe3f64851ef7737e847d59
   - path: src/evallab/failure_library/bank/refresh.py
     digest: sha256:f480fe7e1ab096d00ded45f32d5d4619e8955cc5b616abfd871c7c2fdc6c0770
   - path: src/evallab/failure_library/bank/sources/__init__.py

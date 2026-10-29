@@ -1781,4 +1781,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # ``python -m`` loads this file as ``__main__``; crosstest_retest imports it again as
+    # ``optimize``, so its PrerequisiteError would be a different class and escape the
+    # CLI's refusal handler as a traceback. Run the one importable module instead.
+    from evallab.failure_library.bank import optimize as _optimize
+
+    raise SystemExit(_optimize.main())

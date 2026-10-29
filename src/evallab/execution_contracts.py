@@ -1250,6 +1250,8 @@ LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
     ("antigravity-cli", "gemini-3.1-pro-high"): "google/gemini-3.1-pro-high",
     ("antigravity-cli", "claude-sonnet-4-6"): "google/claude-sonnet-4-6",
     ("claude-code", CLAUDE_GATEWAY_HAIKU_MODEL): CLAUDE_GATEWAY_HARBOR_MODEL,
+    ("claude-code", "claude-gateway/claude-sonnet-5-5"): "anthropic/claude-sonnet-5-5",
+    ("claude-code", "claude-gateway/claude-opus-5-5"): "anthropic/claude-opus-5-5",
 }
 
 HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {

@@ -1271,7 +1271,9 @@ def _stop_terminus_proxy(process: subprocess.Popen[bytes] | None) -> None:
 #: Host the bridge binds; the sandbox reaches the same port as
 #: ``CLAUDE_GATEWAY_SANDBOX_HOST`` (Docker Desktop host name).
 _CLAUDE_GATEWAY_PROXY_HOST = "127.0.0.1"
-_CLAUDE_GATEWAY_READY_TIMEOUT_SECONDS = 20.0
+# The bridge itself waits up to 120s for `omp auth-gateway stdio`; startup took
+# 36-43s on a loaded host (2026-10-28), so wait slightly longer than the bridge.
+_CLAUDE_GATEWAY_READY_TIMEOUT_SECONDS = 125.0
 _CLAUDE_GATEWAY_STOP_TIMEOUT_SECONDS = 130.0
 _CLAUDE_GATEWAY_STDERR_TAIL_BYTES = 4096
 

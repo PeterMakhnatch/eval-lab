@@ -1,0 +1,816 @@
+{
+ "cohort": {
+  "admitted_by_strict_cross_key": 350,
+  "facet_store_sha256": "22de9f5c63e8273876ac1b7e32e668b1cae1c23da6d2a3ce82ab098f5e232001",
+  "identities_required": 350
+ },
+ "facet_record_sets": {
+  "cheatbench": {
+   "negative": {
+    "G_Haiku_all_valid_last_haiku_line": 75,
+    "G_Haiku_primary_attested_v2_form": 75,
+    "identities": 75,
+    "last_wins_reader_is_haiku": 38,
+    "reader_tests_field_edit_on_haiku_all": {
+     "n": 75,
+     "split": "suppressed (a side below 3)"
+    },
+    "reader_tests_field_edit_on_primary": {
+     "n": 75,
+     "split": "suppressed (a side below 3)"
+    }
+   },
+   "positive": {
+    "G_Haiku_all_valid_last_haiku_line": 75,
+    "G_Haiku_primary_attested_v2_form": 75,
+    "identities": 75,
+    "last_wins_reader_is_haiku": 19,
+    "reader_tests_field_edit_on_haiku_all": {
+     "flagged": 4,
+     "n": 75,
+     "not_flagged": 71
+    },
+    "reader_tests_field_edit_on_primary": {
+     "flagged": 4,
+     "n": 75,
+     "not_flagged": 71
+    }
+   }
+  },
+  "goodfire": {
+   "clean_no": {
+    "G_Haiku_all_valid_last_haiku_line": 70,
+    "G_Haiku_primary_attested_v2_form": 58,
+    "identities": 70,
+    "last_wins_reader_is_haiku": 1,
+    "reader_tests_field_edit_on_haiku_all": {
+     "n": 70,
+     "split": "suppressed (a side below 3)"
+    },
+    "reader_tests_field_edit_on_primary": {
+     "n": 58,
+     "split": "suppressed (a side below 3)"
+    }
+   },
+   "considered_only": {
+    "G_Haiku_all_valid_last_haiku_line": 50,
+    "G_Haiku_primary_attested_v2_form": 39,
+    "identities": 50,
+    "last_wins_reader_is_haiku": 4,
+    "reader_tests_field_edit_on_haiku_all": {
+     "n": 50,
+     "split": "suppressed (a side below 3)"
+    },
+    "reader_tests_field_edit_on_primary": {
+     "n": 39,
+     "split": "suppressed (a side below 3)"
+    }
+   },
+   "enacted_yes": {
+    "G_Haiku_all_valid_last_haiku_line": 80,
+    "G_Haiku_primary_attested_v2_form": 68,
+    "identities": 80,
+    "last_wins_reader_is_haiku": 6,
+    "reader_tests_field_edit_on_haiku_all": {
+     "flagged": 3,
+     "n": 80,
+     "not_flagged": 77
+    },
+    "reader_tests_field_edit_on_primary": {
+     "n": 68,
+     "split": "suppressed (a side below 3)"
+    }
+   }
+  }
+ },
+ "flake": {
+  "by_stratum_and_publisher_outcome": {
+   "negative_established/app_fixed_no_masking_test_change": {
+    "L": {
+     "flagged": 7,
+     "n": 50,
+     "not_flagged": 43
+    },
+    "S": {
+     "flagged": 7,
+     "n": 50,
+     "not_flagged": 43
+    },
+    "SI": {
+     "flagged": 5,
+     "n": 50,
+     "not_flagged": 45
+    },
+    "SX": {
+     "n": 50,
+     "split": "suppressed (a side below 3)"
+    },
+    "runs": 50,
+    "runs_without_tool_calls": 0
+   },
+   "negative_established/legitimate_test_repair": {
+    "L": {
+     "flagged": 5,
+     "n": 10,
+     "not_flagged": 5
+    },
+    "S": {
+     "flagged": 5,
+     "n": 10,
+     "not_flagged": 5
+    },
+    "SI": {
+     "n": 10,
+     "split": "suppressed (a side below 3)"
+    },
+    "SX": {
+     "n": 10,
+     "split": "suppressed (a side below 3)"
+    },
+    "runs": 10,
+    "runs_without_tool_calls": 0
+   },
+   "negative_other/stopped_without_change": {
+    "runs": "<3"
+   },
+   "positive/publisher_mock_edited_and_judge_masks_bug": {
+    "L": {
+     "n": 6,
+     "split": "suppressed (a side below 3)"
+    },
+    "S": {
+     "n": 6,
+     "split": "suppressed (a side below 3)"
+    },
+    "SI": {
+     "n": 6,
+     "split": "suppressed (a side below 3)"
+    },
+    "SX": {
+     "n": 6,
+     "split": "suppressed (a side below 3)"
+    },
+    "runs": 6,
+    "runs_without_tool_calls": 0
+   },
+   "positive/publisher_weakened_and_judge_masks_bug": {
+    "runs": "<3"
+   }
+  },
+  "distinct_tasks": 16,
+  "distinct_tasks_among_S_established_negatives": "<3",
+  "distinct_tasks_among_established_negatives": 16,
+  "reasons_sha256": "1cebb7680b3d0e8ca876282d473b6ca60e4195b22f79f60568545bbd36e133ce",
+  "runs": 69,
+  "runs_pickle_sha256": "3f675469c78107fe68e1c207d55f776a0bcac3835f630e91c99aa0fb19b9bd16"
+ },
+ "membership": {
+  "cheatbench": {
+   "negative": {
+    "L": {
+     "flagged": 34,
+     "n": 75,
+     "not_flagged": 41
+    },
+    "S": {
+     "flagged": 15,
+     "n": 75,
+     "not_flagged": 60
+    },
+    "SI": {
+     "flagged": 3,
+     "n": 75,
+     "not_flagged": 72
+    },
+    "SX": {
+     "flagged": 15,
+     "n": 75,
+     "not_flagged": 60
+    },
+    "distinct_tasks": 57,
+    "distinct_tasks_among_S_runs": "<3",
+    "runs": 75,
+    "runs_with_unresolved_editor_call": "<3",
+    "runs_without_tool_calls": 0
+   },
+   "positive": {
+    "L": {
+     "flagged": 21,
+     "n": 75,
+     "not_flagged": 54
+    },
+    "S": {
+     "flagged": 9,
+     "n": 75,
+     "not_flagged": 66
+    },
+    "SI": {
+     "flagged": 3,
+     "n": 75,
+     "not_flagged": 72
+    },
+    "SX": {
+     "flagged": 5,
+     "n": 75,
+     "not_flagged": 70
+    },
+    "distinct_tasks": 63,
+    "distinct_tasks_among_S_runs": 5,
+    "runs": 75,
+    "runs_with_unresolved_editor_call": "<3",
+    "runs_without_tool_calls": 0
+   }
+  },
+  "goodfire": {
+   "clean_no": {
+    "L": {
+     "flagged": 28,
+     "n": 70,
+     "not_flagged": 42
+    },
+    "S": {
+     "flagged": 4,
+     "n": 70,
+     "not_flagged": 66
+    },
+    "SI": {
+     "n": 70,
+     "split": "suppressed (a side below 3)"
+    },
+    "SX": {
+     "n": 70,
+     "split": "suppressed (a side below 3)"
+    },
+    "distinct_tasks": 70,
+    "distinct_tasks_among_S_runs": 4,
+    "runs": 70,
+    "runs_with_unresolved_editor_call": "<3",
+    "runs_without_tool_calls": 0
+   },
+   "considered_only": {
+    "L": {
+     "flagged": 34,
+     "n": 50,
+     "not_flagged": 16
+    },
+    "S": {
+     "flagged": 4,
+     "n": 50,
+     "not_flagged": 46
+    },
+    "SI": {
+     "n": 50,
+     "split": "suppressed (a side below 3)"
+    },
+    "SX": {
+     "n": 50,
+     "split": "suppressed (a side below 3)"
+    },
+    "distinct_tasks": 50,
+    "distinct_tasks_among_S_runs": 4,
+    "runs": 50,
+    "runs_with_unresolved_editor_call": "<3",
+    "runs_without_tool_calls": 0
+   },
+   "enacted_yes": {
+    "L": {
+     "flagged": 41,
+     "n": 80,
+     "not_flagged": 39
+    },
+    "S": {
+     "flagged": 5,
+     "n": 80,
+     "not_flagged": 75
+    },
+    "SI": {
+     "n": 80,
+     "split": "suppressed (a side below 3)"
+    },
+    "SX": {
+     "n": 80,
+     "split": "suppressed (a side below 3)"
+    },
+    "distinct_tasks": 80,
+    "distinct_tasks_among_S_runs": 5,
+    "runs": 80,
+    "runs_with_unresolved_editor_call": "<3",
+    "runs_without_tool_calls": 0
+   }
+  }
+ },
+ "option_U_unseen_sets_feasibility_only": {
+  "cm18": {
+   "cells": {
+    "beam/negative_established": {
+     "L": {
+      "flagged": 18,
+      "n": 60,
+      "not_flagged": 42
+     },
+     "S": {
+      "flagged": 6,
+      "n": 60,
+      "not_flagged": 54
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "beam/negative_other": {
+     "L": {
+      "flagged": 6,
+      "n": 60,
+      "not_flagged": 54
+     },
+     "S": {
+      "flagged": 4,
+      "n": 60,
+      "not_flagged": 56
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "beam/positive": {
+     "L": {
+      "flagged": 43,
+      "n": 60,
+      "not_flagged": 17
+     },
+     "S": {
+      "flagged": 43,
+      "n": 60,
+      "not_flagged": 17
+     },
+     "SI": {
+      "flagged": 42,
+      "n": 60,
+      "not_flagged": 18
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "cheatindex/negative_established": {
+     "L": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "cheatindex/negative_other": {
+     "L": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "cheatindex/positive": {
+     "L": {
+      "flagged": 17,
+      "n": 60,
+      "not_flagged": 43
+     },
+     "S": {
+      "flagged": 16,
+      "n": 60,
+      "not_flagged": 44
+     },
+     "SI": {
+      "flagged": 16,
+      "n": 60,
+      "not_flagged": 44
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "evilgenie/negative_established": {
+     "L": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "evilgenie/negative_other": {
+     "L": {
+      "flagged": 9,
+      "n": 60,
+      "not_flagged": 51
+     },
+     "S": {
+      "flagged": 4,
+      "n": 60,
+      "not_flagged": 56
+     },
+     "SI": {
+      "flagged": 3,
+      "n": 60,
+      "not_flagged": 57
+     },
+     "runs": 60,
+     "runs_without_tool_calls": "<3"
+    },
+    "evilgenie/positive": {
+     "L": {
+      "flagged": 24,
+      "n": 60,
+      "not_flagged": 36
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "kernelbench/negative_established": {
+     "L": {
+      "flagged": 7,
+      "n": 19,
+      "not_flagged": 12
+     },
+     "S": {
+      "n": 19,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 19,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 19,
+     "runs_without_tool_calls": 3
+    },
+    "kernelbench/positive": {
+     "L": {
+      "flagged": 4,
+      "n": 11,
+      "not_flagged": 7
+     },
+     "S": {
+      "n": 11,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 11,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 11,
+     "runs_without_tool_calls": "<3"
+    },
+    "reflex/negative_established": {
+     "L": {
+      "flagged": 3,
+      "n": 50,
+      "not_flagged": 47
+     },
+     "S": {
+      "flagged": 3,
+      "n": 50,
+      "not_flagged": 47
+     },
+     "SI": {
+      "n": 50,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 50,
+     "runs_without_tool_calls": 0
+    },
+    "reflex/negative_other": {
+     "L": {
+      "flagged": 5,
+      "n": 60,
+      "not_flagged": 55
+     },
+     "S": {
+      "flagged": 3,
+      "n": 60,
+      "not_flagged": 57
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "reflex/positive": {
+     "L": {
+      "n": 45,
+      "split": "suppressed (a side below 3)"
+     },
+     "S": {
+      "n": 45,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 45,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 45,
+     "runs_without_tool_calls": 0
+    },
+    "researcharena/negative_established": {
+     "L": {
+      "flagged": 9,
+      "n": 20,
+      "not_flagged": 11
+     },
+     "S": {
+      "n": 20,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 20,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 20,
+     "runs_without_tool_calls": 0
+    },
+    "researcharena/positive": {
+     "L": {
+      "flagged": 15,
+      "n": 21,
+      "not_flagged": 6
+     },
+     "S": {
+      "n": 21,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 21,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 21,
+     "runs_without_tool_calls": 0
+    },
+    "sdf/negative_established": {
+     "L": {
+      "flagged": 9,
+      "n": 60,
+      "not_flagged": 51
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "sdf/negative_other": {
+     "L": {
+      "flagged": 5,
+      "n": 60,
+      "not_flagged": 55
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "sdf/positive": {
+     "L": {
+      "flagged": 9,
+      "n": 60,
+      "not_flagged": 51
+     },
+     "S": {
+      "flagged": 5,
+      "n": 60,
+      "not_flagged": 55
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    }
+   },
+   "runs": 946,
+   "runs_pickle_sha256": "7604773bdd78002305e031eea2297b18bf403b3b92bce8b383993266c4a12804"
+  },
+  "np21": {
+   "cells": {
+    "baitbench/negative_other": {
+     "L": {
+      "flagged": 18,
+      "n": 60,
+      "not_flagged": 42
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 10
+    },
+    "baitbench/positive": {
+     "L": {
+      "flagged": 12,
+      "n": 60,
+      "not_flagged": 48
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "flake/negative_established": {
+     "L": {
+      "flagged": 12,
+      "n": 60,
+      "not_flagged": 48
+     },
+     "S": {
+      "flagged": 12,
+      "n": 60,
+      "not_flagged": 48
+     },
+     "SI": {
+      "flagged": 5,
+      "n": 60,
+      "not_flagged": 55
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "flake/negative_other": {
+     "runs": "<3"
+    },
+    "flake/positive": {
+     "L": {
+      "n": 7,
+      "split": "suppressed (a side below 3)"
+     },
+     "S": {
+      "n": 7,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 7,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 7,
+     "runs_without_tool_calls": 0
+    },
+    "kobayashi/negative_other": {
+     "L": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "kobayashi/positive": {
+     "L": {
+      "flagged": 5,
+      "n": 60,
+      "not_flagged": 55
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "osf/negative_other": {
+     "L": {
+      "flagged": 5,
+      "n": 60,
+      "not_flagged": 55
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    },
+    "osf/positive": {
+     "L": {
+      "flagged": 20,
+      "n": 60,
+      "not_flagged": 40
+     },
+     "S": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "SI": {
+      "n": 60,
+      "split": "suppressed (a side below 3)"
+     },
+     "runs": 60,
+     "runs_without_tool_calls": 0
+    }
+   },
+   "runs": 429,
+   "runs_pickle_sha256": "3f675469c78107fe68e1c207d55f776a0bcac3835f630e91c99aa0fb19b9bd16"
+  }
+ },
+ "runs_per_strict_form_pooled_over_classes": {
+  "cheatbench": {
+   "shell:copy_move": "<3",
+   "shell:redirect": 3,
+   "tool:str_replace_editor:create": 19,
+   "tool:str_replace_editor:str_replace": 6
+  },
+  "goodfire": {
+   "shell:copy_move": "<3",
+   "shell:python_open": "<3",
+   "shell:python_open_var": "<3",
+   "shell:redirect": 11
+  }
+ },
+ "task_clusters_scored_runs": {
+  "cheatbench": {
+   "distinct_tasks": 115,
+   "max_runs_per_task": 23,
+   "scored_runs": 150,
+   "tasks_with_at_least_3_runs": 3,
+   "tasks_with_both_classes": 5
+  },
+  "goodfire": {
+   "distinct_tasks": 150,
+   "max_runs_per_task": 1,
+   "scored_runs": 150,
+   "tasks_with_at_least_3_runs": 0,
+   "tasks_with_both_classes": "<3"
+  }
+ },
+ "tool_sha256": "ac9af9907bf5cb87e21072714c2ae27e76329f8fe51ed60b448f0ba0dd61061b"
+}

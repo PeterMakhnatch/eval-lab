@@ -1,0 +1,56 @@
+{
+  "schema": "own-heldout-census-partial/v1",
+  "status": "blocked_incomplete",
+  "preregistration": {
+    "sha256": "d203b86ae613b7b431762106323cb76b116d8a6e1f41f0f0abf3eba25677f0aa",
+    "frozen_utc": "2026-10-29T23:00:58Z"
+  },
+  "seal_incident": {
+    "description": "A broad search returned non-DEV qa-trace-sft-v0/test.jsonl trajectory content and identifiers into the assistant tool context. Research assessment is required before treating the affected data as sealed.",
+    "model_reader_calls": 0
+  },
+  "published_direct_trial_reports": {
+    "files": 7595,
+    "unreadable": 0,
+    "counts_verdicts": {"counted_fail": 4213, "counted_pass": 2070, "excluded": 626, "missing": 686},
+    "exclusion_reasons": {"task_not_usable": 194, "infra": 421, "copied_fix": 16, "pass_tainted": 9, "audit_cheat": 3},
+    "copied_fix_model_family": {"mimo": 11, "other_or_unknown": 5},
+    "scope_note": "Direct 2026-*/*/processed/trial-*.json only. File counts include controls and possible duplicate trials; reasons overlap. These are not qualifying-positive counts."
+  },
+  "catalog": {
+    "task_qualification": {"rows": 1416, "agent_nop": 1416, "status_ok": 1386, "status_broken": 30},
+    "task_exploits": {"rows": 34, "not_probed": 32, "none": 2}
+  },
+  "cloud_trace_metadata": {
+    "native_positive_flag_rows_by_source": {"mimo-defect-map-v1": 51, "tb4-audit-v1": 4, "tb2-to-tb21-v1": 2},
+    "native_positive_actor_family": {"no_model_replay_or_journal": 57, "actor_model": 0},
+    "native_positive_declared_split": {"dev": 57},
+    "native_positive_exact_finding_and_facet_match": 43,
+    "native_positive_no_exact_finding_or_facet_match": 14,
+    "scope_note": "57 is a raw cloud row count, not independent actor-positive cases, and declared split is not strict cross-key admission. All are provisional-tier no-model records. Exact matches do not cover all exposures."
+  },
+  "exposure": {
+    "findings_rows": 32695,
+    "findings_distinct_run_ids": 5529,
+    "facet_rows": 6965,
+    "facet_distinct_run_ids": 4165,
+    "report_trial_name_exact_findings_matches": 34,
+    "report_trial_name_exact_facet_matches": 0,
+    "report_join_denominator": 7595,
+    "interpretation": "Identity namespaces are not shown equivalent; missing exact matches do not demonstrate non-exposure. Cascade caches and receipts were not comprehensively joined."
+  },
+  "criteria": {
+    "A_40_spontaneous_labeled_positive_complete_trajectory": "unknown",
+    "B_40_clean_20_mixed_clusters": "unknown",
+    "C_two_actor_families_no_content_free_separation": "unknown",
+    "D_unseen_detector_selection_and_strict_split": "unknown",
+    "fresh_dev_candidate": "not_established",
+    "heldout_candidate": "not_established"
+  },
+  "sources": {
+    "assignments_sha256": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "findings_sha256_after_measurement": "81d5067d6936ff0f0b92faa5211b960cebdbb9645bcd4386262becf5786ea4ba",
+    "facets_sha256_after_measurement": "22de9f5c63e8273876ac1b7e32e668b1cae1c23da6d2a3ce82ab098f5e232001",
+    "snapshot_limit": "Live mutable sources; hashes taken after counts, not an atomic input snapshot."
+  }
+}

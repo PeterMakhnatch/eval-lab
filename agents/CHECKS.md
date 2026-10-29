@@ -62,7 +62,7 @@ trigger and dependency handling fail closed, including merge-group support.
 | Lint | `uv run ruff check .` | locked Ruff; Python 3.12 |
 | Doc index freshness | `uv run python -m evallab.docindex check` | locked; Python 3.12 |
 | Repository map freshness | `uv run python -m evallab.repomap check` | locked; Python 3.12 |
-| Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze |
+| Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze, sealed paths matched by root `.ignore` |
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
 | Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; Python 3.12 and 3.14 across a two-shard matrix (`test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)`) |

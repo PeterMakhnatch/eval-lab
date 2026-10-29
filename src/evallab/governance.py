@@ -9,6 +9,7 @@ import argparse
 import re
 import subprocess
 from collections.abc import Iterable, Sequence
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 REQUIRED_DOCUMENTS: dict[str, tuple[str, ...]] = {
@@ -30,6 +31,21 @@ FOLDER_DOC_EXEMPT_ROOTS = frozenset(
     {"docs", "derived", "runs", "queue", "backups", "exports", "logs"}
 )
 FOLDER_DOC_MAX_LINES = 60
+
+# Tracked paths whose content is sealed (answer keys, TEST/held-out split files and
+# rows derived from them). Each must be matched by the repository-root ``.ignore`` so a
+# default agent search (rg, fd, OMP grep/glob) cannot read it into a model's context.
+# fnmatch globs over repo-relative POSIX paths; ``*`` also crosses ``/``.
+SEALED_PATH_RULES: tuple[str, ...] = (
+    "research/answer-keys/*",
+    "research/datasets/*/test.jsonl",
+    "research/datasets/qa-trace-sft-v0/baseline-results.json",
+    "research/datasets/qa-trace-sft-v0/harness-v2-results.json",
+    "research/datasets/qa-trace-sft-v0/harness-v3-results.json",
+    "research/datasets/seeker-sft-v1/quarantined.jsonl",
+    "research/datasets/seeker-sft-v1/source_manifests.json",
+)
+SEARCH_IGNORE_FILE = ".ignore"
 
 
 def declared_directories(structure_text: str) -> frozenset[str]:
@@ -85,6 +101,41 @@ def declared_roots(structure_text: str) -> frozenset[str]:
 def tracked_roots(paths: Iterable[str]) -> frozenset[str]:
     """Collapse tracked repository paths to their top-level entries."""
     return frozenset(path.split("/", 1)[0] for path in paths if path)
+
+
+def sealed_tracked_paths(paths: Iterable[str]) -> list[str]:
+    """Return the tracked paths covered by ``SEALED_PATH_RULES``, sorted."""
+    return sorted(
+        path for path in paths if any(fnmatchcase(path, rule) for rule in SEALED_PATH_RULES)
+    )
+
+
+def search_ignored_paths(root: Path) -> frozenset[str]:
+    """Tracked paths matched by the root ``.ignore`` file, using Git's ignore semantics."""
+    if not (root / SEARCH_IGNORE_FILE).is_file():
+        return frozenset()
+    result = subprocess.run(
+        ["git", "ls-files", "-z", "-c", "-i", f"--exclude-from={SEARCH_IGNORE_FILE}"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    return frozenset(path for path in result.stdout.decode().split("\0") if path)
+
+
+def sealed_search_issues(root: Path, tracked_paths: Iterable[str]) -> list[str]:
+    """Report sealed tracked paths that default searches can still reach."""
+    sealed = sealed_tracked_paths(tracked_paths)
+    if not sealed:
+        return []
+    exposed = sorted(set(sealed) - search_ignored_paths(root))
+    if not exposed:
+        return []
+    shown = ", ".join(exposed[:5]) + (f" (+{len(exposed) - 5} more)" if len(exposed) > 5 else "")
+    return [
+        f"{len(exposed)} tracked sealed path(s) not matched by {SEARCH_IGNORE_FILE}: {shown}; "
+        f"add the pattern to {SEARCH_IGNORE_FILE} (or amend SEALED_PATH_RULES)"
+    ]
 
 
 def folder_documents(root: Path) -> list[str]:
@@ -209,15 +260,17 @@ def _handoff_issues(root: Path) -> list[str]:
 
 def collect_issues(root: Path, tracked_paths: Iterable[str]) -> list[str]:
     """Return deterministic governance violations without mutating the tree."""
+    tracked = tuple(tracked_paths)
     issues = _document_issues(root)
     structure = root / "agents/STRUCTURE.md"
     if structure.is_file():
         declared = declared_roots(structure.read_text(encoding="utf-8"))
-        missing = sorted(tracked_roots(tracked_paths) - declared)
+        missing = sorted(tracked_roots(tracked) - declared)
         if missing:
             issues.append("undeclared tracked root entries: " + ", ".join(missing))
     issues.extend(_handoff_issues(root))
     issues.extend(folder_documents(root))
+    issues.extend(sealed_search_issues(root, tracked))
     return issues
 
 

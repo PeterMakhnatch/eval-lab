@@ -3,3 +3,16 @@
 agents/archive/
 docs/archive/
 research/archive/
+
+# Sealed material (answer keys, TEST/held-out split files and rows derived from
+# them) is hidden from default agent searches (rg, fd, OMP grep/glob) so a broad
+# search cannot put it into a model's context. This is NOT an access control:
+# direct path reads, git and `rg --no-ignore` still reach it. `evallab.governance
+# check` fails when a tracked sealed path is not matched here (SEALED_PATH_RULES).
+research/answer-keys/
+research/datasets/*/test.jsonl
+research/datasets/qa-trace-sft-v0/baseline-results.json
+research/datasets/qa-trace-sft-v0/harness-v2-results.json
+research/datasets/qa-trace-sft-v0/harness-v3-results.json
+research/datasets/seeker-sft-v1/quarantined.jsonl
+research/datasets/seeker-sft-v1/source_manifests.json

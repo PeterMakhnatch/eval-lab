@@ -111,7 +111,7 @@ eval-lab/
 ├── .githooks/                 checked-in repository hook implementations
 ├── .env.example               environment-variable template
 ├── .gitignore                 generated/local path exclusions
-├── .ignore                    search exclusions (archive directories)
+├── .ignore                    search exclusions (archive directories, sealed material)
 ├── .gitattributes             merge and path attributes
 ├── .python-version            development Python pin
 │
@@ -289,3 +289,7 @@ The change log below is historical, not a current inventory or work order.
 - 2026-10-27 — `research/failure-library/` declared for the Failure Library:
   `failure-library/v1` task findings (in Git) and manifests for run records
   kept in local state (`evallab failures`).
+- 2026-10-29 — root `.ignore` (already declared) extended with the sealed-material
+  patterns (answer keys, TEST/held-out split files and rows derived from them) so
+  default agent searches skip them; not an access control. `evallab.governance check`
+  fails when a tracked path under `SEALED_PATH_RULES` is not matched by `.ignore`.

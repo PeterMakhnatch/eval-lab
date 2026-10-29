@@ -653,7 +653,7 @@ def _route_alarms_command(args: argparse.Namespace, root: Path, *, harbor: Any =
 
 
 def _fleet_report_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
-    del harbor
+    del root, harbor
     report = _import("live_supervisor_fleet_report", "the fleet report")
     bridge = args.bridge if args.bridge is not None else _attr(report, "DEFAULT_BRIDGE", "the fleet report")
     if args.out is not None and not args.write:
@@ -664,7 +664,7 @@ def _fleet_report_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         return 2
     updated: Path | None = None
     try:
-        data, text = report.run_fleet_report(bridge, window_hours=args.window_hours, root=root)
+        data, text = report.run_fleet_report(bridge, window_hours=args.window_hours, root=args.root)
         if args.write:
             updated = (args.out if args.out is not None else bridge / report.TARGET_FILE).expanduser()
             report.write_section(updated, text)

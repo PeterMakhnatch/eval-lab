@@ -1,5 +1,6 @@
 """Coverage reporting over heartbeat records; no live supervisor or sleep log required."""
 
+import argparse
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -7,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from evallab.production import live_supervisor_cli as cli
 from evallab.production import live_supervisor_fleet_report as report
 
 
@@ -26,8 +28,9 @@ def test_coverage_crosses_fall_dst_and_counts_bad_rows() -> None:
     sleep = datetime(2026, 11, 1, 6, 10, tzinfo=UTC)
     data = report.supervisor_coverage(text, now=now, window_hours=1, sleep_times=[sleep])
     assert data["awake_h"] == pytest.approx(2 / 60)
-    assert data["cycles"] == 3
-    assert data["non_ok"] == 3
+    # The report uses the same half-open (start, end] window as keeper outcomes.
+    assert data["cycles"] == 2
+    assert data["non_ok"] == 2
     assert data["malformed"] == 1
     assert data["first_cap_today"] == "2026-11-01T06:00:00+00:00"
     assert data["gaps"][0] == {"start": "2026-11-01T06:00:00+00:00",
@@ -70,3 +73,20 @@ def test_pmset_only_marks_explicit_sleep_and_fails_closed() -> None:
         assert report._sleep_times() == [datetime.fromisoformat("2026-10-29T01:36:00-04:00")]
         run.side_effect = FileNotFoundError()
         assert report._sleep_times() == []
+
+
+def test_cli_root_selects_heartbeat_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    bridge, root = tmp_path / "bridge", tmp_path / "heartbeat"
+    bridge.mkdir()
+    root.mkdir()
+    (bridge / "_queue.log").write_text("")
+    (root / "cycles-v1.jsonl").write_text(row(datetime.now(UTC).isoformat(), "rules") + "\n")
+    parser = argparse.ArgumentParser()
+    cli.register_parser(parser.add_subparsers(dest="action", required=True))
+    args = parser.parse_args(["live-supervisor", "fleet-report", "--bridge", str(bridge),
+                              "--root", str(root), "--json"])
+    with patch.object(report, "_sleep_times", return_value=[]):
+        assert args.func(args, tmp_path / "unrelated") == 0
+    coverage = json.loads(capsys.readouterr().out)["supervisor_coverage"]
+    assert coverage["cycles"] == 1
+    assert coverage["non_ok"] == 1

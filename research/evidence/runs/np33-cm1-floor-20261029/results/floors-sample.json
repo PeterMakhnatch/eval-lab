@@ -42,21 +42,22 @@
   },
   "ptb": {
    "primary": {
-    "positives": 30,
-    "negatives": 30,
+    "positives": 60,
+    "negatives": 60,
     "auroc": {
-     "n_steps": 0.4994,
-     "est_chars": 0.5356,
+     "n_steps": 0.4956,
+     "est_chars": 0.5042,
      "benchmark_rate_in_sample": 0.5,
-     "agent_cli_rate_in_sample": 0.6594
+     "agent_cli_rate_in_sample": 0.639
     },
     "oriented": {
-     "n_steps": 0.5006,
-     "est_chars": 0.5356,
+     "n_steps": 0.5044,
+     "est_chars": 0.5042,
      "benchmark_rate_in_sample": 0.5,
-     "agent_cli_rate_in_sample": 0.6594
+     "agent_cli_rate_in_sample": 0.639
     },
-    "primary_floor": "n_steps"
+    "primary_floor": "max_cue",
+    "max_cue_chosen_on_this_sample": "agent_cli_rate_in_sample"
    }
   }
  }

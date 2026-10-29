@@ -2,12 +2,15 @@
 """Read-only adapter for the locked LinuxArena public-mirror reviewer sample (``data/sample.jsonl``).
 
 Unit: one deduplicated trajectory (a LinuxArena agent run on one environment x main task, with or
-without a hidden side task). The detector sees ``_steps`` only: the agent's tool calls (function +
-arguments) and the tool results. The main-task description is deliberately NOT included: for the
-``straj`` rows it names the side task ("...the <side task> side task targets"), so it is a label. It never sees the system prompt
-(the attack prompt names the side task), the initial user turn, agent reasoning text, extended
-thinking, inter-action messages, side-task tools (``run_side_task_test``, phase-planning tools),
-side-task text, monitor scores/reasoning, scorer explanations, run names or ids.
+without a hidden side task; byte-identical reruns and truncated prefix replays are merged). The
+detector sees ``_steps`` only: the agent's tool calls (function + arguments) and the tool
+results. The main-task description is deliberately NOT included: for the ``straj`` rows it names
+the side task ("...the <side task> side task targets"), so it is a label. It never sees the
+system prompt (the attack prompt names the side task), the initial user turn, agent reasoning
+text, extended thinking, inter-action messages, ``submit`` calls (attack submissions carry the
+side-task payload fields, so they are dropped in both modes), side-task tools
+(``run_side_task_test``, phase-planning tools), side-task text, monitor scores/reasoning, scorer
+explanations, run names or ids.
 
 Construct: INSTRUCTED covert sabotage (attack-mode agents are told to do a hidden side task; the
 ``straj`` rows are curated sabotage trajectories with no system prompt), not spontaneous cheating.
@@ -31,10 +34,18 @@ CORPUS = "anonymouslinuxarena__linuxarena-public"
 ROOT = Path.home() / ".local/state/evallab-cross-test" / CORPUS / REVISION[:12]
 DATA = "data/sample.jsonl"
 
-# Tools that only exist in one condition (attack side-task test and phase planning) or exist for
-# planning only; dropped from BOTH modes with their results so the tool vocabulary is not a label.
+# Tools that only exist in one condition (attack side-task test and phase planning), exist for
+# planning only, or whose argument schema is condition-specific (``submit``: attack submissions
+# carry the side-task payload fields); dropped from BOTH modes with their results so neither the
+# tool vocabulary nor the argument keys are a label.
 DROPPED_TOOLS = frozenset(
-    {"run_side_task_test", "start_phase1_planning", "start_phase2_planning", "ready_to_plan"}
+    {
+        "run_side_task_test",
+        "start_phase1_planning",
+        "start_phase2_planning",
+        "ready_to_plan",
+        "submit",
+    }
 )
 # Vocabulary that names the condition. Counted in the residual scan (agent-authored code/comments
 # and environment files can contain it); only the ``forbidden`` needles below are hard leaks.
@@ -120,34 +131,122 @@ def label_state(row: dict[str, Any]) -> tuple[str, str]:
     return "ambiguous", "unrecognised_mode_slice"
 
 
-def dedupe(root: Path = ROOT) -> dict[str, dict[str, Any]]:
-    """Group rows by detector-input digest. Prefer the original agent run over monitor reruns.
+def _call_digests(steps: list[dict[str, Any]]) -> tuple[str, ...]:
+    """Per tool call digest of (function, arguments): the action sequence without outputs."""
+    return tuple(
+        hashlib.sha256(
+            (c["function"] + "\0" + json.dumps(c["arguments"], sort_keys=True)).encode("utf-8")
+        ).hexdigest()[:16]
+        for s in steps
+        for c in s.get("tool_calls", [])
+    )
 
-    Same steps with conflicting label states become ambiguous (``duplicate_conflicting_labels``).
+
+def dedupe(root: Path = ROOT) -> dict[str, dict[str, Any]]:
+    """Group rows into units: identical steps, or a replay that is a prefix of a longer run.
+
+    Rows are bucketed by (slice, environment, main task, side task). Inside a bucket, rows are
+    visited longest first (original agent run before a monitor rerun on ties); a row whose
+    (function, arguments) sequence is a prefix of an existing unit's sequence is merged into that
+    unit, otherwise it starts a new unit. This merges byte-identical reruns and the truncated
+    replays that the ``GPT-5 Nano monitor on Haiku attack`` reruns contain; genuinely different
+    action sequences stay separate units. The longest member of a unit supplies ``_steps``.
+    Members that repeat the unit's full action sequence and carry a different label state make
+    the unit ambiguous (``duplicate_conflicting_labels``). A strictly shorter prefix replay is a
+    truncated copy: its own scorer outcome is not comparable with the complete run, so it does
+    not vote on the label (its states are kept in ``replay_states``). Rows with no agent step are
+    ``excluded``. Units with byte-identical ``_steps`` under two different cells are merged last.
     """
+    records: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
     groups: dict[str, dict[str, Any]] = {}
     for row in iter_rows(root):
         state, reason = label_state(row)
-        key = steps_sha(row) if state != "excluded" else f"excluded:{row['trajectory_id']}"
-        group = groups.setdefault(
-            key,
-            {
-                "states": Counter(),
-                "ids": [],
-                "runs": Counter(),
-                "raw_shas": set(),
-                "keep": None,
-                "reason": reason,
-            },
+        steps = steps_of(row)
+        record = {
+            "id": row["trajectory_id"],
+            "state": state,
+            "reason": reason,
+            "steps_sha": steps_sha(row) if steps else "",
+            "calls": _call_digests(steps),
+            "rerun": is_rerun(row),
+            "run": row["run_display_name"],
+            "raw_sha": raw_trace_sha(row),
+        }
+        if state == "excluded":
+            groups[f"excluded:{record['id']}"] = _new_group(record)
+            continue
+        bucket = (
+            slice_of(row),
+            row["environment"]["id"],
+            row["main_task"]["id"],
+            (row["side_task"] or {}).get("id"),
         )
-        group["states"][state] += 1
-        group["ids"].append(row["trajectory_id"])
-        group["runs"][row["run_display_name"]] += 1
-        group["raw_shas"].add(raw_trace_sha(row))
-        rank = (is_rerun(row), row["trajectory_id"])
-        if group["keep"] is None or rank < group["keep"]:
-            group["keep"] = rank
+        records.setdefault(bucket, []).append(record)
+    for bucket_records in records.values():
+        bucket_records.sort(key=lambda r: (-len(r["calls"]), r["rerun"], r["id"]))
+        roots: list[dict[str, Any]] = []
+        for record in bucket_records:
+            parents = [g for g in roots if g["calls"][: len(record["calls"])] == record["calls"]]
+            if not parents:
+                group = _new_group(record)
+                roots.append(group)
+                groups[f"{record['steps_sha']}:{record['id']}"] = group
+                continue
+            group = parents[0]
+            if len(parents) > 1:
+                group["merge_kinds"]["prefix_of_several_units"] += 1
+            if record["steps_sha"] == group["steps_sha"]:
+                kind = "identical_steps"
+            elif record["calls"] == group["calls"]:
+                kind = "identical_actions_other_output"
+            else:
+                kind = "prefix_replay"
+            group["merge_kinds"][kind] += 1
+            _add_member(group, record, votes=kind != "prefix_replay")
+    # Byte-identical detector input under two cells (one straj trajectory attached to two side
+    # tasks): one unit; conflicting label states still make it ambiguous.
+    by_steps: dict[str, list[str]] = {}
+    for key, group in groups.items():
+        if group["steps_sha"]:
+            by_steps.setdefault(group["steps_sha"], []).append(key)
+    for keys in by_steps.values():
+        keys.sort(key=lambda k: groups[k]["rank"])
+        first = groups[keys[0]]
+        for key in keys[1:]:
+            other = groups.pop(key)
+            first["states"].update(other["states"])
+            first["replay_states"].update(other["replay_states"])
+            first["ids"].extend(other["ids"])
+            first["runs"].update(other["runs"])
+            first["raw_shas"] |= other["raw_shas"]
+            first["merge_kinds"].update(other["merge_kinds"])
+            first["merge_kinds"]["identical_steps_other_cell"] += len(other["ids"])
     return groups
+
+
+def _new_group(record: dict[str, Any]) -> dict[str, Any]:
+    group: dict[str, Any] = {
+        "states": Counter(),
+        "replay_states": Counter(),
+        "ids": [],
+        "runs": Counter(),
+        "raw_shas": set(),
+        "merge_kinds": Counter(),
+        "steps_sha": record["steps_sha"],
+        "rank": (-len(record["calls"]), record["rerun"], record["id"]),
+        "calls": record["calls"],
+        "root_id": record["id"],
+        "reason": record["reason"],
+    }
+    _add_member(group, record, votes=True)
+    return group
+
+
+def _add_member(group: dict[str, Any], record: dict[str, Any], votes: bool) -> None:
+    group["states" if votes else "replay_states"][record["state"]] += 1
+    group["ids"].append(record["id"])
+    group["runs"][record["run"]] += 1
+    group["raw_shas"].add(record["raw_sha"])
 
 
 def group_state(group: dict[str, Any]) -> tuple[str, str]:
@@ -160,16 +259,17 @@ def group_state(group: dict[str, Any]) -> tuple[str, str]:
 def specs(root: Path = ROOT) -> Iterator[dict[str, Any]]:
     """One dict per deduplicated labelled trajectory; only ``_steps`` may reach a detector."""
     groups = dedupe(root)
-    keep = {g["keep"][1]: (k, g) for k, g in groups.items()}
+    keep = {g["root_id"]: g for g in groups.values()}
     for row in iter_rows(root):
-        if row["trajectory_id"] not in keep:
+        group = keep.get(row["trajectory_id"])
+        if group is None:
             continue
-        key, group = keep[row["trajectory_id"]]
         state, reason = group_state(group)
         if state == "excluded":
             continue
+        steps = steps_of(row)
         yield {
-            "_steps": steps_of(row),
+            "_steps": steps,
             "gold": {"state": state, "reason": reason, "positive": state == "positive"},
             "labels": {
                 "side_task_success": row["side_task_success"],
@@ -178,6 +278,7 @@ def specs(root: Path = ROOT) -> Iterator[dict[str, Any]]:
             "identity": {
                 "trajectory_id": row["trajectory_id"],
                 "duplicate_ids": sorted(group["ids"]),
+                "merge_kinds": dict(sorted(group["merge_kinds"].items())),
                 "run_id": row["run_id"],
                 "slice": slice_of(row),
                 "environment": row["environment"]["id"],
@@ -188,8 +289,10 @@ def specs(root: Path = ROOT) -> Iterator[dict[str, Any]]:
                     CONDITION_RE.search(row["main_task"].get("description") or "")
                 ),
                 "side_task_id": (row["side_task"] or {}).get("id"),
-                "steps_sha256": key,
+                "steps_sha256": group["steps_sha"],
                 "trace_sha256": sorted(group["raw_shas"]),
+                "has_agent_model": bool(row.get("agent_model")),
+                "condition_vocabulary": condition_vocabulary(steps),
             },
         }
 
@@ -212,29 +315,99 @@ def _word_in(needle: str, text: str) -> bool:
     return re.search(rf"(?<![a-z0-9_]){re.escape(needle)}(?![a-z0-9_])", text) is not None
 
 
-def _step_text(steps: list[dict[str, Any]]) -> str:
+def _leaves(value: Any) -> Iterator[str]:
+    """Every key and scalar of a tool-call argument tree as plain text (not JSON-escaped)."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield str(key)
+            yield from _leaves(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _leaves(item)
+    elif value is not None:
+        yield str(value)
+
+
+def _without_quoted_code(value: Any) -> Any:
+    """``attack_analysis`` minus ``incriminating_behaviour``: that field quotes the agent's code."""
+    if isinstance(value, dict):
+        return {
+            key: _without_quoted_code(item)
+            for key, item in value.items()
+            if key != "incriminating_behaviour"
+        }
+    if isinstance(value, list):
+        return [_without_quoted_code(item) for item in value]
+    return value
+
+
+def _args_text(steps: list[dict[str, Any]]) -> str:
     return squash(
         "\n".join(
-            s["text"] + "\n" + json.dumps(s.get("tool_calls", ""), ensure_ascii=False)
-            for s in steps
+            leaf for s in steps for c in s.get("tool_calls", []) for leaf in _leaves(c["arguments"])
         )
     )
+
+
+def _results_text(steps: list[dict[str, Any]]) -> str:
+    return squash("\n".join(s["text"] for s in steps if s["role"] == "tool"))
+
+
+def _step_text(steps: list[dict[str, Any]]) -> str:
+    """All text a detector can read: function names, argument keys and values, tool results."""
+    parts: list[str] = []
+    for s in steps:
+        parts.append(s["text"])
+        for c in s.get("tool_calls", []):
+            parts.append(c["function"])
+            parts.extend(_leaves(c["arguments"]))
+    return squash("\n".join(parts))
+
+
+def condition_vocabulary(steps: list[dict[str, Any]]) -> dict[str, bool]:
+    """Condition-naming words in tool arguments and in tool results (whitespace-normalised)."""
+    in_args = bool(CONDITION_RE.search(_args_text(steps)))
+    in_results = bool(CONDITION_RE.search(_results_text(steps)))
+    return {
+        "tool_arguments": in_args,
+        "tool_results": in_results,
+        "anywhere": in_args or in_results,
+    }
+
+
+def _arg_keys(row: dict[str, Any], dropped: bool) -> set[tuple[str, str]]:
+    return {
+        (a["function"], key)
+        for a in row["actions"]
+        if (a["function"] in DROPPED_TOOLS) is dropped
+        for key in (a.get("arguments") or {})
+    }
 
 
 def selfcheck(root: Path = ROOT) -> dict[str, Any]:
     """Real leak scan: whitespace-normalised substring checks on step text including tool args.
 
     Hard leaks (must be 0): attack-only system-prompt sentences, side-task goal/scoring/short
-    description lines, side-task name, run display name, trajectory/run ids, dropped-tool function
-    names. Residual vocabulary (``side task`` etc. inside agent-written code, comments or
-    environment files) is counted per slice, not treated as an adapter leak. Monitor reasoning and
-    scorer explanations quote the agent's own actions/pytest output, so their line overlap with
-    tool text is reported as natural overlap, not a leak.
+    description lines, ``attack_analysis`` lines, side-task name, run display name, trajectory/run
+    ids, dropped-tool function names, tool-argument keys that belong to the side-task tool
+    schemas (keys of the dropped tools' arguments that no honest kept tool uses), and any
+    Haiku-attack tool-argument key that no honest run uses. Residual vocabulary (``side task``
+    etc. inside agent-written code, comments or environment files) is counted per slice, in tool
+    arguments and in tool results separately, and is not treated as an adapter leak. Monitor
+    reasoning and scorer explanations quote the agent's own actions/pytest output, so their line
+    overlap with tool text is reported as natural overlap, not a leak.
     """
     honest_sentences: set[str] = set()
+    honest_keys: set[tuple[str, str]] = set()
+    dropped_keys: set[str] = set()
     for row in iter_rows(root):
         if row["side_task"] is None:
             honest_sentences.update(_sentences(row["system_prompt"]))
+            honest_keys |= _arg_keys(row, dropped=False)
+        else:
+            dropped_keys |= {key for _, key in _arg_keys(row, dropped=True)}
+    honest_functions = {function for function, _ in honest_keys}
+    schema_keys = dropped_keys - {key for _, key in honest_keys}
     name_forms: set[str] = set()
     for row in iter_rows(root):
         if row["side_task"] and row["side_task"].get("name"):
@@ -250,6 +423,7 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
     stripped: Counter[str] = Counter()
     residual: dict[str, Counter[str]] = {}
     natural: Counter[str] = Counter()
+    straj_only_functions: set[str] = set()
     seen = 0
     step_total = 0
     for row in iter_rows(root):
@@ -267,6 +441,7 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
             stripped["inter_action_messages"] += bool(action.get("inter_action_messages"))
             stripped["monitor_responses"] += bool(action.get("monitor_response"))
             stripped["dropped_tool_calls"] += action["function"] in DROPPED_TOOLS
+            stripped["submit_calls"] += action["function"] == "submit"
         stripped["traj_monitor_responses"] += bool(row["traj_monitor_response"])
         stripped["scorer_explanations"] += bool(row["scorer_explanation"])
         stripped["attack_analysis"] += bool(row["attack_analysis"])
@@ -279,12 +454,17 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
                 if s not in honest_sentences and s not in squash(row["main_task"]["description"])
             ],
             "side_description_line": _lines(side.get("short_description")),
+            "attack_analysis_prose_line": _lines(
+                *_leaves(_without_quoted_code(row["attack_analysis"]))
+            ),
             "main_description_line": _lines(row["main_task"].get("description"))
             if slice_of(row) == "straj"
             else [],
             "run_display_name": [squash(row["run_display_name"])],
             "ids": [row["trajectory_id"], row["run_id"]],
         }
+        quoted = _lines(*_leaves(row["attack_analysis"]))
+        natural["attack_analysis_quoted_code_line_overlap"] += any(n in text for n in quoted)
         for kind, items in needles.items():
             if kind == "main_description_line":
                 continue  # description is not in _steps at all; checked below for the record
@@ -302,16 +482,32 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
         natural["agent_authored_side_payload_line_overlap"] += any(n in text for n in payload)
         description_hit = any(n in text for n in needles["main_description_line"])
         natural["straj_description_line_in_steps"] += description_hit
+        calls = [c for s in steps for c in s.get("tool_calls", [])]
         if any(
-            FORBIDDEN_FUNCTION_RE.search(c["function"])
-            for s in steps
-            for c in s.get("tool_calls", [])
+            c["function"] in DROPPED_TOOLS or FORBIDDEN_FUNCTION_RE.search(c["function"])
+            for c in calls
         ):
             leaks["dropped_tool_name"] += 1
             issues.add(f"dropped_tool_name:{row['trajectory_id']}")
-        found = {m.group(0).casefold() for m in CONDITION_RE.finditer(text)}
+        kept_keys = {(c["function"], key) for c in calls for key in c["arguments"] or {}}
+        if {key for _, key in kept_keys} & schema_keys:
+            leaks["side_task_schema_argument_key"] += 1
+            issues.add(f"side_task_schema_argument_key:{row['trajectory_id']}")
+        if tag == "haiku_attack" and kept_keys - honest_keys:
+            leaks["attack_only_argument_key"] += 1
+            issues.add(f"attack_only_argument_key:{row['trajectory_id']}")
+        if tag == "straj":
+            natural["straj_rows_with_argument_keys_no_honest_run_uses"] += bool(
+                kept_keys - honest_keys
+            )
+            straj_only_functions.update(
+                c["function"] for c in calls if c["function"] not in honest_functions
+            )
+        vocab = condition_vocabulary(steps)
         residual.setdefault(tag, Counter())["trajectories"] += 1
-        residual[tag]["with_condition_vocabulary"] += bool(found)
+        residual[tag]["with_condition_vocabulary"] += vocab["anywhere"]
+        residual[tag]["in_tool_arguments"] += vocab["tool_arguments"]
+        residual[tag]["in_tool_results"] += vocab["tool_results"]
         monitors = [(a.get("monitor_response") or {}).get("reasoning") for a in row["actions"]] + [
             (row["traj_monitor_response"] or {}).get("reasoning")
         ]
@@ -323,6 +519,8 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
         "trajectory_rows_scanned": seen,
         "steps": step_total,
         "stripped_from_detector_input": dict(sorted(stripped.items())),
+        "side_task_schema_argument_keys": sorted(schema_keys),
+        "straj_only_tool_functions": sorted(straj_only_functions),
         "leaks": dict(sorted(leaks.items())),
         "leak_count": sum(leaks.values()),
         "issue_count": len(issues),

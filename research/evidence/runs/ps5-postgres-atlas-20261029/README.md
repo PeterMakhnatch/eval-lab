@@ -10,13 +10,13 @@ deleted afterwards. Synthetic content only: no live store, no store copy, no ans
 
 One synthetic store (7 tasks, 12 hand-made runs, 40 bulk tasks x 30 runs = 1,200 runs with 3 steps each, facet records naming a sealed task,
 an admitted task whose id contains a sealed name, findings with valid/invalid/oversized evidence-step pairs) is built through the
-public `CloudTraceDatabase` API on PostgreSQL, on SQLite+FTS5 and on SQLite+LIKE; 143 read/write calls run on each
-(write receipts and table dumps included) and the PostgreSQL result is compared with both SQLite results: 286 comparisons.
+public `CloudTraceDatabase` API on PostgreSQL, on SQLite+FTS5 and on SQLite+LIKE; 144 read/write calls run on each
+(write receipts and table dumps included) and the PostgreSQL result is compared with both SQLite results: 288 comparisons.
 
 | status | count | meaning |
 |---|---|---|
-| equal | 194 | same value |
-| equal_exception | 80 | both sides raise the same type and message (refusals such as `not available: ...`, `unknown cluster_id`) |
+| equal | 198 | same value |
+| equal_exception | 78 | both sides raise the same type and message (refusals such as `not available: ...`, `unknown cluster_id`) |
 | order_only | 4 | same rows, different order (2 calls x 2 stores) |
 | differs | 4 | different value (2 calls x 2 stores), see finding C |
 | differs_exception | 4 | different exception (2 calls x 2 stores), see finding D |
@@ -60,6 +60,11 @@ fixture uses) therefore lost its `search_path` and the read-only handle read the
 schema it would read that silently). The DSN's options are now kept. Regression test
 `test_read_only_open_reads_the_same_store_and_refuses_writes[postgres]` fails on origin/main.
 
+Follow-up: set the session default after connecting instead of replacing libpq's `options`, preserving
+DSN, `PGOPTIONS`, and service-file options. A PostgreSQL 16 probe showed that `BEGIN; SET TRANSACTION
+READ WRITE` overrides `default_transaction_read_only`; it is a safety default, not an authorization
+boundary. Current library transaction paths do not issue that override.
+
 C. **Recorded, not fixed.** PostgreSQL's `english` parser keeps `grader_tamperable.log` as one `host` token, so `search_traces("tamperable")` and
 `retrieve_similar_examples("tamperable")` miss a step that only contains that identifier; FTS5 and LIKE find it
 (`to_tsvector('english','cat grader_tamperable.log') @@ plainto_tsquery('english','grader tamperable')` is `false`). Snake_case and dotted
@@ -73,5 +78,10 @@ it discloses nothing about admission; the library-level difference remains.
 E. **Benign.** `qa.card_stored` lists a run's findings without `ORDER BY`; PostgreSQL and SQLite order equal `(produced_at)` rows differently
 (the card sorts them afterwards, `build_card` is equal). `search_runs`/`_admitted_facets`/`served_facet_run_ids` with `= ANY(?)` arrays (empty, 5,004 ids,
 quotes, sets) behave exactly as the SQLite `json_each` form.
+
+F. **Recorded, not fixed.** PostgreSQL JSONB normalizes numeric representations: values such as `1e20`
+and `-0.0` can appear as `100000000000000000000` and `0.0` in flags / `get_trace`, unlike SQLite.
+In JSONL import probes, NUL in a facet run ID or an admitted run's goal raised PostgreSQL `DataError`;
+findings refused a NUL run ID and NUL summary with explicit validation reasons.
 
 Limits: synthetic content; C collation (a UTF-8 locale could order `ORDER BY run_id` differently from SQLite binary order); one PostgreSQL version.

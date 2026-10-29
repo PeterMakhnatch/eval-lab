@@ -7,7 +7,46 @@ rather than adding a browser/runtime dependency to the production test suite.
 import re
 from html.parser import HTMLParser
 
-from evallab.production.dashboard import DASHBOARD
+from evallab.production.dashboard import DASHBOARD, dashboard_html
+
+VOID_TAGS = frozenset({"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "wbr"})
+Attrs = dict[str, str | None]
+
+
+class Outline(HTMLParser):
+    """Elements in document order, each with the elements that contain it."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.elements: list[tuple[str, Attrs, tuple[tuple[str, Attrs], ...]]] = []
+        self.open: list[tuple[str, Attrs]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.elements.append((tag, dict(attrs), tuple(self.open)))
+        if tag not in VOID_TAGS:
+            self.open.append((tag, dict(attrs)))
+
+    def handle_endtag(self, tag: str) -> None:
+        for depth in range(len(self.open) - 1, -1, -1):
+            if self.open[depth][0] == tag:
+                del self.open[depth:]
+                return
+
+    def position(self, element_id: str) -> int:
+        return next(index for index, (_, attrs, _) in enumerate(self.elements) if attrs.get("id") == element_id)
+
+    def within(self, index: int, ancestor_id: str) -> tuple[tuple[str, Attrs], ...] | None:
+        """The containers between ``ancestor_id`` and the element, or None if it is not inside."""
+        ancestors = self.elements[index][2]
+        ids = [attrs.get("id") for _, attrs in ancestors]
+        return ancestors[ids.index(ancestor_id) + 1 :] if ancestor_id in ids else None
+
+
+def atlas_outline() -> Outline:
+    outline = Outline()
+    outline.feed(dashboard_html("atlas"))
+    assert not outline.open  # every container closes, so nesting below is what a browser builds
+    return outline
 
 
 class Page(HTMLParser):
@@ -76,8 +115,6 @@ def test_dashboard_uses_text_dom_and_same_origin_without_dynamic_code() -> None:
 def test_home_screen_is_chosen_by_the_server_and_changes_nothing_else() -> None:
     import pytest
 
-    from evallab.production.dashboard import dashboard_html
-
     assert dashboard_html() == DASHBOARD
     atlas = dashboard_html("atlas")
     assert atlas != DASHBOARD
@@ -85,3 +122,26 @@ def test_home_screen_is_chosen_by_the_server_and_changes_nothing_else() -> None:
     for refused in ("", "Atlas", "tools", '"><script>'):
         with pytest.raises(ValueError, match="unknown home screen"):
             dashboard_html(refused)
+
+
+def test_run_atlas_first_screen_reaches_the_run_picker_before_its_information_panels() -> None:
+    outline = atlas_outline()
+    panels = [
+        index
+        for index, (tag, _, _) in enumerate(outline.elements)
+        if tag == "details" and outline.within(index, "atlas-view") is not None
+    ]
+    assert panels
+    picker = [outline.position(element_id) for element_id in ("cloud-atlas-filters", "cloud-atlas-runs")]
+    for index in picker:
+        containers = outline.within(index, "atlas-view")
+        assert containers is not None
+        assert not any(tag == "details" or "hidden" in attrs for tag, attrs in containers)
+    detail = outline.position("atlas-run-panel")
+    assert max(picker) < detail < min(panels)  # the run detail opens under the table, above the panels
+
+
+def test_run_atlas_filter_form_offers_detector_alarm_and_order_controls() -> None:
+    outline = atlas_outline()
+    for element_id in ("atlas-alarmed_by", "atlas-sort"):
+        assert outline.within(outline.position(element_id), "cloud-atlas-filters") is not None

@@ -37,6 +37,10 @@ Inventory as of 2026-10-28 at about 4:30 PM ET, from `ps`, `launchctl list`,
 | `queue_keeper.py` | Research or Night Planner | `_queue.log` (`dispatch`, `outcome`, `hold`, `queued … from queue-append`), `queue-state.json` | none by us | no, report only |
 | OMP lanes and Peter's chats (herdr panes) | Peter or Research | session JSONL in `~/.omp/agent/sessions/` (`message.usage`, `stopReason`, `model_change.resolvedModelIsFallback`, tool calls); `herdr pane list` `agent_status`; `omp usage` | never | **no**: report, and append a fix item to `queue-append.jsonl` for the lane or the Night Planner (`wK:p1J`) |
 
+`trace-store-*sync` and `trace-store/watch-state.json`: a Laminar tick never uploads the 108
+quarantined Laminar copies (`trace_store/laminar_quarantine.py`); its summary reports
+`quarantined`. Docent ticks are unchanged.
+
 Problems already visible during the inventory, which the first shadow pass should catch:
 
 - `sync-primary` has logged `Skipped: working tree dirty (2 files)` every 5 minutes since

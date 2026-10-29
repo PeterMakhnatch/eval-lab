@@ -54,6 +54,17 @@ Trace Tools operations (offline, read-only unless stated):
 - `python -m evallab.trace_store.owner_cleanup`: read-only check that exactly the 108
   owner-action Laminar copies are absent. Only a complete, project-bound inventory with
   108 `absent` returns exit 0; partial, failed, empty or wrong-project output is `unknown`.
+- **Laminar quarantine** (`trace_store/laminar_quarantine.py`): those 108 copies cannot be
+  deleted. The owner's UI/API delete answered HTTP 500 (`DELETE query is not allowed for
+  table default.spans because it has projections ...`, 2026-10-28; nothing deleted), so
+  `owner_cleanup` stays `cleanup_verified: false` and the ids are quarantined in code
+  instead. One predicate, `is_quarantined`, takes a Laminar trace id, a cloud-DB trace id
+  or a Harbor trial name. Uploads (`LaminarTarget.upload`) refuse; `traces sync --target
+  laminar` and the watch tick skip and report `quarantined`; `traces fetch --source laminar`,
+  the live exporter, `laminar_import`/`laminar_signals`/`laminar compare` and the `laminar`
+  and `laminar_copy` harness detectors skip and count. Signal filters have no trace-id
+  predicate, so they stay excluded by the required opt-in tag: `laminar signals` and the
+  opt-in upload guard refuse if a copy carries that tag. `owner_cleanup` still reads them.
 - `scout-watch` keeps a derived `coverage-v1.json` (ledger SHA-256 plus projection and
   scanner contract) and opens the transcript store only when a transcript exists.
   Admission is re-decided every sweep.

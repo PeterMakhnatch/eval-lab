@@ -13,6 +13,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 
 from evallab.trace_store.core import load_trace, select_traces
+from evallab.trace_store.laminar_quarantine import skip_quarantined
 from evallab.trace_store.secrets import SecretScanRejected, secret_hits
 from evallab.trace_store.state import (
     SyncState,
@@ -74,7 +75,7 @@ def sync(
     database = db_path or Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
     started = time.monotonic()
     report: dict[str, Any] = {
-        "target": target, "at": now(), "selected": 0, "synced": 0, "unchanged": 0,
+        "target": target, "at": now(), "selected": 0, "synced": 0, "unchanged": 0, "quarantined": 0,
         "rejected": [], "sources": {}, "payload_bytes": 0, "hydrated_bytes": 0,
         "stopped": None, "cursor": None, "cost_usd": None, "model_cost_usd": 0,
         "storage_tariff": "unknown; ingest-only, no paid-storage activation",
@@ -150,6 +151,10 @@ def sync(
         try:
             with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as con:
                 refs = select_traces(con, repo_root=repo_root, dataset=dataset, evidence_path=evidence_path)
+                if target == "laminar":
+                    # Undeletable Laminar copies: their deterministic ids must never be rewritten.
+                    refs, skipped = skip_quarantined(refs, lambda ref: ref.trace_id)
+                    report["quarantined"] = len(skipped)
                 report["selected"] = len(refs)
                 attempts = 0
                 for ref in refs:

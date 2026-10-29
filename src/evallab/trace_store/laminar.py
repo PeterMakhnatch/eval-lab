@@ -19,6 +19,7 @@ from evallab.trace_store.core import (
     TracePayload,
     trace_uuid,
 )
+from evallab.trace_store.laminar_quarantine import assert_not_signal_selectable, reject_quarantined
 from evallab.trace_store.secrets import SecretScanRejected, secret_hits
 
 PROJECT_ID = "a5586b6d-55e8-466f-9718-c38255c2ae94"
@@ -160,9 +161,18 @@ class LaminarTarget:
                     raise ValueError(f"Laminar Signal lacks the opt-in filter: {signal.get('name')}")
             elif signal.get("disabled") is not True:
                 raise ValueError(f"Pause Laminar Signal before sync: {signal.get('name')}")
+        if self.signals_opt_in:
+            # A Signal filter cannot name a trace id; verify no quarantined copy carries the tag.
+            assert_not_signal_selectable(
+                lambda query, parameters: laminar._sql(
+                    query, parameters, api_key=self.key, endpoint=self.endpoint, opener=self.opener,
+                ),
+                opt_in_tag=laminar.SIGNAL_OPT_IN_TAG,
+            )
         self.safe = True
 
     def upload(self, trace: TracePayload) -> dict[str, Any]:
+        reject_quarantined(trace.trace_id)
         if trace.dataset_id not in ALLOWED_DATASETS:
             raise ValueError("Dataset is not admitted to the private trace store")
         if self.signals_opt_in and trace.dataset_id != GOODFIRE_DATASET:

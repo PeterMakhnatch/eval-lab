@@ -92,7 +92,7 @@ config = {
     "LowPriorityIO": True, "Nice": 10,
     "EnvironmentVariables": {
         "HOME": str(Path.home()), "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
-        "EVALLAB_DISABLE_LOCAL_DOCKER": "1", "OMP_NUM_THREADS": "1",
+        "EVALLAB_DISABLE_LOCAL_DOCKER": "1", "HARBOR_TELEMETRY": "off", "OMP_NUM_THREADS": "1",
         "OPENBLAS_NUM_THREADS": "1",
     },
     "StandardOutPath": str(logs / (label + ".log")),

@@ -7,6 +7,6 @@
   <key>ProcessType</key><string>Background</string>
   <key>LowPriorityIO</key><true/>
   <key>Nice</key><integer>10</integer>
-  <key>EnvironmentVariables</key><dict><key>TZ</key><string>America/New_York</string><key>OMP_NUM_THREADS</key><string>1</string><key>OPENBLAS_NUM_THREADS</key><string>1</string></dict>
+  <key>EnvironmentVariables</key><dict><key>TZ</key><string>America/New_York</string><key>OMP_NUM_THREADS</key><string>1</string><key>OPENBLAS_NUM_THREADS</key><string>1</string><key>HARBOR_TELEMETRY</key><string>off</string></dict>
 </dict>
 </plist>

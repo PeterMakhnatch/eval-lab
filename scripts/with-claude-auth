@@ -15,6 +15,9 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./harbor-auth-env.sh
 source "$script_dir/harbor-auth-env.sh"
 
+# Harbor sends job telemetry (models, cost, reward) to PostHog unless this is off.
+export HARBOR_TELEMETRY=off
+
 if [ "$#" -eq 0 ]; then
     echo "usage: with-claude-auth <command> [args...]" >&2
     exit 64

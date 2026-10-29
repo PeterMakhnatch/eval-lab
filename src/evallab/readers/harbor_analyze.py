@@ -17,6 +17,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from evallab.harbor_telemetry import HARBOR_TELEMETRY_ENV, HARBOR_TELEMETRY_OFF
+
 DEFAULT_MODEL = "openai/glm-5.3-flash"
 DEFAULT_AGENT = "mini-swe-agent"
 #: ``<root>/readers`` is the verdict store the task pages read (task_pages.default_store).
@@ -202,6 +204,7 @@ async def run_analyze(
     cost_limit: float = 0.03,
 ) -> tuple[Any, Path]:
     """Use Harbor 0.24's default rubric, one trial and no retries."""
+    os.environ[HARBOR_TELEMETRY_ENV] = HARBOR_TELEMETRY_OFF
     from harbor.analyze.analyzer import run_analyze as harbor_run  # ty: ignore[unresolved-import]
     from harbor.models.environment_type import EnvironmentType  # ty: ignore[unresolved-import]
 
@@ -237,6 +240,7 @@ async def run_check(
     cost_limit: float = 0.06,
 ) -> tuple[Any, Path]:
     """Use Harbor 0.24's own default task-quality rubric once per task."""
+    os.environ[HARBOR_TELEMETRY_ENV] = HARBOR_TELEMETRY_OFF
     from harbor.analyze.checker import run_checks  # ty: ignore[unresolved-import]
     from harbor.models.environment_type import EnvironmentType  # ty: ignore[unresolved-import]
 

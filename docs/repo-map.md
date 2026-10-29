@@ -65,7 +65,7 @@ inputs:
   - path: src/evallab/cards.py
     digest: sha256:b9b4583de77432fd487f12ebdece7f24ad5c30c4b0a5203175a71d91a4d8b93e
   - path: src/evallab/cheat.py
-    digest: sha256:45db12ce881964a39d7e15738e46fd451a86aa315c21240b44c52fe52180270f
+    digest: sha256:ca82b21d7299b061f1c6e406469d57ac0e8adb8fd5479dcbbecc633d46144731
   - path: src/evallab/cheat_ladder.py
     digest: sha256:c357400e78279e8eaabab88968ad19aeceddf398b0a16a39fa8a01acc1634722
   - path: src/evallab/cheatbench.py
@@ -165,7 +165,7 @@ inputs:
   - path: src/evallab/execution_backend.py
     digest: sha256:761cc38bdd921537523209e16e0a6be53aa5720b05ee6c48eef707ad2165404d
   - path: src/evallab/execution_contracts.py
-    digest: sha256:10e124710b88e288ff3f90981d8a12799784515cf00299d4d60091440d888825
+    digest: sha256:79f9c6c86c7967b33b6e825a4b42d3263a0417974a1aa13ef3f67e6fdbb6ca8d
   - path: src/evallab/exploit_probe.py
     digest: sha256:863c1aad2a5885f8520a9a2480010b47499c24a6ef456cda8cb45bf22cfbb649
   - path: src/evallab/explorer.py
@@ -422,10 +422,12 @@ inputs:
     digest: sha256:5acaaaabf1483360eeaeabaa0072f050bfb2bc647bfed3d3998e7acd71a3e3ee
   - path: src/evallab/harbor_state_journal.py
     digest: sha256:f977c5aa04311baf8de4e22345797b26838efe26d8711af358d8198294694948
+  - path: src/evallab/harbor_telemetry.py
+    digest: sha256:f6a4d12a05ec061e241aadbf16d7e31d6e0ecf2e380c44eafc5f0a0dae2b032a
   - path: src/evallab/harbor_terminus.py
     digest: sha256:7567699fb4da47f9e42a56d3a03fb35fd4b78f239fb23ce7785b2b0072053543
   - path: src/evallab/harbor_view.py
-    digest: sha256:b6df1f7fbec91469ce0560f89bf4ee7873869f7cbfe4b6d42361d4cce363b912
+    digest: sha256:4574f01ed2de7c90328ecfbfcf000c1f0d6c7bb8a2bb5eae78d5cc2188eae256
   - path: src/evallab/harbor_watch_hooks.py
     digest: sha256:30c260dd4498a2ebd7a505ce1738f2a67072e0c0924ee7f1bc0909fdeff280a5
   - path: src/evallab/harbor_zai_miniswe.py
@@ -449,7 +451,7 @@ inputs:
   - path: src/evallab/host_task_staging.py
     digest: sha256:d6c3c919544e53867717084e3a39169cb196d4a2ce88c20ec4d36ebd1f759e4d
   - path: src/evallab/hub_trials.py
-    digest: sha256:e0327dceb9dfa899ea06f16e1f61ec5a84614ba76fd1712442258e16a9d7801a
+    digest: sha256:5ddf94cc407d03f2b871faec2ac225973b17946ba22ac7dbf6b5f5920e64f59e
   - path: src/evallab/ingest_verify.py
     digest: sha256:43c53091512ba65fce3cf9b5f7c4638ff0802827acbae4cc0208718707e8dde6
   - path: src/evallab/inspect_adapter.py
@@ -479,7 +481,7 @@ inputs:
   - path: src/evallab/integrity_reward_files/vendor/run_integrity.py
     digest: sha256:c66fb3fa1d3f25152bb5958810bb70e263976ec4add582e7dcd1342714acecfd
   - path: src/evallab/interop.py
-    digest: sha256:cb87547d29680871cdb265357b957923d861a828837d4d5629bc8b1cc9e97aea
+    digest: sha256:4da4374b9af653e1e3a0cb40ded5c97985300fef87e33c333a6126e058e407e0
   - path: src/evallab/interop_karotte.py
     digest: sha256:20089944b7948f78f72f7e1c21445faafca2b9783be8dda948831afa93bba68f
   - path: src/evallab/interop_verifiers.py
@@ -589,7 +591,7 @@ inputs:
   - path: src/evallab/ladder.py
     digest: sha256:142f028f50d04045289a40ffbc1d69c3d760785a57c356fa23fd70b585dca705
   - path: src/evallab/laminar.py
-    digest: sha256:880b02332f9999a03c4a3522a01d7a396e3e03527ed798442acbe455594da578
+    digest: sha256:0a0c4b3c75d93a4fe1cee7f24b71ffade6296ed03cf513e4be7afe0f48e1e002
   - path: src/evallab/laminar_tracing.py
     digest: sha256:078d8b5e796574b398daf441ac2ea27ec1d87fc5f739bc788c214019e324f2cb
   - path: src/evallab/lance.py
@@ -681,7 +683,7 @@ inputs:
   - path: src/evallab/production/cli.py
     digest: sha256:02f3a17aa273500044c972a31a53ee24350b2a25aeda9982dc5dd7b1897e718d
   - path: src/evallab/production/cloud_trace_db.py
-    digest: sha256:5026700239c9caec25155f59d39d5fbca5b25061d2c1dd205bc9937f0e602a68
+    digest: sha256:c9d10e8dd715e03c91b89e421b177b2ad843d2acd5053e008f34c0f1af69c644
   - path: src/evallab/production/cloud_trace_export.py
     digest: sha256:5aa7b044f41c88c57cec50cdd92f501682ba8b81ec6b060bb6a34b550e2d6927
   - path: src/evallab/production/cloud_trace_retriever.py
@@ -726,6 +728,8 @@ inputs:
     digest: sha256:4ef138913760e3262bfbdeac3d8b55e5d073cfff6bce54d27a729f5f7ef0b2d9
   - path: src/evallab/production/live_supervisor.py
     digest: sha256:990a797c59a9820583cd25c075f2094193a6a684c513b3d992a256bd3df66973
+  - path: src/evallab/production/live_supervisor_act.py
+    digest: sha256:306aff466f20ef0cbc64d07cb79952ad7ffc379c0b70885d7f0c80c4e2d46b69
   - path: src/evallab/production/live_supervisor_adjudicate.py
     digest: sha256:2116622fdc4370e7cfbeb3352f68573e11e906d855f631dac1189396da692d62
   - path: src/evallab/production/live_supervisor_cheat.py
@@ -734,6 +738,8 @@ inputs:
     digest: sha256:b5a93d99303afdbc4b75cd05f95299c0f96945d9d838fb390b112889e424a54c
   - path: src/evallab/production/live_supervisor_fleet.py
     digest: sha256:275f9f39858ec2c53d077f9522d4cb46d0085e0167779253c7b9547ea8d39135
+  - path: src/evallab/production/live_supervisor_gate.py
+    digest: sha256:85f96ff0cab8a4a7e9e2a740c67bfd39fa0fa4942d1227c8276613a4dfabb14c
   - path: src/evallab/production/live_supervisor_harbor.py
     digest: sha256:df5ad16be0cedf5b9e213adac93f62ead4b4c3fb29ce450448ef1f1b402242ac
   - path: src/evallab/production/live_supervisor_replay.py
@@ -793,9 +799,9 @@ inputs:
   - path: src/evallab/production/safe_paths.py
     digest: sha256:bcaab5996fe97a77fa456f340ff5a215f5a063d4cbfbb72645038740e3708e70
   - path: src/evallab/production/seeker_blind_examples.py
-    digest: sha256:df33681c91e07c27be8984127a962bd104a483817aa1d6fbede15696bf408775
+    digest: sha256:503e7b1acc410bbe957264de7005a326863278f52947534a7ff0ca765adb115f
   - path: src/evallab/production/seeker_error_first.py
-    digest: sha256:ebd25b6c235e182723e24f822f9f71258071a386b3453fd990acab891a368ee9
+    digest: sha256:1e6bc358357d27b4563c60e0cf4d838909379a4e1b4a5eae600b49b916989cea
   - path: src/evallab/production/seeker_known_hacks.py
     digest: sha256:ce94c18865b262e585d25ed79a0d338532725ee580c8477ef40005b491b74b51
   - path: src/evallab/production/seeker_worker.py
@@ -825,7 +831,7 @@ inputs:
   - path: src/evallab/production/trace_findings.py
     digest: sha256:8276e8db66ecdf68c40fc47527b531e679e0fe3d966140b37fd878675d85ad78
   - path: src/evallab/production/trace_harness.py
-    digest: sha256:e4273738c6983bc1346ad3c1e7ed79d627b3cb5d7214bb3e4cb53e26391884b6
+    digest: sha256:344912d0d80809d13d3a6173ea41fb07502b7815ba9618e45741d64e3c877b62
   - path: src/evallab/production/trace_harness_cascade.py
     digest: sha256:72c74d90fdb570b63b32d54fb3a3fb64d90013cd77ef9ae985f23076cfba3596
   - path: src/evallab/production/trace_harness_corpora.py
@@ -851,7 +857,7 @@ inputs:
   - path: src/evallab/production/trace_harness_stream.py
     digest: sha256:b4c23ca6d9aa259e59fc5fa7220e091d2505cef22600cdcd2e410ab39f25b10b
   - path: src/evallab/production/trace_harness_tools.py
-    digest: sha256:fb73df5c40eadad03415d5802aa96d17ce6158a0d142f43b9e95ee9d5177ec73
+    digest: sha256:e301b7190b6c26aecbb01c621d68cf7b797ffeb827310d5dfe5c27257c6467ac
   - path: src/evallab/production/window_cascade.py
     digest: sha256:6f5213a670a73487426f185fa79837a58f81820a4328dc459ec629ad998b772e
   - path: src/evallab/profiles.py
@@ -931,7 +937,7 @@ inputs:
   - path: src/evallab/readers/docent_watch.py
     digest: sha256:7d10220356dd609fcb2e2191d0cceab8b3fe64c040ff227e1c93cbd2d3a6b30a
   - path: src/evallab/readers/harbor_analyze.py
-    digest: sha256:7171fd87c259eb50dd986968392bbac7fa212f5dd3a817b3581fca934e8e88d2
+    digest: sha256:c1e9fe34339a42304cade227fa8c3d9aef4e485b361d1a3396d90e2054586f34
   - path: src/evallab/readers/harbor_trace_inputs.py
     digest: sha256:e2a9fa984c174d68eea8a66cf3d1f6cc72a0644dca6c2b745bb47552a893cf9c
   - path: src/evallab/readers/laminar_import.py
@@ -939,7 +945,7 @@ inputs:
   - path: src/evallab/readers/laminar_signals.py
     digest: sha256:4a4b1f47880b7c0b305cf28d673e75d5412085184d8517980a69570de9d9273a
   - path: src/evallab/readers/metr_campaign_plan.py
-    digest: sha256:9f319fe0ca05327147e9a9d5efeb03eff48383707c1cfed9b51916ebb317fd31
+    digest: sha256:82d7890b066348eb25c231cd2dde16b4e9d1a3269c8a89ca07773361cd10ba28
   - path: src/evallab/readers/omp_model.py
     digest: sha256:ab7577f40cbf77ba993dbe6d5052808db0cb5bfa96c1835401e08ae47946b791
   - path: src/evallab/readers/scorecard_watch.py
@@ -969,7 +975,7 @@ inputs:
   - path: src/evallab/registry.py
     digest: sha256:7a7d980c894d4e1c97a518cdcf9e8fe8b1fbe37c9d1bf7fec33d8170f4e350ab
   - path: src/evallab/regrade.py
-    digest: sha256:607ba8a1f537178050db6d00c3d7713440286fcb6cb781b54df772f689a6a777
+    digest: sha256:1291428ae32f16b4a258004be3d7ff0cb9a7b331abcfd0d2572b12fd081eb0bd
   - path: src/evallab/repetition.py
     digest: sha256:bb868c3da5dea5637f5ae4a7e81f157e9590087dc832fcd546a3a7a095811899
   - path: src/evallab/repomap.py
@@ -1131,7 +1137,7 @@ inputs:
   - path: src/evallab/task_qualification.py
     digest: sha256:30ffe9ec7d6c68bd1092515b293334c690e1619953633a7a882dbd202b76404b
   - path: src/evallab/task_stability.py
-    digest: sha256:1f2ecb39d9fee5141dfff7b6639a0462c72c97212ca46c28e08deae7cc53b991
+    digest: sha256:b9228ada8b5cec319b47562f5e5fa136fa04452b93d80a2ee519c654ddc36182
   - path: src/evallab/task_variants.py
     digest: sha256:8efd528c46e2bdd285906bb2cd1bdbe4bce1ad3d25bd7a3d6e0241d07b68c0c3
   - path: src/evallab/task_workbench.py
@@ -1163,7 +1169,7 @@ inputs:
   - path: src/evallab/trace_store/fetch.py
     digest: sha256:5705216772cf96c544daf95d0607a4b421ebd455ccdf22024f4e7dc6b6762c7d
   - path: src/evallab/trace_store/laminar.py
-    digest: sha256:7431d89e34a297f9921f2f66f8a55efbd1b98bd4953e31726fe03fefd691f995
+    digest: sha256:472bbd865e736443926e65191c63e1a1149be61f972b238f5322d8d9e888390e
   - path: src/evallab/trace_store/owner_cleanup.py
     digest: sha256:455579da218146f1b97f28a81ea94314967988d873d7275a87031734a5c24d1d
   - path: src/evallab/trace_store/secrets.py
@@ -1468,6 +1474,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `harbor_repeat_verifier` | 300 | Repeat-verification Harbor verifier for HAR-83 verifier stability (§4.2.1). | — |
 | `harbor_rlm` | 300 | Lab-owned Harbor agent running dspy.RLM under a named harness policy. | — |
 | `harbor_state_journal` | 400 | Passive filesystem state journal for Harbor Docker trials. | — |
+| `harbor_telemetry` | 100 | Opt every Harbor child process out of Harbor's PostHog usage telemetry. | — |
 | `harbor_terminus` | 1300 | Secret-safe Harbor Terminus2 adapter for pinned host-side model routes. | — |
 | `harbor_view` | 1300 | Harbor's own viewer as the results surface (HAR-170, Traces lane). | `python -m evallab.harbor_view view` |
 | `harbor_watch_hooks` | 500 | Harbor job plugin that journals trial lifecycle hooks for ``evallab watch``. | — |
@@ -1596,7 +1603,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.atlas_coverage` | 200 | Run Atlas coverage: what is stored versus what could be, and what is not yet ready. | — |
 | `production.atlas_view` | 500 | Read-only Run Atlas view model: validated run facets and clusters on admitted DEV runs. | — |
 | `production.benchmark_reports` | 1100 | Strict, versioned retained-report schemas shared by the cloud API and the exporter. | — |
-| `production.cli` | 1100 | Production queue commands, with dashboard-only serving as the safe default. | — |
+| `production.cli` | 1200 | Production queue commands, with dashboard-only serving as the safe default. | — |
 | `production.cloud_trace_db` | 2900 | Queryable task/defect/trace projections backed by PostgreSQL or local SQLite. | — |
 | `production.cloud_trace_export` | 900 | Local, DEV-admitted run exports with a separate sealed scoring join. | — |
 | `production.cloud_trace_retriever` | 500 | Deterministic compact DEV-only verified-trace retrieval for seeker prompt augmentation. | — |
@@ -1620,10 +1627,12 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.inspector` | 900 | Bounded trace projections and root-confined DEV-only grader comparisons. | — |
 | `production.ledger_split` | 100 | Ledger-side split lookup for a Verifier: DEV / TEST / UNKNOWN for a task or a (key, item) pair. | — |
 | `production.live_supervisor` | 400 | Live Supervisor core: triggered subjects -> one decision -> one ``trace-findings/v1`` record. | — |
+| `production.live_supervisor_act` | 700 | Live Supervisor actuator (LS-4): carry out one decision on one lab subject, capped and receipted. | — |
 | `production.live_supervisor_adjudicate` | 400 | Live Supervisor adjudication (LS-3): a blind strong reader re-decides sampled decisions. | — |
 | `production.live_supervisor_cheat` | 600 | Live Supervisor LS-5: route ``flag_cheating`` decisions to the Trace Watcher lane. | `python -m evallab.production.live_supervisor_cheat latency` |
 | `production.live_supervisor_cli` | 700 | Live Supervisor CLI: ``evallab live-supervisor`` scan, serve, replay and adjudicate. | — |
 | `production.live_supervisor_fleet` | 800 | Live Supervisor source ``fleet``: the OMP lanes (herdr panes), the queue keeper and provider quotas. | — |
+| `production.live_supervisor_gate` | 300 | Live Supervisor adjudication gate: a measurable, digest-pinned reason to allow a real action. | — |
 | `production.live_supervisor_harbor` | 400 | Live Supervisor source ``harbor``: live Harbor trials on this Mac, read-only. | — |
 | `production.live_supervisor_replay` | 800 | Live Supervisor replay: run the supervisor over a historical case as if it were live. | — |
 | `production.live_supervisor_services` | 600 | Live Supervisor sources for launchd services, Modal apps and local lab processes. | — |
@@ -1654,7 +1663,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.runtime` | 1000 | One model-free-by-default cycle over the durable production workers. | — |
 | `production.safe_paths` | 100 | Confine journal-supplied filesystem paths to explicitly allowed roots. | — |
 | `production.seeker_blind_examples` | 100 | Blind retrieval adapter for the reward seeker's Run-Atlas evidence path. | — |
-| `production.seeker_error_first` | 1800 | SB-1 two-turn "error-first" Reward Seeker campaign driver. | — |
+| `production.seeker_error_first` | 2000 | SB-1 two-turn "error-first" Reward Seeker campaign driver. | — |
 | `production.seeker_known_hacks` | 500 | Export measured DEV seeker runs, keeping known-hack labels strictly local. | — |
 | `production.seeker_worker` | 4000 | Live Reward Seeker production worker for measurable DEV tasks and newly repaired tasks. | — |
 | `production.stage0_triage` | 200 | Stage-0 whole-run alarms from provisional, model-extracted run facets. | — |
@@ -1669,7 +1678,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.tq_worker` | 1600 | Durable Task Quality consumption and execution-backed live findings. | — |
 | `production.trace_feature_flags` | 300 | Cheap, deterministic trace leads with on-demand, position-addressed disclosure. | — |
 | `production.trace_findings` | 300 | ``trace-findings/v1``: one record per (run, detector, detector version, reader), stored in ``trace_findings``. | — |
-| `production.trace_harness` | 700 | Trace harness: every trace detector on one shared blinded input. | — |
+| `production.trace_harness` | 800 | Trace harness: every trace detector on one shared blinded input. | — |
 | `production.trace_harness_cascade` | 400 | Trace-harness adapters for the window cascade (Stage 1 rules + Stage 2 judge). | — |
 | `production.trace_harness_corpora` | 400 | Trace-harness corpora: HackBench runs and per-corpus DEV labels with localization gold. | — |
 | `production.trace_harness_detcache` | 300 | Trace-harness adapter for the sealed ``evallab detectors`` corpus and its verdict cache. | — |
@@ -1682,7 +1691,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.trace_harness_score` | 1200 | Score trace-findings/v1 detectors and detector combinations against corpus labels. | — |
 | `production.trace_harness_staged` | 300 | Staged cross-test sets as trace-harness runs and labels (local-only, eval-only). | — |
 | `production.trace_harness_stream` | 700 | Streaming cascade detector (``cascade_stream``): the live monitor path inside the harness. | — |
-| `production.trace_harness_tools` | 600 | Import-only trace-harness detectors over results the Trace Tools lane stored. | — |
+| `production.trace_harness_tools` | 900 | Import-only trace-harness detectors over results the Trace Tools lane stored. | — |
 | `production.window_cascade` | 500 | Stage 2 of the live monitor cascade: judge tripwire cards from bounded windows. | — |
 | `profiles` | 1400 | Provider-neutral agent profiles and credential preflight seams (M003). | — |
 | `provenance` | 400 | PROVENANCE: explicit task origin classification across corpora. | `python -m evallab.provenance classify`, `python -m evallab.provenance report` |

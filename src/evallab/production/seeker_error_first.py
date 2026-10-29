@@ -1054,6 +1054,7 @@ class CampaignConfig:
     omp_timeout: float = 300.0
     grader_timeout: int = 600
     omp_config: Path | None = None
+    probe_routes: bool = True
 
     def __post_init__(self) -> None:
         if not self.models or len(set(self.models)) != len(self.models):
@@ -1562,6 +1563,103 @@ def default_generator_factory(
     return build
 
 
+@dataclass(frozen=True)
+class RouteProbe:
+    """Whether one requested route is actually servable, checked before any cell runs."""
+
+    route: str
+    ok: bool
+    served_provider: str | None
+    served_model: str | None
+    returncode: int | None
+    elapsed_sec: float
+    reason: str
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "route": self.route,
+            "ok": self.ok,
+            "served_provider": self.served_provider,
+            "served_model": self.served_model,
+            "returncode": self.returncode,
+            "elapsed_sec": self.elapsed_sec,
+            "reason": self.reason,
+        }
+
+
+PROBE_PROMPT = "Reply with the single word OK."
+
+
+def probe_route(
+    route: str,
+    *,
+    runner: Any = None,
+    environment: Mapping[str, str] | None = None,
+    config_path: Path | None = None,
+    timeout: float = 60.0,
+) -> RouteProbe:
+    """One tiny call on ``route``: is the requested route the one that serves it?
+
+    A rate-limited provider silently answered by another model is the failure this
+    catches. It costs no grader run, and on a subscription route no marginal spend,
+    so it is cheap enough to run before every campaign. ``runner`` is injectable so
+    tests never start a model.
+    """
+    call = runner or run_omp_subprocess
+    argv = [
+        "omp", "-p", "--mode", "json", "--no-tools", "--no-skills", "--no-rules",
+        "--no-extensions", "--no-session", "--no-title", "--no-lsp",
+        "--thinking", "low", "--model", route, PROBE_PROMPT,
+    ]  # fmt: skip
+    if config_path is not None:
+        argv[2:2] = ["--config", str(config_path)]
+    env = strip_paid_api_keys(os.environ if environment is None else environment)
+    started = time.monotonic()
+
+    def failed(reason: str, *, returncode: int | None = None, provider=None, model=None):
+        return RouteProbe(
+            route=route,
+            ok=False,
+            served_provider=provider,
+            served_model=model,
+            returncode=returncode,
+            elapsed_sec=round(time.monotonic() - started, 2),
+            reason=reason,
+        )
+
+    try:
+        process = call(argv, timeout, env)
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        return failed(f"{type(exc).__name__}: {exc}")
+    stdout = process.stdout or ""
+    provider, model = _stream_served_route(_omp_stream_messages(stdout), route)
+    if process.returncode != 0:
+        return failed(
+            f"probe exited {process.returncode}: {(process.stderr or '')[:200]}",
+            returncode=process.returncode,
+            provider=provider,
+            model=model,
+        )
+    if provider is None or model is None:
+        return failed("probe response named no served route", returncode=0)
+    if not _route_matches(route, provider, model):
+        return failed(
+            f"requested {route} but {provider}/{model} served it",
+            returncode=0,
+            provider=provider,
+            model=model,
+        )
+    return RouteProbe(
+        route=route,
+        ok=True,
+        served_provider=provider,
+        served_model=model,
+        returncode=0,
+        elapsed_sec=round(time.monotonic() - started, 2),
+        reason="served the requested route",
+    )
+
+
 def run_campaign(
     config: CampaignConfig,
     approval: ExecutionApproval,
@@ -1570,6 +1668,7 @@ def run_campaign(
     generator_factory: GeneratorFactory | None = None,
     grader_fn: CandidateGrader = run_candidate,
     spend_log: SpendLog | None = None,
+    probe_runner: Any = None,
 ) -> dict[str, Any]:
     """Execute every eligible cell; refuses before any call if any task fails the DEV gate."""
     force_local_docker_off()
@@ -1614,7 +1713,27 @@ def run_campaign(
             for route in config.models
         },
     )
-    jobs = [(task, route) for task in config.cohort.tasks for route in config.models]
+    probes: list[RouteProbe] = []
+    if config.probe_routes:
+        probes = [
+            probe_route(route, runner=probe_runner, timeout=min(60.0, config.omp_timeout))
+            for route in config.models
+        ]
+        _atomic_json(
+            config.out / "route-probes.json",
+            {
+                "schema": "evallab.sb1_route_probes/v1",
+                "probes": [probe.to_json() for probe in probes],
+                "at": _utc_now().isoformat(),
+            },
+        )
+    unavailable = {probe.route for probe in probes if not probe.ok}
+    jobs = [
+        (task, route)
+        for task in config.cohort.tasks
+        for route in config.models
+        if route not in unavailable
+    ]
     errors: list[dict[str, Any]] = []
 
     def work(job: tuple[CohortTask, str]) -> None:
@@ -1639,8 +1758,9 @@ def run_campaign(
 
     with ThreadPoolExecutor(max_workers=config.workers) as pool:
         list(pool.map(work, jobs))
-    summary = summarize_campaign(config)
+    summary = summarize_campaign(config, route_probes=probes)
     summary["cell_errors"] = errors
+    summary["route_probes"] = [probe.to_json() for probe in probes]
     write_summary(config.out, summary)
     return {"ok": not errors, "plan": plan, "summary": summary}
 
@@ -1648,10 +1768,60 @@ def run_campaign(
 # ---------------------------------------------------------------------- summary
 
 
-def summarize_campaign(config: CampaignConfig) -> dict[str, Any]:
-    """Per-model turn-1/turn-2 counts over one denominator plus exact paired statistics."""
+def summarize_campaign(
+    config: CampaignConfig, *, route_probes: Sequence[Any] = ()
+) -> dict[str, Any]:
+    """Per-model turn-1/turn-2 counts over one denominator plus exact paired statistics.
+
+    A route whose probe failed planned cells that were never attempted. It is
+    reported as ``route_unavailable`` with its probe, never as a run of missing or
+    zero-valued cells: an unservable route is not evidence about the model named.
+    """
+    blocked = {
+        getattr(probe, "route", None): probe
+        for probe in route_probes
+        if not getattr(probe, "ok", True)
+    }
     models: list[dict[str, Any]] = []
     for route in config.models:
+        if route in blocked:
+            probe = blocked[route]
+            models.append(
+                {
+                    "model": route,
+                    "cells_planned": len(config.cohort.tasks),
+                    "route_unavailable": True,
+                    "route_probe": (
+                        probe.to_json() if hasattr(probe, "to_json") else {"route": route}
+                    ),
+                    "status_counts": {"route_unavailable": len(config.cohort.tasks)},
+                    "attested_turn_1": 0,
+                    "attested_turn_2": 0,
+                    "attested_tasks_turn_1": [],
+                    "attested_tasks_turn_2": [],
+                    "paired": {
+                        "denominator": 0,
+                        "turn_1_executed_differentials": 0,
+                        "turn_2_executed_differentials": 0,
+                        "turn_1_only": 0,
+                        "turn_2_only": 0,
+                        "both": 0,
+                        "neither": 0,
+                        "delta_turn_2_minus_turn_1": None,
+                        "mcnemar_exact_p_two_sided": exact_binomial_two_sided(0, 0),
+                        "exact_p_one_sided_turn_2_better": exact_binomial_improvement(0, 0),
+                        "turn_1_only_tasks": [],
+                        "turn_2_only_tasks": [],
+                        "both_tasks": [],
+                    },
+                    "differential_tasks_turn_1": [],
+                    "differential_tasks_turn_2": [],
+                    "unevaluated_cells": [],
+                    "turn_1_evaluated_without_pair": [],
+                    "missing_cells": [],
+                }
+            )
+            continue
         counts: Counter[str] = Counter()
         attested: dict[int, list[str]] = {1: [], 2: []}
         differential: dict[int, list[str]] = {1: [], 2: []}
@@ -1803,6 +1973,7 @@ def run_command(
     grader_timeout: int = 600,
     omp_config: Path | None = None,
     spend_log: Path | None = None,
+    probe_routes: bool = True,
 ) -> tuple[dict[str, Any], int]:
     """``evallab prod seeker-error-first``: (receipt, exit code). Plan and summarize are free."""
     force_local_docker_off()
@@ -1817,6 +1988,7 @@ def run_command(
         omp_timeout=omp_timeout,
         grader_timeout=grader_timeout,
         omp_config=omp_config,
+        probe_routes=probe_routes,
     )
     if mode == "summarize":
         summary = summarize_campaign(config)

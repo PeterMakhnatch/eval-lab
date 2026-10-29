@@ -69,6 +69,16 @@ It exposes nested issue/step/provenance records and the issue-oriented fields
 instruction, trace/model identity, and `steps`), plus `to_dict()` and
 `prompt_lines(position)`.
 
+**Rendered prompts withhold source and label fields.** `prompt_lines`,
+`prompt_text`, `format_for_prompt` and `format_retrieval_prompt_block` never show
+`dataset_id`, `split`, `label_categories` or `receipt_status`: the `- source:` line
+names the issue and trace only, and the `- provenance:` line omits those four keys
+(it is dropped when nothing else is left). The structured example (`to_dict()`,
+`provenance`, the flat fields) keeps all four for callers that read fields, and the
+compact-card renderer is unchanged (no caller renders it). Instruction, differential,
+reproducer and trust tier are still rendered for QA workers; a blind reader must go
+through `seeker_blind_examples.blind_examples`, which withholds those too.
+
 ```python
 from evallab.production import (
     CloudTraceRetriever,
@@ -285,6 +295,11 @@ cluster_id=None, like_run_id=None)` also uses Run Atlas:
   not match the hard filters. Its own task is automatically excluded, in addition
   to `exclude_task_ids`.
 
+Every Atlas argument also requires `exclude_task_ids` to name the task under audit
+(`ValueError("... require exclude_task_ids ...")` otherwise, before any store
+read): ranking by run similarity does nothing else to keep a caller's own task out
+of its evidence.
+
 Ranking is `(trust tier, descending facet similarity, descending lexical
 strength, task_id)`: similarity never outranks stronger trust. Within a task,
 the strongest matching trace tier wins, then its most similar trace, then the
@@ -303,6 +318,7 @@ it still returns no examples. For example:
 examples = retriever.retrieve_similar_examples(
     "",
     facets={"outcome": "pass", "tests": ["modified", "deleted", "replaced"]},
+    exclude_task_ids={"current-task"},  # required with any Atlas argument
     top_k=5,
 )
 ```

@@ -81,9 +81,9 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
-    digest: sha256:2eee50b1acc02ee29682414984f93bb277ce1b582c2a283eb2ccf432f6983be9
+    digest: sha256:2760c9641d8f534d77777a0f4b846617ba446c7fc6a7ffcb416d55dbf50960b9
   - path: docs/live-watch.md
-    digest: sha256:bb8cfdd97525f8e42559e612668944bdf807d546f1c19a0d229c7b0ed36aa235
+    digest: sha256:715acdba0981feb39df990cf26495507fa93cd5c5c498f66fa8aba193cd866dc
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
@@ -95,13 +95,13 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
-    digest: sha256:e75ef7cd17cfe8f00e42b958b612baf4dd86f32fa551453559e374579f503115
+    digest: sha256:dfa20fea1858a5870faafa1acaf0612365b5e1babf8c72ba3eb4cad0ed962a4f
   - path: docs/open-qa-harness.md
     digest: sha256:cf0a4da37baa714c321301e312826782948bc011e6840a16474f903fe6344b6f
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:c8e0b3ae7de3d0a0a10108f19ea73a056e964c8828025464813d26d0f84f23a4
+    digest: sha256:637cdc7a97591e037629207de5db21b9f837bcc47e9a43cef73204912167a4d5
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/qa-contract.md
@@ -147,7 +147,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:452096a8ca3e37a431dafb9f977c6dd75410c676d30c5042cc4f2929fcab560b
+    digest: sha256:09b7e695af7bdc30c96400c773449398aef17fab359a7df1f82431f2ad24e996
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -159,7 +159,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md
-    digest: sha256:596a8f92fa01dce31492231cef7cdc6f6b59e750bcd79fb3802ba2cefe7e88ed
+    digest: sha256:efe63c93b9d9cec832a10d72a693c07ffac16c92217fbef167aedad0c467c22d
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md

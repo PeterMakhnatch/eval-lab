@@ -1,0 +1,112 @@
+{
+  "assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+  "evallab_module": "/private/tmp/np22/before-src/src/evallab/__init__.py",
+  "model_calls": 0,
+  "schema": "evallab.np22_leak_measurement/v1",
+  "store": "/private/tmp/ps2/store.sqlite",
+  "summary": {
+    "M2_facets_no_exclusion": {
+      "completed": 44,
+      "dataset_name_inside_identifiers": 132,
+      "errors": 0,
+      "examples": 132,
+      "latency_median_s": 0.294,
+      "mode": "M2_facets_no_exclusion",
+      "not_applicable": 0,
+      "refused": 0,
+      "rendered_answer_token_examples": 132,
+      "rendered_any_withheld_channel": 132,
+      "rendered_by_channel": {
+        "dataset_id": 132,
+        "label_categories": 0,
+        "receipt_status": 0,
+        "split": 0
+      },
+      "rendered_task_asks_line": 132,
+      "same_task": 0,
+      "struct_differential_or_reproducer": 0,
+      "struct_instruction_field": 132,
+      "struct_provenance_label_keys": 132,
+      "targets": 44,
+      "zero_eligible_targets": 0
+    },
+    "M2s_facets_excluding_target": {
+      "completed": 44,
+      "dataset_name_inside_identifiers": 132,
+      "errors": 0,
+      "examples": 132,
+      "latency_median_s": 0.289,
+      "mode": "M2s_facets_excluding_target",
+      "not_applicable": 0,
+      "refused": 0,
+      "rendered_answer_token_examples": 132,
+      "rendered_any_withheld_channel": 132,
+      "rendered_by_channel": {
+        "dataset_id": 132,
+        "label_categories": 0,
+        "receipt_status": 0,
+        "split": 0
+      },
+      "rendered_task_asks_line": 132,
+      "same_task": 0,
+      "struct_differential_or_reproducer": 0,
+      "struct_instruction_field": 132,
+      "struct_provenance_label_keys": 132,
+      "targets": 44,
+      "zero_eligible_targets": 0
+    },
+    "M3_cluster_no_exclusion": {
+      "completed": 44,
+      "dataset_name_inside_identifiers": 0,
+      "errors": 0,
+      "examples": 0,
+      "latency_median_s": 0.103,
+      "mode": "M3_cluster_no_exclusion",
+      "not_applicable": 0,
+      "refused": 0,
+      "rendered_answer_token_examples": 0,
+      "rendered_any_withheld_channel": 0,
+      "rendered_by_channel": {
+        "dataset_id": 0,
+        "label_categories": 0,
+        "receipt_status": 0,
+        "split": 0
+      },
+      "rendered_task_asks_line": 0,
+      "same_task": 0,
+      "struct_differential_or_reproducer": 0,
+      "struct_instruction_field": 0,
+      "struct_provenance_label_keys": 0,
+      "targets": 44,
+      "zero_eligible_targets": 44
+    },
+    "M3s_cluster_excluding_target": {
+      "completed": 44,
+      "dataset_name_inside_identifiers": 0,
+      "errors": 0,
+      "examples": 0,
+      "latency_median_s": 0.103,
+      "mode": "M3s_cluster_excluding_target",
+      "not_applicable": 0,
+      "refused": 0,
+      "rendered_answer_token_examples": 0,
+      "rendered_any_withheld_channel": 0,
+      "rendered_by_channel": {
+        "dataset_id": 0,
+        "label_categories": 0,
+        "receipt_status": 0,
+        "split": 0
+      },
+      "rendered_task_asks_line": 0,
+      "same_task": 0,
+      "struct_differential_or_reproducer": 0,
+      "struct_instruction_field": 0,
+      "struct_provenance_label_keys": 0,
+      "targets": 44,
+      "zero_eligible_targets": 44
+    }
+  },
+  "targets": 44,
+  "tree_head": "98aeca5c9c8dcf9374f10a5faa070e83ffee839a",
+  "wall_seconds": 40.7
+}

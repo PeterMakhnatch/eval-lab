@@ -74,10 +74,12 @@ DETECTORS: dict[str, str] = {
     "cascade_stream": "evallab.production.trace_harness_stream:CascadeStreamDetector",
     "facets": "evallab.production.trace_harness_facets:FacetsDetector",
     "scout": "evallab.production.trace_harness_tools:ScoutDetector",
+    "scout_legacy": "evallab.production.trace_harness_tools:ScoutLegacyDetector",
     "metr": "evallab.production.trace_harness_tools:MetrDetector",
     "laminar": "evallab.production.trace_harness_tools:LaminarDetector",
     "docent": "evallab.production.trace_harness_tools:DocentDetector",
     "omp_form": "evallab.production.trace_harness_tools:OmpFormDetector",
+    "ledger": "evallab.production.trace_harness_tools:ledger_detectors",
     "cascade_own": "evallab.production.trace_harness_own:CascadeOwnDetector",
     "laminar_copy": "evallab.production.trace_harness_own:LaminarCopyDetector",
     "facet_windows": "evallab.production.trace_harness_experiments:FacetWindowsDetector",
@@ -332,22 +334,33 @@ def parse_detector_spec(spec: str) -> tuple[str, str | None]:
 def load_detectors(
     specs: Sequence[str], options: HarnessOptions, *, include_cached: bool = False,
 ) -> list[Detector]:
+    """Detectors for ``specs``; ``all`` adds every stored import-only reading the ledger holds
+    (METR arms, Docent and OMP form readers, tools without a dedicated adapter)."""
     names = list(specs)
     if names == ["all"]:
+        from evallab.production.trace_harness_tools import discovered_specs
+
         names = [name for name in DETECTORS if name != "detcache"]
         names.extend(("docent:rh_reading_v1", "cascade_own:xai-oauth/grok-4.3"))
+        names.extend(discovered_specs())
         if include_cached:
             from evallab.production.trace_harness_detcache import cached_detector_names
 
             names.extend(f"detcache:{name}" for name in cached_detector_names())
     detectors: list[Detector] = []
+    identities: set[tuple[str, str, str | None]] = set()
     for spec in names:
         name, reader = parse_detector_spec(spec)
         module_name, _, attribute = DETECTORS[name].partition(":")
-        factory: Callable[..., Detector] = getattr(importlib.import_module(module_name), attribute)
-        detectors.append(factory(options if reader is None else HarnessOptions(
+        factory: Callable[..., Detector | list[Detector]] = getattr(importlib.import_module(module_name), attribute)
+        made = factory(options if reader is None else HarnessOptions(
             options.database, options.repo_root, options.allow_model, reader,
-        )))
+        ))
+        for detector in made if isinstance(made, list) else [made]:
+            identity = (detector.name, detector.version, detector.reader_model)
+            if identity not in identities:  # `all` names a default reader and then discovers it again
+                identities.add(identity)
+                detectors.append(detector)
     return detectors
 
 

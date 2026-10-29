@@ -446,6 +446,11 @@ def register_parser(commands: Any) -> None:
         "--spend-log", type=Path,
         help="Failure-library spend.jsonl (default: ~/.local/state/evallab-failure-library)",
     )
+    sb1.add_argument(
+        "--no-probe-routes", action="store_true",
+        help="Skip the pre-campaign route probe (a route that is fallback-served then "
+        "costs a grader run per cell instead of being reported unavailable)",
+    )
     sb1.set_defaults(func=_command)
 
     known = actions.add_parser(
@@ -884,6 +889,7 @@ def _seeker_error_first(args: argparse.Namespace, root: Path) -> tuple[dict[str,
         grader_timeout=args.grader_timeout,
         omp_config=_optional_path(root, args.omp_config),
         spend_log=_optional_path(root, args.spend_log),
+        probe_routes=not args.no_probe_routes,
     )
 
 

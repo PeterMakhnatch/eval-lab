@@ -731,10 +731,11 @@ def test_prompt_block_is_structured_and_retains_provenance(
         starts.append(start)
         assert lines[start].startswith(f"### {position}. {example.task_id}")
         for provenance in (
-            example.task_id, example.dataset_id, example.issue_id, example.trace_id,
+            example.task_id, example.issue_id, example.trace_id,
             example.model_id,
         ):
             assert provenance in "\n".join(example.prompt_lines(position))
+        assert example.dataset_id not in "\n".join(example.prompt_lines(position))
     assert starts == sorted(starts) and starts[0] < starts[1]
 
     assert any(
@@ -753,6 +754,53 @@ def test_prompt_block_is_structured_and_retains_provenance(
     assert any(
         line.startswith("  - step 2 [tool:terminal]") and "PASSED" in line for line in lines
     )
+
+
+WITHHELD_KEYS = ("dataset_id", "split", "label_categories", "receipt_status")
+
+
+def test_rendered_prompt_withholds_source_split_and_label_provenance_but_keeps_the_evidence(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever,
+) -> None:
+    add_task(db, dataset_id="dataset-marker")
+    add_issue(db)
+    add_trace(db, verified_receipt_json={
+        "status": "receipt-marker", "source_label": {"categories": ["category-marker"]},
+    })
+    (example,) = retriever.retrieve_similar_examples(QUERY, "task_quality")
+    # The structured example keeps every field for consumers that read fields.
+    assert example.dataset_id == "dataset-marker" and example.provenance["split"] == "dev"
+    assert example.provenance["label_categories"] == ["category-marker"]
+    assert example.provenance["receipt_status"] == "receipt-marker"
+    assert all(key in example.to_dict()["provenance"] for key in WITHHELD_KEYS)
+
+    for text in (
+        example.prompt_text, "\n".join(example.prompt_lines(1)),
+        retriever.format_for_prompt([example]), format_retrieval_prompt_block([example], max_chars=EVERYTHING),
+    ):
+        for marker in ("dataset-marker", "category-marker", "receipt-marker", *(f'"{key}"' for key in WITHHELD_KEYS)):
+            assert marker not in text, marker
+        # What a QA reader needs to weigh and expand the example is still there.
+        for evidence in (
+            "### 1. synthetic-task - grader_tamperable (wrong_pass, confirmed)", "issue issue-1",
+            "trace trace-1", "- trust: tier1_container_verified", "- citation: tests/test_checks.py:41",
+            "- differential proof: original reward 1 -> repaired reward 0", "- reproducer: ",
+            "- task asks: ", "cat result.txt", '"step_indices"', '"trace_id"',
+        ):
+            assert evidence in text, evidence
+
+
+def test_a_provenance_of_only_withheld_keys_renders_no_provenance_line() -> None:
+    only_withheld = legacy_example(provenance={
+        "dataset_id": "dataset-marker", "split": "dev", "label_categories": ["category-marker"],
+        "receipt_status": "receipt-marker",
+    })
+    assert not any(line.startswith("- provenance:") for line in only_withheld.prompt_lines(1))
+    assert "dataset-marker" not in "\n".join(only_withheld.prompt_lines(1))
+    mixed = legacy_example(provenance={"dataset_id": "dataset-marker", "step_indices": [3, 4]})
+    (line,) = [line for line in mixed.prompt_lines(1) if line.startswith("- provenance:")]
+    assert '"step_indices"' in line and "dataset-marker" not in line
+
 
 
 def test_prompt_block_default_bound_and_determinism(

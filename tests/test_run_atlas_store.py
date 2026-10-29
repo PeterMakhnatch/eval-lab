@@ -38,6 +38,9 @@ class SyntheticRegistry(CorpusRegistry):
         self._sealed_ids = set()
 
 
+AUDITED = ("audited-task",)  # the task under audit: every Atlas query must name its exclusion
+
+
 @pytest.fixture
 def db(tmp_path: Path) -> Iterator[CloudTraceDatabase]:
     with CloudTraceDatabase(tmp_path / "atlas.sqlite", sqlite_fts=False) as database:
@@ -487,6 +490,7 @@ def test_examples_filter_facets_on_the_returned_trace_not_just_its_task(
 
     examples = CloudTraceRetriever(db, registry=SyntheticRegistry()).retrieve_similar_examples(
         query, top_k=20, facets={"outcome": "pass", "tests": ["modified", "deleted", "replaced"]},
+        exclude_task_ids=AUDITED,
     )
     assert {example.task_id: example.trace_id for example in examples} == expected
     assert all(example.provenance["run_facets_matched"] is True for example in examples)
@@ -505,7 +509,9 @@ def test_empty_facet_mapping_requires_faceted_trace_backing_even_for_issue_led_q
     retrieval_trace(db, "unfaceted", faceted=False)
     retriever = CloudTraceRetriever(db, registry=SyntheticRegistry())
 
-    examples = retriever.retrieve_similar_examples(query, "task_quality", 10, facets={})
+    examples = retriever.retrieve_similar_examples(
+        query, "task_quality", 10, facets={}, exclude_task_ids=AUDITED,
+    )
     assert [(example.task_id, example.trace_id) for example in examples] == [("faceted", "faceted/run")]
     assert examples[0].provenance["facet_similarity"] == 0
     assert examples[0].score == (3.0 if query == "parser" else 0.0)
@@ -530,13 +536,15 @@ def test_examples_filter_clusters_and_intersect_facet_filters(
     db.replace_run_clusters([cluster("selected", 1, None, [member])], registry=SyntheticRegistry())
     retriever = CloudTraceRetriever(db, registry=SyntheticRegistry())
 
-    (example,) = retriever.retrieve_similar_examples(query, cluster_id="selected")
+    (example,) = retriever.retrieve_similar_examples(
+        query, cluster_id="selected", exclude_task_ids=AUDITED,
+    )
     assert (example.task_id, example.trace_id) == ("member", member)
     assert example.provenance["run_facets_matched"] is True
     if query != "parser":
         assert example.score == 0.0 and example.matched_terms == ()
     assert retriever.retrieve_similar_examples(
-        query, cluster_id="selected", facets={"tests": "deleted"},
+        query, cluster_id="selected", facets={"tests": "deleted"}, exclude_task_ids=AUDITED,
     ) == []
 
 
@@ -557,16 +565,20 @@ def test_like_run_ranks_similarity_inside_a_tier_but_never_above_stronger_trust(
     retrieval_trace(db, "provisional", tier=TIER3)
     retriever = CloudTraceRetriever(db, registry=SyntheticRegistry())
 
-    examples = retriever.retrieve_similar_examples("parser", top_k=10, like_run_id=reference)
+    examples = retriever.retrieve_similar_examples(
+        "parser", top_k=10, like_run_id=reference, exclude_task_ids=AUDITED,
+    )
     assert [example.task_id for example in examples] == ["verified", "z-similar", "a-lexical"]
     assert [example.provenance["facet_similarity"] for example in examples] == [0, 8, 6]
     assert examples[1].score < examples[2].score
-    assert retriever.retrieve_similar_examples("parser", top_k=1, like_run_id=reference) == examples[:1]
+    assert retriever.retrieve_similar_examples(
+        "parser", top_k=1, like_run_id=reference, exclude_task_ids=AUDITED,
+    ) == examples[:1]
     assert [example.task_id for example in retriever.retrieve_similar_examples(
         "parser", top_k=10, like_run_id=reference, exclude_task_ids={"z-similar"},
     )] == ["verified", "a-lexical"]
     assert [example.task_id for example in retriever.retrieve_similar_examples(
-        "", top_k=10, like_run_id=reference, include_provisional=True,
+        "", top_k=10, like_run_id=reference, include_provisional=True, exclude_task_ids=AUDITED,
     )] == ["verified", "z-similar", "a-lexical", "provisional"]
 
 
@@ -583,11 +595,15 @@ def test_like_run_chooses_most_similar_trace_within_the_tasks_strongest_trace_ti
     retrieval_trace(db, "mixed-tier", "similar", tier=TIER2)
     retriever = CloudTraceRetriever(db, registry=SyntheticRegistry())
 
-    examples = retriever.retrieve_similar_examples("", top_k=10, like_run_id=reference)
+    examples = retriever.retrieve_similar_examples(
+        "", top_k=10, like_run_id=reference, exclude_task_ids=AUDITED,
+    )
     assert [(example.trace_id, example.provenance["facet_similarity"]) for example in examples] == [
         (similar, 8), (trusted, 6),
     ]
-    assert retriever.retrieve_similar_examples("", top_k=1, like_run_id=reference) == examples[:1]
+    assert retriever.retrieve_similar_examples(
+        "", top_k=1, like_run_id=reference, exclude_task_ids=AUDITED,
+    ) == examples[:1]
 
 
 def test_like_run_uses_only_its_deepest_cluster_for_the_similarity_bonus(
@@ -605,7 +621,7 @@ def test_like_run_uses_only_its_deepest_cluster_for_the_similarity_bonus(
     ], registry=SyntheticRegistry())
 
     examples = CloudTraceRetriever(db, registry=SyntheticRegistry()).retrieve_similar_examples(
-        "", top_k=10, like_run_id=runs["reference"],
+        "", top_k=10, like_run_id=runs["reference"], exclude_task_ids=AUDITED,
     )
     assert [example.task_id for example in examples] == ["z-deep", "a-broad", "m-middle"]
     assert [example.provenance["facet_similarity"] for example in examples] == [9, 8, 8]
@@ -618,7 +634,7 @@ def test_like_reference_need_not_match_the_hard_facet_filter(retrieval_db: Cloud
     retrieval_task(retrieval_db, "read-tests")
     run_id = retrieval_trace(retrieval_db, "read-tests", facet_changes={"tests": "read"})
     (example,) = CloudTraceRetriever(retrieval_db, registry=SyntheticRegistry()).retrieve_similar_examples(
-        "", facets={"tests": "read"}, like_run_id=reference,
+        "", facets={"tests": "read"}, like_run_id=reference, exclude_task_ids=AUDITED,
     )
     assert example.trace_id == run_id and example.provenance["facet_similarity"] == 7
 
@@ -629,7 +645,33 @@ def test_like_reference_need_not_match_the_hard_facet_filter(retrieval_db: Cloud
 ])
 def test_example_facet_validation_matches_search_runs(retrieval_db: CloudTraceDatabase, facets: Any) -> None:
     with pytest.raises(ValueError, match="facets"):
-        CloudTraceRetriever(retrieval_db, registry=SyntheticRegistry()).retrieve_similar_examples("", facets=facets)
+        CloudTraceRetriever(retrieval_db, registry=SyntheticRegistry()).retrieve_similar_examples(
+            "", facets=facets, exclude_task_ids=AUDITED,
+        )
+
+
+@pytest.mark.parametrize("argument", ("facets", "cluster_id", "like_run_id"))
+def test_every_atlas_argument_requires_a_named_exclusion(
+    retrieval_db: CloudTraceDatabase, argument: str,
+) -> None:
+    db = retrieval_db
+    for task_id in ("audited", "other"):
+        retrieval_task(db, task_id)
+    audited, other = retrieval_trace(db, "audited"), retrieval_trace(db, "other")
+    db.replace_run_clusters([cluster("all", 1, None, [audited, other])], registry=SyntheticRegistry())
+    retriever = CloudTraceRetriever(db, registry=SyntheticRegistry())
+    atlas = {"facets": {"facets": {}}, "cluster_id": {"cluster_id": "all"}, "like_run_id": {"like_run_id": other}}[
+        argument
+    ]
+
+    for missing in (None, (), set()):
+        with pytest.raises(ValueError, match="require exclude_task_ids"):
+            retriever.retrieve_similar_examples("parser", exclude_task_ids=missing, **atlas)
+    # The exclusion, not the query, is what keeps the audited task out of its own evidence.
+    elsewhere = retriever.retrieve_similar_examples("parser", exclude_task_ids=("elsewhere",), **atlas)
+    assert "audited" in {example.task_id for example in elsewhere}
+    named = retriever.retrieve_similar_examples("parser", exclude_task_ids=("audited",), **atlas)
+    assert "audited" not in {example.task_id for example in named}
 
 
 def test_unknown_cluster_and_unavailable_like_runs_raise_without_disclosing_admission(
@@ -650,16 +692,16 @@ def test_unknown_cluster_and_unavailable_like_runs_raise_without_disclosing_admi
     retriever = CloudTraceRetriever(db, registry=registry)
 
     assert [example.trace_id for example in retriever.retrieve_similar_examples(
-        "parser", top_k=10, facets={}, cluster_id="all",
+        "parser", top_k=10, facets={}, cluster_id="all", exclude_task_ids=AUDITED,
     )] == ["safe/run"]
     errors = []
     for run_id in ("missing/run", "held/run", "locked/run", "unfaceted/run"):
         with pytest.raises(ValueError, match="like_run_id") as error:
-            retriever.retrieve_similar_examples("", like_run_id=run_id)
+            retriever.retrieve_similar_examples("", like_run_id=run_id, exclude_task_ids=AUDITED)
         errors.append(str(error.value))
     assert len(set(errors)) == 1
     with pytest.raises(ValueError, match="cluster_id"):
-        retriever.retrieve_similar_examples("", cluster_id="unknown")
+        retriever.retrieve_similar_examples("", cluster_id="unknown", exclude_task_ids=AUDITED)
 
 
 def test_empty_admission_reads_no_atlas_bodies(retrieval_db: CloudTraceDatabase) -> None:
@@ -680,12 +722,12 @@ def test_empty_admission_reads_no_atlas_bodies(retrieval_db: CloudTraceDatabase)
 
     db._connection.set_authorizer(authorize)
     try:
-        assert retriever.retrieve_similar_examples("", facets={}) == []
+        assert retriever.retrieve_similar_examples("", facets={}, exclude_task_ids=AUDITED) == []
         for cluster_id in ("known", "unknown"):
             with pytest.raises(ValueError, match="^unknown cluster_id$"):
-                retriever.retrieve_similar_examples("", cluster_id=cluster_id)
+                retriever.retrieve_similar_examples("", cluster_id=cluster_id, exclude_task_ids=AUDITED)
         with pytest.raises(ValueError, match="like_run_id"):
-            retriever.retrieve_similar_examples("", like_run_id=run_id)
+            retriever.retrieve_similar_examples("", like_run_id=run_id, exclude_task_ids=AUDITED)
     finally:
         db._connection.set_authorizer(None)
 
@@ -707,7 +749,9 @@ def test_screening_cannot_make_top_one_stop_before_a_more_similar_returnable_tas
     winner = retrieval_trace(db, "z-masked", "returnable", tier=TIER2)
     retriever = CloudTraceRetriever(db, registry=SyntheticRegistry(), sealed_task_ids=["sealed-target"])
 
-    (example,) = retriever.retrieve_similar_examples("parser", top_k=1, like_run_id=reference)
+    (example,) = retriever.retrieve_similar_examples(
+        "parser", top_k=1, like_run_id=reference, exclude_task_ids=AUDITED,
+    )
     assert example.trace_id == winner and example.trust_tier == TIER1
     assert example.provenance["trace_trust_tier"] == TIER2
     assert example.provenance["facet_similarity"] == 8
@@ -724,10 +768,14 @@ def test_screening_a_best_similarity_trace_preserves_best_first_ranking(retrieva
     winner = retrieval_trace(db, "z-winner", facet_changes={"tests": "read"})
     retriever = CloudTraceRetriever(db, registry=SyntheticRegistry(), sealed_task_ids=["sealed-target"])
 
-    examples = retriever.retrieve_similar_examples("parser", top_k=10, like_run_id=reference)
+    examples = retriever.retrieve_similar_examples(
+        "parser", top_k=10, like_run_id=reference, exclude_task_ids=AUDITED,
+    )
     assert [example.task_id for example in examples] == ["z-winner", "a-screened"]
     assert examples[0].trace_id == winner
-    assert retriever.retrieve_similar_examples("parser", top_k=1, like_run_id=reference) == examples[:1]
+    assert retriever.retrieve_similar_examples(
+        "parser", top_k=1, like_run_id=reference, exclude_task_ids=AUDITED,
+    ) == examples[:1]
 
 
 @pytest.mark.parametrize("marker", ("sealed-target", 'synthetic-"quoted"'))
@@ -740,16 +788,19 @@ def test_sealed_facet_text_is_neither_returned_nor_usable_as_a_like_reference(
     retrieval_trace(db, "safe")
     contaminated = retrieval_trace(db, "contaminated", facet_changes={"goal": f"inspect {marker}", "shortcut": marker})
     retriever = CloudTraceRetriever(db, registry=SyntheticRegistry(), sealed_task_ids=[marker])
-    assert [example.task_id for example in retriever.retrieve_similar_examples("parser", facets={})] == ["safe"]
+    assert [
+        example.task_id
+        for example in retriever.retrieve_similar_examples("parser", facets={}, exclude_task_ids=AUDITED)
+    ] == ["safe"]
     with pytest.raises(ValueError, match="like_run_id"):
-        retriever.retrieve_similar_examples("", like_run_id=contaminated)
+        retriever.retrieve_similar_examples("", like_run_id=contaminated, exclude_task_ids=AUDITED)
 
 
 def test_empty_query_misalignment_can_use_flagged_nonexploit_trace(retrieval_db: CloudTraceDatabase) -> None:
     retrieval_task(retrieval_db, "flagged")
     run_id = retrieval_trace(retrieval_db, "flagged", is_exploit=False, flagged_passage_steps=[0])
     (example,) = CloudTraceRetriever(retrieval_db, registry=SyntheticRegistry()).retrieve_similar_examples(
-        "", "misalignment", facets={},
+        "", "misalignment", facets={}, exclude_task_ids=AUDITED,
     )
     assert example.trace_id == run_id and example.trace_steps[0]["flagged"] is True
     assert example.score == 0.0
@@ -815,13 +866,14 @@ def test_admission_facets_clusters_and_evidence_share_one_snapshot(
             retriever = CloudTraceRetriever(db, registry=SyntheticRegistry())
             (example,) = retriever.retrieve_similar_examples(
                 "parser", facets={"tests": "modified"}, cluster_id="before", like_run_id=reference,
+                exclude_task_ids=AUDITED,
             )
             assert changed and example.trace_id == candidate
             assert example.trace_steps[0]["content_text"] == "inspect the parser"
         finally:
             db._connection.set_authorizer(None)
     assert retriever.retrieve_similar_examples(
-        "parser", facets={"tests": "modified"}, like_run_id=reference,
+        "parser", facets={"tests": "modified"}, like_run_id=reference, exclude_task_ids=AUDITED,
     ) == []
 
 
@@ -863,22 +915,26 @@ def test_cluster_ranking_and_filtering_ignore_unavailable_members(
         seals = ["sealed-target"]
     retriever = CloudTraceRetriever(db, registry=registry, sealed_task_ids=seals)
 
-    before = retriever.retrieve_similar_examples("", top_k=10, like_run_id=runs["reference"])
+    before = retriever.retrieve_similar_examples(
+        "", top_k=10, like_run_id=runs["reference"], exclude_task_ids=AUDITED,
+    )
     assert [(example.task_id, example.provenance["facet_similarity"]) for example in before] == [
         ("alpha", 9), ("zeta", 8),
     ]
     assert [example.task_id for example in retriever.retrieve_similar_examples(
-        "", cluster_id="a", like_run_id=runs["reference"],
+        "", cluster_id="a", like_run_id=runs["reference"], exclude_task_ids=AUDITED,
     )] == ["alpha"]
     for cluster_id in ("hidden-only", "missing"):
         with pytest.raises(ValueError, match="^unknown cluster_id$"):
-            retriever.retrieve_similar_examples("", cluster_id=cluster_id)
+            retriever.retrieve_similar_examples("", cluster_id=cluster_id, exclude_task_ids=AUDITED)
 
     db.replace_run_clusters([
         cluster("a", 1, None, [runs["reference"], runs["alpha"]]),
         cluster("z", 1, None, [runs["reference"], runs["zeta"]]),
     ], registry=registry)
-    assert retriever.retrieve_similar_examples("", top_k=10, like_run_id=runs["reference"]) == before
+    assert retriever.retrieve_similar_examples(
+        "", top_k=10, like_run_id=runs["reference"], exclude_task_ids=AUDITED,
+    ) == before
 
 
 @pytest.mark.parametrize("task_wide_evidence", ("excluded-trace", "issue"))
@@ -904,7 +960,7 @@ def test_facet_matching_trace_trust_controls_partial_match_widening(
 
     for top_k in (1, 2):
         examples = retriever.retrieve_similar_examples(
-            "alpha beta", top_k=top_k, facets={"tests": "modified"},
+            "alpha beta", top_k=top_k, facets={"tests": "modified"}, exclude_task_ids=AUDITED,
         )
         assert [example.task_id for example in examples] == ["z-partial"]
         assert examples[0].trace_id == partial

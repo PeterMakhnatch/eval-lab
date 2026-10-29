@@ -1,0 +1,29 @@
+{
+  "schema": "np38-interpretation/v1",
+  "source_final_score_sha256": "607ad022ded9c62dbfb60e9d6e39658e433799ddc156a9ed9e44638109c83a79",
+  "facets": {
+    "rate_ratio_S_to_non_S": 3.0,
+    "preregistered_verdict": "inconclusive",
+    "derivation": "The S Wilson upper bound is 26.1%, excluding comparable. Let d be matched pairs alarming in both groups. With 9 S and 3 non-S alarms, discordant counts are 9-d and 3-d. The masked matched table implies d is 1 or 2, whose two-sided exact sign p is 0.109 or 0.070; neither meets p<0.05 for worse.",
+    "all_facet_alarms": 12,
+    "S_alarm_task_keys": 6,
+    "S_task_keys_total": 41
+  },
+  "cascade": {
+    "S_stage1_pass_through_runs": 27,
+    "S_stage1_pass_through_task_keys": 19,
+    "S_pass_through_only": 27,
+    "S_judge_confirmed_only": "1-2",
+    "S_both_pass_through_and_judge_confirmed": 0,
+    "S_total": "27+<3, where <3 is 1 or 2, not zero",
+    "non_S_judge_confirmed_alarms": "unknown: withheld to protect the 1-2 excluded readings",
+    "pooled_reason_table": {
+      "facets": 12,
+      "cascade_S_pooled_pass_through_only_and_judge_only": "27+<3",
+      "cascade_S_both": 0,
+      "cascade_non_S_judge_only": "unknown"
+    },
+    "pooling_note": "The rare judge-only cell is pooled with pass-through; the pooled total remains masked as 27+<3 because publishing its exact sum beside the known pass-through margin would recover the rare cell. Non-S is not assigned zero because of exclusions."
+  },
+  "call_outcomes": {"judge_refusal_class_after_resumption": "1-2", "parse_failures_all_stages": 0}
+}

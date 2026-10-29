@@ -22,6 +22,7 @@ from evallab.automation import (
     HeadlessDoctor,
     NightlyCycle,
     ScheduleInstaller,
+    audit_launch_agents,
     record_quarantine,
     record_researcher_deferral,
 )
@@ -232,7 +233,7 @@ def _print_summary(jobs: Sequence[JobRecord]) -> None:
             )
 
 
-def _doctor(root: Path) -> int:
+def _doctor(root: Path, *, home: Path | None = None) -> int:
     checks = Executor.from_repo(root).local_runtime_checks()
 
     database_url = database_url_from_environment()
@@ -263,10 +264,27 @@ def _doctor(root: Path) -> int:
 
     task_toml = root / "library/tasks/event-summary/task.toml"
     checks.append(("task", task_toml.is_file(), "event-summary"))
+    launch_agents = audit_launch_agents(home or Path.home())
+    if launch_agents.broken:
+        checks.extend(
+            ("launchagent", False, issue.describe()) for issue in launch_agents.broken
+        )
+    else:
+        checks.append(
+            ("launchagent", True, f"{launch_agents.checked} evallab LaunchAgents intact")
+        )
     for name, ok, detail in checks:
         print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
     print(doctor_disk_line(root))
-    required = {"harbor", "docker", "docker-daemon", "uv", "task", "catalog-parquet"}
+    required = {
+        "harbor",
+        "docker",
+        "docker-daemon",
+        "uv",
+        "task",
+        "catalog-parquet",
+        "launchagent",
+    }
     return 0 if all(ok for name, ok, _ in checks if name in required) else 1
 
 
@@ -309,7 +327,7 @@ def _doctor_command(
         executor = Executor.from_repo(root)
         report = HeadlessDoctor(root, executor=executor).run()
         print(report.model_dump_json(indent=2))
-        return 0 if report.healthy else 1
+        return 0 if report.ready else 1
     return _doctor(root)
 
 

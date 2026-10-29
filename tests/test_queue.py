@@ -204,7 +204,7 @@ def test_selected_cli_tick_leaves_other_approved_work_untouched(
     from types import SimpleNamespace
 
     from evallab import cli
-    from evallab.schemas import HeadlessDoctorChecks, HeadlessDoctorReport
+    from evallab.schemas import HeadlessDoctorChecks, HeadlessDoctorReport, LaunchAgentAudit
 
     def run(request: RunRequest) -> Path:
         if fail:
@@ -225,7 +225,9 @@ def test_selected_cli_tick_leaves_other_approved_work_untouched(
             docker_reachable=True,
             postgres_reachable=True,
             disk_headroom=True,
+            launch_agents_intact=True,
         ),
+        launch_agents=LaunchAgentAudit(checked=0),
     )
     monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
     monkeypatch.setattr(cli.Executor, "from_repo", lambda *args, **kwargs: service)

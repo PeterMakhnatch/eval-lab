@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+import evallab.automation as automation_module
 import evallab.cli as cli_module
 import evallab.digest as digest_module
 from evallab.automation import (
@@ -16,6 +17,7 @@ from evallab.automation import (
     HeadlessDoctor,
     NightlyCycle,
     ScheduleInstaller,
+    audit_launch_agents,
 )
 from evallab.canary import CanaryEnqueuer, task_directory_digest
 from evallab.cli import run_cli
@@ -34,6 +36,7 @@ from evallab.schemas import (
     ExperimentSpec,
     HeadlessDoctorChecks,
     HeadlessDoctorReport,
+    LaunchAgentAudit,
     QueueEvent,
     StandingApprovalsPolicy,
 )
@@ -78,12 +81,14 @@ def health_report(
         docker_reachable=True,
         postgres_reachable=True,
         disk_headroom=True,
+        launch_agents_intact=True,
     )
     healthy = checks.docker_reachable and checks.postgres_reachable and checks.disk_headroom
     return HeadlessDoctorReport(
         checked_at=datetime.now(UTC),
         healthy=healthy,
         checks=checks,
+        launch_agents=LaunchAgentAudit(checked=0),
     )
 
 
@@ -104,14 +109,208 @@ def test_headless_doctor_emits_boolean_contract_without_secret_values(tmp_path: 
     rendered = report.model_dump_json()
 
     assert report.healthy is True
+    assert report.ready is True
     assert report.checks.model_dump() == {
         "keychain_readable": True,
         "codex_auth_present": True,
         "docker_reachable": True,
         "postgres_reachable": True,
         "disk_headroom": True,
+        "launch_agents_intact": True,
     }
+    assert report.launch_agents.checked == 0
     assert "never-read-secret" not in rendered
+    assert "must-not-escape" not in rendered
+
+
+def _write_launch_agent(
+    home: Path, label: str, definition: dict[str, object]
+) -> Path:
+    directory = home / "Library/LaunchAgents"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{label}.plist"
+    path.write_bytes(
+        plistlib.dumps({"Label": label, **definition}, fmt=plistlib.FMT_XML, sort_keys=False)
+    )
+    return path
+
+
+def _shell_agent(
+    home: Path, label: str, *, checkout: Path, runtime: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    shell = home / "bin/zsh"
+    shell.parent.mkdir(parents=True, exist_ok=True)
+    shell.touch()
+    monkeypatch.setattr(automation_module, "_SHELL_PROGRAMS", {str(shell)})
+    return _write_launch_agent(
+        home,
+        label,
+        {
+            "ProgramArguments": [
+                str(shell),
+                "-lc",
+                f"cd {checkout} && {runtime} -I -c 'import sys; sys.exit(0)' tick",
+            ],
+            "StartInterval": 1800,
+        },
+    )
+
+
+def test_launch_agent_audit_keeps_a_schedule_whose_paths_still_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    checkout = home / "eval-lab"
+    runtime = checkout / ".venv/bin/python"
+    runtime.parent.mkdir(parents=True)
+    runtime.write_text("#!/bin/sh\n")
+    _shell_agent(
+        home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=runtime,
+        monkeypatch=monkeypatch,
+    )
+    _write_launch_agent(
+        home,
+        "com.petermakhnatch.evallab.nightly",
+        {
+            "ProgramArguments": [str(runtime), "-I", "-c", "pass", "nightly", "--refresh"],
+            "WorkingDirectory": str(checkout),
+        },
+    )
+    (home / "Library/LaunchAgents/com.other.developer.plist").write_text("malformed")
+
+    audit = audit_launch_agents(home)
+
+    assert audit.checked == 2
+    assert audit.broken == []
+    assert audit.intact is True
+
+
+def test_launch_agent_audit_names_a_missing_interpreter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    checkout = home / "eval-lab"
+    checkout.mkdir(parents=True)
+    dead = checkout / ".worktrees/runtime-reviewed-20260915/.venv/bin/python"
+    installed = _shell_agent(
+        home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=dead,
+        monkeypatch=monkeypatch,
+    )
+    original = {path.name: path.read_bytes() for path in installed.parent.glob("*.plist")}
+
+    audit = audit_launch_agents(home)
+
+    assert audit.checked == 1
+    assert audit.intact is False
+    assert [issue.describe() for issue in audit.broken] == [
+        f"com.petermakhnatch.evallab.tick: interpreter {dead} missing"
+    ]
+    # Read-only: the installed definition is byte-identical, nothing was loaded.
+    assert {path.name: path.read_bytes() for path in installed.parent.glob("*.plist")} == original
+
+
+def test_launch_agent_audit_names_a_missing_working_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    retired = home / "retired-checkout"
+    program = home / "bin/true"
+    program.parent.mkdir(parents=True)
+    program.touch()
+    _write_launch_agent(
+        home,
+        "com.petermakhnatch.evallab.janitor",
+        {"ProgramArguments": [str(program)], "WorkingDirectory": str(retired)},
+    )
+    _shell_agent(
+        home,
+        "com.petermakhnatch.evallab.tick",
+        checkout=retired,
+        runtime=program,
+        monkeypatch=monkeypatch,
+    )
+
+    audit = audit_launch_agents(home)
+
+    assert audit.checked == 2
+    assert {(issue.label, issue.kind, issue.path) for issue in audit.broken} == {
+        ("com.petermakhnatch.evallab.janitor", "working_directory", str(retired)),
+        ("com.petermakhnatch.evallab.tick", "working_directory", str(retired)),
+    }
+
+
+def test_doctor_lists_a_broken_evallab_launch_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from evallab.evidence.atif import ProjectionInvariant
+
+    home = tmp_path / "home"
+    checkout = home / "eval-lab"
+    checkout.mkdir(parents=True)
+    dead = home / "retired/.venv/bin/python"
+    _shell_agent(
+        home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=dead,
+        monkeypatch=monkeypatch,
+    )
+    task = tmp_path / "library/tasks/event-summary/task.toml"
+    task.parent.mkdir(parents=True)
+    task.write_text("version = 1\n")
+    monkeypatch.setattr(cli_module.Executor, "from_repo", lambda root: RuntimeChecks())
+    monkeypatch.setattr(cli_module.database, "ping", lambda url: "PostgreSQL 16")
+    monkeypatch.setattr(
+        cli_module,
+        "check_projection_invariant",
+        lambda *args: ProjectionInvariant(
+            catalog_job_ids=frozenset({"job"}),
+            projected_job_ids=frozenset({"job"}),
+            excepted_job_ids=frozenset(),
+            missing_job_ids=frozenset(),
+            extra_job_ids=frozenset(),
+        ),
+    )
+
+    assert cli_module._doctor(tmp_path, home=home) == 1
+    assert (
+        f"FAIL  launchagent    com.petermakhnatch.evallab.tick: "
+        f"interpreter {dead} missing" in capsys.readouterr().out
+    )
+
+    assert cli_module._doctor(tmp_path, home=tmp_path / "empty-home") == 0
+    assert "ok    launchagent    0 evallab LaunchAgents intact" in capsys.readouterr().out
+
+
+def test_headless_doctor_reports_a_broken_launch_agent_and_is_not_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    checkout = home / "eval-lab"
+    checkout.mkdir(parents=True)
+    dead = home / "retired/.venv/bin/python"
+    _shell_agent(
+        home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=dead,
+        monkeypatch=monkeypatch,
+    )
+
+    report = HeadlessDoctor(
+        tmp_path,
+        home=home,
+        executor=RuntimeChecks(),  # type: ignore[arg-type]
+        keychain_probe=lambda: True,
+        postgres_probe=lambda: True,
+        disk_probe=lambda: True,
+    ).run()
+
+    assert report.healthy is True
+    assert report.checks.launch_agents_intact is False
+    assert report.ready is False
+    assert [issue.label for issue in report.launch_agents.broken] == [
+        "com.petermakhnatch.evallab.tick"
+    ]
+    rendered = report.model_dump_json()
+    assert "com.petermakhnatch.evallab.tick" in rendered
+    assert str(dead) in rendered
     assert "must-not-escape" not in rendered
 
 

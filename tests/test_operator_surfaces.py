@@ -246,7 +246,7 @@ def test_doctor_names_the_catalog_it_inspected_without_credentials(
         ),
     )
 
-    assert cli._doctor(tmp_path) == 0
+    assert cli._doctor(tmp_path, home=tmp_path / "home") == 0
 
     out = capsys.readouterr().out
     catalog_line = next(line for line in out.splitlines() if "catalog-parquet" in line)
@@ -274,7 +274,7 @@ def test_doctor_names_the_catalog_even_when_postgres_is_unreachable(
 
     monkeypatch.setattr(cli.database, "ping", refuse)
 
-    assert cli._doctor(tmp_path) == 1
+    assert cli._doctor(tmp_path, home=tmp_path / "home") == 1
 
     out = capsys.readouterr().out
     catalog_line = next(line for line in out.splitlines() if "catalog-parquet" in line)

@@ -117,6 +117,7 @@ class Item:
     label: bool
     cluster: str
     cluster_alt: str
+    family: str = ""  # source/model family (secondary matching key); empty when the corpus has none
 
 
 @dataclass(frozen=True)
@@ -859,18 +860,21 @@ def add_length_control_parser(actions: Any) -> None:
         description=__doc__.split("\n\n")[0] if __doc__ else None,
     )
     parser.add_argument("--corpus", dest="corpora", action="append", choices=("goodfire", "cheatbench"),
-                        help="repeatable; default both")
+                        help="repeatable; default both. With --matched, goodfire means the strict goodfire-dev population")
     parser.add_argument("--population", type=Path, help=f"Goodfire run ids (default <repo>/{DEFAULT_POPULATION})")
     parser.add_argument("--findings", type=Path, default=DEFAULT_FINDINGS)
     parser.add_argument("--results-v1", type=Path, default=DEFAULT_RESULTS_V1)
     parser.add_argument("--database", type=Path)
     parser.add_argument("--results-root", type=Path, help="Published results home (CheatBench)")
-    parser.add_argument("--cutoff", default=CUTOFF, help="Ignore stored rows newer than this instant")
+    parser.add_argument("--cutoff", help=f"Ignore stored rows newer than this instant (default {CUTOFF}; with --matched, NP31's)")
     parser.add_argument("--resamples", type=int, default=RESAMPLES)
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--out-dir", type=Path, help=f"Write results.json and RESULTS.md here (default <repo>/{EVIDENCE_DIR})")
-    parser.add_argument("--private-dir", type=Path, default=DEFAULT_PRIVATE,
-                        help="Per-run joined rows (label-joined; stays outside the repo)")
+    parser.add_argument("--private-dir", type=Path, help=f"Per-run joined rows (label-joined; stays outside the repo; default {DEFAULT_PRIVATE})")
+    parser.add_argument("--matched", action="store_true",
+                        help="NP31-TT-1: strict goodfire-dev population, task-matched pairs, every stored tool")
+    parser.add_argument("--extra-findings", dest="extra_findings", type=Path, action="append",
+                        help="With --matched: further finding stores merged with --findings (default: the p0-f9d7d6-2 model-free fill)")
     parser.set_defaults(func=_length_command)
 
 
@@ -878,12 +882,14 @@ def _length_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
     del harbor
     from evallab.production.run_atlas import DEFAULT_DATABASE
 
+    if args.matched:
+        return _matched_command(args, root)
     corpora = args.corpora or ["goodfire", "cheatbench"]
     try:
         result, private = run_control(
             corpora, population=args.population or root / DEFAULT_POPULATION, findings=args.findings,
             results_v1=args.results_v1, database=args.database or DEFAULT_DATABASE, repo_root=root,
-            results_root=args.results_root, cutoff=args.cutoff, resamples=args.resamples, seed=args.seed,
+            results_root=args.results_root, cutoff=args.cutoff or CUTOFF, resamples=args.resamples, seed=args.seed,
         )
     except ValueError as error:
         print(f"trace length-control: {error}", file=sys.stderr)
@@ -893,10 +899,33 @@ def _length_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "results.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (out_dir / "RESULTS.md").write_text(markdown, encoding="utf-8")
-    args.private_dir.mkdir(parents=True, exist_ok=True)
+    private_dir = args.private_dir or DEFAULT_PRIVATE
+    private_dir.mkdir(parents=True, exist_ok=True)
     for corpus, rows in private.items():
-        with (args.private_dir / f"{corpus}-per-run.jsonl").open("w", encoding="utf-8") as handle:
+        with (private_dir / f"{corpus}-per-run.jsonl").open("w", encoding="utf-8") as handle:
             for row in rows:
                 handle.write(json.dumps(row, sort_keys=True) + "\n")
+    print(markdown, end="")
+    return 0
+
+
+def _matched_command(args: argparse.Namespace, root: Path) -> int:
+    """``--matched``: the NP31-TT-1 length-matched evaluation (``trace_harness_matched``)."""
+    from evallab.production import trace_harness_matched as matched
+    from evallab.production.run_atlas import DEFAULT_DATABASE
+
+    corpora = ["goodfire-dev" if c == "goodfire" else c for c in args.corpora or ["goodfire", "cheatbench"]]
+    try:
+        result, private = matched.run_matched(
+            corpora, findings=[args.findings, *(args.extra_findings or matched.DEFAULT_EXTRA_FINDINGS)],
+            results_v1=args.results_v1, database=args.database or DEFAULT_DATABASE, repo_root=root,
+            results_root=args.results_root, cutoff=args.cutoff or matched.CUTOFF, resamples=args.resamples,
+            seed=args.seed,
+        )
+    except ValueError as error:
+        print(f"trace length-control --matched: {error}", file=sys.stderr)
+        return 2
+    markdown = matched.write_outputs(
+        result, private, args.out_dir or root / matched.EVIDENCE_DIR, args.private_dir or matched.DEFAULT_PRIVATE)
     print(markdown, end="")
     return 0

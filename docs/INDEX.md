@@ -59,7 +59,7 @@ inputs:
   - path: docs/docker-lock.md
     digest: sha256:643794b06ee82843f46f8360ff8b769e2b28ff9e6974fe9a6dc75b55889d331d
   - path: docs/engineering.md
-    digest: sha256:19563e1e801dc35aac29dc7f0e99858525be57935160fb1b365fe07e8befbbd5
+    digest: sha256:62c9cd24077c351d7e454195bcf3613995c54fbf4b8c8469b46b9e4279f1b7a6
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md

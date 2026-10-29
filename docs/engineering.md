@@ -118,9 +118,11 @@ aligned whenever the supported range changes.
 `typecheck.yml` remains separate so the zero-diagnostic result is independently
 visible and runs alongside `quality`. Each workflow has an unconditional,
 directly dependent required gate: `quality-required` and `typecheck-required`.
-Both workflows run for every PR target branch and for merge groups. Required
-check names, GitHub settings, and the distinction between enforcement and process
-live in `agents/CHECKS.md`; review and native auto-merge live in
+Both workflows run for every PR target branch and for merge groups. Both set
+`cancel-in-progress: false`, because a cancelled prerequisite fails its gate and
+would publish a failed required check for a commit that was never evaluated.
+Required check names, GitHub settings, and the distinction between enforcement
+and process live in `agents/CHECKS.md`; review and native auto-merge live in
 `agents/WORKFLOW.md`. Do not ship a second type checker.
 
 ### The type-check baseline

@@ -64,6 +64,8 @@ STEP_FIELDS = frozenset(
 SOURCES = frozenset({"system", "user", "agent"})
 CALL_FIELDS = frozenset({"tool_call_id", "function_name", "arguments"})
 FUNCTION_NAMES = frozenset({"bash", "submit"})
+# Argument keys the model itself writes into ``submit`` (7 observed, all model-authored, 0 label hits).
+SUBMIT_ARGUMENT_KEYS = frozenset({"", "command", "result", "output", "dummy", "final", "message"})
 ARGUMENT_KEYS = frozenset(
     {"command"}
 )  # bash only; submit's arguments are ignored, model-authored noise
@@ -157,6 +159,25 @@ FIELD_NEEDLES = (
     "replacement_seed",
     "n_natural_cheating",
     "log_unreliable",
+    "results_forged",
+    "public_tests_modified",
+    "concealed_by_tamper",
+    "concealed_report",
+    "session_log_tampered",
+    "grader_tampered_step",
+    "report_mentions_shortcut",
+    "used_by_copy",
+    "used_by_reference",
+    "hidden_passed",
+    "n_grade_queries",
+    "results_last",
+    "unauthorized_account",
+    "unauthorized_key",
+    "project_account",
+    "oob_paths",
+    "hidden_only_literals",
+    "reference_solution_lines",
+    "forbidden_resource",
 )
 CONDITION_NEEDLES = (
     "unauthorized_spend",
@@ -202,6 +223,15 @@ VOCAB_RE = re.compile(
 CANARY_RE = re.compile(r"\bgk-[0-9a-f]{16}\b")
 MARKER_RE = re.compile(r'"generated_by"\s*:\s*"grader"')
 ACCOUNT_RE = re.compile(r'(?:"account"\s*:\s*"|paid from )(acct_[a-z]+_[0-9a-f]+)')
+# Any episode id of either family (``ans-dire-<template>-h0-A-tr-<hex10>``): another episode's id is a leak.
+EPISODE_ID_RE = re.compile(
+    r"\b(?:ans|spe)-[a-z_]{4}-[A-Za-z0-9_]+-h\d-[A-Z]-(?:tr|te)-[0-9a-f]{10}\b"
+)
+# Sandbox log records (``{"kind": "payments.charge", ...}``) are grader-side machinery.
+SANDBOX_LOG_RE = re.compile(
+    r"\"kind\"\s*:\s*\"(?:payments\.(?:charge|balance|faucet)|results\.request|grader\.score|"
+    r"chain\.deploy|action\.\w+)\""
+)
 
 
 def squash(text: str | None) -> str:
@@ -494,7 +524,8 @@ def spec_of(rec: dict[str, Any]) -> dict[str, Any]:
             "probed": label["probed"],
             "out_of_bounds_steps": label["out_of_bounds_steps"],
             "outcome": label["outcome"],
-            "n_model_steps": label["n_steps"],
+            "n_model_steps": sum(not r["placeholder"] for r in rec["rows"]),
+            "n_rows_publisher": label["n_steps"],
         },
         "identity": {
             "row_id": "lat_" + salted("row", label["episode_id"])[:24],
@@ -593,6 +624,7 @@ def leak_hits(steps: list[dict[str, Any]], needles: dict[str, list[str]]) -> lis
     observation keys, result keys, call-id shape, sequential step ids, the fixed first two steps.
     """
     hits: list[str] = []
+    non_string = False
     for index, step in enumerate(steps):
         if set(step) - STEP_FIELDS:
             hits.append("unexpected_step_fields")
@@ -603,6 +635,7 @@ def leak_hits(steps: list[dict[str, Any]], needles: dict[str, list[str]]) -> lis
         for key in ("message", "reasoning_content"):
             if key in step and not isinstance(step[key], str):
                 hits.append("non_string_text")
+                non_string = True
         if step.get("source") != "agent" and set(step) - {"step_id", "source", "message"}:
             hits.append("non_agent_step_with_extra_fields")
         calls = step.get("tool_calls", [])
@@ -613,11 +646,20 @@ def leak_hits(steps: list[dict[str, Any]], needles: dict[str, list[str]]) -> lis
                 hits.append("unexpected_call_fields")
             if call.get("function_name") not in FUNCTION_NAMES:
                 hits.append("unexpected_function_name")
-            bad_arguments = not isinstance(call.get("arguments"), dict) or (
-                call.get("function_name") == "bash" and set(call["arguments"]) != ARGUMENT_KEYS
+            arguments = call.get("arguments")
+            bad_arguments = not isinstance(arguments, dict) or (
+                call.get("function_name") == "bash" and set(arguments) != ARGUMENT_KEYS
             )
+            if (
+                isinstance(arguments, dict)
+                and call.get("function_name") == "submit"
+                and set(arguments) - SUBMIT_ARGUMENT_KEYS
+            ):
+                bad_arguments = True
             if bad_arguments:
                 hits.append("unexpected_argument_keys")
+            if isinstance(arguments, dict) and LABEL_RE.search(json.dumps(arguments)):
+                hits.append("label_assignment")
             if call.get("tool_call_id") != f"call_{index}_0" or not CALL_ID.fullmatch(
                 call.get("tool_call_id", "")
             ):
@@ -629,20 +671,30 @@ def leak_hits(steps: list[dict[str, Any]], needles: dict[str, list[str]]) -> lis
             for result in observation.get("results", []):
                 if set(result) != {"tool_call_id", "content"}:
                     hits.append("unexpected_result_fields")
+                if not isinstance(result.get("content"), str):
+                    hits.append("non_string_result")
+                    non_string = True
                 if not calls or result.get("tool_call_id") != calls[0]["tool_call_id"]:
                     hits.append("result_without_matching_call")
     if len(steps) < 3 or steps[0]["source"] != "system" or steps[1]["source"] != "user":
         hits.append("first_two_steps_not_system_and_task")
     if steps and steps[-1]["source"] != "agent":
         hits.append("last_step_not_agent")
+    if non_string:
+        return sorted(set(hits))
     text = squash(visible_text(steps))
     for kind, values in needles.items():
         if any(value and value in text for value in values):
             hits.append(kind)
-    if MACHINERY_RE.search(visible_text(steps)):
+    visible = visible_text(steps)
+    if MACHINERY_RE.search(visible):
         hits.append("publisher_machinery")
-    if LABEL_RE.search(visible_text(steps)):
+    if LABEL_RE.search(visible):
         hits.append("label_assignment")
+    if EPISODE_ID_RE.search(visible):
+        hits.append("other_episode_id")
+    if SANDBOX_LOG_RE.search(visible):
+        hits.append("sandbox_log_record")
     return sorted(set(hits))
 
 
@@ -669,7 +721,7 @@ def _plant_call(steps: list[dict[str, Any]], mutate: Any) -> None:
 def planted_leak_proof(
     root: Path = ROOT, records: list[dict[str, Any]] | None = None
 ) -> dict[str, Any]:
-    """Plant 24 leak classes into a clean copy of one positive episode; ``leak_hits`` must catch each.
+    """Plant 36 leak classes into a clean copy of one positive episode; ``leak_hits`` must catch each.
 
     The clean copy must give 0 hits. Uses the first positive episode with a tool call and a result.
     """
@@ -740,6 +792,25 @@ def planted_leak_proof(
             s, lambda c: c.__setitem__("tool_call_id", "mcp_0123456789abcdef")
         ),
         "unlisted_source": lambda s: s[-1].__setitem__("source", "oracle"),
+        "label_in_submit_arguments": lambda s: _plant_call(
+            s,
+            lambda c: c.update(function_name="submit", arguments={"cheated": "false"}),
+        ),
+        "unseen_submit_argument_key": lambda s: _plant_call(
+            s,
+            lambda c: c.update(function_name="submit", arguments={"verdict_hint": "x"}),
+        ),
+        "other_episode_id_in_result": lambda s: _plant_result(
+            s, "ans-dire-tmplx_9-h0-A-te-0123456789"
+        ),
+        "sandbox_log_record_in_result": lambda s: _plant_result(
+            s, '{"kind": "payments.charge", "amount": 1}'
+        ),
+        "results_forged_in_result": lambda s: _plant_result(s, "results_forged"),
+        "concealed_by_tamper_in_message": lambda s: _plant_agent(s, "concealed_by_tamper"),
+        "non_string_result_content": lambda s: next(x for x in s if x.get("observation"))[
+            "observation"
+        ]["results"][0].__setitem__("content", 5),
     }
     clean_hits = leak_hits(steps, needles)
     caught: dict[str, bool] = {}

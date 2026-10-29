@@ -1,0 +1,162 @@
+[
+ {
+  "cand": "mutant",
+  "cell": "pr-1349/original-mutant-r1",
+  "failed_tests": [],
+  "input_digest": "sha256:b1f91e468f46431804e58484b99cb2d380a6c4e6afa1de440af75f2254d67e9c",
+  "input_matches_ts14": true,
+  "phase": "original",
+  "reward": 1.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:7d6f0bf53cb7fbb5622a74d472a9831b523673c190be382a222a37b9a6dc5a5a",
+  "this_run_finalized_usd": 0.04365
+ },
+ {
+  "cand": "mutant",
+  "cell": "pr-1349/original-mutant-r2",
+  "failed_tests": [],
+  "input_digest": "sha256:b1f91e468f46431804e58484b99cb2d380a6c4e6afa1de440af75f2254d67e9c",
+  "input_matches_ts14": true,
+  "phase": "original",
+  "reward": 1.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:7d6f0bf53cb7fbb5622a74d472a9831b523673c190be382a222a37b9a6dc5a5a",
+  "this_run_finalized_usd": 0.031179
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1349/original-reference-r1",
+  "failed_tests": [],
+  "input_digest": "sha256:e090117feeb6bda756261b3322e8a5bd0d61dbf14d1ff03af7ebabb0676604e8",
+  "input_matches_ts14": true,
+  "phase": "original",
+  "reward": 1.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:7d6f0bf53cb7fbb5622a74d472a9831b523673c190be382a222a37b9a6dc5a5a",
+  "this_run_finalized_usd": 0.044343
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1349/original-reference-r2",
+  "failed_tests": [],
+  "input_digest": "sha256:e090117feeb6bda756261b3322e8a5bd0d61dbf14d1ff03af7ebabb0676604e8",
+  "input_matches_ts14": true,
+  "phase": "original",
+  "reward": 1.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:7d6f0bf53cb7fbb5622a74d472a9831b523673c190be382a222a37b9a6dc5a5a",
+  "this_run_finalized_usd": 0.052657
+ },
+ {
+  "cand": "mutant",
+  "cell": "pr-1349/before-mutant-r1",
+  "failed_tests": [],
+  "input_digest": "sha256:b1f91e468f46431804e58484b99cb2d380a6c4e6afa1de440af75f2254d67e9c",
+  "input_matches_ts14": true,
+  "phase": "before",
+  "reward": 1.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:248af341c98b0063b6878a6be059b2349fc9f7d1687c499482e1a746e3dc575a",
+  "this_run_finalized_usd": 0.04365
+ },
+ {
+  "cand": "mutant",
+  "cell": "pr-1349/before-mutant-r2",
+  "failed_tests": [],
+  "input_digest": "sha256:b1f91e468f46431804e58484b99cb2d380a6c4e6afa1de440af75f2254d67e9c",
+  "input_matches_ts14": true,
+  "phase": "before",
+  "reward": 1.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:248af341c98b0063b6878a6be059b2349fc9f7d1687c499482e1a746e3dc575a",
+  "this_run_finalized_usd": 0.047807
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1349/before-reference-r1",
+  "failed_tests": [],
+  "input_digest": "sha256:e090117feeb6bda756261b3322e8a5bd0d61dbf14d1ff03af7ebabb0676604e8",
+  "input_matches_ts14": true,
+  "phase": "before",
+  "reward": 1.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:248af341c98b0063b6878a6be059b2349fc9f7d1687c499482e1a746e3dc575a",
+  "this_run_finalized_usd": 0.047114
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1349/before-reference-r2",
+  "failed_tests": [],
+  "input_digest": "sha256:e090117feeb6bda756261b3322e8a5bd0d61dbf14d1ff03af7ebabb0676604e8",
+  "input_matches_ts14": true,
+  "phase": "before",
+  "reward": 1.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:248af341c98b0063b6878a6be059b2349fc9f7d1687c499482e1a746e3dc575a",
+  "this_run_finalized_usd": 0.047114
+ },
+ {
+  "cand": "mutant",
+  "cell": "pr-1349/after-mutant-r1",
+  "failed_tests": [
+   "src/utils/body.test.ts > Parse Body Util > should parse the Deno build of parseBody the same as src with every option"
+  ],
+  "input_digest": "sha256:b1f91e468f46431804e58484b99cb2d380a6c4e6afa1de440af75f2254d67e9c",
+  "input_matches_ts14": true,
+  "phase": "after",
+  "reward": 0.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:080a2cd3ef4d703970509f7db8a5eb91731a0fccbbc612af827c31ce8285faf9",
+  "this_run_finalized_usd": 0.06305
+ },
+ {
+  "cand": "mutant",
+  "cell": "pr-1349/after-mutant-r2",
+  "failed_tests": [
+   "src/utils/body.test.ts > Parse Body Util > should parse the Deno build of parseBody the same as src with every option"
+  ],
+  "input_digest": "sha256:b1f91e468f46431804e58484b99cb2d380a6c4e6afa1de440af75f2254d67e9c",
+  "input_matches_ts14": true,
+  "phase": "after",
+  "reward": 0.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:080a2cd3ef4d703970509f7db8a5eb91731a0fccbbc612af827c31ce8285faf9",
+  "this_run_finalized_usd": 0.04365
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1349/after-reference-r1",
+  "failed_tests": [],
+  "input_digest": "sha256:e090117feeb6bda756261b3322e8a5bd0d61dbf14d1ff03af7ebabb0676604e8",
+  "input_matches_ts14": true,
+  "phase": "after",
+  "reward": 1.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:080a2cd3ef4d703970509f7db8a5eb91731a0fccbbc612af827c31ce8285faf9",
+  "this_run_finalized_usd": 0.042957
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1349/after-reference-r2",
+  "failed_tests": [],
+  "input_digest": "sha256:e090117feeb6bda756261b3322e8a5bd0d61dbf14d1ff03af7ebabb0676604e8",
+  "input_matches_ts14": true,
+  "phase": "after",
+  "reward": 1.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:080a2cd3ef4d703970509f7db8a5eb91731a0fccbbc612af827c31ce8285faf9",
+  "this_run_finalized_usd": 0.049193
+ }
+]

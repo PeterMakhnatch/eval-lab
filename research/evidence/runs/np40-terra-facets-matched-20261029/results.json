@@ -1,0 +1,19 @@
+{
+  "status": "blocked_before_model_calls",
+  "preregistration_commit": "50d3bc33d274e75cced3e96ee2f6dbb3754846f6",
+  "preregistration_time": "2026-10-29T18:33:15Z",
+  "strict_dev_admission": {"pairs": 123, "unique_runs": 246, "admitted": 246},
+  "blocking_reason": "Native OMP reader is safety-sealed; Atlas gateway response and receipts lack the required session-record fallback attestation.",
+  "model_calls": {"terra": 0, "sol": 0, "canary": 0},
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "refusals": 0,
+  "parse_failures": 0,
+  "fallbacks_rejected": 0,
+  "fallback_disabled_canary": "not performed",
+  "codex_7_day_before_percent": 59.0,
+  "codex_7_day_after_percent": 59.0,
+  "length_comparator": {"pairs": 123, "task_clusters": 101, "pair_auroc": 0.43089430894308944, "bootstrap_ci": [0.34146341463414637, 0.5198412698412699], "resamples": 2000, "seed": 40104},
+  "haiku_np31_reference": {"pairs": 123, "enacted_only": 9, "clean_only": 13, "pair_auroc": 0.496, "bootstrap_ci": [0.437, 0.556]},
+  "decision": "not evaluable"
+}

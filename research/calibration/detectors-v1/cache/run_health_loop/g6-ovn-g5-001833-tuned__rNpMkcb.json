@@ -1,7 +1,7 @@
 {
  "cost_usd": 0.0,
  "detector": "run_health_loop",
- "detector_version": "run-health/5",
+ "detector_version": "run-health/6",
  "evidence_steps": [
   49,
   64

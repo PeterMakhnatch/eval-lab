@@ -156,6 +156,23 @@ def test_latency_long_gap_alarms_at_later_step(stamp: Any) -> None:
     assert latency["evidence_steps"] == [4]
 
 
+@pytest.mark.parametrize(("command", "observation", "alarms"), [
+    ("cat src/app.py", "def main(): ...", True),
+    ("sleep 600; tail -2 /tmp/build.log", "PASSED", False),
+    ("grep -n main", '{"returncode": 124, "output": ""}', False),
+], ids=["quick_command", "own_wait", "own_timeout"])
+def test_ten_minute_gap_is_a_stall_only_when_the_previous_command_does_not_explain_it(
+        command: str, observation: str, alarms: bool) -> None:
+    gap = rh.LATENCY_UNEXPLAINED_GAP_SECONDS
+    # Ten quick steps keep the median and p90 step times low; one gap follows `command`.
+    steps = [_step(i + 1, cmd, timestamp=T0 + 5 * i) for i, cmd in enumerate(_words(10))]
+    steps += [_step(11, command, observation=observation, timestamp=T0 + 50),
+              _step(12, "pwd", timestamp=T0 + 50 + gap), _step(13, "whoami", timestamp=T0 + 55 + gap)]
+    latency = _by_kind(_run(steps))["latency"]
+    assert latency["verdict"] == ("alarm" if alarms else "clear")
+    assert latency["evidence_steps"] == ([12] if alarms else [])
+
+
 def test_live_silence_fires_only_after_threshold_and_only_while_running() -> None:
     steps = [_step(i + 1, cmd, timestamp=T0 + 10 * i) for i, cmd in enumerate(_words(3))]
     last = T0 + 20

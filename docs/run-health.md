@@ -18,7 +18,7 @@ publisher flag is read, so a record can be scored against any label set later.
 |---|---|
 | `run_health.loop` | the agent repeats itself without progress: 8 steps with the same normalized command, the same tool output (per-call ids and numbers masked) and no edit; 10 identical messages; 5 completion claims; a 12-step edit-free window with at most 3 distinct command-and-output pairs; or the environment sends byte-identical feedback (a non-agent `user` message after the first agent step) twice, so a resubmission did not change the outcome. Also when the harness stopped it for looping (`LoopBreakStop`, `loop_break`). Undo commands and repeated errors are reported as features only |
 | `run_health.runaway` | 250 agent steps or 2 h of wall time; or a budget, timeout, turn or context limit ended the run (`AgentTimeoutError`, `TrialBudgetExhaustedError`, store `max_turns`/`context_length`/`LimitsExceeded`) |
-| `run_health.latency` | median step 60 s, p90 step 300 s, a 45-minute gap between steps, or 15 minutes of setup or verifier time; abstains with fewer than 3 timestamped agent steps and no phase timings |
+| `run_health.latency` | median step 60 s, p90 step 300 s, a 45-minute gap between steps, a 10-minute gap after an agent step whose own command does not explain it (no `sleep`/`wait`/`timeout`/`kill -0` in the command, no timeout marker in its output), or 15 minutes of setup or verifier time; abstains with fewer than 3 timestamped agent steps and no phase timings |
 | `run_health.infra` | an infrastructure exception or run status (sandbox, admission, healthcheck, model API, verifier output; store `refused`/`error`/`provisional_execution_unavailable`), or an infrastructure signature in tool output of the last steps with no agent step after it |
 
 Thresholds sit at or above the pooled p99 of each feature over the 3,809
@@ -184,3 +184,13 @@ base rate, and the supervisor's existing ownership and stop-cap checks.
   `qa-trace-sft` hacktrace runs (three replies to the same failure message); blind
   raters called 0 of the 11 they agreed on loops (4 disputed), so treat those
   alarms as unvalidated.
+- **Held-out DEV stall audit (`run-health/6`):** the 12 agreed stalls in the two audits above
+  were all 10–17-minute gaps after a quick command; the 3 rejected 10-minute gaps followed a
+  timed-out command or a wait loop. The `unexplained_gap_seconds` rule was fixed from that
+  and tested on a pre-registered held-out sample of 120 new DEV runs (two blind raters):
+  **44/48 fired runs were stalls** (precision 0.92, Wilson 0.80–0.97); 3/21 runs with a
+  10-minute gap the rule excused were stalls; 0/8 controls. Arm-weighted recall among runs
+  with a 10-minute gap is about 0.93. The shipped rule scans full commands and differs from
+  the pre-registered one (commands clipped at 400 characters) on 6 of 471 checked runs, always
+  firing less. The same audit found 0/31 missed infra failures among runs whose tool output
+  has an infra signature but no infra alarm (Wilson upper bound 0.11).

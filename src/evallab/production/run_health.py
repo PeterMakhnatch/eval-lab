@@ -17,8 +17,9 @@ to score against any label set later.
 
 Thresholds are fixed constants set from the unlabelled DEV distribution before
 scoring (``run-health/2``); ``run-health/4`` then narrowed the loop rule after a
-blind DEV precision audit, and ``run-health/5`` added repeated identical environment
-feedback after a random-sample DEV recall audit. Scores are continuous so a scorer can still sweep
+blind DEV precision audit, ``run-health/5`` added repeated identical environment
+feedback after a random-sample DEV recall audit, and ``run-health/6`` added the
+unexplained 10-minute gap after a held-out DEV stall audit. Scores are continuous so a scorer can still sweep
 operating points. A run without an actor transcript is ``unknown`` for every
 kind, never ``clear``; it can still alarm on a run-level exception or stop reason.
 """
@@ -41,7 +42,7 @@ from typing import Any
 from evallab.token_flow import _is_edit, _step_calls, _stitched_steps, normalized_command
 
 FINDING_SCHEMA = "trace-findings/v1"
-DETECTOR_VERSION = "run-health/5"
+DETECTOR_VERSION = "run-health/6"
 KINDS = ("loop", "runaway", "latency", "infra")
 AGENT_SOURCES = frozenset({"agent", "assistant"})
 
@@ -86,6 +87,12 @@ LATENCY_SETUP_SECONDS = 900.0
 LATENCY_VERIFIER_SECONDS = 900.0
 #: Fewer timestamped agent steps than this and latency abstains.
 LATENCY_MIN_TIMESTAMPS = 3
+#: A gap between consecutive timestamped agent steps that the earlier step's own
+#: command does not explain (no sleep/wait/timeout in it, no timeout marker in its
+#: output). Blind DEV audits: every agreed stall was such a gap of 10-17 minutes,
+#: far below ``LATENCY_MAX_GAP_SECONDS``.
+LATENCY_UNEXPLAINED_GAP_SECONDS = 600.0
+_WAIT_COMMAND_RE = re.compile(r"\b(?:sleep|wait|timeout)\b|kill -0")
 
 #: Run-level exception types by health kind (Harbor ``exception_info``; the infra
 #: types follow the InfraSigs catalog of 8,374 of our Harbor trials, 2026-10-28).
@@ -381,6 +388,28 @@ def _repeated_feedback(steps: Sequence[Mapping[str, Any]]) -> tuple[int, Any]:
     return (max(seen.values()) - 1 if seen else 0), first_repeat
 
 
+def _unexplained_gap(agent: Sequence[Mapping[str, Any]]) -> tuple[float | None, Any]:
+    """Largest gap between consecutive timestamped agent steps not explained by the
+    earlier step's own waiting command or timeout, and the later step's id.
+    ``(None, None)`` when no two consecutive agent steps are both timestamped."""
+    stamps = [_epoch(s.get("timestamp")) for s in agent]
+    best: float | None = None
+    at = None
+    for n in range(1, len(agent)):
+        later, earlier = stamps[n], stamps[n - 1]
+        if later is None or earlier is None:
+            continue
+        delta = later - earlier
+        best = 0.0 if best is None else best
+        previous = dict(agent[n - 1])
+        commands = " ".join(text for _, text in _step_calls(previous))
+        if delta <= best or _WAIT_COMMAND_RE.search(commands) or TIMEOUT_MARKER_RE.search(
+                _observation_text(previous)):
+            continue
+        best, at = delta, agent[n].get("step_id")
+    return (None if best is None else round(best, 3)), at
+
+
 def _quantile(values: Sequence[float], q: float) -> float | None:
     if not values:
         return None
@@ -426,6 +455,7 @@ def features(run: HealthRun) -> dict[str, Any]:
     completions = sum(bool(_COMPLETION_RE.search(_step_text(s) + " ".join(sg for _, sg in _step_calls(dict(s)))))
                       for s in agent)
     feedback_repeats, feedback_at = _repeated_feedback(steps)
+    unexplained_gap, unexplained_at = _unexplained_gap(agent)
 
     # timing
     stamps = [(i, t) for i, s in enumerate(steps) if (t := _epoch(s.get("timestamp"))) is not None]
@@ -524,6 +554,8 @@ def features(run: HealthRun) -> dict[str, Any]:
         "completion_claims": completions,
         "max_repeated_feedback": feedback_repeats,
         "repeated_feedback_step": feedback_at,
+        "max_unexplained_gap_seconds": unexplained_gap,
+        "unexplained_gap_step": unexplained_at,
         "timeout_marker_steps": timeout_hits[:5],
         "timeout_markers": len(timeout_hits),
         "infra_signatures": {k: len(v) for k, v in sorted(infra_hits.items())},
@@ -643,6 +675,8 @@ def _kind_components(f: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
             ("median_step_seconds", f["seconds_per_agent_step_median"], LATENCY_MEDIAN_STEP_SECONDS, None),
             ("p90_step_seconds", f["seconds_per_agent_step_p90"], LATENCY_P90_STEP_SECONDS, None),
             ("max_gap_seconds", f["max_gap_seconds"], LATENCY_MAX_GAP_SECONDS, f["max_gap_step"]),
+            ("unexplained_gap_seconds", f["max_unexplained_gap_seconds"], LATENCY_UNEXPLAINED_GAP_SECONDS,
+             f["unexplained_gap_step"]),
         ])
     infra = [{"name": f"tail:{name}", "value": 1, "threshold": 1, "ratio": 1.0, "step": steps[0], "op": None}
              for name, steps in f["infra_tail"].items()]

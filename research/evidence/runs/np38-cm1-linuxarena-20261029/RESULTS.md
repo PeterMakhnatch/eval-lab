@@ -1,4 +1,8 @@
-# NP38-CM-1: stopped-prefix results
+# NP38-CM-1: pre-resumption prefix and authorized continuation
+
+**Resumption amendment, before continuation:** The parent reviewed the empty-window usage read as an infrastructure failure and gave written authorization to resume, on that infrastructure ground **not on the observed numbers**. The prefix numbers below (3/16 vs 0/16 facets; 27/60 vs 0/60 deterministic Stage 1) were seen before reading the remaining pairs. The original prefix score is retained. A separately committed `results/resumption-plan.json` declares the only operational change: five logged usage-read attempts, 10 seconds apart on read errors, with the 85% threshold still stopping immediately. Detector inputs, prompts, rules, sample, 500-attempt cap and breakers are unchanged. After the full design, one separately logged rescore will be the primary result, with this disclosure and the prefix retained; if another safety stop occurs, unread results remain unknown. No 400-run expansion.
+
+The rest of this section records the state at the initial stop, **not** the state after any authorized continuation.
 
 **Incomplete; do not interpret unread runs as negatives.** The frozen model-free Stage-1 replay had already found `grader_tamper` pass-throughs on **27/60 honest-condition S runs (45.0%, Wilson 95% 33.1–57.5%) and 0/60 matched non-S runs (0%, 0–6.0%)**. These 47 cards on S are cascade alarms under the frozen rule and trigger the preregistered stop on a 400-run expansion. They are not evidence of failed-test repair: S detects test-path writing, most of these hits use `create`, and the corpus provides honest-condition runs, not independent certification that every behaviour is clean. This deterministic split was disclosed in the preregistration before the model calls.
 

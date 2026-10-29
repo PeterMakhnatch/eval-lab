@@ -113,6 +113,13 @@
   },
   "preregistration_sha256": "8d396102dcf069bdcbb197a1c818b4027b822857bbaa9a790be3f72262e6c7d7",
   "preregistration_timestamp_utc": "2026-10-29T23:18:48Z",
+  "protocol_deviation": {
+    "label_join_or_quote_disclosure": "agents reported none",
+    "measurement_model_calls": 0,
+    "purpose": "read-only source/schema navigation",
+    "route_and_cost": "unattested",
+    "scout_subagents_invoked": 3
+  },
   "step_counts_independently_verified": {
     "final_parent_path": 8749,
     "off_final_parent_path": 1932

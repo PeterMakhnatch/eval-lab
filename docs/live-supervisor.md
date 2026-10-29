@@ -102,6 +102,10 @@ The importer accepts only admitted DEV runs, so the live log is
 `~/.local/state/evallab-prod-live/live-supervisor/decisions-v1.jsonl`. Replay records for
 DEV runs can also be imported with `evallab prod import-trace-findings`.
 
+Cheating alarms produce evidence cards and one queue notification per UTC day. Routing
+holds a shared file lock around card, index, notification and deduplication-state writes,
+so the live subscriber and a scan actuator cannot race to send duplicate notices.
+
 ## Safety
 
 - Never kill, restart or message Peter's chats or any persistent tab. Fleet problems become

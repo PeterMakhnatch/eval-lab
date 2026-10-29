@@ -25,6 +25,7 @@ latency`` writes ``replay/cheat-latency-v1.json``.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import math
@@ -380,6 +381,14 @@ class CheatRouter:
         to the index only.
         """
         self.cards_dir.mkdir(parents=True, exist_ok=True)
+        with (self.cards_dir / "router.lock").open("a", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                return self._route_locked(flagged)
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+    def _route_locked(self, flagged: Iterable[tuple[Observation, Decision]]) -> list[Path]:
         state = self._load()
         new: dict[str, list[tuple[str, Path]]] = {}
         for observation, decision in flagged:

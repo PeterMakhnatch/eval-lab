@@ -218,6 +218,27 @@ carries `cluster_id`, `cluster_name`, `cluster_level`, `cluster_size`,
 ordered by positive runs within the cluster ranking, so the densest
 cluster-task pairs are read first.
 
+## Store coverage (`evallab atlas coverage`)
+
+Logic: `store_coverage` in `src/evallab/production/run_atlas.py`. Tests:
+`tests/test_run_atlas_reader_mix.py`. Read-only and model-free.
+
+```bash
+uv run evallab atlas coverage           # compact table
+uv run evallab atlas coverage --json    # evallab.atlas_store_coverage/v1
+```
+
+- Stored records (latest line per `run_id`) counted by `facet_model`, prompt
+  version and `source`. The prompt version comes from the call receipts of the
+  `ok` batch that wrote the record for the same reader route (both
+  `facet-calls-v1.jsonl` and `watch-calls-v1.jsonl` by default; `--calls` is
+  repeatable); records without such a receipt are `unrecorded`.
+- Deferred DEV-split runs in the trace DB, before the cross-key admission gate:
+  *incomplete steps* when `step_count` is zero or differs from the stored step
+  rows (even if a facet exists), otherwise *not yet read* when no facet record
+  exists. A missing `--database` exits non-zero with
+  `cloud trace database not found: <path>`.
+
 ## Always on (`evallab atlas watch`)
 
 Logic: `src/evallab/production/run_atlas_watch.py`. Tests:

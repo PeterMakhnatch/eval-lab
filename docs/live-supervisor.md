@@ -336,9 +336,10 @@ loaded by merging this change.
 ### Fleet-health report
 
 `evallab live-supervisor fleet-report` is the repeatable form of the one-off RH-3 / RH-p11c fleet
-numbers ("which of our own lanes sat idle or looped"). It is deterministic and $0: it reads only the
-queue keeper's files in the bridge run directory (`_queue.log`, `queue.json`, `queue-state.json`),
-never a lane's session, and calls no model.
+numbers ("which of our own lanes sat idle or looped"). It calls no model and reads the
+queue keeper's files in the bridge run directory (`_queue.log`, `queue.json`,
+`queue-state.json`), supervisor heartbeats under `--root`, and, when available,
+the read-only `pmset -g log` sleep events. It never reads a lane's session.
 
 ```bash
 # print the markdown section for the last 24 h (read-only)
@@ -367,6 +368,13 @@ evallab live-supervisor fleet-report --write --out /tmp/copy-of-live-supervisor.
   to the last outcome. The thresholds are named constants in
   `production/live_supervisor_fleet_report.py`, fixed in RH-p11c before scoring.
 - Open items: dispatches with no outcome, flagged past 3 h (the supervisor's wall-time rule).
+- Supervisor coverage: sum elapsed time between adjacent cycle starts at most 3 minutes
+  apart, clipped to the report window. Window edges are not extrapolated; gaps over
+  10 minutes include the window edges and list ET endpoints. A gap is marked sleep
+  observed only when a `pmset` Sleep event falls within it; otherwise its cause is
+  unknown. The report counts non-`ok` statuses (including `rules`), reports the first
+  `budget_exhausted` cycle on the current UTC budget day, and counts malformed rows.
+  Missing, empty or wholly malformed heartbeat files produce null coverage, not zero.
 - Every number carries its n, and a quantity with no data is `null` (JSON) or `n/a`, never 0.
 - Measured limits: STORM had one episode in the validation log (precision 1/1) and SILENT was 2/5
   precise, so the report claims nothing about lane health beyond the keeper log.

@@ -653,7 +653,7 @@ def _route_alarms_command(args: argparse.Namespace, root: Path, *, harbor: Any =
 
 
 def _fleet_report_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
-    del root, harbor
+    del harbor
     report = _import("live_supervisor_fleet_report", "the fleet report")
     bridge = args.bridge if args.bridge is not None else _attr(report, "DEFAULT_BRIDGE", "the fleet report")
     if args.out is not None and not args.write:
@@ -664,7 +664,7 @@ def _fleet_report_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         return 2
     updated: Path | None = None
     try:
-        data, text = report.run_fleet_report(bridge, window_hours=args.window_hours)
+        data, text = report.run_fleet_report(bridge, window_hours=args.window_hours, root=root)
         if args.write:
             updated = (args.out if args.out is not None else bridge / report.TARGET_FILE).expanduser()
             report.write_section(updated, text)
@@ -773,6 +773,8 @@ def register_parser(commands: Any) -> None:
     fleet.add_argument("--bridge", type=Path,
                        help="bridge run directory holding _queue.log, queue.json and queue-state.json "
                             "(default: ~/Developer/research-context/bridge/2026-10-27-run-atlas)")
+    fleet.add_argument("--root", type=Path, default=ls.DEFAULT_ROOT,
+                       help="supervisor state root holding cycles-v1.jsonl")
     fleet.add_argument("--window-hours", type=float, default=24.0,
                        help="hours before now that the report covers (default: 24)")
     fleet.add_argument("--out", type=Path,

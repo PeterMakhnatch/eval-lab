@@ -33,7 +33,9 @@ import fcntl
 import json
 import math
 import os
+import re
 import shutil
+import subprocess
 import tempfile
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -43,6 +45,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from evallab.production.live_supervisor import DEFAULT_ROOT
 from evallab.production.live_supervisor_fleet import (
     _DISPATCH,
     _OUTCOME,
@@ -380,6 +383,67 @@ def fleet_report(log_text: str, queue: Mapping[str, Any], state: Mapping[str, An
     }
 
 
+def supervisor_coverage(text: str, *, now: datetime, window_hours: float,
+                        sleep_times: Sequence[datetime] = ()) -> dict[str, Any]:
+    """Summarize heartbeat intervals; only adjacent cycles at most three minutes apart count."""
+    now = now.astimezone(UTC)
+    start = now - timedelta(hours=window_hours)
+    rows: list[tuple[datetime, str]] = []
+    malformed = 0
+    for line in text.splitlines():
+        try:
+            row = json.loads(line)
+            timestamp = datetime.fromisoformat(row["started_at"])
+            status = row["reader_status"]
+            if timestamp.tzinfo is None or status not in {"ok", "rules", "budget_exhausted", "headroom_blocked"}:
+                raise ValueError("invalid heartbeat")
+            rows.append((timestamp.astimezone(UTC), status))
+        except (ValueError, TypeError, KeyError):
+            malformed += 1
+    rows.sort(key=lambda row: row[0])
+    if not rows:
+        return {"awake_h": None, "cycles": None, "non_ok": None, "first_cap_today": None,
+                "gaps": None, "malformed": malformed}
+    in_window = [(at, status) for at, status in rows if start < at <= now]
+    awake_seconds = sum(
+        max(0.0, (min(b, now) - max(a, start)).total_seconds())
+        for (a, _), (b, _) in zip(rows, rows[1:])
+        if (b - a).total_seconds() <= 180
+    )
+    gaps: list[dict[str, Any]] = []
+    # Include window edges for unknown coverage, but do not extrapolate heartbeat cadence.
+    points = [start] + [at for at, _ in in_window] + [now]
+    for a, b in zip(points, points[1:]):
+        seconds = (b - a).total_seconds()
+        if seconds > 600:
+            slept = any(a <= t.astimezone(UTC) <= b for t in sleep_times)
+            gaps.append({"start": _iso(a), "end": _iso(b), "cause": "sleep observed" if slept else "unknown"})
+    today = now.date()
+    cap = next((at for at, status in rows if at.date() == today and at <= now
+                and status == "budget_exhausted"), None)
+    return {"awake_h": awake_seconds / 3600, "cycles": len(in_window),
+            "non_ok": sum(status != "ok" for _, status in in_window),
+            "first_cap_today": _iso(cap), "gaps": gaps, "malformed": malformed}
+
+
+def _sleep_times() -> list[datetime]:
+    """Read explicit macOS sleep events, without inferring cause from missing cycles."""
+    try:
+        result = subprocess.run(["pmset", "-g", "log"], capture_output=True, text=True,
+                                timeout=3, check=True)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    times = []
+    for line in result.stdout.splitlines():
+        match = re.match(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\s+[+-]\d{4})\s+Sleep\b", line)
+        if match:
+            try:
+                times.append(datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S %z"))
+            except ValueError:
+                continue
+    return times
+
+
 # --------------------------------------------------------------------------- rendering
 
 
@@ -475,6 +539,26 @@ def render_section(report: Mapping[str, Any], *, now: datetime) -> str:
         + (f" ({unmanaged} on lanes no longer in `queue.json`)" if unmanaged else "")
         + (f" ({parked} on parked lanes)" if parked else "")
         + " → age says the item is long, not that the lane is stuck.")
+    coverage = report.get("supervisor_coverage")
+    if coverage is not None:
+        if coverage["cycles"] is None:
+            coverage_text = "n/a (heartbeat file missing, empty, or without valid rows)"
+        else:
+            gaps = "; ".join(
+                f"{_et(gap['start'])}–{_et(gap['end'])} ({gap['cause']})"
+                for gap in coverage["gaps"]
+            ) or "none"
+            cap = _et(coverage["first_cap_today"]) if coverage["first_cap_today"] else "not observed"
+            coverage_text = (
+                f"{_hours(coverage['awake_h'])} covered, {coverage['cycles']} cycles, "
+                f"{coverage['non_ok']} non-ok; gaps >10 min: {gaps}; "
+                f"first budget exhaustion today (UTC): {cap}"
+            )
+        lines.append(
+            "- **Supervisor coverage: did scans run?** → adjacent heartbeats ≤3 min apart "
+            f"in the window → {coverage_text}; malformed lines {coverage['malformed']} → "
+            "coverage is observed cadence, not proof of machine wakefulness; unconfirmed gap causes are unknown."
+        )
     lines += ["", f"Not claimed: {CAVEAT}"]
     return "\n".join(lines)
 
@@ -562,11 +646,17 @@ def _json_file(path: Path) -> dict[str, Any]:
 
 
 def run_fleet_report(bridge: Path, *, window_hours: float = DEFAULT_WINDOW_HOURS,
-                     now: datetime | None = None) -> tuple[dict[str, Any], str]:
-    """Read the keeper files under ``bridge`` and return ``(report, markdown section)``."""
+                     now: datetime | None = None, root: Path = DEFAULT_ROOT) -> tuple[dict[str, Any], str]:
+    """Read keeper files and supervisor heartbeats, returning report and markdown."""
     bridge = bridge.expanduser()
     moment = now if now is not None else datetime.now(UTC)
     log_text = (bridge / QUEUE_LOG).read_text(encoding="utf-8", errors="replace")
     report = fleet_report(log_text, _json_file(bridge / QUEUE_FILE), _json_file(bridge / STATE_FILE),
                           now=moment, window_hours=window_hours)
+    try:
+        cycles = (root.expanduser() / "cycles-v1.jsonl").read_text(encoding="utf-8", errors="replace")
+    except FileNotFoundError:
+        cycles = ""
+    report["supervisor_coverage"] = supervisor_coverage(
+        cycles, now=moment, window_hours=window_hours, sleep_times=_sleep_times() if cycles else ())
     return report, render_section(report, now=moment)

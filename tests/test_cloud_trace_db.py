@@ -25,7 +25,12 @@ import pytest
 from psycopg import sql
 
 from evallab.production import cloud_trace_db
-from evallab.production.cloud_trace_db import CloudTraceDatabase, S3CompatibleCAS
+from evallab.production.cloud_trace_db import (
+    CloudTraceDatabase,
+    CloudTraceRetriever,
+    S3CompatibleCAS,
+)
+from evallab.production.corpus_queue import CorpusRegistry
 
 _ENVIRONMENT = (
     "DATABASE_URL", "EVALLAB_CLOUD_DATABASE_URL", "EVALLAB_S3_BUCKET",
@@ -755,3 +760,44 @@ def test_task_scope_preserves_query_status_and_filter_semantics(db: CloudTraceDa
     assert {row["trace_id"] for row in db.search_traces("", allowed_task_ids=None)} == {
         "trace-1", "unverified", "other-trace",
     }
+
+
+class DevRegistry(CorpusRegistry):
+    """Valid split authority that admits the synthetic non-canonical DEV corpus."""
+
+    def __init__(self) -> None:
+        authority = b"key_id,item_id,split\nsynthetic-authority,source,dev\n"
+        self.split_assignments_digest = "sha256:" + hashlib.sha256(authority).hexdigest()
+        self._assignment_keys = frozenset({"synthetic-authority"})
+        self._assignments = {("synthetic-authority", "source"): "dev"}
+        self._assignment_names = {}
+        self._assigned_test_ids = set()
+        self._assigned_test_names = set()
+        self._sealed_names = set()
+        self._sealed_digests = set()
+        self._sealed_ids = set()
+
+
+def test_retrieval_and_pointer_expansion_return_stored_step_flags_on_every_backend(db: CloudTraceDatabase) -> None:
+    db.upsert_task(task("labeled", instruction_text="pytest grader"))
+    db.upsert_trace(trace(
+        "labeled/trace", task_id="labeled", trust_tier="tier2_consensus_labeled", flagged_passage_steps=[2],
+    ), steps=[{
+        "step_index": index, "role": "user" if index == 0 else "assistant", "content_text": f"pytest grader {index}",
+        "flags_json": ["named"] if index == 1 else {"native_node_index": index},
+    } for index in range(4)])
+    retriever = CloudTraceRetriever(db, registry=DevRegistry())
+    (example,) = retriever.retrieve_similar_examples("pytest grader", "reward_seeker", 3)
+    assert [(step["step_index"], step["flagged"]) for step in example.trace_steps] == [(1, True), (2, True), (3, False)]
+    assert example.trace_steps[0]["flags"] == '["named"]'
+    assert retriever.expand_pointer(example.pointer)["steps"] == example.trace_steps
+
+
+def test_read_only_open_reads_the_same_store_and_refuses_writes(target: tuple[str | Path, bool]) -> None:
+    # The PostgreSQL target scopes its schema through the URL's ``options``; a read-only session must keep it.
+    with CloudTraceDatabase(target[0], sqlite_fts=target[1]) as writer:
+        seed(writer)
+    with CloudTraceDatabase(target[0], read_only=True) as reader:
+        assert reader.get_trace("trace-1")["task_id"] == "synthetic-task"
+        with pytest.raises((sqlite3.OperationalError, psycopg.errors.ReadOnlySqlTransaction)):
+            reader.upsert_task(task("other-task"))

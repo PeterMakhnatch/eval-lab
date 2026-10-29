@@ -8,6 +8,12 @@
   },
   {
    "against": "sqlite-fts",
+   "call": "schema_scoped_read_only:row_counts",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-fts",
    "call": "search_runs:all",
    "detail": "",
    "status": "equal"
@@ -81,8 +87,8 @@
   {
    "against": "sqlite-fts",
    "call": "search_runs:no-match",
-   "detail": "ValueError: \"facets['suspicion'] must be one of 0, 1, 2, 3\" vs ValueError: \"facets['suspicion'] must be one of 0, 1, 2, 3\"",
-   "status": "equal_exception"
+   "detail": "",
+   "status": "equal"
   },
   {
    "against": "sqlite-fts",
@@ -866,6 +872,12 @@
   },
   {
    "against": "sqlite-like",
+   "call": "schema_scoped_read_only:row_counts",
+   "detail": "",
+   "status": "equal"
+  },
+  {
+   "against": "sqlite-like",
    "call": "search_runs:all",
    "detail": "",
    "status": "equal"
@@ -939,8 +951,8 @@
   {
    "against": "sqlite-like",
    "call": "search_runs:no-match",
-   "detail": "ValueError: \"facets['suspicion'] must be one of 0, 1, 2, 3\" vs ValueError: \"facets['suspicion'] must be one of 0, 1, 2, 3\"",
-   "status": "equal_exception"
+   "detail": "",
+   "status": "equal"
   },
   {
    "against": "sqlite-like",
@@ -1720,12 +1732,6 @@
  "not_equal": [
   {
    "against": "sqlite-fts",
-   "call": "search_runs:no-match",
-   "detail": "ValueError: \"facets['suspicion'] must be one of 0, 1, 2, 3\" vs ValueError: \"facets['suspicion'] must be one of 0, 1, 2, 3\"",
-   "status": "equal_exception"
-  },
-  {
-   "against": "sqlite-fts",
    "call": "qa.traces:denied-task",
    "detail": "QaDataError: 'not available: not an admitted DEV task or run' vs QaDataError: 'not available: not an admitted DEV task or run'",
    "status": "equal_exception"
@@ -1993,12 +1999,6 @@
    "call": "retrieve:identifier-term",
    "detail": "/: length 0 vs 1",
    "status": "differs"
-  },
-  {
-   "against": "sqlite-like",
-   "call": "search_runs:no-match",
-   "detail": "ValueError: \"facets['suspicion'] must be one of 0, 1, 2, 3\" vs ValueError: \"facets['suspicion'] must be one of 0, 1, 2, 3\"",
-   "status": "equal_exception"
   },
   {
    "against": "sqlite-like",
@@ -2279,12 +2279,12 @@
   "by_status": {
    "differs": 4,
    "differs_exception": 4,
-   "equal": 194,
-   "equal_exception": 80,
+   "equal": 198,
+   "equal_exception": 78,
    "order_only": 4
   },
-  "calls": 143,
-  "comparisons": 286,
+  "calls": 144,
+  "comparisons": 288,
   "pg_exceptions": [
    "qa.build_card:locked-run",
    "qa.build_card:nope",
@@ -2303,7 +2303,6 @@
    "retrieve:anchor-withheld-task-name",
    "retrieve:cluster-unknown",
    "retrieve:sealed-query",
-   "search_runs:no-match",
    "weird-id:build_card:empty",
    "weird-id:build_card:long",
    "weird-id:build_card:nul",
@@ -2347,7 +2346,6 @@
    "retrieve:anchor-withheld-task-name",
    "retrieve:cluster-unknown",
    "retrieve:sealed-query",
-   "search_runs:no-match",
    "weird-id:build_card:empty",
    "weird-id:build_card:long",
    "weird-id:build_card:nul",
@@ -2391,7 +2389,6 @@
    "retrieve:anchor-withheld-task-name",
    "retrieve:cluster-unknown",
    "retrieve:sealed-query",
-   "search_runs:no-match",
    "weird-id:build_card:empty",
    "weird-id:build_card:long",
    "weird-id:build_card:nul",

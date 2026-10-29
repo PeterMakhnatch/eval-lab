@@ -34,7 +34,6 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
-from psycopg.conninfo import conninfo_to_dict
 from psycopg.types.json import Jsonb
 
 from evallab.production.corpus_queue import DATASETS, CorpusRegistry
@@ -520,13 +519,7 @@ class CloudTraceDatabase:
         self._memo_values: dict[tuple[Any, ...], Any] = {}
         self._connection: Any
         if self._postgres:
-            # ``options=`` replaces, not extends, the DSN's own (e.g. a ``-csearch_path``): carry it over.
-            read_only_option = "-c default_transaction_read_only=on"
-            carried = conninfo_to_dict(target).get("options") if read_only else None
-            self._connection = psycopg.connect(
-                target, autocommit=True,
-                **({"options": f"{carried} {read_only_option}" if carried else read_only_option} if read_only else {}),
-            )
+            self._connection = psycopg.connect(target, autocommit=True)
         else:
             if "://" in target and not target.startswith("sqlite:///"):
                 raise ValueError("database must be a PostgreSQL URL, SQLite URL, or local path")
@@ -544,7 +537,9 @@ class CloudTraceDatabase:
             self._connection.execute("PRAGMA foreign_keys=ON")
         try:
             if read_only:
-                if not self._postgres:
+                if self._postgres:
+                    self._connection.execute("SET default_transaction_read_only = on")
+                else:
                     self._fts = all(
                         self._execute("SELECT 1 FROM sqlite_master WHERE name = ?", (f"{table}_fts",)).fetchone()
                         for table in _SEARCH_COLUMNS

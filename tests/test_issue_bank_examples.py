@@ -16,6 +16,7 @@ from evallab.failure_library.bank import BankContext, IssueBank, IssueItem, Prov
 from evallab.failure_library.bank.examples import compile_examples, main, write_examples
 from evallab.failure_library.bank.hard_cases import HardCase, make_case_id, write_cases
 from evallab.failure_library.knowledge.compiler import canonical
+from evallab.registry import task_directory_digest
 
 
 def _sha(raw: bytes) -> str:
@@ -313,6 +314,67 @@ def test_recorded_field_digest_binds_only_inside_a_bound_file(ctx: BankContext, 
     _store(ctx, [item])
     result = compile_examples([case], ctx)
     assert _reasons(result, case) == ([] if binding == "recorded" else ["source_hash_mismatch"])
+
+
+def _package(root: Path, name: str, marker: str = "PACKAGE-ONLY-MARKER") -> str:
+    directory = root / name
+    (directory / "tests").mkdir(parents=True, exist_ok=True)
+    (directory / "instruction.md").write_text("Fixture package " + marker + "\n", encoding="utf-8")
+    (directory / "tests/check.py").write_text("assert True  # " + marker + "\n", encoding="utf-8")
+    return task_directory_digest(directory).removeprefix("sha256:")
+
+
+def _packaged(case: HardCase, name: str, digest: str) -> HardCase:
+    return case.model_copy(update={"source_digests": {**case.source_digests, "task-package:" + name: digest}})
+
+
+@pytest.mark.parametrize("state", ["exact", "drifted", "absent", "unconfigured", "unsafe_name"])
+def test_task_package_ref_binds_only_to_the_exact_digest_in_a_configured_root(
+    ctx: BankContext, tmp_path: Path, state: str,
+) -> None:
+    case, item = _case(ctx, "package-" + state, system="task-qa")
+    root = tmp_path / "packages"
+    digest = _package(root, "alpha")
+    if state == "drifted":
+        (root / "alpha/instruction.md").write_text("changed bytes\n", encoding="utf-8")
+    name = "../alpha" if state == "unsafe_name" else "alpha"
+    if state == "absent":
+        digest = _sha(b"a package that is not here")
+        name = "beta"
+    ctx.task_package_roots = () if state == "unconfigured" else (root,)
+    _store(ctx, [item])
+    result = compile_examples([_packaged(case, name, digest)], ctx)
+    expected = {
+        "exact": [], "drifted": ["source_hash_mismatch"], "absent": ["source_unavailable"],
+        "unconfigured": ["source_unavailable"], "unsafe_name": ["source_unavailable"],
+    }[state]
+    assert _reasons(result, case) == expected
+    assert bool(result.examples) == (state == "exact")
+    assert "PACKAGE-ONLY-MARKER" not in canonical(result.examples)
+
+
+def test_task_package_digest_decides_not_the_name(ctx: BankContext, tmp_path: Path) -> None:
+    case, item = _case(ctx, "package-two-roots", system="task-qa")
+    wrong, right = tmp_path / "wrong", tmp_path / "right"
+    _package(wrong, "alpha", marker="OTHER-BYTES")
+    digest = _package(right, "alpha")
+    ctx.task_package_roots = (wrong, right)
+    _store(ctx, [item])
+    assert _reasons(compile_examples([_packaged(case, "alpha", digest)], ctx), case) == []
+    ctx.task_package_roots = (wrong,)
+    assert _reasons(compile_examples([_packaged(case, "alpha", digest)], ctx), case) == ["source_hash_mismatch"]
+
+
+def test_resolving_the_package_does_not_launder_a_sealed_input(ctx: BankContext, tmp_path: Path) -> None:
+    body = _native_body("sealed-package", "task-qa")
+    body["files"]["instruction.md"] += "Mentions sealed-task.\n"
+    case, item = _case(ctx, "sealed-package", system="task-qa", body=body)
+    digest = _package(tmp_path / "packages", "alpha")
+    ctx.task_package_roots = (tmp_path / "packages",)
+    _store(ctx, [item])
+    result = compile_examples([_packaged(case, "alpha", digest)], ctx)
+    assert _reasons(result, case) == ["non_dev_input"]
+    assert not result.examples
 
 
 @pytest.mark.parametrize("leak", ["Goodfire", "label_metadata", "reviewed-positive", "sealed-task"])

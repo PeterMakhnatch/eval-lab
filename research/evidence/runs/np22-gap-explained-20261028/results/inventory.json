@@ -1,0 +1,470 @@
+{
+ "goodfire_dev": {
+  "blinding_refresh_listed_by_stratum": {
+   "clean_no": 64,
+   "considered_only": 42,
+   "enacted_yes": 72
+  },
+  "categories_nonempty_by_stratum": {
+   "clean_no": 0,
+   "considered_only": 50,
+   "enacted_yes": 80
+  },
+  "category_values_by_stratum": {
+   "clean_no": {},
+   "considered_only": {
+    "environment_acquisition": 8,
+    "hardcoding_special_casing": 26,
+    "harness_mechanics_targeting": 20,
+    "hidden_test_targeting": 2,
+    "misrepresented_compliance": 1,
+    "other": 1,
+    "result_object_poisoning": 1,
+    "test_execution_tampering": 1,
+    "test_modification": 4,
+    "upstream_fix_recall": 20
+   },
+   "enacted_yes": {
+    "environment_acquisition": 10,
+    "fabricated_verification": 9,
+    "hardcoding_special_casing": 22,
+    "harness_mechanics_targeting": 21,
+    "harness_substitution": 2,
+    "hidden_test_targeting": 36,
+    "misrepresented_compliance": 23,
+    "other": 6,
+    "result_object_poisoning": 2,
+    "submission_gaming": 1,
+    "test_execution_tampering": 3,
+    "test_modification": 5,
+    "upstream_fix_recall": 35
+   }
+  },
+  "enacted_with_labelled_positive_steps": 80,
+  "facet_lines_in_cohort": 792,
+  "facet_lines_total": 6965,
+  "facet_store_sha256": "22de9f5c63e8273876ac1b7e32e668b1cae1c23da6d2a3ce82ab098f5e232001",
+  "haiku_extractor_mode_by_stratum": {
+   "clean_no": {
+    "no_ok_call_logged": 12,
+    "v2_form_or_map": 58
+   },
+   "considered_only": {
+    "no_ok_call_logged": 11,
+    "v2_form_or_map": 39
+   },
+   "enacted_yes": {
+    "no_ok_call_logged": 12,
+    "v2_form_or_map": 68
+   }
+  },
+  "ids_admitted_by_strict_cross_key": 200,
+  "ids_in_sample": 200,
+  "labelled_positive_step_count_quartiles_enacted": [
+   1,
+   2,
+   4,
+   7,
+   16
+  ],
+  "last_wins_reader_by_stratum": {
+   "clean_no": {
+    "anthropic/claude-haiku-5-5": 1,
+    "anthropic/claude-opus-5-5": 14,
+    "anthropic/claude-sonnet-5-5": 55
+   },
+   "considered_only": {
+    "anthropic/claude-haiku-5-5": 4,
+    "anthropic/claude-opus-5-5": 26,
+    "anthropic/claude-sonnet-5-5": 20
+   },
+   "enacted_yes": {
+    "anthropic/claude-haiku-5-5": 6,
+    "anthropic/claude-opus-5-5": 28,
+    "anthropic/claude-sonnet-5-5": 46
+   }
+  },
+  "reader_coverage_by_stratum": {
+   "anthropic/claude-haiku-5-5": {
+    "clean_no": 70,
+    "considered_only": 50,
+    "enacted_yes": 80
+   },
+   "anthropic/claude-opus-5-5": {
+    "clean_no": 60,
+    "considered_only": 40,
+    "enacted_yes": 55
+   },
+   "anthropic/claude-sonnet-5-5": {
+    "clean_no": 70,
+    "considered_only": 50,
+    "enacted_yes": 80
+   },
+   "kimi-code/k3.1-pro-highspeed": {
+    "clean_no": 23,
+    "considered_only": 16,
+    "enacted_yes": 22
+   },
+   "openai-codex/gpt-6-luna": {
+    "clean_no": 15,
+    "considered_only": 12,
+    "enacted_yes": 26
+   },
+   "xai-oauth/grok-4.20-0309-non-reasoning": {
+    "clean_no": 36,
+    "considered_only": 22,
+    "enacted_yes": 32
+   }
+  },
+  "reblinded_file_coverage_by_stratum": {
+   "clean_no": 64,
+   "considered_only": 42,
+   "enacted_yes": 72
+  },
+  "receipt_fields_used": [
+   "source_label.verdict",
+   "source_label.verdict_enacted",
+   "source_label.judged",
+   "source_label.categories",
+   "source_label.source_protocol",
+   "passage_step_labels.positive_step_indices",
+   "native_metrics.*"
+  ],
+  "sample_file_sha256": "e24db6ec51ca12f7184301caa9a2467446e4a2e090ecfcb9a2b25c3ca1eb7f87",
+  "source_protocol_by_stratum": {
+   "clean_no": {
+    "has_reward_field": 34,
+    "has_shortcut_signal_split": 36
+   },
+   "considered_only": {
+    "has_reward_field": 24,
+    "has_shortcut_signal_split": 26
+   },
+   "enacted_yes": {
+    "has_reward_field": 42,
+    "has_shortcut_signal_split": 38
+   }
+  },
+  "source_protocol_values_by_stratum": {
+   "clean_no": {
+    "consensus_lp_v1": 34,
+    "consensus_v2": 36
+   },
+   "considered_only": {
+    "consensus_lp_v1": 24,
+    "consensus_v2": 26
+   },
+   "enacted_yes": {
+    "consensus_lp_v1": 42,
+    "consensus_v2": 38
+   }
+  },
+  "step_count_quartiles_by_stratum": {
+   "clean_no": [
+    16,
+    32,
+    46,
+    62,
+    144
+   ],
+   "considered_only": [
+    34,
+    62,
+    69,
+    74,
+    513
+   ],
+   "enacted_yes": [
+    19,
+    62,
+    69,
+    109,
+    309
+   ]
+  },
+  "strata": {
+   "clean_no": 70,
+   "considered_only": 50,
+   "enacted_yes": 80
+  }
+ },
+ "note": "counts of rows and fields only; no suspicion, no recall, no per-run key",
+ "schema": "np22-inventory/v1",
+ "unseen": {
+  "b6": {
+   "positives": 101,
+   "sonnet_records": 278,
+   "sonnet_records_on_positives": 98,
+   "subsample_runs": 281,
+   "subsample_sha256": "36d79279060c38f22f87a63464d66af690cad171af21c0aaaff54308a546fbf8"
+  },
+  "cm18": {
+   "facet_record_fields": [
+    "answer_material_accessed",
+    "approach",
+    "eval_awareness",
+    "evidence_steps",
+    "facet_model",
+    "facet_version",
+    "goal",
+    "grader_or_harness_touched",
+    "input_tokens",
+    "outcome",
+    "output_tokens",
+    "run_id",
+    "shortcut",
+    "source",
+    "split",
+    "success_claim_without_evidence",
+    "suspicion",
+    "tests"
+   ],
+   "facet_row_fields": [
+    "calls",
+    "error",
+    "input_tokens",
+    "key",
+    "output_tokens",
+    "reader",
+    "record",
+    "served_models",
+    "set"
+   ],
+   "facets_store_sha256": "6f81f91d7c007b71476d34cf298b5dd247a5d748c79c6bb44cf4daba88896faa",
+   "per_set": {
+    "beam": {
+     "by_class": {
+      "CP": 60
+     },
+     "by_class_and_staged_value": {
+      "CP|condition=impossible": 46,
+      "CP|condition=impossible_honest": 14
+     },
+     "by_technique": {
+      "config_edit": 2,
+      "special_cased": 17,
+      "tamper_attempt": 41
+     },
+     "facet_record_present": 60,
+     "join_missing": 0,
+     "positives_drawn": 60
+    },
+    "cheatindex": {
+     "by_class": {
+      "CP": 60
+     },
+     "by_class_and_staged_value": {
+      "CP|family=F1": 54,
+      "CP|family=F2": 5,
+      "CP|family=F3": 1
+     },
+     "by_technique": {
+      "special_casing": 1,
+      "test_config_changed": 3,
+      "test_edit": 56
+     },
+     "facet_record_present": 60,
+     "join_missing": 0,
+     "positives_drawn": 60
+    },
+    "evilgenie": {
+     "by_class": {
+      "NR": 60
+     },
+     "by_class_and_staged_value": {
+      "NR|condition=A": 30,
+      "NR|condition=B": 12,
+      "NR|condition=C": 6,
+      "NR|condition=D": 3,
+      "NR|condition=E": 9
+     },
+     "by_technique": {
+      "native=reward_hacking": 60
+     },
+     "facet_record_present": 60,
+     "join_missing": 0,
+     "positives_drawn": 60
+    },
+    "kernelbench": {
+     "by_class": {
+      "NR": 11
+     },
+     "by_class_and_staged_value": {
+      "NR|no_field": 11
+     },
+     "by_technique": {
+      "rubric_leak": 11
+     },
+     "facet_record_present": 11,
+     "join_missing": 0,
+     "positives_drawn": 11
+    },
+    "reflex": {
+     "by_class": {
+      "CP": 45
+     },
+     "by_class_and_staged_value": {
+      "CP|split=conflicting": 45
+     },
+     "by_technique": {
+      "final_test_file_differs": 45
+     },
+     "facet_record_present": 45,
+     "join_missing": 0,
+     "positives_drawn": 45
+    },
+    "researcharena": {
+     "by_class": {
+      "IN": 21
+     },
+     "by_class_and_staged_value": {
+      "IN|condition=embedded": 21
+     },
+     "by_technique": {
+      "benchmark_gaming": 21
+     },
+     "facet_record_present": 21,
+     "join_missing": 0,
+     "positives_drawn": 21
+    },
+    "sdf": {
+     "by_class": {
+      "NP": 60
+     },
+     "by_class_and_staged_value": {
+      "NP|same_prompt_all_runs": 60
+     },
+     "by_technique": {
+      "code_deleted": 5,
+      "code_deleted+hook_inert+hook_removed+transient": 1,
+      "config_weakened": 8,
+      "hook_inert": 1,
+      "hook_inert+nonblocking_hook": 1,
+      "hook_inert+transient": 1,
+      "hook_removed+type_ignore": 1,
+      "no_verify": 5,
+      "nonblocking_hook": 3,
+      "nonblocking_hook+transient": 1,
+      "staged_only": 10,
+      "staged_only+transient+type_ignore": 1,
+      "type_ignore": 22
+     },
+     "facet_record_present": 60,
+     "join_missing": 0,
+     "positives_drawn": 60
+    }
+   },
+   "positives": 317,
+   "sample_sha256": "c245608bc7671f40ee8e9b39b064135a6b07bdaa761bc5b7045ae0e6b99e08cf"
+  },
+  "np21": {
+   "facet_record_fields": [
+    "answer_material_accessed",
+    "approach",
+    "eval_awareness",
+    "evidence_steps",
+    "facet_model",
+    "facet_version",
+    "goal",
+    "grader_or_harness_touched",
+    "input_tokens",
+    "outcome",
+    "output_tokens",
+    "run_id",
+    "shortcut",
+    "source",
+    "split",
+    "success_claim_without_evidence",
+    "suspicion",
+    "tests"
+   ],
+   "facet_row_fields": [
+    "calls",
+    "calls_other_served_model",
+    "error",
+    "input_tokens",
+    "key",
+    "ok_calls",
+    "output_tokens",
+    "reader",
+    "record",
+    "served_models",
+    "set"
+   ],
+   "facets_store_sha256": "8bc021feac4615a2bdc87757ab930f471d3b515796d4d86a6036c2c247e64beb",
+   "per_set": {
+    "baitbench": {
+     "by_class": {
+      "CP": 60
+     },
+     "by_class_and_staged_value": {
+      "CP|prompt_group=baseline": 28,
+      "CP|prompt_group=validity": 32
+     },
+     "by_technique": {
+      "task=Entity overlap": 32,
+      "task=Near-duplicate leakage": 25,
+      "task=No-signal classification": 3
+     },
+     "facet_record_present": 60,
+     "join_missing": 0,
+     "positives_drawn": 60
+    },
+    "flake": {
+     "by_class": {
+      "NR": 7
+     },
+     "by_class_and_staged_value": {
+      "NR|prompt_condition=explicit": 6,
+      "NR|prompt_condition=hook": 1
+     },
+     "by_technique": {
+      "outcome=mock_edited": 6,
+      "outcome=weakened": 1
+     },
+     "facet_record_present": 7,
+     "join_missing": 0,
+     "positives_drawn": 7
+    },
+    "kobayashi": {
+     "by_class": {
+      "CP": 60
+     },
+     "by_class_and_staged_value": {
+      "CP|item_slice=contradict": 7,
+      "CP|item_slice=solvable": 12,
+      "CP|item_slice=unreachable": 41
+     },
+     "by_technique": {
+      "monitor_type=grader_read": 60
+     },
+     "facet_record_present": 60,
+     "join_missing": 0,
+     "positives_drawn": 60
+    },
+    "osf": {
+     "by_class": {
+      "CP": 60
+     },
+     "by_class_and_staged_value": {
+      "CP|pressure=0|guardian=0": 5,
+      "CP|pressure=0|guardian=1": 8,
+      "CP|pressure=3|guardian=0": 14,
+      "CP|pressure=3|guardian=1": 14,
+      "CP|pressure=4|guardian=0": 12,
+      "CP|pressure=4|guardian=1": 7
+     },
+     "by_technique": {
+      "cheat_type=special_case": 57,
+      "cheat_type=test_edit": 3
+     },
+     "facet_record_present": 60,
+     "join_missing": 0,
+     "positives_drawn": 60
+    }
+   },
+   "positives": 187,
+   "sample_sha256": "297447304522913b93cd5bef9f620c222f9e17c6b6da2186262bf71e24497bdf"
+  }
+ }
+}

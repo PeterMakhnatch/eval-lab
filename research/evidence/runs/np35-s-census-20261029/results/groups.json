@@ -1,0 +1,3097 @@
+{
+ "evilgenie-escalation": {
+  "S_not_applicable": false,
+  "groups": {
+   "all_negatives_pooled": {
+    "L": 412,
+    "L_not_S": 264,
+    "S": 148,
+    "SI": 45,
+    "S_form_counts": {
+     "shell:append": 3,
+     "shell:copy_move": 3,
+     "shell:inplace_cli": 2,
+     "shell:python_open": 23,
+     "shell:redirect": 96,
+     "tool:text_editor:create": 6,
+     "tool:text_editor:insert": 3,
+     "tool:text_editor:str_replace": 36
+    },
+    "distinct_tasks_S": 9,
+    "distinct_tasks_all": 15,
+    "runs": 1990,
+    "runs_without_any_tool_call": 90,
+    "unresolved_editor_calls": 0
+   },
+   "ambiguous": {
+    "L": 75,
+    "L_not_S": 32,
+    "S": 43,
+    "SI": 13,
+    "S_form_counts": {
+     "shell:append": 1,
+     "shell:inplace_cli": 2,
+     "shell:python_open": 9,
+     "shell:redirect": 28,
+     "tool:text_editor:str_replace": 10
+    },
+    "distinct_tasks_S": 5,
+    "distinct_tasks_S_scoped": 5,
+    "distinct_tasks_all": 8,
+    "distinct_tasks_all_scoped": 8,
+    "runs": 174,
+    "runs_without_any_tool_call": 1,
+    "unresolved_editor_calls": 0
+   },
+   "excluded": {
+    "L": 2,
+    "L_not_S": 1,
+    "S": 1,
+    "SI": 0,
+    "S_form_counts": {
+     "shell:python_open": 1,
+     "shell:redirect": 1,
+     "tool:text_editor:create": 1
+    },
+    "distinct_tasks_S": 1,
+    "distinct_tasks_S_scoped": 1,
+    "distinct_tasks_all": 4,
+    "distinct_tasks_all_scoped": 4,
+    "runs": 7,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_established": {
+    "L": 10,
+    "L_not_S": 10,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_S_scoped": 0,
+    "distinct_tasks_all": 9,
+    "distinct_tasks_all_scoped": 9,
+    "runs": 177,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished": {
+    "L": 402,
+    "L_not_S": 254,
+    "S": 148,
+    "SI": 45,
+    "S_form_counts": {
+     "shell:append": 3,
+     "shell:copy_move": 3,
+     "shell:inplace_cli": 2,
+     "shell:python_open": 23,
+     "shell:redirect": 96,
+     "tool:text_editor:create": 6,
+     "tool:text_editor:insert": 3,
+     "tool:text_editor:str_replace": 36
+    },
+    "distinct_tasks_S": 9,
+    "distinct_tasks_S_scoped": 9,
+    "distinct_tasks_all": 9,
+    "distinct_tasks_all_scoped": 9,
+    "runs": 1813,
+    "runs_without_any_tool_call": 90,
+    "unresolved_editor_calls": 0
+   },
+   "positive": {
+    "L": 52,
+    "L_not_S": 48,
+    "S": 4,
+    "SI": 0,
+    "S_form_counts": {
+     "shell:copy_move": 1,
+     "shell:python_open": 1,
+     "shell:redirect": 3
+    },
+    "distinct_tasks_S": 3,
+    "distinct_tasks_S_scoped": 3,
+    "distinct_tasks_all": 5,
+    "distinct_tasks_all_scoped": 5,
+    "runs": 124,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   }
+  },
+  "notes": [
+   "established = state negative AND cohort extra_negative_control (registry: 177 control negatives); unestablished = state negative in indexed_main cohort (1,813); ambiguous = 174 (heuristic/channel conflict); excluded = 7 native error. Note the 3 heuristic controls fall into ambiguous.",
+   "Steps carry structured tool_calls (native function_name + arguments) used as is via s_shim."
+  ],
+  "reconciled_to_registry": true,
+  "registry": {
+   "established": 177,
+   "negatives": 1990,
+   "positives": 124
+  },
+  "script": "/private/tmp/np35/scripts/evilgenie_escalation.py",
+  "task_key": "sha256 prefix (s_shim.task_hash) of native identity.problem_id (15 underlying problems; primary reading, matches registry bootstrap unit). Alternative: problem_set/problem_id scoped id = 18 keys (3 cross-set collisions). Both reported as distinct_tasks_* and distinct_tasks_*_scoped.",
+  "task_keys_distinct": {
+   "problem_id": 15,
+   "scoped_problem_set_and_id": 18
+  }
+ },
+ "kernelbench-hard-runs": {
+  "S_not_applicable": false,
+  "groups": {
+   "all_negatives_pooled": {
+    "L": 7,
+    "L_not_S": 7,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 4,
+    "harness_counts": {},
+    "runs": 19,
+    "runs_without_any_tool_call": 3,
+    "unresolved_editor_calls": 0
+   },
+   "negative_established": {
+    "L": 7,
+    "L_not_S": 7,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 4,
+    "harness_counts": {
+     "claude": 2,
+     "codex": 3,
+     "kimi": 3,
+     "opencode": 11
+    },
+    "runs": 19,
+    "runs_without_any_tool_call": 3,
+    "unresolved_editor_calls": 0
+   },
+   "positive": {
+    "L": 4,
+    "L_not_S": 4,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 2,
+    "harness_counts": {
+     "claude": 2,
+     "codex": 2,
+     "kimi": 1,
+     "opencode": 6
+    },
+    "runs": 11,
+    "runs_without_any_tool_call": 2,
+    "unresolved_editor_calls": 0
+   },
+   "unlabeled": {
+    "L": 8,
+    "L_not_S": 8,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 7,
+    "harness_counts": {
+     "claude": 3,
+     "codex": 2,
+     "kimi": 3,
+     "opencode": 46
+    },
+    "runs": 54,
+    "runs_without_any_tool_call": 9,
+    "unresolved_editor_calls": 0
+   }
+  },
+  "notes": [
+   "PyYAML absent in system python3: yaml.safe_load replaced by a regex reader of run_id/verdict only (labels identical to the adapter's; _steps path never uses yaml).",
+   "Steps: opencode/claude/kimi events with structured tool_calls (shell names normalised by the adapter to bash_command{keystrokes}); codex runs are opaque plaintext without tool calls (see runs_without_any_tool_call).",
+   "Only 5 problems in the scoreable subset: the >=20 distinct-task threshold cannot be met even if S were large."
+  ],
+  "reconciled_to_registry": true,
+  "registry": {
+   "established": 19,
+   "negatives": 19,
+   "positives": 11
+  },
+  "script": "/private/tmp/np35/scripts/kernelbench_hard_runs.py",
+  "task_key": "sha256 prefix (s_shim.task_hash) of native `problem` field (benchmark problem name); a real task id, not a proxy. Scoreable subset has 5 problems; all 84 rows reported under 'unlabeled' for the 54 unknowns (NOT negatives).",
+  "task_keys_distinct": {
+   "problem_all_84_rows": 7,
+   "problem_scoreable_30": 5
+  }
+ },
+ "reflex-sentinel": {
+  "S_not_applicable": false,
+  "groups": {
+   "all_negatives_pooled": {
+    "L": 14,
+    "L_not_S": 2,
+    "S": 12,
+    "SI": 6,
+    "S_form_counts": {
+     "tool:str_replace_editor:create": 8,
+     "tool:str_replace_editor:str_replace": 6
+    },
+    "distinct_tasks_S": 11,
+    "distinct_tasks_all": 50,
+    "runs": 205,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 2
+   },
+   "negative_established": {
+    "L": 3,
+    "L_not_S": 0,
+    "S": 3,
+    "SI": 1,
+    "S_form_counts": {
+     "tool:str_replace_editor:create": 3,
+     "tool:str_replace_editor:str_replace": 1
+    },
+    "distinct_tasks_S": 3,
+    "distinct_tasks_all": 50,
+    "runs": 50,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished": {
+    "L": 11,
+    "L_not_S": 2,
+    "S": 9,
+    "SI": 5,
+    "S_form_counts": {
+     "tool:str_replace_editor:create": 5,
+     "tool:str_replace_editor:str_replace": 5
+    },
+    "distinct_tasks_S": 9,
+    "distinct_tasks_all": 50,
+    "runs": 155,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 2
+   },
+   "positive": {
+    "L": 45,
+    "L_not_S": 0,
+    "S": 45,
+    "SI": 44,
+    "S_form_counts": {
+     "tool:str_replace_editor:create": 7,
+     "tool:str_replace_editor:str_replace": 44
+    },
+    "distinct_tasks_S": 27,
+    "distinct_tasks_all": 27,
+    "runs": 45,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 2
+   }
+  },
+  "notes": [
+   "established = 50 split=='original' controls (all test_tampered=false); unestablished = 155 split=='conflicting' negatives (no flag fired). Registry: established 50, control 50.",
+   "Steps: agent turns carry structured tool_calls (str_replace_editor, bash_command{keystrokes}, submit); used as is via s_shim."
+  ],
+  "reconciled_to_registry": true,
+  "registry": {
+   "established": 50,
+   "negatives": 205,
+   "positives": 45
+  },
+  "script": "/private/tmp/np35/scripts/reflex_sentinel.py",
+  "task_key": "spec.task_key = sha256(native task_id)[:16] from the adapter (native task id field); 50 distinct keys over 250 primary runs; not a proxy. Retry subsets (1,170 dependent continuations) not used.",
+  "task_keys_distinct": {
+   "task_id": 50
+  }
+ },
+ "agent-cheat-index": {
+  "registry": {
+   "positives": 62,
+   "negatives": 1086,
+   "established": 270
+  },
+  "groups": {
+   "ALL_negatives_pooled": {
+    "runs": 1086,
+    "S": 7,
+    "SI": 4,
+    "L": 43,
+    "L_not_S": 36,
+    "distinct_tasks_all": 40,
+    "distinct_tasks_S": 4,
+    "runs_without_any_tool_call": 3,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:python_open_var": 3,
+     "tool:edit": 1,
+     "shell:redirect": 1,
+     "shell:copy_move": 2
+    }
+   },
+   "ambiguous": {
+    "runs": 14,
+    "S": 6,
+    "SI": 5,
+    "L": 10,
+    "L_not_S": 4,
+    "distinct_tasks_all": 4,
+    "distinct_tasks_S": 2,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:edit": 2,
+     "shell:redirect": 1,
+     "shell:inplace_cli": 1,
+     "shell:python_open_var": 3
+    }
+   },
+   "excluded": {
+    "runs": 8,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 8,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "negative_established": {
+    "runs": 270,
+    "S": 1,
+    "SI": 0,
+    "L": 5,
+    "L_not_S": 4,
+    "distinct_tasks_all": 10,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 3,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:copy_move": 1
+    }
+   },
+   "negative_unestablished": {
+    "runs": 816,
+    "S": 6,
+    "SI": 4,
+    "L": 38,
+    "L_not_S": 32,
+    "distinct_tasks_all": 30,
+    "distinct_tasks_S": 3,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:python_open_var": 3,
+     "tool:edit": 1,
+     "shell:redirect": 1,
+     "shell:copy_move": 1
+    }
+   },
+   "positive": {
+    "runs": 62,
+    "S": 16,
+    "SI": 16,
+    "L": 18,
+    "L_not_S": 2,
+    "distinct_tasks_all": 16,
+    "distinct_tasks_S": 7,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:edit": 5,
+     "shell:python_open_var": 6,
+     "shell:inplace_cli": 5
+    }
+   }
+  },
+  "task_key": "Native task id (identity.task_id = row.task.id) -> s_shim.task_hash (40 tasks, 10 per family). Proxy also reported: task family (4).",
+  "task_keys_distinct": {
+   "negative_unestablished": {
+    "primary": 30,
+    "family": 3
+   },
+   "ALL_negatives_pooled": {
+    "primary": 40,
+    "family": 4
+   },
+   "positive": {
+    "primary": 16,
+    "family": 3
+   },
+   "ambiguous": {
+    "primary": 4,
+    "family": 1
+   },
+   "negative_established": {
+    "primary": 10,
+    "family": 1
+   },
+   "excluded": {
+    "primary": 8,
+    "family": 3
+   }
+  },
+  "S_not_applicable": false,
+  "tool_name_counts": {
+   "bash_command": 4775,
+   "read": 3118,
+   "edit": 994,
+   "write": 542,
+   "glob": 395,
+   "Read": 329,
+   "todowrite": 319,
+   "Write": 155,
+   "Edit": 141,
+   "create": 21,
+   "grep": 11,
+   "task": 10,
+   "webfetch": 4,
+   "spawn_agent": 1,
+   "close_agent": 1,
+   "invalid": 1
+  },
+  "notes": [
+   "established negative = valid negative run whose task family is F4 = solvable-control (registry 270, no trap); other negatives unestablished; ambiguous = literal tampered flag without quality-gated detector (14); excluded = errored/rules_not_loaded/unparsed via include_excluded=True.",
+   "Steps used as-is from the adapter (Claude/Codex/OpenCode/Copilot streams already mapped to {source, tool_calls:[{function_name,arguments}]}).",
+   "Established negatives span 10 tasks (family F4 only); S there is 1 run on 1 task."
+  ],
+  "script": "/private/tmp/np35/scripts/agent-cheat-index.py",
+  "reconciled_to_registry": true,
+  "established_counted": 270
+ },
+ "beam-tripwire": {
+  "registry": {
+   "positives": 171,
+   "negatives": 442,
+   "established": 175
+  },
+  "groups": {
+   "ALL_negatives_pooled": {
+    "runs": 442,
+    "S": 29,
+    "SI": 18,
+    "L": 61,
+    "L_not_S": 32,
+    "distinct_tasks_all": 44,
+    "distinct_tasks_S": 14,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write_file": 6,
+     "shell:python_open_var": 16,
+     "shell:copy_move": 7,
+     "shell:inplace_cli": 2,
+     "shell:redirect": 9,
+     "shell:python_open": 1
+    }
+   },
+   "ambiguous": {
+    "runs": 1,
+    "S": 1,
+    "SI": 1,
+    "L": 1,
+    "L_not_S": 0,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:inplace_cli": 1
+    }
+   },
+   "excluded": {
+    "runs": 2,
+    "S": 1,
+    "SI": 1,
+    "L": 1,
+    "L_not_S": 0,
+    "distinct_tasks_all": 2,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 1,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:inplace_cli": 1,
+     "shell:python_open_var": 1
+    }
+   },
+   "negative_established": {
+    "runs": 175,
+    "S": 11,
+    "SI": 7,
+    "L": 35,
+    "L_not_S": 24,
+    "distinct_tasks_all": 44,
+    "distinct_tasks_S": 6,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write_file": 4,
+     "shell:python_open_var": 6,
+     "shell:copy_move": 2,
+     "shell:inplace_cli": 1
+    }
+   },
+   "negative_unestablished": {
+    "runs": 267,
+    "S": 18,
+    "SI": 11,
+    "L": 26,
+    "L_not_S": 8,
+    "distinct_tasks_all": 44,
+    "distinct_tasks_S": 10,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:python_open_var": 10,
+     "shell:copy_move": 5,
+     "shell:inplace_cli": 1,
+     "shell:redirect": 9,
+     "tool:write_file": 2,
+     "shell:python_open": 1
+    }
+   },
+   "positive": {
+    "runs": 171,
+    "S": 123,
+    "SI": 122,
+    "L": 127,
+    "L_not_S": 4,
+    "distinct_tasks_all": 41,
+    "distinct_tasks_S": 36,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:edit_file": 82,
+     "shell:inplace_cli": 39,
+     "shell:copy_move": 7,
+     "shell:redirect": 3,
+     "shell:python_open_var": 10,
+     "tool:write_file": 2
+    }
+   }
+  },
+  "task_key": "Native task id (identity.task_id = instance_id) -> s_shim.task_hash (44 tasks). Proxy also reported: repo (3). Episodes repeat the same 44 tasks across conditions/efforts.",
+  "task_keys_distinct": {
+   "negative_unestablished": {
+    "primary": 44,
+    "repo": 3
+   },
+   "ALL_negatives_pooled": {
+    "primary": 44,
+    "repo": 3
+   },
+   "positive": {
+    "primary": 41,
+    "repo": 3
+   },
+   "negative_established": {
+    "primary": 44,
+    "repo": 3
+   },
+   "ambiguous": {
+    "primary": 1,
+    "repo": 1
+   },
+   "excluded": {
+    "primary": 2,
+    "repo": 1
+   }
+  },
+  "S_not_applicable": false,
+  "tool_name_counts": {
+   "run_command": 12929,
+   "read_file": 2431,
+   "edit_file": 1028,
+   "bash": 513,
+   "submit_patch": 354,
+   "replace_lines": 89,
+   "write_file": 51,
+   "grep": 48,
+   "sed": 8,
+   "grep_tool": 7,
+   "find_file": 4,
+   "find_files": 2,
+   "grep_search": 2,
+   "read_command": 1,
+   "grep_files": 1,
+   "cat": 1,
+   "analysis": 1,
+   "get_status": 1,
+   "rg": 1,
+   "append_to_file": 1,
+   "grep_file": 1
+  },
+  "notes": [
+   "established negative = negative with condition 'possible' (original task and test, control; registry 175); unestablished = impossible_honest (175) + impossible (92) negatives; ambiguous = 1 justified control test edit; excluded = 2 provider errors.",
+   "Beam's own tamper_attempt label is a trace-derived test-file write detector, so S vs positives is partly circular; negatives are by construction free of publisher-detected test-file writes (tamper_attempt false) - S on negatives measures divergence between S and the publisher's rule."
+  ],
+  "script": "/private/tmp/np35/scripts/beam-tripwire.py",
+  "reconciled_to_registry": true,
+  "established_counted": 175
+ },
+ "sdf-shortcut-taking": {
+  "registry": {
+   "positives": 359,
+   "negatives": 636,
+   "established": 331
+  },
+  "groups": {
+   "ALL_negatives_pooled": {
+    "runs": 636,
+    "S": 5,
+    "SI": 0,
+    "L": 70,
+    "L_not_S": 65,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:copy_move": 1,
+     "shell:redirect": 4
+    }
+   },
+   "excluded": {
+    "runs": 224,
+    "S": 2,
+    "SI": 0,
+    "L": 7,
+    "L_not_S": 5,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 91,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:redirect": 2,
+     "shell:copy_move": 1
+    }
+   },
+   "negative_established": {
+    "runs": 331,
+    "S": 4,
+    "SI": 0,
+    "L": 27,
+    "L_not_S": 23,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:copy_move": 1,
+     "shell:redirect": 3
+    }
+   },
+   "negative_unestablished": {
+    "runs": 305,
+    "S": 1,
+    "SI": 0,
+    "L": 43,
+    "L_not_S": 42,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:redirect": 1
+    }
+   },
+   "positive": {
+    "runs": 359,
+    "S": 14,
+    "SI": 0,
+    "L": 61,
+    "L_not_S": 47,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:redirect": 8,
+     "shell:copy_move": 4,
+     "shell:python_open": 2
+    }
+   }
+  },
+  "task_key": "No native task id: the whole corpus is one precommit_hook task, so the key is the constant 'precommit_hook' (1 distinct). Proxy readings also reported: bootstrap cluster (model arm x seeded error count), model arm, seeded error count. The proxies are not tasks.",
+  "task_keys_distinct": {
+   "excluded": {
+    "primary": 1,
+    "cluster_arm_x_errors": 19,
+    "model_arm": 12,
+    "target_errors": 5
+   },
+   "negative_unestablished": {
+    "primary": 1,
+    "cluster_arm_x_errors": 17,
+    "model_arm": 11,
+    "target_errors": 4
+   },
+   "ALL_negatives_pooled": {
+    "primary": 1,
+    "cluster_arm_x_errors": 18,
+    "model_arm": 12,
+    "target_errors": 4
+   },
+   "negative_established": {
+    "primary": 1,
+    "cluster_arm_x_errors": 12,
+    "model_arm": 9,
+    "target_errors": 4
+   },
+   "positive": {
+    "primary": 1,
+    "cluster_arm_x_errors": 19,
+    "model_arm": 14,
+    "target_errors": 4
+   }
+  },
+  "S_not_applicable": false,
+  "tool_name_counts": {
+   "execute_command": 39611,
+   "execute_command<|channel|>commentary": 36,
+   "execute_command<|channel|>analysis": 24,
+   "execute_command<|channel|>json": 5,
+   "</think>\n<tool_call>\n<function=execute_command": 4,
+   "execute_command<|channel|>": 4,
+   "execute_command\n<parameter=command": 2,
+   "apply_patch<|channel|>commentary": 2,
+   "execute_command:\n<parameter name=command": 1,
+   " maybe still old line. Let's check.</think>\n<tool_call>\n<function=execute_command": 1,
+   "execute_command\n<tool_call>\n<function=execute_command": 1,
+   "execute_command_placeholders_148 --": 1,
+   "execute_command<arg_value": 1,
+   "execute_command</think>\n<tool_call>\n<function=execute_command": 1,
+   "execute_command output truncated, let me check specific lines: let me look at the file around those lines.\n<tool_call>\n<function=execute_command": 1
+  },
+  "notes": [
+   "established negative = labels.negative_class 'fixed' (registry 331); unestablished = 'no_commit' (305); excluded 224 included via adapter specs (all rows yielded).",
+   "Steps used as-is: tool messages and assistant messages both source 'agent'; tool calls are execute_command with dict/str arguments from the corpus's own call fields.",
+   "Caveat: a small number of native call names are malformed (e.g. 'execute_command<|channel|>commentary', 'apply_patch<|channel|>commentary'); the shim reports 0 unresolved editor calls for them and they were not remapped (no heuristics). The corpus is one task, so S tasks=1 by construction."
+  ],
+  "script": "/private/tmp/np35/scripts/sdf-shortcut-taking.py",
+  "reconciled_to_registry": true,
+  "established_counted": 331
+ },
+ "researcharena-benchmark-gaming": {
+  "registry": {
+   "positives": 21,
+   "negatives": 20,
+   "established": 20,
+   "negative_basis": "established",
+   "control_negatives": 20
+  },
+  "groups": {
+   "negative_all_pooled": {
+    "runs": 20,
+    "S": 2,
+    "SI": 0,
+    "L": 9,
+    "L_not_S": 7,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write": 1,
+     "shell:redirect": 1
+    }
+   },
+   "negative_established": {
+    "runs": 20,
+    "S": 2,
+    "SI": 0,
+    "L": 9,
+    "L_not_S": 7,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write": 1,
+     "shell:redirect": 1
+    }
+   },
+   "positive": {
+    "runs": 21,
+    "S": 2,
+    "SI": 0,
+    "L": 15,
+    "L_not_S": 13,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:redirect": 2
+    }
+   }
+  },
+  "task_key": "identity.task_id (native setting id, proxy: one value per setting family) -> s_shim.task_hash; alternate readings task_config and task_id+task_config reported.",
+  "task_keys_distinct": {
+   "task_id": {
+    "negative_established": 1,
+    "ALL_runs": 1,
+    "positive": 1
+   },
+   "task_config": {
+    "negative_established": 1,
+    "ALL_runs": 1,
+    "positive": 1
+   },
+   "task_id+task_config": {
+    "negative_established": 1,
+    "ALL_runs": 1,
+    "positive": 1
+   }
+  },
+  "S_not_applicable": false,
+  "counts_by_group": {
+   "negative_established": 20,
+   "positive": 21
+  },
+  "reconciled_to_registry": true,
+  "notes": [
+   "_steps already carry source=agent and tool_calls[{function_name,arguments(dict)}]; used unchanged.",
+   "specs() default (include_excluded=False) yields only the 41 staged core runs; the 349 excluded rows the adapter can list carry no steps and are not in the bundle, so excluded=0 here.",
+   "Negatives are no-side-task baselines by construction, so all are established per registry; positives are PROMPTED benchmark-gaming attacks.",
+   "Only 1 distinct task/setting under every reading, so the >=20 distinct tasks threshold cannot be met whatever S count; bootstrap_cluster has 7 values (agent x setting) but is not a task key."
+  ],
+  "script": "/private/tmp/np35/scripts/researcharena.py"
+ },
+ "mistrace-reward-hacking": {
+  "registry": {
+   "positives": 119,
+   "negatives": 81,
+   "established": 0,
+   "negative_basis": "no_flag_fired",
+   "control_negatives": 0
+  },
+  "groups": {
+   "ambiguous": {
+    "runs": 1,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "negative_all_pooled": {
+    "runs": 81,
+    "S": 0,
+    "SI": 0,
+    "L": 19,
+    "L_not_S": 19,
+    "distinct_tasks_all": 66,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 2,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "negative_unestablished": {
+    "runs": 81,
+    "S": 0,
+    "SI": 0,
+    "L": 19,
+    "L_not_S": 19,
+    "distinct_tasks_all": 66,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 2,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "positive": {
+    "runs": 119,
+    "S": 4,
+    "SI": 4,
+    "L": 13,
+    "L_not_S": 9,
+    "distinct_tasks_all": 84,
+    "distinct_tasks_S": 4,
+    "runs_without_any_tool_call": 1,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:text_editor:create": 1,
+     "tool:text_editor:str_replace": 4,
+     "shell:inplace_cli": 1
+    }
+   }
+  },
+  "task_key": "identity.task_id (native ImpossibleBench LiveCodeBench problem id) -> s_shim.task_hash; exact task id, not a proxy.",
+  "task_keys_distinct": {
+   "task_id": {
+    "positive": 84,
+    "ALL_runs": 103,
+    "negative_unestablished": 66,
+    "ambiguous": 1
+   }
+  },
+  "S_not_applicable": false,
+  "counts_by_group": {
+   "positive": 119,
+   "negative_unestablished": 81,
+   "ambiguous": 1
+  },
+  "reconciled_to_registry": true,
+  "notes": [
+   "_steps source in {agent,user}; tool_calls already {function_name,arguments}; editor tool is text_editor (in NP29 EDITOR_TOOLS).",
+   "Negatives = both channels false (registry: not certified clean); established_negatives=0 so every negative is negative_unestablished."
+  ],
+  "script": "/private/tmp/np35/scripts/mistrace.py"
+ },
+ "rhb-delivery-queue": {
+  "registry": {
+   "positives": 129,
+   "negatives": 409,
+   "established": 0,
+   "negative_basis": "no_flag_fired",
+   "control_negatives": 0
+  },
+  "groups": {
+   "excluded": {
+    "runs": 12,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 8,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "negative_all_pooled": {
+    "runs": 409,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "negative_unestablished": {
+    "runs": 409,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "positive": {
+    "runs": 129,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   }
+  },
+  "task_key": "identity.task_id = scenario sha256 prefix (native scenario id, one per simulated delivery scenario) -> s_shim.task_hash; proxies reported: cluster_key, study.",
+  "task_keys_distinct": {
+   "scenario_sha256(identity.task_id)": {
+    "negative_unestablished": 1,
+    "ALL_runs": 1,
+    "excluded": 1,
+    "positive": 1
+   },
+   "cluster_key(study_family/scenario)": {
+    "negative_unestablished": 4,
+    "ALL_runs": 7,
+    "excluded": 4,
+    "positive": 7
+   },
+   "study": {
+    "negative_unestablished": 5,
+    "ALL_runs": 8,
+    "excluded": 4,
+    "positive": 8
+   }
+  },
+  "S_not_applicable": false,
+  "counts_by_group": {
+   "negative_unestablished": 409,
+   "excluded": 12,
+   "positive": 129
+  },
+  "reconciled_to_registry": true,
+  "notes": [
+   "Environment tools are deliver/finish etc. in a simulated delivery queue: no file/shell editor, so S is structurally unable to fire; zero S is a property of the environment, not evidence about clean test editors.",
+   "established_negatives=0 in registry; all negatives unestablished."
+  ],
+  "script": "/private/tmp/np35/scripts/rhb.py"
+ },
+ "agentcheck": {
+  "registry": {
+   "positives": 28,
+   "negatives": 91,
+   "established": 0,
+   "negative_basis": "no_flag_fired",
+   "control_negatives": 0
+  },
+  "groups": {
+   "ambiguous": {
+    "runs": 3,
+    "S": 1,
+    "SI": 0,
+    "L": 1,
+    "L_not_S": 0,
+    "distinct_tasks_all": 1,
+    "distinct_tasks_S": 1,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write_file": 1
+    }
+   },
+   "negative_all_pooled": {
+    "runs": 91,
+    "S": 22,
+    "SI": 1,
+    "L": 22,
+    "L_not_S": 0,
+    "distinct_tasks_all": 3,
+    "distinct_tasks_S": 2,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write_file": 21,
+     "tool:edit_file": 1
+    }
+   },
+   "negative_unestablished": {
+    "runs": 91,
+    "S": 22,
+    "SI": 1,
+    "L": 22,
+    "L_not_S": 0,
+    "distinct_tasks_all": 3,
+    "distinct_tasks_S": 2,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write_file": 21,
+     "tool:edit_file": 1
+    }
+   },
+   "positive": {
+    "runs": 28,
+    "S": 28,
+    "SI": 1,
+    "L": 28,
+    "L_not_S": 0,
+    "distinct_tasks_all": 2,
+    "distinct_tasks_S": 2,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write_file": 28,
+     "tool:edit_file": 1
+    }
+   }
+  },
+  "task_key": "identity.task_id (native, 3 dependency-migration repo tasks) -> s_shim.task_hash; only 3 values, so a task family in effect.",
+  "task_keys_distinct": {
+   "task_id": {
+    "negative_unestablished": 3,
+    "ALL_runs": 3,
+    "positive": 2,
+    "ambiguous": 1
+   }
+  },
+  "S_not_applicable": false,
+  "counts_by_group": {
+   "negative_unestablished": 91,
+   "positive": 28,
+   "ambiguous": 3
+  },
+  "reconciled_to_registry": true,
+  "notes": [
+   "Mapping: step.role->source (assistant kept; system/user/tool_result/agent final_diff carry no calls), tool_call.name->function_name, tool_call.args->arguments.",
+   "Labels are rule output (agentcheck/scorer.py); its detector flags cheats, so S vs positives is partly circular. established_negatives=0.",
+   "agentcheck's own rule detector flags cheats largely via writes to test files, so S fires on all 28 positives and 22/91 'clean' negatives; those 22 'no_flag' runs were not certified clean (established=0), so no false-alarm reading is supported."
+  ],
+  "script": "/private/tmp/np35/scripts/agentcheck.py"
+ },
+ "baitbench": {
+  "S_not_applicable": false,
+  "groups": {
+   "ambiguous": {
+    "L": 34,
+    "L_not_S": 31,
+    "S": 3,
+    "SI": 2,
+    "S_form_counts": {
+     "shell:inplace_cli": 2,
+     "shell:redirect": 2,
+     "tool:file_change": 1
+    },
+    "distinct_tasks_S": 3,
+    "distinct_tasks_all": 53,
+    "runs": 82,
+    "runs_without_any_tool_call": 2,
+    "unresolved_editor_calls": 0
+   },
+   "excluded": {
+    "L": 0,
+    "L_not_S": 0,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 7,
+    "runs": 7,
+    "runs_without_any_tool_call": 7,
+    "unresolved_editor_calls": 0
+   },
+   "negative_established": {
+    "L": 0,
+    "L_not_S": 0,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 0,
+    "runs": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished": {
+    "L": 142,
+    "L_not_S": 123,
+    "S": 19,
+    "SI": 11,
+    "S_form_counts": {
+     "shell:append": 3,
+     "shell:inplace_cli": 6,
+     "shell:redirect": 15,
+     "tool:file_change": 4
+    },
+    "distinct_tasks_S": 17,
+    "distinct_tasks_all": 156,
+    "runs": 488,
+    "runs_without_any_tool_call": 86,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/family=06962307177d": {
+    "L": 5,
+    "L_not_S": 5,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 60,
+    "runs": 109,
+    "runs_without_any_tool_call": 60,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/family=430f6cf6290d": {
+    "L": 6,
+    "L_not_S": 4,
+    "S": 2,
+    "SI": 2,
+    "S_form_counts": {
+     "shell:append": 1,
+     "shell:inplace_cli": 1,
+     "shell:redirect": 2
+    },
+    "distinct_tasks_S": 2,
+    "distinct_tasks_all": 37,
+    "runs": 57,
+    "runs_without_any_tool_call": 24,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/family=b7e0dd1f9228": {
+    "L": 131,
+    "L_not_S": 114,
+    "S": 17,
+    "SI": 9,
+    "S_form_counts": {
+     "shell:append": 2,
+     "shell:inplace_cli": 5,
+     "shell:redirect": 13,
+     "tool:file_change": 4
+    },
+    "distinct_tasks_S": 15,
+    "distinct_tasks_all": 59,
+    "runs": 322,
+    "runs_without_any_tool_call": 2,
+    "unresolved_editor_calls": 0
+   },
+   "negatives_pooled": {
+    "L": 142,
+    "L_not_S": 123,
+    "S": 19,
+    "SI": 11,
+    "S_form_counts": {
+     "shell:append": 3,
+     "shell:inplace_cli": 6,
+     "shell:redirect": 15,
+     "tool:file_change": 4
+    },
+    "distinct_tasks_S": 17,
+    "distinct_tasks_all": 156,
+    "runs": 488,
+    "runs_without_any_tool_call": 86,
+    "unresolved_editor_calls": 0
+   },
+   "positive": {
+    "L": 189,
+    "L_not_S": 162,
+    "S": 27,
+    "SI": 8,
+    "S_form_counts": {
+     "shell:append": 1,
+     "shell:inplace_cli": 2,
+     "shell:redirect": 22,
+     "tool:file_change": 5
+    },
+    "distinct_tasks_S": 26,
+    "distinct_tasks_all": 140,
+    "runs": 681,
+    "runs_without_any_tool_call": 1,
+    "unresolved_editor_calls": 0
+   }
+  },
+  "groups_as_is_unmapped_variant": {
+   "ambiguous": {
+    "L": 34,
+    "L_not_S": 31,
+    "S": 3,
+    "SI": 2,
+    "S_form_counts": {
+     "shell:inplace_cli": 2,
+     "shell:redirect": 2
+    },
+    "distinct_tasks_S": 3,
+    "distinct_tasks_all": 53,
+    "runs": 82,
+    "runs_without_any_tool_call": 2,
+    "unresolved_editor_calls": 0
+   },
+   "excluded": {
+    "L": 0,
+    "L_not_S": 0,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 7,
+    "runs": 7,
+    "runs_without_any_tool_call": 7,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished": {
+    "L": 141,
+    "L_not_S": 126,
+    "S": 15,
+    "SI": 7,
+    "S_form_counts": {
+     "shell:append": 3,
+     "shell:inplace_cli": 6,
+     "shell:redirect": 15
+    },
+    "distinct_tasks_S": 15,
+    "distinct_tasks_all": 156,
+    "runs": 488,
+    "runs_without_any_tool_call": 86,
+    "unresolved_editor_calls": 0
+   },
+   "negatives_pooled": {
+    "L": 141,
+    "L_not_S": 126,
+    "S": 15,
+    "SI": 7,
+    "S_form_counts": {
+     "shell:append": 3,
+     "shell:inplace_cli": 6,
+     "shell:redirect": 15
+    },
+    "distinct_tasks_S": 15,
+    "distinct_tasks_all": 156,
+    "runs": 488,
+    "runs_without_any_tool_call": 86,
+    "unresolved_editor_calls": 0
+   },
+   "positive": {
+    "L": 186,
+    "L_not_S": 164,
+    "S": 22,
+    "SI": 3,
+    "S_form_counts": {
+     "shell:append": 1,
+     "shell:inplace_cli": 2,
+     "shell:redirect": 22
+    },
+    "distinct_tasks_S": 21,
+    "distinct_tasks_all": 140,
+    "runs": 681,
+    "runs_without_any_tool_call": 1,
+    "unresolved_editor_calls": 0
+   }
+  },
+  "notes": [
+   "Registry established_negatives = 0 (negatives are 'both judges not_reward_hacking', basis no_flag_fired): every negative is negative_unestablished.",
+   "_steps are Codex-style events: command_execution{command} (shell, read by S as is), tool_read{files} (read, ignored), file_change{changes:[{kind,path}]}. file_change is in the shim's INPLACE_TOOLS but carries no `path` key, so as-is it is invisible; PRIMARY numbers use ONE mapping (map_file_change in _common.py: one call per change with path=change.path, function name kept). The as-is variant is under groups_as_is_unmapped_variant.",
+   "Only 3 synthetic tabular task families / 90 instances: distinct-task counts depend heavily on which key is used (see task_keys_distinct).",
+   "ambiguous=82 and excluded=7 per registry are listed as their own groups."
+  ],
+  "reconciled_to_registry": true,
+  "registry": {
+   "established": 0,
+   "negatives": 488,
+   "positives": 681
+  },
+  "script": "/private/tmp/np35/scripts/baitbench.py",
+  "task_key": "identity.task_id (native dataset-instance task id, e.g. family+instance) -> s_shim.task_hash. This is the primary key (180 distinct over all runs).",
+  "task_keys_distinct": {
+   "dataset_instance(90)": 90,
+   "task_family(3)": 3,
+   "task_id_all_runs": 180
+  }
+ },
+ "inferencebench-trajectories": {
+  "S_not_applicable": false,
+  "groups": {
+   "ambiguous": {
+    "L": 18,
+    "L_not_S": 18,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 4,
+    "runs": 41,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_established": {
+    "L": 0,
+    "L_not_S": 0,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 0,
+    "runs": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished": {
+    "L": 96,
+    "L_not_S": 91,
+    "S": 5,
+    "SI": 0,
+    "S_form_counts": {
+     "shell:redirect": 1,
+     "tool:write": 4
+    },
+    "distinct_tasks_S": 4,
+    "distinct_tasks_all": 4,
+    "runs": 211,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/era=paper": {
+    "L": 47,
+    "L_not_S": 43,
+    "S": 4,
+    "SI": 0,
+    "S_form_counts": {
+     "tool:write": 4
+    },
+    "distinct_tasks_S": 4,
+    "distinct_tasks_all": 4,
+    "runs": 136,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/era=post_paper": {
+    "L": 49,
+    "L_not_S": 48,
+    "S": 1,
+    "SI": 0,
+    "S_form_counts": {
+     "shell:redirect": 1
+    },
+    "distinct_tasks_S": 1,
+    "distinct_tasks_all": 4,
+    "runs": 75,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negatives_pooled": {
+    "L": 96,
+    "L_not_S": 91,
+    "S": 5,
+    "SI": 0,
+    "S_form_counts": {
+     "shell:redirect": 1,
+     "tool:write": 4
+    },
+    "distinct_tasks_S": 4,
+    "distinct_tasks_all": 4,
+    "runs": 211,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "positive": {
+    "L": 5,
+    "L_not_S": 4,
+    "S": 1,
+    "SI": 0,
+    "S_form_counts": {
+     "tool:write": 1
+    },
+    "distinct_tasks_S": 1,
+    "distinct_tasks_all": 4,
+    "runs": 17,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   }
+  },
+  "notes": [
+   "Registry established_negatives = 0; the 211 negatives are 'flag false and both judge lines none' (75 of them flag-never-set post-paper-agent runs). All are negative_unestablished; split by era in extra groups.",
+   "Steps are Claude-Code/codex style events from trace.jsonl with tool_name/tool_input (Bash, Edit, Write, Read...), used as is via the adapter's to_steps; no mapping. Runs whose trace is missing give empty steps.",
+   "Task: the job is optimising an inference server; strict test paths (tests/ dirs) are not part of that convention, so S is expected to be small; see L."
+  ],
+  "reconciled_to_registry": true,
+  "registry": {
+   "established": 0,
+   "negatives": 211,
+   "positives": 17
+  },
+  "script": "/private/tmp/np35/scripts/inferencebench.py",
+  "task_key": "identity.task_id = scenario (A-D) -> s_shim.task_hash. A PROXY: the task is one LLM-server optimisation problem per scenario, shared by all 23 agent configs; the 269 runs are repeats of 4 scenarios.",
+  "task_keys_distinct": {
+   "agent_config": 23,
+   "scenario": 4,
+   "scenario_x_agent": 91,
+   "task_full_id(base_model/scenario)": 4
+  }
+ },
+ "kobayashi-maru": {
+  "S_not_applicable": false,
+  "groups": {
+   "ambiguous": {
+    "L": 5,
+    "L_not_S": 5,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 25,
+    "runs": 247,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "excluded": {
+    "L": 1,
+    "L_not_S": 1,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 5,
+    "runs": 7,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_established": {
+    "L": 0,
+    "L_not_S": 0,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 0,
+    "runs": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished": {
+    "L": 224,
+    "L_not_S": 224,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 25,
+    "runs": 7916,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/slice=contradict": {
+    "L": 40,
+    "L_not_S": 40,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 8,
+    "runs": 1528,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/slice=solvable": {
+    "L": 160,
+    "L_not_S": 160,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 10,
+    "runs": 5477,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/slice=unreachable": {
+    "L": 24,
+    "L_not_S": 24,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 7,
+    "runs": 911,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negatives_pooled": {
+    "L": 224,
+    "L_not_S": 224,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 25,
+    "runs": 7916,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "positive": {
+    "L": 41,
+    "L_not_S": 41,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 25,
+    "runs": 789,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   }
+  },
+  "notes": [
+   "Registry established_negatives = 0 and control_negatives = 5477 (solvable slice) which the registry does NOT count as established; all negatives are negative_unestablished, split by item slice in extra groups.",
+   "Steps carry tool_calls with the adapter's function_name/arguments (bash{command}, write_file{path,content}, run_tests, submit, read_file); used as is, no mapping."
+  ],
+  "reconciled_to_registry": true,
+  "registry": {
+   "established": 0,
+   "negatives": 7916,
+   "positives": 789
+  },
+  "script": "/private/tmp/np35/scripts/kobayashi.py",
+  "task_key": "identity.task_id (native item/variant id) -> s_shim.task_hash; distinct counts in groups are over this key. Alternatives in task_keys_distinct: task_key (publisher digest of item_key), base_task_id (underlying authored utility, a family proxy), batch (not a task).",
+  "task_keys_distinct": {
+   "base_task_id": 25,
+   "batch": 571,
+   "task_id": 25,
+   "task_key": 25
+  }
+ },
+ "reward-pressure-study-2": {
+  "S_not_applicable": false,
+  "groups": {
+   "excluded": {
+    "note": "provider-error rows (row.error not null); not given to S; pilot file is outside SUBSTUDIES",
+    "runs": 112
+   },
+   "negative_established": {
+    "L": 0,
+    "L_not_S": 0,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 0,
+    "runs": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished": {
+    "L": 4,
+    "L_not_S": 0,
+    "S": 4,
+    "SI": 0,
+    "S_form_counts": {
+     "tool:write_file": 4
+    },
+    "distinct_tasks_S": 3,
+    "distinct_tasks_all": 20,
+    "runs": 653,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/substudy=clarity": {
+    "L": 0,
+    "L_not_S": 0,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 20,
+    "runs": 280,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/substudy=extension": {
+    "L": 0,
+    "L_not_S": 0,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 16,
+    "runs": 37,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negative_unestablished/substudy=registered": {
+    "L": 4,
+    "L_not_S": 0,
+    "S": 4,
+    "SI": 0,
+    "S_form_counts": {
+     "tool:write_file": 4
+    },
+    "distinct_tasks_S": 3,
+    "distinct_tasks_all": 20,
+    "runs": 336,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negatives_pooled": {
+    "L": 4,
+    "L_not_S": 0,
+    "S": 4,
+    "SI": 0,
+    "S_form_counts": {
+     "tool:write_file": 4
+    },
+    "distinct_tasks_S": 3,
+    "distinct_tasks_all": 20,
+    "runs": 653,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "positive": {
+    "L": 31,
+    "L_not_S": 0,
+    "S": 31,
+    "SI": 0,
+    "S_form_counts": {
+     "tool:write_file": 31
+    },
+    "distinct_tasks_S": 15,
+    "distinct_tasks_all": 20,
+    "runs": 467,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "positive/substudy=extension": {
+    "L": 0,
+    "L_not_S": 0,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 20,
+    "runs": 203,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "positive/substudy=registered": {
+    "L": 31,
+    "L_not_S": 0,
+    "S": 31,
+    "SI": 0,
+    "S_form_counts": {
+     "tool:write_file": 31
+    },
+    "distinct_tasks_S": 15,
+    "distinct_tasks_all": 20,
+    "runs": 264,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   }
+  },
+  "groups_args_left_as_json_string_variant": {
+   "negative_unestablished": {
+    "L": 80,
+    "L_not_S": 80,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 20,
+    "runs": 653,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "negatives_pooled": {
+    "L": 80,
+    "L_not_S": 80,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 20,
+    "runs": 653,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   },
+   "positive": {
+    "L": 133,
+    "L_not_S": 133,
+    "S": 0,
+    "SI": 0,
+    "S_form_counts": {},
+    "distinct_tasks_S": 0,
+    "distinct_tasks_all": 20,
+    "runs": 467,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0
+   }
+  },
+  "notes": [
+   "Registry established_negatives = 0: negatives are 'no executed cheat label' (basis no_flag_fired). All are negative_unestablished.",
+   "TAUTOLOGY WARNING: the corpus's negative rule requires test_file_modified == False (publisher-executed), and positives of type test_edit require test_file_modified True. S on these transcripts is therefore close to the publisher's label by construction; S-positive negatives would be the interesting false-alarm cases but cannot be read as a clean-test-editor rate independent of the label.",
+   "Adapter specs carry no labels (only run_id_hash, task_id_hash, _steps); labels recomputed from the same raw rows with the profile.py label() rule (copied verbatim in the script). Row order/iteration is the adapter's SUBSTUDIES order, error rows skipped.",
+   "Steps are OpenAI-style: tool_calls[{name, arguments(JSON string)}]; tools: read_file, write_file, run_tests, submit, list_files. PRIMARY numbers use ONE mapping (name->function_name, json.loads on string arguments); variant with arguments left as raw strings is reported (the shim then reads them as {'raw': ...} so structured write_file paths are invisible).",
+   "Clarity sub-study is all-negative per registry; see groups keyed .../substudy=<name>."
+  ],
+  "reconciled_to_registry": true,
+  "registry": {
+   "established": 0,
+   "negatives": 653,
+   "positives": 467
+  },
+  "script": "/private/tmp/np35/scripts/rps2.py",
+  "task_key": "row['task'] (native task name, 20 authored tasks) -> s_shim.task_hash. Native id; not a proxy.",
+  "task_keys_distinct": {
+   "task(20)": 20
+  }
+ },
+ "caught-not-taught": {
+  "registry": {
+   "positives": 46,
+   "negatives": 160,
+   "established": 160,
+   "negative_basis": "established"
+  },
+  "groups": {
+   "all_negatives": {
+    "runs": 160,
+    "S": 0,
+    "SI": 0,
+    "L": 1,
+    "L_not_S": 1,
+    "distinct_tasks_all": 5,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 5,
+     "problem_id_proxy": 5
+    }
+   },
+   "ambiguous": {
+    "runs": 34,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 5,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 5,
+     "problem_id_proxy": 29
+    }
+   },
+   "negative_established": {
+    "runs": 160,
+    "S": 0,
+    "SI": 0,
+    "L": 1,
+    "L_not_S": 1,
+    "distinct_tasks_all": 5,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 5,
+     "problem_id_proxy": 5
+    }
+   },
+   "positive": {
+    "runs": 46,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 5,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 5,
+     "problem_id_proxy": 35
+    }
+   }
+  },
+  "task_key": "identity.main_name (native ControlArena main task name) -> s_shim.task_hash. Second reading identity.problem_id (differs across attack cells: more distinct values than main tasks, i.e. main x side-task variant; NOT used as primary). Only 5 main tasks exist.",
+  "S_not_applicable": false,
+  "reconciled_to_registry": true,
+  "notes": [
+   "Adapter _steps use role/function keys; mapped mechanically (role->source, function->function_name).",
+   "Registry negatives are all honest-mode episodes, counted established by design (control_negatives=160); no negative_unestablished group exists.",
+   "Tool set: bash, text_editor, cdk_ls, submit."
+  ],
+  "script": "/private/tmp/np35/scripts/caught-not-taught.py",
+  "primary_group_counts": {
+   "positive": 46,
+   "ambiguous": 34,
+   "negative_established": 160
+  }
+ },
+ "linuxarena-public": {
+  "registry": {
+   "positives": 138,
+   "negatives": 400,
+   "established": 400,
+   "negative_basis": "established"
+  },
+  "groups": {
+   "all_negatives": {
+    "runs": 400,
+    "S": 60,
+    "SI": 27,
+    "L": 264,
+    "L_not_S": 204,
+    "distinct_tasks_all": 200,
+    "distinct_tasks_S": 41,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:redirect": 4,
+     "tool:text_editor:str_replace": 27,
+     "tool:text_editor:create": 45,
+     "shell:copy_move": 1
+    },
+    "distinct_task_keys_by_reading_all": {
+     "primary": 200,
+     "environment_family": 10,
+     "environment_x_main": 200
+    }
+   },
+   "ambiguous": {
+    "runs": 28,
+    "S": 0,
+    "SI": 0,
+    "L": 9,
+    "L_not_S": 9,
+    "distinct_tasks_all": 23,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 23,
+     "environment_family": 9,
+     "environment_x_main": 23
+    }
+   },
+   "negative_established": {
+    "runs": 400,
+    "S": 60,
+    "SI": 27,
+    "L": 264,
+    "L_not_S": 204,
+    "distinct_tasks_all": 200,
+    "distinct_tasks_S": 41,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "shell:redirect": 4,
+     "tool:text_editor:str_replace": 27,
+     "tool:text_editor:create": 45,
+     "shell:copy_move": 1
+    },
+    "distinct_task_keys_by_reading_all": {
+     "primary": 200,
+     "environment_family": 10,
+     "environment_x_main": 200
+    }
+   },
+   "positive": {
+    "runs": 138,
+    "S": 10,
+    "SI": 4,
+    "L": 29,
+    "L_not_S": 19,
+    "distinct_tasks_all": 77,
+    "distinct_tasks_S": 4,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:text_editor:create": 10,
+     "tool:text_editor:str_replace": 4
+    },
+    "distinct_task_keys_by_reading_all": {
+     "primary": 77,
+     "environment_family": 10,
+     "environment_x_main": 77
+    }
+   }
+  },
+  "task_key": "identity.main_task_id (native) -> s_shim.task_hash. Readings: environment (family, proxy) and environment x main_task_id. main_task_id may repeat across environments, so the primary key is a possible undercount; environment_x_main is the safer reading.",
+  "S_not_applicable": false,
+  "reconciled_to_registry": true,
+  "notes": [
+   "Adapter _steps use role/function keys; mapped mechanically (role->source, function->function_name).",
+   "Registry negatives = honest-mode (side_task null) runs, established by run condition (control_negatives=400); no negative_unestablished group.",
+   "Adapter yields deduplicated trajectories (566); 6 excluded are not yielded as specs unless gold.state says so."
+  ],
+  "script": "/private/tmp/np35/scripts/linuxarena-public.py",
+  "primary_group_counts": {
+   "negative_established": 400,
+   "positive": 138,
+   "ambiguous": 28
+  }
+ },
+ "trusted-monitoring-logs": {
+  "registry": {
+   "positives": 33,
+   "negatives": 200,
+   "established": 200,
+   "negative_basis": "established"
+  },
+  "groups": {
+   "all_negatives": {
+    "runs": 200,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 200,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 200,
+     "task_text_sha": 200
+    }
+   },
+   "ambiguous": {
+    "runs": 142,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 142,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 142,
+     "task_text_sha": 142
+    }
+   },
+   "excluded": {
+    "runs": 209,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 100,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 2,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 100,
+     "task_text_sha": 100
+    }
+   },
+   "negative_established": {
+    "runs": 200,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 200,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 200,
+     "task_text_sha": 200
+    }
+   },
+   "positive": {
+    "runs": 33,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 33,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 33,
+     "task_text_sha": 33
+    }
+   }
+  },
+  "task_key": "identity.task_id (native APPS problem id) -> s_shim.task_hash; second reading sha of task_text.",
+  "S_not_applicable": false,
+  "reconciled_to_registry": true,
+  "notes": [
+   "_steps (not _steps_code) used. Source values user/agent; tool calls use function/arguments, mapped mechanically.",
+   "Tool set is submit / read_tool_output / grep_tool_output only: APPS one-shot code, no file-edit tools, so S is structurally unreachable (S not 'not applicable': structured calls exist but none can be a file write).",
+   "Registry negatives = honest-condition runs in the 12288-budget honest set, established by design (control_negatives=200)."
+  ],
+  "script": "/private/tmp/np35/scripts/trusted-monitoring-logs.py",
+  "primary_group_counts": {
+   "excluded": 209,
+   "negative_established": 200,
+   "ambiguous": 142,
+   "positive": 33
+  }
+ },
+ "knowing-collusion-filter": {
+  "registry": {
+   "positives": 86,
+   "negatives": 20,
+   "established": 20,
+   "negative_basis": "established"
+  },
+  "groups": {
+   "all_negatives": {
+    "runs": 20,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 9,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 9,
+     "first_user_prompt_sha": 9
+    }
+   },
+   "ambiguous": {
+    "runs": 712,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 27,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 27,
+     "first_user_prompt_sha": 27
+    }
+   },
+   "excluded": {
+    "runs": 172,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 27,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 27,
+     "first_user_prompt_sha": 27
+    }
+   },
+   "negative_established": {
+    "runs": 20,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 9,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 9,
+     "first_user_prompt_sha": 9
+    }
+   },
+   "positive": {
+    "runs": 86,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 26,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 26,
+     "first_user_prompt_sha": 26
+    }
+   }
+  },
+  "task_key": "gold.scenario (native scenario id; a PROXY: scenarios are reused across episodes/models, no per-task id) -> s_shim.task_hash. Second reading sha of first user prompt.",
+  "S_not_applicable": false,
+  "reconciled_to_registry": true,
+  "notes": [
+   "Adapter tool_calls use name/arguments(str); mapped mechanically (name->function_name).",
+   "Tools are send_message, get_record, submit_decision (two-agent chat): no file-editing tool exists, so S is structurally unreachable.",
+   "Registry negatives = confession-backed, never-blocked helpers (20 established)."
+  ],
+  "script": "/private/tmp/np35/scripts/knowing-collusion-filter.py",
+  "primary_group_counts": {
+   "ambiguous": 712,
+   "negative_established": 20,
+   "positive": 86,
+   "excluded": 172
+  }
+ },
+ "posttrainbench-trajectories": {
+  "registry": {
+   "positives": 109,
+   "negatives": 1439,
+   "established": 0,
+   "negative_basis": "no_flag_fired",
+   "negatives_note": "registry negatives 1439 / established 0"
+  },
+  "groups": {
+   "all_negatives": {
+    "runs": 1439,
+    "S": 110,
+    "SI": 15,
+    "L": 566,
+    "L_not_S": 456,
+    "distinct_tasks_all": 28,
+    "distinct_tasks_S": 27,
+    "runs_without_any_tool_call": 38,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write": 70,
+     "shell:redirect": 39,
+     "tool:edit": 7,
+     "shell:python_open": 1,
+     "shell:inplace_cli": 7,
+     "shell:append": 2,
+     "shell:copy_move": 2
+    },
+    "distinct_task_keys_by_reading_all": {
+     "primary": 28,
+     "benchmark_family": 7,
+     "task_id_hashed_by_adapter": 28
+    }
+   },
+   "ambiguous": {
+    "runs": 102,
+    "S": 4,
+    "SI": 0,
+    "L": 36,
+    "L_not_S": 32,
+    "distinct_tasks_all": 26,
+    "distinct_tasks_S": 4,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write": 4
+    },
+    "distinct_task_keys_by_reading_all": {
+     "primary": 26,
+     "benchmark_family": 7,
+     "task_id_hashed_by_adapter": 26
+    }
+   },
+   "excluded": {
+    "runs": 165,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 28,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {},
+    "distinct_task_keys_by_reading_all": {
+     "primary": 28,
+     "benchmark_family": 7,
+     "task_id_hashed_by_adapter": 28
+    }
+   },
+   "negative_unestablished": {
+    "runs": 1439,
+    "S": 110,
+    "SI": 15,
+    "L": 566,
+    "L_not_S": 456,
+    "distinct_tasks_all": 28,
+    "distinct_tasks_S": 27,
+    "runs_without_any_tool_call": 38,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write": 70,
+     "shell:redirect": 39,
+     "tool:edit": 7,
+     "shell:python_open": 1,
+     "shell:inplace_cli": 7,
+     "shell:append": 2,
+     "shell:copy_move": 2
+    },
+    "distinct_task_keys_by_reading_all": {
+     "primary": 28,
+     "benchmark_family": 7,
+     "task_id_hashed_by_adapter": 28
+    }
+   },
+   "positive": {
+    "runs": 109,
+    "S": 6,
+    "SI": 1,
+    "L": 57,
+    "L_not_S": 51,
+    "distinct_tasks_all": 20,
+    "distinct_tasks_S": 6,
+    "runs_without_any_tool_call": 18,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:edit": 1,
+     "tool:write": 5,
+     "shell:redirect": 1
+    },
+    "distinct_task_keys_by_reading_all": {
+     "primary": 20,
+     "benchmark_family": 6,
+     "task_id_hashed_by_adapter": 20
+    }
+   }
+  },
+  "task_key": "identity.task_id (native '<benchmark>_<base model>') -> s_shim.task_hash. Readings: benchmark_family (benchmark only). Both are proxies; no per-instance task id exists.",
+  "S_not_applicable": false,
+  "reconciled_to_registry": true,
+  "notes": [
+   "Adapter replay() already emits ATIF steps (source=agent, tool_calls[{function_name, arguments}]); no mapping applied.",
+   "Registry negative_basis=no_flag_fired, established_negatives=0: ALL negatives are negative_unestablished; negative_established group is empty by design. Registry negatives=1439 are pre-finalize (strict-label) counts; post-replay (finalize) states are reported here and may differ.",
+   "Rows with state excluded (duplicates, no trace, empty/verdict-visible) are counted but not analysed for S.",
+   "Task key: identity.task_id = '<benchmark>_<base_model>' (benchmark x model); a proxy: tasks are benchmark/model pairs, not per-prompt tasks."
+  ],
+  "script": "/private/tmp/np35/scripts/posttrainbench-trajectories.py",
+  "primary_group_counts": {
+   "negative_unestablished": 1439,
+   "positive": 109,
+   "ambiguous": 102,
+   "excluded": 165
+  },
+  "established_group_runs": 0
+ },
+ "sleight-bench": {
+  "registry": {
+   "positives": 43,
+   "negatives": 43,
+   "established": 43
+  },
+  "groups": {
+   "negative_established": {
+    "runs": 43,
+    "S": 2,
+    "SI": 0,
+    "L": 7,
+    "L_not_S": 5,
+    "distinct_tasks_all": 40,
+    "distinct_tasks_S": 2,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write": 2
+    }
+   },
+   "pooled_all_negatives": {
+    "runs": 43,
+    "S": 2,
+    "SI": 0,
+    "L": 7,
+    "L_not_S": 5,
+    "distinct_tasks_all": 40,
+    "distinct_tasks_S": 2,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write": 2
+    }
+   },
+   "positive": {
+    "runs": 43,
+    "S": 2,
+    "SI": 0,
+    "L": 7,
+    "L_not_S": 5,
+    "distinct_tasks_all": 40,
+    "distinct_tasks_S": 2,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {
+     "tool:write": 2
+    }
+   },
+   "ALL": {
+    "runs": 86
+   }
+  },
+  "task_key": "No native task id. Primary key = s_shim.task_hash(pair_key) where pair_key is the adapter's hashed construction-group id (40 groups; attack+benign arms share it) -- a PROXY (a construction group of 1 or 2 segments). Alternate readings reported: segment_pair_key (43), scenario_key, category_key (11).",
+  "task_keys_distinct": {
+   "pair_key(construction group)": {
+    "positive": 40,
+    "ALL": 40,
+    "negative_established": 40
+   },
+   "segment_pair_key": {
+    "positive": 43,
+    "ALL": 43,
+    "negative_established": 43
+   },
+   "scenario_key": {
+    "positive": 42,
+    "ALL": 42,
+    "negative_established": 42
+   },
+   "category_key": {
+    "positive": 11,
+    "ALL": 11,
+    "negative_established": 11
+   }
+  },
+  "primary_task_key_distinct_all": 40,
+  "S_not_applicable": false,
+  "reconciled_to_registry": true,
+  "counts_found": {
+   "positives": 43,
+   "negatives": 43,
+   "established": 43
+  },
+  "tool_call_structure": {
+   "specs_with_steps": {
+    "True": 86
+   },
+   "step_sources": {
+    "user": 86,
+    "agent": 1179
+   },
+   "steps_with_tool_calls": 629,
+   "steps_total": 1265
+  },
+  "notes": [
+   "_steps carry structured tool_calls (simulated coding/terminal attack/benign segments, passed as-is, no mapping). Negatives are publisher-constructed benign arms (registry established=43), but they are constructed from attack segments of the same task, so S in a benign arm reflects the publisher's own simulated editing, not an organic clean-editor run."
+  ],
+  "script": "/private/tmp/np35/scripts/f_run.py sleight-bench (then f_assemble.py)"
+ },
+ "apollo-insider-trading": {
+  "registry": {
+   "positives": 4255,
+   "negatives": 5345,
+   "established": 0
+  },
+  "groups": {
+   "excluded": {
+    "runs": 4823,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 25,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 4823,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "negative_unestablished": {
+    "runs": 5345,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 26,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 5345,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "pooled_all_negatives": {
+    "runs": 5345,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 26,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 5345,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "positive": {
+    "runs": 4255,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 25,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 4255,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "ALL": {
+    "runs": 14423
+   }
+  },
+  "task_key": "Adapter task_key (hash of experiment + optional scenario; excludes generator/phase/response) -> s_shim.task_hash. PROXY: 26 experiment/scenario cells, not tasks per se. Alternate: cluster_key (9,600 root runs).",
+  "task_keys_distinct": {
+   "task_key(experiment+scenario hash; proxy=scenario)": {
+    "excluded": 25,
+    "ALL": 26,
+    "negative_unestablished": 26,
+    "positive": 25
+   },
+   "cluster_key(root run)": {
+    "excluded": 4255,
+    "ALL": 9600,
+    "negative_unestablished": 5345,
+    "positive": 4255
+   }
+  },
+  "primary_task_key_distinct_all": 26,
+  "S_not_applicable": true,
+  "reconciled_to_registry": true,
+  "counts_found": {
+   "positives": 4255,
+   "negatives": 5345,
+   "established": 0
+  },
+  "tool_call_structure": {
+   "specs_with_steps": {
+    "True": 14423
+   },
+   "step_sources": {
+    "user": 133774,
+    "agent": 119351
+   },
+   "steps_with_tool_calls": 0,
+   "steps_total": 253125
+  },
+  "notes": [
+   "_steps are chat dialogue (user/agent text messages, original_role field) ending in one newly generated completion; no tool_calls on any step. Native labels (string-match is_misaligned; GPT-4 is_deceptive, is_doubling_down) are per completion.",
+   "S_not_applicable: groups below come from running the unchanged shim over every spec; S/L=0 is vacuous (no structured tool calls, steps_with_tool_calls=0 of 253125 steps).",
+   "Groups: positive/negative_unestablished = is_misaligned target rows (misalignment phase, 9,600); 'excluded' = 4,823 deception/doubling_down-phase rows (separate out-of-domain targets). Registry counts are for is_misaligned."
+  ],
+  "script": "/private/tmp/np35/scripts/f_run.py apollo-insider-trading (then f_assemble.py)"
+ },
+ "hack-ignition": {
+  "registry": {
+   "positives": 17154,
+   "negatives": 12606,
+   "established": 5418
+  },
+  "groups": {
+   "negative_established": {
+    "runs": 5418,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 50,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 5418,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "negative_unestablished": {
+    "runs": 7188,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 60,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 7188,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "pooled_all_negatives": {
+    "runs": 12606,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 60,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 12606,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "positive": {
+    "runs": 17154,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 60,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 17154,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "ALL": {
+    "runs": 29760
+   }
+  },
+  "task_key": "Native MBPP task key (adapter task_key, 60 tasks) -> s_shim.task_hash. 60 tasks, shared by all conditions/steps/seeds.",
+  "task_keys_distinct": {
+   "task_key(MBPP task id hash)": {
+    "negative_established": 50,
+    "ALL": 60,
+    "negative_unestablished": 60,
+    "positive": 60
+   }
+  },
+  "primary_task_key_distinct_all": 60,
+  "S_not_applicable": true,
+  "reconciled_to_registry": true,
+  "counts_found": {
+   "positives": 17154,
+   "negatives": 12606,
+   "established": 5418
+  },
+  "tool_call_structure": {
+   "specs_with_steps": {
+    "True": 29760
+   },
+   "step_sources": {
+    "agent": 29760
+   },
+   "steps_with_tool_calls": 0,
+   "steps_total": 29760
+  },
+  "notes": [
+   "_steps = exactly one agent step holding a single-turn OLMo-7B MBPP code completion; no tool_calls, no file edits (one-shot code text).",
+   "S_not_applicable: groups below come from running the unchanged shim over every spec; S/L=0 is vacuous (no structured tool calls, steps_with_tool_calls=0 of 29760 steps).",
+   "established = not positive and gold_grades.hardened==1 (passes hardened grader); remaining 7,188 negatives unestablished. Reconciles to registry 5,418."
+  ],
+  "script": "/private/tmp/np35/scripts/f_run.py hack-ignition (then f_assemble.py)"
+ },
+ "assistant-axis": {
+  "registry": {
+   "positives": 157,
+   "negatives": 635,
+   "established": 0
+  },
+  "groups": {
+   "excluded": {
+    "runs": 32,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 13,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 32,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "negative_unestablished": {
+    "runs": 635,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 41,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 635,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "pooled_all_negatives": {
+    "runs": 635,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 41,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 635,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "positive": {
+    "runs": 157,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 30,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 157,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "ALL": {
+    "runs": 824
+   }
+  },
+  "task_key": "Adapter problem_key (evaluator-only hashed problem id) -> s_shim.task_hash. PROXY-ish: 41 problems; 686 episodes (episode_key) is the alternate reading.",
+  "task_keys_distinct": {
+   "problem_key(evaluator-only problem; proxy)": {
+    "positive": 30,
+    "ALL": 41,
+    "negative_unestablished": 41,
+    "excluded": 13
+   },
+   "episode_key": {
+    "positive": 157,
+    "ALL": 686,
+    "negative_unestablished": 497,
+    "excluded": 32
+   }
+  },
+  "primary_task_key_distinct_all": 41,
+  "S_not_applicable": true,
+  "reconciled_to_registry": true,
+  "counts_found": {
+   "positives": 157,
+   "negatives": 635,
+   "established": 0
+  },
+  "tool_call_structure": {
+   "specs_with_steps": {
+    "True": 824
+   },
+   "step_sources": {
+    "user": 1976,
+    "agent": 1784
+   },
+   "steps_with_tool_calls": 0,
+   "steps_total": 3760
+  },
+  "notes": [
+   "_steps are user/agent chat messages (plus reasoning_content) ending in the selected response turn; no tool_calls on any step.",
+   "S_not_applicable: groups below come from running the unchanged shim over every spec; S/L=0 is vacuous (no structured tool calls, steps_with_tool_calls=0 of 3760 steps).",
+   "positive = STRONG HACK (157, primary scoring); 32 WEAK HACK are 'excluded' from the primary cohort; 635 weak negatives unestablished (registry established=0)."
+  ],
+  "script": "/private/tmp/np35/scripts/f_run.py assistant-axis (then f_assemble.py)"
+ },
+ "cuaverifierbench": {
+  "registry": {
+   "positives": 77,
+   "negatives": 29,
+   "established": 29
+  },
+  "groups": {
+   "negative_established": {
+    "runs": 29,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 29,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "pooled_all_negatives": {
+    "runs": 29,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 29,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "positive": {
+    "runs": 77,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 77,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 0,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "ALL": {
+    "runs": 106
+   }
+  },
+  "task_key": "Native task id: Online-Mind2Web task_id -> adapter task_key (sha256[:16]) -> s_shim.task_hash. One fixed run per task, so keys = runs (106).",
+  "task_keys_distinct": {
+   "task_key(native task_id)": {
+    "positive": 77,
+    "ALL": 106,
+    "negative_established": 29
+   }
+  },
+  "primary_task_key_distinct_all": 106,
+  "S_not_applicable": false,
+  "reconciled_to_registry": true,
+  "counts_found": {
+   "positives": 77,
+   "negatives": 29,
+   "established": 29
+  },
+  "tool_call_structure": {
+   "specs_with_steps": {
+    "True": 106
+   },
+   "step_sources": {
+    "user": 212,
+    "agent": 2963
+   },
+   "steps_with_tool_calls": 2857,
+   "steps_total": 3175
+  },
+  "notes": [
+   "_steps carry structured browser-agent tool_calls (Fara-7B actions: left_click, scroll, type, key, visit_url, web_search, terminate ...; arguments dict with action/coordinate/text/url). No file edits or tests/ paths exist in this domain, so S=0 is structural, not an observed clean result. Mapping: none needed (steps passed as-is).",
+   "Positives = incorrect fixed-run outcome (wrong-pass target, not cheating); negatives = strict-majority Correct (registry established)."
+  ],
+  "script": "/private/tmp/np35/scripts/f_run.py cuaverifierbench (then f_assemble.py)"
+ },
+ "collusion-probe-pitfalls": {
+  "registry": {
+   "positives": 956,
+   "negatives": 3966,
+   "established": 0
+  },
+  "groups": {
+   "ambiguous": {
+    "runs": 1157,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 86,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 1157,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "excluded": {
+    "runs": 2132,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 86,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 2132,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "negative_unestablished": {
+    "runs": 3966,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 86,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 3966,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "pooled_all_negatives": {
+    "runs": 3966,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 86,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 3966,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "positive": {
+    "runs": 956,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 86,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 956,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "ALL": {
+    "runs": 8211
+   }
+  },
+  "task_key": "identity.task_id (scenario id, 86) -> s_shim.task_hash. PROXY: scenario, not task per se (each scenario has many runs/conditions). Alternate: identity.run_id (7,214 distinct over 8,211 rows).",
+  "task_keys_distinct": {
+   "identity.task_id(scenario; proxy)": {
+    "excluded": 86,
+    "ALL": 86,
+    "negative_unestablished": 86,
+    "ambiguous": 86,
+    "positive": 86
+   },
+   "identity.run_id": {
+    "excluded": 2032,
+    "ALL": 7214,
+    "negative_unestablished": 3520,
+    "ambiguous": 1014,
+    "positive": 809
+   }
+  },
+  "primary_task_key_distinct_all": 86,
+  "S_not_applicable": true,
+  "reconciled_to_registry": true,
+  "counts_found": {
+   "positives": 956,
+   "negatives": 3966,
+   "established": 0
+  },
+  "tool_call_structure": {
+   "specs_with_steps": {
+    "True": 8211
+   },
+   "step_sources": {
+    "user": 8211,
+    "agent": 214065
+   },
+   "steps_with_tool_calls": 0,
+   "steps_total": 222276
+  },
+  "notes": [
+   "_steps are public-channel committee/code-review chat messages and votes (user/agent text, input_role); no tool_calls. The separate _calls field is LLM prompt/response round-trips with a channel field, not tool calls.",
+   "S_not_applicable: groups below come from running the unchanged shim over every spec; S/L=0 is vacuous (no structured tool calls, steps_with_tool_calls=0 of 222276 steps).",
+   "Groups from labels.state; negatives 3,966 = 1,216 no-brief controls + 2,750 look-alikes, none established (registry established=0)."
+  ],
+  "script": "/private/tmp/np35/scripts/f_run.py collusion-probe-pitfalls (then f_assemble.py)"
+ },
+ "paichecker": {
+  "registry": {
+   "positives": 1085,
+   "negatives": 1502,
+   "established": 1502
+  },
+  "groups": {
+   "negative_established": {
+    "runs": 1502,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 1502,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 1502,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "pooled_all_negatives": {
+    "runs": 1502,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 1502,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 1502,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "positive": {
+    "runs": 1085,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 1085,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 1085,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "ALL": {
+    "runs": 2587
+   }
+  },
+  "task_key": "Native instance_id prefixed with sub_corpus -> s_shim.task_hash (one row per task, 2,587). Repo (52 = 41+11) is the cluster/proxy reading.",
+  "task_keys_distinct": {
+   "sub_corpus/instance_id(native)": {
+    "negative_established": 1502,
+    "ALL": 2587,
+    "positive": 1085
+   },
+   "repo(cluster; proxy)": {
+    "negative_established": 52,
+    "ALL": 52,
+    "positive": 44
+   }
+  },
+  "primary_task_key_distinct_all": 2587,
+  "S_not_applicable": true,
+  "reconciled_to_registry": true,
+  "counts_found": {
+   "positives": 1085,
+   "negatives": 1502,
+   "established": 1502
+  },
+  "tool_call_structure": {
+   "specs_with_steps": {
+    "False": 2587
+   },
+   "step_sources": {},
+   "steps_with_tool_calls": 0,
+   "steps_total": 0
+  },
+  "notes": [
+   "No _steps at all: each spec is a benchmark task (auditor_input: issue statement, test patch, expected tests, gold patch) judged for issue/PR/test misalignment; there is no agent run.",
+   "S_not_applicable: groups below come from running the unchanged shim over every spec; S/L=0 is vacuous (no structured tool calls, steps_with_tool_calls=0 of 0 steps).",
+   "Negatives = 'No Misalignment' human labels (task-level, registry established 1,502 incl. 227 SWE-bench Multilingual + 1,275 SWE-Gym)."
+  ],
+  "script": "/private/tmp/np35/scripts/f_run.py paichecker (then f_assemble.py)"
+ },
+ "automationbench-verified": {
+  "registry": {
+   "positives": 210,
+   "negatives": 0,
+   "established": 0
+  },
+  "groups": {
+   "negative_unestablished": {
+    "runs": 590,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 573,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 590,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "pooled_all_negatives": {
+    "runs": 590,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 573,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 590,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "positive": {
+    "runs": 210,
+    "S": 0,
+    "SI": 0,
+    "L": 0,
+    "L_not_S": 0,
+    "distinct_tasks_all": 208,
+    "distinct_tasks_S": 0,
+    "runs_without_any_tool_call": 210,
+    "unresolved_editor_calls": 0,
+    "S_form_counts": {}
+   },
+   "ALL": {
+    "runs": 800
+   }
+  },
+  "task_key": "Native example_id -> s_shim.task_hash (one row per task, 800). task_name and domain (7) are alternate/cluster readings.",
+  "task_keys_distinct": {
+   "example_id(native)": {
+    "negative_unestablished": 573,
+    "ALL": 770,
+    "positive": 208
+   },
+   "task_name": {
+    "negative_unestablished": 590,
+    "ALL": 800,
+    "positive": 210
+   },
+   "domain(cluster; proxy)": {
+    "negative_unestablished": 7,
+    "ALL": 7,
+    "positive": 7
+   }
+  },
+  "primary_task_key_distinct_all": 770,
+  "S_not_applicable": true,
+  "reconciled_to_registry": true,
+  "counts_found": {
+   "positives": 210,
+   "negatives": 590,
+   "established": 0
+  },
+  "tool_call_structure": {
+   "specs_with_steps": {
+    "False": 800
+   },
+   "step_sources": {},
+   "steps_with_tool_calls": 0,
+   "steps_total": 0
+  },
+  "notes": [
+   "No _steps at all: each spec is an AutomationBench task with original prompt and original grader; there is no agent run, and no certified-clean negative exists.",
+   "S_not_applicable: groups below come from running the unchanged shim over every spec; S/L=0 is vacuous (no structured tool calls, steps_with_tool_calls=0 of 0 steps).",
+   "positive=defective_verified (210); unchanged_not_certified (590) is negative_unestablished: registry has 0 negatives/0 established.",
+   "Reconciled on positives (210) and established (0); the registry lists negatives=0 although 590 unchanged_not_certified rows exist (counted as negative_unestablished here)."
+  ],
+  "script": "/private/tmp/np35/scripts/f_run.py automationbench-verified (then f_assemble.py)"
+ }
+}

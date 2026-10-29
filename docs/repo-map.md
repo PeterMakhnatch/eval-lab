@@ -589,7 +589,7 @@ inputs:
   - path: src/evallab/ladder.py
     digest: sha256:142f028f50d04045289a40ffbc1d69c3d760785a57c356fa23fd70b585dca705
   - path: src/evallab/laminar.py
-    digest: sha256:880b02332f9999a03c4a3522a01d7a396e3e03527ed798442acbe455594da578
+    digest: sha256:0a0c4b3c75d93a4fe1cee7f24b71ffade6296ed03cf513e4be7afe0f48e1e002
   - path: src/evallab/laminar_tracing.py
     digest: sha256:078d8b5e796574b398daf441ac2ea27ec1d87fc5f739bc788c214019e324f2cb
   - path: src/evallab/lance.py
@@ -795,7 +795,7 @@ inputs:
   - path: src/evallab/production/seeker_blind_examples.py
     digest: sha256:df33681c91e07c27be8984127a962bd104a483817aa1d6fbede15696bf408775
   - path: src/evallab/production/seeker_error_first.py
-    digest: sha256:d3455a471b59824620739f6090d67ee842cecb3231d47aaba0eacbed0c0e6891
+    digest: sha256:ebd25b6c235e182723e24f822f9f71258071a386b3453fd990acab891a368ee9
   - path: src/evallab/production/seeker_known_hacks.py
     digest: sha256:ce94c18865b262e585d25ed79a0d338532725ee580c8477ef40005b491b74b51
   - path: src/evallab/production/seeker_worker.py
@@ -1163,7 +1163,7 @@ inputs:
   - path: src/evallab/trace_store/fetch.py
     digest: sha256:5705216772cf96c544daf95d0607a4b421ebd455ccdf22024f4e7dc6b6762c7d
   - path: src/evallab/trace_store/laminar.py
-    digest: sha256:7431d89e34a297f9921f2f66f8a55efbd1b98bd4953e31726fe03fefd691f995
+    digest: sha256:472bbd865e736443926e65191c63e1a1149be61f972b238f5322d8d9e888390e
   - path: src/evallab/trace_store/owner_cleanup.py
     digest: sha256:455579da218146f1b97f28a81ea94314967988d873d7275a87031734a5c24d1d
   - path: src/evallab/trace_store/secrets.py

@@ -95,7 +95,7 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
-    digest: sha256:e75ef7cd17cfe8f00e42b958b612baf4dd86f32fa551453559e374579f503115
+    digest: sha256:dfa20fea1858a5870faafa1acaf0612365b5e1babf8c72ba3eb4cad0ed962a4f
   - path: docs/open-qa-harness.md
     digest: sha256:cf0a4da37baa714c321301e312826782948bc011e6840a16474f903fe6344b6f
   - path: docs/operating-manual.md

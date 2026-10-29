@@ -1268,7 +1268,9 @@ def _gateway(run_dir: Path, plan: Mapping[str, Any]) -> Any:
 
     overlay = run_dir / "gateway.overlay.yml"
     files = os.pathsep.join(filter(None, (os.environ.get("PI_CONFIG_FILES"), str(overlay))))
-    prefix = ("env", f"PI_CONFIG_FILES={files}", "omp")
+    # Absolute path: a PATH entry named ``env`` (uv installs a sourceable ~/.local/bin/env)
+    # would otherwise run instead, exit 0 and print nothing, closing admission silently.
+    prefix = ("/usr/bin/env", f"PI_CONFIG_FILES={files}", "omp")
     settings: dict[str, Any] = {}
     for key in ("retry.enabled", "retry.modelFallback", "retry.usageAwareFallback"):
         result = subprocess.run(

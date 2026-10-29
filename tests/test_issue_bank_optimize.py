@@ -335,8 +335,8 @@ def test_admitted_gateway_inherits_only_the_planned_overlay(
     seen = _fake_omp(monkeypatch, fallback=False, used=0.2)
     transport = opt._gateway(run_dir, plan)
     expected = f"PI_CONFIG_FILES={run_dir / 'gateway.overlay.yml'}"
-    assert all(argv[:2] == ("env", expected) for argv in seen)
-    assert transport._argv == ("env", expected, "omp", "auth-gateway", "stdio")
+    assert all(argv[:2] == ("/usr/bin/env", expected) for argv in seen)
+    assert transport._argv == ("/usr/bin/env", expected, "omp", "auth-gateway", "stdio")
     assert transport._process is None  # admission alone sends no model request
 
 

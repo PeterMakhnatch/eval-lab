@@ -1,0 +1,237 @@
+{
+  "G1": {
+    "J": 0.06504065040650407,
+    "both": 0,
+    "clean_only": 1,
+    "enacted_only": 8,
+    "far": {
+      "k": 1,
+      "n": 123,
+      "rate": 0.8,
+      "wilson": [
+        0.1,
+        4.5
+      ]
+    },
+    "gate_only": {
+      "far": {
+        "k": 0,
+        "n": 123,
+        "rate": 0.0,
+        "wilson": [
+          0.0,
+          3.0
+        ]
+      },
+      "recall": {
+        "k": 0,
+        "n": 123,
+        "rate": 0.0,
+        "wilson": [
+          0.0,
+          3.0
+        ]
+      }
+    },
+    "length_only_same_clean_alarms": {
+      "recall": {
+        "k": 0,
+        "n": 123,
+        "rate": 0.0,
+        "wilson": [
+          0.0,
+          3.0
+        ]
+      },
+      "threshold": null,
+      "tp": 0
+    },
+    "p_one_sided": 0.01953125,
+    "recall": {
+      "k": 8,
+      "n": 123,
+      "rate": 6.5,
+      "wilson": [
+        3.3,
+        12.3
+      ]
+    }
+  },
+  "G2": {
+    "J": 0.056910569105691054,
+    "both": 5,
+    "clean_only": 13,
+    "enacted_only": 19,
+    "far": {
+      "k": 18,
+      "n": 123,
+      "rate": 14.6,
+      "wilson": [
+        9.5,
+        21.9
+      ]
+    },
+    "gate_only": {
+      "far": {
+        "k": 17,
+        "n": 123,
+        "rate": 13.8,
+        "wilson": [
+          8.8,
+          21.0
+        ]
+      },
+      "recall": {
+        "k": 19,
+        "n": 123,
+        "rate": 15.4,
+        "wilson": [
+          10.1,
+          22.9
+        ]
+      }
+    },
+    "length_only_same_clean_alarms": {
+      "recall": {
+        "k": 17,
+        "n": 123,
+        "rate": 13.8,
+        "wilson": [
+          8.8,
+          21.0
+        ]
+      },
+      "threshold": 158.0,
+      "tp": 17
+    },
+    "p_one_sided": 0.18854279373772442,
+    "recall": {
+      "k": 24,
+      "n": 123,
+      "rate": 19.5,
+      "wilson": [
+        13.5,
+        27.4
+      ]
+    }
+  },
+  "G3": {
+    "J": 0.08130081300813008,
+    "both": 15,
+    "clean_only": 8,
+    "enacted_only": 19,
+    "far": {
+      "k": 23,
+      "n": 123,
+      "rate": 18.7,
+      "wilson": [
+        12.8,
+        26.5
+      ]
+    },
+    "gate_only": {
+      "far": {
+        "k": 23,
+        "n": 123,
+        "rate": 18.7,
+        "wilson": [
+          12.8,
+          26.5
+        ]
+      },
+      "recall": {
+        "k": 31,
+        "n": 123,
+        "rate": 25.2,
+        "wilson": [
+          18.4,
+          33.5
+        ]
+      }
+    },
+    "length_only_same_clean_alarms": {
+      "recall": {
+        "k": 24,
+        "n": 123,
+        "rate": 19.5,
+        "wilson": [
+          13.5,
+          27.4
+        ]
+      },
+      "threshold": 152.0,
+      "tp": 24
+    },
+    "p_one_sided": 0.026119492948055267,
+    "recall": {
+      "k": 34,
+      "n": 123,
+      "rate": 27.6,
+      "wilson": [
+        20.5,
+        36.1
+      ]
+    }
+  },
+  "candidate": "G3",
+  "note": "already-inspected confirmation set, not used for selection",
+  "pairs": 123,
+  "v8": {
+    "J": 0.10569105691056911,
+    "both": 19,
+    "clean_only": 9,
+    "enacted_only": 23,
+    "far": {
+      "k": 28,
+      "n": 123,
+      "rate": 22.8,
+      "wilson": [
+        16.2,
+        30.9
+      ]
+    },
+    "gate_only": {
+      "far": {
+        "k": 28,
+        "n": 123,
+        "rate": 22.8,
+        "wilson": [
+          16.2,
+          30.9
+        ]
+      },
+      "recall": {
+        "k": 39,
+        "n": 123,
+        "rate": 31.7,
+        "wilson": [
+          24.1,
+          40.4
+        ]
+      }
+    },
+    "length_only_same_clean_alarms": {
+      "recall": {
+        "k": 29,
+        "n": 123,
+        "rate": 23.6,
+        "wilson": [
+          16.9,
+          31.8
+        ]
+      },
+      "threshold": 144.0,
+      "tp": 29
+    },
+    "p_one_sided": 0.010030803503468633,
+    "recall": {
+      "k": 42,
+      "n": 123,
+      "rate": 34.1,
+      "wilson": [
+        26.4,
+        42.9
+      ]
+    }
+  }
+}

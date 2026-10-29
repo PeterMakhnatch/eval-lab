@@ -947,7 +947,7 @@ inputs:
   - path: src/evallab/readers/laminar_signals.py
     digest: sha256:4a4b1f47880b7c0b305cf28d673e75d5412085184d8517980a69570de9d9273a
   - path: src/evallab/readers/metr_campaign_plan.py
-    digest: sha256:82d7890b066348eb25c231cd2dde16b4e9d1a3269c8a89ca07773361cd10ba28
+    digest: sha256:4c674024523be1ec1428fd0d854d18775e9f66814b439aef257b7be7f05ffef4
   - path: src/evallab/readers/omp_model.py
     digest: sha256:ab7577f40cbf77ba993dbe6d5052808db0cb5bfa96c1835401e08ae47946b791
   - path: src/evallab/readers/openrouter_ledger_proxy.py

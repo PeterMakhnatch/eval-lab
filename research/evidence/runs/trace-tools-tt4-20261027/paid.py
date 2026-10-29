@@ -1,9 +1,10 @@
-"""Frozen TT-4 paid arm: native METR, one Gemini model, no paid fallback/retry.
+"""Frozen TT-4 paid arms: native METR, one OpenRouter model per arm, no paid fallback/retry.
 
-The Inspect provider alias only installs a budgeted HTTP transport around Inspect's
-existing OpenRouterAPI. Network model/provider, prompts, chunks and native result
-validation are unchanged. Ordinary Scout resume without this registration fails
-closed; this command only starts never-attempted frozen-sample traces.
+``TT4_ARM`` selects the arm (default ``gemini`` is the BYOK-blocked original; ``kimi-k3``
+is the third-party-hosted Kimi arm, TT-4b). The Inspect provider alias only installs a
+budgeted HTTP transport around Inspect's existing OpenRouterAPI. Network model/provider,
+prompts, chunks and native result validation are unchanged. Ordinary Scout resume without
+this registration fails closed; this command only starts never-attempted frozen-sample traces.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import fcntl
+import glob
 import hashlib
 import json
 import os
@@ -30,7 +32,46 @@ AUTHORITY = HERE.parents[3]
 ROOT = Path("/Users/petermakhnatch/Developer/eval-lab")
 STATE = Path.home() / ".local/state/evallab-prod-live/trace-tools"
 PROJECTION_VERSION = "native-actor-v2"
-CAMPAIGN = STATE / f"tt4-metr-20261027/openrouter-gemini25-flash-lite-20261028-{PROJECTION_VERSION}"
+ARMS = {
+    "gemini": {
+        "model": "google/gemini-2.5-flash-lite",
+        "provider": "google-ai-studio",
+        "provider_name": "Google AI Studio",
+        "campaign": "openrouter-gemini25-flash-lite-20261028",
+        "slug": "openrouter-google-gemini-2.5-flash-lite",
+        "input_price": Decimal("0.0000001"),
+        "output_price": Decimal("0.0000004"),
+        "max_price": {"prompt": 0.1, "completion": 0.4, "request": 0},
+        "max_body_bytes": None,
+        "request_bound": Decimal("0.11"),
+        "funding": "byok-admission",
+        "approval": "Main explicit20261028 TT4 $14.85 funded OpenRouter-only arm",
+        "slots": 4,
+        "retry_rate_limited": False,
+    },
+    "kimi-k3": {
+        "model": "moonshotai/kimi-k3",
+        "provider": "inference-net/fp4",
+        "provider_name": "InferenceNet",
+        "campaign": "openrouter-kimi-k3-inference-net-20261028",
+        "slug": "openrouter-moonshotai-kimi-k3-inference-net-fp4",
+        "input_price": Decimal("0.000000239"),
+        "output_price": Decimal("0.0000108"),
+        "max_price": {"prompt": 0.25, "completion": 11.0, "request": 0},
+        # Every token costs at least one request-body byte, so the body bound caps input tokens.
+        "max_body_bytes": 700_000,
+        "request_bound": Decimal("0.22"),
+        "funding": "pinned-third-party-provider",
+        "approval": "Trace Harness C-TT-4b: Kimi on OpenRouter, TT4 $14.85 cap within the $15 hard stop",
+        "slots": 2,
+        "retry_rate_limited": True,
+    },
+}
+ARM = os.environ.get("TT4_ARM", "gemini")
+if ARM not in ARMS:
+    raise SystemExit(f"unknown TT4_ARM {ARM!r}; choose from {sorted(ARMS)}")
+ARM_CONFIG = ARMS[ARM]
+CAMPAIGN = STATE / f"tt4-metr-20261027/{ARM_CONFIG['campaign']}-{PROJECTION_VERSION}"
 TRANSCRIPTS = CAMPAIGN / "transcripts"
 PRIOR = STATE / "tt4-metr-20261027/kimi-rr-seed-20261027"
 BRIDGE = Path.home() / "Developer/research-context/bridge/2026-10-25-systems-and-swarms/raw"
@@ -38,21 +79,25 @@ SAMPLE = BRIDGE / "cm2-monitor-20261026/goodfire-sample.json"
 CASCADE = BRIDGE / "cm9-window-budget-20261027/e2escore-muse-g.json"
 SCANS = ROOT / "derived/trace-lab/scout/scans/trace-tools/metr"
 SPEND = Path.home() / ".local/state/evallab-failure-library/spend.jsonl"
-MODEL = "google/gemini-2.5-flash-lite"
+MODEL = ARM_CONFIG["model"]
 ROUTE = f"openrouter/{MODEL}"
 INSPECT_MODEL = f"tt4openrouter/{MODEL}"
 BASE_URL = "https://openrouter.ai/api/v1"
-PROVIDER = "google-ai-studio"
+PROVIDER = ARM_CONFIG["provider"]
+PROVIDER_NAME = ARM_CONFIG["provider_name"]
 DETECTOR = "reward_hacking_scanner"
 DETECTOR_VERSION = (
     "metr-scanners/0.1.11@c12893d1;scanner-v0;"
-    "openrouter-google-gemini-2.5-flash-lite;max-output4096;no-reasoning;no-http-retry;"
+    f"{ARM_CONFIG['slug']};max-output4096;no-reasoning;no-http-retry;"
     f"projection-{PROJECTION_VERSION}"
 )
 CONTEXT_CAP, OUTPUT_CAP = 1048576, 4096
-INPUT_PRICE, OUTPUT_PRICE = Decimal("0.0000001"), Decimal("0.0000004")
-REQUEST_BOUND = Decimal("0.11")
-THEORETICAL_BOUND = CONTEXT_CAP * INPUT_PRICE + OUTPUT_CAP * OUTPUT_PRICE
+INPUT_PRICE, OUTPUT_PRICE = ARM_CONFIG["input_price"], ARM_CONFIG["output_price"]
+MAX_BODY_BYTES = ARM_CONFIG["max_body_bytes"]
+#: Input tokens a request may carry: the context window, or the body-byte bound when set.
+MAX_INPUT_TOKENS = MAX_BODY_BYTES or CONTEXT_CAP
+REQUEST_BOUND = ARM_CONFIG["request_bound"]
+THEORETICAL_BOUND = MAX_INPUT_TOKENS * INPUT_PRICE + OUTPUT_CAP * OUTPUT_PRICE
 MONEY_QUANTUM = Decimal("0.000000000001")
 PROVIDER_POLICY = {
     "only": [PROVIDER],
@@ -60,8 +105,11 @@ PROVIDER_POLICY = {
     "allow_fallbacks": False,
     "require_parameters": True,
     "data_collection": "deny",
-    "max_price": {"prompt": 0.1, "completion": 0.4, "request": 0},
+    "max_price": ARM_CONFIG["max_price"],
 }
+TRACE_LOCAL_STATUSES = frozenset(
+    f"HTTP-status-{code}" for code in (400, 408, 413, 429, 500, 502, 503, 504)
+)
 _REGISTERED = False
 _IO_LOCK = threading.Lock()
 
@@ -158,6 +206,18 @@ def funding_admission(campaign, api_key, *, clock=None):
     validity interval is checked again before every HTTP generation.
     This function neither creates keys nor changes account/provider settings.
     """
+    if ARM_CONFIG["funding"] == "pinned-third-party-provider":
+        # OpenRouter BYOK only applies to a provider whose own key the owner stored. This arm
+        # pins a third-party host (never Google or Moonshot, whose keys the owner might hold);
+        # each response must still attest ``usage.is_byok is False`` or the campaign halts.
+        policy = json.dumps(
+            {"route": ROUTE, "provider": PROVIDER, "policy": PROVIDER_POLICY}, sort_keys=True
+        )
+        return {
+            "sha256": hashlib.sha256(policy.encode()).hexdigest(),
+            "expires_at": None,
+            "evidence_kind": "pinned-third-party-provider-with-per-response-is_byok-attestation",
+        }
     path = Path(campaign) / "funding-admission.json"
     if not path.exists():
         raise AdmissionError(
@@ -203,7 +263,7 @@ def funding_admission(campaign, api_key, *, clock=None):
     }
 
 
-def validate_request(body):
+def validate_request(body, body_bytes=None):
     """Validate the final SDK wire body, not merely the requested configuration."""
     if (
         body.get("model") != MODEL
@@ -230,11 +290,13 @@ def validate_request(body):
         )
     ):
         raise TransportError("unapproved fallback/tool/media/service-tier parameter")
-    if body.get("tool_choice") not in (None, "none") or body.get("modalities") not in (
-        None,
-        ["text"],
-    ):
-        raise TransportError("unapproved modality/tool choice")
+    if any(
+        key in body
+        for key in ("tools", "tool_choice", "functions", "function_call", "parallel_tool_calls")
+    ) or body.get("modalities") not in (None, ["text"]):
+        raise TransportError("tool-calling and modality parameters are never sent")
+    if MAX_BODY_BYTES is not None and (body_bytes is None or body_bytes > MAX_BODY_BYTES):
+        raise TransportError("request body exceeds the input-token bound behind the reservation")
     if body.get("max_completion_tokens") not in (None, OUTPUT_CAP):
         raise TransportError("unapproved alternative output bound")
     messages = body.get("messages")
@@ -270,7 +332,7 @@ def response_receipt(raw):
     """Parse billed metadata without retaining completion or reasoning content."""
     if not isinstance(raw, dict) or raw.get("model") != MODEL:
         raise TransportError("served-model mismatch or missing served model")
-    if raw.get("provider") != "Google AI Studio":
+    if raw.get("provider") != PROVIDER_NAME:
         raise TransportError("served provider differs from the pinned catalog endpoint")
     usage = raw.get("usage")
     if not isinstance(usage, dict) or usage.get("is_byok") is not False:
@@ -373,7 +435,7 @@ def log_call(campaign, record, *, persist=True):
         "reserved_usd": str(REQUEST_BOUND),
         "basis": {
             "arm": "tt4",
-            "approval": "Main explicit20261028 TT4 $14.85 funded OpenRouter-only arm",
+            "approval": ARM_CONFIG["approval"],
             "settlement": record["status"],
             "generation_id": record.get("generation_id"),
             "usage_source": "OpenRouter response usage.cost; unknown/error holds full reservation",
@@ -389,6 +451,48 @@ def halt(campaign, reason):
     with _IO_LOCK:
         if not path.exists():
             save(path, {"at": now(), "reason": reason})
+
+
+RATE_LIMIT_RETRIES = 6
+
+
+def rate_limit_bound(request_bytes):
+    """Hard upper bound of a provider rejection's cost: prompt tokens <= body bytes, no completion."""
+    return (Decimal(request_bytes) * INPUT_PRICE).quantize(MONEY_QUANTUM, rounding=ROUND_CEILING)
+
+
+def rate_limit_proof(bounded):
+    return {
+        "source": "HTTP 429 rejection body: no completion or usage returned",
+        "charged_usd_upper_bound": str(bounded),
+        "basis": "request body bytes x endpoint input price; never zero",
+        "documented": "OpenRouter Zero Completion Insurance bills no output-less response",
+    }
+
+
+def is_rate_limited(receipt):
+    return receipt.get("status") == "rate_limited" or (
+        receipt.get("status") == "error" and receipt.get("http_status") == 429
+    )
+
+
+def next_attempt_id(campaign, opaque, fingerprint):
+    """Attempt ids are never reused; a body retried after a 429 gets a numbered retry id.
+
+    Any earlier attempt that was not a rate-limit rejection (attested, errored otherwise)
+    keeps the duplicate id, so the budget refuses the resend exactly as before. A superseded
+    trace (see ``recover``) starts a new epoch with its own ids.
+    """
+    epoch = len(list((Path(campaign) / "superseded").glob(glob.escape(opaque) + ".e*.json")))
+    stem = f"tt4:{opaque}{f':e{epoch}' if epoch else ''}:{fingerprint}"
+    if not ARM_CONFIG["retry_rate_limited"]:
+        return stem
+    prior = sorted((Path(campaign) / "calls").glob(glob.escape(stem) + "*.json"))
+    if not prior or not all(is_rate_limited(load(path)) for path in prior):
+        return stem
+    if len(prior) >= RATE_LIMIT_RETRIES:
+        raise AdmissionError("rate-limit retries for this request are exhausted")
+    return f"{stem}:r{len(prior)}"
 
 
 def guarded_transport(
@@ -408,7 +512,7 @@ def guarded_transport(
     class GuardedTransport(httpx2.AsyncBaseTransport):
         def __init__(self):
             self.smoke_lock = asyncio.Lock()
-            self.slots = asyncio.Semaphore(4)
+            self.slots = asyncio.Semaphore(ARM_CONFIG["slots"])
 
         async def handle_async_request(self, request):
             async with self.slots:
@@ -430,9 +534,9 @@ def guarded_transport(
                 raise AdmissionError("campaign/trace halted; no automatic HTTP retry")
             funding = funding_admission(campaign, api_key)
             body = json.loads(request.content)
-            validate_request(body)
+            validate_request(body, len(request.content))
             fingerprint = hashlib.sha256(request.content).hexdigest()
-            attempt_id = "tt4:" + opaque + ":" + fingerprint
+            attempt_id = next_attempt_id(campaign, opaque, fingerprint)
             try:
                 reservation = await asyncio.to_thread(
                     budget.reserve,
@@ -506,6 +610,25 @@ def guarded_transport(
                 record["status"] = "error"
                 record["error_type"] = type(exc).__name__
                 record["latency_seconds"] = time.monotonic() - start
+                if (
+                    ARM_CONFIG["retry_rate_limited"]
+                    and isinstance(exc, TransportError)
+                    and str(exc) == "HTTP-status-429"
+                ):
+                    bounded = rate_limit_bound(len(request.content))
+                    record.update(status="rate_limited", actual_usd=str(bounded))
+                    try:
+                        record["settlement"] = await asyncio.to_thread(
+                            budget.settle, attempt_id, bounded, rate_limit_proof(bounded)
+                        )
+                    except BudgetError as budget_error:
+                        record["settlement_error"] = budget_error.code
+                        record.update(status="error", actual_usd=None)
+                    else:
+                        log_call(campaign, record)
+                        # A provider rejection returns no completion: no terminal marker and
+                        # no halt; the scanner's own retry re-enters this gate (next attempt id).
+                        raise
                 try:
                     record["settlement"] = await asyncio.to_thread(
                         budget.fail, attempt_id, type(exc).__name__
@@ -520,10 +643,7 @@ def guarded_transport(
                 if (
                     not (campaign / "receipts/production-call-smoke.json").exists()
                     or isinstance(exc, AdmissionError)
-                    or (
-                        isinstance(exc, TransportError)
-                        and str(exc) not in ("HTTP-status-400", "HTTP-status-413")
-                    )
+                    or (isinstance(exc, TransportError) and str(exc) not in TRACE_LOCAL_STATUSES)
                 ):
                     halt(
                         campaign,
@@ -803,12 +923,21 @@ def freeze_and_score(keys, reason):
                     (
                         money(row["actual_usd"])
                         for row in calls
-                        if row.get("actual_usd") is not None
+                        if row.get("actual_usd") is not None and row["status"] == "attested"
                     ),
                     Decimal(0),
                 )
             ),
-            "unknown_cost_calls": sum(row.get("actual_usd") is None for row in calls),
+            "rate_limited_calls": sum(is_rate_limited(row) for row in calls),
+            "rate_limited_upper_bound_usd": str(
+                sum(
+                    (money(row["actual_usd"]) for row in calls if row["status"] == "rate_limited"),
+                    Decimal(0),
+                )
+            ),
+            "unknown_cost_calls": sum(
+                row.get("actual_usd") is None and not is_rate_limited(row) for row in calls
+            ),
             "budget": Budget(DEFAULT_STATE_DIR, "tt4").snapshot(),
             "served_models": sorted(
                 {row["served_model"] for row in calls if row.get("served_model")}
@@ -831,7 +960,7 @@ def validate_catalog(catalog):
     endpoint = selected[0]
     if (
         endpoint.get("model_id") != MODEL
-        or endpoint.get("provider_name") != "Google AI Studio"
+        or endpoint.get("provider_name") != PROVIDER_NAME
         or endpoint.get("context_length") != CONTEXT_CAP
         or type(endpoint.get("max_completion_tokens")) is not int
         or endpoint["max_completion_tokens"] < OUTPUT_CAP
@@ -927,7 +1056,40 @@ def scan_one(opaque):
     return asyncio.run(execute())
 
 
-def run(keys, limit):
+def fetch_key_usage(api_key, campaign, moment):
+    """Read-only ``GET /key`` snapshot: lifetime ``byok_usage`` must stay zero for this arm."""
+    request = urllib.request.Request(
+        BASE_URL + "/key",
+        headers={"Authorization": "Bearer " + api_key, "Cache-Control": "no-cache"},
+    )
+    with urllib.request.urlopen(request, timeout=12) as response:
+        data = json.load(response, parse_float=Decimal)["data"]
+    snapshot = {
+        "at": now(),
+        "moment": moment,
+        "usage_usd": str(money(data["usage"])),
+        "byok_usage_usd": str(money(data["byok_usage"])),
+        "source": BASE_URL + "/key",
+    }
+    save(Path(campaign) / "receipts" / f"key-usage-{moment}.json", snapshot)
+    event = {
+        "at": snapshot["at"],
+        "batch_id": f"tt4-key-usage-{ARM}-{moment}-{snapshot['at']}",
+        "tool": "openrouter_metadata",
+        "route": "GET " + snapshot["source"],
+        "model": MODEL,
+        "runs": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "usd": 0,
+        "basis": "Read-only key usage snapshot; no inference or account mutation.",
+    }
+    for path in (SPEND, STATE / "spend.jsonl", Path(campaign) / "receipts/spend.jsonl"):
+        append_once(path, [event])
+    return snapshot
+
+
+def run(keys, limit, shard=None):
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise AdmissionError(
@@ -935,6 +1097,11 @@ def run(keys, limit):
         )
     funding_admission(CAMPAIGN, key)  # before model imports, provider creation or generation
     from openrouter_budget import DEFAULT_STATE_DIR, Budget
+
+    if ARM_CONFIG["funding"] == "pinned-third-party-provider":
+        before = fetch_key_usage(key, CAMPAIGN, "before")
+        if money(before["byok_usage_usd"]) != 0:
+            raise AdmissionError("key has nonzero lifetime BYOK usage; arm is not credit-only")
 
     catalog_admission()  # public metadata only, after authoritative funding admission
     for receipt_path in sorted((CAMPAIGN / "calls").glob("*.json")):
@@ -944,7 +1111,7 @@ def run(keys, limit):
     eligible = set(projection["eligible_opaque_ids"])
     rejected = {row["opaque_id"]: row["category"] for row in projection["rejected"]}
     attempted = 0
-    for row in keys:
+    for row in keys if shard is None else keys[shard[0] :: shard[1]]:
         opaque, trace = row["opaque_id"], row["run_id"]
         path = CAMPAIGN / "traces" / (opaque + ".json")
         if path.exists():  # only recover artifacts, never submit a former attempt again
@@ -1039,11 +1206,75 @@ def run(keys, limit):
     remaining = sum(
         not (CAMPAIGN / "traces" / (row["opaque_id"] + ".json")).exists() for row in keys
     )
+    if ARM_CONFIG["funding"] == "pinned-third-party-provider":
+        after = fetch_key_usage(key, CAMPAIGN, "after")
+        if money(after["byok_usage_usd"]) != 0:
+            halt(CAMPAIGN, "key byok_usage rose during the arm; billing route not credit-only")
     if not remaining:
         Budget(DEFAULT_STATE_DIR, "tt4").close_arm(
             "all frozen200 traces reached a terminal outcome"
         )
     return freeze_and_score(keys, "complete" if not remaining else "guard-stop-or-explicit-limit")
+
+
+def recover():
+    """Free, offline: bound old 429 holds and let rate-limit-only failed traces run again."""
+    from openrouter_budget import DEFAULT_STATE_DIR, Budget, BudgetError
+
+    if not ARM_CONFIG["retry_rate_limited"]:
+        raise AdmissionError("this arm does not retry rate-limited requests")
+    budget = Budget(DEFAULT_STATE_DIR, "tt4")
+    bounded = []
+    for path in sorted((CAMPAIGN / "calls").glob("*.json")):
+        receipt = load(path)
+        if receipt["status"] != "error" or receipt.get("http_status") != 429:
+            continue
+        save(CAMPAIGN / "receipts/original-429-calls" / path.name, receipt)
+        amount = rate_limit_bound(receipt["request_bytes"])
+        try:
+            receipt["settlement"] = budget.bound_failed(
+                receipt["attempt_id"], amount, rate_limit_proof(amount)
+            )
+        except BudgetError as exc:
+            if exc.code != "bad_transition":  # already bounded by an interrupted earlier run
+                raise
+        receipt.update(status="rate_limited", actual_usd=str(amount))
+        save(path, receipt)
+        log_call(
+            CAMPAIGN, dict(receipt, attempt_id=receipt["attempt_id"] + ":bounded"), persist=False
+        )
+        bounded.append(amount)
+    calls = [load(path) for path in sorted((CAMPAIGN / "calls").glob("*.json"))]
+    limited = {receipt["opaque_id"] for receipt in calls if is_rate_limited(receipt)}
+    superseded = 0
+    for path in sorted((CAMPAIGN / "traces").glob("*.json")):
+        outcome, opaque = load(path), path.stem
+        if (
+            opaque not in limited
+            or outcome.get("phase") != "terminal"
+            or outcome.get("scored") is not False
+            or not outcome.get("native_scan_attempted")
+        ):
+            continue
+        terminal = CAMPAIGN / "terminal" / (opaque + ".json")
+        epoch = len(list((CAMPAIGN / "superseded").glob(glob.escape(opaque) + ".e*.json")))
+        save(
+            CAMPAIGN / "superseded" / f"{opaque}.e{epoch}.json",
+            {
+                "at": now(),
+                "trace": outcome,
+                "terminal": load(terminal) if terminal.exists() else None,
+            },
+        )
+        path.unlink()
+        terminal.unlink(missing_ok=True)
+        superseded += 1
+    return {
+        "bounded_429_attempts": len(bounded),
+        "bounded_usd_upper_bound": str(sum(bounded, Decimal(0))),
+        "superseded_traces": superseded,
+        "budget": budget.snapshot()["arms"]["tt4"],
+    }
 
 
 def isolate_environment():
@@ -1071,18 +1302,32 @@ def isolate_environment():
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
 
 
+def parse_shard(text):
+    index, _, count = text.partition("/")
+    if not (index.isdigit() and count.isdigit() and 0 <= int(index) < int(count)):
+        raise argparse.ArgumentTypeError("--shard must be K/N with 0 <= K < N")
+    return int(index), int(count)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("prepare", "run", "score"))
+    parser.add_argument("mode", choices=("prepare", "run", "score", "recover"))
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--shard", type=parse_shard, help="K/N: run keys[K::N] (after the smoke)")
     args = parser.parse_args()
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be positive")
     isolate_environment()
     CAMPAIGN.mkdir(parents=True, exist_ok=True)
-    with (CAMPAIGN / "runner.lock").open("ab") as lock:
+    lock_name = "runner.lock" if not args.shard else f"runner-{args.shard[0]}of{args.shard[1]}.lock"
+    with (CAMPAIGN / lock_name).open("ab") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        keys = prepare()
+        if args.shard:
+            if args.mode != "run" or not (CAMPAIGN / "receipts/admission.json").exists():
+                parser.error("--shard needs mode run after a completed prepare")
+            keys = load(CAMPAIGN / "private-keymap.json")
+        else:
+            keys = prepare()
         if args.mode == "prepare":
             print(
                 json.dumps(
@@ -1096,6 +1341,8 @@ def main():
             )
         elif args.mode == "score":
             freeze_and_score(keys, "explicit-offline-score")
+        elif args.mode == "recover":
+            print(json.dumps(recover(), sort_keys=True), flush=True)
         else:
             try:
                 run(keys, args.limit)
@@ -1105,7 +1352,7 @@ def main():
                     "route": ROUTE,
                     "model_calls": 0,
                     "reason": str(exc),
-                    "action_required": "Read-only active Google provider-integration metadata proving no applicable BYOK, or dedicated OpenRouter-credit-only key policy; not payment.",
+                    "action_required": "Provide the missing admission evidence (Gemini arm: Google BYOK absence or a credit-only key policy; Kimi arm: lifetime byok_usage must read 0); not payment.",
                 }
                 stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
                 save(CAMPAIGN / "receipts" / ("blocked-preflight-" + stamp + ".json"), receipt)

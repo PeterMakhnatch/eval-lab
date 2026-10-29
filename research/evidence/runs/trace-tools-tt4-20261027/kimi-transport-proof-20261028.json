@@ -1,0 +1,226 @@
+{
+  "arm": "kimi-k3",
+  "proved": true,
+  "provider": "inference-net/fp4",
+  "provider_policy": {
+    "allow_fallbacks": false,
+    "data_collection": "deny",
+    "max_price": {
+      "completion": 11.0,
+      "prompt": 0.25,
+      "request": 0
+    },
+    "only": [
+      "inference-net/fp4"
+    ],
+    "order": [
+      "inference-net/fp4"
+    ],
+    "require_parameters": true
+  },
+  "route": "openrouter/moonshotai/kimi-k3",
+  "scan": {
+    "allowed_read_only_git_spawns": [
+      "file -b /Users/petermakhnatch/.local/share/uv/python/cpython-3.13-macos-aarch64-none/bin/python3.13",
+      "git describe --tags --dirty --always --long",
+      "git remote get-url origin",
+      "git rev-parse --short HEAD",
+      "git status --porcelain",
+      "uname -p"
+    ],
+    "budget_used_usd": "0.000027000000",
+    "native_score": 3.0,
+    "requests": [
+      {
+        "bytes": 242910,
+        "content_part_types": [],
+        "max_tokens": 4096,
+        "message_roles": [
+          "user"
+        ],
+        "message_tool_calls": false,
+        "model": "moonshotai/kimi-k3",
+        "provider": {
+          "allow_fallbacks": false,
+          "data_collection": "deny",
+          "max_price": {
+            "completion": 11.0,
+            "prompt": 0.25,
+            "request": 0
+          },
+          "only": [
+            "inference-net/fp4"
+          ],
+          "order": [
+            "inference-net/fp4"
+          ],
+          "require_parameters": true
+        },
+        "reasoning": {
+          "enabled": false
+        },
+        "response_format_type": "json_schema",
+        "sha256": "3147173f0b88c45e78ca3d861b30abe1d8fdd31e69fcfbd3238ba09920aba53c",
+        "tool_keys_present": [],
+        "top_level_keys": [
+          "max_tokens",
+          "messages",
+          "model",
+          "plugins",
+          "provider",
+          "reasoning",
+          "response_format",
+          "transforms",
+          "usage"
+        ]
+      },
+      {
+        "bytes": 339000,
+        "content_part_types": [],
+        "max_tokens": 4096,
+        "message_roles": [
+          "user"
+        ],
+        "message_tool_calls": false,
+        "model": "moonshotai/kimi-k3",
+        "provider": {
+          "allow_fallbacks": false,
+          "data_collection": "deny",
+          "max_price": {
+            "completion": 11.0,
+            "prompt": 0.25,
+            "request": 0
+          },
+          "only": [
+            "inference-net/fp4"
+          ],
+          "order": [
+            "inference-net/fp4"
+          ],
+          "require_parameters": true
+        },
+        "reasoning": {
+          "enabled": false
+        },
+        "response_format_type": "json_schema",
+        "sha256": "2f61bc87a79fce8f6a7b1e54ad203a7b9884b376a471d048f4e5c82359da6242",
+        "tool_keys_present": [],
+        "top_level_keys": [
+          "max_tokens",
+          "messages",
+          "model",
+          "plugins",
+          "provider",
+          "reasoning",
+          "response_format",
+          "transforms",
+          "usage"
+        ]
+      },
+      {
+        "bytes": 339003,
+        "content_part_types": [],
+        "max_tokens": 4096,
+        "message_roles": [
+          "user"
+        ],
+        "message_tool_calls": false,
+        "model": "moonshotai/kimi-k3",
+        "provider": {
+          "allow_fallbacks": false,
+          "data_collection": "deny",
+          "max_price": {
+            "completion": 11.0,
+            "prompt": 0.25,
+            "request": 0
+          },
+          "only": [
+            "inference-net/fp4"
+          ],
+          "order": [
+            "inference-net/fp4"
+          ],
+          "require_parameters": true
+        },
+        "reasoning": {
+          "enabled": false
+        },
+        "response_format_type": "json_schema",
+        "sha256": "e0b4c62f905a2a5aa4e63beec911b4a03d285e57a5a796f58c81b8b5aa737359",
+        "tool_keys_present": [],
+        "top_level_keys": [
+          "max_tokens",
+          "messages",
+          "model",
+          "plugins",
+          "provider",
+          "reasoning",
+          "response_format",
+          "transforms",
+          "usage"
+        ]
+      }
+    ],
+    "scan_complete": true,
+    "sentinel_hits": []
+  },
+  "schema": "evallab.tt4b_transport_proof/v1",
+  "static": {
+    "generate_calls": [
+      {
+        "keywords": [
+          "config"
+        ],
+        "module": "scanner",
+        "positional": 1
+      }
+    ],
+    "generate_config_keywords": [
+      {
+        "keywords": [
+          "response_schema"
+        ],
+        "module": "scanner"
+      }
+    ],
+    "modules": {
+      "chunking": {
+        "forbidden_calls": [],
+        "forbidden_imports": [],
+        "mentions_tool_parameters": false,
+        "sha256": "f4ca221a98febedcc676e23feab58d01bc84b89bca9c99cd736fe28a2ef90946"
+      },
+      "reward_hacking": {
+        "forbidden_calls": [],
+        "forbidden_imports": [],
+        "mentions_tool_parameters": false,
+        "sha256": "769dada6aaf279e7ef2c592b704f691be4fa3507af0d811be397ea5d4e25429b"
+      },
+      "scanner": {
+        "forbidden_calls": [],
+        "forbidden_imports": [],
+        "mentions_tool_parameters": false,
+        "sha256": "df370ba2c2aed92aa5c2dff1a000541e7555bcdac9c162f8c2add386e46cb0a4"
+      },
+      "truncation": {
+        "forbidden_calls": [],
+        "forbidden_imports": [],
+        "mentions_tool_parameters": false,
+        "sha256": "6e257c79d403e99e61a59e67821763cc446b6d78c16488dd62f2535f8bd079ba"
+      }
+    }
+  },
+  "verdicts": {
+    "chunked_path_exercised": true,
+    "exact_provider_policy": true,
+    "no_message_carries_tool_calls": true,
+    "no_request_carries_tool_keys": true,
+    "no_sentinel_hit": true,
+    "scanner_generate_only_response_schema": true,
+    "scanner_never_mentions_tool_parameters": true,
+    "scanner_path_has_no_exec_or_process_imports": true,
+    "text_only_content": true,
+    "wire_requests": 3
+  },
+  "wire_validator": "paid.validate_request rejects tools/tool_choice/functions/function_call/parallel_tool_calls by key presence"
+}

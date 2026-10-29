@@ -771,6 +771,44 @@ class Budget:
             }
 
     @_exact
+    def bound_failed(self, attempt_id, upper_bound_usd, proof):
+        """Replace a failed attempt's full hold by a proven smaller upper bound of its cost.
+
+        For a rejection the provider answered without any completion (an HTTP 429 body), the
+        only possible charge is for prompt tokens, bounded by body bytes times the input price.
+        The attempt becomes settled at that bound (never zero), keeping its failure history.
+        """
+        attempt_id = _attempt_id(attempt_id)
+        bounded = _decimal(upper_bound_usd, "upper_bound_usd", positive=True)
+        proof = _proof(proof)
+        with self._locked() as descriptor:
+            state = self._load_or_init(descriptor)
+            record = self._own_attempt(state, attempt_id)
+            if record["status"] != "failed":
+                raise BudgetError(
+                    "bad_transition", f"attempt {attempt_id!r} is {record['status']}, not failed"
+                )
+            if record["overbound_observed_usd"] is not None or bounded > Decimal(
+                record["bound_usd"]
+            ):
+                raise BudgetError(
+                    "over_bound", f"bound {_fmt(bounded)} exceeds the original reservation"
+                )
+            record.update(status="settled", actual_usd=_fmt(bounded), proof=proof, error=None)
+            self._event(state, record, "failed_hold_bounded", self._now(), actual_usd=_fmt(bounded))
+            self._write(state, descriptor)
+            figure = _figures(state)[self.arm]
+            return {
+                "attempt_id": attempt_id,
+                "arm": self.arm,
+                "status": "settled",
+                "actual_usd": record["actual_usd"],
+                "released_usd": _fmt(Decimal(record["bound_usd"]) - bounded),
+                "arm_used_usd": _fmt(figure["used"]),
+                "arm_remaining_usd": _fmt(figure["remaining"]),
+            }
+
+    @_exact
     def snapshot(self):
         """JSON-safe totals and per-attempt statuses; never prompts, metadata, proofs or errors."""
         with self._locked() as descriptor:

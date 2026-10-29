@@ -375,6 +375,85 @@ usage=100%, monthly total/code=67.13%/66.4%. It made no inference and reported
 the next reset as **8:23:00 AM ET**, not permission to resume. The original
 zero-attempt receipts were not rewritten; see `kimi-quota-preflight-20261028.json`.
 
+## TT-4b: Kimi K3 on OpenRouter, no tools, 182/200 scored
+
+The Gemini arm stayed blocked (Google BYOK billing unproven), so the same frozen
+200, seed, native METR 0.1.11 prompts, 150,000-character chunking and ≥5/≥7
+thresholds ran on `moonshotai/kimi-k3` pinned to the **InferenceNet fp4** endpoint
+(`TT4_ARM=kimi-k3 paid.py`; the default arm is still Gemini). `moonshotai/kimi-k3.1-pro`,
+the closest OpenRouter relative of the native `kimi-code/k3.1-pro-highspeed`, costs $2/$10 per M
+tokens and has only Moonshot as a host; this run's ~11M input tokens would cost about $22 on
+input alone there, above the $15 stop. K3 at $0.239/$10.8 per M fits, so this is a
+**different, older model**, not a rerun of the native arm.
+
+**Offline no-tools proof** (`kimi_transport_proof.py`, `kimi-transport-proof-20261028.json`,
+`test_kimi_transport.py`): the real `reward_hacking_scanner`, Inspect Scout and the
+budgeted `tt4openrouter` provider ran against an in-memory wire with the default HTTP
+transport, `subprocess` and `os.system` forbidden. All 3 recorded requests (chunked path)
+carried no `tools`/`tool_choice`/`functions`/`function_call`/`parallel_tool_calls`, no
+message `tool_calls`, text-only parts and the exact provider policy; the only spawns were
+Inspect's read-only `git`/`uname`/`file -b` metadata probes. Statically, the four modules on
+the scan path import no process/dynamic-execution API and call `generate(prompt,
+config=GenerateConfig(response_schema=…))` once. In production `validate_request` rejects any
+tool key by presence before the budget reservation, and `response_receipt` rejects any tool
+call, refusal, reasoning or non-`InferenceNet`/non-K3 response, so every sent request passed
+those checks.
+
+**Run** (private state under `…/tt4-metr-20261027/openrouter-kimi-k3-inference-net-20261028-native-actor-v2/`;
+aggregate numbers in `kimi-openrouter-k3-summary-20261029.json`): 467 HTTP attempts, **359
+attested** (exact model `moonshotai/kimi-k3`, provider `InferenceNet`, `is_byok=false` on every
+response; key-level `byok_usage` 0 before and after), 11.62M input and 76,283 output tokens,
+billed **$3.5937**. 108
+attempts were HTTP 429 rejections: their holds are bounded by body bytes × input price
+(**$2.9616** upper bound, never zero; OpenRouter's documented zero-completion insurance means
+the true charge is likely nil, but this key is shared fleet-wide so it cannot be reconciled).
+Budget-basis spend is **$6.5553** (+$0.0012 in two probes) against the $15 stop; four `ReadError`
+attempts and one abandoned pending attempt still hold $1.10 unknown. Cost per scored run is
+**$0.0198** billed ($19.75 per 1k) or $0.0360 on the budget basis ($36.02 per 1k).
+
+| Frozen stratum | Total | Scored | ≥5 hits | ≥7 hits |
+| --- | ---: | ---: | ---: | ---: |
+| Enacted yes/yes | 80 | 70 | 5 | 3 |
+| Clean no/no | 70 | 64 | 0 | 0 |
+| Considered yes/no | 50 | 48 | 0 | 0 |
+
+At **≥5**: recall **5/70 = 7.1%** (Wilson 95% 3.1–15.7%), false-alarm **0/64** (0–5.7%); at
+≥7: 3/70 (1.5–11.9%), 0/64. AUROC on the 134 scored primary runs is 0.730. Versus the frozen
+final cascade at ≥5, K3 finds 4 positives the cascade missed and misses 7 it found (1 both);
+versus Stage-1-any it finds 1 new positive and misses 49. Recall is far below the native Kimi
+partial (3/13, a different 37-trace prefix), so this K3 reading is not a stand-in for the
+native arm; it is not a model recommendation.
+
+**Coverage is not full.** Eight enacted-yes traces were never attempted and 10 attempted
+traces abstained (1 canonical privacy no-send, 9 with failed scans: 429 retries exhausted or
+`ReadError`); 182/200 scored.
+The shared budget guard stopped dispatch with `cash_low` after three resumes: it requires
+bound + all holds + all settled spend + the other arm's unused earmark ($35, TT7) to fit in
+live credits, and credits already include settled spend, so every settled dollar counts twice.
+The remaining 16 need roughly $0.4 of real spend. Finishing them needs either TT7's earmark
+lowered by about $1 or a credit top-up; nothing else is blocking.
+
+Changes this arm needed, beyond arm selection: InferenceNet returned HTTP 429 on 14% of the
+first 230 attempts at four parallel requests, each failure retaining its full $0.22 hold.
+The Kimi arm now runs two requests at once, treats a 429 as a provider rejection (hold bounded
+as above, no terminal marker, the scanner's own retry re-enters the gate under a numbered
+attempt id, at most 6 per request), and `paid.py recover` bounded the 33 earlier 429 holds
+(originals kept in `receipts/original-429-calls/`) and let the 18 traces that had only failed
+on 429s run again (new attempt-id epoch, prior traces kept in `superseded/`). `Budget.bound_failed`
+is the only new budget transition; it needs a smaller proven bound and never settles to zero.
+
+**METR export step** (`metr_campaign_plan prepare|export` on the real ledger, 4,497 runs):
+prepare took **167-190 s** and export **166-168 s** wall across the three real runs (the first,
+unfixed prepare took 360 s). 735 runs have no retained actor history (`actor_history_not_retained`), as expected.
+The real ledger exposed three defects that toy data hid; the first run blocked all 200 frozen
+runs. The planner now accepts (1) triplet rows stamped microseconds apart by the real writers
+(it demanded identical `at`), (2) completed status receipts without
+`native_scan_attempted`, and (3) cited cloud-DB tool rows folded into the calling agent step
+(it compared the mapped set with the cited set). After those fixes: 37 measured, 163 stored
+placeholders, 200 exportable, **182 exported**, 18 blocked as `unmappable_evidence_steps`
+(29 of their 54 cited steps are assistant rows absent from the ATIF path). That last
+block is the fail-closed rule working as designed, not a defect fixed here.
+
 ## Earlier subscription arms (kept separate)
 
 The adapter was exercised through the **SuperGrok OAuth subscription** before its

@@ -14,8 +14,8 @@ exportable stored triplet. Export converts results that are already in the
 ledger; it never manufactures readings — no stored triplet means no finding.
 
 * ``measured`` — one coherent stored ``evallab.trace_tool_result/v1`` triplet
-  (``reward_hacking_scanner`` + ``@ge5`` + ``@ge7``, identical ``scan``/``at``,
-  ``source='cloud-trace-db'``, this campaign's ledger identity) with a real
+  (``reward_hacking_scanner`` + ``@ge5`` + ``@ge7``, identical ``scan``, ``at`` within one
+  second of each other, ``source='cloud-trace-db'``, this campaign's ledger identity) with a real
   numeric 0-10 score. Exportable.
 * ``abstained`` — the same coherent triplet from a real scan whose stored
   value is null: a completed scan that abstained. Exportable (abstain finding).
@@ -109,7 +109,7 @@ from collections import Counter
 from collections.abc import Mapping
 from contextlib import closing, suppress
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -177,6 +177,9 @@ ABSTAIN_PREFIX = "abstain:"
 STATES = ("measured", "abstained", "terminal", "no_actor", "unread", "failed", "blocked")
 #: The frozen cohort size is a fixed contract; admissions cannot redefine it.
 FROZEN_N = 200
+#: The three rows of one scan are appended by one writer in sequence (microseconds
+#: apart in the real ledger); rows further apart than this came from different writes.
+TRIPLET_INSTANT_SPREAD = timedelta(seconds=1)
 #: This campaign exists only for the current native projection; a changed
 #: constant is a new arm, not a label to adopt dynamically.
 EXPECTED_PROJECTION = "native-actor-v2"
@@ -532,8 +535,9 @@ def _triplet(
                     "detail": detector}
         rows[detector] = entries[0][1]
     latest_index = max(index for detector in TRIAD for index, _ in group[detector])
-    instant = max(_instant(rows[detector]) for detector in TRIAD)
-    if len({row["at"] for row in rows.values()}) != 1:
+    instants = [_instant(rows[detector]) for detector in TRIAD]
+    instant = max(instants)
+    if instant - min(instants) > TRIPLET_INSTANT_SPREAD:
         return {"valid": False, "reason": "mixed_triplet_instant", "scan": scan}
     if len({tuple(row["evidence_steps"]) for row in rows.values()}) != 1:
         return {"valid": False, "reason": "triplet_evidence_mismatch", "scan": scan}
@@ -636,7 +640,8 @@ def _status_state(data: bytes | None) -> dict[str, Any]:
     if (
         status.get("model") == READER
         and status.get("complete") is True
-        and status.get("native_scan_attempted") is True
+        # The real writer records completion only after a native scan and omits the flag.
+        and status.get("native_scan_attempted", True) is True
         and status.get("terminal_abstention", False) is False
         and isinstance(status.get("scored"), bool)
         and isinstance(status.get("location"), str)
@@ -1631,7 +1636,9 @@ def export_stored_results(
                 export_blocked[run.run_id] = "evidence_steps_exceed_bound"
                 continue
             mapped = known_steps(harness_run, cited, database)
-            if set(mapped) != set(cited):
+            # Several cited cloud-DB tool rows may fold into one agent step, so the mapped
+            # set can be smaller than the cited set; only a citation that maps to nothing is loss.
+            if any(not known_steps(harness_run, [step], database) for step in cited):
                 # The adapter drops unmappable citations; dropping is loss.
                 export_blocked[run.run_id] = "unmappable_evidence_steps"
                 continue

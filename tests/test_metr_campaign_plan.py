@@ -596,6 +596,22 @@ def test_measured_states_and_findings(campaign: Campaign) -> None:
     assert export_manifest["plan_sha256"] == manifest["plan_sha256"]
 
 
+def test_microsecond_spread_triplet_from_the_real_writers_is_measured(
+    campaign: Campaign,
+) -> None:
+    """The real ledger stamps each row of one scan with its own ``now()``."""
+    target = campaign.ordered[0]
+    rows = _triplet(target, score=9.0)
+    for row, stamp in zip(rows, ("549934", "549949", "549952"), strict=True):
+        row["at"] = f"2026-10-28T14:35:44.{stamp}+00:00"
+    _write_ledger(campaign, rows)
+    run = _runs(_prepare(campaign))[target]
+    assert run["state"] == "measured" and run["exportable"]
+    _export(campaign)
+    findings = {record["run_id"]: record for record in _findings(campaign)}
+    assert findings[target]["verdict"] == "alarm"
+
+
 def test_unmeasured_placeholder_is_unread_but_exports_stored_abstain(
     campaign: Campaign,
 ) -> None:
@@ -866,6 +882,9 @@ def test_triplet_consistency_rules(campaign: Campaign) -> None:
         "invalid_timestamp", "mixed_triplet_instant"
     )
     rows = _triplet(target, score=6.0)
+    rows[2]["at"] = "2026-10-28T10:00:02+00:00"  # beyond one write burst
+    assert _blocked_reason(campaign, target, rows) == "mixed_triplet_instant"
+    rows = _triplet(target, score=6.0)
     rows[0]["source"] = "elsewhere"
     assert _blocked_reason(campaign, target, rows) == "unexpected_source"
     rows = _triplet(target, score=6.0)
@@ -1101,6 +1120,20 @@ def test_unmappable_citations_block_the_run(campaign: Campaign) -> None:
         {"run_id": target, "reason": "unmappable_evidence_steps"}
     ]
     assert export_manifest["omitted"][target]["reason"] == "unmappable_evidence_steps"
+
+
+def test_cited_tool_rows_folded_into_an_agent_step_still_export(campaign: Campaign) -> None:
+    """Real citations name raw tool rows; ``cloud_doc`` folds them into the calling step."""
+    target = campaign.ordered[0]
+    connection = sqlite3.connect(campaign.database)
+    _step(connection, target, 2, "tool", content="ok", flags={"tool_call_id": "c1"})
+    connection.commit()
+    connection.close()
+    _write_ledger(campaign, _triplet(target, score=8.0, steps=(1, 2)))
+    summary = _export(campaign)
+    assert summary["exported"] == 1 and summary["export_blocked"] == 0
+    findings = {record["run_id"]: record for record in _findings(campaign)}
+    assert findings[target]["evidence_steps"] == [1]
 
 
 def test_too_many_citations_block_the_run(campaign: Campaign) -> None:
@@ -1486,6 +1519,21 @@ def test_completed_status_binds_matching_measurement(campaign: Campaign) -> None
     _export(campaign)
     findings = {record["run_id"]: record for record in _findings(campaign)}
     assert findings[target]["verdict"] == "alarm" and findings[target]["score"] == 8.0
+
+
+def test_completed_status_in_the_real_writer_shape_binds(campaign: Campaign) -> None:
+    """Real completed receipts carry no ``native_scan_attempted``/``source_category``."""
+    target = campaign.ordered[0]
+    _write_ledger(campaign, _triplet(target, score=8.0))
+    receipt = {
+        "at": AT, "complete": True, "location": "scans/scan_id=S1", "model": READER,
+        "scored": True, "terminal_abstention": False,
+    }
+    (campaign.status_dir / f"{campaign.opaque[target]}-status.json").write_text(
+        json.dumps(receipt)
+    )
+    run = _runs(_prepare(campaign))[target]
+    assert run["state"] == "measured" and run["exportable"] is True
 
 
 def test_completed_status_binds_stored_null_scan(campaign: Campaign) -> None:

@@ -111,6 +111,15 @@ record per (run, detector):
   `trace-tools/results-v1.jsonl` rows up to a fixed cutoff, joins labels inside scoring, never changes a
   threshold, and never calls a model. Definitions are fixed in
   `research/evidence/runs/np30-length-control-20261029/PREREGISTRATION.md`.
+- `length-control --matched` (`trace_harness_matched.py`, NP31-TT-1) repeats that on the strict `goodfire-dev`
+  population (every `CorpusRegistry`-admitted enacted-or-clean run with a stored length; `--corpus cheatbench`
+  for contrast) for every stored finding identity plus the model-free fill. It pairs each enacted run with a
+  clean run of the same task within ±10% length (greedy in `sha256(run_id)` order, without replacement; a
+  same-family secondary match is used only if fewer than 30 primary pairs exist), and reports per tool
+  recall/FAR with Wilson intervals, a McNemar-style table, pair AUROC, length-tertile AUROCs and a
+  length-only baseline at the tool's own FAR. The decision rule (≥100 primary pairs to be "measurable";
+  target 15% at 3% on the matched set, or beating the length-only rule outside the longest tertile) is fixed in
+  `research/evidence/runs/np31-length-matched-20261029/PREREGISTRATION.md`.
 - `trace_harness_fused.py` (P0-F9D7D6-2) holds the pure rules, CM-14-style grouped CV, and NP30-tertile length
   control for fused native rules (`v8 OR facet term`, k-of-n votes); it is driven by the evidence script
   `research/evidence/runs/p0-f9d7d6-2-fused-scorecard-20261029/tools/score.py`, not by a subcommand. Result:

@@ -23,15 +23,23 @@ gates to **GitHub Actions**:
 | `quality-required` | `lint`, `test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)` via the `test` matrix |
 | `typecheck-required` | `ty` |
 
-Both gate jobs use `always()` and accept only the literal prerequisite result
-`success`. They do not check out code or receive token permissions. A failed,
-cancelled, skipped, empty, or unknown prerequisite result fails the gate; a missing
-workflow/check cannot satisfy the required-check rule. Do not add conditional
-skips or `continue-on-error` to core jobs or matrix members, remove a supported
-Python version, or conditionally skip either gate. GitHub itself accepts skipped
-or neutral check conclusions; the gate's unconditional execution and explicit
-success comparisons are therefore essential. Review changes to these workflows
-as changes to the merge boundary, not just plumbing.
+Both gate jobs use `if: ${{ !cancelled() }}` and accept only the literal prerequisite
+result `success`. They do not check out code or receive token permissions. Within a
+live run, a failed, cancelled (including timed-out), skipped, empty, or unknown
+prerequisite result fails the gate; a missing workflow/check cannot satisfy the
+required-check rule. When the whole run is cancelled — a newer push, or a same-head
+`edited`/`reopened` event, superseding it under `cancel-in-progress` — the gate
+concludes `cancelled`, which does not satisfy a required check, instead of posting a
+red `failure` next to the superseding run's result on the same head. Do not use
+`always()` there again, add conditional skips or `continue-on-error` to core jobs or
+matrix members, remove a supported Python version, or otherwise conditionally skip
+either gate. GitHub itself accepts skipped or neutral check conclusions; the gate's
+execution in every live run and explicit success comparisons are therefore
+essential. Review changes to these workflows as changes to the merge boundary, not
+just plumbing. A red gate with a `cancelled` prerequisite now means that prerequisite
+timed out or was cancelled inside a live run: diagnose it as a hang, not a flake.
+Never re-run a superseded run to clear a stale result; the re-run cancels the newer
+run in the same concurrency group.
 
 All required checks originate from GitHub Actions CI runs. There is no mandatory
 independent review gate or review attestation status (`independent-review`).

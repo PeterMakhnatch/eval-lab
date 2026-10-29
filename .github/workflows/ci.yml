@@ -102,7 +102,8 @@ jobs:
   quality-required:
     name: quality-required
     needs: [lint, test]
-    if: ${{ always() }}
+    # See typecheck-required: run after any prerequisite outcome except run cancellation.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 1
     permissions: {}

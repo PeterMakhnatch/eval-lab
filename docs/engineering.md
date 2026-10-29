@@ -116,8 +116,9 @@ aligned whenever the supported range changes.
 | Types | `uvx ty@0.0.71 check src/` | `.github/workflows/typecheck.yml` | **ratchet — see below** |
 
 `typecheck.yml` remains separate so the zero-diagnostic result is independently
-visible and runs alongside `quality`. Each workflow has an unconditional,
-directly dependent required gate: `quality-required` and `typecheck-required`.
+visible and runs alongside `quality`. Each workflow has a directly dependent
+required gate that runs in every non-cancelled run: `quality-required` and
+`typecheck-required`.
 Both workflows run for every PR target branch and for merge groups. Required
 check names, GitHub settings, and the distinction between enforcement and process
 live in `agents/CHECKS.md`; review and native auto-merge live in

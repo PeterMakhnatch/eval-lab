@@ -78,7 +78,10 @@ jobs:
   typecheck-required:
     name: typecheck-required
     needs: [ty]
-    if: ${{ always() }}
+    # Run after any prerequisite outcome, but not in a cancelled run: a superseded
+    # run (same-head `edited` event, new push) must not post a red gate on the head.
+    # A cancelled run leaves this gate `cancelled`, which never satisfies a required check.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 1
     permissions: {}

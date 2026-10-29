@@ -116,6 +116,28 @@ def test_git_read_without_matching_hunk_is_not_copy(tmp_path: Path) -> None:
     trial = _trial(tmp_path, [("git show deadbeef", "+different = True")], FIX[:4])
     assert copy_check(trial) is None
 
+def test_git_read_does_not_claim_another_calls_output(tmp_path: Path) -> None:
+    short = FIX[:4]
+    output = (
+        f"{PROMPT}git show --stat deadbeef\nsummary\n"
+        f"{PROMPT}cat local.py\n" + "\n".join(short)
+    )
+    trial = _trial(tmp_path, [("git show --stat deadbeef\ncat local.py", output)], short)
+    assert copy_check(trial) is None
+
+
+def test_git_read_output_is_bound_to_its_prompt(tmp_path: Path) -> None:
+    short = FIX[:4]
+    output = (
+        f"{PROMPT}cat local.py\nother\n"
+        f"{PROMPT}git show deadbeef:core.py\n" + "\n".join(short)
+        + f"\n{PROMPT}echo done\ndone"
+    )
+    trial = _trial(tmp_path, [("cat local.py\ngit show deadbeef:core.py\necho done", output)], short)
+    flag = copy_check(trial)
+    assert flag is not None
+    assert flag["match_method"] == "exact_git_hunk"
+
 
 def test_git_read_of_previously_typed_hunk_is_not_copy(tmp_path: Path) -> None:
     short = FIX[:4]

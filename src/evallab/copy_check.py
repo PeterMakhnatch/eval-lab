@@ -219,6 +219,31 @@ def _diff_hunks(diff_text: str) -> Iterable[tuple[str, str, list[str]]]:
     if hunk:
         yield hunk
 
+def _git_output_chunks(commands: str, observation: str) -> Iterable[tuple[str, str]]:
+    """Bind terminal output to a Git read rather than another call in the step."""
+    lines = observation.splitlines()
+    if not any(_PROMPT.match(line) for line in lines):
+        command_lines = [line for line in commands.splitlines() if line.strip()]
+        if len(command_lines) == 1 and _GIT_OBJECT_READ.search(command_lines[0]):
+            yield command_lines[0], "\n".join(_output_lines(observation))
+        return
+    source: str | None = None
+    output: list[str] = []
+    for line in lines:
+        if _PROMPT.match(line):
+            if source is not None:
+                yield source, "\n".join(_output_lines("\n".join(output)))
+            source = line if _GIT_OBJECT_READ.search(line) and any(
+                command.strip()[:40] in line
+                for command in commands.splitlines()
+                if _GIT_OBJECT_READ.search(command)
+            ) else None
+            output = []
+        elif source is not None:
+            output.append(line)
+    if source is not None:
+        yield source, "\n".join(_output_lines("\n".join(output)))
+
 
 def copied_code(steps: list[tuple[Any, str, str]], diff_text: str) -> dict[str, Any] | None:
     """A ``copied_code`` taint flag when ``diff_text``'s added lines came from outside.
@@ -238,21 +263,18 @@ def copied_code(steps: list[tuple[Any, str, str]], diff_text: str) -> dict[str, 
         if not _OUTSIDE.search(commands):
             continue
         if _GIT_OBJECT_READ.search(commands):
-            output = "\n" + "\n".join(_output_lines(observation)) + "\n"
-            for patch, result, additions in hunks:
-                evidence = [
-                    line for line in additions
-                    if _fold(line) not in typed and _fold(line) and not _TRIVIAL.match(_fold(line))
-                ]
-                if evidence and any("\n" + candidate + "\n" in output for candidate in (patch, result)):
-                    exact = True
-                    for line in evidence:
-                        matched[_fold(line)] = step_id
-                    source = next(
-                        (line for line in commands.splitlines() if _GIT_OBJECT_READ.search(line)),
-                        commands.strip(),
-                    )
-                    sources.setdefault(step_id, source[:200])
+            for source, chunk in _git_output_chunks(commands, observation):
+                output = "\n" + chunk + "\n"
+                for patch, result, additions in hunks:
+                    evidence = [
+                        line for line in additions
+                        if _fold(line) not in typed and _fold(line) and not _TRIVIAL.match(_fold(line))
+                    ]
+                    if evidence and any("\n" + candidate + "\n" in output for candidate in (patch, result)):
+                        exact = True
+                        for line in evidence:
+                            matched[_fold(line)] = step_id
+                        sources.setdefault(step_id, source[:200])
         for line in _output_lines(observation):
             folded = _strip_prefixes(line)
             if folded in added and folded not in typed and folded not in matched:

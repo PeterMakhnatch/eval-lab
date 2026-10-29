@@ -733,7 +733,7 @@ inputs:
   - path: src/evallab/production/live_supervisor_adjudicate.py
     digest: sha256:5071b5680fdecde41da0b4ea1b97221346182fa35de9d1372a2a0e7588462715
   - path: src/evallab/production/live_supervisor_cheat.py
-    digest: sha256:254bce817be67b525707cb73b06592ed1d822cf4b623822881b939e8ea348cb1
+    digest: sha256:1e188516bcf81016337781db5e81133638c8f53e11947ca2767e4dd0797e44f9
   - path: src/evallab/production/live_supervisor_cli.py
     digest: sha256:dac6ca2f422f81f0de548cfe14c9d7b580657097bc27c8a88e6edc0d34a57877
   - path: src/evallab/production/live_supervisor_fleet.py

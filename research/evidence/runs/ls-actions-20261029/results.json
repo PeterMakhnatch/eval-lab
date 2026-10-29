@@ -1,0 +1,18 @@
+{
+  "schema": "ls-actions-study/1",
+  "status": "blocked",
+  "base_revision": "27ddb12f1c4f90eac5661997526f094a1d405db2",
+  "preregistration": {"path": "PREREG.md", "recorded_at_utc": "2026-10-29T23:55:01Z", "sha256": "aa046bac889656ad35683fab5f1a274939a998599fa4f842aa144b4a4ba39052", "sample_drawn": false},
+  "sample_windows": 0,
+  "model_calls": 0,
+  "refusals": 0,
+  "served_models": [],
+  "incremental_study_api_cost_usd": 0,
+  "subscription_development_usage": "not measured",
+  "arm_a": null,
+  "arm_b": null,
+  "adoption": false,
+  "pr": null,
+  "blockers": ["No independent action-bearing window truth established at actual triggered decision times; CheatBench labels are run-level with no onset and no step timestamps.", "Historical replay lacks file-access sensors and pre-agent git baseline; no contemporaneous submitted diff snapshots established."],
+  "prior_measurements_not_remeasured": {"cheat_rule_recall_goodfire": "2/80", "cheat_rule_recall_cheatbench": "1/75", "cheat_rule_false_flags": "0/145", "quote_absent_at_labelled_step": "7312/8749"}
+}

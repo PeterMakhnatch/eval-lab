@@ -397,6 +397,7 @@ def run_profile(
     cpu_only: bool,
     inject_ms: dict[str, float],
     work_dir: Path,
+    scratch_dir: Path | None = None,
     tick_n: int = 100,
     fleet_fn: Callable[[], None] | None = None,
     sleeper: Callable[[float], None] | None = None,
@@ -410,7 +411,7 @@ def run_profile(
     if not jobs:
         raise ValueError(f"no Harbor jobs under {corpus_roots}")
 
-    scratch = work_dir / "scratch"
+    scratch = scratch_dir if scratch_dir is not None else work_dir / "scratch"
     scratch.mkdir(parents=True, exist_ok=True)
     digest_root = scratch / "digest-repo"
     (digest_root / "digests").mkdir(parents=True, exist_ok=True)
@@ -582,6 +583,17 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=REPO_ROOT / "runs" / "_speed",
     )
+    parser.add_argument(
+        "--scratch-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Directory for the files the timed paths write (parquet exports, digest and "
+            "queue roots). Default: <output-dir>/scratch. The exporters fsync every table "
+            "they publish, so on a shared CI runner the disk's fsync latency, not the "
+            "code, dominates 'projection' and 'facts'; CI points this at tmpfs."
+        ),
+    )
     args = parser.parse_args(argv)
     roots = resolve_corpus_roots(list(args.corpus) or list(DEFAULT_CORPUS))
     report = run_profile(
@@ -593,6 +605,7 @@ def main(argv: list[str] | None = None) -> int:
         cpu_only=args.cpu_only,
         inject_ms=parse_inject(args.inject_ms),
         work_dir=args.output_dir,
+        scratch_dir=args.scratch_dir,
         tick_n=args.tick_n,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)

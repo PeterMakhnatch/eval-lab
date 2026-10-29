@@ -95,7 +95,9 @@ LAB_PATH_MARKER = "eval-lab"
 LOCAL_DOCKER_DETAIL = "local docker trial: contract sets EVALLAB_DISABLE_LOCAL_DOCKER=1"
 _DOCKER_COMPOSE = re.compile(r"(?:^|/)docker\s+compose\b")
 _HARBOR_RUN = re.compile(r"(?:^|[\s/])harbor\s+run\b")
-_REMOTE_ENV = re.compile(r"(?:--env|-e)[ =](?:modal|daytona|e2b|runloop|gke)\b", re.IGNORECASE)
+_ENV_FLAG = re.compile(r"(?:--env|-e)[ =]([^\s]+)", re.IGNORECASE)
+#: Harbor backends that run off this Mac; an ``--env`` naming one of these is never local Docker.
+REMOTE_ENVS = ("modal", "daytona", "e2b", "runloop", "gke")
 _CONTROLLER = re.compile(r"(?:^|[\s/])controller\.py\b|(?:^|[\s/])evallab\s+[a-z]")
 #: Launchd-managed servers that legitimately run for days.
 _LONG_LIVED_SERVICE = re.compile(r"Application Support/evallab/|evallab[ -](?:results-viewer|dashboard)")
@@ -538,11 +540,19 @@ def _is_omp(command: str) -> bool:
 
 
 def _is_local_docker(command: str) -> bool:
+    """Only explicit evidence counts: ``docker compose``, or ``harbor run`` whose ``--env``/``-e``
+    names a Docker environment. A harbor run with no env flag (or whose backend lives in a
+    ``--config``) stays unflagged: argv alone is not proof of a local Docker backend."""
     if LAB_PATH_MARKER not in command:
         return False
     if _DOCKER_COMPOSE.search(command):
         return True
-    return bool(_HARBOR_RUN.search(command)) and not _REMOTE_ENV.search(command)
+    if not _HARBOR_RUN.search(command):
+        return False
+    envs = [value.lower() for value in _ENV_FLAG.findall(command)]
+    if any(remote in value for value in envs for remote in REMOTE_ENVS):
+        return False
+    return any("docker" in value for value in envs)
 
 
 def _is_controller(command: str) -> bool:
@@ -551,7 +561,12 @@ def _is_controller(command: str) -> bool:
 
 class ProcessSource:
     """Local lab processes from ``ps``. Wrapper chains (``uv run`` -> python, harbor -> docker
-    compose) are one subject: only the outermost matching process is observed. Not killable in v1."""
+    compose) are one subject: only the outermost matching process is observed.
+
+    Report-only by design, not by omission: a PID plus argv is not a stable stop identity (PIDs
+    are reused, and the matching wrapper usually exits before the children it spawned), so a
+    decision here is ``alert_research``; Harbor and Modal subjects carry their own registered stop
+    paths."""
 
     name = "processes"
 

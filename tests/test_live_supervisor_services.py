@@ -18,6 +18,7 @@ import pytest
 
 from evallab.production.live_supervisor import guard, propose
 from evallab.production.live_supervisor_services import (
+    LOCAL_DOCKER_DETAIL,
     LaunchdSource,
     ModalSource,
     ProcessSource,
@@ -454,9 +455,12 @@ PS_LIVE = PS_HEADER + "\n".join([
     f"{EVAL_LAB}/runs/.exec-stage/hack-1 up -d",
     f" 77565 77563       01:20 /Users/p/.docker/cli-plugins/docker-compose compose --project-name hack-1 "
     f"--project-directory {EVAL_LAB}/runs/.exec-stage/hack-1",
-    # a non-lab docker compose and a remote harbor run: not local lab docker
+    # a non-lab docker compose, a remote harbor run and a config-backed harbor run (backend
+    # decided by the config, so argv proves nothing): not local lab docker
     "  5000     1       10:00 docker compose --project-directory /Users/p/Other/app up",
     f"  5001  4000       10:00 {EVAL_LAB}/.venv/bin/harbor run --path {EVAL_LAB}/x --env modal",
+    f"  5002  4000       10:00 {EVAL_LAB}/.venv/bin/harbor run --config remote.json --path {EVAL_LAB}/y",
+    f"  5003  4000       10:00 {EVAL_LAB}/.venv/bin/harbor run --path {EVAL_LAB}/z",
     # controller launched with uv, python child: one subject
     " 57330  2164       22:17 uv run evallab hack run library/tasks/sheet-recalc --execute",
     f" 57335 57330       22:17 {EVAL_LAB}/.venv/bin/python {EVAL_LAB}/.venv/bin/evallab hack run library/tasks/sheet-recalc",
@@ -488,6 +492,26 @@ def test_local_docker_trial_is_one_subject_with_the_contract_detail():
     for observation in observations.values():
         assert (observation.subject.kind, observation.subject.owner, observation.subject.killable) == (
             "local_process", "lab", False)
+
+
+def test_local_docker_needs_explicit_evidence_never_flags_an_unknown_backend():
+    flag = LOCAL_DOCKER_DETAIL
+    rows = {
+        # explicit docker backends
+        "10": f"10 1 00:30 {EVAL_LAB}/.venv/bin/harbor run --path {EVAL_LAB}/a -e docker",
+        "11": f"11 1 00:30 {EVAL_LAB}/.venv/bin/harbor run --path {EVAL_LAB}/b "
+              "--env evallab.harbor_host_isolation:HostIsolatedDockerEnvironment",
+        # backend unknown from argv: a config file decides it, or harbor's own default applies
+        "12": f"12 1 00:30 {EVAL_LAB}/.venv/bin/harbor run --config remote.json --path {EVAL_LAB}/c",
+        "13": f"13 1 00:30 {EVAL_LAB}/.venv/bin/harbor run --path {EVAL_LAB}/d",
+        # explicit off-Mac backend
+        "14": f"14 1 00:30 {EVAL_LAB}/.venv/bin/harbor run --path {EVAL_LAB}/e --env daytona",
+    }
+    ps = PS_HEADER + "\n".join(rows.values()) + "\n"
+    source = processes(ps)
+    # unknown/remote backends are not even subjects: no hit, no contract-violation claim
+    flagged = {o.subject.id: [h.detail for h in source.triggers(o)] for o in source.observe(NOW)}
+    assert flagged == {"10": [flag], "11": [flag]}
 
 
 def test_docker_compose_child_alone_is_reported_when_its_parent_is_not_a_lab_process():

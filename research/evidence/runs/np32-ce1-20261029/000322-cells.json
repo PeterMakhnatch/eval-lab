@@ -1,0 +1,179 @@
+[
+ {
+  "cand": "mutant",
+  "cell": "pr-1331/original-mutant-r1",
+  "failed_tests": [],
+  "input_digest": "sha256:b3e90deca47da6a6816f877ae5d2623e4e3b88a6f04c21dc99b599744c3a38fe",
+  "input_matches_ts14": true,
+  "phase": "original",
+  "reward": 1.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:f8e3a0380faead850e005eb613b68d1018c1c8287c1e5ea6b2fda4b70cb950dc",
+  "this_run_finalized_usd": 0.005543
+ },
+ {
+  "cand": "mutant",
+  "cell": "pr-1331/original-mutant-r2",
+  "failed_tests": [],
+  "input_digest": "sha256:b3e90deca47da6a6816f877ae5d2623e4e3b88a6f04c21dc99b599744c3a38fe",
+  "input_matches_ts14": true,
+  "phase": "original",
+  "reward": 1.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:f8e3a0380faead850e005eb613b68d1018c1c8287c1e5ea6b2fda4b70cb950dc",
+  "this_run_finalized_usd": 0.004158
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1331/original-reference-r1",
+  "failed_tests": [
+   "tests/test_web_sendfile_functional.py::test_static_file_ssl[pyloop]"
+  ],
+  "input_digest": "sha256:117960144b112e262ce9a00347a0118f32d8185de189355a805c710cc57c17f8",
+  "input_matches_ts14": true,
+  "phase": "original",
+  "reward": 0.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:f8e3a0380faead850e005eb613b68d1018c1c8287c1e5ea6b2fda4b70cb950dc",
+  "this_run_finalized_usd": 0.00485
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1331/original-reference-r2",
+  "failed_tests": [],
+  "input_digest": "sha256:117960144b112e262ce9a00347a0118f32d8185de189355a805c710cc57c17f8",
+  "input_matches_ts14": true,
+  "phase": "original",
+  "reward": 1.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:f8e3a0380faead850e005eb613b68d1018c1c8287c1e5ea6b2fda4b70cb950dc",
+  "this_run_finalized_usd": 0.004158
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1331/original-reference-r3",
+  "failed_tests": [],
+  "input_digest": "sha256:117960144b112e262ce9a00347a0118f32d8185de189355a805c710cc57c17f8",
+  "input_matches_ts14": true,
+  "phase": "original",
+  "reward": 1.0,
+  "run": "r3",
+  "status": "measured",
+  "task_digest": "sha256:f8e3a0380faead850e005eb613b68d1018c1c8287c1e5ea6b2fda4b70cb950dc",
+  "this_run_finalized_usd": 0.011086
+ },
+ {
+  "cand": "mutant",
+  "cell": "pr-1331/before-mutant-r1",
+  "failed_tests": [],
+  "input_digest": "sha256:b3e90deca47da6a6816f877ae5d2623e4e3b88a6f04c21dc99b599744c3a38fe",
+  "input_matches_ts14": true,
+  "phase": "before",
+  "reward": 1.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:88974e3613e0e49da13519fbb61aee40645757c6b4a7e04e44edfcf8258c7000",
+  "this_run_finalized_usd": 0.00485
+ },
+ {
+  "cand": "mutant",
+  "cell": "pr-1331/before-mutant-r2",
+  "failed_tests": [],
+  "input_digest": "sha256:b3e90deca47da6a6816f877ae5d2623e4e3b88a6f04c21dc99b599744c3a38fe",
+  "input_matches_ts14": true,
+  "phase": "before",
+  "reward": 1.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:88974e3613e0e49da13519fbb61aee40645757c6b4a7e04e44edfcf8258c7000",
+  "this_run_finalized_usd": 0.004158
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1331/before-reference-r1",
+  "failed_tests": [],
+  "input_digest": "sha256:117960144b112e262ce9a00347a0118f32d8185de189355a805c710cc57c17f8",
+  "input_matches_ts14": true,
+  "phase": "before",
+  "reward": 1.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:88974e3613e0e49da13519fbb61aee40645757c6b4a7e04e44edfcf8258c7000",
+  "this_run_finalized_usd": 0.007622
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1331/before-reference-r2",
+  "failed_tests": [],
+  "input_digest": "sha256:117960144b112e262ce9a00347a0118f32d8185de189355a805c710cc57c17f8",
+  "input_matches_ts14": true,
+  "phase": "before",
+  "reward": 1.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:88974e3613e0e49da13519fbb61aee40645757c6b4a7e04e44edfcf8258c7000",
+  "this_run_finalized_usd": 0.00485
+ },
+ {
+  "cand": "mutant",
+  "cell": "pr-1331/after-mutant-r1",
+  "failed_tests": [
+   "tests/test_web_sendfile_functional.py::test_static_file_if_range_equal_to_last_modified_with_range[fallback-pyloop]",
+   "tests/test_web_sendfile_functional.py::test_static_file_if_range_equal_to_last_modified_with_range[sendfile-pyloop]"
+  ],
+  "input_digest": "sha256:b3e90deca47da6a6816f877ae5d2623e4e3b88a6f04c21dc99b599744c3a38fe",
+  "input_matches_ts14": true,
+  "phase": "after",
+  "reward": 0.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:f44ce0bdda30fb80f920cf2fe4c973f6f505031e3ea718dbf317d0da7607ff01",
+  "this_run_finalized_usd": 0.018015
+ },
+ {
+  "cand": "mutant",
+  "cell": "pr-1331/after-mutant-r2",
+  "failed_tests": [
+   "tests/test_web_sendfile_functional.py::test_static_file_if_range_equal_to_last_modified_with_range[fallback-pyloop]",
+   "tests/test_web_sendfile_functional.py::test_static_file_if_range_equal_to_last_modified_with_range[sendfile-pyloop]"
+  ],
+  "input_digest": "sha256:b3e90deca47da6a6816f877ae5d2623e4e3b88a6f04c21dc99b599744c3a38fe",
+  "input_matches_ts14": true,
+  "phase": "after",
+  "reward": 0.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:f44ce0bdda30fb80f920cf2fe4c973f6f505031e3ea718dbf317d0da7607ff01",
+  "this_run_finalized_usd": 0.007622
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1331/after-reference-r1",
+  "failed_tests": [],
+  "input_digest": "sha256:117960144b112e262ce9a00347a0118f32d8185de189355a805c710cc57c17f8",
+  "input_matches_ts14": true,
+  "phase": "after",
+  "reward": 1.0,
+  "run": "r1",
+  "status": "measured",
+  "task_digest": "sha256:f44ce0bdda30fb80f920cf2fe4c973f6f505031e3ea718dbf317d0da7607ff01",
+  "this_run_finalized_usd": 0.00485
+ },
+ {
+  "cand": "reference",
+  "cell": "pr-1331/after-reference-r2",
+  "failed_tests": [],
+  "input_digest": "sha256:117960144b112e262ce9a00347a0118f32d8185de189355a805c710cc57c17f8",
+  "input_matches_ts14": true,
+  "phase": "after",
+  "reward": 1.0,
+  "run": "r2",
+  "status": "measured",
+  "task_digest": "sha256:f44ce0bdda30fb80f920cf2fe4c973f6f505031e3ea718dbf317d0da7607ff01",
+  "this_run_finalized_usd": 0.006236
+ }
+]

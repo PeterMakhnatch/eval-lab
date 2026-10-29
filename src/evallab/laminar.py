@@ -372,7 +372,7 @@ def alert_span(
 
 
 def _any_value(value: Any) -> Any:
-    from opentelemetry.proto.common.v1.common_pb2 import AnyValue
+    from opentelemetry.proto.common.v1.common_pb2 import AnyValue, ArrayValue
 
     if isinstance(value, bool):
         return AnyValue(bool_value=value)
@@ -380,6 +380,8 @@ def _any_value(value: Any) -> Any:
         return AnyValue(int_value=value)
     if isinstance(value, float):
         return AnyValue(double_value=value)
+    if isinstance(value, list | tuple) and all(isinstance(item, str) for item in value):
+        return AnyValue(array_value=ArrayValue(values=[AnyValue(string_value=item) for item in value]))
     return AnyValue(string_value=str(value))
 
 
@@ -585,12 +587,15 @@ _JUDGE_ONLY_TRACE = (
     " rewards or job names."
 )
 
-#: Explicit opt-in tag; bulk trace-store exports never set this tag. Paused until
-#: per-token Signal spend is funded and separately authorized.
+#: Explicit opt-in tag. Bulk trace-store exports never set it; a caller adds it
+#: to a trace's root span only for a deliberate, separately authorized Signals run.
+SIGNAL_OPT_IN_TAG = "evallab.signals=on"
+#: Trace-association attribute Laminar lifts into the trace's tag set.
+TAGS_ATTRIBUTE = "lmnr.association.properties.tags"
 SIGNAL_OPT_IN_FILTER = {
     "column": "tags",
     "operator": "includes",
-    "value": ["evallab.signals=on"],
+    "value": [SIGNAL_OPT_IN_TAG],
 }
 
 #: The four HAR-166 Signals. ``evallab laminar signals apply`` creates or updates them by name.

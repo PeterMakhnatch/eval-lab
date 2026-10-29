@@ -57,7 +57,9 @@ from typing import Any, cast
 
 SCHEMA = "fw4.prompt-experiment/v1"
 READER = "anthropic/claude-haiku-5-5"
-REFLECTION_MODEL = "anthropic/claude-opus-5-5"
+# Reflection sees DEV trace windows that contain other models' reasoning; Anthropic refuses
+# those inputs (reasoning_extraction), so reflection runs on Codex (FW-3 protocol v3).
+REFLECTION_MODEL = "openai-codex/gpt-6.1-sol"
 SCORER_MODEL = "anthropic/claude-sonnet-5-5"
 GEPA_VERSION = "0.1.4"
 TRACE_TOOL = Path("research/evidence/runs/cm13-facet-windows-20261028/tools/facet_windows.py")
@@ -1292,11 +1294,10 @@ def _gateway(run_dir: Path, plan: Mapping[str, Any]) -> Any:
         )
         body = json.loads(result.stdout)
         quotas[provider] = body
-        required = (
-            {"5h", "limit_month_total", "limit_month_code"}
-            if provider == "kimi-code"
-            else {"5h", "7d"}
-        )
+        required = {
+            "kimi-code": {"5h", "limit_month_total", "limit_month_code"},
+            "openai-codex": {"7d"},  # the Codex subscription reports a single weekly window
+        }.get(provider, {"5h", "7d"})
         limits = {
             limit.get("window", {}).get("id"): limit
             for report in body.get("reports", [])

@@ -268,7 +268,11 @@ def test_token_admission_and_tools_are_rejected_before_dispatch(tmp_path: Path) 
 
 
 def _fake_omp(
-    monkeypatch: pytest.MonkeyPatch, *, fallback: bool, used: float
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    fallback: bool,
+    used: float,
+    windows: dict[str, tuple[str, ...]] | None = None,
 ) -> list[tuple[str, ...]]:
     seen: list[tuple[str, ...]] = []
 
@@ -282,7 +286,7 @@ def _fake_omp(
             key = argv[argv.index("get") + 1]
             return _Result({"key": key, "value": fallback and key == "retry.modelFallback"})
         provider = argv[argv.index("--provider") + 1]
-        windows = ("5h", "7d")
+        provider_windows = (windows or {}).get(provider, ("5h", "7d"))
         return _Result(
             {
                 "reports": [
@@ -293,7 +297,7 @@ def _fake_omp(
                                 "window": {"id": window},
                                 "amount": {"usedFraction": used},
                             }
-                            for window in windows
+                            for window in provider_windows
                         ]
                     }
                 ]
@@ -334,6 +338,23 @@ def test_admitted_gateway_inherits_only_the_planned_overlay(
     assert all(argv[:2] == ("env", expected) for argv in seen)
     assert transport._argv == ("env", expected, "omp", "auth-gateway", "stdio")
     assert transport._process is None  # admission alone sends no model request
+
+
+def test_quota_admission_uses_each_providers_own_windows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, registration = _registration(tmp_path, monkeypatch)
+    plan = opt.checked_plan(run_dir, registration["plan_digest"])
+    assert plan["reflection_model"].startswith("openai-codex/")
+    # Codex reports only a weekly window: that alone admits it.
+    _fake_omp(monkeypatch, fallback=False, used=0.2, windows={"openai-codex": ("7d",)})
+    opt._gateway(run_dir, plan)
+    (run_dir / "gateway-admission.json").unlink()
+    # Anthropic still needs its 5-hour window; a missing reading closes admission.
+    _fake_omp(monkeypatch, fallback=False, used=0.2, windows={"anthropic": ("7d",)})
+    with pytest.raises(opt.PrerequisiteError, match="anthropic numeric"):
+        opt._gateway(run_dir, plan)
 
 
 def test_guidance_keeps_original_schema_safety_and_citation_rules() -> None:

@@ -352,10 +352,12 @@ An injected `digest=500` slowdown against a 5 ms budget fails with
 Both paths publish parquet tables with `durable_replace`, so each rep fsyncs 16
 (`projection`) or 24 (`facts`) times. On `ubuntu-latest` the same commit measured
 `projection` 4.9-225.5 ms (median 7.5) and `facts` 11.6-104.5 ms (median 16.1) over 18
-`workflow_dispatch` runs, and 5 of the 18 runs failed a budget; the failures were not
-clustered in time and passed on rerun. With the harness scratch directory on tmpfs
-(`--scratch-dir /dev/shm/evallab-speed`) 18 further runs gave 1.1-2.9 ms and
-4.0-7.6 ms with no failure, matching the 2026-08-14 laptop capture. Budgets were
+`workflow_dispatch` runs, and 5 of the 18 runs failed a budget. On `main` and PR heads
+over 30 hours, 14% of 834 first attempts failed `projection` or `facts`, a failure did
+not predict the next run's (17% after a failure), and 18 of 22 failed attempts passed on a
+rerun of the same commit. With the harness scratch directory on tmpfs
+(`--scratch-dir /dev/shm/evallab-speed`) 42 further runs gave 0.9-3.2 ms and
+4.0-9.6 ms with no failure, matching the 2026-08-14 laptop capture. Budgets were
 lowered with it (`projection` 25 -> 4 ms, `facts` 25 -> 12 ms); a ceiling is never
 raised to absorb noise. The gate no longer times fsync latency. See the notes in
 `scripts/profile/budgets.json`.

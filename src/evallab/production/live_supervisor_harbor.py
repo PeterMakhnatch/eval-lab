@@ -84,6 +84,15 @@ def _step_index(step: Mapping[str, Any], position: int) -> int:
 #: experiment) fired a kill proposal and the run went on. A later clean tool output resets the run.
 INFRA_PERSIST_STEPS = run_health.INFRA_TAIL_STEPS
 
+#: Identical environment feedback (Run Health ``repeated_feedback``: the harness sends the same non-agent
+#: ``user`` message again after a resubmission) starts a live loop proposal only from this many repeats.
+#: Run Health's own component fires at 1 repeat, a post-hoc whole-run call (``run-health/5`` blind audit). Live,
+#: the first repeat is the 2nd identical failure of an agent that may still be fixing it. The count is the
+#: nearest-rank p99 of the per-run maximum over 4,962 design negatives (4,524 admitted store DEV runs, the negative
+#: ``harbor_timeout``/``g6_loop``/CheatBench runs; the 20 ``store_clean_dev`` held-out rows excluded) = 4, plus one
+#: (experiments/false-alarms/PREREG.md). Run Health's other loop components are unchanged.
+FEEDBACK_REPEATS_LIVE = 5
+
 
 def _infra_runs(steps: Sequence[Mapping[str, Any]], classes: Iterable[str]) -> dict[str, list[int]]:
     """Per Run Health infra class, the newest ``INFRA_PERSIST_STEPS`` consecutive tool outputs
@@ -161,7 +170,8 @@ def trial_observation(run: HealthRun, *, subject: Subject, now: datetime, alerts
     cut = HealthRun(run_id=run.run_id, source=run.source, steps=steps, meta=run.meta)
     feats = run_health.features(cut)
     health = {}
-    for record in run_health.detect(cut, feats):
+    # Run Health's repeated_feedback component (1 repeat) is a post-hoc call; the live rule is FEEDBACK_REPEATS_LIVE.
+    for record in run_health.detect(cut, {**feats, "max_repeated_feedback": 0}):
         if record["kind"] in ("loop", "infra") and record["verdict"] == "alarm":
             health[record["kind"]] = {"score": record["score"], "evidence_steps": record["evidence_steps"],
                                       "summary": record["summary"]}
@@ -233,6 +243,13 @@ def triggers_for(observation: Observation) -> list[TriggerHit]:
     if loop:
         hits.append(TriggerHit("repetition", "loop", max(1.0, loop["score"]),
                                f"run_health loop: {loop['summary']}", tuple(loop["evidence_steps"])))
+    features = m.get("features") or {}
+    repeats = features.get("max_repeated_feedback") or 0
+    if repeats >= FEEDBACK_REPEATS_LIVE:
+        first = features.get("repeated_feedback_step")
+        hits.append(TriggerHit("repetition", "loop", repeats / FEEDBACK_REPEATS_LIVE,
+                               f"run_health loop: repeated_feedback={repeats} (>= {FEEDBACK_REPEATS_LIVE} live)",
+                               (first,) if isinstance(first, int) else tail))
 
     steps_seen, elapsed, p99 = m.get("agent_steps"), m.get("elapsed_seconds"), m.get("wall_p99_seconds")
     reasons: list[tuple[float, str]] = []

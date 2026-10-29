@@ -16,6 +16,7 @@ import pytest
 from evallab.production import run_health
 from evallab.production.live_supervisor import Subject
 from evallab.production.live_supervisor_harbor import (
+    FEEDBACK_REPEATS_LIVE,
     PROMPT_TOKENS_PER_STEP,
     SILENCE_SECONDS,
     HarborSource,
@@ -151,6 +152,38 @@ def test_repetition_is_the_run_health_loop_alarm() -> None:
     assert (hit.kind, hit.evidence_steps) == ("loop", (1,))
     assert hit.score >= 1.0
     assert "repetition" not in _hits(_run([_step(i + 1, "pytest -x", offset=-100 + i) for i in range(n - 1)]))
+
+
+def _resubmissions(failures: int) -> list[dict[str, Any]]:
+    """A task prompt, then ``failures`` rounds of (new command, identical failure feedback)."""
+    steps = [_step(1, None, source="user", message="implement func.py")]
+    for i, command in enumerate(_words(failures)):
+        steps += [_step(2 + 2 * i, command), _step(3 + 2 * i, None, source="user", message="Tests failed: line 13")]
+    return steps
+
+
+def test_identical_feedback_needs_the_live_repeat_count_though_run_health_alarms_at_one() -> None:
+    n = FEEDBACK_REPEATS_LIVE
+    one_repeat = _run(_resubmissions(2))
+    assert {r["kind"]: r["verdict"] for r in run_health.detect(one_repeat)}["loop"] == "alarm"
+    assert "repetition" not in _hits(one_repeat)
+    assert "repetition" not in _hits(_run(_resubmissions(n)))  # n failures = n - 1 repeats
+    hit = _hits(_run(_resubmissions(n + 1)))["repetition"]  # n repeats
+    assert (hit.kind, hit.score) == ("loop", 1.0)
+    assert f"repeated_feedback={n} (>= {n} live)" in hit.detail
+    assert hit.evidence_steps == (5,)  # the step of the first repeat
+    assert _hits(_run(_resubmissions(n + 3)))["repetition"].score == (n + 2) / n
+
+
+def test_other_loop_components_still_alarm_with_few_feedback_repeats() -> None:
+    n = run_health.LOOP_COMMAND_RUN
+    steps = [_step(1, None, source="user", message="implement func.py")]
+    steps += [_step(2 + i, "pytest -x", observation="FAILED") for i in range(n)]
+    steps += [_step(2 + n, None, source="user", message="Tests failed"), _step(3 + n, None, source="user",
+                                                                          message="Tests failed")]
+    hit = _hits(_run(steps))["repetition"]
+    assert "identical_command_run" in hit.detail
+    assert "repeated_feedback" not in hit.detail
 
 
 # --------------------------------------------------------------------------- wall_time

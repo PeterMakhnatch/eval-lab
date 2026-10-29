@@ -95,13 +95,13 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
-    digest: sha256:e75ef7cd17cfe8f00e42b958b612baf4dd86f32fa551453559e374579f503115
+    digest: sha256:dfa20fea1858a5870faafa1acaf0612365b5e1babf8c72ba3eb4cad0ed962a4f
   - path: docs/open-qa-harness.md
     digest: sha256:cf0a4da37baa714c321301e312826782948bc011e6840a16474f903fe6344b6f
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:c8e0b3ae7de3d0a0a10108f19ea73a056e964c8828025464813d26d0f84f23a4
+    digest: sha256:637cdc7a97591e037629207de5db21b9f837bcc47e9a43cef73204912167a4d5
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/qa-contract.md
@@ -159,7 +159,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md
-    digest: sha256:6dea619323e99493dfd268fd02a4ee02a67fe9850ca4e4b81d87e488deb9558b
+    digest: sha256:c4bfba2956c59bb7d2dfb31b5ad5cf106ae921b02502e3da0f7ddfe709dca311
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md

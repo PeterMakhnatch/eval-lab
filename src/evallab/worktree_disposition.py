@@ -718,7 +718,8 @@ def render_markdown(report: DispositionReport, *, home: Path) -> str:
         lines.append(_HEADER[0].format(detail=detail_title))
         lines.append(_HEADER[1])
         for row in rows:
-            blockers = "; ".join(row.blockers) or "none"
+            shown = [item for item in row.blockers if not item.startswith("verdict ")]
+            blockers = "; ".join(shown) or "none"
             detail = blockers if verdict == "delivered" else f"{row.reason}. {blockers}"
             lines.append(_row(row, home, detail=detail))
     lines.append("")

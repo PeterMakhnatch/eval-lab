@@ -137,10 +137,10 @@ from evallab.production.actor_cas import (
 from evallab.production.actor_projection import source_read_uri
 from evallab.production.cloud_trace_db import admitted_cloud_task_ids
 from evallab.production.cloud_trace_export import (
+    _IDENTITY_SQL,
     _atif,
     _blind_id,
     _destination,
-    _IDENTITY_SQL,
     _requested_ids,
     _write_bytes,
     export_runs,
@@ -283,11 +283,14 @@ def _native_version() -> str | None:
 def _native_contract() -> SimpleNamespace:
     """Import the pinned native contract. Raises HarborInputRefusal when absent."""
     try:
-        from harbor.analyze import analyzer as harbor_analyzer
-        from harbor.analyze.models import build_analyze_response_model, load_rubric
-        from harbor.models.task.config import TaskConfig
-        from harbor.models.task.task import Task
-        from harbor.models.trajectories.trajectory import Trajectory
+        from harbor.analyze import analyzer as harbor_analyzer  # ty: ignore[unresolved-import]
+        from harbor.analyze.models import (  # ty: ignore[unresolved-import]
+            build_analyze_response_model,
+            load_rubric,
+        )
+        from harbor.models.task.config import TaskConfig  # ty: ignore[unresolved-import]
+        from harbor.models.task.task import Task  # ty: ignore[unresolved-import]
+        from harbor.models.trajectories.trajectory import Trajectory  # ty: ignore[unresolved-import]
     except ImportError as exc:
         raise HarborInputRefusal([
             RunRefusal(
@@ -795,7 +798,7 @@ def preflight_harbor_inputs(
             (cost.input_tokens - cost.cached_tokens) * input_rate
             + cost.cached_tokens * cached_rate
         ) / 1_000_000
-        if cost.input_tokens is not None and input_rate is not None
+        if cost.input_tokens is not None and input_rate is not None and cached_rate is not None
         else None
     )
     output_component = (

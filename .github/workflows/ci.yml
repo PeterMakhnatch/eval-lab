@@ -96,7 +96,8 @@ jobs:
             tests/test_harbor_docker.py tests/test_harbor_modal.py tests/test_egress_lock.py \
             tests/test_ref_subset_modal.py tests/test_qa_task_modal.py tests/test_upstream_grader.py \
             tests/test_heldout_v7_native.py tests/test_phase2_native_generation.py \
-            tests/test_candidate_runner.py tests/test_candidate_port.py
+            tests/test_candidate_runner.py tests/test_candidate_port.py \
+            tests/test_harbor_trace_inputs.py
 
   quality-required:
     name: quality-required

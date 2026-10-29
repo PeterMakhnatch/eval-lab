@@ -67,6 +67,10 @@ EXCERPT_CHARS = 600
 REASON_CHARS = 300
 SUMMARY_CHARS = 200
 MAX_CITED = 8
+#: A day's queue line names at most this many card paths; the day index lists every card.
+NOTICE_MAX_CARDS = 3
+#: Upper bound on a queue line's text (characters), whatever the batch size or path length.
+NOTICE_MAX_CHARS = 1000
 #: Bytes hashed at the head of a tailed file to notice a rewrite that regrew past the cursor.
 HEAD_BYTES = 4096
 WITHHELD = "[withheld]"
@@ -376,9 +380,9 @@ class CheatRouter:
         """Card every new flagged run; returns the new card paths.
 
         Non-``flag_cheating`` decisions and runs already carded are skipped. New cards are
-        grouped by the UTC day they were observed: a day without a queue line gets one line
-        naming its new cards and the day index; a day that has one gets its cards appended
-        to the index only.
+        grouped by the UTC day they were observed: a day without a queue line gets one bounded
+        line (counts of live and stored runs, at most ``NOTICE_MAX_CARDS`` card paths, the day
+        index); a day that has one gets its cards appended to the index only.
         """
         self.cards_dir.mkdir(parents=True, exist_ok=True)
         with (self.cards_dir / "router.lock").open("a", encoding="utf-8") as handle:
@@ -388,9 +392,28 @@ class CheatRouter:
             finally:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
+    def _is_live(self, subject: Subject) -> bool:
+        """A live trial: a ``harbor_trial`` whose directory is under a trial root; else a stored run."""
+        return subject.kind == "harbor_trial" and any((root / subject.id).is_dir() for root in self.trial_roots)
+
+    def _notice(self, cards: Sequence[tuple[Path, bool]], index: Path) -> str:
+        """The one-line queue text for a day's first batch: counts, a few card paths, the index."""
+        live = sum(is_live for _, is_live in cards)
+        noun = "run" if len(cards) == 1 else "runs"
+        head = f"Live Supervisor flagged {len(cards)} {noun} ({live} live, {len(cards) - live} stored)"
+        tail = f" (later cards today, and any not named here, are listed in {index})"
+        for shown in range(min(NOTICE_MAX_CARDS, len(cards)), -1, -1):
+            named = " ".join(str(path) for path, _ in cards[:shown])
+            more = f"{len(cards) - shown} more" if len(cards) > shown else ""
+            listing = "; cards: " + " and ".join(part for part in (named, more) if part)
+            text = f"{head}{listing}{tail}"
+            if len(text) <= NOTICE_MAX_CHARS:
+                break
+        return text
+
     def _route_locked(self, flagged: Iterable[tuple[Observation, Decision]]) -> list[Path]:
         state = self._load()
-        new: dict[str, list[tuple[str, Path]]] = {}
+        new: dict[str, list[tuple[str, Path, bool]]] = {}
         for observation, decision in flagged:
             run_id = observation.subject.finding_run_id
             if decision.action != "flag_cheating" or run_id in state["routed"]:
@@ -401,7 +424,7 @@ class CheatRouter:
             tmp.replace(path)
             day = observation.observed_at.astimezone(UTC).strftime("%Y-%m-%d")
             state["routed"][run_id] = {"card": str(path), "day": day}
-            new.setdefault(day, []).append((run_id, path))
+            new.setdefault(day, []).append((run_id, path, self._is_live(observation.subject)))
         lines = []
         for day, cards in sorted(new.items()):
             index = self.cards_dir / DAYS_DIR / f"{day}.md"
@@ -410,18 +433,16 @@ class CheatRouter:
             with index.open("a", encoding="utf-8") as handle:
                 if fresh:
                     handle.write(f"# Live Supervisor cheat cards {day} (UTC)\n\n")
-                handle.writelines(f"- `{path}`\n" for _, path in cards)
+                handle.writelines(f"- `{path}`\n" for _, path, _ in cards)
             if day not in state["days"]:
                 queue_id = f"LS-CHEAT-{day}-1"
-                listed = " ".join(str(path) for _, path in cards)
-                text = (f"Live Supervisor flagged {len(cards)} live runs; cards: {listed}"
-                        f" (later cards today are listed in {index})")
+                text = self._notice([(path, is_live) for _, path, is_live in cards], index)
                 lines.append({"pane": TRACE_WATCHER_PANE, "id": queue_id, "text": text})
                 state["days"][day] = {"queue_id": queue_id, "index": str(index)}
         if lines:
             append_jsonl(self.queue_path, lines)
         self._save(state)
-        return [path for cards in new.values() for _, path in cards]
+        return [path for cards in new.values() for _, path, _ in cards]
 
 
 # --------------------------------------------------------------------------- latency study

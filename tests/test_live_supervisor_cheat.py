@@ -131,7 +131,10 @@ def test_dedupe_per_run_id_and_other_actions_are_ignored(tmp_path: Path) -> None
 
 
 def test_one_queue_line_per_utc_day_batches_new_cards(tmp_path: Path) -> None:
-    router = _router(tmp_path)
+    jobs = tmp_path / "jobs"
+    (jobs / "j" / "a__1").mkdir(parents=True)
+    (jobs / "j" / "b__2").mkdir(parents=True)
+    router = _router(tmp_path, trial_roots=[jobs])
     first = router.route([(_obs(_trial("j/a__1")), _flag()), (_obs(_trial("j/b__2")), _flag()),
                           (_obs(_trial("j/a__1")), _flag())])
     assert len(first) == 2
@@ -141,13 +144,53 @@ def test_one_queue_line_per_utc_day_batches_new_cards(tmp_path: Path) -> None:
     lines = _queue(tmp_path)
     assert [(line["pane"], line["id"]) for line in lines] == [("w1C:pK", "LS-CHEAT-2026-10-28-1"),
                                                               ("w1C:pK", "LS-CHEAT-2026-10-29-1")]
-    assert lines[0]["text"].startswith("Live Supervisor flagged 2 live runs; cards: ")
-    assert all(str(p) in lines[0]["text"] for p in first)
     days = tmp_path / "root" / cheat.CARDS_DIR / cheat.DAYS_DIR
-    assert str(days / "2026-10-28.md") in lines[0]["text"]
+    assert "flagged 2 runs (2 live, 0 stored)" in lines[0]["text"]
+    assert all(str(p) in lines[0]["text"] for p in first)
+    assert f"later cards today, and any not named here, are listed in {days / '2026-10-28.md'}" in lines[0]["text"]
     index = (days / "2026-10-28.md").read_text()
     assert index.count("- `") == 3 and cheat.safe_name("c__3") in index
-    assert "1 live runs" in lines[1]["text"] and cheat.safe_name("d__4") in lines[1]["text"]
+    assert "flagged 1 run (0 live, 1 stored)" in lines[1]["text"]
+    assert cheat.safe_name("d__4") in lines[1]["text"] and str(days / "2026-10-29.md") in lines[1]["text"]
+
+
+def test_live_and_stored_counts_follow_the_trial_directory_and_subject_kind(tmp_path: Path) -> None:
+    jobs = tmp_path / "jobs"
+    for name in ("j/live1__1", "j/live2__2"):
+        (jobs / name).mkdir(parents=True)
+    router = _router(tmp_path, trial_roots=[jobs])
+    other = ls.Subject("modal_app", "j/live1__1", "lab", run_id="not-a-trial")  # a directory exists, wrong kind
+    router.route([(_obs(_trial("j/live1__1")), _flag()), (_obs(_trial("j/live2__2")), _flag()),
+                  (_obs(_trial("j/gone__3")), _flag()), (_obs(other), _flag())])
+    assert "flagged 4 runs (2 live, 2 stored)" in _queue(tmp_path)[0]["text"]
+
+
+def test_a_backfill_batch_gives_a_small_accurate_queue_line(tmp_path: Path) -> None:
+    router = _router(tmp_path)
+    batch = [(_obs(_trial(f"store/run{i}__{i}", stored=f"stored/run-{i}")), _flag()) for i in range(154)]
+    cards = router.route(batch)
+    (line,) = _queue(tmp_path)
+    text = line["text"]
+    index = tmp_path / "root" / cheat.CARDS_DIR / cheat.DAYS_DIR / "2026-10-28.md"
+    assert len(cards) == 154 and len(text) <= cheat.NOTICE_MAX_CHARS
+    assert "flagged 154 runs (0 live, 154 stored)" in text and "live runs" not in text
+    assert sum(str(path) in text for path in cards) == cheat.NOTICE_MAX_CARDS
+    assert f"{154 - cheat.NOTICE_MAX_CARDS} more" in text and str(index) in text
+    assert index.read_text().count("- `") == 154
+
+
+def test_queue_line_stays_bounded_for_a_500_card_mixed_batch(tmp_path: Path) -> None:
+    jobs = tmp_path / "jobs"
+    router = _router(tmp_path, trial_roots=[jobs])
+    batch = []
+    for i in range(500):
+        if i % 5 == 0:
+            (jobs / "j" / f"t{i}__x").mkdir(parents=True)
+        batch.append((_obs(_trial(f"j/t{i}__x", stored="" if i % 5 == 0 else f"stored/r{i}")), _flag()))
+    router.route(batch)
+    (line,) = _queue(tmp_path)
+    assert len(line["text"]) <= cheat.NOTICE_MAX_CHARS
+    assert "flagged 500 runs (100 live, 400 stored)" in line["text"]
 
 
 def test_safe_name_is_unique_and_separator_free() -> None:

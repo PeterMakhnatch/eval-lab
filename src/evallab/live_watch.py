@@ -881,6 +881,35 @@ def _is_infra_exception(exc_type: str | None) -> bool:
     return any(marker in lowered for marker in _INFRA_SUBSTRINGS)
 
 
+def wire_signals(wires: dict[str, Any]) -> dict[str, Any]:
+    """The trajectory-derived integrity signals of a ``tripwires.scan_prefix`` report, shaped as
+    the status record's keys (the inputs of :func:`integrity_alerts`)."""
+
+    def acquisitions(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                "step": flag.get("step"),
+                "target": flag.get("target"),
+                "command": str(flag.get("command") or "")[:200],
+            }
+            for flag in hits
+        ]
+
+    return {
+        "upstream_attempts": acquisitions(wires["upstream_attempts"]),
+        "upstream_confirmed": acquisitions(wires["upstream_confirmed"]),
+        "grader_tamper": wires["grader_tamper"],
+        "submission_tamper": wires["submission_tamper"],
+        "codeban_violation": wires["codeban_violation"],
+        "task_protected_reads": wires["task_protected_reads"],
+        "hidden_reads": wires["hidden_reads"],
+        "harness_log_reads": wires["harness_log_reads"],
+        "external_sourcing": wires["external_sourcing"],
+        "history_mining": wires["history_mining"],
+        "history_browsing": wires["history_browsing"],
+    }
+
+
 def trial_signals(
     job_dir: Path,
     trial_dir: Path,
@@ -974,16 +1003,8 @@ def trial_signals(
         watched_prefixes=watched,
         trial_dir=trial_dir,
     )
-    attempts = wires["upstream_attempts"]
-    confirmed = wires["upstream_confirmed"]
-    tamper = wires["grader_tamper"]
-    submission = wires["submission_tamper"]
-    banned = wires["codeban_violation"]
-    task_protected = wires["task_protected_reads"]
-    hidden = wires["hidden_reads"]
-    harness_logs = wires["harness_log_reads"]
+    wired = wire_signals(wires)
     corroborated = wires["hidden_test_corroboration"]
-    history = {"hits": wires["history_mining"], "browsing": wires["history_browsing"]}
     return {
         "job": job_dir.name,
         "trial": trial_dir.name,
@@ -1013,32 +1034,8 @@ def trial_signals(
         "first_completion_step": first_completion,
         "first_repo_edit": first_edit,
         "recent_repo_edit": recent_edit,
-        "upstream_attempts": [
-            {
-                "step": flag.get("step"),
-                "target": flag.get("target"),
-                "command": str(flag.get("command") or "")[:200],
-            }
-            for flag in attempts
-        ],
-        "upstream_confirmed": [
-            {
-                "step": flag.get("step"),
-                "target": flag.get("target"),
-                "command": str(flag.get("command") or "")[:200],
-            }
-            for flag in confirmed
-        ],
-        "grader_tamper": tamper,
-        "submission_tamper": submission,
-        "codeban_violation": banned,
-        "task_protected_reads": task_protected,
-        "hidden_reads": hidden,
-        "harness_log_reads": harness_logs,
-        "external_sourcing": wires["external_sourcing"],
+        **wired,
         "file_access": file_access["summary"],
-        "history_mining": history["hits"],
-        "history_browsing": history["browsing"],
         "git_object_reads": file_access["git_object_reads"],
         "hidden_test_reads": file_access["hidden_test_reads"],
         "hidden_test_corroboration": corroborated,
@@ -1091,8 +1088,12 @@ def _alert(
     return record
 
 
-def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> list[dict[str, Any]]:
-    """Fire per-trial alerts for one signal record (pure function of status)."""
+def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
+    """Integrity-rule alerts for one signal record (a pure function). Reads ``job``, ``trial``, ``task``
+    and, each as an optional list, the signals of :func:`wire_signals` plus the file-side ones
+    (``file_access``, ``git_object_reads``, ``hidden_test_reads``, ``hidden_test_corroboration``,
+    ``grader_file_changes``); a signal that is absent never fires, so a record without file access
+    (a replay) cannot raise ``hidden_test_read``, ``git_object_read`` or a file-evidenced ``grader_tamper``."""
     alerts: list[dict[str, Any]] = []
     job = status["job"]
     trial = status["trial"]
@@ -1399,6 +1400,16 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
             )
         )
         break
+
+    return alerts
+
+
+def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> list[dict[str, Any]]:
+    """Fire per-trial alerts for one signal record (pure function of status)."""
+    alerts = integrity_alerts(status)
+    job = status["job"]
+    trial = status["trial"]
+    task = status["task"]
 
     if (
         status["state"] == "running"

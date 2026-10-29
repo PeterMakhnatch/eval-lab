@@ -80,6 +80,8 @@ class Replayable:
     #: ``timed`` (every step stamped), ``interpolated`` (some stamped), ``even_spread`` (none
     #: stamped, spread over the known start..end) or ``synthetic`` (none stamped, no span).
     timing: str = "timed"
+    #: The ``live_watch`` alert source of a Harbor-shaped case (see :class:`WatchAlerts`), if any.
+    watch: WatchAlerts | None = None
 
 
 # --------------------------------------------------------------------------- time
@@ -364,9 +366,86 @@ def _replay(case: Mapping[str, Any], rp: Replayable, decider: ls.Decider | None)
         window_observation = first[1] if first is not None else last_observation
         if window_observation is not None:
             row["window"] = window_record(str(case.get("case_id")), window_observation, first[2] if first else [])
+    if rp.watch is not None:
+        row["watch"] = rp.watch.summary(stamps, rp.start if observed else None)
     row["action_match"] = bool(case.get("label_positive")) and row["action"] == case.get("label_action")
     row["alarm_match"] = bool(case.get("label_positive")) and row["action"] != "continue"
     return row
+
+
+# --------------------------------------------------------------------------- live_watch alert source
+
+
+class WatchAlerts:
+    """The ``live_watch`` integrity alerts of a trajectory, as a live job's ``watch/alerts.jsonl`` would
+    hold them at each prefix (the Harbor source reads those rows, so ``trace_alarm`` hits exist in replay).
+
+    :meth:`alerts_at` is exact: ``tripwires.scan_prefix`` over the first ``n`` steps (the causal live
+    rules, no file-access sensor, no task manifest, no pre-agent git baseline, so ``hidden_test_read``,
+    ``git_object_read`` and a file-evidenced ``grader_tamper`` cannot fire) fed to
+    ``live_watch.integrity_alerts``. A live watch writes each rule once, when it first fires, and the alert
+    stays in the file, so :meth:`at` returns every rule that has fired by ``n`` steps. The first prefix of
+    each rule is found by bisection on ``alerts_at`` (the causal rules only add hits as steps arrive; the
+    tests, and an exhaustive scan of the alerting cases in the cheat-watch-replay experiment, agree with
+    it), which costs ``log2(steps)`` scans per rule instead of one per step.
+    """
+
+    def __init__(self, run_id: str, steps: Sequence[Mapping[str, Any]]) -> None:
+        self._run_id = run_id
+        self._steps = [dict(s) for s in steps]
+        self._computed = False
+        self._by_rule: dict[str, tuple[int, list[dict[str, Any]]]] = {}
+
+    def alerts_at(self, n: int) -> list[dict[str, Any]]:
+        from evallab.live_watch import integrity_alerts, wire_signals
+        from evallab.tripwires import scan_prefix
+
+        prefix = self._steps[:n]
+        agent = [s for s in prefix if str(s.get("source", "")).lower() in ("agent", "assistant")]
+        wires = scan_prefix(agent, steps=prefix)
+        status = {"job": self._run_id, "trial": self._run_id, "task": self._run_id.split("__")[0],
+                  **wire_signals(wires)}
+        return integrity_alerts(status)
+
+    def first_by_rule(self) -> dict[str, tuple[int, list[dict[str, Any]]]]:
+        """``{rule: (n, alerts of that rule)}`` for the smallest prefix length ``n`` at which each rule that
+        fires on the whole trace first fires (a live job writes each rule once, when it first fires)."""
+        if not self._computed:
+            self._computed = True
+            total = len(self._steps)
+            full = self.alerts_at(total) if total else []
+            for rule in sorted({a["rule"] for a in full}):
+                low, high = 0, total
+                found = [a for a in full if a["rule"] == rule]
+                while high - low > 1:
+                    middle = (low + high) // 2
+                    alerts = [a for a in self.alerts_at(middle) if a["rule"] == rule]
+                    if alerts:
+                        high, found = middle, alerts
+                    else:
+                        low = middle
+                self._by_rule[rule] = (high, found)
+        return self._by_rule
+
+    def at(self, visible: int) -> list[dict[str, Any]]:
+        """Alert rows open after ``visible`` steps: every rule that has fired by then, earliest first."""
+        ordered = sorted(self.first_by_rule().items(), key=lambda item: (item[1][0], item[0]))
+        return [a for _, (n, alerts) in ordered if n <= visible for a in alerts]
+
+    def summary(self, stamps: Sequence[float], start: float | None) -> dict[str, Any]:
+        """What the row records: the first alert's rules and step, and every rule firing on the whole
+        trace. ``elapsed_s`` is set only with an observed clock (``start`` given)."""
+        by_rule = self.first_by_rule()
+        if not by_rule:
+            return {"first_visible": None, "first_rules": [], "first_step": None, "elapsed_s": None,
+                    "final_rules": [], "rule_first_visible": {}}
+        n = min(v[0] for v in by_rule.values())
+        first = [alerts for _, (m, alerts) in sorted(by_rule.items()) if m == n]
+        step = next((a["step_ref"].rsplit("#", 1)[-1] for alerts in first for a in alerts if a.get("step_ref")), None)
+        elapsed = round(stamps[n - 1] - start, 3) if start is not None and n - 1 < len(stamps) else None
+        return {"first_visible": n, "first_rules": sorted(rule for rule, (m, _) in by_rule.items() if m == n),
+                "first_step": step, "elapsed_s": elapsed, "final_rules": sorted(by_rule),
+                "rule_first_visible": {rule: m for rule, (m, _) in sorted(by_rule.items())}}
 
 
 # --------------------------------------------------------------------------- Harbor / store adapter
@@ -396,7 +475,7 @@ def _onset_epoch(onset: Any, kind: Any, steps: Sequence[Mapping[str, Any]], stam
 
 def health_replayable(case: Mapping[str, Any], run: HealthRun, *, owner: str = "lab", killable: bool = True,
                       trial_observation: Callable[..., ls.Observation] | None = None,
-                      source: ls.Source | None = None) -> Replayable:
+                      source: ls.Source | None = None, watch_alerts: bool = True) -> Replayable:
     """A Harbor-shaped run (a trial directory or a store run) as a replayable subject."""
     if trial_observation is None or source is None:
         from evallab.production import live_supervisor_harbor as harbor
@@ -426,14 +505,17 @@ def health_replayable(case: Mapping[str, Any], run: HealthRun, *, owner: str = "
     subject = ls.Subject(kind="harbor_trial", id=str(case.get("case_id") or run.run_id), owner=owner,
                          killable=killable and owner == "lab", run_id=run.run_id)
 
+    watch = WatchAlerts(run.run_id, steps) if watch_alerts else None
+
     def observe(visible: int, now: datetime) -> ls.Observation:
         prefix = steps[:visible]
         visible_meta = {**meta, "actor_inputs_available": _actor_inputs(prefix)}
         return trial_observation(HealthRun(run.run_id, run.source, prefix, visible_meta),
-                                 subject=subject, now=now)
+                                 subject=subject, now=now, alerts=watch.at(visible) if watch else ())
 
     return Replayable(subject, source, tuple(stamps), start, end, observe,
-                      onset=_onset_epoch(case.get("onset"), case.get("onset_kind"), steps, stamps), timing=timing)
+                      onset=_onset_epoch(case.get("onset"), case.get("onset_kind"), steps, stamps), timing=timing,
+                      watch=watch)
 
 
 def _actor_inputs(steps: Sequence[Mapping[str, Any]]) -> bool:
@@ -461,8 +543,10 @@ def ensure_store_copy(live: Path, copy: Path = DEFAULT_STORE_COPY) -> Path:
 class Loader:
     """Turns a manifest row into a :class:`Replayable`; owns the store copy and a run cache."""
 
-    def __init__(self, *, store_copy: Path = DEFAULT_STORE_COPY, registry: Any = None) -> None:
+    def __init__(self, *, store_copy: Path = DEFAULT_STORE_COPY, registry: Any = None,
+                 watch_alerts: bool = True) -> None:
         self.store_copy = store_copy
+        self.watch_alerts = watch_alerts
         self._registry = registry
         self._store: dict[str, HealthRun] = {}
         self.not_admitted: set[str] = set()
@@ -497,14 +581,15 @@ class Loader:
             run = self._store.get(trace_id)
             if run is None:
                 raise LookupError(f"{trace_id}: not returned by run_health.store_runs (registry admission refused)")
-            return health_replayable(case, run)
+            return health_replayable(case, run, watch_alerts=self.watch_alerts)
         if kind in ("harbor_trial", "store_run"):
             from evallab.production.run_health import trial_run
 
             directory = Path(locator["trial_dir"])
             run_id = str(locator.get("trace_id") or directory.name)
             return health_replayable(case, trial_run(directory, run_id=run_id,
-                                                     source="harbor" if kind == "harbor_trial" else "cheatbench"))
+                                                     source="harbor" if kind == "harbor_trial" else "cheatbench"),
+                                     watch_alerts=self.watch_alerts)
         if kind == "omp_lane":
             from evallab.production import live_supervisor_fleet as fleet
 
@@ -734,27 +819,27 @@ def _run_serial(cases: Sequence[Mapping[str, Any]], decider: ls.Decider | None,
     return rows, findings, windows
 
 
-def _run_chunk(cases: Sequence[Mapping[str, Any]], store_copy: Path
+def _run_chunk(cases: Sequence[Mapping[str, Any]], store_copy: Path, watch_alerts: bool
                ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    return _run_serial(cases, None, Loader(store_copy=store_copy))
+    return _run_serial(cases, None, Loader(store_copy=store_copy, watch_alerts=watch_alerts))
 
 
 def run_cases(cases: Sequence[Mapping[str, Any]], *, decider: ls.Decider | None = None,
               loader: Loader | None = None, workers: int = 1,
-              store_copy: Path = DEFAULT_STORE_COPY
+              store_copy: Path = DEFAULT_STORE_COPY, watch_alerts: bool = True
               ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Replay every case; returns (rows in case order, findings, adjudication windows). A case that cannot be loaded or
     replayed yields a row with ``error`` instead of stopping the run. ``workers > 1`` fans
     :data:`STORE_CHUNK`-bounded chunks (about four per worker) out to processes (rule decider only: a decider is not shipped)."""
     if workers <= 1:
-        return _run_serial(cases, decider, loader or Loader(store_copy=store_copy))
+        return _run_serial(cases, decider, loader or Loader(store_copy=store_copy, watch_alerts=watch_alerts))
     if decider is not None or loader is not None:
         raise ValueError("workers > 1 replays with the rule decider and a default loader only")
     size = max(1, min(STORE_CHUNK, len(cases) // (workers * 4) or 1))
     chunks = [list(cases[i:i + size]) for i in range(0, len(cases), size)]
     parts: list[tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]] = []
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(_run_chunk, chunk, store_copy) for chunk in chunks]
+        futures = [pool.submit(_run_chunk, chunk, store_copy, watch_alerts) for chunk in chunks]
         for done, future in enumerate(as_completed(futures), 1):
             parts.append(future.result())
             print(f"replay: {done}/{len(chunks)} chunks", file=sys.stderr, flush=True)
@@ -784,6 +869,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="read-only copy of the cloud trace DB; created with sqlite backup from the manifest's db if missing")
     parser.add_argument("--limit-per-set", type=int, help="replay only the first N cases of each set (smoke runs)")
     parser.add_argument("--workers", type=int, default=1, help="processes (rule decider only)")
+    parser.add_argument("--no-watch-alerts", action="store_true",
+                        help="do not replay the live_watch integrity alerts (the pre-LS-cheat baseline)")
     args = parser.parse_args(argv)
     cases = read_manifest(args.manifest)
     if args.sets:
@@ -800,7 +887,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                  if c.get("subject_kind") == "store_run" and (c.get("locator") or {}).get("db")), None)
     if live is not None:
         ensure_store_copy(live, args.store_copy)
-    rows, findings, windows = run_cases(cases, workers=args.workers, store_copy=args.store_copy)
+    rows, findings, windows = run_cases(cases, workers=args.workers, store_copy=args.store_copy,
+                                        watch_alerts=not args.no_watch_alerts)
     out = args.out.expanduser()
     _write_jsonl(out, rows)
     _write_jsonl(args.windows_out or out.with_name(f"{out.stem}-windows.jsonl"), windows)

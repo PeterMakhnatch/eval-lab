@@ -1,0 +1,20 @@
+{
+  "schema": "np38-resumption-plan/v1",
+  "authorization": "Parent written GO, 2026-10-29 ET; infrastructure gate read failure, not refusal, model mismatch, or call cap",
+  "seen_before_resumption": {
+    "facet_S_alarms": 3,
+    "facet_S_read": 16,
+    "facet_non_S_alarms": 0,
+    "facet_non_S_read": 16,
+    "stage1_S_pass_through_runs": 27,
+    "stage1_non_S_pass_through_runs": 0,
+    "stage1_group_size": 60
+  },
+  "decision_basis": "Parent authorized continuation on infrastructure grounds, not the observed numbers.",
+  "resume_reason": "omp usage returned no windows (infrastructure), 16 pairs read, no refusal/mismatch",
+  "rescore_reason": "first score was a stopped prefix after a gate read failure; frozen design completed",
+  "prefix_score_sha256": "3ff4559753dbd682b719400455f729e96bcf3755acee09db1cf5568427391668",
+  "original_freeze_sha256": "cc2b6b977bdfea2b9b9e5161b8b7966fae3920427b8adecd81dbb1375c2d2ca2",
+  "change": "Wrapper-only usage read: at most five attempts with 10-second spacing after read errors, every attempt logged; at or above 85 percent still stops immediately. Original detector, models, prompts, rules, sample, 500-attempt cap and breakers unchanged.",
+  "analysis": "Retain and publish the existing stopped-prefix score as a pre-resumption observation. After all 120 facet and cascade rows are complete, log the stated reason and generate one final score with the original scoring function at a separate path. The complete-sample score is primary, with the unblinding/resumption disclosure; no expansion or detector tuning."
+}

@@ -417,76 +417,77 @@
     "run-health": {
       "by_actor_transcript": {
         "False": 49,
-        "True": 266
+        "True": 965
       },
       "by_granularity": {
-        "run": 180,
+        "run": 879,
         "segment": 135
       },
       "by_kind": {
         "infra": 54,
-        "latency": 49,
-        "loop": 140,
+        "latency": 254,
+        "loop": 634,
         "runaway": 72
       },
       "by_kind_polarity_split": {
         "infra|positive|DEV": 54,
-        "latency|positive|DEV": 49,
+        "latency|positive|DEV": 254,
         "loop|negative|DEV": 125,
-        "loop|positive|DEV": 15,
+        "loop|positive|DEV": 509,
         "runaway|positive|DEV": 72
       },
       "by_label_type": {
-        "detector": 180,
+        "detector": 879,
         "judge": 135
       },
       "by_license": {
-        "None": 315
+        "None": 1014
       },
       "by_polarity": {
         "negative": 125,
-        "positive": 190
+        "positive": 889
       },
       "by_split": {
-        "DEV": 315
+        "DEV": 1014
       },
-      "count": 315,
+      "count": 1014,
       "itemized": true,
-      "positive_units": 127,
-      "runnable_in_harness": 315,
-      "sha256": "a291e28e6a9714cc50ce45b8d26fcdc7f09877f00b8e56022b0599e3913ec2dc"
+      "positive_units": 832,
+      "runnable_in_harness": 1014,
+      "sha256": "84f8a15c99be6f6f17c55f1d83d24bbc3aa60a016e20328166980e03addbc767"
     },
     "seeker": {
       "by_actor_transcript": {
         "False": 8,
-        "True": 40
+        "None": 4,
+        "True": 37
       },
       "by_granularity": {
-        "run": 48
+        "run": 49
       },
       "by_kind": {
-        "infra": 48
+        "infra": 49
       },
       "by_kind_polarity_split": {
-        "infra|positive|DEV": 48
+        "infra|positive|DEV": 49
       },
       "by_label_type": {
-        "executed": 48
+        "executed": 49
       },
       "by_license": {
-        "None": 48
+        "None": 49
       },
       "by_polarity": {
-        "positive": 48
+        "positive": 49
       },
       "by_split": {
-        "DEV": 48
+        "DEV": 49
       },
-      "count": 48,
+      "count": 49,
       "itemized": true,
       "positive_units": 0,
       "runnable_in_harness": 0,
-      "sha256": "14378b9a89a46d8b7f4be96d6c39670a9fe3ea5fa73d248eefbe0d25fcaa18e6"
+      "sha256": "29b03f12b8b8f1c39f581e22e8a28142d740b3b42c150bb2e930415900c8da5c"
     }
   },
   "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
@@ -497,7 +498,7 @@
       "negative|cross_test": 13666,
       "negative|cross_test(summary)": 0,
       "negative|heldout": 79074,
-      "positive|DEV": 53046,
+      "positive|DEV": 53746,
       "positive|TEST": 1738,
       "positive|cross_test": 6100,
       "positive|cross_test(summary)": 169,
@@ -524,11 +525,11 @@
       "library-findings|task_defect": 266,
       "library-runs|cheat": 230033,
       "run-health|infra": 54,
-      "run-health|latency": 49,
-      "run-health|loop": 140,
+      "run-health|latency": 254,
+      "run-health|loop": 634,
       "run-health|runaway": 72,
-      "seeker|infra": 48
+      "seeker|infra": 49
     },
-    "items": 252318
+    "items": 253018
   }
 }

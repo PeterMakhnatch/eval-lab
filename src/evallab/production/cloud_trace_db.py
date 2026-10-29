@@ -1643,6 +1643,11 @@ _RETRIEVAL_CARDS_EXPAND = (
 )
 #: ``format_retrieval_prompt_block`` renderings, fullest first.
 FORMAT_MODES = ("full", "compact_cards")
+#: Example fields that name the source benchmark, the split or the label an example
+#: was published with. The structured example (``to_dict``, ``provenance``) keeps
+#: them for consumers that read fields; no rendered prompt block shows them, so a
+#: model never sees which benchmark, split or label verdict an example came from.
+_PROMPT_WITHHELD_PROVENANCE = frozenset({"dataset_id", "split", "label_categories", "receipt_status"})
 _REGISTRY_LOAD_ERRORS = (OSError, ValueError, KeyError, TypeError, csv.Error)
 _STEP_ROLE_RANK = {"assistant": 0, "tool": 1}
 _EVIDENCE_IDENTITIES = frozenset({
@@ -1925,7 +1930,7 @@ class RetrievedExample:
         if self.defect_class is not None:
             head += f" - {self.defect_class} ({self.direction}, {self.status})"
         lines = [_clip(head, 400)]
-        source = f"dataset {self.dataset_id}; issue {self.issue_id}; trace {self.trace_id}"
+        source = f"issue {self.issue_id}; trace {self.trace_id}"
         lines.append(_clip(f"- source: {source}", 400))
         if self.trust_tier is not None:
             lines.append(f"- trust: {self.trust_tier}")
@@ -1941,8 +1946,9 @@ class RetrievedExample:
                 f"- trace {self.trace_id} (model {self.model_id}, outcome {self.outcome}):", 400,
             ))
             lines.extend(step.prompt_line() for step in self.steps)
-        if self.provenance:
-            lines.append(_clip(f"- provenance: {_json_text(self.provenance)}", 400))
+        shown = {key: value for key, value in self.provenance.items() if key not in _PROMPT_WITHHELD_PROVENANCE}
+        if shown:
+            lines.append(_clip(f"- provenance: {_json_text(shown)}", 400))
         return lines
 
     @property
@@ -2511,8 +2517,12 @@ class CloudTraceRetriever:
         supplied), lexical strength, then task identity. Facets and cluster
         membership hard-filter the trace evidence; any Atlas argument requires
         a matching trace, even for issue-led queries, and permits an empty query.
-        The like-run must be admitted and faceted; its own task is excluded.
-        Tier-3 provisional evidence is omitted unless requested explicitly.
+        Every Atlas argument (``facets``, ``cluster_id``, ``like_run_id``) also
+        requires ``exclude_task_ids`` to name the task under audit: an Atlas
+        query ranks by run similarity, so nothing else keeps the caller's own
+        task out of its evidence. The like-run must be admitted and faceted;
+        its own task is excluded. Tier-3 provisional evidence is omitted unless
+        requested explicitly.
         """
         if not isinstance(include_provisional, bool):
             raise ValueError("include_provisional must be a boolean")
@@ -2533,6 +2543,10 @@ class CloudTraceRetriever:
             for identity in (_text(task_id, "exclude_task_ids"), CorpusRegistry.task_name(task_id))
             if identity
         }
+        if trace_backed and not excluded:
+            raise ValueError(
+                "facets, cluster_id and like_run_id require exclude_task_ids naming the task under audit"
+            )
         terms = tuple(dict.fromkeys(re.findall(r"[^\W_]+", query.casefold(), flags=re.UNICODE)))
         database = self.database
         with database._transaction():

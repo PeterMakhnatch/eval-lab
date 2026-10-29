@@ -3,16 +3,16 @@
 The seeker's turn-2 prompt is built for an agent that must not learn the attacked
 task's own answer, its split, or the source benchmark name. The shared example
 retriever (``CloudTraceDatabase.retrieve_similar_examples``) is built for QA
-workers instead: it excludes only the task ids a caller names, and its rendered
-prompt carries each example's ``instruction`` ("task asks"), label-bearing
-provenance (``label_categories``, ``receipt_status``, trust tiers) and the source
-``dataset_id`` and ``split``.
+workers instead: its rendered block carries each example's ``instruction`` ("task
+asks"), differential, reproducer and trust tier. Since NP22 the shared renderer
+itself withholds ``dataset_id``, ``split``, ``label_categories`` and
+``receipt_status``, and an Atlas query must name an exclusion; this adapter
+remains the seeker's wall for everything else.
 
-``blind_examples`` closes that gap for seeker callers only. It always excludes the
-attacked task, drops a same-task example even if a retriever returns one anyway,
-and withholds the answer, label, split and source fields before the block is
-rendered. The shared API keeps its documented behaviour, so worker-facing
-callers are unchanged.
+``blind_examples`` always excludes the attacked task, drops a same-task example
+even if a retriever returns one anyway, and withholds the answer, label, split and
+source fields before the block is rendered. The shared API keeps its documented
+behaviour, so worker-facing callers are unchanged.
 
 SB-5 measured the input to this decision on the 44-task DEV cohort (44 targets x
 3 modes, 396 examples): zero same-task examples, zero ``differential`` or

@@ -63,9 +63,12 @@ Recall is not monotonic in the prefix length: highest at 50%, lowest at 100%.
 | 50% | 10/25 = 40.0% (23.4–59.3) | 13/25 = 52.0% (33.5–70.0) | 20 | 10/20 = 50.0% (29.9–70.1) | 12/20 = 60.0% |
 | 100% | 7/25 = 28.0% (14.3–47.6) | 9/25 = 36.0% (20.2–55.5) | 25 | 7/25 = 28.0% | 9/25 = 36.0% |
 
-Runs citing any step: 11 / 16 / 9 of 50 reads (so 39, 34, 41 of the 50 reads cited nothing). Exploreratory
-(defined after the primary): 15/25 enacted runs have an exact citation at some prefix — first at 25% for 10,
-50% for 3, 100% for 2; 5 of the 10 exact at 50% are still exact at 100%.
+Runs citing any step: 11 / 16 / 9 of the 25 enacted reads cite at least one step, i.e. **14 / 9 / 16 of 25
+enacted reads cite no step at all**; over all 50 reads per prefix the counts are 19 / 27 / 18 citing any (31 /
+23 / 32 citing none). So the drop in exact hits at 100% is partly a drop in citation coverage (9 of 25 enacted
+runs cite anything at all) and not only a drop in placement accuracy; `score.json` does not separate the two.
+Exploratory (defined after the primary): 15/25 enacted runs have an exact citation at some prefix — first at 25%
+for 10, 50% for 3, 100% for 2; 5 of the 10 exact at 50% are still exact at 100%.
 
 ## Against CM-16 (same sample, same schedule, reader Haiku)
 
@@ -79,20 +82,38 @@ Runs citing any step: 11 / 16 / 9 of 50 reads (so 39, 34, 41 of the 50 reads cit
 | within 5 | 13 / 15 / 23 | 10 / 13 / 9 |
 | input tokens per read | 20.3k / 28.1k / 40.1k | 17.2k / 27.3k / 38.4k |
 
-## Meaning (stated, not tuned)
+## Meaning (interpretation of the counts above; points 1–3 are inference, not additional measurements)
 
-1. **The prefix is not what blocks the `suspicion >= 2` route** — a stronger reader changes nothing there:
-   Sonnet reaches 2 on one enacted run at the shortest prefix and on none at 50 or 100%, with no clean false
-   alarms. Both readers return `suspicion` 0 for four in five full runs, so whole-run facet suspicion is a
-   threshold problem of the facet schema/reader at this severity level, not a context-length problem.
-2. **At the milder `>=1` level, Sonnet is materially more sensitive than Haiku** (9/25 at 50% vs 2/25) at a
-   cost of one clean false alarm at 50% — and it peaks mid-run, so if anything 50% is the informative prefix
-   for a `>=1` operating point feeding a Stage-2 judge over the cited window (the CM-13/CM-19 route), not 100%.
-3. **Citation localization does not improve with more context for Sonnet** (exact 62.5% → 50% → 28% among runs
-   whose labelled step is in the prefix) while Haiku's improved (62.5% → 60% → 68%); the mechanism visible in
-   the counts is that Sonnet cites no step at all in 39 / 34 / 41 of the 50 reads per prefix, and it cites
-   nothing more often on full runs. A cited-window cascade therefore loses evidence at full length with this
-   reader — an observation, not a preregistered claim.
+1. **Observation:** with Sonnet the `suspicion >= 2` route is empty at 50% and 100% (0/25 each) and has one hit
+   at 25%; at 100% 46 of the 50 reads sit at suspicion 0 (21/25 enacted, 25/25 clean) and the other 4 at 1.
+   **Inference:** for this severity level the limiting factor is the facet severity scale the readers produce on
+   Goodfire DEV, not how much of the run is shown — a stronger reader taken from CM-18 (69% recall there) still
+   does not produce `>= 2` here. This is a hypothesis about where to look next, consistent with both readers,
+   not something 150 reads can establish.
+2. **Observation:** at the milder `>= 1` level Sonnet flags more enacted runs than Haiku at every prefix
+   (5 / 9 / 4 vs 3 / 2 / 1 of 25) and pays one clean false alarm (at 50%). **Inference:** if a `>= 1` operating
+   point were ever considered, the middle prefix is the one worth carrying into a Stage-2 judge over the cited
+   window (the CM-13/CM-19 route) — 50% has the highest recall and the only false alarm, so this is a hint to
+   test, not a finding; recall is not monotonic and one false alarm in 25 does not rank prefixes.
+3. **Observation:** exact citation among runs whose labelled step is inside the prefix falls with more context
+   (10/16 = 62.5%, 10/20 = 50.0%, 7/25 = 28.0%), while Haiku's rises (62.5%, 60%, 68%). **Inference:** part of
+   the fall is coverage, not placement — 14 / 9 / 16 of the 25 enacted reads cite no step at all, and 100% has
+   the fewest citing runs (9 of 25) — so a cited-window cascade with this reader would lose evidence at full
+   length; `score.json` cannot separate coverage from placement, so this stays a hypothesis.
 4. Limits: one cohort (Goodfire DEV, 25 + 25, size-capped sample as in CM-16), one reader pass at production
    defaults, wide Wilson intervals (a 0/25 cell has a 13.3% upper bound); no replication, no threshold tuning,
    no precision claim from HackBench because the gate did not pass.
+
+## CI state after merge (disclosed)
+
+The `quality`, `typecheck` and `mcp-wheelhouse-platform` workflows passed on the PR; the `perf` workflow failed
+on the PR head (`c805b0ef1`) in its `profile` job — `projection` median 211.169 ms and `facts` 56.546 ms against
+a 25 ms budget (ceiling 37.5 ms). This slice changes only files under `research/evidence/`, so it cannot move a
+CLI speed budget, and the evidence is direct: the **same commit on `main` after the squash merge, `1ae758c39`,
+passed `perf`** (push run 40787901511, 23:31:01Z), while an unrelated concurrent PR branch (`b3-cm16-kimi`,
+`2660e10c5`) failed the same job in the same window (run 40787256778) and `main` before the merge
+(`009f0d50a`, run 40787192746) passed. Independent of this slice, `main` itself was already red on the same job
+at 23:03:23Z (push `4b0d6e142`, run 40784569418: `projection` 184.004 ms, `facts` 74.983 ms), reported by the
+B3 slice from its own logs. `profile` is not a required status context (branch protection requires
+`quality-required` and `typecheck-required`), which is why auto-merge completed. The failure is runner /
+scratch-Postgres timing variance against a fixed 25 ms budget, not this change.

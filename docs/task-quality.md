@@ -77,8 +77,26 @@ trace only, and the `- provenance:` line omits those four keys (it is dropped wh
 nothing else is left). The structured example (`to_dict()`, `provenance`, the flat
 fields) keeps all four for callers that read fields. Task, trace and issue
 identifiers (which can embed a dataset name), instruction, differential, reproducer,
-outcome and trust tier are still rendered for QA workers; a blind reader must go
-through `seeker_blind_examples.blind_examples`, which withholds those too.
+outcome, trust tier and the per-step `FLAGGED` passage marker are still rendered for
+QA workers. The block header no longer names the split.
+
+**What "no leak" means is defined, not claimed.** `retrieval_leak_check.rendered_leaks`
+searches the rendered text (never the struct) for a fixed list, per profile. `shared`
+(the QA-worker block): the field names above, the phrase `dev split`, and each
+example's dataset name, label categories and receipt status as values; identifiers
+(including a clipped `<dataset>/...` or `<dataset>@...` token) are blanked first, a
+named residual. `blind` (the seeker): all of that with no blanking, plus the
+original identifiers, the fields `flagged_step_indices` and `passage_window`, the word
+`reward` and the marker `FLAGGED`. Matching is case-insensitive, and a non-word
+character (a hyphen, a slash) bounds a value. Step bodies (what the agent ran or saw)
+are evidence and are only reported on request; a status, outcome, defect class or
+direction shown on purpose is a named residual for both profiles. A blind reader goes
+through `seeker_blind_examples.blind_examples`: it withholds instruction,
+differential, reproducer, citation, the issue record and trust tier, replaces task,
+issue and trace identifiers with opaque stable handles (`example-<10 hex>`, not lookup
+keys), clears the passage label, and keeps only an allowlist of provenance keys, so
+its rendered block (full and `compact_cards`) passes `blind`; the shared block fails
+`blind` by design. Check against the examples as retrieved, never the blinded copies.
 
 ```python
 from evallab.production import (

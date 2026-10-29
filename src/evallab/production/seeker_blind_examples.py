@@ -14,16 +14,19 @@ even if a retriever returns one anyway, and withholds the answer, label, split a
 source fields before the block is rendered. The shared API keeps its documented
 behaviour, so worker-facing callers are unchanged.
 
-SB-5 measured the input to this decision on the 44-task DEV cohort (44 targets x
-3 modes, 396 examples): zero same-task examples, zero ``differential`` or
-``reproducer`` fields, but every facet-path example carried an ``instruction``
-and label-bearing provenance keys, and ``dataset_id``/``split`` rendered into the
-prompt text. The adapter makes those channels impossible for the seeker
-regardless of what the store holds later.
+What "blind" means is defined, and checkable, in
+:mod:`evallab.production.retrieval_leak_check` (profile ``blind``): a fixed list of
+forbidden fields and tokens searched in the rendered text. SB-5 measured the input
+to this decision on the 44-task DEV cohort; NP23 found that the first version of
+this adapter still rendered the benchmark name (inside task and trace identifiers),
+the word "reward" (inside the same identifiers) and ``FLAGGED`` passage markers, so
+identifiers are now opaque handles and the passage label is cleared.
 """
 
 from __future__ import annotations
 
+import hashlib
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, Protocol
@@ -31,23 +34,18 @@ from typing import Any, Protocol
 from evallab.production.cloud_trace_db import RetrievedExample
 from evallab.production.corpus_queue import CorpusRegistry
 
-#: Provenance keys that name a label, a split, a confidence tier or a source
-#: store. They stay available to QA workers through the shared API; a blind
-#: reader never sees them.
-BLIND_WITHHELD_PROVENANCE = frozenset(
-    {
-        "dataset_id",
-        "split",
-        "label_categories",
-        "receipt_status",
-        "trust_tier",
-        "issue_trust_tier",
-        "trace_trust_tier",
-        "raw_cas_uri",
-        "issue_cas_uri",
-        "task_cas_uri",
-        "observation_cas_uris",
-    }
+#: The only provenance keys a blind reader sees. Everything else (labels, split,
+#: trust tiers, CAS URIs, passage markers, identifiers that embed the source
+#: benchmark's name, and any key a later change adds) is dropped: an allowlist,
+#: because a denylist leaks the next key someone stores.
+BLIND_ALLOWED_PROVENANCE = frozenset(
+    {"step_indices", "model_id", "facet_similarity", "run_facets_matched"}
+)
+
+#: Step keys the renderers read; a step's own ``trace_id``, CAS URI and feature
+#: flags are not among them.
+_STEP_KEYS = frozenset(
+    {"step_index", "role", "tool_name", "command_or_action", "content_text", "observation_preview", "flagged"}
 )
 
 #: Flat fields that reproduce another task's prompt or its graded verdict.
@@ -60,12 +58,19 @@ class ExampleRetriever(Protocol):
     def retrieve_similar_examples(self, query: str, *args: Any, **kwargs: Any) -> list[RetrievedExample]: ...
 
 
-def _withheld(provenance: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        key: value
-        for key, value in provenance.items()
-        if key not in BLIND_WITHHELD_PROVENANCE
-    }
+def opaque_id(kind: str, value: str | None) -> str | None:
+    """A stable, one-way handle for an identifier that embeds the source benchmark's name.
+
+    Idempotent, so blinding an already blinded example changes nothing. The handle
+    is not a lookup key: a blind reader has no tool to expand it.
+    """
+    if not value or re.fullmatch(r"(example|issue|trace)-[0-9a-f]{10}", value):
+        return value
+    return f"{kind}-{hashlib.sha256(value.encode()).hexdigest()[:10]}"
+
+
+def _allowed(provenance: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in provenance.items() if key in BLIND_ALLOWED_PROVENANCE}
 
 
 def blind_example(example: RetrievedExample) -> RetrievedExample:
@@ -74,17 +79,27 @@ def blind_example(example: RetrievedExample) -> RetrievedExample:
     ``dataset_id`` and ``trust_tier`` are cleared as attributes too, not only in
     provenance: the rendered block prints them in its ``- source:`` and
     ``- trust:`` lines, which is how the source benchmark name and the label
-    tier would otherwise reach a blind reader.
+    tier would otherwise reach a blind reader. Task, issue and trace identifiers
+    embed the benchmark name (and, for a reward-hacking corpus, the word
+    "reward"), so they become opaque handles, and the publisher's per-step
+    ``FLAGGED`` passage label is cleared.
     """
     return replace(
         example,
+        task_id=opaque_id("example", example.task_id) or "",
+        issue_id=opaque_id("issue", example.issue_id),
+        trace_id=opaque_id("trace", example.trace_id),
         instruction=None,
         differential=None,
         reproducer=None,
+        citation=None,
+        issue=None,
         dataset_id="",
         split="",
         trust_tier=None,
-        provenance=_withheld(example.provenance),
+        steps=tuple(replace(step, flagged=False) for step in example.steps),
+        trace_steps=[{**{k: v for k, v in step.items() if k in _STEP_KEYS}, "flagged": False} for step in example.trace_steps],
+        provenance=_allowed(example.provenance),
         prompt_text="",
     )
 

@@ -6,12 +6,18 @@ from typing import Any
 
 import pytest
 
-from evallab.production.cloud_trace_db import RetrievedExample
+from evallab.production.cloud_trace_db import (
+    RetrievedExample,
+    RetrievedStep,
+    format_retrieval_prompt_block,
+)
+from evallab.production.retrieval_leak_check import rendered_leaks
 from evallab.production.seeker_blind_examples import (
+    BLIND_ALLOWED_PROVENANCE,
     BLIND_WITHHELD_FIELDS,
-    BLIND_WITHHELD_PROVENANCE,
     blind_example,
     blind_examples,
+    opaque_id,
     render_blind,
 )
 
@@ -94,7 +100,7 @@ def test_atlas_arguments_pass_through() -> None:
 def test_a_same_task_example_is_dropped_even_if_returned(task_id: str) -> None:
     retriever = FakeRetriever([example(task_id=task_id), example(task_id="ns/different@v2")])
     found = blind_examples(retriever, TARGET, "weak_check")
-    assert [item.task_id for item in found] == ["ns/different@v2"]
+    assert [item.task_id for item in found] == [opaque_id("example", "ns/different@v2")]
 
 
 @pytest.mark.parametrize("field", BLIND_WITHHELD_FIELDS)
@@ -103,16 +109,15 @@ def test_answer_and_prompt_fields_are_withheld(field: str) -> None:
     assert getattr(blinded, field) is None
 
 
-@pytest.mark.parametrize("key", sorted(BLIND_WITHHELD_PROVENANCE))
-def test_label_split_and_source_provenance_is_withheld(key: str) -> None:
-    blinded = blind_example(example())
-    assert key not in blinded.provenance
-
-
-def test_harmless_provenance_survives() -> None:
-    blinded = blind_example(example())
-    assert blinded.provenance["trace_ids"] == ["trace-1"]
-    assert blinded.provenance["step_indices"] == [3]
+def test_only_allowlisted_provenance_survives_including_a_key_nobody_thought_of() -> None:
+    labelled = example(provenance={
+        **example().provenance, "run_id": "example-benchmark-v1@sha/run", "flagged_step_indices": [3],
+        "passage_window": True, "model_id": "model-x", "something_stored_next_year": "example-benchmark-v1/zzz",
+    })
+    blinded = blind_example(labelled)
+    assert set(blinded.provenance) == {"step_indices", "model_id"}
+    assert set(blinded.provenance) <= BLIND_ALLOWED_PROVENANCE
+    assert rendered_leaks([labelled], blinded.prompt_text, "blind") == []
 
 
 def test_source_attributes_are_cleared_not_only_provenance() -> None:
@@ -123,13 +128,44 @@ def test_source_attributes_are_cleared_not_only_provenance() -> None:
     assert "example-benchmark-v1" not in blinded.prompt_text
 
 
-def test_rendered_prompt_carries_no_source_split_or_label_text() -> None:
-    retriever = FakeRetriever([example()])
-    (blinded,) = blind_examples(retriever, TARGET, "weak_check")
-    text = blinded.prompt_text
-    for token in ("example-benchmark-v1", "tier1_container_verified", "reward_hack", "label_categories"):
-        assert token not in text
-    assert "split" not in text.lower().split("source:")[0] or '"split"' not in text
+def _leaky() -> RetrievedExample:
+    return example(
+        task_id="example-benchmark-v1/reward-task@v2", trace_id="example-benchmark-v1/run/abc",
+        citation="tests/example-benchmark-v1/check.py:3",
+        issue={"reproducer_script": "cat /logs/verifier/reward.txt # reward", "task_id": "example-benchmark-v1/reward-task@v2"},
+        trace_steps=[
+            {"step_index": 3, "role": "assistant", "command_or_action": "ls", "flagged": True,
+             "trace_id": "example-benchmark-v1/run/abc", "observation_cas_uri": "cas://sha256/ab"},
+        ],
+        steps=(
+            RetrievedStep(step_index=3, role="assistant", tool_name="bash", command_or_action="ls", observation=None, flagged=True),
+        ),
+        provenance={
+            **example().provenance, "receipt_status": "receipt-marker", "run_id": "example-benchmark-v1@sha/run",
+            "flagged_step_indices": [3], "passage_window": True,
+        },
+    )
+
+
+def test_rendered_prompt_passes_the_blind_leak_check_where_the_raw_block_fails_it() -> None:
+    raw = _leaky()
+    assert rendered_leaks([raw], raw.prompt_text, "blind")  # the unblinded block is exactly what the check must catch
+    (blinded,) = blind_examples(FakeRetriever([raw]), TARGET, "weak_check")
+    assert rendered_leaks([raw], blinded.prompt_text, "blind") == []
+    assert "ls" in blinded.prompt_text  # the evidence a seeker may use is still there
+
+
+def test_the_compact_card_of_a_blinded_example_leaks_neither_reproducer_nor_citation() -> None:
+    raw = _leaky()
+    card = format_retrieval_prompt_block([blind_example(raw)], format_mode="compact_cards")
+    assert rendered_leaks([raw], card, "blind") == []
+    assert "reward.txt" not in card and "check.py" not in card and "[None]" not in card
+
+
+def test_the_structured_blinded_example_keeps_no_issue_citation_or_step_identity() -> None:
+    blinded = blind_example(_leaky())
+    assert blinded.issue is None and blinded.citation is None
+    assert blinded.trace_steps == [{"step_index": 3, "role": "assistant", "command_or_action": "ls", "flagged": False}]
 
 
 def test_render_blind_blinds_examples_it_is_handed() -> None:

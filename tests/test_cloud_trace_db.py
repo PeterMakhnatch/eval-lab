@@ -6,8 +6,11 @@ All S3 calls are injected; environment credentials are cleared for every test.
 
 from __future__ import annotations
 
+import atexit
+import fcntl
 import hashlib
 import io
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -53,6 +56,79 @@ def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(subprocess, "run", without_docker)
 
 
+def _reap_postgres_directory(root: Path, pg_ctl: str, *, allow_missing_pid: bool = False) -> None:
+    """Reap only our unlocked, same-user fixture directories."""
+    try:
+        if root.is_symlink() or root.stat().st_uid != os.getuid():
+            return
+        lock_path = root / ".fixture-lock"
+        if not lock_path.exists():
+            # Legacy fixtures have no lock; never signal their processes.
+            pidfile = root / "data" / "postmaster.pid"
+            if pidfile.stat().st_uid != os.getuid():
+                return
+            lines = pidfile.read_text().splitlines()
+            if len(lines) < 2 or lines[1] != str(root / "data"):
+                return
+            try:
+                pid = abs(int(lines[0]))
+                if pid <= 1:
+                    return
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                shutil.rmtree(root)
+            except (ValueError, PermissionError):
+                pass
+            return
+        with lock_path.open("r+") as lock:
+            marker = lock.read().splitlines()
+            if lock_path.stat().st_uid != os.getuid() or not marker or marker[0] != "cloud-trace-fixture-v1":
+                return
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return
+            data = root / "data"
+            pidfile = data / "postmaster.pid"
+            if not pidfile.exists() and not allow_missing_pid:
+                return
+            if pidfile.exists():
+                if pidfile.stat().st_uid != os.getuid():
+                    return
+                lines = pidfile.read_text().splitlines()
+                if len(lines) < 2 or lines[1] != str(data):
+                    return
+                try:
+                    pid = int(lines[0])
+                    if abs(pid) <= 1:
+                        return
+                    os.kill(abs(pid), 0)
+                except ProcessLookupError:
+                    pass
+                except (ValueError, PermissionError):
+                    return
+                else:
+                    if pid < 0:
+                        return
+                    if len(lines) < 3 or marker[1:] != [lines[0], lines[2]]:
+                        return
+                    process = subprocess.run(
+                        ["ps", "-p", str(pid), "-o", "command="],
+                        capture_output=True, text=True, check=False,
+                    )
+                    if process.returncode or f"-D {data}" not in process.stdout:
+                        return
+                    stopped = subprocess.run(
+                        [pg_ctl, "-D", str(data), "-m", "fast", "-w", "stop"],
+                        capture_output=True, text=True, check=False,
+                    )
+                    if stopped.returncode:
+                        return
+            shutil.rmtree(root)
+    except (FileNotFoundError, PermissionError):
+        pass
+
+
 @pytest.fixture(scope="module")
 def postgres_server() -> Iterator[str]:
     initdb, pg_ctl = shutil.which("initdb"), shutil.which("pg_ctl")
@@ -70,9 +146,22 @@ def postgres_server() -> Iterator[str]:
                 break
     if initdb is None or pg_ctl is None:
         pytest.skip("native PostgreSQL server binaries are not installed")
-    with tempfile.TemporaryDirectory(prefix="cloud-trace-pg-") as directory:
-        root = Path(directory).resolve()
-        data = root / "data"
+    for stale in Path(tempfile.gettempdir()).resolve().glob("cloud-trace-pg-*"):
+        _reap_postgres_directory(stale, pg_ctl)
+    root = Path(tempfile.mkdtemp(prefix="cloud-trace-pg-")).resolve()
+    data = root / "data"
+    lock = (root / ".fixture-lock").open("w+")
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    lock.write("cloud-trace-fixture-v1\n")
+    lock.flush()
+
+    def cleanup() -> None:
+        if not lock.closed:
+            lock.close()
+            _reap_postgres_directory(root, pg_ctl, allow_missing_pid=True)
+
+    atexit.register(cleanup)
+    try:
         subprocess.run(
             [initdb, "-D", str(data), "-A", "trust", "-U", "postgres", "--no-locale", "--encoding=UTF8"],
             check=True, capture_output=True, text=True,
@@ -81,13 +170,13 @@ def postgres_server() -> Iterator[str]:
             [pg_ctl, "-D", str(data), "-l", str(root / "server.log"), "-o", f"-F -h '' -k {root} -p 5432", "-w", "start"],
             check=True, capture_output=True, text=True,
         )
-        try:
-            yield f"postgresql://postgres@/postgres?host={quote(str(root), safe='')}"
-        finally:
-            subprocess.run(
-                [pg_ctl, "-D", str(data), "-m", "fast", "-w", "stop"],
-                check=True, capture_output=True, text=True,
-            )
+        pid_lines = (data / "postmaster.pid").read_text().splitlines()
+        lock.write(f"{pid_lines[0]}\n{pid_lines[2]}\n")
+        lock.flush()
+        yield f"postgresql://postgres@/postgres?host={quote(str(root), safe='')}"
+    finally:
+        cleanup()
+        atexit.unregister(cleanup)
 
 
 @pytest.fixture(params=("sqlite-fts", "sqlite-like", "postgres"))

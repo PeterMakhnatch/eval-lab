@@ -1,0 +1,39 @@
+{
+  "baseline_revision": "2dea8b9d99b9a312886193cca3989295e36391fe",
+  "store_bytes": 4207423488,
+  "profile_n": 7,
+  "profile_medians_seconds": {
+    "lexical": {"cold_cpu": 0.784083, "cold_wall": 8.723453, "warm_cpu": 0.325008, "warm_wall": 0.744475},
+    "facets": {"cold_cpu": 1.377878, "cold_wall": 16.008007, "warm_cpu": 0.871860, "warm_wall": 3.975181},
+    "anchor": {"cold_cpu": 0.544730, "cold_wall": 5.794450, "warm_cpu": 0.222945, "warm_wall": 0.278959},
+    "cluster": {"cold_cpu": 0.666140, "cold_wall": 0.711590, "warm_cpu": 0.339863, "warm_wall": 0.340193},
+    "cluster+anchor": {"cold_cpu": 0.514999, "cold_wall": 0.601124, "warm_cpu": 0.192450, "warm_wall": 0.222978}
+  },
+  "initial_comparison": {
+    "n": 7,
+    "interleaved_alternating_first": true,
+    "warm_cpu_median_old_new": {
+      "lexical": [0.308290, 0.324576],
+      "facets": [0.556950, 0.631279],
+      "anchor": [0.217085, 0.191761],
+      "cluster": [0.256545, 0.186680],
+      "cluster+anchor": [0.138648, 0.107469]
+    },
+    "concurrent_other_local_work": true
+  },
+  "focused_recheck": {
+    "n": 7,
+    "interleaved_alternating_first": true,
+    "warm_calls_per_process": 5,
+    "baseline_first": [0.439944, 0.313236, 0.295641, 0.342358, 0.385448, 0.452517, 0.271513],
+    "candidate_first": [0.481973, 0.469889, 0.272172, 0.345504, 0.319105, 0.450147, 0.418240],
+    "baseline_warm_medians": [0.207002, 0.210456, 0.128849, 0.129309, 0.217596, 0.125003, 0.128019],
+    "candidate_warm_medians": [0.184765, 0.156170, 0.139042, 0.129966, 0.154874, 0.108163, 0.113313],
+    "baseline_first_median": 0.342358,
+    "candidate_first_median": 0.418240,
+    "baseline_warm_median": 0.129309,
+    "candidate_warm_median": 0.139042
+  },
+  "identity": {"distinct_retrieval_queries": 50, "equal": 50, "withheld_queries": 5, "distinct_withheld_runs_available": 1, "missing_facet_queries": 5, "qa_calls": 24, "qa_equal": 24, "qa_command_names": 14, "qa_equal_refusals": 4},
+  "outcome": "candidate discarded; initial apparent gain did not repeat"
+}

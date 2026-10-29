@@ -1,10 +1,12 @@
-# NP40-TT-1: blocked before reading
+# NP40-TT-1: stopped at the Terra canary
 
 **No Terra or Sol conclusion is available.** The preregistration was committed and pushed at `50d3bc33d274e75cced3e96ee2f6dbb3754846f6`, 2026-10-29 14:33:15 ET, before any study model call. All 246 distinct members of the 123 pairs passed the shared strict Goodfire DEV admission gate (`admitted_task_ids` and `cloud_trace_ids` with the Goodfire dataset); this check did not join labels. The existing pair file already carries the original pair identities and class assignments.
 
-## Blocking transport mismatch
+## Canary attestation blocker
 
-The available `evallab.readers.omp_model` live transport is deliberately sealed: `require_native_omp_transport` rejects every live call because a native reader executed a mutating tool despite no-tools/no-skills/no-extensions flags. Bypassing that safety seal is not a valid way to read untrusted trajectories. The Atlas `GatewayTransport` checks the gateway response's `model`, but its `Completion` and receipts do not contain an OMP session record or `resolvedModelIsFallback`; the available gateway CLI help does not establish a fallback-disabled session-record path. Thus neither available route establishes the assigned per-call session attestation and fallback-off canary. No canary or transcript call was attempted, no new findings were created or merged, and no spend entry is due for a nonexistent call. A safe, attested, fallback-disabled transport is a prerequisite; an empty fallback flag or a gateway-reported model alone cannot prove it.
+The transport addendum was committed and pushed at `f0875b7ebc4d9624a9493d5e1c285425a1bfb633`, 2026-10-29 14:44:40 ET, before the canary. The CM-11 subprocess route used the no-tools flags and an overlay setting `retry.enabled: false`, `retry.modelFallback: false`, and `retry.fallbackChains: {}`. The Terra canary returned `OK`, with `provider: "openai-codex"`, `model: "gpt-6.1-terra"`, and `stopReason: "stop"`, but **no `resolvedModelIsFallback` field anywhere in its JSON event stream**. Therefore the explicitly preregistered fallback-false attestation did not pass; absence is not evidence of fallback or of fallback-free execution. The exact stream and stderr are retained privately under `~/.local/state/evallab-prod-live/trace-harness/np40/canary-terra.stdout.jsonl` and `canary-terra.stderr.txt`. The native OMP reader safety seal was not bypassed.
+
+No transcript calls, Sol canary, new findings, or merge were performed. This is an incomplete study and the separation decision cannot be evaluated.
 
 ## Available reference only
 
@@ -19,4 +21,4 @@ Haiku figures are copied from the prior NP31 report, not a new model call or rea
 
 ## Accounting
 
-Study calls: Terra 0, Sol 0, canary 0; input and output tokens 0; refusals 0; parse failures 0; fallbacks rejected 0. Served-model attestation and fallback-off proof were not performed. `omp usage` reported Codex 7-day 59.0% before and 59.0% after inspection. No Kimi, Opus, paid keys, Docker, HackBench, or ledger edit was used.
+Canary calls: Terra 1, Sol 0; transcript calls: Terra 0, Sol 0. Canary usage: 659 input tokens, 5 output tokens, $0; exact model identity observed once, explicit fallback-false attestations 0, fallbacks observed/rejected 0, missing fallback attestation rejected 1, refusals 0, facet parse failures 0. The $0 receipt was appended to `~/.local/state/evallab-failure-library/spend.jsonl`. Codex 7-day usage was 59.0% before and 60.0% after. No Kimi, Opus, paid keys, Docker, HackBench, or label-ledger edit was used.

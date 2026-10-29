@@ -258,7 +258,7 @@ def _write_heartbeat(root: Path, report: ls.ScanReport, sources: Sequence[ls.Sou
         cap = budget.limit if budget is not None else 0
         if reader == "rules":
             status = "rules"
-        elif isinstance(decider, HeadroomGatedDecider) and decider._blocked is not None:
+        elif isinstance(decider, HeadroomGatedDecider) and decider.blocked() is not None:
             status = "headroom_blocked"
         elif budget is not None and used >= cap:
             status = "budget_exhausted"

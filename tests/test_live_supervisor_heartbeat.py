@@ -66,10 +66,9 @@ def test_model_budget_status_without_reader_call(tmp_path: Path) -> None:
         "budget_exhausted", 25, 25)
 
 
-def test_headroom_status_without_rechecking(tmp_path: Path) -> None:
+def test_headroom_status_even_without_trigger(tmp_path: Path) -> None:
     gated = cli.HeadroomGatedDecider(ls.RuleDecider(), models=["model"],
                                     check=lambda _: ([], ["model"], "blocked"), clock=lambda: NOW)
-    gated.blocked()
     cli.run_scan(root=tmp_path, reader="model", sources=[Source()], decider=gated, now=NOW)
     assert rows(tmp_path)[0]["reader_status"] == "headroom_blocked"
 

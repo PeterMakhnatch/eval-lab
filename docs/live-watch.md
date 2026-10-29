@@ -1600,6 +1600,11 @@ uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out -
   error prose.
 - Model calls log `tool: omp`, `usd: 0` rows and Modal grades log `route: modal` rows to
   `~/.local/state/evallab-failure-library/spend.jsonl` (`--spend-log` overrides it).
+- Before any cell runs, `--execute` probes each requested route once and writes
+  `route-probes.json`. A route the provider answers with a different model — a rate-limited
+  fallback — is reported `route_unavailable` in the summary and none of its cells are
+  attempted, so an unusable route costs no grader run and is never recorded as missing cells
+  or as evidence about the model that was named. `--no-probe-routes` skips the probe.
 
 #### SB-2 retained known-hack export (`evallab prod seeker-known-hacks`)
 

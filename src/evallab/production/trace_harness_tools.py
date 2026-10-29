@@ -1,14 +1,14 @@
 """Import-only trace-harness detectors over results the Trace Tools lane stored.
 
-``ScoutDetector`` (``scout``), ``MetrDetector`` (``metr``), ``LaminarDetector``
-(``laminar``), ``DocentDetector`` (``docent``) and ``OmpFormDetector``
-(``omp_form``) turn the per-run rows of the ``evallab.trace_tool_result/v1``
-ledgers under ``~/.local/state/evallab-prod-live/trace-tools/`` into
-``trace-findings/v1`` records. Nothing here runs Scout, METR, Laminar, Docent or
-a model, and nothing reads labels: a run with no stored row is omitted, never
-``clear``. ``--allow-model`` changes nothing here: METR and Laminar Signals are
-paid readers and the other three run in their own lanes, so missing runs are
-always omitted rather than generated.
+``ScoutDetector`` (``scout``), ``ScoutLegacyDetector`` (``scout_legacy``), ``MetrDetector``
+(``metr``), ``LaminarDetector`` (``laminar``), ``DocentDetector`` (``docent``),
+``OmpFormDetector`` (``omp_form``) and the generic ``LedgerDetector`` (``ledger``) turn the
+per-run rows of the ``evallab.trace_tool_result/v1`` ledgers under
+``~/.local/state/evallab-prod-live/trace-tools/`` into ``trace-findings/v1`` records.
+Nothing here runs Scout, METR, Laminar, Docent or a model, and nothing reads labels: a run
+with no stored row is omitted, never ``clear``. ``--allow-model`` changes nothing here:
+METR and Laminar Signals are paid readers and the other tools run in their own lanes, so
+missing runs are always omitted rather than generated.
 
 Verdicts follow the published Trace Tools scorecard (``tool_scorecard``): a
 flag is the tool's own flag, ``null`` abstains, and a multi-scanner tool is the
@@ -23,20 +23,25 @@ Per tool:
   scanners over the current ``native-actor-v2`` projection ledger
   (``scout-native-actor-v2/results-v1.jsonl``); per-scanner hits are in the
   summary; ``reader_model`` is null; ``kind`` is ``loop`` when only
-  ``repeated_assistant_message`` flagged, else ``cheat``. ``legacy=True`` reads
-  the retained pre-projection ledger (``results-v1.jsonl``) that the published
+  ``repeated_assistant_message`` flagged, else ``cheat``. ``scout_legacy`` is the same
+  union over the retained pre-projection ledger (``results-v1.jsonl``) that the published
   ``tt1-scorecard.md`` was computed on.
 * ``metr``: the reward-hacking scanner, union of its predeclared ``@ge5`` and
-  ``@ge7`` thresholds on the native 0-10 score (``score``). One reader model per
-  instance, chosen by the reader override (``metr:xai-oauth/grok-4.3``); default
-  is ``kimi-code/k3.1-pro-highspeed`` on ``native-actor-v2``. Tokens and the
-  reader's explanation come from the TT-4 ``reports-scan_id=*.json`` receipts.
+  ``@ge7`` thresholds on the native 0-10 score (``score``). One stored arm per instance,
+  chosen by the reader override (``metr:xai-oauth/grok-4.3``,
+  ``metr:openrouter/google/gemini-2.5-flash-lite``, ``metr:<reader>@none`` for an arm stored
+  without a projection); default is ``kimi-code/k3.1-pro-highspeed`` on ``native-actor-v2``.
+  Arms are parsed from the ledger ``detector_version``, not listed. Tokens and the reader's
+  explanation come from the TT-4 ``reports-scan_id=*.json`` receipts.
 * ``laminar``: union of the Laminar Signals stored for our own Harbor runs
   (``laminar-own.jsonl`` rows in the ledger); ``reader_model`` is the Signals
   profile model ``zai/glm-5.3-flash``; tokens sum the per-signal runs.
 * ``docent`` / ``omp_form``: one reader model per instance (the TT-7 form), by
   reader override; default ``anthropic/claude-sonnet-5-5``. ``docent`` also takes
   ``docent:rh_reading_v1`` (the own-run hosted rubric, ``openai/gpt-5.4-mini``).
+* ``ledger``: every (tool, version, reader) in the ledger no adapter above reads (a new
+  product, a new Laminar version, a METR arm of an unlisted reader); see ``LedgerDetector``.
+  ``all`` also expands to every stored METR arm and TT-7 form reader (``discovered_specs``).
 
 Evidence steps are original step ids: the stored citations already are
 (Scout/METR citations come from native message references mapped through the
@@ -46,11 +51,15 @@ cited id that is not a step of the harness run is dropped rather than guessed.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import sqlite3
 from collections import defaultdict
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -69,20 +78,24 @@ SCOUT_REPEAT = "repeated_assistant_message"
 
 #: METR scanner build the stored rows were produced by (``metr-scanners`` 0.1.11).
 METR_BUILD = "metr-scanners/0.1.11@c12893d1;scanner-v0"
-#: reader model -> (ledger ``detector_version`` suffix after ``METR_BUILD``, emitted version).
-#: The emitted version drops the reader (it is ``reader_model``) and fits the trace_findings
-#: identifier rule (no ``;``, at most 64 characters).
-METR_READERS: dict[str, tuple[str, str]] = {
-    "kimi-code/k3.1-pro-highspeed": (
-        ";omp-kimi-code-k3.1-pro-highspeed;projection-native-actor-v2",
-        "metr-scanners/0.1.11@c12893d1+scanner-v0+native-actor-v2",
-    ),
-    "xai-oauth/grok-4.3": (";omp-xai-oauth-grok-4.3", "metr-scanners/0.1.11@c12893d1+scanner-v0"),
-}
+#: Readers whose stored arms are decoded by name. An arm's ledger ``detector_version`` is
+#: ``<build>;<route>-<model slug>[;option...][;projection-<v>]`` and the model slug cannot be
+#: inverted in general (``kimi-code/k3.1`` and ``kimi/code-k3.1`` slug alike), so a reader is
+#: matched forward: it selects the arm whose slug it produces. ``openrouter/<model>`` readers
+#: are OpenRouter routes, every other reader an OMP route. Arms of any other reader are still
+#: imported, by ``ledger_detectors``, with an unrecorded reader.
+METR_KNOWN_READERS = (
+    "kimi-code/k3.1-pro-highspeed",
+    "xai-oauth/grok-4.3",
+    "openrouter/google/gemini-2.5-flash-lite",
+)
 METR_DEFAULT_READER = "kimi-code/k3.1-pro-highspeed"
 METR_DETECTORS = ("reward_hacking_scanner@ge5", "reward_hacking_scanner@ge7")
 METR_NATIVE = "reward_hacking_scanner"
 METR_THRESHOLDS = "ge5 and ge7"
+METR_ROUTES = ("omp", "openrouter")
+#: ``trace_findings`` identifier rule for ``detector_version``.
+VERSION_LIMIT = 64
 TT4_ROOT = TRACE_TOOLS / "tt4-metr-20261027"
 
 LAMINAR_VERSION = "existing-signals/readback-v1"
@@ -175,6 +188,129 @@ def union(flags: Iterable[bool | None]) -> bool | None:
 
 def verdict_of(flag: bool | None) -> str:
     return "abstain" if flag is None else "alarm" if flag else "clear"
+
+
+# --------------------------------------------------------------------------- #
+# which stored results exist, and which adapter owns them
+# --------------------------------------------------------------------------- #
+
+TT7_PREFIX = "tt7_form:"
+#: (tool, detector, detector_version, row-recorded reader or None)
+Group = tuple[str, str, str, str | None]
+
+
+def _row_reader(row: Row) -> str | None:
+    """The reader a row records about itself. Absent means unrecorded, never guessed."""
+    reader = row.get("reader_model")
+    if reader is None or reader == "":
+        return None
+    if not isinstance(reader, str) or "/" not in reader:
+        raise ValueError(f"row reader_model must be provider/id, got {reader!r}")
+    return reader
+
+
+@lru_cache(maxsize=8)
+def _groups_at(path: str, mtime_ns: int, size: int) -> frozenset[Group]:
+    del mtime_ns, size  # cache key only: a rewritten ledger is read again
+    return frozenset(
+        (str(row["tool"]), str(row["detector"]), str(row["detector_version"]), _row_reader(row))
+        for row in _stream(Path(path))
+    )
+
+
+def ledger_groups(path: Path) -> frozenset[Group]:
+    """Every distinct (tool, detector, version, reader) the ledger holds; a missing ledger holds none."""
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        return frozenset()
+    return _groups_at(str(path), stat.st_mtime_ns, stat.st_size)
+
+
+def arm_slug(reader: str) -> str:
+    """The ledger arm segment a reader produces (forward only; slugs are not invertible)."""
+    if reader.startswith("openrouter/"):
+        return "openrouter-" + reader.removeprefix("openrouter/").replace("/", "-")
+    return "omp-" + reader.replace("/", "-")
+
+
+@dataclass(frozen=True)
+class MetrArm:
+    """One stored METR arm, parsed from its ledger ``detector_version``.
+
+    ``<build>;<route>-<model slug>[;option...][;projection-<v>]``. ``version`` is what the
+    finding carries: the reader is a field of its own, so the route segment is dropped, and
+    ``;`` becomes ``+`` to fit the ``trace_findings`` identifier rule. Options are replaced by
+    a digest of themselves only when the full version would exceed the 64-character limit.
+    """
+
+    ledger_version: str
+    build: tuple[str, ...]
+    arm: str
+    options: tuple[str, ...]
+    projection: str | None
+
+    @property
+    def version(self) -> str:
+        tail = [] if self.projection is None else [self.projection]
+        text = "+".join([*self.build, *self.options, *tail])
+        if len(text) > VERSION_LIMIT and self.options:
+            digest = hashlib.sha256(";".join(self.options).encode()).hexdigest()[:6]
+            text = "+".join([*self.build, digest, *tail])
+        if len(text) > VERSION_LIMIT:
+            raise ValueError(f"METR arm version exceeds {VERSION_LIMIT} characters: {self.ledger_version}")
+        return text
+
+    @property
+    def reader(self) -> str | None:
+        """The known reader whose slug this arm has, else None (the name is not invertible)."""
+        return next((reader for reader in METR_KNOWN_READERS if arm_slug(reader) == self.arm), None)
+
+
+def parse_metr_arm(version: str) -> MetrArm | None:
+    parts = version.split(";")
+    if len(parts) < 3 or not parts[0].startswith("metr-scanners/"):
+        return None
+    route, _, slug = parts[2].partition("-")
+    if route not in METR_ROUTES or not slug:
+        return None
+    projections = [part.removeprefix("projection-") for part in parts[3:] if part.startswith("projection-")]
+    if len(projections) > 1:
+        return None
+    options = tuple(part for part in parts[3:] if not part.startswith("projection-"))
+    return MetrArm(version, tuple(parts[:2]), parts[2], options, projections[0] if projections else None)
+
+
+def metr_arms(path: Path) -> list[MetrArm]:
+    """Every METR arm stored in the ledger, whatever its reader, route, options or projection."""
+    versions = sorted({version for tool, _, version, _ in ledger_groups(path) if tool == "scout_metr"})
+    return [arm for version in versions if (arm := parse_metr_arm(version)) is not None]
+
+
+#: The arm ``metr`` reads with no reader override: the default reader on the actor-v2 projection.
+METR_DEFAULT_LEDGER_VERSION = f"{METR_BUILD};{arm_slug(METR_DEFAULT_READER)};projection-{ACTOR_PROJECTION_VERSION}"
+METR_DEFAULT_VERSION = MetrArm(
+    METR_DEFAULT_LEDGER_VERSION, tuple(METR_BUILD.split(";")), arm_slug(METR_DEFAULT_READER), (),
+    ACTOR_PROJECTION_VERSION,
+).version
+
+
+def first_class(tool: str, detector: str, version: str) -> bool:
+    """Whether a dedicated adapter reads these rows (so the generic one must not)."""
+    if tool == "scout":
+        return True
+    if tool == "scout_metr":
+        arm = parse_metr_arm(version)
+        return arm is not None and arm.reader is not None
+    if tool == "laminar":
+        return version == LAMINAR_VERSION
+    if tool == "docent":
+        return (detector.startswith(TT7_PREFIX) and version == TT7_DOCENT_VERSION) or (
+            detector == DOCENT_RH_DETECTOR and version in DOCENT_RH_VERSIONS
+        )
+    if tool == "omp":
+        return detector.startswith(TT7_PREFIX) and version == TT7_OMP_VERSION
+    return False
 
 
 def _owner(connection: sqlite3.Connection, run: HarnessRun, step: int) -> int | None:
@@ -289,6 +425,15 @@ class ScoutDetector:
             )
 
 
+class ScoutLegacyDetector(ScoutDetector):
+    """The retained pre-projection Scout ledger (``results-v1.jsonl``) the published TT-1 scorecard used."""
+
+    name = "scout_legacy"
+
+    def __init__(self, options: HarnessOptions, *, results: Path | None = None) -> None:
+        super().__init__(options, results=results, legacy=True)
+
+
 # --------------------------------------------------------------------------- #
 # metr
 # --------------------------------------------------------------------------- #
@@ -328,7 +473,7 @@ class MetrReports:
             if owners.get(report.get("transcript_id")) != run_id:
                 continue
             usage = report.get("model_usage") or {}
-            models = {key.removeprefix("omp/") for key in usage}
+            models = {_inspect_model(key) for key in usage}
             totals = list(usage.values())
             return {
                 "models": models,
@@ -340,8 +485,21 @@ class MetrReports:
         return None
 
 
+def _inspect_model(key: str) -> str:
+    """A receipt's ``model_usage`` key without its Inspect provider (``omp/``, ``tt4openrouter/``)."""
+    provider, _, model = key.partition("/")
+    return model if provider in {"omp", "tt4openrouter", "openrouter"} else key
+
+
 class MetrDetector:
-    """METR reward-hacking scanner (native 0-10 score), ge5/ge7 any-flag union."""
+    """METR reward-hacking scanner (native 0-10 score), ge5/ge7 any-flag union.
+
+    The reader override (``metr:<reader>``) selects the stored arm by the slug that reader
+    produces (``arm_slug``): any reader with stored rows, no fixed list. ``metr:<reader>@<projection>``
+    picks among arms of one reader (``@none`` is the arm stored without a projection); with no
+    ``@`` the actor-v2 arm is preferred. A reader with several equally eligible arms, or none
+    stored and unknown, is refused rather than guessed.
+    """
 
     name = "metr"
 
@@ -349,15 +507,39 @@ class MetrDetector:
         self, options: HarnessOptions, *, results: Path | None = None, tt4_root: Path | None = None,
     ) -> None:
         self.options = options
-        self.reader_model = options.reader or METR_DEFAULT_READER
-        if self.reader_model not in METR_READERS:
-            raise ValueError(f"unknown METR reader {self.reader_model!r}; stored: {', '.join(METR_READERS)}")
-        suffix, self.version = METR_READERS[self.reader_model]
-        self.ledger_version = METR_BUILD + suffix
+        self.reader_model, _, projection = (options.reader or METR_DEFAULT_READER).partition("@")
         self.results = results or TRACE_TOOLS / "results-v1.jsonl"
+        arm = self._arm(projection or None)
+        self.ledger_version, self.version = arm.ledger_version, arm.version
         self.reports = MetrReports(tt4_root or TT4_ROOT)
 
+    def _arm(self, projection: str | None) -> MetrArm:
+        slug = arm_slug(self.reader_model)
+        stored = [arm for arm in metr_arms(self.results) if arm.arm == slug]
+        if projection is not None:
+            wanted = None if projection == "none" else projection
+            stored = [arm for arm in stored if arm.projection == wanted]
+        elif len(stored) > 1:
+            stored = [arm for arm in stored if arm.projection == ACTOR_PROJECTION_VERSION] or stored
+        if len(stored) == 1:
+            return stored[0]
+        if stored:
+            raise ValueError(
+                f"METR reader {self.reader_model!r} has several stored arms; add @<projection>: "
+                + ", ".join(arm.ledger_version for arm in stored)
+            )
+        if self.reader_model not in METR_KNOWN_READERS:
+            known = ", ".join(sorted({arm.arm for arm in metr_arms(self.results)})) or "none"
+            raise ValueError(f"no stored METR arm for reader {self.reader_model!r}; stored arms: {known}")
+        # A known reader with nothing stored yet: its identity, no rows, so no findings.
+        parts = (*METR_BUILD.split(";"), slug)
+        return MetrArm(
+            ";".join(parts), tuple(parts[:2]), slug, (),
+            None if projection == "none" else projection or ACTOR_PROJECTION_VERSION,
+        )
+
     def detect(self, runs: Sequence[HarnessRun]) -> Iterator[dict[str, Any]]:
+        expected = {self.reader_model.removeprefix("openrouter/")}
         ledger, _ = read_ledger(
             self.results, "scout_metr", lambda row: row.get("detector_version") == self.ledger_version,
             [run.run_id for run in runs],
@@ -369,7 +551,7 @@ class MetrDetector:
             flag = union(row["flag"] for row in thresholds)
             score = _number(native.get("value"))
             usage = self.reports.usage(native, run.run_id) if score is not None else None
-            if usage is not None and usage["models"] != {self.reader_model}:
+            if usage is not None and usage["models"] != expected:
                 raise ValueError(f"{run.run_id}: METR report was produced by {usage['models']}, not {self.reader_model}")
             summary = (
                 (usage["explanation"] if usage and usage["explanation"] else f"METR score {score:g}/10 ({METR_THRESHOLDS})")
@@ -562,3 +744,115 @@ class OmpFormDetector(_Tt7Detector):
     name = "omp_form"
     tool = "omp"
     form_version = TT7_OMP_VERSION
+
+
+# --------------------------------------------------------------------------- #
+# every other stored tool: the generic ledger adapter, and `all` discovery
+# --------------------------------------------------------------------------- #
+
+
+def compact_version(ledger_version: str) -> str:
+    """A ledger ``detector_version`` as a ``trace_findings`` version (identifier rule, <= 64 chars)."""
+    text = re.sub(r"[^A-Za-z0-9_.+:/@\-]", "_", ledger_version.replace(";", "+"))
+    if len(text) <= VERSION_LIMIT:
+        return text
+    digest = hashlib.sha256(ledger_version.encode()).hexdigest()[:8]
+    return f"{text[: VERSION_LIMIT - len(digest) - 1]}+{digest}"
+
+
+class LedgerDetector:
+    """Rows of any tool without a dedicated adapter: one detector per (tool, version, reader).
+
+    A new tool or a new version of a stored tool is importable the moment its rows are in the
+    ledger. The finding is the tool's own flag: the any-flag union of its *flagging* detectors,
+    ``null`` abstains (a tool with no non-null flag anywhere abstains on every run it has rows
+    for, keeping its numeric ``value`` as the score), a run with no row is omitted. The reader
+    is the row's own ``reader_model`` field, else null (``none / unrecorded``); nothing is
+    inferred from a version string. ``detector`` is ``ledger.<tool>`` and ``version`` the
+    compacted ledger version.
+    """
+
+    name = "ledger"
+
+    def __init__(
+        self, options: HarnessOptions, *, tool: str, ledger_version: str, reader: str | None,
+        results: Path | None = None,
+    ) -> None:
+        slug = re.sub(r"[^a-z0-9_]", "_", tool.lower())
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", slug):
+            raise ValueError(f"cannot name a detector after ledger tool {tool!r}")
+        self.name = f"ledger.{slug}"
+        self.tool, self.ledger_version, self.reader_model = tool, ledger_version, reader
+        self.version = compact_version(ledger_version)
+        self.database = options.database
+        self.results = results or TRACE_TOOLS / "results-v1.jsonl"
+
+    def _keep(self, row: Row) -> bool:
+        return (
+            row.get("detector_version") == self.ledger_version and _row_reader(row) == self.reader_model
+            and not first_class(self.tool, str(row["detector"]), self.ledger_version)
+        )
+
+    def detect(self, runs: Sequence[HarnessRun]) -> Iterator[dict[str, Any]]:
+        ledger, flagging = read_ledger(self.results, self.tool, self._keep, [run.run_id for run in runs])
+        by_run: dict[str, list[Row]] = defaultdict(list)
+        for (detector, run_id), row in ledger.items():
+            if detector in flagging or not flagging:
+                by_run[run_id].append(row)
+        for run in runs:
+            rows = sorted(by_run.get(run.run_id, ()), key=lambda row: row["detector"])
+            if not rows:
+                continue
+            flag = union(row["flag"] for row in rows)
+            hits = [row for row in rows if row["flag"] is True]
+            numeric = [value for row in (hits or rows) if (value := _number(row.get("value"))) is not None]
+            yield finding(
+                run.run_id, self.name, detector_version=self.version, reader_model=self.reader_model,
+                verdict=verdict_of(flag), kind="cheat", score=max(numeric) if numeric else None,
+                evidence_steps=known_steps(run, (s for row in hits for s in row["evidence_steps"] or ()), self.database),
+                summary=(
+                    "flagged: " + ", ".join(
+                        f"{row['detector']}={row['value']}" if _number(row.get("value")) is not None else str(row["detector"])
+                        for row in hits
+                    ) if hits else f"{len(rows)} detectors evaluated, none flagged"
+                    if flag is False else "all detectors abstained"
+                ),
+                produced_at=_utc(max(str(row["at"]) for row in rows)),
+            )
+
+
+def ledger_detectors(options: HarnessOptions, *, results: Path | None = None) -> list[LedgerDetector]:
+    """One ``LedgerDetector`` per stored (tool, version, reader) no dedicated adapter reads.
+
+    ``ledger`` takes every such tool, ``ledger:<tool>`` one tool. A named tool with nothing
+    unclaimed is an error (it either has a dedicated adapter or no rows), never an empty run.
+    """
+    path = results or TRACE_TOOLS / "results-v1.jsonl"
+    only = options.reader or None
+    groups = sorted(
+        {(tool, version, reader) for tool, detector, version, reader in ledger_groups(path)
+         if not first_class(tool, detector, version) and only in (None, tool)},
+        key=lambda group: (group[0], group[1], group[2] or ""),
+    )
+    if only is not None and not groups:
+        raise ValueError(f"ledger tool {only!r} has no stored rows without a dedicated adapter")
+    return [
+        LedgerDetector(options, tool=tool, ledger_version=version, reader=reader, results=path)
+        for tool, version, reader in groups
+    ]
+
+
+def discovered_specs(results: Path | None = None) -> list[str]:
+    """Detector specs for every stored import-only reading ``all`` should include.
+
+    Each METR arm of a known reader, and each TT-7 form reader of Docent and OMP. These
+    only read stored rows; nothing here can start a model call.
+    """
+    path = results or TRACE_TOOLS / "results-v1.jsonl"
+    specs = {
+        f"metr:{arm.reader}@{arm.projection or 'none'}" for arm in metr_arms(path) if arm.reader is not None
+    }
+    for tool, detector, version, _ in ledger_groups(path):
+        if detector.startswith(TT7_PREFIX) and first_class(tool, detector, version):
+            specs.add(f"{'omp_form' if tool == 'omp' else tool}:{detector.removeprefix(TT7_PREFIX)}")
+    return sorted(specs)

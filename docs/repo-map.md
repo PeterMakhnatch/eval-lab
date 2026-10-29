@@ -1159,7 +1159,7 @@ inputs:
   - path: src/evallab/trace_store/fetch.py
     digest: sha256:5705216772cf96c544daf95d0607a4b421ebd455ccdf22024f4e7dc6b6762c7d
   - path: src/evallab/trace_store/laminar.py
-    digest: sha256:3ab746717b1229c9b6f3c7014abc835b7556780079ee6755df11737401918ad8
+    digest: sha256:7431d89e34a297f9921f2f66f8a55efbd1b98bd4953e31726fe03fefd691f995
   - path: src/evallab/trace_store/owner_cleanup.py
     digest: sha256:455579da218146f1b97f28a81ea94314967988d873d7275a87031734a5c24d1d
   - path: src/evallab/trace_store/secrets.py

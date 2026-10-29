@@ -12,7 +12,7 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 from evallab import laminar
-from evallab.trace_store.core import METADATA_FIELDS, TracePayload, trace_uuid
+from evallab.trace_store.core import ALLOWED_DATASETS, METADATA_FIELDS, TracePayload, trace_uuid
 from evallab.trace_store.secrets import SecretScanRejected, secret_hits
 
 PROJECT_ID = "a5586b6d-55e8-466f-9718-c38255c2ae94"
@@ -143,6 +143,8 @@ class LaminarTarget:
         self.safe = True
 
     def upload(self, trace: TracePayload) -> dict[str, Any]:
+        if trace.dataset_id not in ALLOWED_DATASETS:
+            raise ValueError("Dataset is not admitted to the private trace store")
         if (
             set(trace.metadata) != METADATA_FIELDS
             or trace.metadata["run_id"] != trace.trace_id

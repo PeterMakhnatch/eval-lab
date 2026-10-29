@@ -13,18 +13,37 @@ Start here. This page is the index for the MiMo cleanup programme of
 2026-10-09 to 2026-10-11. Each linked page owns its details; this page only
 says what is true now and where the evidence lives.
 
-**Current build target:** `research/experiments/mimo-clean-v6/manifest.csv`
-(2,698 code tasks: 2,666 built, 32 skipped), using `separate-verifier@10`.
-Build it explicitly with `evallab mimo-clean build --clean-version mimo-clean-v6`.
-The v6 receipt distinguishes construction, repeated controls, and remaining
-verification; a built package is not certified clean.
+## Current build target
 
-The refreshed v5 manifest remains available for historical comparisons.
-Its #848 snapshot-hook update changed 2,664 package digests: their old grades
-cannot certify the new bytes and are now `unverified:package-changed`.
-Historical census rows retain their original digests; prior exclusions remain
-admission holds. See `mimo-clean-v5-census/digest-refresh.csv` and the
-[verification contract](verification.md) before using either set.
+Three releases, each with its own boundary; none transfers results or
+permissions to another:
+
+- **`research/experiments/mimo-v6-full-fleet`**: the 567 reference-bearing
+  code tasks (`label == oracle:pass+nop:fail`), built with the `mimo-clean-v6`
+  chain and `separate-verifier@10`. Its fleet census
+  (`mimo-v6-fleet-census.csv`) is 5 `v6_verified` and 562 `v6_unverified`. This
+  is a measured build with reference/nop qualification only: not fleet
+  certification, semantic validity or full cheat-ladder acceptance.
+- **`research/experiments/mimo-clean-v7/manifest.json`**: a versioned metadata
+  release of qualified cohorts (`heldout_v7` 33, `train_batch2_v7` 20,
+  `train40_frozen` 40, `train_repairs_v7` 9, `weak_test_atlas_v2_1` 114). It is
+  not a claim that the fleet is clean and authorizes no training, serving or
+  new execution; read cohorts by explicit membership, not a "clean" filter.
+- **`research/experiments/mimo-executed-clean-v1`**: 81 exact packages (73
+  task IDs) whose strict repeat-3 controls (reference `[1,1,1]`, nop `[0,0,0]`)
+  were executed and that have no open supported finding. "Clean" means those
+  controls on those bytes, not semantic certification or training admission.
+
+Build the v6 packages with `uv run python research/experiments/mimo-v6-full-fleet/build_fleet.py`
+or the underlying `evallab mimo-clean build --clean-version mimo-clean-v6`.
+The 2,698-task `mimo-clean-v6` manifest (`research/experiments/mimo-clean-v6/manifest.csv`:
+2,666 built, 32 skipped) and the v5 manifest remain
+available for historical comparisons. The v5 #848 snapshot-hook update changed
+2,664 package digests: their old grades cannot certify the new bytes and are
+now `unverified:package-changed`. Historical census rows retain their original
+digests; prior exclusions remain admission holds. See
+`mimo-clean-v5-census/digest-refresh.csv` and the
+[verification contract](verification.md) before using any set.
 
 ## Why the published data cannot be used as shipped
 
@@ -79,7 +98,8 @@ Four checks per task, all on the exact package digest in the manifest
 
 1. do-nothing agent scores 0 and the tests actually ran;
 2. the reference fix scores 1 (where one exists);
-3. the cheat ladder (`evallab cheat run`, 14 deterministic attacks, no model) scores 0;
+3. the cheat ladder (`evallab cheat run`; default v1 is 14 deterministic
+   attacks, v2 has 18 and v3 has 22; no model) scores 0;
 4. a fix-content probe finds no copy of the fix anywhere in the container
    (blob hashes plus distinctive lines, with a positive control on the
    published image).
@@ -95,7 +115,7 @@ Measured results:
 |---|---|
 | Cheat ladder on clean packages | 0 cracked across all census rounds (v3 283 scored, v4 100-task sample, v5 261 clean + 7 unscored). On the published packages the same ladder cracks them (e.g. 002402, 002552). |
 | Fix-content probe | 12 real leaks found on earlier clean chains, all closed in v5 (11 Python copies by `purge-installed-copies@2`, 000919 by `purge-build-caches@5`); v5 re-probe of those 12: 0 hits. 6 not fixable by a transform → excluded above. |
-| Reference fixes under the v5 grader | 87 graded 1 and 4 `1-noexec` in the v5 census; remaining `fail:0` cells are triaged in the receipt (1 grader shape open: 001431). |
+| Reference fixes under the v5 grader | 87 graded 1 and 4 `1-noexec` in the v5 census; remaining `fail:0` cells are triaged in the receipt. 001431's grader shape is closed by the `@9` fold ([clean-set.md](clean-set.md), "Verifier fold (@9 for 001431)"). |
 | Do-nothing | 0 everywhere it ran; `0-noexec` rows lack proof the tests ran and stay unverified. |
 
 Receipts, newest first: `research/experiments/mimo-clean-v5-census/`,
@@ -104,10 +124,11 @@ Receipts, newest first: `research/experiments/mimo-clean-v5-census/`,
 
 ## Open items
 
-- Full-fleet coverage: 1,729 built tasks have no ladder run on v5; 294 lack a
-  do-nothing run; 172 reference tasks await a v5 probe. The receipt lists the
-  exact commands and the measured cost per check.
-- 001431 (pytest collection-error shape) is graded 0 with a working fix.
+- Full-fleet coverage (v5 history): 1,729 built tasks had no ladder run on v5;
+  294 lacked a do-nothing run; 172 reference tasks awaited a v5 probe. For the
+  567-task v6 fleet only 5 are `v6_verified`; see the Current build target.
+- 001431 is not open: it folds onto `separate-verifier@9` (see
+  [clean-set.md](clean-set.md), "Verifier fold (@9 for 001431)").
 - Next rebuild should move the whole fleet to `purge-build-caches@5`
   (kept selective in v5 to avoid re-grading 405 banked rows).
 - 1,518 non-Python tasks: 136 have reference fixes; the rest of the Go and

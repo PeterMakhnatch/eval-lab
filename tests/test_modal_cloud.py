@@ -2638,13 +2638,16 @@ def test_atlas_admission_precedes_trace_body_reads(
     reads = _guard_atlas_step_bodies(runtime, monkeypatch, denied)
 
     assert set(runtime._atlas_traces()) == {"trace-atlas-allowed"}
+    assert reads == []  # identity collection does not inspect transcript contents
     listing = client.get("/api/cloud-db/atlas", headers=AUTH)
     assert listing.status_code == 200, listing.text
     assert {run["run_id"] for run in listing.json()["runs"]} == {"trace-atlas-allowed"}
+    assert listing.json()["runs"][0]["actor_inputs_available"] is True
+    assert "Synthetic body." not in listing.text  # presence is returned, never the actor text
     for trace_id in denied:
         response = client.get("/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": trace_id})
         assert response.status_code == 404, response.text
-    assert reads == []
+    assert not denied.intersection(reads)
     detail = client.get(
         "/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": "trace-atlas-allowed"}
     )
@@ -3462,7 +3465,7 @@ def test_atlas_and_harness_sql_runs_once_per_database_and_findings_state_and_is_
     assert atlas() == [VERIFIED] and overview() == (1, 1, [VERIFIED])  # trace-late is not in the database yet
     queries.clear()
     assert atlas() == [VERIFIED] and overview() == (1, 1, [VERIFIED])
-    assert queries == []  # nothing changed, so no request re-reads the trace database
+    assert queries == []  # only the change-token probe runs; no identity or transcript hydration
 
     rows.append(_harness_finding(PROVISIONAL, detector="tripwire", detector_version="tw/v1", reader_model=None))
     findings.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
@@ -3475,6 +3478,69 @@ def test_atlas_and_harness_sql_runs_once_per_database_and_findings_state_and_is_
     runtime.database.upsert_trace(trace, steps=[{"step_index": 0, "role": "assistant", "content_text": "late step"}])
     assert atlas() == [late, VERIFIED] and overview() == (3, 0, [late, PROVISIONAL, VERIFIED])  # a database write too
     assert client.get("/api/cloud-db/harness/card", headers=AUTH, params=card).json()["run"]["actor_inputs_available"]
+
+    # A different writer commits through WAL: both transcript presence and admission must refresh.
+    with closing(sqlite3.connect(runtime.data_root / "cloud-trace-db.sqlite")) as other:
+        assert other.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+        other.execute(
+            "UPDATE trace_steps SET content_text='', tool_name=NULL, command_or_action=NULL WHERE trace_id=?",
+            (late,),
+        )
+        other.commit()
+        refreshed = client.get("/api/cloud-db/atlas", headers=AUTH).json()["runs"]
+        assert next(row for row in refreshed if row["run_id"] == late)["actor_inputs_available"] is False
+        other.execute("UPDATE corpus_tasks SET split='test' WHERE task_id=?", (PRIMARY,))
+        other.commit()
+    assert atlas() == [] and overview() == (0, 3, [])
+    assert client.get("/api/cloud-db/harness/card", headers=AUTH, params=card).status_code == 404
+
+
+def test_atlas_picks_runs_by_detector_alarms_from_tool_results_and_harness_findings(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    url = "/api/cloud-db/atlas"
+    _write_atlas(runtime, [_atlas_facet(VERIFIED, suspicion=1), _atlas_facet(PROVISIONAL, suspicion=3)])
+    before = client.get(url, headers=AUTH).json()
+    assert before["alarms_available"] is False and before["options"]["alarmed_by"] == {}
+    assert [run["alarms"] for run in before["runs"]] == [[], []]  # nothing recorded: not "no alarm"
+
+    tools = runtime.data_root / "trace-tools"
+    tools.mkdir()
+    (tools / "results-v1.jsonl").write_text(
+        json.dumps({"run_id": VERIFIED, "tool": "scout", "detector": "repeated", "flag": True,
+                    "at": "2026-10-27T22:00:00+00:00", "evidence_steps": [2]}) + "\n"
+        + json.dumps({"run_id": PROVISIONAL, "tool": "scout", "detector": "repeated", "flag": False,
+                      "at": "2026-10-27T22:00:00+00:00", "evidence_steps": []}) + "\n",
+        encoding="utf-8",
+    )
+    harness = runtime.data_root / "trace-harness"
+    harness.mkdir()
+    (harness / "findings-v1.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in [
+            _harness_finding(VERIFIED, detector="run_health.loop", detector_version="rh/v1", reader_model=None, kind="loop"),
+            _harness_finding(PROVISIONAL, verdict="clear"),
+            _harness_finding("not-a-trace"),
+        ]),
+        encoding="utf-8",
+    )
+    listing = client.get(url, headers=AUTH).json()
+    assert listing["alarms_available"] is True
+    assert {run["run_id"]: run["alarms"] for run in listing["runs"]} == {
+        VERIFIED: ["run_health.loop", "scout"], PROVISIONAL: [],  # a clear and a clean read add no alarm
+    }
+    rows = {run["run_id"]: run for run in listing["runs"]}
+    # a clear or a clean read adds no alarm but still counts as read; PROVISIONAL has no actor transcript
+    assert (rows[VERIFIED]["detector_results_n"], rows[VERIFIED]["actor_inputs_available"]) == (2, True)
+    assert (rows[PROVISIONAL]["detector_results_n"], rows[PROVISIONAL]["actor_inputs_available"]) == (2, False)
+    assert listing["options"]["alarmed_by"] == {"run_health.loop": 1, "scout": 1}
+    assert [run["run_id"] for run in listing["runs"]] == [PROVISIONAL, VERIFIED]  # suspicion order by default
+    by_alarms = client.get(url, headers=AUTH, params={"sort": "alarms"}).json()
+    assert [run["run_id"] for run in by_alarms["runs"]] == [VERIFIED, PROVISIONAL]
+    scout = client.get(url, headers=AUTH, params={"alarmed_by": "scout"}).json()
+    assert [run["run_id"] for run in scout["runs"]] == [VERIFIED] and scout["total"] == 1
+    assert client.get(url, headers=AUTH, params={"alarmed_by": "nobody"}).json()["total"] == 0
+    for bad in ({"alarmed_by": "a b"}, {"alarmed_by": "x" * 81}, {"sort": "random"}):
+        assert client.get(url, headers=AUTH, params=bad).status_code == 422
 
 
 def test_the_container_runtime_reads_data_files_from_the_volume_or_the_environment_settings(

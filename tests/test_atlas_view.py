@@ -283,6 +283,32 @@ def test_filters_narrow_runs_and_cluster_counts_together(tmp_path: Path) -> None
         atlas_listing(store, TRACES, AtlasFilters(), limit=0)
 
 
+def test_detector_alarms_filter_order_and_never_turn_missing_results_into_a_pass(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    alarms = {"run-b": ["scout", "metr", "run_health.loop"], "run-c": ["scout"], "run-ghost": ["scout"]}
+
+    def listing(**fields: Any) -> dict[str, Any]:
+        return atlas_listing(
+            store, TRACES, AtlasFilters(**fields), alarms=alarms, read={"run-b": 3, "run-c": 1}, alarms_available=True
+        )
+
+    default = listing()
+    assert [run["run_id"] for run in default["runs"]] == ["run-a", "run-c", "run-b"]  # suspicion order is unchanged
+    assert {run["run_id"]: run["alarms"] for run in default["runs"]} == {
+        "run-a": [], "run-c": ["scout"], "run-b": ["metr", "run_health.loop", "scout"],
+    }
+    assert default["options"]["alarmed_by"] == {"metr": 1, "run_health.loop": 1, "scout": 2}  # admitted runs only
+    assert [run["run_id"] for run in listing(alarmed_by="scout")["runs"]] == ["run-c", "run-b"]
+    assert [run["run_id"] for run in listing(alarmed_by="metr", min_suspicion=2)["runs"]] == []
+    assert [run["run_id"] for run in listing(sort="alarms")["runs"]] == ["run-b", "run-c", "run-a"]
+    narrowed = listing(alarmed_by="metr")
+    assert narrowed["total"] == 1 and {c["cluster_id"]: c["matching_n"] for c in narrowed["clusters"]}["root"] == 1
+    silent = atlas_listing(store, TRACES, AtlasFilters())
+    assert silent["alarms_available"] is False and silent["options"]["alarmed_by"] == {}
+    assert all(run["alarms"] == [] for run in silent["runs"])
+    assert {run["run_id"]: run["detector_results_n"] for run in default["runs"]} == {"run-a": 0, "run-c": 1, "run-b": 3}
+
+
 def test_cluster_paths_run_root_to_leaf(tmp_path: Path) -> None:
     store = _store(tmp_path)
     assert [[item["cluster_id"] for item in chain] for chain in cluster_paths(store, "run-a")] == [

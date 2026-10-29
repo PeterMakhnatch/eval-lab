@@ -67,7 +67,47 @@ _REDACTED = "[redacted]"
 _ASCII_FOLD = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
 
-def _redaction_pattern(identities: Iterable[str]) -> re.Pattern[str]:
+def _ascii_fold(text: str) -> str:
+    """Lowercase A-Z only, keeping every character offset (and lone surrogates)."""
+    if text.isascii():
+        return text.lower()
+    # UTF-8 continuation bytes are all >= 0x80, so a byte-level lower touches
+    # exactly the ASCII letters and decoding restores the same characters.
+    return text.encode("utf-8", "surrogatepass").lower().decode("utf-8", "surrogatepass")
+
+
+class _IdentityPattern:
+    """Matcher for every ASCII spelling of an identity that keeps output offsets.
+
+    ``re``'s ``IGNORECASE`` trie re-tests its branches at every position of every
+    exported string, which dominated export CPU. Folding the text once and running
+    the same trie case-sensitively over the fold finds exactly the same spans,
+    because ASCII-only folding leaves non-ASCII letters literal and never changes
+    a string's length. Unicode identities stay literal either way, so a Unicode
+    alias still cannot survive redaction.
+    """
+
+    __slots__ = ("_pattern",)
+
+    def __init__(self, pattern: re.Pattern[str]) -> None:
+        self._pattern = pattern
+
+    def sub(self, replacement: str, text: str) -> str:
+        matches = self._pattern.finditer(_ascii_fold(text))
+        first = next(matches, None)
+        if first is None:
+            return text
+        pieces: list[str] = []
+        end = 0
+        for match in (first, *matches):
+            pieces.append(text[end:match.start()])
+            pieces.append(replacement)
+            end = match.end()
+        pieces.append(text[end:])
+        return "".join(pieces)
+
+
+def _redaction_pattern(identities: Iterable[str]) -> _IdentityPattern:
     # Factor shared prefixes, but keep a greedy optional suffix when one
     # identity prefixes another: replacing "mimo" must consume the full dataset
     # name too. Retrieval's boolean seal matcher intentionally drops that suffix.
@@ -88,7 +128,7 @@ def _redaction_pattern(identities: Iterable[str]) -> re.Pattern[str]:
     # ASCII-only folding preserves every literal Unicode identity, including
     # characters whose Unicode case fold expands to multiple code points.
     values = sorted({value.translate(_ASCII_FOLD) for value in identities if value})
-    return re.compile(alternatives(values) if values else r"(?!)", re.IGNORECASE | re.ASCII)
+    return _IdentityPattern(re.compile(alternatives(values) if values else r"(?!)"))
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -183,9 +223,13 @@ def _actor_inputs_available(steps: Sequence[Mapping[str, Any]]) -> bool:
     )
 
 
-def _redact_steps(document: dict[str, Any], identities: re.Pattern[str]) -> None:
+def _redact_steps(document: dict[str, Any], identities: _IdentityPattern) -> None:
     def text(value: str) -> str:
-        return identities.sub(_REDACTED, _CAS_REFERENCE.sub(_REDACTED, value))
+        # Every CAS reference contains "://", which no case fold changes, so the
+        # containment test is an exact prefilter for the regex.
+        if "://" in value:
+            value = _CAS_REFERENCE.sub(_REDACTED, value)
+        return identities.sub(_REDACTED, value)
 
     for step in document["steps"]:
         step["message"] = text(step["message"])
@@ -674,7 +718,7 @@ def _refuse_answer_key_names(value: Any) -> None:
             _refuse_answer_key_names(item)
 
 
-def _redact_strings(value: Any, patterns: tuple[re.Pattern[str], ...]) -> Any:
+def _redact_strings(value: Any, patterns: tuple[_IdentityPattern, ...]) -> Any:
     """Redact identities in every string, including mapping keys; colliding keys refuse the export."""
     if isinstance(value, str):
         value = _CAS_REFERENCE.sub(_REDACTED, value)
@@ -812,7 +856,9 @@ def export_cheatbench_runs(
     # identities is several times slower on large trajectories).
     unicode_identities = sorted((value for value in own if not value.isascii()), key=len, reverse=True)
     ascii_pattern = _redaction_pattern(broad | own)
-    unicode_pattern = re.compile("|".join(map(re.escape, unicode_identities)) or r"(?!)", re.IGNORECASE)
+    unicode_pattern = _IdentityPattern(
+        re.compile("|".join(map(re.escape, unicode_identities)) or r"(?!)", re.IGNORECASE),
+    )
 
     def redact(value: Any) -> Any:
         return _redact_strings(value, (ascii_pattern, unicode_pattern))

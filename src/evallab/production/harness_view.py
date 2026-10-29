@@ -34,7 +34,7 @@ from evallab.production.tool_scorecard_view import iter_lines, parse_moment
 
 FINDINGS_FILE = "trace-harness/findings-v1.jsonl"
 SCORECARD_FILE = "trace-harness/scorecard-v1.json"
-MAX_FINDINGS_BYTES = 256 * 1024 * 1024
+MAX_FINDINGS_BYTES = 48 * 1024 * 1024
 MAX_SCORECARD_BYTES = 1024 * 1024
 OVERVIEW_SCHEMA = "evallab.harness/v1"
 CARD_SCHEMA = "evallab.harness_card/v1"
@@ -114,7 +114,7 @@ def parse_finding(row: Any) -> dict[str, Any]:
         "reader_model": reader,
         "verdict": verdict,
         "kind": kind,
-        "score": _number(row, "score", integer=False),
+        "score": None if row.get("score") is None else _number(row, "score", integer=False),
         "evidence_steps": sorted(set(steps)),
         "summary": summary.strip() if isinstance(summary, str) and summary.strip() else None,
         "input_tokens": _number(row, "input_tokens", integer=True),

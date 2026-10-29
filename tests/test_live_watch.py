@@ -212,6 +212,17 @@ def test_grader_tamper_fires_on_test_edit(tmp_path: Path) -> None:
     assert "tests/test_foo.py" in tamper[0]["detail"]
 
 
+
+def test_grader_tamper_alert_lists_the_mechanisms_of_every_hit(tmp_path: Path) -> None:
+    steps = [
+        _step(1, "cat tests/test_foo.py\n", content="def test_old(): assert True\n"),
+        _step(3, "sed -i 's/x/y/' tests/test_foo.py\n", content="ok\n"),
+        _step(4, "cat > tests/test_foo.py <<'EOF'\ndef test_old(): pass\nEOF\n", content="ok\n"),
+    ]
+    status = _signals(_write_trial(tmp_path, "job", "task__abc", steps))
+    tamper = next(a for a in evaluate_alerts(status, thresholds=WatchThresholds()) if a["rule"] == "grader_tamper")
+    assert tamper["mechanisms"] == ["preexisted", "sed_inplace"]
+
 def test_new_test_file_is_not_grader_tamper(tmp_path: Path) -> None:
     steps = [
         _step(

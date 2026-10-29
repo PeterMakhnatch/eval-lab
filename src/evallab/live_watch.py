@@ -1143,6 +1143,11 @@ def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
                 step=hit.get("step"),
                 quote=str(hit.get("excerpt") or ""),
                 detail=f"edit modifies pre-existing grader material: {', '.join(hit.get('paths', []))}",
+                extra=(
+                    {"mechanisms": sorted({m for h in tamper_hits for m in h.get("mechanisms", ())})}
+                    if any("mechanisms" in h for h in tamper_hits)
+                    else None
+                ),
             )
         )
     else:

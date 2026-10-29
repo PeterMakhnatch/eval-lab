@@ -1,0 +1,48 @@
+diff --git a/src/evallab/production/cloud_trace_db.py b/src/evallab/production/cloud_trace_db.py
+--- a/src/evallab/production/cloud_trace_db.py
++++ b/src/evallab/production/cloud_trace_db.py
+@@ -2472,7 +2472,7 @@
+             return trace
+ 
+     def _retrieval_facets(
+-        self, admitted: Sequence[str], sealed: re.Pattern[str],
++        self, admitted: Sequence[str], sealed_ids: frozenset[str],
+         filters: Sequence[tuple[str, list[Any]]], cluster_id: str | None, like_run_id: str | None,
+     ) -> tuple[dict[str, dict[str, Any]], dict[str, int], str | None]:
+         """Matching facets and similarity scores inside the caller's admission snapshot."""
+@@ -2488,15 +2488,18 @@
+         scope = database._task_id_scope("a.task_id", admitted, parameters)
+         # Cluster sizes and membership must depend only on this admitted
+         # projection, before the query's hard filters narrow the candidates.
++        rows = database._rows(
++            "SELECT f.*, a.trust_tier AS trace_trust_tier "
++            "FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
++            f"WHERE {scope} AND a.task_id = f.task_id ORDER BY f.run_id",
++            parameters,
++        )
++        hidden = _sealed_texts([
++            "\n".join(value for value in row.values() if isinstance(value, str))
++            for row in rows
++        ], sealed_ids)
+         facets = {
+-            row["run_id"]: row for row in database._rows(
+-                "SELECT f.*, a.trust_tier AS trace_trust_tier "
+-                "FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+-                f"WHERE {scope} AND a.task_id = f.task_id ORDER BY f.run_id",
+-                parameters,
+-            ) if not self._sealed_text(
+-                "\n".join(value for value in row.values() if isinstance(value, str)), sealed,
+-            )
++            row["run_id"]: row for row, is_hidden in zip(rows, hidden, strict=True) if not is_hidden
+         }
+         like = None if like_run_id is None else facets.get(like_run_id)
+         if like_run_id is not None and like is None:
+@@ -2594,7 +2597,7 @@
+             similarities: dict[str, int] = {}
+             if trace_backed:
+                 matching_facets, similarities, like_task_id = self._retrieval_facets(
+-                    admitted, sealed, filters, cluster_id, like_run_id,
++                    admitted, frozenset(sealed_ids), filters, cluster_id, like_run_id,
+                 )
+                 if like_task_id is not None:
+                     excluded.update((

@@ -1,0 +1,157 @@
+{
+  "n": 7,
+  "old": [
+    {
+      "screened_2_reads": {
+        "first": 0.08465699999999998,
+        "repeat_median": 0.08752799999999994
+      },
+      "atlas_retrieve": {
+        "first": 1.197607,
+        "repeat_median": 0.5395430000000001
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.08036299999999996,
+        "repeat_median": 0.08143100000000003
+      },
+      "atlas_retrieve": {
+        "first": 0.7293660000000001,
+        "repeat_median": 0.4834210000000003
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.16341600000000006,
+        "repeat_median": 0.12618899999999988
+      },
+      "atlas_retrieve": {
+        "first": 1.104321,
+        "repeat_median": 0.7357589999999998
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.07710700000000004,
+        "repeat_median": 0.08000200000000002
+      },
+      "atlas_retrieve": {
+        "first": 1.177399,
+        "repeat_median": 0.5116960000000002
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.08073399999999997,
+        "repeat_median": 0.07365200000000005
+      },
+      "atlas_retrieve": {
+        "first": 0.8831330000000001,
+        "repeat_median": 0.46436600000000006
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.12967899999999993,
+        "repeat_median": 0.11015999999999992
+      },
+      "atlas_retrieve": {
+        "first": 0.8556299999999999,
+        "repeat_median": 0.4200870000000001
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.06967299999999998,
+        "repeat_median": 0.06910099999999997
+      },
+      "atlas_retrieve": {
+        "first": 0.8797179999999999,
+        "repeat_median": 0.44766399999999984
+      }
+    }
+  ],
+  "new": [
+    {
+      "screened_2_reads": {
+        "first": 0.03238599999999997,
+        "repeat_median": 0.02761800000000003
+      },
+      "atlas_retrieve": {
+        "first": 0.9633470000000001,
+        "repeat_median": 0.41834700000000025
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.05263499999999999,
+        "repeat_median": 0.029237999999999986
+      },
+      "atlas_retrieve": {
+        "first": 0.801869,
+        "repeat_median": 0.4417340000000003
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.048628000000000005,
+        "repeat_median": 0.02954399999999996
+      },
+      "atlas_retrieve": {
+        "first": 1.2401110000000002,
+        "repeat_median": 0.590211
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.033399999999999985,
+        "repeat_median": 0.024765000000000037
+      },
+      "atlas_retrieve": {
+        "first": 0.9451670000000001,
+        "repeat_median": 0.3950739999999999
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.032198000000000004,
+        "repeat_median": 0.025300000000000045
+      },
+      "atlas_retrieve": {
+        "first": 0.8088319999999999,
+        "repeat_median": 0.38391200000000003
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.03234100000000001,
+        "repeat_median": 0.026489999999999958
+      },
+      "atlas_retrieve": {
+        "first": 0.8711130000000001,
+        "repeat_median": 0.40054499999999993
+      }
+    },
+    {
+      "screened_2_reads": {
+        "first": 0.03373300000000001,
+        "repeat_median": 0.027222999999999997
+      },
+      "atlas_retrieve": {
+        "first": 0.8896299999999999,
+        "repeat_median": 0.42286500000000027
+      }
+    }
+  ],
+  "summary": {
+    "screened_2_reads.first.old_median_s": 0.08073399999999997,
+    "screened_2_reads.first.new_median_s": 0.033399999999999985,
+    "screened_2_reads.repeat_median.old_median_s": 0.08143100000000003,
+    "screened_2_reads.repeat_median.new_median_s": 0.027222999999999997,
+    "atlas_retrieve.first.old_median_s": 0.8831330000000001,
+    "atlas_retrieve.first.new_median_s": 0.8896299999999999,
+    "atlas_retrieve.repeat_median.old_median_s": 0.4834210000000003,
+    "atlas_retrieve.repeat_median.new_median_s": 0.41834700000000025
+  }
+}

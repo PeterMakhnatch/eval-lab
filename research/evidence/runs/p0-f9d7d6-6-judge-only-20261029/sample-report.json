@@ -1,0 +1,17 @@
+{
+  "gate_items": 2388,
+  "eligible": 1444,
+  "drawn": 402,
+  "cells": {
+    "t1-enacted": {"eligible": 141, "drawn": 100, "task_cap_used": 2},
+    "t1-clean": {"eligible": 303, "drawn": 100, "task_cap_used": 2},
+    "t2-enacted": {"eligible": 563, "drawn": 100, "task_cap_used": 2},
+    "t2-clean": {"eligible": 0, "drawn": 0, "task_cap_used": 2},
+    "t3-enacted": {"eligible": 435, "drawn": 100, "task_cap_used": 2},
+    "t3-clean": {"eligible": 2, "drawn": 2, "task_cap_used": 2}
+  },
+  "exclusions": {"pairs": 246, "goodfire_150": 150, "p0f5": 555},
+  "tasks": 342,
+  "max_runs_per_task": 2,
+  "ids_sha256": "eb2a3ee4849bf2fec01144f8c1f65349eeb81da7cbce2265cbcab60e821bd466"
+}

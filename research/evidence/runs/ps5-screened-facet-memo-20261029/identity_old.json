@@ -1,0 +1,11 @@
+{
+  "admitted_facets_first_cpu_s": 0.05037200000000008,
+  "admitted_facets_repeat_median_cpu_s": 0.051848000000000116,
+  "facet_digest": "e13a05f8fa9a49e2ad88718881b0942890671ce87910a12a840c81581613671e",
+  "facet_shapes": 40,
+  "retrieval_digest": "88e8d5d19674d7d4c8eabcba610c80b87466ff0e6a8f57e758fa08c4445d4a39",
+  "retrieval_errors": 0,
+  "retrieval_queries": 40,
+  "retrieve_first_cpu_s": 0.5139250000000004,
+  "retrieve_repeat_median_cpu_s": 0.5275629999999989
+}

@@ -33,7 +33,6 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
-from psycopg.conninfo import conninfo_to_dict
 from psycopg.types.json import Jsonb
 
 from evallab.production.corpus_queue import DATASETS, CorpusRegistry
@@ -519,13 +518,7 @@ class CloudTraceDatabase:
         self._memo_values: dict[tuple[Any, ...], Any] = {}
         self._connection: Any
         if self._postgres:
-            # ``options=`` replaces, not extends, the DSN's own (e.g. a ``-csearch_path``): carry it over.
-            read_only_option = "-c default_transaction_read_only=on"
-            carried = conninfo_to_dict(target).get("options") if read_only else None
-            self._connection = psycopg.connect(
-                target, autocommit=True,
-                **({"options": f"{carried} {read_only_option}" if carried else read_only_option} if read_only else {}),
-            )
+            self._connection = psycopg.connect(target, autocommit=True)
         else:
             if "://" in target and not target.startswith("sqlite:///"):
                 raise ValueError("database must be a PostgreSQL URL, SQLite URL, or local path")
@@ -543,7 +536,9 @@ class CloudTraceDatabase:
             self._connection.execute("PRAGMA foreign_keys=ON")
         try:
             if read_only:
-                if not self._postgres:
+                if self._postgres:
+                    self._connection.execute("SET default_transaction_read_only = on")
+                else:
                     self._fts = all(
                         self._execute("SELECT 1 FROM sqlite_master WHERE name = ?", (f"{table}_fts",)).fetchone()
                         for table in _SEARCH_COLUMNS
@@ -1822,6 +1817,16 @@ def decode_row(columns: Sequence[str], values: Sequence[Any]) -> dict[str, Any]:
     return row
 
 
+def base_seals(sealed_task_ids: Iterable[str] = ()) -> set[str]:
+    """Base retriever seals, including bare names of protected and explicitly sealed IDs."""
+    return {
+        identity.casefold()
+        for task_id in (*_PROTECTED_TASKS_FROZEN, *sealed_task_ids)
+        for identity in (_text(task_id, "sealed_task_ids"), CorpusRegistry.task_name(task_id))
+        if identity
+    }
+
+
 def registry_seals(registry: CorpusRegistry, sealed_ids: Iterable[str]) -> set[str]:
     """``sealed_ids`` plus every identity the registry seals, casefolded."""
     return set(sealed_ids) | {
@@ -2107,12 +2112,7 @@ class CloudTraceRetriever:
         self.registry = registry
         self.snippet_chars = _integer(snippet_chars, "snippet_chars", minimum=1)
         self.max_steps_per_trace = _integer(max_steps_per_trace, "max_steps_per_trace", minimum=1)
-        self._sealed_ids = {
-            identity.casefold()
-            for task_id in sealed_task_ids
-            for identity in (_text(task_id, "sealed_task_ids"), CorpusRegistry.task_name(task_id))
-            if identity
-        } | {identity.casefold() for identity in _PROTECTED_TASKS_FROZEN}
+        self._sealed_ids = base_seals(sealed_task_ids)
 
     @staticmethod
     def _sealed_text(text: str, sealed: re.Pattern[str]) -> bool:

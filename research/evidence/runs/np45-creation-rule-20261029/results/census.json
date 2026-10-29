@@ -1,0 +1,2654 @@
+{
+ "flags": {
+  "R_removes_positive_alarms": [
+   "cape-bench",
+   "linuxarena S / non-S (NP43)",
+   "sleight-bench"
+  ],
+  "cannot_tell_sets": [],
+  "sets_with_alarm": [
+   "cape-bench",
+   "cheatbench-dev (NP43)",
+   "cm18:beam",
+   "cm18:cheatindex",
+   "goodfire-dev (NP43)",
+   "latent-agent-sandbox-episodes",
+   "linuxarena S / non-S (NP43)",
+   "np21:flake",
+   "np33:agentcheck",
+   "sleight-bench"
+  ]
+ },
+ "set_status": {
+  "apollo-insider-trading": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 14423,
+   "seconds": 23,
+   "status": "ok"
+  },
+  "assistant-axis": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 824,
+   "seconds": 0,
+   "status": "ok"
+  },
+  "automationbench-verified": {
+   "errors": {},
+   "no_steps": 800,
+   "rows": 800,
+   "seconds": 5,
+   "status": "ok"
+  },
+  "cape-bench": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 800,
+   "seconds": 25,
+   "status": "ok"
+  },
+  "cm18": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 946,
+   "seconds": 5,
+   "status": "ok"
+  },
+  "collusion-probe-pitfalls": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 8211,
+   "seconds": 41,
+   "status": "ok"
+  },
+  "cuaverifierbench": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 106,
+   "seconds": 0,
+   "status": "ok"
+  },
+  "hack-ignition": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 29760,
+   "seconds": 1,
+   "status": "ok"
+  },
+  "inferencebench-trajectories": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 269,
+   "seconds": 21,
+   "status": "ok"
+  },
+  "knowing-collusion-filter": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 990,
+   "seconds": 2,
+   "status": "ok"
+  },
+  "latent-agent-sandbox-episodes": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 356,
+   "seconds": 6,
+   "status": "ok"
+  },
+  "mistrace-reward-hacking": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 201,
+   "seconds": 32,
+   "status": "ok"
+  },
+  "np21": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 429,
+   "seconds": 0,
+   "status": "ok"
+  },
+  "np33": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 296,
+   "seconds": 7,
+   "status": "ok"
+  },
+  "paichecker": {
+   "errors": {},
+   "no_steps": 2587,
+   "rows": 2587,
+   "seconds": 0,
+   "status": "ok"
+  },
+  "resolvebench-support-agents": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 512,
+   "seconds": 4,
+   "status": "ok"
+  },
+  "rhb-delivery-queue": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 550,
+   "seconds": 0,
+   "status": "ok"
+  },
+  "rsi-benchmark-monitor-training": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 840,
+   "seconds": 2,
+   "status": "ok"
+  },
+  "sleight-bench": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 86,
+   "seconds": 1,
+   "status": "ok"
+  },
+  "trusted-monitoring-logs": {
+   "errors": {},
+   "no_steps": 0,
+   "rows": 584,
+   "seconds": 0,
+   "status": "ok"
+  }
+ },
+ "sets": {
+  "apollo-insider-trading": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 6790,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 7633,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "assistant-axis": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 635,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 189,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "automationbench-verified": {
+   "other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 800,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "cape-bench": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 400,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 13,
+    "alarm_without_R": 25,
+    "creation_only_runs": {
+     "k": 12,
+     "n": 25,
+     "pct": 48.0,
+     "wilson": [
+      30.0,
+      66.5
+     ]
+    },
+    "event_kinds": {
+     "a": 23,
+     "b": 18,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {
+     "a:tool_create": 23,
+     "b:existing_listing": 4,
+     "b:own_file": 14
+    },
+    "rows": 400,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 25,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      13.3
+     ]
+    }
+   }
+  },
+  "cheatbench-dev (NP43)": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "rows": 75,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 1,
+    "alarm_without_R": 1,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 1,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      79.3
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 2,
+     "c": 0,
+     "d": 0
+    },
+    "rows": 75,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 1,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      79.3
+     ]
+    }
+   }
+  },
+  "cm18:beam": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 1,
+    "alarm_without_R": 1,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 1,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      79.3
+     ]
+    },
+    "event_kinds": {
+     "a": 1,
+     "b": 4,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {
+     "a:tool_create": 1,
+     "b:own_file": 4
+    },
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 1,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      79.3
+     ]
+    }
+   }
+  },
+  "cm18:cheatindex": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 10,
+    "alarm_without_R": 10,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 10,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 10,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {
+     "b:existing_listing": 10
+    },
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 10,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      27.8
+     ]
+    }
+   }
+  },
+  "cm18:evilgenie": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "cm18:kernelbench": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 19,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 11,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "cm18:reflex": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 50,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 45,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "cm18:researcharena": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 20,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 21,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "cm18:sdf": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "collusion-probe-pitfalls": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 3966,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 3289,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 956,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "cuaverifierbench": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 29,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 77,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "goodfire-dev (NP43)": {
+   "negative": {
+    "alarm_with_R": 89,
+    "alarm_without_R": 89,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 89,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      4.1
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 265,
+     "c": 0,
+     "d": 0
+    },
+    "rows": 752,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 89,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      4.1
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 390,
+    "alarm_without_R": 390,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 390,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      1.0
+     ]
+    },
+    "event_kinds": {
+     "a": 10,
+     "b": 1307,
+     "c": 0,
+     "d": 0
+    },
+    "rows": 1636,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 390,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      1.0
+     ]
+    }
+   }
+  },
+  "hack-ignition": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 12606,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 17154,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "inferencebench-trajectories": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 211,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 41,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 17,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "knowing-collusion-filter": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 20,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 884,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 86,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "latent-agent-sandbox-episodes": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 148,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 30,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 2,
+    "alarm_without_R": 2,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 2,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 3,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {
+     "b:existing_listing": 3
+    },
+    "rows": 178,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 2,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      65.8
+     ]
+    }
+   }
+  },
+  "linuxarena S / non-S (NP43)": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 12,
+    "alarm_without_R": 27,
+    "creation_only_runs": {
+     "k": 14,
+     "n": 27,
+     "pct": 51.9,
+     "wilson": [
+      34.0,
+      69.3
+     ]
+    },
+    "event_kinds": {
+     "a": 18,
+     "b": 28,
+     "c": 0,
+     "d": 1
+    },
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 1,
+     "n": 27,
+     "pct": 3.7,
+     "wilson": [
+      0.7,
+      18.3
+     ]
+    }
+   }
+  },
+  "mistrace-reward-hacking": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 81,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 1,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 119,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "np21:baitbench": {
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "np21:flake": {
+   "negative": {
+    "alarm_with_R": 6,
+    "alarm_without_R": 6,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 6,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      39.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 6,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {
+     "b:existing_listing": 6
+    },
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 6,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      39.0
+     ]
+    }
+   },
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 2,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 7,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "np21:kobayashi": {
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "np21:osf": {
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "np33:agentcheck": {
+   "negative_other": {
+    "alarm_with_R": 12,
+    "alarm_without_R": 12,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 12,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      24.2
+     ]
+    },
+    "event_kinds": {
+     "a": 6,
+     "b": 40,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {
+     "a:tool_create": 6,
+     "b:existing_listing": 18,
+     "b:existing_read": 8,
+     "b:own_file": 14
+    },
+    "rows": 40,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 12,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      24.2
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 8,
+    "alarm_without_R": 8,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 8,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      32.4
+     ]
+    },
+    "event_kinds": {
+     "a": 2,
+     "b": 25,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {
+     "a:tool_create": 2,
+     "b:existing_listing": 17,
+     "b:existing_read": 8
+    },
+    "rows": 10,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 8,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      32.4
+     ]
+    }
+   }
+  },
+  "np33:cnt": {
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 80,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 46,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "np33:ptb": {
+   "negative_other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 60,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "paichecker": {
+   "other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 2587,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "resolvebench-support-agents": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 400,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 112,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "rhb-delivery-queue": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 409,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 12,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 129,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "rsi-benchmark-monitor-training": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 416,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 4,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 420,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  },
+  "sleight-bench": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 1,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 1,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      79.3
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 1
+    },
+    "event_subkinds": {
+     "d:prior_listing_output_missing_or_truncated": 1
+    },
+    "rows": 43,
+    "undetermined_only_runs": {
+     "k": 1,
+     "n": 1,
+     "pct": 100.0,
+     "wilson": [
+      20.7,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 1,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 1,
+     "pct": 0.0,
+     "wilson": [
+      0.0,
+      79.3
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 1
+    },
+    "event_subkinds": {
+     "d:prior_listing_output_missing_or_truncated": 1
+    },
+    "rows": 43,
+    "undetermined_only_runs": {
+     "k": 1,
+     "n": 1,
+     "pct": 100.0,
+     "wilson": [
+      20.7,
+      100.0
+     ]
+    }
+   }
+  },
+  "trusted-monitoring-logs": {
+   "negative": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 200,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "other": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 351,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   },
+   "positive": {
+    "alarm_with_R": 0,
+    "alarm_without_R": 0,
+    "creation_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    },
+    "event_kinds": {
+     "a": 0,
+     "b": 0,
+     "c": 0,
+     "d": 0
+    },
+    "event_subkinds": {},
+    "rows": 33,
+    "undetermined_only_runs": {
+     "k": 0,
+     "n": 0,
+     "pct": null,
+     "wilson": [
+      0.0,
+      100.0
+     ]
+    }
+   }
+  }
+ }
+}

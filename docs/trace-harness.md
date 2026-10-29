@@ -144,7 +144,7 @@ record per (run, detector):
   no Family-A fusion beat cascade v8 by the preregistered 15%-at-3% criterion on Goodfire DEV
   (`RESULTS.md` there); the chosen rule's recall gain replicates on CheatBench and CM-18 at v8's own false-alarm rate.
 - The Phoenix shipper is `evallab trace otel <path>`.
-- `--detectors cascade_stream` is the only live path: it feeds a run's steps one
+- `--detectors cascade_stream` feeds a run's steps one
   `trace.step` event at a time to `MisalignmentLiveWorker`
   (`production/trace_harness_stream.py`), and it is the second adapter that may
   generate, gated the same way: Stage 2 serves only stored or injected verdicts, so a
@@ -163,6 +163,14 @@ record per (run, detector):
   `cascade*` adapters stay stored-result views. P0-F9D7D6-3
   (`research/evidence/runs/p0-f9d7d6-3-matched-cascade-20261029/`) ran it with Haiku 5.5 on the matched Goodfire pairs;
   NP34-TT-1 (`research/evidence/runs/np34-sonnet-matched-cascade-20261029/`) ran the same 246 runs with Sonnet 5.5.
+- `--detectors cascade_stream_judge_only:<provider>/<model>` selects the optional
+  `window-cascade/v8+judge-only` detector. It retains v8's ordinary judgment windows
+  and prompt but judges `grader_tamper` cards instead of raising them automatically;
+  extra gate-card judgments do not consume the existing family budget. A confirmed card
+  alarms; an unavailable judgment without a confirmed card abstains. Existing v8
+  findings and its pass-through gate are unchanged. Stored v8 judge-confirmed cards
+  reproduce the previously observed judge component, but unjudged gate cards need new
+  judgments before they can be included in the full variant.
 
 ## Gaps and duplicates
 

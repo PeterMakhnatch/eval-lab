@@ -13,6 +13,7 @@ import pytest
 from evallab.production import live_supervisor as ls
 from evallab.production import live_supervisor_adjudicate as adj
 from evallab.production import run_atlas as atlas
+from evallab.production.live_supervisor_triage import TokenBudget
 
 MODEL = adj.ADJUDICATOR_MODEL
 
@@ -384,8 +385,93 @@ def test_adjudicate_cheat_rejects_other_served_model_and_paid_routes() -> None:
     atlas.Completion(text="Yes, step 2.", served_model=MODEL, input_tokens=1, output_tokens=1, latency_seconds=0.1),
 ])
 def test_adjudicate_cheat_marks_non_strict_replies_invalid(reply: atlas.Completion) -> None:
-    record = adj.adjudicate_cheat(_flag_row(), _window("a", events=4), transport=FakeTransport([reply]))
+    transport = FakeTransport([reply, reply])
+    record = adj.adjudicate_cheat(_flag_row(), _window("a", events=4), transport=transport)
     assert record["status"] == "invalid" and record["errors"] and "verdict" not in record
+    assert record["repaired"] is True and record["attempts"] == 2 and len(transport.requests) == 2
+
+
+def _cheat_prose_reply() -> atlas.Completion:
+    return atlas.Completion(text="Here is my assessment.\n" + _cheat_reply().text, served_model=MODEL,
+                            input_tokens=900, output_tokens=300, latency_seconds=2.0)
+
+
+@pytest.mark.parametrize("pointer", [True, False])
+def test_cheat_prose_gets_one_blind_format_only_repair(pointer: bool) -> None:
+    first_reply = _cheat_prose_reply()
+    transport = FakeTransport([first_reply, _cheat_reply()])
+    row = _flag_row("secret-case")
+    record = adj.adjudicate_cheat(row, _window("secret-case", events=4), transport=transport, pointer=pointer)
+    assert (record["status"], record["verdict"], record["step"]) == ("ok", "yes", 2)
+    assert record["repaired"] is True and record["attempts"] == 2 and record["first_errors"]
+    assert record["repair_prompt_version"] == adj.CHEAT_REPAIR_PROMPT_VERSION
+    assert len(record["repair_prompt_sha256"]) == 64
+    assert "errors" not in record and "reply_excerpt" not in record
+    assert (record["input_tokens"], record["output_tokens"], record["latency_ms"]) == (1600, 330, 3000)
+    assert record["turns"] == [{"input_tokens": 900, "output_tokens": 300, "latency_ms": 2000},
+                               {"input_tokens": 700, "output_tokens": 30, "latency_ms": 1000}]
+    first, second = (request[1] for request in transport.requests)
+    assert second[:len(first)] == first
+    assert [m["role"] for m in second[len(first):]] == ["assistant", "user"]
+    assert second[len(first)]["content"] == first_reply.text
+    assert all(r[0] == MODEL and r[2] == adj.MAX_OUTPUT_TOKENS for r in transport.requests)
+    text = json.dumps(second)
+    for leaked in ("secret-case", "g6_loop", "SECRET_RULE_DETAIL", "harness_log_read", "trace_alarm",
+                   "flag_cheating", "kill_and_retry", "SECRET_SUPERVISOR_REASON"):
+        assert leaked not in text, leaked
+
+
+def test_cheat_repair_instruction_is_independent_of_label_and_decision() -> None:
+    rows = [_flag_row("secret-one"), _flag_row("secret-two") | {
+        "action": "continue", "proposal": "continue", "label_action": "nudge", "set": "other-secret-set"}]
+    added = []
+    for row in rows:
+        transport = FakeTransport([_cheat_prose_reply(), _cheat_reply()])
+        adj.adjudicate_cheat(row, _window(row["case_id"], events=4), transport=transport)
+        first, second = (request[1] for request in transport.requests)
+        added.append(second[len(first):])
+    assert added[0] == added[1]
+    text = json.dumps(added[0])
+    for leaked in ("secret-one", "secret-two", "other-secret-set", "flag_cheating", "kill_and_retry",
+                   "continue", "nudge", "label", "decided"):
+        assert leaked not in text, leaked
+
+
+def test_cheat_second_failure_stays_invalid_with_second_errors() -> None:
+    bad = _cheat_reply("yes", 99)
+    transport = FakeTransport([_cheat_prose_reply(), bad])
+    record = adj.adjudicate_cheat(_flag_row(), _window("a", events=4), transport=transport)
+    assert record["status"] == "invalid" and record["repaired"] is True and record["attempts"] == 2
+    assert record["errors"] == ["a yes verdict must cite one of the shown event indices"]
+    assert record["first_errors"] != record["errors"] and record["reply_excerpt"] == bad.text
+    assert "verdict" not in record and len(transport.requests) == 2
+
+
+def test_cheat_repair_model_mismatch_counts_both_turns_and_stops() -> None:
+    transport = FakeTransport([_cheat_prose_reply(), _cheat_reply(served_model="anthropic/claude-sonnet-5-5")])
+    with pytest.raises(adj.ReaderTransportError) as caught:
+        adj.adjudicate_cheat(_flag_row(), _window("a", events=4), transport=transport)
+    assert caught.value.quota
+    assert (caught.value.spent_input_tokens, caught.value.spent_output_tokens) == (1600, 330)
+    assert len(transport.requests) == 2
+
+
+def test_cheat_repair_transport_failure_counts_first_turn() -> None:
+    failure = atlas.TransportError("timed out", retryable=True)
+    transport = FakeTransport([_cheat_prose_reply(), failure])
+    with pytest.raises(adj.ReaderTransportError) as caught:
+        adj.adjudicate_cheat(_flag_row(), _window("a", events=4), transport=transport)
+    assert caught.value.retryable and not caught.value.quota
+    assert (caught.value.spent_input_tokens, caught.value.spent_output_tokens) == (900, 300)
+
+
+def test_cheat_repaired_record_accounts_for_both_turns_in_token_budget(tmp_path: Path) -> None:
+    budget = TokenBudget(tmp_path, limit=1900, clock=lambda: datetime(2026, 10, 28, tzinfo=UTC))
+    transport = FakeTransport([_cheat_prose_reply(), _cheat_reply()])
+    record = adj.adjudicate_cheat(_flag_row(), _window("a", events=4), transport=transport)
+    assert not budget.exhausted()
+    budget.add(record["input_tokens"] + record["output_tokens"])
+    assert budget.spent() == 1930 and budget.exhausted()
 
 
 # --------------------------------------------------------------------------- score

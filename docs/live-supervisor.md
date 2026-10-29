@@ -76,8 +76,8 @@ over-reports waste on clean runs, so it reads only after a trigger.
 
 | Step | Reader | Input | Output |
 |---|---|---|---|
-| triage | `anthropic/claude-haiku-5-5` | trigger evidence and the last 20 steps or log lines, at most 8k tokens, label-free | action, confidence, cited steps, a reason of at most 40 words |
-| decide | `anthropic/claude-sonnet-5-5`; `anthropic/claude-opus-5-5` when a kill would discard more than 30 min of work or paid compute | the triage output plus the full recent window | the final action |
+| triage | `anthropic/claude-haiku-5-5` by default; configurable | trigger evidence and the last 20 steps or log lines, at most 8k tokens, label-free | action, confidence, cited steps, a reason of at most 40 words |
+| decide | `anthropic/claude-sonnet-5-5` by default; configurable; `anthropic/claude-opus-5-5` when a kill would discard more than 30 min of work or paid compute | the triage output plus the full recent window | the final action |
 
 Models are called through `run_atlas.GatewayTransport` on subscription routes only, and the
 served model is attested.
@@ -166,6 +166,15 @@ falls back to `alert_research` and is not a model decision. A `rules` row's `act
 proposal and `recorded_action` is what was recorded; both arms share a key, so score them in
 separate `--out` files.
 
+The blind action and cheat-question adjudicators make one format-only repair request when
+the first reply fails strict validation. The repair carries the original blind prompt,
+the reader's own reply and parser errors, not the label or supervisor's decision; it does
+not ask for a new judgment. A second invalid reply remains invalid. Records report
+`repaired`, `attempts`, `first_errors` and per-turn token usage when repaired, with total
+tokens covering both turns. A served-model mismatch on either turn is an error;
+`ReaderTransportError` carries tokens consumed before the failure, including a refused
+reply, for the caller to charge to its reader budget.
+
 Cheating alarms produce evidence cards and one queue notification per UTC day. Routing
 holds a shared file lock around card, index, notification and deduplication-state writes,
 so the live subscriber and a scan actuator cannot race to send duplicate notices.
@@ -186,6 +195,10 @@ evallab live-supervisor scan --source harbor --source services --json
 # the model reader: Haiku triage, Sonnet or Opus to confirm or overrule; capped per UTC day
 evallab live-supervisor scan --reader model --max-tokens-per-day 500000
 
+# Explicit reader routes also work on serve; these values are the unchanged defaults.
+evallab live-supervisor serve --reader model --max-tokens-per-day 500000 \
+  --triage-model anthropic/claude-haiku-5-5 --decide-model anthropic/claude-sonnet-5-5
+
 # a foreground loop (development only; launchd runs scan every 120 s instead)
 evallab live-supervisor serve --interval 120
 ```
@@ -195,9 +208,17 @@ evallab live-supervisor serve --interval 120
   the queue keeper, provider quotas). Sources are imported by name on use, so registration and
   `--help` open nothing. A source that fails is reported under `errors` and the others still run.
 - `--reader rules` accepts the trigger table's proposal unchanged. `--reader model` refuses to
-  start without `--max-tokens-per-day`: no unattended run spends tokens uncapped. It also
-  checks reader headroom once per cycle through `run_atlas_watch.routes_with_headroom` (the
-  `omp usage` contract, 90% window rule) and sends nothing while a reader route is used up.
+  start without `--max-tokens-per-day`: no unattended run spends tokens uncapped. Both `scan`
+  and `serve` accept `--triage-model` and `--decide-model` to select subscription model routes;
+  omitting them retains the Claude defaults in the table above. They do not change the Opus
+  deep-reader route. Model selection does not relax subscription-only routing or served-model
+  attestation.
+- The model reader checks headroom for the configured triage and decide routes **and** the Opus
+  deep route through `run_atlas_watch.routes_with_headroom` (the `omp usage` contract, 90% window
+  rule). If any is blocked, it sends no reader requests and records `alert_research`, even if
+  that particular decision would not have needed the blocked route. If usage reports are
+  unavailable, the route pool still handles actual quota failures; no key-backed route is
+  substituted.
 - `--root` defaults to `~/.local/state/evallab-prod-live/live-supervisor` and holds
   `decisions-v1.jsonl`, `windows-v1.jsonl`, `state.json` (the 30-minute per-subject cooldown),
   `fleet-state.json` and `supervisor.lock`.
@@ -243,6 +264,14 @@ replays without them. Each row carries `first_hits` (every distinct trigger seen
 rule proposal was `continue`) and `watch` (first alert prefix, rules and step; every rule on the whole trace).
 Measured on 2026-10-28 (cheat-watch-replay): the trigger-table rules fire on 2/80 Goodfire CM-6 and 1/75
 CheatBench DEV positives and 0/145 negatives; `flag_cheating` as the first replay decision is 2/80 and 1/75.
+
+Measured on 2026-10-29 (R29-TW-1, `research/evidence/runs/r29-tw1-triggers-20261029`; all strict-DEV Goodfire runs,
+CheatBench DEV and the staged cm18, np21 and np33 sets replayed through the same chain): the 0/145 above are short
+runs (Goodfire-150 clean median 20 steps). On the 752 clean Goodfire DEV runs `grader_tamper` alarms on 89 (11.8%)
+and as a trigger on the 827 strict-DEV negatives on 89 (10.8%); the alarms are python-script rewrites (62 runs) and
+`sed -i` (36) of repo test files. `grader_tamper` alerts now carry `mechanisms` (from `tripwires.grader_tamper_hits`) and
+`live_supervisor_harbor.GRADER_TAMPER_TRIGGER_MECHANISMS` keeps only `always`, `settings`, `weakening`, `whole` and
+`preexisted` as a `trace_alarm` trigger; an alert without `mechanisms` (file-side evidence, older records) triggers as before.
 
 A `flag_cheating` window can be judged on its own with `live_supervisor_adjudicate.adjudicate_cheat`
 (a library call, no CLI): the same blind adjudicator is asked only "does this window show cheating,
@@ -324,9 +353,10 @@ loaded by merging this change.
 ### Fleet-health report
 
 `evallab live-supervisor fleet-report` is the repeatable form of the one-off RH-3 / RH-p11c fleet
-numbers ("which of our own lanes sat idle or looped"). It is deterministic and $0: it reads only the
-queue keeper's files in the bridge run directory (`_queue.log`, `queue.json`, `queue-state.json`),
-never a lane's session, and calls no model.
+numbers ("which of our own lanes sat idle or looped"). It calls no model and reads the
+queue keeper's files in the bridge run directory (`_queue.log`, `queue.json`,
+`queue-state.json`), supervisor heartbeats under `--root`, and, when available,
+the read-only `pmset -g log` sleep events. It never reads a lane's session.
 
 ```bash
 # print the markdown section for the last 24 h (read-only)
@@ -355,6 +385,13 @@ evallab live-supervisor fleet-report --write --out /tmp/copy-of-live-supervisor.
   to the last outcome. The thresholds are named constants in
   `production/live_supervisor_fleet_report.py`, fixed in RH-p11c before scoring.
 - Open items: dispatches with no outcome, flagged past 3 h (the supervisor's wall-time rule).
+- Supervisor coverage: sum elapsed time between adjacent cycle starts at most 3 minutes
+  apart, clipped to the report window. Window edges are not extrapolated; gaps over
+  10 minutes include the window edges and list ET endpoints. A gap is marked sleep
+  observed only when a `pmset` Sleep event falls within it; otherwise its cause is
+  unknown. The report counts non-`ok` statuses (including `rules`), reports the first
+  `budget_exhausted` cycle on the current UTC budget day, and counts malformed rows.
+  Missing, empty or wholly malformed heartbeat files produce null coverage, not zero.
 - Every number carries its n, and a quantity with no data is `null` (JSON) or `n/a`, never 0.
 - Measured limits: STORM had one episode in the validation log (precision 1/1) and SILENT was 2/5
   precise, so the report claims nothing about lane health beyond the keeper log.

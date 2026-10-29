@@ -1,0 +1,6 @@
+{
+  "n": 3,
+  "order": "real_home, clean_home interleaved",
+  "cpu_seconds": {"real_home": [0.892132, 1.109598, 1.147396], "clean_home": [0.656209, 0.99188, 1.127999]},
+  "median_cpu_seconds": {"real_home": 1.109598, "clean_home": 0.99188}
+}

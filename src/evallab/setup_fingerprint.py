@@ -34,6 +34,8 @@ from typing import Any
 
 import yaml
 
+from evallab.egress_verification import lock_enforced
+
 FINGERPRINT_SCHEMA = "evallab.setup_fingerprint/v1"
 FINGERPRINT_FILENAME = "setup-fingerprint.json"
 SETUP_PROFILES_DIRNAME = "research/setup-profiles"
@@ -616,11 +618,13 @@ def _egress_request(
 
 
 def trial_fingerprint(intended: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
-    """The observed setup of one landed trial: lock as applied.
+    """The observed setup of one landed trial: lock as enforced.
 
-    Reads ``egress-lock.json`` written by ``harbor_daytona``: an absent file
-    reads ``open`` (the pre-HAR-140 default was off and no run used the
-    opt-in), matching ``trial_treatment``.
+    Reads ``egress-lock.json``: an absent file reads ``open`` (the pre-HAR-140
+    default was off and no run used the opt-in), matching ``trial_treatment``.
+    ``locked`` requires :func:`lock_enforced`: a provider acknowledgement
+    alone (``applied`` on a Daytona record without in-sandbox verification,
+    HAR-205) reads ``open`` and is named as such in ``observed_source``.
     """
     observed = dict(intended)
     lock = dict(intended.get("lock") or {})
@@ -629,14 +633,20 @@ def trial_fingerprint(intended: dict[str, Any], trial_dir: Path) -> dict[str, An
         record = json.loads(record_path.read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeDecodeError):
         record = None
-    applied = bool(record.get("applied")) if isinstance(record, dict) else False
-    lock["mode"] = "locked" if applied else "open"
-    lock["observed_applied"] = applied
-    lock["observed_source"] = (
-        "trial egress-lock.json applied"
-        if record is not None
-        else "trial egress-lock.json absent (pre-HAR-140 default unlocked)"
-    )
+    enforced = lock_enforced(record)
+    acknowledged = isinstance(record, dict) and record.get("applied") is True
+    lock["mode"] = "locked" if enforced else "open"
+    lock["observed_applied"] = acknowledged
+    lock["observed_enforced"] = enforced
+    if record is None:
+        source = "trial egress-lock.json absent (pre-HAR-140 default unlocked)"
+    elif enforced:
+        source = "trial egress-lock.json applied and enforced"
+    elif acknowledged:
+        source = "trial egress-lock.json applied by provider acknowledgement only, not verified"
+    else:
+        source = "trial egress-lock.json not applied"
+    lock["observed_source"] = source
     observed["lock"] = lock
     observed["trial"] = trial_dir.name
     return observed

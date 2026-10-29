@@ -30,6 +30,7 @@ from evallab.harbor_repeat_verifier import (
     STABILITY_FILENAME,
     VERIFIER_IMPORT_PATH,
 )
+from evallab.harbor_telemetry import HARBOR_TELEMETRY_ENV, HARBOR_TELEMETRY_OFF
 
 METHODS = ("repeat_verifier", "nop_repeat", "diff_replay")
 VERDICTS = ("stable", "flipped", "errored")
@@ -364,7 +365,7 @@ def stability_run_command(
         "--verifier-kwarg", f"repeat_n={repeat_n}",
         "-y",
     ]
-    env: dict[str, str] = {}
+    env: dict[str, str] = {HARBOR_TELEMETRY_ENV: HARBOR_TELEMETRY_OFF}
     if repo_src is not None:
         env["PYTHONPATH"] = str(repo_src)
     return argv, env

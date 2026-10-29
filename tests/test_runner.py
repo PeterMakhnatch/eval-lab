@@ -533,6 +533,7 @@ def test_subscription_environment_never_forwards_api_keys() -> None:
         "HARBOR_CLAUDE_KEYCHAIN_SERVICE": "eval-lab-claude",
         "PATH": "/safe/bin",
         "REWARDKIT_FORCE_OAUTH": "1",
+        "HARBOR_TELEMETRY": "off",
     }
 
 
@@ -547,6 +548,7 @@ def test_subscription_environment_does_not_forward_ambient_oauth_token() -> None
         "CLAUDE_FORCE_OAUTH": "1",
         "CODEX_FORCE_AUTH_JSON": "1",
         "REWARDKIT_FORCE_OAUTH": "1",
+        "HARBOR_TELEMETRY": "off",
     }
 
 

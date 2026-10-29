@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -89,7 +90,7 @@ def run_control(
             _prepare_trials_dir(trials_dir)
             command.extend(["--trials-dir", str(trials_dir)])
         if not dry_run:
-            subprocess.run(command, check=True)
+            subprocess.run(command, check=True, env={**os.environ, "HARBOR_TELEMETRY": "off"})
             if trials_dir is not None:
                 actual = _persisted_reward(trials_dir)
                 expected = EXPECTED_REWARDS[mode] if expected_reward is None else expected_reward

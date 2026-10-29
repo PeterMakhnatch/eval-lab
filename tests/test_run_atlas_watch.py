@@ -82,6 +82,7 @@ def _unexpected(*_args: Any, **_kwargs: Any) -> Any:
 @pytest.fixture(autouse=True)
 def isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(run_atlas, "ATLAS_ROOT", tmp_path / "atlas-state")
+    monkeypatch.setattr(run_atlas, "DEFAULT_WATCH_CALLS", tmp_path / "watch-calls.jsonl")
     monkeypatch.setattr(run_atlas, "GatewayTransport", _unexpected)
     monkeypatch.setattr(watch.subprocess, "run", _unexpected)
 

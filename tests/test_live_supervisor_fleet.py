@@ -397,20 +397,121 @@ class FakeMachine:
             return json.dumps(self.usage)
         raise AssertionError(f"unexpected command {argv}")
 
-    def write_config(self, *, log_lines: str, pending: bool = True) -> None:
+    def add_pane(self, pane_id: str, label: str, session: Path | None, *, status: str = "working",
+                 agent: str = "omp") -> None:
+        tab_id = f"tab:{pane_id}"
+        self.panes.append({"pane_id": pane_id, "tab_id": tab_id, "agent": agent, "agent_status": status,
+                           "agent_session": {"value": str(session)} if session else {}})
+        self.tabs.append({"tab_id": tab_id, "label": label})
+
+    def write_config(self, *, log_lines: str, pending: bool = True, fleet_md: str = "| `w1C:p12` |",
+                     queue_panes: dict[str, list[str]] | None = None,
+                     routing: dict[str, Any] | None = None) -> None:
         herdr = self.home / ".config/herdr"
         herdr.mkdir(parents=True)
-        (herdr / "agent-routing.json").write_text(json.dumps({"agents": {
+        (herdr / "agent-routing.json").write_text(json.dumps({"agents": routing if routing is not None else {
             "qa-task": {"pane_id": "w1C:pJ", "label": "QA Agent - Task"}, "foreman": {"kind": "service"}}}))
         doc = self.home / "Developer/research-context/omp/fleet.md"
         doc.parent.mkdir(parents=True)
-        doc.write_text("| Pane |\n|---|\n| `w1C:p12` |\n")
+        doc.write_text(f"| Pane |\n|---|\n{fleet_md}\n")
         run = self.home / "Developer/research-context/bridge/run-x"
         run.mkdir(parents=True)
         (run / "_queue.log").write_text(log_lines)
+        panes = queue_panes if queue_panes is not None else {
+            "w1C:pJ": [{"id": "OQ-6"}, {"id": "OQ-7"}] if pending else []}
         (run / "queue.json").write_text(json.dumps(
-            {"panes": {"w1C:pJ": {"items": [{"id": "OQ-6"}, {"id": "OQ-7"}] if pending else []}}}))
-        (run / "queue-state.json").write_text(json.dumps({"w1C:pJ": {"index": 0, "extra": [], "ledger": {}}}))
+            {"panes": {pane: {"items": items} for pane, items in panes.items()}}))
+        (run / "queue-state.json").write_text(json.dumps(
+            {pane: {"index": 0, "extra": [], "ledger": {}} for pane in panes}))
+
+
+PRIVATE = "PRIVATE-CHAT-SENTINEL-9f31"
+
+
+class ReadSpy:
+    """Records every session path the source touches, and calls through."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.paths: list[Path] = []
+        for name in ("read_session_tail", "hourly_baseline", "latest_subagent_activity"):
+            monkeypatch.setattr(fl, name, self._wrap(getattr(fl, name)))
+
+    def _wrap(self, fn: Any) -> Any:
+        def spy(path: Path, *args: Any, **kwargs: Any) -> Any:
+            self.paths.append(Path(path))
+            return fn(path, *args, **kwargs)
+
+        return spy
+
+
+def test_unrelated_and_pinned_sessions_are_never_opened(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine = FakeMachine(tmp_path)
+    fleet_session = machine.session
+    _write_session(fleet_session, [result(60)])
+    private = tmp_path / "sessions" / "private.jsonl"
+    _write_session(private, [start(60, "bash", "p", command=f"echo {PRIVATE}")])
+    unrelated = tmp_path / "sessions" / "unrelated.jsonl"
+    _write_session(unrelated, [start(60, "bash", "u", command=f"echo {PRIVATE}")])
+    # a pinned tab, a routed-but-unlisted chat, and a plain unlisted pane all point at real sessions
+    machine.panes[1]["agent_session"] = {"value": str(private)}  # wK:pH, label starts with the pin
+    machine.add_pane("w19:pD", "Automation", unrelated)
+    machine.write_config(log_lines=_fresh_log(10),
+                         routing={"qa-task": {"pane_id": "w1C:pJ", "label": "QA Agent - Task"},
+                                  "pinned": {"pane_id": "wK:pH", "session_ref": str(private)},
+                                  "chat": {"pane_id": "w19:pD", "session_ref": str(unrelated)}})
+    spy = ReadSpy(monkeypatch)
+    source = fl.FleetSource(runner=machine, home=tmp_path, run_name="run-x")
+    observations = source.observe(NOW)
+
+    lanes = {o.subject.id: o for o in observations if o.subject.kind == "omp_lane"}
+    assert set(spy.paths) == {fleet_session}  # only the lane queue.json authorizes; nothing else is opened
+    for pane_id in ("wK:pH", "w19:pD"):
+        assert lanes[pane_id].events == ()
+        assert lanes[pane_id].metrics["session_read"] is False
+        assert lanes[pane_id].metrics["authorized"] is False
+        assert not lanes[pane_id].actor_inputs_available
+        assert fl.FleetSource().triggers(lanes[pane_id]) == []
+    assert lanes["w1C:pJ"].metrics["session_read"] is True
+    dumped = json.dumps([o.metrics for o in observations], default=str)
+    assert PRIVATE not in dumped
+    assert PRIVATE not in (tmp_path / ".local/state/evallab-prod-live/live-supervisor/fleet-state.json").read_text()
+    assert str(private) not in (tmp_path / ".local/state/evallab-prod-live/live-supervisor/fleet-state.json").read_text()
+
+
+def test_registry_lane_is_read_without_a_queue_entry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine = FakeMachine(tmp_path)
+    _write_session(machine.session, [start(60, "bash", "a", command="echo fleet")])
+    machine.write_config(log_lines=_fresh_log(10), fleet_md="| `w1C:pJ` |", queue_panes={})
+    spy = ReadSpy(monkeypatch)
+    source = fl.FleetSource(runner=machine, home=tmp_path, run_name="run-x")
+    lanes = {o.subject.id: o for o in source.observe(NOW) if o.subject.kind == "omp_lane"}
+    assert set(spy.paths) == {machine.session}
+    assert lanes["w1C:pJ"].metrics["authorized"] is True and lanes["w1C:pJ"].metrics["session_read"] is True
+
+
+def test_pinned_lane_is_metadata_only_even_when_queued(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine = FakeMachine(tmp_path)
+    _write_session(machine.session, [start(60, "bash", "a", command="echo pinned")])
+    machine.write_config(log_lines=_fresh_log(10), fleet_md="| `w1C:p12` |",  # neither pane is authorized
+                         queue_panes={"wK:pH": [{"id": "X"}]})
+    machine.panes[1]["agent_session"] = {"value": str(machine.session)}
+    spy = ReadSpy(monkeypatch)
+    source = fl.FleetSource(runner=machine, home=tmp_path, run_name="run-x")
+    lanes = {o.subject.id: o for o in source.observe(NOW) if o.subject.kind == "omp_lane"}
+    assert spy.paths == []  # w1C:pJ is not queued here, wK:pH is pinned
+    assert lanes["wK:pH"].metrics["authorized"] is True and lanes["wK:pH"].metrics["session_read"] is False
+
+
+def test_read_scope_helpers() -> None:
+    authorized = fl.authorized_lanes(["w1C:pJ"], frozenset({"w1C:pX"}))
+    assert authorized == frozenset({"w1C:pJ", "w1C:pX"})
+    assert fl.may_read_session("w1C:pJ", "QA Agent - Task", authorized=authorized)
+    assert fl.may_read_session("w1C:pX", "Trace Tools", authorized=authorized)
+    # not in queue.json and not in the registry: no read, however Peter-owned or unrouted it is
+    assert not fl.may_read_session("wK:pH", "\N{PUSHPIN} Research", authorized=authorized)
+    assert not fl.may_read_session("w19:pD", "Automation", authorized=authorized)
+    # a pinned tab is never read even when both lists name it
+    assert not fl.may_read_session("w1C:pX", "\N{PUSHPIN} Trace Tools", authorized=authorized)
 
 
 def _write_session(path: Path, events: list[dict[str, Any]]) -> None:

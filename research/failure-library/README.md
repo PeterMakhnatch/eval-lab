@@ -94,6 +94,42 @@ uv run evallab failures bank stats
 uv run evallab failures bank verify
 ```
 
+### Detector coverage and catch/miss matrix
+
+`evallab failures bank-matrix` joins DEV issue items to retained
+`trace-findings/v1` records and Task QA gate findings. It rechecks the current
+cross-key assignment seals, records the authority digest in `admission.json`,
+and refuses a missing assignment authority. Detector version, reader model and
+experimental arm remain separate identities; a missing detector still gets an
+explicit `not_run` column.
+
+```sh
+uv run python -m evallab.failure_library.bank.taskqa_findings \
+  --out /tmp/task-findings.jsonl --summary /tmp/task-findings-summary.json
+uv run evallab failures bank-matrix \
+  --task-findings /tmp/task-findings.jsonl --out /tmp/issue-bank-matrix
+```
+
+The Task QA command replays hash-checked retained OQ-6 inputs, responses and
+scorer receipts through the frozen citation gate; it makes no model calls.
+Exact keyed-defect matches stay distinct from broad same-task/direction
+signals. Criterion-specific clean controls require an explicit item binding,
+not an unrelated alarm on the same task.
+
+The matrix writes `cells.jsonl`, `misses.jsonl`, `false_alarms.jsonl`,
+`unscored_items.jsonl` and a count/digest `summary.json` outside Git. Cells
+distinguish catch, miss, false alarm, correct clear, abstention, unknown and
+not run. No-actor evidence is unknown even if a cached finding claims an
+alarm or clear. Repair pairs without bound before/after runs remain unscored.
+Self-labelled detector observations are marked circular and excluded from
+accuracy denominators.
+
+Recall and false-alarm rates use judged cells only; missing coverage is
+reported separately, never imputed clean. All-source totals count issue
+items, not independent subjects: aliases and multiple labels for one run
+must not be presented as extra independent capability evidence.
+
+
 ## One empirical QC system
 
 The source ingestors preserve observations; the [knowledge compiler](knowledge/README.md)

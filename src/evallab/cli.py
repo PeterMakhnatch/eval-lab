@@ -7625,6 +7625,11 @@ def parser() -> argparse.ArgumentParser:
     from evallab.production.run_health import register_parser as register_run_health_parser
 
     register_run_health_parser(commands)
+    from evallab.production.live_supervisor_cli import (
+        register_parser as register_live_supervisor_parser,
+    )
+
+    register_live_supervisor_parser(commands)
 
     from evallab.trace_store.cli import register_traces
 

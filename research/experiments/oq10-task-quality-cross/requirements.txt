@@ -1,0 +1,2 @@
+# Existing Library scorer dependency, matching the retained OQ6 runtime.
+numpy==2.5.4

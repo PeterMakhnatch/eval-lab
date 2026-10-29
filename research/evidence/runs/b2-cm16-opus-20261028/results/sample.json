@@ -1,0 +1,13 @@
+{
+ "schema": "b2-cm16-opus-sample/v1",
+ "source": "cm16-facet-prefix-20261028 frozen sample (state comparisons/cm16/sample.json), copied unchanged",
+ "ids_sha256": "0f092dcf1aa6e23b9f0a71b6cec7b8b9ef1a7c0e071f8af8c80046de42a3e1d6",
+ "matches_cm16_freeze": true,
+ "strata": {
+  "enacted": 25,
+  "clean": 25
+ },
+ "assignments_sha256_at_draw": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+ "assignments_sha256_now": "7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+ "verified_at": "2026-10-28T21:17:32+00:00"
+}

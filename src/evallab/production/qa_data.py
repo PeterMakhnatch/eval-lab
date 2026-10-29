@@ -157,9 +157,12 @@ class QaContext:
             raise QaDataError(UNAVAILABLE)
         with self.database._transaction():
             admitted, _sealed = self.retriever._admitted_ids()
-            row = self.database._execute(
-                "SELECT task_id FROM agent_traces WHERE trace_id = ?", (run_id,),
-            ).fetchone()
+            try:
+                row = self.database._execute(
+                    "SELECT task_id FROM agent_traces WHERE trace_id = ?", (run_id,),
+                ).fetchone()
+            except UnicodeEncodeError:
+                raise QaDataError(UNAVAILABLE) from None
         if row is None or row[0] not in admitted:
             raise QaDataError(UNAVAILABLE)
         return row[0]
@@ -175,10 +178,13 @@ def _parse_facets(items: Sequence[str]) -> dict[str, Any]:
         values: list[Any] = []
         for part in raw.split(","):
             part = part.strip()
-            values.append(
-                True if part == "true" else False if part == "false"
-                else int(part) if part.lstrip("-").isdigit() else part
-            )
+            try:
+                values.append(
+                    True if part == "true" else False if part == "false"
+                    else int(part) if part.removeprefix("-").isdecimal() else part
+                )
+            except ValueError:
+                raise QaDataError("--facet integer value is too long") from None
         facets[key.strip()] = values[0] if len(values) == 1 else values
     return facets
 

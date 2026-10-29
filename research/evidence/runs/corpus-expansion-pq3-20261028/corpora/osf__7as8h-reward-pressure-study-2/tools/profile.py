@@ -16,8 +16,8 @@ OUT = HERE.parent / "results" / "profile.json"
 TASK_COUNT_EXPECTED = 20
 ARCHIVE_SHA256 = "dd5151aab55488f5d9b01cac536ced43a77379d82250a504c01284559513e854"
 # An OSF node has no VCS revision: the pinned identity is the archive digest's 40-hex prefix.
-REVISION = "dd5151aab55488f5d9b01cac536ced43a77379d82"
-MANIFEST_SHA256 = "c4959328a8aaf526f2e22e00f6915046a3590ede88a2bd238312a6e57687457b"
+REVISION = "dd5151aab55488f5d9b01cac536ced43a77379d8"
+MANIFEST_SHA256 = "760a53a409da4bbec71bac938bc26982626e703cb639939eb50974f02d1ec8e1"
 RECEIPTS = frozenset({"STAGE-MANIFEST.json", "CROSS_TEST_ONLY.md"})
 # adapter.ROOT is the episodes directory inside the locked bundle.
 BUNDLE = adapter.ROOT.parents[2]

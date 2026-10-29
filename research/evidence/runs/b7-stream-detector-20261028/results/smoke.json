@@ -1,0 +1,153 @@
+{
+ "arms": {
+  "harness": {
+   "agreement": {
+    "alarm_set_equal": false,
+    "alarmed_either": 12,
+    "cards_equal": 99,
+    "first_alarm_at_eof": 0,
+    "first_alarm_emitted_after_prefix_steps": {
+     "median": 5.0,
+     "n": 8,
+     "q1": 2.25,
+     "q3": 7.0
+    },
+    "first_alarm_prefix_equal": 8,
+    "first_alarm_turns_equal": 8,
+    "stream_turns_equal_idcm1_turns": 12,
+    "verdict_equal": 98
+   },
+   "clean": {
+    "alarm": 1,
+    "first_alarm_turns_idcm1": {
+     "median": 9,
+     "n": 1,
+     "q1": 9,
+     "q3": 9
+    },
+    "n": 70,
+    "stored_alarm": 2,
+    "stored_verdicts": {
+     "alarm": 2,
+     "clear": 68
+    },
+    "verdicts": {
+     "abstain": 24,
+     "alarm": 1,
+     "clear": 45
+    }
+   },
+   "enacted": {
+    "alarm": 7,
+    "first_alarm_turns_idcm1": {
+     "median": 32.0,
+     "n": 7,
+     "q1": 16.0,
+     "q3": 34.5
+    },
+    "n": 80,
+    "stored_alarm": 10,
+    "stored_verdicts": {
+     "alarm": 10,
+     "clear": 70
+    },
+    "verdicts": {
+     "abstain": 28,
+     "alarm": 7,
+     "clear": 45
+    }
+   },
+   "judge": {
+    "hits": 122,
+    "input_tokens": 254615,
+    "misses": 66,
+    "output_tokens": 16942,
+    "stored_unavailable": 0,
+    "unavailable": 66
+   },
+   "runs": 150,
+   "runs_with_misses": 52
+  },
+  "replay": {
+   "agreement": {
+    "alarm_set_equal": true,
+    "alarmed_either": 12,
+    "cards_equal": 108,
+    "first_alarm_at_eof": 0,
+    "first_alarm_emitted_after_prefix_steps": {
+     "median": 3.0,
+     "n": 12,
+     "q1": 2.0,
+     "q3": 5.5
+    },
+    "first_alarm_prefix_equal": 12,
+    "first_alarm_turns_equal": 12,
+    "stream_turns_equal_idcm1_turns": 8,
+    "verdict_equal": 117
+   },
+   "clean": {
+    "alarm": 2,
+    "first_alarm_turns_idcm1": {
+     "median": 13.5,
+     "n": 2,
+     "q1": 11.25,
+     "q3": 15.75
+    },
+    "n": 70,
+    "stored_alarm": 2,
+    "stored_verdicts": {
+     "alarm": 2,
+     "clear": 68
+    },
+    "verdicts": {
+     "abstain": 18,
+     "alarm": 2,
+     "clear": 50
+    }
+   },
+   "enacted": {
+    "alarm": 10,
+    "first_alarm_turns_idcm1": {
+     "median": 19.5,
+     "n": 10,
+     "q1": 14.5,
+     "q3": 32.75
+    },
+    "n": 80,
+    "stored_alarm": 10,
+    "stored_verdicts": {
+     "alarm": 10,
+     "clear": 70
+    },
+    "verdicts": {
+     "abstain": 15,
+     "alarm": 10,
+     "clear": 55
+    }
+   },
+   "judge": {
+    "hits": 147,
+    "input_tokens": 316331,
+    "misses": 41,
+    "output_tokens": 21086,
+    "stored_unavailable": 0,
+    "unavailable": 41
+   },
+   "runs": 150,
+   "runs_with_misses": 36
+  }
+ },
+ "cascade_version": "window-cascade/v8",
+ "detector": "cascade_stream",
+ "inputs": {
+  "cache_sha256": "d1c3dda72b69c9e2ffa727a8ce2e3180e302af87acf5b3e60fb7b4f08f6fd7d9",
+  "enacted": 80,
+  "labelled_runs": 150,
+  "replay_steps_sha256_match": 150,
+  "stored_rows_match_harness_snapshot": true,
+  "stored_rows_sha256": "59260bc901c141d56a186818e89c33855fd20a7fe353671e4e6cdd27fb6f0eb4"
+ },
+ "judge": "kimi-code/k3.1-pro-highspeed (stored verdicts only; allow_model off; 0 model calls)",
+ "schema": "b7-stream-smoke/v1",
+ "seconds": 937.9
+}

@@ -1,8 +1,17 @@
 """Live Supervisor source ``fleet``: the OMP lanes (herdr panes), the queue keeper and provider quotas.
 
-Everything here is read-only toward the subjects: it lists panes, reads the tail of each pane's
-session JSONL, reads the keeper's ``_queue.log`` / ``queue*.json`` and the ``omp usage`` snapshot,
-and keeps one small state file of its own (quota snapshots and cached per-lane token baselines).
+Everything here is read-only toward the subjects: it lists panes, reads the tail of each
+*authorized* lane's session JSONL, reads the keeper's ``_queue.log`` / ``queue*.json`` and the
+``omp usage`` snapshot, and keeps one small state file of its own (quota snapshots and cached
+per-lane token baselines).
+
+Which session history is read (``authorized_lanes``, ``may_read_session``)
+    Only panes the bridge run's ``queue.json`` lists as lanes, plus the panes in the agent-created
+    registry ``research-context/omp/fleet.md``; never a pinned tab. Every other pane is still a
+    subject, but from metadata only (status, agent, queue counts) — another chat's transcript is
+    not opened, scored or quoted, whichever owner it has. Being absent from ``agent-routing.json``
+    never authorizes a pane. Cached paths for lanes no longer authorized are dropped from the
+    state file on the next cycle.
 
 How a pane is mapped to its OMP session
     1. ``herdr pane list`` carries ``agent_session.value`` (the session JSONL path) for every pane
@@ -28,7 +37,7 @@ import json
 import re
 import statistics
 import subprocess
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
@@ -550,6 +559,24 @@ def classify_owner(pane_id: str, label: str, *, routed_panes: frozenset[str], fl
     return "peter" if pane_id in routed_panes else "fleet"
 
 
+# --------------------------------------------------------------------------- read scope
+
+
+def authorized_lanes(queue_panes: Iterable[str], fleet_panes: frozenset[str]) -> frozenset[str]:
+    """Panes whose session history this source may read: the run's ``queue.json`` lanes plus the
+    agent-created registry. Absence from ``agent-routing.json`` never authorizes a pane."""
+    return frozenset(queue_panes) | fleet_panes
+
+
+def may_read_session(pane_id: str, label: str, *, authorized: frozenset[str]) -> bool:
+    """A lane's session is read only when it is an authorized fleet lane and not a pinned tab.
+
+    Everything else is observed from metadata alone (status, agent, queue counts): another
+    chat's transcript is never opened, scored or quoted, however it is owned.
+    """
+    return not label.startswith(PIN) and pane_id in authorized
+
+
 # --------------------------------------------------------------------------- quota
 
 
@@ -638,6 +665,8 @@ class FleetSource:
 
         state = self._state()
         baselines: dict[str, Any] = state.setdefault("baselines", {})
+        authorized = authorized_lanes(pending, fleet_panes)
+        seen: set[str] = set()
         out: list[Observation] = []
         for pane in panes:
             pane_id = pane["pane_id"]
@@ -646,20 +675,25 @@ class FleetSource:
                               classify_owner(pane_id, label, routed_panes=routed, fleet_panes=fleet_panes),
                               killable=False, label=label)
             status = str(pane.get("agent_status", "unknown"))
-            session = (pane.get("agent_session") or {}).get("value") or routed_session.get(pane_id)
-            path = Path(session) if session and str(session).endswith(".jsonl") else None
             queue = LaneQueue(pending.get(pane_id, 0), *(log.open_items.get(pane_id, (None, None))))
-            if path is None or not path.is_file() or pane.get("agent") != "omp":
-                out.append(Observation(subject, now, (), {"agent_status": status, "agent": pane.get("agent"),
-                                                          "queue_pending": queue.pending},
-                                       actor_inputs_available=False))
+            meta = {"agent_status": status, "agent": pane.get("agent"), "queue_pending": queue.pending,
+                    "authorized": pane_id in authorized, "session_read": False}
+            may_read = may_read_session(pane_id, label, authorized=authorized)
+            session = (pane.get("agent_session") or {}).get("value") if may_read else None
+            session = session or (routed_session.get(pane_id) if may_read else None)
+            path = Path(session) if session and str(session).endswith(".jsonl") else None
+            if not may_read or path is None or not path.is_file() or pane.get("agent") != "omp":
+                out.append(Observation(subject, now, (), meta, actor_inputs_available=False))
                 continue
             records, truncated = read_session_tail(path, since=now - timedelta(seconds=BURN_WINDOW_S))
             median = self._baseline(baselines, path, now)
             observation = lane_observation(records, subject=subject, now=now, agent_status=status,
                                            median_hourly_tokens=median, queue=queue,
                                            activity_at=latest_subagent_activity(path), tail_truncated=truncated)
-            out.append(_with_metrics(observation, session_path=str(path), agent=pane.get("agent")))
+            seen.add(str(path))
+            out.append(_with_metrics(observation, session_path=str(path), agent=pane.get("agent"),
+                                     authorized=True, session_read=True))
+        state["baselines"] = {k: v for k, v in baselines.items() if k in seen}  # never keep a path we may not read
         out.append(self._keeper_observation(now, run_name, log, pending, running=keeper_process is not None))
         if self.fetch_quota:
             out.extend(self._quota_observations(now, state))

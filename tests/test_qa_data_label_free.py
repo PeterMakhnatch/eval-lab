@@ -31,7 +31,7 @@ DEFAULT_CALLS = {
     "findings": ["findings", "--run", "alpha/a1"],
     "trace-card": ["trace-card", "alpha/a1"],
 }
-REFUSED_IDS = ("held-out", "locked-task", "sealed-task", "no-such-task")  # TEST, cross-key, sealed, missing
+REFUSED_IDS = ("held-out", "locked-task", "sealed-task", "no-such-task", "\udcff")
 
 
 class SyntheticRegistry(CorpusRegistry):

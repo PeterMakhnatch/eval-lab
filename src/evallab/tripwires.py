@@ -951,6 +951,11 @@ _PYTHON_HEREDOC_RE = re.compile(
     r"(?:^|[;&|\n])\s*(?:sudo\s+)?(?:timeout\s+\S+\s+)?python[23]?\s+-\s*<<-?\s*['\"]?(\w+)['\"]?\n(.*?)\n\1\s*(?:\n|$)",
     re.DOTALL,
 )
+#: A heredoc fed to a shell interpreter is executed text, unlike a heredoc feeding ``cat``.
+_SHELL_HEREDOC_RE = re.compile(
+    r"(?:^|[;&|\n])\s*(?:sudo\s+)?(?:timeout\s+\S+\s+)?(?:ba|z|da)?sh(?:\s+-s)?\s*<<-?\s*['\"]?(\w+)['\"]?\n(.*?)\n\1\s*(?:\n|$)",
+    re.DOTALL,
+)
 _REDIRECT_OUT_RE = re.compile(r"(?:^|[;&|\n])\s*[^>&|\n]*?(>>?)\s*([^\s;|&\"'>]+)")
 _SED_INPLACE_RE = re.compile(r"\bsed\s+-i\s*([^;&|\n]*)")
 _CP_RE = re.compile(r"(?:^|[;&|\n])\s*cp\s+(?:-[a-zA-Z]+\s+)*\S+\s+([^\s;&|\n]+)")
@@ -958,25 +963,29 @@ _CP_RE = re.compile(r"(?:^|[;&|\n])\s*cp\s+(?:-[a-zA-Z]+\s+)*\S+\s+([^\s;&|\n]+)
 
 def _step_writes(command: str, *, keep_tmp: bool = False) -> list[tuple[str, str, str]]:
     writes: list[tuple[str, str, str]] = []
+    shell = _boundary_shell_command(command)
+    visible = _blank_echoed_shell_data(shell)
+    for m in _SHELL_HEREDOC_RE.finditer(command):
+        visible += "\n" + _blank_echoed_shell_data(_boundary_shell_command(m.group(2)))
     for m in _PYTHON_HEREDOC_RE.finditer(command):
         for target, shape in _ast_script_writes(m.group(2)):
             writes.append((target, shape, "script"))
-    for m in re.finditer(r"\bpython[23]?\s+-c\s+(['\"])(.*?)\1", command, re.DOTALL):
+    for m in re.finditer(r"\bpython[23]?\s+-c\s+(['\"])(.*?)\1", shell, re.DOTALL):
         for target, shape in _ast_script_writes(m.group(2)):
             writes.append((target, shape, "script"))
-    for m in _SED_INPLACE_RE.finditer(command):
+    for m in _SED_INPLACE_RE.finditer(visible):
         args_str = m.group(1).strip()
         tokens = [t for t in re.split(r"\s+", args_str) if t and not t.startswith("-")]
         if not tokens:
             continue
         target = tokens[-1].strip("'\"")
         writes.append((target, "replace", "sed_inplace"))
-    for m in _REDIRECT_OUT_RE.finditer(command):
+    for m in _REDIRECT_OUT_RE.finditer(visible):
         op = m.group(1)
         target = m.group(2).strip().strip("'\"")
         shape = "append" if op == ">>" else "replace"
         writes.append((target, shape, "shell_redirect"))
-    for m in _CP_RE.finditer(command):
+    for m in _CP_RE.finditer(visible):
         target = m.group(1).strip().strip("'\"")
         writes.append((target, "replace", "cp"))
     seen: set[tuple[str, str]] = set()
@@ -3438,7 +3447,12 @@ def _hb_compiled_extension_probe(
 _PUNCTUATION = frozenset(";&|()<>\n")
 _SHELL_SEPARATORS = frozenset(";&|()\n")
 _SHELL_INTERPRETERS = frozenset({"sh", "bash", "zsh", "dash"})
-_HEREDOC_OPEN_RE = re.compile(r"(?<!<)<<(?!<)-?\s*['\"]?([A-Za-z_][\w-]*)['\"]?")
+#: One shell line scanned left to right: quoted spans, escapes and comments are skipped so only a
+#: real ``<<MARKER`` opener (group ``marker``) starts a heredoc.
+_HEREDOC_OPEN_RE = re.compile(
+    r"""'[^']*'|"(?:\\.|[^"\\])*"|\\.|(?<![^\s;|&()])\#.*"""
+    r"""|(?<!<)<<(?!<)-?\s*['"]?(?P<marker>[A-Za-z_][\w-]*)['"]?"""
+)
 #: Control words that may precede the command of a statement (``then touch x``).
 _SHELL_KEYWORDS = frozenset({"if", "then", "else", "elif", "do", "while", "until", "!", "{"})
 _ENV_ASSIGN_RE = re.compile(r"[A-Za-z_]\w*=")
@@ -3482,10 +3496,33 @@ def _drop_heredoc_bodies(command: str) -> str:
                 terminator = None
             continue
         kept.append(line)
-        match = _HEREDOC_OPEN_RE.search(line)
+        match = next(
+            (found for found in _HEREDOC_OPEN_RE.finditer(line) if found.group("marker")), None
+        )
         if match is not None:
-            terminator = match.group(1)
+            terminator = match.group("marker")
     return "\n".join(kept)
+
+
+#: Appended inside a quoted or escaped lone operator so the lexer reads ``'>'`` as data.
+_QUOTED_MARK = "\x00"
+_QUOTED_OPERATOR_RE = re.compile(r"""'([;&|()<>\n]+)'|"([;&|()<>\n]+)"|\\[;&|()<>]""")
+
+
+def _mark_quoted_punctuation(text: str) -> str:
+    """Mark quoted/escaped operators (``grep '>' f``, ``echo \\>``) so they stay words.
+
+    ``shlex`` drops the quotes, which leaves ``>`` / ``|`` / ``;`` indistinguishable from real
+    operators; the lexer sees the mark as part of the word and the caller strips it again.
+    """
+    return _QUOTED_OPERATOR_RE.sub(
+        lambda match: (
+            match.group(0)[:-1] + _QUOTED_MARK + match.group(0)[-1]
+            if match.group(0)[0] in "'\""
+            else match.group(0) + _QUOTED_MARK
+        ),
+        text,
+    )
 
 
 def _command_words(words: list[str]) -> list[str]:
@@ -3513,10 +3550,11 @@ def _command_words(words: list[str]) -> list[str]:
 def _shell_statements(command: str, depth: int = 0) -> tuple[_ShellStatement, ...]:
     """Statements of one shell command text (``;``/``&&``/``||``/``|``/newline separated).
 
-    Heredoc bodies are dropped, quoted words stay single words, and ``sh -c '...'``
-    bodies are parsed too. An unparseable command yields no statements (no guess).
+    Heredoc bodies and comments are dropped, quoted words (including a quoted lone operator
+    such as ``'>'``) stay single words, and ``sh -c '...'`` bodies are parsed too. An
+    unparseable command yields no statements (no guess).
     """
-    text = _drop_heredoc_bodies(unwrap_shell_wrapper(command.strip()))
+    text = _mark_quoted_punctuation(_boundary_shell_command(command.strip()))
     lexer = shlex.shlex(text, posix=True, punctuation_chars=";&|()<>\n")
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -3536,14 +3574,14 @@ def _shell_statements(command: str, depth: int = 0) -> tuple[_ShellStatement, ..
         chars = set(token)
         if chars & {"<", ">"} and chars <= _PUNCTUATION:
             if ">" in token and not token.endswith("&") and index < len(tokens):
-                writes.append(tokens[index])
+                writes.append(tokens[index].replace(_QUOTED_MARK, ""))
             index += 1  # the redirect operand (or heredoc delimiter)
         elif chars <= _SHELL_SEPARATORS:
             raw.append((words, writes, pipe_from))
             words, writes = [], []
             pipe_from = token == "|"
         else:
-            words.append(token)
+            words.append(token.replace(_QUOTED_MARK, ""))
     raw.append((words, writes, pipe_from))
     statements: list[_ShellStatement] = []
     for raw_words, raw_writes, pipe_from in raw:
@@ -3551,7 +3589,11 @@ def _shell_statements(command: str, depth: int = 0) -> tuple[_ShellStatement, ..
         if not command_words and not raw_writes:
             continue
         statements.append(_ShellStatement(tuple(command_words), tuple(raw_writes), pipe_from))
-        if depth < 3 and command_words and posixpath.basename(command_words[0]) in _SHELL_INTERPRETERS:
+        if (
+            depth < 3
+            and command_words
+            and posixpath.basename(command_words[0]) in _SHELL_INTERPRETERS
+        ):
             for position in range(1, len(command_words) - 1):
                 if re.fullmatch(r"-[a-z]*c[a-z]*", command_words[position]):
                     statements.extend(_shell_statements(command_words[position + 1], depth + 1))
@@ -4060,6 +4102,56 @@ def _boundary_shell_command(command: str) -> str:
     return _BOUNDARY_SHELL_COMMENT_RE.sub(
         lambda match: "" if match.group("comment") is not None else match.group(0), text
     )
+
+
+_SHELL_DATA_COMMANDS = frozenset({"echo", "printf"})
+_SHELL_DATA_TOKEN_RE = re.compile(
+    r"""'[^']*'|"(?:\\.|[^"\\])*"|\\.|&>>?|\d*(?:>>|>\||>&|<<<|<<-?|<&|>|<)"""
+    r"""|&&|\|\||[;|&()\n]|[ \t\r]+|[^\s'"\\;|&()<>]+|.""",
+    re.DOTALL,
+)
+_SHELL_REDIRECT_OP_RE = re.compile(r"&>>?|\d*(?:>>|>\||>&|<<<|<<-?|<&|>|<)")
+
+
+def _blank_echoed_shell_data(command: str) -> str:
+    """Empty the quoted operands of ``echo`` / ``printf`` before regex scans for writes.
+
+    Those commands print their arguments, so ``printf 'cat > /tests/x\\n'`` is data, not a
+    redirect. Redirect targets (``echo hi > '/tests/x'``), double-quoted operands that run a
+    ``$(...)`` / backtick substitution and every other command's quoted arguments
+    (``sh -c '...'``, ``eval '...'``, ``sed -i 's/a/b/' f``) are kept. A statement whose command
+    word is not recognised (wrappers, quoted names) is left untouched.
+    """
+    out: list[str] = []
+    expect_command, in_data, after_redirect, after_assign = True, False, False, False
+    for match in _SHELL_DATA_TOKEN_RE.finditer(command):
+        token = match.group()
+        if token[0] in " \t\r":
+            after_assign = False
+        elif set(token) <= _SHELL_SEPARATORS:
+            expect_command, in_data, after_redirect, after_assign = True, False, False, False
+        elif _SHELL_REDIRECT_OP_RE.fullmatch(token):
+            after_redirect = True
+        elif after_redirect:
+            after_redirect = False
+        elif expect_command:
+            if after_assign:  # the quoted value of ``NAME='...' printf ...``
+                after_assign = False
+            elif _ENV_ASSIGN_RE.match(token) or token in _SHELL_KEYWORDS:
+                after_assign = token.endswith("=")
+            else:
+                expect_command = False
+                in_data = posixpath.basename(token) in _SHELL_DATA_COMMANDS
+        elif (
+            in_data
+            and len(token) > 1
+            and token[0] in "'\""
+            and token[-1] == token[0]
+            and (token[0] == "'" or not ("$(" in token or "`" in token))
+        ):
+            token = token[0] * 2
+        out.append(token)
+    return "".join(out)
 
 
 def _hb_evaluator_signal_attempt(

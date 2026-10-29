@@ -16,7 +16,7 @@ publisher flag is read, so a record can be scored against any label set later.
 
 | Detector | Alarms when |
 |---|---|
-| `run_health.loop` | the agent repeats itself without progress: 8 steps with the same normalized command, the same tool output (per-call ids and numbers masked) and no edit; 10 identical messages; 5 completion claims; or a 12-step edit-free window with at most 3 distinct command-and-output pairs. Also when the harness stopped it for looping (`LoopBreakStop`, `loop_break`). Undo commands and repeated errors are reported as features only |
+| `run_health.loop` | the agent repeats itself without progress: 8 steps with the same normalized command, the same tool output (per-call ids and numbers masked) and no edit; 10 identical messages; 5 completion claims; a 12-step edit-free window with at most 3 distinct command-and-output pairs; or the environment sends byte-identical feedback (a non-agent `user` message after the first agent step) twice, so a resubmission did not change the outcome. Also when the harness stopped it for looping (`LoopBreakStop`, `loop_break`). Undo commands and repeated errors are reported as features only |
 | `run_health.runaway` | 250 agent steps or 2 h of wall time; or a budget, timeout, turn or context limit ended the run (`AgentTimeoutError`, `TrialBudgetExhaustedError`, store `max_turns`/`context_length`/`LimitsExceeded`) |
 | `run_health.latency` | median step 60 s, p90 step 300 s, a 45-minute gap between steps, or 15 minutes of setup or verifier time; abstains with fewer than 3 timestamped agent steps and no phase timings |
 | `run_health.infra` | an infrastructure exception or run status (sandbox, admission, healthcheck, model API, verifier output; store `refused`/`error`/`provisional_execution_unavailable`), or an infrastructure signature in tool output of the last steps with no agent step after it |
@@ -24,8 +24,9 @@ publisher flag is read, so a record can be scored against any label set later.
 Thresholds sit at or above the pooled p99 of each feature over the 3,809
 actor-readable admitted DEV runs, or keep an existing harness constant that already
 does; they were set from that unlabelled distribution before any score was read
-(`run-health/2`). `run-health/4` then narrowed the loop rule after a blind DEV audit
-(below). `score` is the largest value/threshold ratio, so `>= 1.0` is an alarm and a
+(`run-health/2`). `run-health/4` then narrowed the loop rule after a blind DEV audit,
+and `run-health/5` added the repeated-feedback component after a random-sample DEV
+recall audit (below). `score` is the largest value/threshold ratio, so `>= 1.0` is an alarm and a
 scorer can sweep cuts.
 
 A run without an actor transcript (`actor_inputs_available` false) is `unknown` for
@@ -111,7 +112,7 @@ archived setup studies are exploratory and did not set task thresholds.
 
 | Signal | Threshold | Observed quality | Supervisor use |
 |---|---|---|---|
-| Loop | 8 repeated command/output pairs; 12-step cycle with at most 3 pairs; 10 identical messages; 5 completion claims | G6 prefix replay: 22/36 loops caught, 0/16 false alarms; median 189 s lead over 22 true positives. Finalized runs: 24/36, 0/16. DEV: 5/5 alarms confirmed, in-sample | Escalate to a reader; no automatic stop |
+| Loop | 8 repeated command/output pairs; 12-step cycle with at most 3 pairs; 10 identical messages; 5 completion claims; identical environment feedback twice | G6 prefix replay: 22/36 loops caught, 0/16 false alarms; median 189 s lead over 22 true positives. Finalized runs: 24/36, 0/16. DEV: 5/5 alarms confirmed, in-sample. Repeated feedback, held-out DEV: 39/40 alarms wasting, estimated recall 0.89 | Escalate to a reader; no automatic stop |
 | Excess steps / wall time | 250 agent steps / 2 h | Blind DEV audit of 30 alarms: 5 wasting, 22 progressing, 3 rater disagreements; 30 controls all progressing. All 8 wall-time alarms were progressing | Budget/attention trigger, not evidence that stopping is safe |
 | Slow steps | median 60 s; p90 300 s; gap 2700 s | 49 flagged DEV windows: 29 agreed unexplained stalls, 1 agent-command wait, 14 unjudgeable timings, 5 disagreements | Inspect command and timestamp semantics; unknown cases stay unknown |
 | Infra tail | Frozen error signatures in the current tail | G6 prefix replay: 0/5 infra labels caught, 2/55 non-infra runs flagged transient errors. Finalized 5/5 at 0/55 is not live precision | Diagnose/recheck recovery, never stop from a log regex alone |
@@ -163,8 +164,23 @@ base rate, and the supervisor's existing ownership and stop-cap checks.
 - **TB4/MiMo timeouts (129 timed out, 346 clean, our Harbor trials):** with
   `result.json`, runaway or infra catches 129/129 at 47/346 false alarms, but the
   labels are that exception field. From the trajectory alone, 56/107 at 37/346.
-- **Admitted DEV alarm rates:** runaway 1.7% and latency 2.0% of Goodfire runs; loop 5
+- **Admitted DEV alarm rates (`run-health/4`):** runaway 1.7% and latency 2.0% of Goodfire runs; loop 5
   runs, which are the same 5 runs whose Modal sandbox died mid-run (infra catches
   them too). Infra also catches 49 MiMo/TB4 journals refused or unexecuted for
-  capacity. The other DEV loops the audit found are semantic (re-checking or
-  resubmitting the same conclusion) and need a reader.
+  capacity.
+- **Random DEV recall audit (`run-health/5`):** two blind raters read 96 whole runs drawn at
+  random from admitted Goodfire/TB4 actor runs never shown to a rater before (agreement
+  94–96/96 per kind). 19/96 had a consensus problem and `run-health/4` caught none:
+  loops 12/96, all semantic and all ImpossibleBench (the agent proves a test is
+  contradictory, the environment returns the same failure, the agent resubmits);
+  wasted-step runaways 11/96, the same runs; unexplained 10–17-minute stalls 7/96, all
+  below the 45-minute gap threshold; infra 0/96. The repeated-feedback component was
+  fixed from that sample, then tested on a pre-registered held-out DEV sample (40 runs
+  where it fires, 56 where it does not): **39/40 fired runs wasted steps** (Wilson 95%
+  0.87–1.00; the one false alarm is a productive 125-step DeepSWE run whose last two
+  responses hit the output-token limit and got the same harness retry prompt), 1/55 non-fired runs had a loop, and the arm-weighted recall
+  is **0.89**. It fires on 474 of 925 ImpossibleBench runs and 5 of 2,749 others.
+  Outside that validated Goodfire/TB4 population it also fires on 15 chat-only
+  `qa-trace-sft` hacktrace runs (three replies to the same failure message); blind
+  raters called 0 of the 11 they agreed on loops (4 disputed), so treat those
+  alarms as unvalidated.

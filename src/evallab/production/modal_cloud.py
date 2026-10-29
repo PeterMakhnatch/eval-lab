@@ -63,7 +63,7 @@ import re
 import sqlite3
 import stat
 import threading
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Hashable, Mapping
 from contextlib import ExitStack, closing
 from pathlib import Path
 from typing import Any, Literal
@@ -199,6 +199,7 @@ class CloudRuntime:
         self._closed = False
         self._atlas_lock = threading.Lock()
         self._atlas_cache: tuple[list[tuple[int, int, int] | None], atlas_view.AtlasStore] | None = None
+        self._derived_values: dict[str, tuple[Hashable, Any]] = {}
         self._tool_scorecard = ToolScorecardCache(
             self.data_root, Path(detector_scope) if detector_scope else None
         )
@@ -259,8 +260,31 @@ class CloudRuntime:
             connection.row_factory = sqlite3.Row
             return [dict(row) for row in connection.execute(sql, parameters)]
 
+    def _derived[T](self, name: str, key: Hashable, build: Callable[[], T]) -> T:
+        """``build()`` once per trace-database state and ``key`` (the retained files it read).
+
+        The key is taken before building, so a write that lands mid-build changes it and the next
+        caller rebuilds: a value is never served for a state it did not read. Concurrent callers
+        may build twice, never wrongly. Values are shared between requests; callers never mutate
+        them. Without a database change token (PostgreSQL) every call builds.
+        """
+        token = self.database.change_token()
+        if token is None:
+            return build()
+        full = (token, key)
+        kept = self._derived_values.get(name)
+        if kept is not None and kept[0] == full:
+            return kept[1]
+        value = build()
+        self._derived_values[name] = (full, value)
+        return value
+
     def _admitted_task_ids(self, task_id: str | None = None) -> frozenset[str]:
         """Apply the shared admission policy to identity metadata before hydration."""
+        admitted = self._derived("admitted_task_ids", None, self._read_admitted_task_ids)
+        return admitted if task_id is None else admitted.intersection((task_id,))
+
+    def _read_admitted_task_ids(self) -> frozenset[str]:
         identities = self._query(
             "WITH identities AS ("
             " SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest,"
@@ -273,8 +297,7 @@ class CloudRuntime:
             " THEN json_type(metadata_json, '$.item_id') ELSE 'invalid' END AS item_type"
             " FROM identities"
         )
-        admitted = admitted_cloud_task_ids(identities, registry=self.registry)
-        return admitted if task_id is None else admitted.intersection((task_id,))
+        return admitted_cloud_task_ids(identities, registry=self.registry)
 
     def _tasks(self, task_id: str | None, query: str) -> list[dict[str, Any]]:
         identifiers = sorted(self._admitted_task_ids(task_id))
@@ -428,7 +451,15 @@ class CloudRuntime:
             return self._atlas_cache[1]
 
     def _atlas_traces(self, task_ids: Collection[str] | None = None) -> dict[str, dict[str, Any]]:
-        """Admitted DEV identities and exact step indices; no body is read here."""
+        """Admitted DEV identities and exact step indices; no body is read here.
+
+        The full map (every admitted task) is read once per trace-database state and shared.
+        """
+        if task_ids is None:
+            return self._derived("atlas_traces", None, lambda: self._read_atlas_traces(None))
+        return self._read_atlas_traces(task_ids)
+
+    def _read_atlas_traces(self, task_ids: Collection[str] | None) -> dict[str, dict[str, Any]]:
         admitted = self._admitted_task_ids()
         identifiers = sorted(admitted if task_ids is None else admitted.intersection(task_ids))
         traces: dict[str, dict[str, Any]] = {}
@@ -615,6 +646,21 @@ class CloudRuntime:
             )
         return found
 
+    def _harness_admitted(self) -> tuple[dict[str, Any], dict[str, str], frozenset[tuple[str, str, str]]]:
+        """The findings, their runs that belong to an admitted DEV task, and the result keys those hold.
+
+        Read once per findings file and trace-database state, shared by the overview and every card.
+        A result recorded only on a run outside the admitted set never names a detector on a card.
+        """
+
+        def build() -> tuple[dict[str, Any], dict[str, str], frozenset[tuple[str, str, str]]]:
+            findings = self._harness_findings.get()
+            by_run = findings["by_run"]
+            admitted = self._admitted_runs(by_run)
+            return findings, admitted, frozenset(key for run in admitted for key in by_run[run])
+
+        return self._derived("harness_admitted", file_cache.signature(self._harness_findings.path), build)
+
     def _run_alarms(
         self, run_ids: Collection[str]
     ) -> tuple[dict[str, list[str]], dict[str, int], bool]:
@@ -645,11 +691,11 @@ class CloudRuntime:
         return alarms, read, self._tool_results.error is None or bool(findings["present"])
 
     def _harness_overview(self) -> dict[str, Any]:
-        findings = self._harness_findings.get()
-        admitted = self._admitted_runs(findings["by_run"])
-        return harness_view.build_overview(
-            findings, self._harness_scorecard.get(), admitted, self._actor_runs(admitted)
+        findings, admitted, _ = self._harness_admitted()
+        actor_runs = self._derived(
+            "harness_actor_runs", frozenset(admitted), lambda: frozenset(self._actor_runs(admitted))
         )
+        return harness_view.build_overview(findings, self._harness_scorecard.get(), admitted, actor_runs)
 
     def _harness_card(self, run_id: str) -> dict[str, Any]:
         """Every detector's newest result for one admitted DEV run, from the retained findings file."""
@@ -669,8 +715,7 @@ class CloudRuntime:
             facet = None
         if facet is not None and not set(facet["evidence_steps"]).issubset(steps):
             facet = None
-        findings = self._harness_findings.get()
-        known = {key for records in findings["by_run"].values() for key in records}
+        findings, _, known = self._harness_admitted()
         return harness_view.build_card(
             {"run_id": run_id, **identity},
             findings["by_run"].get(run_id, {}),
@@ -900,7 +945,10 @@ class CloudRuntime:
                     read=read,
                     alarms_available=available,
                 )
-                with_transcript = self._actor_runs([row["run_id"] for row in listing["runs"]])
+                page_ids = tuple(row["run_id"] for row in listing["runs"])
+                with_transcript = self._derived(
+                    "atlas_actor_runs", page_ids, lambda: frozenset(self._actor_runs(page_ids))
+                )
                 for row in listing["runs"]:
                     row["actor_inputs_available"] = row["run_id"] in with_transcript
                 return listing

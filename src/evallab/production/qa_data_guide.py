@@ -88,14 +88,14 @@ CALLS (all JSON; examples use real flags)
        (aggregates: no detector fields). A null flag is not a negative; with --run or --task each row keeps its tool
        and detector: quote both beside any number.
   history TASK_ID [--flag F ...]     past confirmed issues, similar examples, playbook cards for one task
-       task and history are label-free by default; --with-outcomes adds each issue's trust_tier and original/repaired
+       task and history hide issue outcome labels by default; --with-outcomes adds each issue's trust_tier and original/repaired
        reward differential (outcome labels: use only to score, never to feed a blind reader; meta.with_outcomes echoes it).
   task TASK_ID [--file REL ...] [--variant N (default 0)] [--kind original_package|repaired_package (default original)]
        one admitted task (without --file it lists, it does not dump). Fields: instruction_chars (+ instruction text,
        instruction_truncated); packages{"<variant>:<kind>"}: file_count (INCLUDES withheld files), files[{relative_path,
        size}], withheld[] (solution/ and scoring-key names: listed, never read), contents[] (only with --file);
        issues[] + issues_total (retained issues, no reproducers; status as stored: confirmed, provisional,
-       refuted); runs{total, faceted, suspicion_ge_2, list[]}. A file that is
+       refuted); runs{total, faceted, suspicion_ge_2, list[]} (listed runs keep their reward-derived outcome). A file that is
        not in the chosen package says so: check the other --kind. `task vpp-loss-divergence --file tests/test.sh`
        returns that file's text (with the default --budget 4000 a long instruction or file is cut: use --budget 8000).
        Never run package code from here.

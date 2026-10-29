@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -104,6 +105,62 @@ def test_cpu_only_profile_names_six_paths_and_never_uses_shared_catalog(
     markdown = harness.render_markdown(report)
     for name in harness.PATH_NAMES:
         assert f"| {name} |" in markdown
+
+
+def test_scratch_dir_takes_the_projection_facts_digest_and_queue_files_and_not_the_output_dir(
+    tmp_path: Path,
+) -> None:
+    """CI points scratch at tmpfs; the report directory must then hold no scratch files."""
+    harness = _load_harness()
+    output_dir, scratch_dir = tmp_path / "report", tmp_path / "tmpfs-stand-in"
+    harness.run_profile(
+        corpus_roots=_pinned_roots(harness),
+        warmup=1,
+        reps=5,
+        database_url=None,
+        admin_url="postgresql://unused.example/evallab",
+        cpu_only=True,
+        inject_ms={},
+        work_dir=output_dir,
+        scratch_dir=scratch_dir,
+        tick_n=5,
+        fleet_fn=lambda: None,
+    )
+    assert list(scratch_dir.rglob("*.parquet")), "the projection and facts exports landed in scratch"
+    assert (scratch_dir / "digest-repo" / "digests").is_dir() and (scratch_dir / "tick-root").is_dir()
+    assert not output_dir.exists(), "nothing was written under the report directory"
+
+
+def test_timed_paths_keep_the_durable_write_costs_that_a_tmpfs_scratch_no_longer_times(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The CI gate measures CPU on tmpfs, so the sync-write cost is pinned here instead.
+
+    Each exported table is published with exactly one durable replace (a file fsync and a
+    directory fsync), independent of row count, and a queue tick does not fsync per lease.
+    """
+    harness = _load_harness()
+    syncs = []
+    real_fsync = os.fsync
+    monkeypatch.setattr(os, "fsync", lambda fd: (syncs.append(fd), real_fsync(fd))[1])
+    jobs = harness.load_jobs(_pinned_roots(harness))
+    quiet = lambda name: None  # noqa: E731
+
+    for label, timed in (("projection", harness._time_projection), ("facts", harness._time_facts)):
+        output = tmp_path / label
+        timed(jobs, output, quiet)  # warmup creates the directories
+        syncs.clear()
+        timed(jobs, output, quiet)
+        published = len(list(output.rglob("*.parquet")))
+        assert published > 0
+        assert len(syncs) == 2 * published, f"{label}: one file and one directory fsync per table"
+
+    for tick_n in (5, 20):
+        root = tmp_path / f"tick-{tick_n}"
+        harness._time_queue_tick(root, quiet, tick_n=tick_n)
+        syncs.clear()
+        harness._time_queue_tick(root, quiet, tick_n=tick_n)
+        assert syncs == [], f"a tick of {tick_n} claims must not pay a filesystem barrier per lease"
 
 
 def test_refuses_shared_catalog_url() -> None:

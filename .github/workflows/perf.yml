@@ -79,10 +79,14 @@ jobs:
         run: uv sync --locked --no-default-groups
       - name: profile harness
         if: needs.scope.outputs.profile == 'true'
+        # The exporters fsync every table they publish (16 fsyncs per 'projection' rep, 24
+        # per 'facts' rep). On a shared runner the disk's fsync latency varies 10-30x between
+        # jobs, so scratch lives on tmpfs and the gate measures the code, not the disk.
         run: |
           chmod +x scripts/profile/gh_stub.sh
           uv run --no-sync python scripts/profile/harness.py \
             --output-dir runs/_speed \
+            --scratch-dir /dev/shm/evallab-speed \
             --warmup 1 \
             --reps 5
       - name: budget ratchet

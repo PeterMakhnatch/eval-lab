@@ -275,8 +275,9 @@ and `scripts/fleet-status.sh`. Harbor dispatch is stubbed. Ingest writes only
 to a scratch database named `evallab_speed_prof` (or
 `$EVAL_LAB_PROFILE_DATABASE_URL`). The shared `evallab` catalog is refused.
 `gh` is stubbed so fleet-status does not hit the network. CI runs the same
-command in `.github/workflows/perf.yml` and fails when a median exceeds the
-committed budget by more than `tolerance_pct`.
+command plus `--scratch-dir /dev/shm/evallab-speed` (see the 2026-10-29 note below;
+on Linux pass it locally too) in `.github/workflows/perf.yml` and fails when a median
+exceeds the committed budget by more than `tolerance_pct`.
 
 Its corpus is **pinned** (2026-08-16): `harness.DEFAULT_CORPUS` names the two
 `event-summary` control job directories rather than the directory
@@ -346,6 +347,23 @@ change to catalog round-trips, which is the FORGE open item on
 CI ratchet: `scripts/profile/budgets.json` + `.github/workflows/perf.yml`.
 An injected `digest=500` slowdown against a 5 ms budget fails with
 `digest: median 653.170 ms exceeds budget 5.000 ms + 10%`.
+
+### `projection` and `facts` measured the runner's disk (2026-10-29)
+
+Both paths publish parquet tables with `durable_replace`, so each rep fsyncs 16
+(`projection`) or 24 (`facts`) times. On `ubuntu-latest` the same commit measured
+`projection` 4.9-225.5 ms (median 7.5) and `facts` 11.6-104.5 ms (median 16.1) over 18
+`workflow_dispatch` runs, and 5 of the 18 runs failed a budget. On `main` and PR heads
+over 30 hours, 14% of 834 first attempts failed `projection` or `facts`, a failure did
+not predict the next run's (17% after a failure), and 18 of 22 failed attempts that were
+rerun passed on the same commit. With the harness scratch directory on tmpfs
+(`--scratch-dir /dev/shm/evallab-speed`) 42 further runs gave 0.9-3.2 ms and
+4.0-9.6 ms with no failure, the same order as the 2026-08-14 laptop capture. Budgets were
+lowered with it (`projection` 25 -> 4 ms, `facts` 25 -> 12 ms; ceilings about 1.9x the
+observed maximum); a ceiling is never raised to absorb noise. The gate no longer times the
+runner's disk; the sync-write cost is pinned in `tests/test_profile_harness.py` (one
+durable replace per published table, no fsync per lease). See the notes in
+`scripts/profile/budgets.json`.
 
 ### `ingest` re-baselined against CI evidence (2026-08-15)
 

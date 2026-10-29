@@ -1,0 +1,11 @@
+{
+  "schema": "np38-prefix-readable/v1",
+  "source": "score.json",
+  "source_sha256": "3ff4559753dbd682b719400455f729e96bcf3755acee09db1cf5568427391668",
+  "note": "Display-only normalization of the frozen pre-resumption score: its excluded counts for these unattempted rows are unread, not failed readings. The original is retained byte-for-byte for its published hash.",
+  "facets_susp_ge_2": {
+    "S": {"alarmed": 3, "read": 16, "pct": 18.8, "wilson_pct": [6.6,43.0], "unread": 44},
+    "non-S": {"alarmed": 0, "read": 16, "pct": 0.0, "wilson_pct": [0.0,19.4], "unread": 44}
+  },
+  "cascade_v8": {"S": {"read": 0, "unread": 60}, "non-S": {"read": 0, "unread": 60}}
+}

@@ -70,6 +70,45 @@
       "runnable_in_harness": 129,
       "sha256": "094510115e64ee908e636794c5ec4b105ec4f086de5121113c4e24b7d28b4485"
     },
+    "clean-controls": {
+      "by_actor_transcript": {
+        "None": 2314
+      },
+      "by_granularity": {
+        "task": 2314
+      },
+      "by_kind": {
+        "grader_unfair_fail": 776,
+        "task_defect": 1538
+      },
+      "by_kind_polarity_split": {
+        "grader_unfair_fail|negative|DEV": 530,
+        "grader_unfair_fail|negative|TEST": 104,
+        "grader_unfair_fail|negative|heldout": 142,
+        "task_defect|negative|DEV": 1168,
+        "task_defect|negative|TEST": 92,
+        "task_defect|negative|heldout": 278
+      },
+      "by_label_type": {
+        "consensus": 2314
+      },
+      "by_license": {
+        "None": 2314
+      },
+      "by_polarity": {
+        "negative": 2314
+      },
+      "by_split": {
+        "DEV": 1698,
+        "TEST": 196,
+        "heldout": 420
+      },
+      "count": 2314,
+      "itemized": true,
+      "positive_units": 0,
+      "runnable_in_harness": 0,
+      "sha256": "5c2fbd4cd60d091dff382bc4237f9d8ad956bad7f3f7d15df34bb919ddf5ee6d"
+    },
     "cloud-task-issues": {
       "by_actor_transcript": {
         "None": 252
@@ -453,11 +492,11 @@
   "split_assignments_digest": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
   "totals": {
     "by_polarity_split": {
-      "negative|DEV": 66113,
-      "negative|TEST": 611,
+      "negative|DEV": 67811,
+      "negative|TEST": 807,
       "negative|cross_test": 13666,
       "negative|cross_test(summary)": 0,
-      "negative|heldout": 78654,
+      "negative|heldout": 79074,
       "positive|DEV": 53046,
       "positive|TEST": 1738,
       "positive|cross_test": 6100,
@@ -470,6 +509,8 @@
       "answer-keys|grader_unfair_fail": 80,
       "answer-keys|grader_wrong_pass": 1239,
       "answer-keys|task_defect": 204,
+      "clean-controls|grader_unfair_fail": 776,
+      "clean-controls|task_defect": 1538,
       "cloud-task-issues|grader_unfair_fail": 46,
       "cloud-task-issues|grader_wrong_pass": 206,
       "cloud-traces|cheat": 2731,
@@ -488,6 +529,6 @@
       "run-health|runaway": 72,
       "seeker|infra": 48
     },
-    "items": 250004
+    "items": 252318
   }
 }

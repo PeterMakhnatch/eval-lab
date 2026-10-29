@@ -242,6 +242,32 @@ def test_sb1_verified_differential_is_a_wrong_pass_positive(
     assert item.task_id == "cad-model"  # no cloud DB: the cell's own name
 
 
+def test_sb1_rerun_cell_is_a_distinct_run_with_unknown_actor_binding(
+    tmp_path: Path, results_root: Path
+) -> None:
+    root = _write_cells(
+        results_root,
+        [
+            _cell(
+                "cad-model", "m/x", "original_grader_unavailable", "generation_failed_or_truncated"
+            ),
+            _cell("cad-model", "m/x", "served_route_mismatch", "generation_failed_or_truncated"),
+        ],
+    )
+    response = root / "tb4-audit-v1/cad-model/m_x/turn-1/response.jsonl"
+    response.parent.mkdir(parents=True)
+    response.write_text('{"text": "latest attempt only"}\n', encoding="utf-8")
+
+    items = _build(tmp_path)
+
+    subject = "sb1-pilot:tb4-audit-v1/cad-model/m/x"
+    assert {key: item.label for key, item in items.items() if key[2] == "turn_1"} == {
+        (subject, "infra", "turn_1"): "original_grader_unavailable",
+        (subject + "#attempt-2", "infra", "turn_1"): "served_route_mismatch",
+    }
+    assert {item.actor_transcript for item in items.values()} == {None}
+
+
 def test_sb1_sealed_task_is_never_dev(tmp_path: Path, results_root: Path) -> None:
     _write_cells(results_root, [_cell("cad-model", "m/x", "served_route_mismatch")])
     _write_cells(

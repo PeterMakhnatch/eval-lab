@@ -342,8 +342,12 @@ def test_workflows_with_pr_or_push_declare_cancel_in_progress_concurrency(
     assert group and isinstance(group, str), (
         f"Workflow '{workflow_path.name}' must declare a non-empty concurrency group."
     )
-    assert concurrency.get("cancel-in-progress") is True, (
-        f"Workflow '{workflow_path.name}' concurrency must set cancel-in-progress: true."
+    assert concurrency.get("cancel-in-progress") == "${{ github.event_name == 'pull_request' }}", (
+        f"Workflow '{workflow_path.name}' must cancel superseded PR runs, never push runs."
+    )
+    assert "${{ github.event.pull_request.number || github.run_id }}" in group, (
+        f"Workflow '{workflow_path.name}' must group PR runs together and isolate non-PR runs "
+        "by run_id so newer pushes cannot replace pending runs."
     )
 
 
@@ -377,6 +381,10 @@ def test_required_gate_workflows_never_cancel_a_running_run() -> None:
             f"Workflow '{workflow_path.name}' owns {sorted(gates)} and must set "
             "cancel-in-progress: false: a cancelled run fails its always() gate and "
             "publishes a failed required check for a commit that was never evaluated."
+        )
+        assert "${{ github.event.pull_request.number || github.run_id }}" in concurrency["group"], (
+            f"Workflow '{workflow_path.name}' must group PR runs together and isolate non-PR "
+            "runs by run_id so newer pushes cannot replace pending runs (HAR-234)."
         )
 
     assert gate_workflows == {"ci.yml", "typecheck.yml"}

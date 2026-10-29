@@ -13,14 +13,15 @@ on:
 permissions:
   contents: read
 
-# `quality-required` fails whenever `lint` or `test` is cancelled
-# (agents/CHECKS.md), so a running run must never be killed by concurrency: the
-# cancelled run's gate would publish a failed required check for a commit whose
-# verdict a sibling run is still producing (HAR-232). cancel-in-progress false
-# keeps one running and one pending run per group; only the pending, superseded
-# run is ever replaced, so the newest head always gets its own verdict.
+# cancel-in-progress stays false even for pull_request: this workflow publishes
+# `quality-required`, whose gate fails whenever `lint` or `test` is cancelled
+# (agents/CHECKS.md), so cancelling a run publishes a failed required check for
+# a commit whose verdict a sibling run is still producing (HAR-232). The group
+# keys non-PR runs by run_id so every main push run keeps its own group and is
+# never replaced (HAR-234); PR runs share one group per pull request, where
+# GitHub may only replace a pending, superseded run.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
 jobs:

@@ -1,3 +1,15 @@
+## Reverted (2026-10-29)
+
+The review measured screened reads at ~0.090 s miss / 0.015 s hit, deep-copy
+at 6.3 ms/call and ~0.7 MB/entry; Atlas retrieval was 0.469 → 0.461 s,
+within variation, and one-shot CLI was unchanged. The memo adds a second
+sealing-boundary cache without a real repeated-read caller; scoped keys churn
+the shared LRU; the pre-existing memo assumes an unchecked lock/transaction;
+and PostgreSQL paid for copies without caching. The parent chose removal:
+no sealing or served byte changed at any time.
+Against main, 19/19 CLI replies, 40/40 facet shapes and 40/40 retrieval
+queries matched; see the removal evidence for the CPU comparisons.
+
 # Screened facet memo: rebased measurement (2026-10-29)
 
 Question: can repeated screened facet and Atlas retrieval reads be reused without changing served results?

@@ -58,31 +58,13 @@ _CONSUMERS = {
     "task-qa": "task-qa-auditor-fixed-gate",
 }
 _BENCHMARK_NAMES = (
-    "goodfire",
-    "cheatbench",
-    "hackbench",
-    "hacktrace",
-    "terminal-wrench",
-    "terminal wrench",
-    "impossiblebench",
-    "terminal-bench",
-    "terminal bench",
+    "goodfire", "cheatbench", "hackbench", "hacktrace", "terminal-wrench",
+    "terminal wrench", "impossiblebench", "terminal-bench", "terminal bench",
 )
-_LABEL_KEYS = frozenset(
-    {
-        "label",
-        "labels",
-        "label_type",
-        "polarity",
-        "adjudication",
-        "case_id",
-        "item_ids",
-        "source_refs",
-        "source_digests",
-        "target_output",
-        "benchmark",
-    }
-)
+_LABEL_KEYS = frozenset({
+    "label", "labels", "label_type", "polarity", "adjudication", "case_id",
+    "item_ids", "source_refs", "source_digests", "target_output", "benchmark",
+})
 _SHA256 = re.compile(r"(?:sha256:)?([0-9a-f]{64})\Z")
 _NOTICE = (
     "Candidate DEV analogies only; not findings about a new target. Source adjudication "
@@ -141,9 +123,7 @@ def _path(ref: str, root: Path) -> Path:
 
 
 def _hashed_sources(
-    case: Mapping[str, Any],
-    ctx: BankContext,
-    items: Sequence[IssueItem],
+    case: Mapping[str, Any], ctx: BankContext, items: Sequence[IssueItem],
     cache: dict[Path, tuple[str, bytes | None]],
 ) -> dict[str, bytes | None]:
     digests = case.get("source_digests") or {}
@@ -151,9 +131,7 @@ def _hashed_sources(
         raise _Refusal("missing_source_digest", "source evidence has no byte digests")
     bank_digests: dict[str, str] = {}
     for item in items:
-        bank_digests[f"issue-bank:{item.item_id}"] = _sha(
-            canonical(item.model_dump(mode="json")).encode()
-        )
+        bank_digests[f"issue-bank:{item.item_id}"] = _sha(canonical(item.model_dump(mode="json")).encode())
         if item.provenance.digest:
             bank_digests[f"{item.provenance.store}#{item.provenance.ref}"] = (
                 item.provenance.digest.removeprefix("sha256:")
@@ -215,9 +193,7 @@ def _target(case: Mapping[str, Any], sources: Mapping[str, bytes | None]) -> dic
             or envelope.get("system") != case["system"]
             or _digest(envelope.get("input_sha256")) != _digest(case.get("input_sha256"))
         ):
-            raise _Refusal(
-                "target_binding_mismatch", f"native target is bound to another input: {ref}"
-            )
+            raise _Refusal("target_binding_mismatch", f"native target is bound to another input: {ref}")
         target = envelope.get("target_output")
         if not isinstance(target, dict):
             raise _Refusal("missing_input", f"native target_output unavailable: {ref}")
@@ -237,9 +213,7 @@ def _has_label_keys(value: Any) -> bool:
     return False
 
 
-def _blinded(
-    text: str, body: Mapping[str, Any], case: Mapping[str, Any], items: Sequence[IssueItem]
-) -> bool:
+def _blinded(text: str, body: Mapping[str, Any], case: Mapping[str, Any], items: Sequence[IssueItem]) -> bool:
     forbidden = set(_BENCHMARK_NAMES) | {case["case_id"]}
     for item in items:
         forbidden.update((item.item_id, item.source, item.source.replace("-", " ")))
@@ -249,31 +223,20 @@ def _blinded(
             forbidden.add(item.label)
     seal = sealed_pattern(forbidden)
     metadata = re.search(
-        r"(?im)^\s*(?:label(?:_type)?|polarity|adjudication|benchmark|source_benchmark)\s*[:=]",
-        text,
+        r"(?im)^\s*(?:label(?:_type)?|polarity|adjudication|benchmark|source_benchmark)\s*[:=]", text
     )
     return not _has_label_keys(body) and not metadata and (seal is None or not seal.search(text))
 
 
-def _window_demo(
-    case: Mapping[str, Any], body: Mapping[str, Any], target: dict[str, Any]
-) -> tuple[list[dict[str, str]], dict[str, Any]]:
+def _window_demo(case: Mapping[str, Any], body: Mapping[str, Any], target: dict[str, Any]) -> tuple[list[dict[str, str]], dict[str, Any]]:
     flagged, actions = body.get("flagged_step"), body.get("actions")
-    if (
-        isinstance(flagged, bool)
-        or not isinstance(flagged, int)
-        or flagged < 0
-        or not isinstance(actions, list)
-        or not actions
-    ):
+    if isinstance(flagged, bool) or not isinstance(flagged, int) or flagged < 0 or not isinstance(actions, list) or not actions:
         raise _Refusal("missing_input", "cited-window input needs original flagged_step/actions")
     if set(body) - {"candidate", "flagged_step", "prefix_step", "actions"}:
         raise _Refusal("invalid_input", "window input carries unadmitted extra context")
     candidate = body.get("candidate")
-    if (
-        not isinstance(candidate, dict)
-        or set(candidate) != {"rule", "summary"}
-        or any(not isinstance(value, str) for value in candidate.values())
+    if not isinstance(candidate, dict) or set(candidate) != {"rule", "summary"} or any(
+        not isinstance(value, str) for value in candidate.values()
     ):
         raise _Refusal("missing_input", "window candidate rule/summary unavailable")
     steps: set[int] = set()
@@ -285,18 +248,13 @@ def _window_demo(
         step = action.get("step")
         if isinstance(step, bool) or not isinstance(step, int) or step < 0 or step in steps:
             raise _Refusal("invalid_input", "window step ids must be unique original integers")
-        if any(
-            not isinstance(action.get(key, ""), str)
-            for key in ("text", "observation", "message", "reasoning")
-        ):
+        if any(not isinstance(action.get(key, ""), str) for key in ("text", "observation", "message", "reasoning")):
             raise _Refusal("invalid_input", "window evidence fields must be text")
         steps.add(step)
     if flagged not in steps:
         raise _Refusal("invalid_input", "flagged step is absent from the shown window")
-    if (
-        set(target) != {"label", "mechanism", "evidence"}
-        or not isinstance(target["label"], str)
-        or not (target["mechanism"] is None or isinstance(target["mechanism"], str))
+    if set(target) != {"label", "mechanism", "evidence"} or not isinstance(target["label"], str) or not (
+        target["mechanism"] is None or isinstance(target["mechanism"], str)
     ):
         raise _Refusal("invalid_target", "target is not the native cited-window response")
     if isinstance(target["evidence"], list) and any(
@@ -324,18 +282,12 @@ def _window_demo(
             raise _Refusal("invalid_target", f"native cite-or-abstain gate: {verdict.reason}")
         original = set(case.get("evidence_steps") or [])
         if not original or any(citation["step"] not in original for citation in verdict.evidence):
-            raise _Refusal(
-                "invalid_target", "target citations are not case-bound original evidence steps"
-            )
+            raise _Refusal("invalid_target", "target citations are not case-bound original evidence steps")
         gate = {"confirmed": True, "reason": verdict.reason}
     return [
-        {
-            "role": "system",
-            "content": window_cascade.system_prompt(
-                with_reasoning=window.has_reasoning,
-                with_context_reasoning=window.has_context_reasoning,
-            ),
-        },
+        {"role": "system", "content": window_cascade.system_prompt(
+            with_reasoning=window.has_reasoning, with_context_reasoning=window.has_context_reasoning,
+        )},
         {"role": "user", "content": canonical(body)},
         {"role": "assistant", "content": canonical(target)},
     ], gate
@@ -352,25 +304,16 @@ def _bundle_citation(files: Mapping[str, str], citation: Citation) -> CitationCh
     first, last = citation.window
     within = 1 <= first <= last <= len(lines)
     quote = citation.quote
-    found = bool(
-        within
-        and isinstance(quote, str)
-        and quote.strip()
-        and (" ".join(quote.split()) in " ".join(" ".join(lines[first - 1 : last]).split()))
-    )
+    found = bool(within and isinstance(quote, str) and quote.strip() and (
+        " ".join(quote.split()) in " ".join(" ".join(lines[first - 1:last]).split())
+    ))
     return CitationCheck(citation, True, within, found, None)
 
 
-def _task_demo(
-    case: Mapping[str, Any], body: Mapping[str, Any], target: dict[str, Any]
-) -> tuple[list[dict[str, str]], dict[str, Any]]:
+def _task_demo(case: Mapping[str, Any], body: Mapping[str, Any], target: dict[str, Any]) -> tuple[list[dict[str, str]], dict[str, Any]]:
     files = body.get("files")
-    if (
-        not isinstance(files, dict)
-        or not files
-        or any(
-            not isinstance(path, str) or not isinstance(text, str) for path, text in files.items()
-        )
+    if not isinstance(files, dict) or not files or any(
+        not isinstance(path, str) or not isinstance(text, str) for path, text in files.items()
     ):
         raise _Refusal("missing_input", "Task QA input needs the actual files/text bundle")
     if set(body) - {"files", "omitted"}:
@@ -389,14 +332,10 @@ def _task_demo(
     if set(target) != {"findings"} or not isinstance(findings, list):
         raise _Refusal("invalid_target", "target is not the native Task QA findings response")
     for finding in findings:
-        if (
-            not isinstance(finding, dict)
-            or finding.get("payload")
-            or (set(finding) - {"direction", "mechanism", "confidence", "citations", "payload"})
+        if not isinstance(finding, dict) or finding.get("payload") or (
+            set(finding) - {"direction", "mechanism", "confidence", "citations", "payload"}
         ):
-            raise _Refusal(
-                "unsafe_target", "Task QA demos cannot carry executable/artifact payloads"
-            )
+            raise _Refusal("unsafe_target", "Task QA demos cannot carry executable/artifact payloads")
         if isinstance(finding.get("citations"), list) and any(
             isinstance(citation, dict) and set(citation) - {"path", "line", "end_line", "quote"}
             for citation in finding["citations"]
@@ -404,71 +343,48 @@ def _task_demo(
             raise _Refusal("unsafe_target", "Task QA target carries noncitation payload fields")
     try:
         candidates = parse_candidates(
-            canonical(target),
-            model="source-evidence",
-            rank=1,
-            work_kind=WorkKind.TASK_QUALITY_AUDIT,
-            subject_id=case["subject_id"],
-            verify=lambda citation: _bundle_citation(files, citation),
-            limit=len(findings),
+            canonical(target), model="source-evidence", rank=1,
+            work_kind=WorkKind.TASK_QUALITY_AUDIT, subject_id=case["subject_id"],
+            verify=lambda citation: _bundle_citation(files, citation), limit=len(findings),
         )
     except (CandidateParseError, ValueError) as exc:
         raise _Refusal("invalid_target", f"native Task QA parser: {exc}") from exc
     if len(candidates) != len(findings):
         raise _Refusal("invalid_target", "native Task QA parser discarded a target finding")
     gates = [
-        {
-            "index": index,
-            "confidence": candidate.confidence,
-            "citations_verified": candidate.citation_verified,
-            "eligible": is_proposal_eligible(candidate.confidence, candidate.citation_verified),
-        }
+        {"index": index, "confidence": candidate.confidence,
+         "citations_verified": candidate.citation_verified,
+         "eligible": is_proposal_eligible(candidate.confidence, candidate.citation_verified)}
         for index, candidate in enumerate(candidates)
     ]
     # The production gate may route an unverified >=0.8 claim for review. That
     # is not a license to teach a known false or absent quote as a target answer.
     if any(not candidate.citation_verified for candidate in candidates):
-        raise _Refusal(
-            "invalid_target", "a teaching target needs nonblank quotes from the actual input"
-        )
+        raise _Refusal("invalid_target", "a teaching target needs nonblank quotes from the actual input")
     directions = {
-        "grader_wrong_pass": {"wrong_pass"},
-        "grader_unfair_fail": {"unfair_fail"},
+        "grader_wrong_pass": {"wrong_pass"}, "grader_unfair_fail": {"unfair_fail"},
         "task_defect": {"wrong_pass", "unfair_fail"},
     }.get(case["kind"], set())
     if case["polarity"] == "negative":
         if findings:
-            raise _Refusal(
-                "target_label_mismatch", "confirmed clean demo needs supplied empty findings"
-            )
-    elif not any(
-        gate["eligible"] and candidate.direction in directions
-        for gate, candidate in zip(gates, candidates, strict=True)
-    ):
-        raise _Refusal(
-            "target_label_mismatch", "no direction-compatible target survives the fixed gate"
-        )
+            raise _Refusal("target_label_mismatch", "confirmed clean demo needs supplied empty findings")
+    elif not any(gate["eligible"] and candidate.direction in directions for gate, candidate in zip(gates, candidates, strict=True)):
+        raise _Refusal("target_label_mismatch", "no direction-compatible target survives the fixed gate")
     if any(candidate.direction not in directions for candidate in candidates):
         raise _Refusal("target_label_mismatch", "target contains a direction not bound to the case")
     prompt = build_strong_prompt(
         work_kind=WorkKind.TASK_QUALITY_AUDIT,
-        subject_id="task-" + case["input_sha256"][:16],
-        prompt=canonical(body),
+        subject_id="task-" + case["input_sha256"][:16], prompt=canonical(body),
     )
     return [
         {"role": "user", "content": prompt},
         {"role": "assistant", "content": canonical(target)},
-    ], {
-        "version": "new_verified_0_5",
-        "findings": gates,
+    ], {"version": "new_verified_0_5", "findings": gates,
         "eligible_count": sum(gate["eligible"] for gate in gates),
-        "scope": "proposal_eligibility_not_execution_confirmation",
-    }
+        "scope": "proposal_eligibility_not_execution_confirmation"}
 
 
-def _exclusion_groups(
-    units: Mapping[str, frozenset[str]], excluded: Sequence[str]
-) -> tuple[set[str], set[str], bool]:
+def _exclusion_groups(units: Mapping[str, frozenset[str]], excluded: Sequence[str]) -> tuple[set[str], set[str], bool]:
     names = {CorpusRegistry.task_name(task) for task in excluded}
     unknown = any(not name or not units.get(name) for name in names)
     groups: set[str] = set()
@@ -492,49 +408,30 @@ def _cards(examples: Sequence[dict[str, Any]]) -> tuple[tuple[dict[str, Any], ..
             continue
         # Reserve both polarities before filling the ten-citation convention.
         ordered = sorted(members, key=lambda example: (example["polarity"], example["example_id"]))
-        first = [
-            next(e for e in ordered if e["polarity"] == polarity)
-            for polarity in ("positive", "negative")
-            if any(e["polarity"] == polarity for e in ordered)
-        ]
+        first = [next(e for e in ordered if e["polarity"] == polarity)
+                 for polarity in ("positive", "negative") if any(e["polarity"] == polarity for e in ordered)]
         selected = (first + [e for e in ordered if e not in first])[:10]
         positive = sorted({e["explanation"] for e in members if e["polarity"] == "positive"})
         negative = sorted({e["explanation"] for e in members if e["polarity"] == "negative"})
-        cards.append(
-            {
-                "schema_version": "issue-bank-playbook-projection/v1",
-                "card_id": "BC-" + _sha(group.encode())[:16],
-                "title": group,
-                "what_breaks": "\n".join(positive)
-                if positive
-                else "Confirmed clean controls; no defect inferred.",
-                "task_cues": positive if members[0]["system"] == "task-qa" else [],
-                "trace_cues": positive if members[0]["system"] == "trace-watcher" else [],
-                "counterexamples": negative,
-                "validation": "Check the pinned input and original citations; require independent controls before asserting a new defect.",
-                "repairs_inferred": False,
-                "examples": [e["ref"] for e in selected],
-                "support_count": len(members),
-            }
-        )
+        cards.append({
+            "schema_version": "issue-bank-playbook-projection/v1",
+            "card_id": "BC-" + _sha(group.encode())[:16], "title": group,
+            "what_breaks": "\n".join(positive) if positive else "Confirmed clean controls; no defect inferred.",
+            "task_cues": positive if members[0]["system"] == "task-qa" else [],
+            "trace_cues": positive if members[0]["system"] == "trace-watcher" else [],
+            "counterexamples": negative,
+            "validation": "Check the pinned input and original citations; require independent controls before asserting a new defect.",
+            "repairs_inferred": False, "examples": [e["ref"] for e in selected],
+            "support_count": len(members),
+        })
     return tuple(cards), sparse
 
 
-def _pack(
-    examples: Sequence[dict[str, Any]],
-    cards: Sequence[dict[str, Any]],
-    *,
-    agent: str,
-    digest: str,
-    excluded_tasks: Sequence[str],
-    excluded_ids: Sequence[str],
-) -> AgentPack:
+def _pack(examples: Sequence[dict[str, Any]], cards: Sequence[dict[str, Any]], *, agent: str, digest: str, excluded_tasks: Sequence[str], excluded_ids: Sequence[str]) -> AgentPack:
     system = "task-qa" if agent == "task-qa" else "trace-watcher"
     selected = [example for example in examples if example["system"] == system]
     selected_ids = {example["example_id"] for example in selected}
-    selected_cards = [
-        card for card in cards if any(ref["example_id"] in selected_ids for ref in card["examples"])
-    ]
+    selected_cards = [card for card in cards if any(ref["example_id"] in selected_ids for ref in card["examples"])]
     lines = [f"# Failure Library — {agent}", "", _NOTICE, ""]
     for card in selected_cards:
         lines.extend((f"## {card['card_id']}: {card['title']}", "Cues:"))
@@ -542,29 +439,19 @@ def _pack(
         lines.extend(("Validation: " + card["validation"], "Not sufficient evidence:"))
         lines.extend(f"- {cue}" for cue in card["counterexamples"])
     for example in selected:
-        lines.extend(
-            (
-                f"### DEV bank case: {example['example_id']}",
-                example["explanation"],
-                "Provenance: " + "; ".join(example["ref"]["evidence_refs"]),
-            )
-        )
+        lines.extend((f"### DEV bank case: {example['example_id']}", example["explanation"],
+                      "Provenance: " + "; ".join(example["ref"]["evidence_refs"])))
     return AgentPack(
-        agent=cast(Agent, agent),
-        status="ready" if selected else "empty",
-        markdown="\n".join(lines) + "\n",
+        agent=cast(Agent, agent), status="ready" if selected else "empty", markdown="\n".join(lines) + "\n",
         example_ids=[example["example_id"] for example in selected],
-        card_ids=[card["card_id"] for card in selected_cards],
-        library_digest=digest,
-        exclusions=list(excluded_ids),
-        excluded_tasks=list(excluded_tasks),
+        card_ids=[card["card_id"] for card in selected_cards], library_digest=digest,
+        exclusions=list(excluded_ids), excluded_tasks=list(excluded_tasks),
         retrieval_mode="dev_examples" if selected else "empty",
     )
 
 
 def compile_examples(
-    cases: Iterable[HardCase | Mapping[str, Any]],
-    ctx: BankContext,
+    cases: Iterable[HardCase | Mapping[str, Any]], ctx: BankContext,
     excluded_tasks: Sequence[str] = (),
 ) -> ExampleCompilation:
     """Admit confirmed strong DEV native demos, deterministically and leave-family-out.
@@ -599,11 +486,7 @@ def compile_examples(
     for case_id, row in sorted(rows.items()):
         reference_ids = _reference_ids(row)
         refs = [items[identifier] for identifier in sorted(reference_ids) if identifier in items]
-        names = {
-            CorpusRegistry.task_name(task)
-            for task in [row.get("task_id"), *(item.task_id for item in refs)]
-            if task
-        }
+        names = {CorpusRegistry.task_name(task) for task in [row.get("task_id"), *(item.task_id for item in refs)] if task}
         name = next(iter(names)) if len(names) == 1 else None
         reasons: list[str] = []
         details: list[str] = []
@@ -613,39 +496,24 @@ def compile_examples(
             reasons.append("adjudication_" + str(row.get("adjudication", "missing")))
         if row.get("label_type") not in _STRONG_LABELS:
             reasons.append("weak_label")
-        if (
-            row.get("polarity") not in ("positive", "negative")
-            or not str(row.get("explanation") or "").strip()
-        ):
+        if row.get("polarity") not in ("positive", "negative") or not str(row.get("explanation") or "").strip():
             reasons.append("missing_input")
         if len(refs) != len(reference_ids):
             reasons.append("missing_reference")
         if reference_ids != set(row["item_ids"]):
             reasons.append("unlisted_bank_reference")
-        case_split = ctx.strict_split(
-            row.get("split", "unassigned"),
-            item_id=row.get("subject_id"),
-            task_id=row.get("task_id"),
-        )
+        case_split = ctx.strict_split(row.get("split", "unassigned"), item_id=row.get("subject_id"), task_id=row.get("task_id"))
         if case_split != "DEV":
             reasons.append("non_dev_case")
         split_checks: dict[str, list[Any]] = {}
         for item in refs:
-            key_id = (
-                item.provenance.store.partition(":")[2]
-                if item.provenance.store.startswith("answer-keys:")
-                else None
-            )
+            key_id = item.provenance.store.partition(":")[2] if item.provenance.store.startswith("answer-keys:") else None
             native_id = item.provenance.ref if key_id else item.subject_id
             canonical_subject = goodfire_trace_id(item.subject_id) or item.subject_id
             split_checks[item.item_id] = [
                 item.split,
-                ctx.strict_split(
-                    item.declared_split, key_id=key_id, item_id=native_id, task_id=item.task_id
-                ),
-                ctx.strict_split(
-                    item.declared_split, item_id=canonical_subject, task_id=item.task_id
-                ),
+                ctx.strict_split(item.declared_split, key_id=key_id, item_id=native_id, task_id=item.task_id),
+                ctx.strict_split(item.declared_split, item_id=canonical_subject, task_id=item.task_id),
                 ctx.strict_split(item.split, item_id=item.item_id, task_id=item.task_id),
             ]
             if any(split != "DEV" for split in split_checks[item.item_id]):
@@ -655,7 +523,8 @@ def compile_examples(
             digest_refs[row["input_ref"]] = row["input_sha256"]
         for ref, digest in sorted(digest_refs.items()):
             checks = [
-                ctx.strict_split("DEV", task_digest=value) for value in (digest, "sha256:" + digest)
+                ctx.strict_split("DEV", task_digest=value)
+                for value in (digest, "sha256:" + digest)
             ]
             split_checks["digest:" + ref] = checks
             if any(split != "DEV" for split in checks):
@@ -668,19 +537,13 @@ def compile_examples(
             elif unknown_exclusion or not units.get(name or ""):
                 reasons.append("uncertified_task_family")
         admission = {
-            "case_id": case_id,
-            "system": row.get("system"),
-            "item_ids": sorted(reference_ids),
-            "task": name,
-            "groups": sorted(units.get(name or "", ())),
-            "status": "excluded",
-            "reasons": sorted(set(reasons)),
-            "details": details,
-            "split_checks": split_checks,
+            "case_id": case_id, "system": row.get("system"),
+            "item_ids": sorted(reference_ids), "task": name,
+            "groups": sorted(units.get(name or "", ())), "status": "excluded",
+            "reasons": sorted(set(reasons)), "details": details, "split_checks": split_checks,
             "source_refs": sorted(set(row.get("source_refs") or [])),
             "source_digests": dict(sorted((row.get("source_digests") or {}).items())),
-            "input_ref": row.get("input_ref"),
-            "input_sha256": row.get("input_sha256"),
+            "input_ref": row.get("input_ref"), "input_sha256": row.get("input_sha256"),
         }
         admissions.append(admission)
         if reasons:
@@ -698,15 +561,11 @@ def compile_examples(
                 text = raw.decode("utf-8")
                 body = json.loads(text)
             except (ValueError, UnicodeError) as exc:
-                raise _Refusal(
-                    "missing_input", "input is rendered text, not native consumer JSON"
-                ) from exc
+                raise _Refusal("missing_input", "input is rendered text, not native consumer JSON") from exc
             if not isinstance(body, dict):
                 raise _Refusal("missing_input", "native input body is unavailable")
             if not _blinded(text, body, row, refs):
-                raise _Refusal(
-                    "unblinded_input", "input contains source names or label/provenance metadata"
-                )
+                raise _Refusal("unblinded_input", "input contains source names or label/provenance metadata")
             if protected_seal is not None and protected_seal.search(text):
                 raise _Refusal("non_dev_input", "input embeds a sealed TEST identity")
             sources = _hashed_sources(row, ctx, refs, cache)
@@ -714,53 +573,31 @@ def compile_examples(
             if exclusion_seal is not None and exclusion_seal.search(
                 text + " " + row["explanation"] + " " + canonical(target)
             ):
-                raise _Refusal(
-                    "excluded_target_text", "input or target cites an excluded task/family"
-                )
-            messages, gate = (_window_demo if row["system"] == "trace-watcher" else _task_demo)(
-                row, body, target
-            )
+                raise _Refusal("excluded_target_text", "input or target cites an excluded task/family")
+            messages, gate = (_window_demo if row["system"] == "trace-watcher" else _task_demo)(row, body, target)
         except _Refusal as exc:
             admission["reasons"] = [exc.reason]
             details.append(str(exc))
             continue
         example_id = "BE-" + _sha(canonical([case_id, _sha(raw), target]).encode())[:16]
         ref = {
-            "kind": "bank_case",
-            "example_id": example_id,
-            "case_id": case_id,
-            "item_ids": admission["item_ids"],
-            "subject_id": row["subject_id"],
+            "kind": "bank_case", "example_id": example_id, "case_id": case_id,
+            "item_ids": admission["item_ids"], "subject_id": row["subject_id"],
             "task_id": row.get("task_id") or refs[0].task_id,
-            "summary": row["explanation"],
-            "evidence_refs": admission["source_refs"],
+            "summary": row["explanation"], "evidence_refs": admission["source_refs"],
             "source_digests": admission["source_digests"],
-            "bank_item_sha256": {
-                item.item_id: _sha(canonical(item.model_dump(mode="json")).encode())
-                for item in refs
-            },
-            "input_ref": row["input_ref"],
-            "input_sha256": _sha(raw),
+            "bank_item_sha256": {item.item_id: _sha(canonical(item.model_dump(mode="json")).encode()) for item in refs},
+            "input_ref": row["input_ref"], "input_sha256": _sha(raw),
             "verification_scope": ExampleRef.model_fields["verification_scope"].default,
         }
-        candidates.append(
-            {
-                "schema_version": "issue-bank-example/v1",
-                "example_id": example_id,
-                "system": row["system"],
-                "kind": row["kind"],
-                "polarity": row["polarity"],
-                "label_type": row["label_type"],
-                "explanation": row["explanation"],
-                "groups": admission["groups"],
-                "ref": ref,
-                "input": body,
-                "search_text": row["explanation"] + " " + canonical(body),
-                "target_output": target,
-                "messages": messages,
-                "fixed_gate": gate,
-            }
-        )
+        candidates.append({
+            "schema_version": "issue-bank-example/v1", "example_id": example_id,
+            "system": row["system"], "kind": row["kind"], "polarity": row["polarity"],
+            "label_type": row["label_type"], "explanation": row["explanation"],
+            "groups": admission["groups"], "ref": ref, "input": body,
+            "search_text": row["explanation"] + " " + canonical(body),
+            "target_output": target, "messages": messages, "fixed_gate": gate,
+        })
     # Shared native subjects, bank refs, or input bytes form one evidence unit.
     clusters: list[list[dict[str, Any]]] = []
     identities: list[set[str]] = []
@@ -770,10 +607,7 @@ def compile_examples(
         tokens = {"subject:" + subject.strip().casefold(), "input:" + ref["input_sha256"]}
         tokens.update("item:" + identifier for identifier in ref["item_ids"])
         tokens.update(
-            "subject:"
-            + (goodfire_trace_id(items[identifier].subject_id) or items[identifier].subject_id)
-            .strip()
-            .casefold()
+            "subject:" + (goodfire_trace_id(items[identifier].subject_id) or items[identifier].subject_id).strip().casefold()
             for identifier in ref["item_ids"]
         )
         tokens = {example["system"] + ":" + token for token in tokens}
@@ -800,104 +634,42 @@ def compile_examples(
             admission = by_id[duplicate["ref"]["case_id"]]
             admission["reasons"] = ["duplicate_subject"]
             admission["duplicate_of"] = first["ref"]["case_id"]
-    examples = tuple(
-        sorted(
-            selected,
-            key=lambda example: (
-                example["system"],
-                example["groups"],
-                example["ref"]["task_id"],
-                example["polarity"],
-                example["example_id"],
-            ),
-        )
-    )
+    examples = tuple(sorted(selected, key=lambda example: (example["system"], example["groups"], example["ref"]["task_id"], example["polarity"], example["example_id"])))
     cards, sparse = _cards(examples)
     demos = {
-        consumer: tuple(
-            {
-                "schema_version": "issue-bank-fewshot/v1",
-                "consumer": consumer,
-                "example_id": example["example_id"],
-                "ref": example["ref"],
-                "messages": example["messages"],
-                "fixed_gate": example["fixed_gate"],
-            }
-            for example in examples
-            if example["system"] == system
-        )
+        consumer: tuple({"schema_version": "issue-bank-fewshot/v1", "consumer": consumer,
+                         "example_id": example["example_id"], "ref": example["ref"],
+                         "messages": example["messages"], "fixed_gate": example["fixed_gate"]}
+                        for example in examples if example["system"] == system)
         for system, consumer in _CONSUMERS.items()
     }
-    digest = "sha256:" + _sha(
-        canonical(
-            {
-                "cases": [rows[key] for key in sorted(rows)],
-                "admissions": admissions,
-                "excluded_tasks": excluded,
-                "examples": examples,
-            }
-        ).encode()
-    )
-    excluded_ids = [
-        admission["case_id"] for admission in admissions if admission["status"] == "excluded"
-    ]
-    packs = tuple(
-        _pack(
-            examples,
-            cards,
-            agent=agent,
-            digest=digest,
-            excluded_tasks=excluded,
-            excluded_ids=excluded_ids,
-        )
-        for agent in ("trace-qa", "task-qa")
-    )
+    digest = "sha256:" + _sha(canonical({"cases": [rows[key] for key in sorted(rows)], "admissions": admissions, "excluded_tasks": excluded, "examples": examples}).encode())
+    excluded_ids = [admission["case_id"] for admission in admissions if admission["status"] == "excluded"]
+    packs = tuple(_pack(examples, cards, agent=agent, digest=digest, excluded_tasks=excluded, excluded_ids=excluded_ids) for agent in ("trace-qa", "task-qa"))
     manifest = {
-        "schema_version": "issue-bank-examples/v1",
-        "status": "candidate" if examples else "empty",
-        "local_only": True,
-        "live_monitor_wired": False,
-        "library_digest": digest,
+        "schema_version": "issue-bank-examples/v1", "status": "candidate" if examples else "empty",
+        "local_only": True, "live_monitor_wired": False, "library_digest": digest,
         "split_assignments_digest": getattr(ctx.registry, "split_assignments_digest", None),
-        "excluded_tasks": list(excluded),
-        "excluded_normalized_tasks": sorted(excluded_names),
-        "excluded_family_units": sorted(excluded_units),
-        "unknown_exclusion_family": unknown_exclusion,
-        "cases": len(rows),
-        "admitted": len(examples),
-        "excluded": len(excluded_ids),
+        "excluded_tasks": list(excluded), "excluded_normalized_tasks": sorted(excluded_names),
+        "excluded_family_units": sorted(excluded_units), "unknown_exclusion_family": unknown_exclusion,
+        "cases": len(rows), "admitted": len(examples), "excluded": len(excluded_ids),
         "by_polarity": dict(sorted(Counter(example["polarity"] for example in examples).items())),
-        "exclusion_reasons": dict(
-            sorted(
-                Counter(
-                    reason for admission in admissions for reason in admission["reasons"]
-                ).items()
-            )
-        ),
+        "exclusion_reasons": dict(sorted(Counter(reason for admission in admissions for reason in admission["reasons"]).items())),
         "example_ids": [example["example_id"] for example in examples],
-        "card_ids": [card["card_id"] for card in cards],
-        "sparse_card_groups": sparse,
+        "card_ids": [card["card_id"] for card in cards], "sparse_card_groups": sparse,
         "demos": {consumer: len(values) for consumer, values in demos.items()},
         "native_demo_requirement": "Hash-matched blinded native input plus source-digest-bound issue-bank-demo/v1 target_output.",
         "knowledge_projection": {
-            "reference_contract": ExampleRef.__name__,
-            "card_contract": FailureCard.model_fields["schema_version"].default,
+            "reference_contract": ExampleRef.__name__, "card_contract": FailureCard.model_fields["schema_version"].default,
             "reason": "Bank refs are not Finding/RunRecord ids; missing taxonomy, Hackbook and repair data are not invented.",
         },
     }
-    review = tuple(
-        rows[key]
-        for key in sorted(rows)
-        if rows[key].get("adjudication") in {"pending", "refuted", "uncertain"}
-    )
+    review = tuple(rows[key] for key in sorted(rows) if rows[key].get("adjudication") in {"pending", "refuted", "uncertain"})
     return ExampleCompilation(examples, cards, demos, tuple(admissions), review, packs, manifest)
 
 
 def write_examples(
-    compilation: ExampleCompilation,
-    directory: Path,
-    ctx: BankContext,
-    *,
+    compilation: ExampleCompilation, directory: Path, ctx: BankContext, *,
     rubric_criteria: Sequence[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Publish only to a new local failure-library knowledge artifact directory.
@@ -911,31 +683,18 @@ def write_examples(
         raise ValueError(f"--out must be a new directory below {knowledge_root}")
     if directory.exists():
         raise FileExistsError(directory)
-    if rubric_criteria is not None and (
-        not rubric_criteria or len({c["name"] for c in rubric_criteria}) != len(rubric_criteria)
-    ):
+    if rubric_criteria is not None and (not rubric_criteria or len({c["name"] for c in rubric_criteria}) != len(rubric_criteria)):
         raise ValueError("baseline rubric needs nonempty, unique criteria")
     rows = {
-        "examples.jsonl": compilation.examples,
-        "cards.jsonl": compilation.cards,
-        "admission.jsonl": compilation.admissions,
-        "review.jsonl": compilation.review,
+        "examples.jsonl": compilation.examples, "cards.jsonl": compilation.cards,
+        "admission.jsonl": compilation.admissions, "review.jsonl": compilation.review,
         **{consumer + ".jsonl": demos for consumer, demos in compilation.demos.items()},
     }
-    files = {
-        name: "".join(canonical(row) + "\n" for row in values) for name, values in rows.items()
-    }
+    files = {name: "".join(canonical(row) + "\n" for row in values) for name, values in rows.items()}
     files["playbook.md"] = "\n".join(pack.markdown for pack in compilation.packs)
-    receipt = {
-        **compilation.manifest,
-        "files": {
-            name: {"sha256": _sha(text.encode()), "chars": len(text)}
-            for name, text in sorted(files.items())
-        },
-        "native_task_rubric": "baseline_preserved"
-        if rubric_criteria is not None
-        else "not_requested",
-    }
+    receipt = {**compilation.manifest, "files": {
+        name: {"sha256": _sha(text.encode()), "chars": len(text)} for name, text in sorted(files.items())
+    }, "native_task_rubric": "baseline_preserved" if rubric_criteria is not None else "not_requested"}
     directory.mkdir(parents=True, exist_ok=False)
     for name, text in files.items():
         (directory / name).write_text(text, encoding="utf-8")
@@ -944,13 +703,9 @@ def write_examples(
         if pack.agent == "task-qa" and rubric_criteria is None:
             continue
         receipt["packs"][pack.agent] = write_agent_pack(
-            pack,
-            directory / pack.agent,
-            rubric_criteria=rubric_criteria,
+            pack, directory / pack.agent, rubric_criteria=rubric_criteria,
         )
-    (directory / "build.json").write_text(
-        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    (directory / "build.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return receipt
 
 
@@ -964,14 +719,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--rubric-base", type=Path)
     args = parser.parse_args(argv)
 
-    ctx = BankContext(
-        repo_root=args.repo_root.resolve(),
-        **(
-            {"state_root": args.state_root.expanduser().resolve()}
-            if args.state_root is not None
-            else {}
-        ),
-    )
+    ctx = BankContext(repo_root=args.repo_root.resolve(), **(
+        {"state_root": args.state_root.expanduser().resolve()} if args.state_root is not None else {}
+    ))
     # HardCase loaders retain source paths. Resolve portable artifact-relative refs
     # at this boundary, leaving the public in-memory compiler repo-root-relative.
     cases = [_payload(case) for case in load_cases([args.cases])]
@@ -984,15 +734,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not urlsplit(ref).scheme and not Path(ref.split("#", 1)[0]).is_absolute():
                 candidate = args.cases.resolve().parent / ref.split("#", 1)[0]
                 if candidate.is_file():
-                    resolved[ref] = str(candidate) + (
-                        "#" + ref.split("#", 1)[1] if "#" in ref else ""
-                    )
+                    resolved[ref] = str(candidate) + ("#" + ref.split("#", 1)[1] if "#" in ref else "")
         case["input_ref"] = resolved.get(case.get("input_ref"), case.get("input_ref"))
         case["source_refs"] = [resolved.get(ref, ref) for ref in case.get("source_refs") or []]
-        case["source_digests"] = {
-            resolved.get(ref, ref): digest
-            for ref, digest in (case.get("source_digests") or {}).items()
-        }
+        case["source_digests"] = {resolved.get(ref, ref): digest for ref, digest in (case.get("source_digests") or {}).items()}
     compilation = compile_examples(cases, ctx, excluded_tasks=args.exclude_task)
     criteria = None
     if args.rubric_base is not None:
@@ -1000,22 +745,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         criteria = load_rubric(args.rubric_base)
     receipt = write_examples(compilation, args.out, ctx, rubric_criteria=criteria)
-    print(
-        json.dumps(
-            {
-                key: receipt[key]
-                for key in (
-                    "status",
-                    "admitted",
-                    "excluded",
-                    "by_polarity",
-                    "demos",
-                    "exclusion_reasons",
-                )
-            },
-            sort_keys=True,
-        )
-    )
+    print(json.dumps({key: receipt[key] for key in ("status", "admitted", "excluded", "by_polarity", "demos", "exclusion_reasons")}, sort_keys=True))
     return 0
 
 

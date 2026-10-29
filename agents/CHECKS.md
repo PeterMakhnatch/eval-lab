@@ -114,11 +114,17 @@ full local reproduction:
    the commands on Python 3.12, but do not substitute for hosted gates or branch
    enforcement.
 
-Benchmark and certification workflows declare `concurrency` groups with
-`cancel-in-progress: true` to terminate superseded PR runs promptly. Heavy
-certification suites retain automatic PR path triggers (including workbench edits);
-no weekly schedule is added as implied authorization. Similarly, the dose-ladder
-workflow retains automatic triggers; its dispatch-only reduction is superseded.
+All workflows group PR runs by pull-request number and other events by
+`github.run_id`, with
+`cancel-in-progress: ${{ github.event_name == 'pull_request' }}`. Superseded PR
+revisions cancel promptly, while each push retains its own CI evidence. A shared
+push group is insufficient even with cancellation disabled: GitHub can replace
+an older pending run in that group.
+
+Heavy certification suites retain automatic PR path triggers (including workbench
+edits); no weekly schedule is added as implied authorization. Similarly, the
+dose-ladder workflow retains automatic triggers; its dispatch-only reduction is
+superseded.
 
 ## Deterministic-test rule
 

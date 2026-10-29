@@ -81,9 +81,9 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
-    digest: sha256:eb69b227df4571147b88cd90c856684bf3322d1d81839d5deadccc82f53c2aff
+    digest: sha256:2e737b34a3a41ecb627fa93d94d10610dabf9dc3f9c28aaf720a2daf047f4180
   - path: docs/live-watch.md
-    digest: sha256:00687b4a8669c718a09baa776881432e9e9afbcbd45b15f1bc80aeaaaa3544ba
+    digest: sha256:f57774603a04786c12ab6051e86d0b03f170eb4e9f688fce513798d6d1bcf581
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
@@ -131,11 +131,11 @@ inputs:
   - path: docs/rollout.md
     digest: sha256:478b97b1ff840eb80549057203e5626209a4475c14c69aac9caf04fcf6298daf
   - path: docs/run-atlas.md
-    digest: sha256:2e2e537737632f6446d08068e497eedd89de50d7f42fb7963933b7bfcace8b8f
+    digest: sha256:4a139e65b2adede59609ae5310538a930dc4cad77a96ff384bd2fd73b17653e9
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/run-health.md
-    digest: sha256:bb8263d8023b2695b6cea728403af401b9655338657690ca092c82f73101b8ea
+    digest: sha256:adcd18564e59ddd3e863d4c638b8b9c28cfc6ba8c3d1037c5e253917c340f66c
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/storm-alarms.md
@@ -147,7 +147,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:1a3b7e6cefd1a9c817b0311ee4dcb6232acf3831676edf2f830713674cd3cfe7
+    digest: sha256:452096a8ca3e37a431dafb9f977c6dd75410c676d30c5042cc4f2929fcab560b
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -159,7 +159,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md
-    digest: sha256:de1c591becf3e18573b2f2055bbc9b4970a2096778c2ca1c79e0887ecf818380
+    digest: sha256:2e85b85560c653b0742429d5f665c78231f3e77bac8739bd920a2012491e6bd6
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md

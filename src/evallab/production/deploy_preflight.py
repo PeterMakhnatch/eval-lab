@@ -126,11 +126,11 @@ ITEMS: tuple[Item, ...] = (
          False, MAX_DOCUMENT_BYTES, "aggregate", False, "cascade and Stage 1 DEV counts and the HackBench cross-test counts"),
     Item("gate_progress", gate_progress.DEFAULT_FILE, ("Task Evidence",),
          False, gate_progress.MAX_BYTES, "aggregate", False, "Task QA gate rerun progress: counts per model and arm"),
-    Item("harness_findings", harness_view.FINDINGS_FILE, ("Harness",),
+    Item("harness_findings", harness_view.FINDINGS_FILE, ("Harness", "Run Atlas"),
          False, harness_view.MAX_FINDINGS_BYTES, "findings", True, "trace-findings/v1 records: every detector's result per run"),
     Item("harness_scorecard", harness_view.SCORECARD_FILE, ("Harness",),
          False, harness_view.MAX_SCORECARD_BYTES, "aggregate", False, "combined scorecard: counts per corpus, detector combination and reader"),
-    Item("results", f"{TOOLS_DIR}/{RESULTS_FILE}", ("Trace Tools", "Task Evidence"),
+    Item("results", f"{TOOLS_DIR}/{RESULTS_FILE}", ("Trace Tools", "Task Evidence", "Run Atlas"),
          True, MAX_STREAM_BYTES, "record", True, "per-run tool results behind the run lists"),
     Item("atlas_scorecard", f"{ATLAS_DIR}/{ATLAS_SCORECARD_DIR}/<newest>.json", ("Trace Tools",),
          False, MAX_DOCUMENT_BYTES, "aggregate", False, "facet and cascade detector counts"),
@@ -145,13 +145,14 @@ ITEMS: tuple[Item, ...] = (
 )
 #: Tabs, in page order, with every file whose absence changes what they show.
 TAB_NEEDS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
-    ("Run Atlas", ("facets", "blinding_refresh"), ("clusters",)),
+    ("Run Atlas", ("facets", "blinding_refresh"), ("clusters", "results", "harness_findings")),
     ("Coverage", ("facets", "blinding_refresh"), ("reblinded",)),
     ("Field reliability", ("field_reliability",), ()),
     ("Task Evidence", ("facets", "results"), ("gate_progress",)),
     ("Trace Tools", ("tool_scorecard", "results"), ("atlas_scorecard", "spend", "accounting", "detector_scope")),
-    ("Grader repairs", ("repair_inventory",), ("facets",)),
     ("Harness", (), ("harness_findings", "harness_scorecard", "facets")),
+    ("Grader repairs", ("repair_inventory",), ("facets",)),
+    ("Cross-test sets", ("cross_test_registry",), ()),
 )
 #: Tabs that also read the cloud trace database on the volume (not staged here).
 NEEDS_DATABASE = ("Run Atlas", "Coverage", "Task Evidence", "Trace Tools", "Grader repairs", "Harness")
@@ -178,7 +179,9 @@ def _forbidden(key: str, policy: Policy) -> bool:
     return key.lower() in names or bool(_BENCH_LABEL.search(key))
 
 
-def _walk(value: Any, policy: Policy, found: Counter[str]) -> None:
+def count_forbidden(value: Any, policy: Policy, found: Counter[str] | None = None) -> Counter[str]:
+    """Count every label or reward key ``policy`` refuses, at any depth of ``value``, into ``found``."""
+    found = Counter() if found is None else found
     stack = [value]
     while stack:
         item = stack.pop()
@@ -189,6 +192,7 @@ def _walk(value: Any, policy: Policy, found: Counter[str]) -> None:
                 stack.append(child)
         elif isinstance(item, list):
             stack.extend(item)
+    return found
 
 
 def _stream(source: Path, target: Path, item: Item) -> _Scan:
@@ -206,7 +210,7 @@ def _stream(source: Path, target: Path, item: Item) -> _Scan:
                     continue
                 scan.lines += 1
                 try:
-                    _walk(json.loads(line), item.policy, scan.forbidden)
+                    count_forbidden(json.loads(line), item.policy, scan.forbidden)
                 except ValueError:
                     scan.bad_lines += 1
         else:
@@ -216,7 +220,7 @@ def _stream(source: Path, target: Path, item: Item) -> _Scan:
             digest.update(raw)
             out.write(raw)
             scan.bytes = len(raw)
-            _walk(json.loads(raw), item.policy, scan.forbidden)
+            count_forbidden(json.loads(raw), item.policy, scan.forbidden)
     scan.sha256 = digest.hexdigest()
     return scan
 
@@ -226,7 +230,7 @@ def _write_document(target: Path, document: dict[str, Any], policy: Policy) -> _
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(body)
     scan = _Scan(bytes=len(body), sha256=hashlib.sha256(body).hexdigest())
-    _walk(document, policy, scan.forbidden)
+    count_forbidden(document, policy, scan.forbidden)
     return scan
 
 

@@ -1781,6 +1781,30 @@ suspicious first) and `store` counters: facets read, shown, rejected, superseded
 whose task is not admitted DEV (`unadmitted_n`) and runs whose evidence step is not a
 step of the run (`evidence_outside_run_n`). Neither kind is shown.
 
+**Picking runs.** The Run Atlas is the cloud dashboard's first screen. After store health it shows
+the filter bar, then the cluster tree beside the runs table; the run detail opens below them, and
+the panels (which tool to trust, reader mix, coverage, field reliability) follow it, so the table
+is reachable without scrolling past them. Two
+parameters pick runs by what the detectors recorded: `alarmed_by=<name>` keeps runs on which that
+detector alarms, and `sort=alarms` orders runs by how many distinct detectors alarm (then
+suspicion, then id; the default stays suspicion first). A detector name is a whole-run tool from
+`trace-tools/results-v1.jsonl` with a flagged result (`scout`, `scout_metr`, `laminar`, `docent`,
+`omp`) or a `trace-findings/v1` detector with an `alarm` verdict in
+`trace-harness/findings-v1.jsonl` (`cascade`, `facets`, `metr`, `tripwire`, `run_health.loop`, ...).
+Matching names across sources count once; separately named versions, such as `cascade_v4`,
+remain separate leads, not independent votes or evidence of quality. Each run row carries `alarms` (sorted
+names), `options.alarmed_by` counts admitted runs per detector, and `alarms_available` says
+whether either source is retained: an empty `alarms` with `alarms_available: false` means nothing
+was recorded, never that no detector alarmed. A detector that read the run and found nothing, or
+abstained, adds nothing, but it counts in `detector_results_n` (how many distinct detectors
+recorded any result for the run), and `actor_inputs_available` says whether the run has an agent
+step with text or a tool call. With no alarm the cell therefore says one of "No detector read this
+run", "No actor transcript: unknown, not clean" or "No detector alarm", never a bare pass. The page shows these as the **Detector alarm** filter, the **Order**
+selector and a **Detector alarms** column, all in the shareable `#atlas?alarmed_by=&sort=` link.
+An agent can use the same endpoint with the bearer token, for example
+`GET /api/cloud-db/atlas?alarmed_by=scout&sort=alarms&limit=25`, then open
+`/api/cloud-db/harness/card?run_id=` for the full card.
+
 `GET /api/cloud-db/atlas/run?run_id=` returns one run: its facet, the cluster chains
 that hold it, its evidence steps with one neighbour each side (bounded excerpts from
 retrieval's `expand_pointer`, never user or system prompts), the fired trace feature flags with
@@ -1902,7 +1926,8 @@ pass). The three groups always cover every admitted run; `counts.outside_n` coun
 tool read that are not admitted here. Rows carry only the trace id, its task id, whether it has
 an atlas facet and, for hits, the detector names and evidence steps. No label, reward or outcome
 is sent: whether a hit was right needs labels, which stay local. The page links each row to the
-Run Atlas (when faceted) and to Task Evidence, and copies the page's run ids.
+Run Atlas (when faceted), to Task Evidence and to the run's combined Harness evidence card
+(**Open combined evidence card**), and copies the page's run ids.
 
 #### Atlas coverage (`/api/cloud-db/atlas/coverage`)
 
@@ -1961,10 +1986,11 @@ GitHub PR URLs leave the server: annotation text, key ids, answer-key paths and 
 the inventory. A task whose assignments are not all `dev` is dropped and counted.
 
 Status, strongest first: `native-validated` (a repair names a native receipt and claims native
-qualification; the only state shown green), `static only` (a delivered candidate with host
-checks and no sandbox run), `candidate` (a related candidate not bound to the exact package),
-`no repair`. A merged PR or a claim without a receipt never reaches `native-validated`, and every
-other status says "no native proof".
+qualification; the only state shown green), `static only` (a host-checked candidate without
+complete native qualification), `candidate` (a related candidate not bound to the exact package),
+or `no repair`. A merged PR, an oracle-only control, or a claim without a receipt never reaches
+`native-validated`. Each repair's verification can disclose measured controls or reference
+rejections without claiming a completed repair differential. Candidate links are batch-neutral.
 
 #### Cross-test sets (`/api/cloud-db/cross-test-sets`)
 
@@ -2011,7 +2037,8 @@ The **Task Evidence** tab answers "what is known about this task" in one view. `
 (at least two characters, literal match, at most 25). The journal is read incrementally
 through `ContinuousWorkQueue.read_events_of_types`, and `trace-tools/results-v1.jsonl` only
 when the file changes. The page keeps the task in its address (`#task?task_id=`) and the
-Run Atlas run detail links to it. Nothing here calls a model, joins a label or writes.
+Run Atlas run detail links to it. Each row of the task's runs table opens the run in the Run
+Atlas or its combined Harness evidence card. Nothing here calls a model, joins a label or writes.
 
 **Gate rerun progress** (`GET /api/cloud-db/task-evidence/gate-progress`, `split=dev` only) is the
 panel above the task search: how far the corrected Task QA gate rerun (OQ-6) has got on the
@@ -2063,6 +2090,8 @@ under `<data_root>/trace-harness/` feed it, both optional and both re-read only 
   JSON key) is counted by reason on the page and never shown; no reason repeats the line. A version
   may use letters, digits and `. _ / + : @ -` (up to 80 characters). The contract stores an absent
   latency as 0, so a latency of 0 is shown as not recorded and left out of the mean.
+  A missing score stays null and is shown as not recorded; it is not a measured zero. The cloud
+  findings loader accepts files up to 48 MiB to bound retained-memory use.
 - `scorecard-v1.json`: `evallab.trace_scorecard/v1`, counts only: per corpus and detector
   combination, the reader model (`none` for a deterministic detector), recall hits and false alarms
   at the 3% and 5% false-alarm budgets, localization, cost per 1,000 runs, median latency and, for a
@@ -2081,7 +2110,32 @@ recorded nothing for this run; and the Run Atlas facet lead. Nothing is merged i
 A run with no actor transcript (no agent step with text or a tool call) is unknown, never clean: a
 recorded `clear` for it is shown as `unknown`, and a run no detector read says so rather than
 reading as clean. The card holds no outcome, reward, model or dataset field. The page keeps the run
-in its address (`#harness?run_id=`), and Run Atlas run detail links to the card.
+in its address (`#harness?run_id=`). Run Atlas run detail, each Trace Tools run-list row and each
+row of a task's runs table on Task Evidence have an **Open combined evidence card** button (its
+accessible name includes the run id) that opens this card for that run.
+
+The detector lanes write their own files (the trace harness lane's
+`trace-harness/findings-v1.jsonl`, Run Health's `run-health/findings-run-health-<n>.jsonl`).
+Merge them into the one file the tab reads, locally and read-only (no database, no model call,
+nothing uploaded, nothing written outside the output directory):
+
+```bash
+EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run evallab prod export-trace-findings \
+  --findings ~/.local/state/evallab-prod-live/trace-harness/findings-v1.jsonl \
+  --findings ~/.local/state/evallab-prod-live/run-health/findings-run-health-3.jsonl \
+  --output-directory /private/tmp/harness-stage/trace-harness
+```
+
+Every non-blank line goes through the cloud loader's own record check; a line that is not one
+JSON object, breaks the contract, or holds a per-run label or reward field at any depth
+(deploy-preflight's findings policy) is refused and counted by reason, never copied. The newest
+record per run, detector, version and reader wins, as the loader keeps it (a later line wins a tie,
+so a later `--findings` file wins over an earlier one). Only the contract fields are written, one
+record per line in sorted order, through a temporary file; a linked source, output directory or
+output file is refused, and an existing different file needs `--replace`. The receipt gives lines
+read, kept, superseded and refused by reason, per-source line counts and digests, the output
+sha256, and per detector, version and reader the kept records by verdict. Point
+`deploy-preflight --state-root` at the output's parent to check it before any `modal volume put`.
 
 Deploy-preflight lists both files as optional for the Harness tab and stages them at the same
 relative path after the cloud loaders accept them. A findings record may carry a detector

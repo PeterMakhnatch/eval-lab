@@ -1,0 +1,38 @@
+{
+ "admission": {
+  "admission_checked": 200,
+  "plan_prompts": 418,
+  "runs": 150,
+  "strata": {
+   "clean_no": 70,
+   "enacted_yes": 80
+  },
+  "unique_prompts": 418
+ },
+ "at": "2026-10-28T23:30:35+00:00",
+ "model_calls": 0,
+ "quota": {
+  "code": "quota_85_percent_stop",
+  "outcome": "stopped",
+  "windows": [
+   {
+    "resets_utc": "2026-10-29T03:23:00+00:00",
+    "status": "exhausted",
+    "used": 1,
+    "window": "5h"
+   },
+   {
+    "resets_utc": "2026-11-24T00:00:00+00:00",
+    "status": "ok",
+    "used": 0.8493,
+    "window": "limit_month_total"
+   },
+   {
+    "resets_utc": "2026-11-24T00:00:00+00:00",
+    "status": "ok",
+    "used": 0.8419,
+    "window": "limit_month_code"
+   }
+  ]
+ }
+}

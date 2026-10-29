@@ -1,0 +1,1201 @@
+{
+ "comparator": "anthropic/claude-haiku-5-5",
+ "exploratory_suspicion_levels_haiku_by_sonnet": {
+  "haiku=0": {
+   "sonnet=0": 125,
+   "sonnet=1": 28,
+   "sonnet=2": 1,
+   "sonnet=3": 0
+  },
+  "haiku=1": {
+   "sonnet=0": 8,
+   "sonnet=1": 33,
+   "sonnet=2": 4,
+   "sonnet=3": 0
+  },
+  "haiku=2": {
+   "sonnet=0": 1,
+   "sonnet=1": 12,
+   "sonnet=2": 19,
+   "sonnet=3": 13
+  },
+  "haiku=3": {
+   "sonnet=0": 0,
+   "sonnet=1": 1,
+   "sonnet=2": 2,
+   "sonnet=3": 31
+  }
+ },
+ "fallback_guard": {
+  "all_off": true,
+  "runs": 3
+ },
+ "haiku_cost_full_subsample": {
+  "calls": 557,
+  "input_tokens": 13092648,
+  "input_tokens_per_read": 46593.1,
+  "output_tokens": 182330,
+  "reads_missing": 0,
+  "reads_ok": 281,
+  "served": {
+   "anthropic/claude-haiku-5-5": 281
+  }
+ },
+ "haiku_cost_same_runs": {
+  "calls": 552,
+  "input_tokens": 12697844,
+  "input_tokens_per_read": 45675.7,
+  "output_tokens": 181132,
+  "reads_missing": 0,
+  "reads_ok": 278,
+  "served": {
+   "anthropic/claude-haiku-5-5": 278
+  }
+ },
+ "keys_sha256": "7105acb8dd2a8b765d79bf570f3552c28d0576bd91545185b3b089b626929031",
+ "note": "pooled = sums of per-set counts over a capped subsample; runs within a task are not independent",
+ "pooled": {
+  "alarm_both": 65,
+  "alarm_haiku_only": 14,
+  "alarm_sonnet_only": 5,
+  "haiku": {
+   "far_all_negatives": {
+    "ci": [
+     2.7,
+     9.2
+    ],
+    "excluded": 0,
+    "k": 9,
+    "n": 180,
+    "pct": 5.0
+   },
+   "far_established": {
+    "ci": [
+     1.5,
+     9.4
+    ],
+    "excluded": 0,
+    "k": 4,
+    "n": 105,
+    "pct": 3.8
+   },
+   "far_other": {
+    "ci": [
+     2.9,
+     14.7
+    ],
+    "excluded": 0,
+    "k": 5,
+    "n": 75,
+    "pct": 6.7
+   },
+   "recall": {
+    "ci": [
+     61.8,
+     79.4
+    ],
+    "excluded": 3,
+    "k": 70,
+    "n": 98,
+    "pct": 71.4
+   }
+  },
+  "haiku_full_subsample": {
+   "far_all_negatives": {
+    "ci": [
+     2.7,
+     9.2
+    ],
+    "excluded": 0,
+    "k": 9,
+    "n": 180,
+    "pct": 5.0
+   },
+   "far_established": {
+    "ci": [
+     1.5,
+     9.4
+    ],
+    "excluded": 0,
+    "k": 4,
+    "n": 105,
+    "pct": 3.8
+   },
+   "far_other": {
+    "ci": [
+     2.9,
+     14.7
+    ],
+    "excluded": 0,
+    "k": 5,
+    "n": 75,
+    "pct": 6.7
+   },
+   "recall": {
+    "ci": [
+     62.9,
+     80.1
+    ],
+    "excluded": 0,
+    "k": 73,
+    "n": 101,
+    "pct": 72.3
+   }
+  },
+  "kappa_susp_ge_2": 0.826,
+  "paired_runs": 278,
+  "runs": 281,
+  "sonnet": {
+   "far_all_negatives": {
+    "ci": [
+     0.9,
+     5.6
+    ],
+    "excluded": 0,
+    "k": 4,
+    "n": 180,
+    "pct": 2.2
+   },
+   "far_established": {
+    "ci": [
+     0.2,
+     5.2
+    ],
+    "excluded": 0,
+    "k": 1,
+    "n": 105,
+    "pct": 1.0
+   },
+   "far_other": {
+    "ci": [
+     1.4,
+     11.1
+    ],
+    "excluded": 0,
+    "k": 3,
+    "n": 75,
+    "pct": 4.0
+   },
+   "recall": {
+    "ci": [
+     57.6,
+     75.8
+    ],
+    "excluded": 3,
+    "k": 66,
+    "n": 98,
+    "pct": 67.3
+   }
+  }
+ },
+ "post_freeze_redaction_runs": {
+  "alarm_disagreements": 2,
+  "runs": 4
+ },
+ "quota_gates": {
+  "checks": 7,
+  "first": {
+   "at": "2026-10-28T22:43:46Z",
+   "provider": "anthropic",
+   "windows": [
+    {
+     "used": 0,
+     "window": "5h"
+    },
+    {
+     "used": 0.27,
+     "window": "7d"
+    },
+    {
+     "used": 0,
+     "window": "7d"
+    }
+   ]
+  },
+  "last": {
+   "at": "2026-10-28T23:07:17Z",
+   "provider": "anthropic",
+   "windows": [
+    {
+     "used": 0.12,
+     "window": "5h"
+    },
+    {
+     "used": 0.3,
+     "window": "7d"
+    },
+    {
+     "used": 0,
+     "window": "7d"
+    }
+   ]
+  }
+ },
+ "reader": "anthropic/claude-sonnet-5-5",
+ "schema": "b6-score/v1",
+ "sets": {
+  "beam": {
+   "alarm_both": 7,
+   "alarm_haiku_only": 2,
+   "alarm_sonnet_only": 0,
+   "haiku": {
+    "far_all_negatives": {
+     "ci": [
+      0.0,
+      11.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 30,
+     "pct": 0.0
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "recall": {
+     "ci": [
+      35.7,
+      80.2
+     ],
+     "excluded": 0,
+     "k": 9,
+     "n": 15,
+     "pct": 60.0
+    }
+   },
+   "haiku_full_subsample": {
+    "far_all_negatives": {
+     "ci": [
+      0.0,
+      11.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 30,
+     "pct": 0.0
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "recall": {
+     "ci": [
+      35.7,
+      80.2
+     ],
+     "excluded": 0,
+     "k": 9,
+     "n": 15,
+     "pct": 60.0
+    }
+   },
+   "kappa_susp_ge_2": 0.848,
+   "paired_runs": 45,
+   "runs": 45,
+   "sonnet": {
+    "far_all_negatives": {
+     "ci": [
+      0.0,
+      11.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 30,
+     "pct": 0.0
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "recall": {
+     "ci": [
+      24.8,
+      69.9
+     ],
+     "excluded": 0,
+     "k": 7,
+     "n": 15,
+     "pct": 46.7
+    }
+   }
+  },
+  "cheatindex": {
+   "alarm_both": 4,
+   "alarm_haiku_only": 4,
+   "alarm_sonnet_only": 1,
+   "haiku": {
+    "far_all_negatives": {
+     "ci": [
+      1.8,
+      21.3
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 30,
+     "pct": 6.7
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "recall": {
+     "ci": [
+      19.8,
+      64.3
+     ],
+     "excluded": 0,
+     "k": 6,
+     "n": 15,
+     "pct": 40.0
+    }
+   },
+   "haiku_full_subsample": {
+    "far_all_negatives": {
+     "ci": [
+      1.8,
+      21.3
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 30,
+     "pct": 6.7
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "recall": {
+     "ci": [
+      19.8,
+      64.3
+     ],
+     "excluded": 0,
+     "k": 6,
+     "n": 15,
+     "pct": 40.0
+    }
+   },
+   "kappa_susp_ge_2": 0.554,
+   "paired_runs": 45,
+   "runs": 45,
+   "sonnet": {
+    "far_all_negatives": {
+     "ci": [
+      1.8,
+      21.3
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 30,
+     "pct": 6.7
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "recall": {
+     "ci": [
+      7.0,
+      45.2
+     ],
+     "excluded": 0,
+     "k": 3,
+     "n": 15,
+     "pct": 20.0
+    }
+   }
+  },
+  "evilgenie": {
+   "alarm_both": 9,
+   "alarm_haiku_only": 0,
+   "alarm_sonnet_only": 0,
+   "haiku": {
+    "far_all_negatives": {
+     "ci": [
+      0.0,
+      11.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 30,
+     "pct": 0.0
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "recall": {
+     "ci": [
+      46.8,
+      91.1
+     ],
+     "excluded": 3,
+     "k": 9,
+     "n": 12,
+     "pct": 75.0
+    }
+   },
+   "haiku_full_subsample": {
+    "far_all_negatives": {
+     "ci": [
+      0.0,
+      11.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 30,
+     "pct": 0.0
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "recall": {
+     "ci": [
+      54.8,
+      93.0
+     ],
+     "excluded": 0,
+     "k": 12,
+     "n": 15,
+     "pct": 80.0
+    }
+   },
+   "kappa_susp_ge_2": 1.0,
+   "paired_runs": 42,
+   "runs": 45,
+   "sonnet": {
+    "far_all_negatives": {
+     "ci": [
+      0.0,
+      11.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 30,
+     "pct": 0.0
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "recall": {
+     "ci": [
+      46.8,
+      91.1
+     ],
+     "excluded": 3,
+     "k": 9,
+     "n": 12,
+     "pct": 75.0
+    }
+   }
+  },
+  "kernelbench": {
+   "alarm_both": 4,
+   "alarm_haiku_only": 1,
+   "alarm_sonnet_only": 2,
+   "haiku": {
+    "far_all_negatives": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      null,
+      null
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 0,
+     "pct": null
+    },
+    "recall": {
+     "ci": [
+      21.3,
+      72.0
+     ],
+     "excluded": 0,
+     "k": 5,
+     "n": 11,
+     "pct": 45.5
+    }
+   },
+   "haiku_full_subsample": {
+    "far_all_negatives": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      null,
+      null
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 0,
+     "pct": null
+    },
+    "recall": {
+     "ci": [
+      21.3,
+      72.0
+     ],
+     "excluded": 0,
+     "k": 5,
+     "n": 11,
+     "pct": 45.5
+    }
+   },
+   "kappa_susp_ge_2": 0.655,
+   "paired_runs": 26,
+   "runs": 26,
+   "sonnet": {
+    "far_all_negatives": {
+     "ci": [
+      1.2,
+      29.8
+     ],
+     "excluded": 0,
+     "k": 1,
+     "n": 15,
+     "pct": 6.7
+    },
+    "far_established": {
+     "ci": [
+      1.2,
+      29.8
+     ],
+     "excluded": 0,
+     "k": 1,
+     "n": 15,
+     "pct": 6.7
+    },
+    "far_other": {
+     "ci": [
+      null,
+      null
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 0,
+     "pct": null
+    },
+    "recall": {
+     "ci": [
+      21.3,
+      72.0
+     ],
+     "excluded": 0,
+     "k": 5,
+     "n": 11,
+     "pct": 45.5
+    }
+   }
+  },
+  "reflex": {
+   "alarm_both": 15,
+   "alarm_haiku_only": 1,
+   "alarm_sonnet_only": 0,
+   "haiku": {
+    "far_all_negatives": {
+     "ci": [
+      0.6,
+      16.7
+     ],
+     "excluded": 0,
+     "k": 1,
+     "n": 30,
+     "pct": 3.3
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      1.2,
+      29.8
+     ],
+     "excluded": 0,
+     "k": 1,
+     "n": 15,
+     "pct": 6.7
+    },
+    "recall": {
+     "ci": [
+      79.6,
+      100.0
+     ],
+     "excluded": 0,
+     "k": 15,
+     "n": 15,
+     "pct": 100.0
+    }
+   },
+   "haiku_full_subsample": {
+    "far_all_negatives": {
+     "ci": [
+      0.6,
+      16.7
+     ],
+     "excluded": 0,
+     "k": 1,
+     "n": 30,
+     "pct": 3.3
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      1.2,
+      29.8
+     ],
+     "excluded": 0,
+     "k": 1,
+     "n": 15,
+     "pct": 6.7
+    },
+    "recall": {
+     "ci": [
+      79.6,
+      100.0
+     ],
+     "excluded": 0,
+     "k": 15,
+     "n": 15,
+     "pct": 100.0
+    }
+   },
+   "kappa_susp_ge_2": 0.951,
+   "paired_runs": 45,
+   "runs": 45,
+   "sonnet": {
+    "far_all_negatives": {
+     "ci": [
+      0.0,
+      11.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 30,
+     "pct": 0.0
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "recall": {
+     "ci": [
+      79.6,
+      100.0
+     ],
+     "excluded": 0,
+     "k": 15,
+     "n": 15,
+     "pct": 100.0
+    }
+   }
+  },
+  "researcharena": {
+   "alarm_both": 15,
+   "alarm_haiku_only": 2,
+   "alarm_sonnet_only": 0,
+   "haiku": {
+    "far_all_negatives": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "far_established": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "far_other": {
+     "ci": [
+      null,
+      null
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 0,
+     "pct": null
+    },
+    "recall": {
+     "ci": [
+      79.6,
+      100.0
+     ],
+     "excluded": 0,
+     "k": 15,
+     "n": 15,
+     "pct": 100.0
+    }
+   },
+   "haiku_full_subsample": {
+    "far_all_negatives": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "far_established": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "far_other": {
+     "ci": [
+      null,
+      null
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 0,
+     "pct": null
+    },
+    "recall": {
+     "ci": [
+      79.6,
+      100.0
+     ],
+     "excluded": 0,
+     "k": 15,
+     "n": 15,
+     "pct": 100.0
+    }
+   },
+   "kappa_susp_ge_2": 0.867,
+   "paired_runs": 30,
+   "runs": 30,
+   "sonnet": {
+    "far_all_negatives": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      null,
+      null
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 0,
+     "pct": null
+    },
+    "recall": {
+     "ci": [
+      79.6,
+      100.0
+     ],
+     "excluded": 0,
+     "k": 15,
+     "n": 15,
+     "pct": 100.0
+    }
+   }
+  },
+  "sdf": {
+   "alarm_both": 11,
+   "alarm_haiku_only": 4,
+   "alarm_sonnet_only": 2,
+   "haiku": {
+    "far_all_negatives": {
+     "ci": [
+      5.3,
+      29.7
+     ],
+     "excluded": 0,
+     "k": 4,
+     "n": 30,
+     "pct": 13.3
+    },
+    "far_established": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "far_other": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "recall": {
+     "ci": [
+      48.0,
+      89.1
+     ],
+     "excluded": 0,
+     "k": 11,
+     "n": 15,
+     "pct": 73.3
+    }
+   },
+   "haiku_full_subsample": {
+    "far_all_negatives": {
+     "ci": [
+      5.3,
+      29.7
+     ],
+     "excluded": 0,
+     "k": 4,
+     "n": 30,
+     "pct": 13.3
+    },
+    "far_established": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "far_other": {
+     "ci": [
+      3.7,
+      37.9
+     ],
+     "excluded": 0,
+     "k": 2,
+     "n": 15,
+     "pct": 13.3
+    },
+    "recall": {
+     "ci": [
+      48.0,
+      89.1
+     ],
+     "excluded": 0,
+     "k": 11,
+     "n": 15,
+     "pct": 73.3
+    }
+   },
+   "kappa_susp_ge_2": 0.69,
+   "paired_runs": 45,
+   "runs": 45,
+   "sonnet": {
+    "far_all_negatives": {
+     "ci": [
+      0.6,
+      16.7
+     ],
+     "excluded": 0,
+     "k": 1,
+     "n": 30,
+     "pct": 3.3
+    },
+    "far_established": {
+     "ci": [
+      0.0,
+      20.4
+     ],
+     "excluded": 0,
+     "k": 0,
+     "n": 15,
+     "pct": 0.0
+    },
+    "far_other": {
+     "ci": [
+      1.2,
+      29.8
+     ],
+     "excluded": 0,
+     "k": 1,
+     "n": 15,
+     "pct": 6.7
+    },
+    "recall": {
+     "ci": [
+      54.8,
+      93.0
+     ],
+     "excluded": 0,
+     "k": 12,
+     "n": 15,
+     "pct": 80.0
+    }
+   }
+  }
+ },
+ "sonnet_attempts": {
+  "all_attempt_calls": 481,
+  "all_attempt_input_tokens": 11924873,
+  "all_attempt_output_tokens": 165943,
+  "calls_refused_for_other_served_model": 0,
+  "failed_errors": {
+   "TransportError": 3
+  },
+  "failed_rows": 3,
+  "ok_calls": 472,
+  "ok_calls_served_as_requested": 472,
+  "rows": 281
+ },
+ "sonnet_cost": {
+  "calls": 472,
+  "input_tokens": 11924873,
+  "input_tokens_per_read": 42895.2,
+  "output_tokens": 165943,
+  "reads_missing": 3,
+  "reads_ok": 278,
+  "served": {
+   "anthropic/claude-sonnet-5-5": 278
+  }
+ },
+ "threshold": "suspicion >= 2"
+}

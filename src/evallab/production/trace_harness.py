@@ -78,6 +78,24 @@ DETECTORS: dict[str, str] = {
     "laminar": "evallab.production.trace_harness_tools:LaminarDetector",
     "docent": "evallab.production.trace_harness_tools:DocentDetector",
     "omp_form": "evallab.production.trace_harness_tools:OmpFormDetector",
+    "cascade_own": "evallab.production.trace_harness_own:CascadeOwnDetector",
+    "laminar_copy": "evallab.production.trace_harness_own:LaminarCopyDetector",
+    "facet_windows": "evallab.production.trace_harness_experiments:FacetWindowsDetector",
+    "facet_windows_only": "evallab.production.trace_harness_experiments:FacetWindowsOnlyDetector",
+    "facet_windows_first": "evallab.production.trace_harness_experiments:FacetWindowsFirstDetector",
+    "facet_windows_baseline": "evallab.production.trace_harness_experiments:FacetWindowsBaselineDetector",
+    "facet_windows_random": "evallab.production.trace_harness_experiments:FacetWindowsRandomDetector",
+    "facets_prefix25": "evallab.production.trace_harness_experiments:FacetsPrefix25Detector",
+    "facets_prefix50": "evallab.production.trace_harness_experiments:FacetsPrefix50Detector",
+    "facets_prefix100": "evallab.production.trace_harness_experiments:FacetsPrefix100Detector",
+    "recheck_sol": "evallab.production.trace_harness_experiments:RecheckSolDetector",
+    "whole_run_logistic": "evallab.production.trace_harness_experiments:WholeRunLogisticDetector",
+    "detcache": "evallab.production.trace_harness_detcache:DetectorCacheDetector",
+    "qa_trace_t0": "evallab.production.trace_harness_qa:QaTraceT0Detector",
+    "run_health.loop": "evallab.production.trace_harness_health:HealthLoopDetector",
+    "run_health.runaway": "evallab.production.trace_harness_health:HealthRunawayDetector",
+    "run_health.latency": "evallab.production.trace_harness_health:HealthLatencyDetector",
+    "run_health.infra": "evallab.production.trace_harness_health:HealthInfraDetector",
 }
 
 Key = tuple[str, str, str, str | None]
@@ -110,6 +128,8 @@ class HarnessRun:
     outcome: str
     steps: tuple[Mapping[str, Any], ...]
     actor_inputs_available: bool
+    # Health facts only: never included in atlas_run/blind() or model prompts.
+    meta: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
     _blind: list[BlindRun] = field(default_factory=list, repr=False, compare=False)
 
     @classmethod
@@ -244,6 +264,31 @@ class FindingStore:
         append_jsonl(self.path, records)
 
 
+def merge_findings(paths: Sequence[Path], store: FindingStore) -> dict[str, int]:
+    """Validate all inputs before appending newer findings, preserving version/reader identities.
+
+    Newest ``produced_at`` wins across stores; equal timestamps use input order.
+    An older import can never replace a newer finding already in the target.
+    """
+    existing = store.records()
+    merged = dict(existing)
+    read = 0
+    for path in paths:
+        if not path.is_file():
+            raise FileNotFoundError(f"findings input not found: {path}")
+        for key, record in FindingStore(path).records().items():
+            read += 1
+            previous = merged.get(key)
+            if previous is None or datetime.fromisoformat(record["produced_at"]) >= datetime.fromisoformat(
+                previous["produced_at"]
+            ):
+                merged[key] = record
+    changes = [record for key, record in merged.items() if existing.get(key) != record]
+    if changes:
+        store.append(changes)
+    return {"read": read, "written": len(changes), "findings": len(merged)}
+
+
 # --------------------------------------------------------------------------- #
 # detectors
 # --------------------------------------------------------------------------- #
@@ -282,8 +327,19 @@ def parse_detector_spec(spec: str) -> tuple[str, str | None]:
     return name, reader or None
 
 
-def load_detectors(specs: Sequence[str], options: HarnessOptions) -> list[Detector]:
-    names = list(DETECTORS) if list(specs) == ["all"] else list(specs)
+
+
+def load_detectors(
+    specs: Sequence[str], options: HarnessOptions, *, include_cached: bool = False,
+) -> list[Detector]:
+    names = list(specs)
+    if names == ["all"]:
+        names = [name for name in DETECTORS if name != "detcache"]
+        names.extend(("docent:rh_reading_v1", "cascade_own:xai-oauth/grok-4.3"))
+        if include_cached:
+            from evallab.production.trace_harness_detcache import cached_detector_names
+
+            names.extend(f"detcache:{name}" for name in cached_detector_names())
     detectors: list[Detector] = []
     for spec in names:
         name, reader = parse_detector_spec(spec)
@@ -345,6 +401,8 @@ def run_detectors(
 CORPUS_LOADERS: dict[str, str] = {
     "hackbench": "evallab.production.trace_harness_corpora:hackbench_runs",
     "hackbench-all": "evallab.production.trace_harness_corpora:hackbench_all_runs",
+    "own": "evallab.production.trace_harness_own:own_runs",
+    "own-dev": "evallab.production.trace_harness_own:own_dev_runs",
 }
 
 
@@ -378,11 +436,16 @@ def resolve_runs(
     if selector in CORPUS_LOADERS:
         module_name, _, attribute = CORPUS_LOADERS[selector].partition(":")
         loader = getattr(importlib.import_module(module_name), attribute)
-        return list(_limited(loader(limit=limit), limit))
+        kwargs = {"repo_root": repo_root} if selector in ("own", "own-dev") else {}
+        return list(_limited(loader(limit=limit, **kwargs), limit))
     if selector.startswith("staged:"):
         from evallab.production.trace_harness_staged import staged_runs
 
         return list(staged_runs(selector.removeprefix("staged:"), limit, repo_root=repo_root))
+    if selector.split(":", 1)[0] == "detectors-v1":
+        from evallab.production.trace_harness_detcache import detectors_runs
+
+        return list(detectors_runs(limit, selector=selector, repo_root=repo_root, registry=registry))
     if selector == "cheatbench":
         atlas: Iterator[AtlasRun] = cheatbench_runs(registry, results_root or default_results_root())
     elif selector == "goodfire":
@@ -441,7 +504,7 @@ def card_flags(run: HarnessRun) -> tuple[list[str], list[str]]:
 
 
 def _finding_line(record: Mapping[str, Any], summary_words: int) -> str:
-    reader = record["reader_model"] or "deterministic"
+    reader = record["reader_model"] or "none / unrecorded"
     score = "" if record["score"] is None else f" score={record['score']:g}"
     steps = record["evidence_steps"]
     cited = f" steps={','.join(map(str, steps[:8]))}{'…' if len(steps) > 8 else ''}" if steps else ""
@@ -520,7 +583,7 @@ def card(
 
 
 def register_subcommands(actions: Any) -> None:
-    """``evallab trace run|card|score``; registration opens no database or model."""
+    """Register trace commands without opening databases or reader transports."""
     run = actions.add_parser(
         "run", help="Run trace detectors on one shared blinded input; cache trace-findings/v1",
         description=__doc__.split("\n\n")[1] if __doc__ else None,
@@ -541,9 +604,91 @@ def register_subcommands(actions: Any) -> None:
     show.add_argument("--max-tokens", type=int, default=CARD_MAX_TOKENS)
     _common(show)
     show.set_defaults(func=_card_command)
+    merge = actions.add_parser("merge", help="Merge findings stores, keeping the newest result per identity")
+    merge.add_argument("inputs", nargs="+", type=Path)
+    merge.add_argument("--findings", type=Path, default=DEFAULT_FINDINGS, help="Destination findings store")
+    merge.set_defaults(func=_merge_command)
+    cover = actions.add_parser(
+        "coverage",
+        help="Which detector identities have findings on which corpora (label-free integration check)",
+    )
+    cover.add_argument("--corpus", dest="corpora", action="append", required=True,
+                       help="goodfire | goodfire-dev | cheatbench | hackbench | staged:<set> | dataset:<id>; repeatable")
+    _common(cover)
+    cover.set_defaults(func=_coverage_command)
     from evallab.production.trace_harness_score import add_score_parser
 
     add_score_parser(actions)
+
+
+def cohort_ids(corpus: str, *, database: Path = DEFAULT_DATABASE, repo_root: Path = Path(".")) -> frozenset[str]:
+    """Run ids of a corpus: its label loader's cohort, or its run loader's runs when unlabelled. No label is returned."""
+    if corpus.startswith("dataset:"):
+        from evallab.production.corpus_queue import CorpusRegistry
+        from evallab.production.run_atlas import (
+            admitted_task_ids,
+            cloud_trace_ids,
+            connect_readonly,
+        )
+
+        connection = connect_readonly(database)
+        try:
+            admitted = admitted_task_ids(connection, CorpusRegistry(repo_root))
+            return frozenset(cloud_trace_ids(
+                connection, admitted=admitted, dataset_ids=[corpus.removeprefix("dataset:")],
+            ))
+        finally:
+            connection.close()
+    from evallab.production.trace_harness_corpora import CORPORA, load_corpus_labels
+
+    if corpus in CORPUS_LOADERS and corpus not in CORPORA:
+        # Unlabelled corpora (own runs): the cohort is what the run loader yields.
+        return frozenset(run.run_id for run in resolve_runs(corpus, database=database, repo_root=repo_root))
+    return load_corpus_labels(corpus, database=database, repo_root=repo_root).run_ids
+
+
+def coverage(records: Mapping[Key, Mapping[str, Any]], cohorts: Mapping[str, frozenset[str]]) -> list[dict[str, Any]]:
+    """One row per (detector identity, corpus): findings on the cohort and their verdicts.
+
+    Registered detectors with no finding on any listed corpus get one row with zero
+    findings, so an integration that never ran is visible rather than absent.
+    """
+    rows: list[dict[str, Any]] = []
+    identities = sorted({key[1:] for key in records}, key=lambda key: (key[0], key[1], key[2] or ""))
+    seen_names: set[str] = set()
+    for detector, version, reader in identities:
+        for corpus, ids in cohorts.items():
+            found = [
+                record for key, record in records.items()
+                if key[1:] == (detector, version, reader) and key[0] in ids
+            ]
+            if not found:
+                continue
+            seen_names.add(detector)
+            verdicts = {verdict: sum(r["verdict"] == verdict for r in found) for verdict in VERDICTS}
+            rows.append({
+                "detector": detector, "version": version, "reader": reader, "corpus": corpus,
+                "cohort": len(ids), "findings": len(found), "verdicts": verdicts,
+                "latest": max(r["produced_at"] for r in found),
+            })
+    for name in sorted(DETECTORS):
+        if not any(seen == name or seen.startswith(name + ".") for seen in seen_names):
+            rows.append({"detector": name, "version": None, "reader": None, "corpus": None,
+                         "cohort": 0, "findings": 0, "verdicts": dict.fromkeys(VERDICTS, 0), "latest": None})
+    return rows
+
+
+def render_coverage(rows: Sequence[Mapping[str, Any]]) -> str:
+    lines = ["| Detector | Version | Reader | Corpus | Findings / cohort | alarm / clear / abstain / unknown |",
+             "|---|---|---|---|---|---|"]
+    for row in rows:
+        verdicts = " / ".join(str(row["verdicts"][v]) for v in VERDICTS)
+        lines.append(
+            f"| {row['detector']} | {row['version'] or '—'} | "
+            f"{row['reader'] or ('deterministic' if row['version'] else '—')} | "
+            f"{row['corpus'] or 'no findings on these corpora'} | {row['findings']} / {row['cohort']} | {verdicts} |"
+        )
+    return "\n".join(lines)
 
 
 def _common(parser: argparse.ArgumentParser) -> None:
@@ -557,7 +702,10 @@ def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) ->
     import sys
 
     options = HarnessOptions(database=args.database, repo_root=root, allow_model=args.allow_model)
-    detectors = load_detectors([part.strip() for part in args.detectors.split(",") if part.strip()], options)
+    detectors = load_detectors(
+        [part.strip() for part in args.detectors.split(",") if part.strip()], options,
+        include_cached=args.runs.split(":", 1)[0] == "detectors-v1",
+    )
     runs = resolve_runs(args.runs, database=args.database, repo_root=root,
                         results_root=args.results_root, limit=args.limit)
     summary = run_detectors(runs, detectors, FindingStore(args.findings), refresh=args.refresh,
@@ -574,4 +722,17 @@ def _card_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -
                   results_root=args.results_root, max_tokens=args.max_tokens)
              for run_id in args.run_ids]
     print("\n\n".join(cards))
+    return 0
+
+
+def _coverage_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
+    del harbor
+    cohorts = {corpus: cohort_ids(corpus, database=args.database, repo_root=root) for corpus in args.corpora}
+    print(render_coverage(coverage(FindingStore(args.findings).records(), cohorts)))
+    return 0
+
+
+def _merge_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
+    del root, harbor
+    print(json.dumps(merge_findings(args.inputs, FindingStore(args.findings)), sort_keys=True))
     return 0

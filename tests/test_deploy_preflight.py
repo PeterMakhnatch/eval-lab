@@ -123,11 +123,22 @@ def test_a_clean_state_is_staged_and_every_required_tab_is_ready(world: dict[str
         assert (stage / files[key]["remote"]).is_file()
     assert all(tab["ready"] for tab in report["tabs"])
     by_tab = {tab["tab"]: tab for tab in report["tabs"]}
-    assert by_tab["Run Atlas"]["degraded_without"] == ["clusters"] and by_tab["Run Atlas"]["needs_database"] is True
+    assert by_tab["Run Atlas"]["needs_database"] is True
     assert by_tab["Field reliability"]["needs_database"] is False
     source = world["state"] / "run-atlas/facets-v1.jsonl"
     assert files["facets"]["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
     assert (stage / "run-atlas/facets-v1.jsonl").read_bytes() == source.read_bytes()
+
+
+def test_cross_test_tab_reports_missing_and_invalid_registry(world: dict[str, Path]) -> None:
+    def cross_test() -> dict[str, Any]:
+        return next(row for row in _run(world)["tabs"] if row["tab"] == "Cross-test sets")
+
+    assert cross_test()["ready"] is True
+    world["registry"].unlink()
+    assert cross_test()["ready"] is False and cross_test()["missing"] == ["cross_test_registry"]
+    _json(world["registry"], {"schema_version": "unsupported", "entries": []})
+    assert cross_test()["ready"] is False
 
 
 def test_commands_are_printed_never_run_and_never_force_an_overwrite(world: dict[str, Path]) -> None:
@@ -151,6 +162,7 @@ def test_missing_required_files_block_and_missing_optional_ones_only_degrade(wor
     assert tabs["Trace Tools"]["ready"] is False and tabs["Trace Tools"]["missing"] == ["results"]
     assert tabs["Task Evidence"]["missing"] == ["results"]
     assert tabs["Run Atlas"]["ready"] is True
+    assert {"results", "harness_findings"}.issubset(tabs["Run Atlas"]["degraded_without"])
     assert any(warning.startswith("clusters: missing") for warning in report["warnings"])
     (world["state"] / "run-atlas/blinding-refresh-v1.json").unlink()
     report = _run(world)

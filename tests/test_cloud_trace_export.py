@@ -982,6 +982,33 @@ def test_surviving_annotations_are_refused_before_redaction_can_hide_the_marker(
     assert _tree(directory) == {}
 
 
+def test_redaction_replaces_mixed_case_identities_without_touching_surrounding_text(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path,
+) -> None:
+    """Every ASCII spelling of an identity and the run's own ids are replaced; the rest is byte-exact."""
+    trace_id, task_id = "trace-beta-a-private", TASKS[1][0]
+    literals = r"regex (a|b)+ [x] * ? \\1 $1 {2,} ^end$"
+    text = (
+        f"🛠️ before café-Δ İstanbul {DATASET.upper()} and {task_id.upper()}"
+        f" and {trace_id.upper()} and {_model_id(trace_id).upper()} then {literals} after"
+    )
+    with CloudTraceDatabase(source, sqlite_fts=False) as database:
+        database.upsert_trace({
+            "trace_id": trace_id, "task_id": task_id,
+            "run_id": _run_id(trace_id), "model_id": _model_id(trace_id),
+            "flagged_passage_steps": [],
+        }, steps=[{"step_index": 1, "role": "user", "content_text": text}])
+    output = tmp_path / "offsets"
+    cloud_trace_export.export_runs(source, output, format="atif", registry=registry, trace_ids=[trace_id])
+    blind_id = next(iter(json.loads(_default_manifest(output).read_text(encoding="utf-8"))))
+    document = _atif_document(output, blind_id, "atif")
+    assert document["steps"][0]["message"] == (
+        "🛠️ before café-Δ İstanbul [redacted] and [redacted] and [redacted] and [redacted]"
+        f" then {literals} after"
+    )
+    _assert_blinded(output)
+
+
 @pytest.mark.parametrize("format", FORMATS)
 def test_verifier_outcomes_are_sealed_and_cannot_change_any_exported_bytes(
     source: Path, registry: SyntheticRegistry, tmp_path: Path, format: str,

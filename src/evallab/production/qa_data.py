@@ -157,9 +157,12 @@ class QaContext:
             raise QaDataError(UNAVAILABLE)
         with self.database._transaction():
             admitted, _sealed = self.retriever._admitted_ids()
-            row = self.database._execute(
-                "SELECT task_id FROM agent_traces WHERE trace_id = ?", (run_id,),
-            ).fetchone()
+            try:
+                row = self.database._execute(
+                    "SELECT task_id FROM agent_traces WHERE trace_id = ?", (run_id,),
+                ).fetchone()
+            except UnicodeEncodeError:
+                raise QaDataError(UNAVAILABLE) from None
         if row is None or row[0] not in admitted:
             raise QaDataError(UNAVAILABLE)
         return row[0]
@@ -175,10 +178,13 @@ def _parse_facets(items: Sequence[str]) -> dict[str, Any]:
         values: list[Any] = []
         for part in raw.split(","):
             part = part.strip()
-            values.append(
-                True if part == "true" else False if part == "false"
-                else int(part) if part.lstrip("-").isdigit() else part
-            )
+            try:
+                values.append(
+                    True if part == "true" else False if part == "false"
+                    else int(part) if part.removeprefix("-").isdecimal() else part
+                )
+            except ValueError:
+                raise QaDataError("--facet integer value is too long") from None
         facets[key.strip()] = values[0] if len(values) == 1 else values
     return facets
 
@@ -249,7 +255,7 @@ def _dispatch(call: str, context: QaContext, args: argparse.Namespace) -> dict[s
         if call == "traces":
             return qa_data_inventory.traces(
                 context, task_id=args.task, dataset=args.dataset, model=args.model, outcome=args.outcome,
-                limit=args.limit, ids_only=args.ids_only,
+                limit=args.limit, ids_only=args.ids_only, alarmed_by=args.alarmed_by, sort=args.sort,
             )
         if call == "clusters":
             return qa_data_inventory.clusters(context, members=args.members, source=args.source, level=args.level)
@@ -417,7 +423,9 @@ def register_parser(commands: Any) -> None:
     common(inventory)
     inventory.add_argument("--ids-out", type=Path, default=None, metavar="FILE", help="Also write every admitted trace id here (must not exist)")
 
-    traces = calls.add_parser("traces", help="List admitted runs (faceted or not) by task, dataset, model or outcome")
+    traces = calls.add_parser(
+        "traces", help="List admitted runs (faceted or not) by task, dataset, model, outcome or detector alarm",
+    )
     common(traces)
     traces.add_argument("--task", default=None, metavar="TASK_ID", help="Full id or bare name (cad-model)")
     traces.add_argument("--dataset", default=None)
@@ -425,6 +433,14 @@ def register_parser(commands: Any) -> None:
     traces.add_argument("--outcome", default=None, choices=("pass", "fail", "unknown"), help="From the verifier reward")
     traces.add_argument("--limit", type=int, default=20)
     traces.add_argument("--ids-only", action="store_true")
+    traces.add_argument(
+        "--alarmed-by", default=None, metavar="DETECTOR",
+        help="Only runs a stored trace_findings alarm of this detector names (names: data.alarms.by_detector)",
+    )
+    traces.add_argument(
+        "--sort", choices=("task", "alarms"), default="task",
+        help="task: dataset, task, model, run (default); alarms: most alarming detectors first",
+    )
 
     clusters = calls.add_parser("clusters", help="Run Atlas clusters: the database view or the latest build file")
     common(clusters)

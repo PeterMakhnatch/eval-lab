@@ -41,12 +41,19 @@ IDS
 CALLS (all JSON; examples use real flags)
   inventory                          admitted tasks/runs by dataset, outcomes, top models
        inventory --ids-out /private/tmp/me/ids.txt        also write every admitted trace id (file must not exist)
-  traces [--task T] [--dataset D] [--model M] [--outcome pass|fail|unknown] [--limit N] [--ids-only]
+  traces [--task T] [--dataset D] [--model M] [--outcome pass|fail|unknown] [--alarmed-by DETECTOR] [--sort task|alarms]
+         [--limit N] [--ids-only]
        list admitted runs, faceted or not (task/dataset/model are shown; never hand these records to blind readers)
        --model is the id as stored, with its prefix (`source-reported:moonshotai/Kimi-K3`; copy it from `inventory`
        models): a name that matches nothing is matched 0, not an error. --ids-only gives data.traces[] = ids: save
        them with `... | jq -r '.data.traces[]' > ids.txt` for `export --ids-file`.
        traces --task cad-model              -> matched, runs of terminal-bench/cad-model (matched: 0 says none exist)
+       traces --sort alarms --limit 10      PICK RUNS BY DETECTOR ALARM: the 10 admitted runs the most detectors alarm
+       on; each record adds alarms[], detector_results and actor_inputs_available. data.alarms.source: the store's
+       trace_findings, else the harness's interim trace-harness/findings-v1.jsonl. --alarmed-by DETECTOR keeps the
+       runs that detector alarms on (names and run counts: data.alarms.by_detector). Source "no results retained"
+       = no detector result is kept anywhere: that is NOT "no alarm"; detector_results 0 = no detector read that run
+       (not clean). Read one picked run with `trace-card RUN_ID` (it reads stored findings only).
   runs [--facet K=V[,V] ...] [--cluster ID] [--like TRACE_ID] [--query WORDS] [--task T] [--limit N]
        search FACETED runs. Records carry no dataset, split, source or model field, but task_id and run_id strings
        still name their dataset: for a blind reader use `export` files, never these records. Facet fields: outcome
@@ -81,14 +88,14 @@ CALLS (all JSON; examples use real flags)
        (aggregates: no detector fields). A null flag is not a negative; with --run or --task each row keeps its tool
        and detector: quote both beside any number.
   history TASK_ID [--flag F ...]     past confirmed issues, similar examples, playbook cards for one task
-       task and history are label-free by default; --with-outcomes adds each issue's trust_tier and original/repaired
+       task and history hide issue outcome labels by default; --with-outcomes adds each issue's trust_tier and original/repaired
        reward differential (outcome labels: use only to score, never to feed a blind reader; meta.with_outcomes echoes it).
   task TASK_ID [--file REL ...] [--variant N (default 0)] [--kind original_package|repaired_package (default original)]
        one admitted task (without --file it lists, it does not dump). Fields: instruction_chars (+ instruction text,
        instruction_truncated); packages{"<variant>:<kind>"}: file_count (INCLUDES withheld files), files[{relative_path,
        size}], withheld[] (solution/ and scoring-key names: listed, never read), contents[] (only with --file);
        issues[] + issues_total (retained issues, no reproducers; status as stored: confirmed, provisional,
-       refuted); runs{total, faceted, suspicion_ge_2, list[]}. A file that is
+       refuted); runs{total, faceted, suspicion_ge_2, list[]} (listed runs keep their reward-derived outcome). A file that is
        not in the chosen package says so: check the other --kind. `task vpp-loss-divergence --file tests/test.sh`
        returns that file's text (with the default --budget 4000 a long instruction or file is cut: use --budget 8000).
        Never run package code from here.

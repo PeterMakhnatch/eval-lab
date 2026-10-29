@@ -24,6 +24,7 @@ import hashlib
 import heapq
 import json
 import math
+import os
 import re
 from collections import defaultdict
 from collections.abc import Iterator
@@ -51,6 +52,7 @@ _TOKEN = re.compile(r"^[A-Za-z0-9_.:\-]{1,64}$")
 _FREE_TEXT_FIELDS = frozenset({"mechanism", "error"})
 _MAX_CANDIDATES = 2000
 _MAX_DIGESTS = 200_000
+_MAX_PATTERN_NESTING = 64
 
 
 _MAX_RECORD_BYTES = 256 * 1024
@@ -146,16 +148,60 @@ def _summary(tool: str, value: Any, screen: _Screen, source: str) -> dict[str, A
 
 @dataclass
 class _Record:
-    raw: bytearray | None
+    raw: bytes | bytearray | None
     wanted: bool
     oversized: bool = False
 
 
-def _matches(raw: bytearray, needles: set[bytes]) -> bool:
-    return b'"run_id"' in raw and (b"\\u" in raw or any(needle in raw for needle in needles))
+def _matches(raw: bytes | bytearray, needles: re.Pattern[bytes] | None) -> bool:
+    """Whether a record may name a wanted run; ``None`` (metadata-only scans) wants nothing."""
+    return needles is not None and b'"run_id"' in raw and (b"\\u" in raw or needles.search(raw) is not None)
 
 
-def _top_run_id(raw: bytearray) -> str | None:
+def _alternation(values: list[str]) -> str:
+    """Prefix-factored literal alternation, built without input-dependent recursion.
+
+    Same pattern text as ``cloud_trace_db._literal_alternation`` (sorted input,
+    identical branches) while the nesting stays under ``_MAX_PATTERN_NESTING``:
+    that helper recurses once per nested shared prefix, and the regex parser
+    recurses per nested group, so a task whose run ids ladder by one character
+    would fail to compile. Deeper sets get an equally exact flat alternation.
+    """
+    pending: list[tuple[int, str | list[str]]] = [(0, values)]
+    parts: list[str] = []
+    while pending:
+        depth, node = pending.pop()
+        if isinstance(node, str):
+            parts.append(node)
+            continue
+        if depth >= _MAX_PATTERN_NESTING:
+            return "|".join(re.escape(value) for value in values)
+        prefix = os.path.commonprefix((node[0], node[-1]))
+        tails = [value[len(prefix):] for value in node]
+        if not tails[0]:
+            parts.append(re.escape(prefix))
+            continue
+        groups: dict[str, list[str]] = {}
+        for tail in tails:
+            groups.setdefault(tail[0], []).append(tail)
+        parts.append(re.escape(prefix))
+        parts.append("(?:")
+        pending.append((depth, ")"))
+        for position, group in enumerate(reversed(list(groups.values()))):
+            pending.append((depth + 1, group))
+            if position < len(groups) - 1:
+                pending.append((depth + 1, "|"))
+    return "".join(parts)
+
+
+def _needle_pattern(needles: set[bytes]) -> re.Pattern[bytes] | None:
+    """One prefix-factored search, matching exactly where some needle occurs in the record."""
+    if not needles:
+        return None
+    return re.compile(_alternation(sorted(needle.decode("latin-1") for needle in needles)).encode("latin-1"))
+
+
+def _top_run_id(raw: bytes | bytearray) -> str | None:
     """Decode only the first top-level run-id value, without parsing payloads.
 
     The bounded raw prefilter admits Unicode escapes, not just literal run-id
@@ -196,11 +242,14 @@ def _top_run_id(raw: bytearray) -> str | None:
     return None
 
 
-def _line_items(stream: BinaryIO, needles: set[bytes]) -> Iterator[_Record]:
+def _line_items(stream: BinaryIO, needles: re.Pattern[bytes] | None) -> Iterator[_Record]:
     """Read bounded line fragments; discard overflow through the next newline."""
     item = bytearray()
     oversized = matched = False
     for chunk in iter(lambda: stream.readline(_CHUNK_BYTES), b""):
+        if not item and not oversized and chunk.endswith(b"\n") and len(chunk) <= _MAX_RECORD_BYTES:
+            yield _Record(chunk, _matches(chunk, needles))
+            continue
         if not oversized:
             room = _MAX_RECORD_BYTES - len(item)
             item.extend(chunk[:room])
@@ -218,68 +267,97 @@ def _line_items(stream: BinaryIO, needles: set[bytes]) -> Iterator[_Record]:
         yield _Record(item, _matches(item, needles))
 
 
-def _canonical_items(stream: BinaryIO, needles: set[bytes]) -> Iterator[_Record]:
+_STRUCTURE = re.compile(rb'["{}\[\]]')
+_QUOTED = re.compile(rb'["\\]')
+_QUOTE, _OPEN_OBJECT, _OPEN_ARRAY = b'"{['
+
+
+def _canonical_items(stream: BinaryIO, needles: re.Pattern[bytes] | None) -> Iterator[_Record]:
     """Frame canonical array/singleton objects, discarding overflow in-place.
 
     Quotes and nesting remain tracked after the cap, so an oversized object
     cannot hide the following record. At most 256 KiB of one record is retained.
+    Inside a record the scan jumps between quote/bracket bytes; anything after a
+    closed container is ignored.
     """
     container: int | None = None
     item = bytearray()
     depth = 0
-    quoted = escaped = closed = oversized = matched = False
+    quoted = escaped = oversized = matched = False
     for chunk in iter(lambda: stream.read(_CHUNK_BYTES), b""):
-        for character in chunk:
-            if closed:
-                continue
-            if container is None:
-                if character in b" \t\r\n":
-                    continue
-                if character not in (ord("["), ord("{")):
-                    return
-                container = character
-                if character == ord("["):
-                    continue
+        position, end, start = 0, len(chunk), 0
+        while position < end:
             if not depth:
-                if character in b" \t\r\n,":
+                character = chunk[position]
+                position += 1
+                if container is None:
+                    if character in b" \t\r\n":
+                        continue
+                    if character not in (_OPEN_ARRAY, _OPEN_OBJECT):
+                        return
+                    container = character
+                    if character == _OPEN_ARRAY:
+                        continue
+                elif character in b" \t\r\n,":
                     continue
-                if character == ord("]") and container == ord("["):
-                    closed = True
-                    continue
-                if character != ord("{"):
+                elif character != _OPEN_OBJECT:  # "]" closes the array; anything else is malformed
                     return
-            if not oversized:
-                if len(item) < _MAX_RECORD_BYTES:
-                    item.append(character)
-                else:
-                    matched = _matches(item, needles)
-                    item.clear()
-                    oversized = True
-            if quoted:
-                if escaped:
-                    escaped = False
-                elif character == ord("\\"):
-                    escaped = True
-                elif character == ord('"'):
+                depth, start = 1, position - 1
+            elif escaped:
+                escaped = False
+                position += 1
+            elif quoted:
+                found = _QUOTED.search(chunk, position)
+                if found is None:
+                    position = end
+                elif chunk[found.start()] == _QUOTE:
                     quoted = False
-            elif character == ord('"'):
-                quoted = True
-            elif character in (ord("{"), ord("[")):
-                depth += 1
-            elif character in (ord("}"), ord("]")):
-                depth -= 1
-                if not depth:
-                    yield _Record(None, matched, True) if oversized else _Record(item, _matches(item, needles))
-                    item = bytearray()
-                    oversized = matched = False
-                    closed = container == ord("{")
+                    position = found.end()
+                else:
+                    escaped = True
+                    position = found.end()
+            else:
+                found = _STRUCTURE.search(chunk, position)
+                if found is None:
+                    position = end
+                    continue
+                position = found.end()
+                character = chunk[found.start()]
+                if character == _QUOTE:
+                    quoted = True
+                elif character in (_OPEN_OBJECT, _OPEN_ARRAY):
+                    depth += 1
+                else:
+                    depth -= 1
+                    if not depth:
+                        segment = chunk[start:position]
+                        if not oversized and len(item) + len(segment) > _MAX_RECORD_BYTES:
+                            item.extend(segment[: _MAX_RECORD_BYTES - len(item)])
+                            matched = _matches(item, needles)
+                            oversized = True
+                        elif not oversized:
+                            item.extend(segment)
+                        yield _Record(None, matched, True) if oversized else _Record(item, _matches(item, needles))
+                        item = bytearray()
+                        oversized = matched = False
+                        if container == _OPEN_OBJECT:
+                            return
+        if depth and not oversized:
+            segment = chunk[start:]
+            if len(item) + len(segment) > _MAX_RECORD_BYTES:
+                item.extend(segment[: _MAX_RECORD_BYTES - len(item)])
+                matched = _matches(item, needles)
+                item.clear()
+                oversized = True
+            else:
+                item.extend(segment)
     if oversized:
         yield _Record(None, matched, True)
     elif item:
         yield _Record(item, _matches(item, needles))
 
 
-def _ledger_records(path: Path, needles: set[bytes], *, canonical: bool = False) -> Iterator[_Record]:
+def _ledger_records(path: Path, needles: re.Pattern[bytes] | None, *, canonical: bool = False) -> Iterator[_Record]:
     try:
         with path.open("rb") as stream:
             yield from _canonical_items(stream, needles) if canonical else _line_items(stream, needles)
@@ -350,8 +428,9 @@ def summary(ctx: QaContext) -> dict[str, Any]:
         ).fetchall()}
     rows = 0
     keys: set[str] = set()
+    screened: set[str] = set()  # every key already token-checked, kept or not
     per_tool: dict[str, dict[str, Any]] = {}
-    for item in _ledger_records(ctx.state_dir / "trace-tools/results-v1.jsonl", set()):
+    for item in _ledger_records(ctx.state_dir / "trace-tools/results-v1.jsonl", None):
         if item.oversized or item.raw is None:
             continue
         try:
@@ -361,11 +440,18 @@ def summary(ctx: QaContext) -> dict[str, Any]:
         if not isinstance(row, dict) or row.get("schema") != _SCHEMA:
             continue
         tool, run_id = row.get("tool"), row.get("run_id")
-        if not isinstance(tool, str) or _TOKEN.fullmatch(tool) is None or not isinstance(run_id, str):
+        if not isinstance(tool, str) or not isinstance(run_id, str):
             continue
+        counts: dict[str, Any] | None = per_tool.get(tool)
+        if counts is None:
+            if _TOKEN.fullmatch(tool) is None:
+                continue
+            counts = per_tool[tool] = {"rows": 0, "runs": set(), "admitted_runs": set()}
         rows += 1
-        keys.update(key for key in row if _TOKEN.fullmatch(key) is not None)
-        counts = per_tool.setdefault(tool, {"rows": 0, "runs": set(), "admitted_runs": set()})
+        if not screened.issuperset(row):
+            fresh = row.keys() - screened
+            screened |= fresh
+            keys.update(key for key in fresh if _TOKEN.fullmatch(key) is not None)
         counts["rows"] += 1
         counts["runs"].add(run_id)
         if row.get("source") == "cloud-trace-db" and run_id in cloud:
@@ -430,13 +516,13 @@ def findings(
         dataset_id = row[0]
     forbidden = (dataset_id.casefold(),) if isinstance(dataset_id, str) and dataset_id else ()
     screen = _Screen(ctx, _sealed_pattern(frozenset(sealed)), forbidden)
-    needles = {
+    needles = _needle_pattern({
         encoded
         for identity in wanted
         for ascii_only in (True, False)
         for raw in (json.dumps(identity, ensure_ascii=ascii_only).encode("utf-8"),)
         for encoded in (raw, raw.replace(b"/", b"\\/"))
-    }
+    })
     # Scale retained candidates with the reply allowance, up to each flag cap.
     candidate_limit = min(_MAX_CANDIDATES, ctx.budget.remaining // 16)
     digest_limit = min(_MAX_DIGESTS, max(4096, ctx.budget.remaining * 16))

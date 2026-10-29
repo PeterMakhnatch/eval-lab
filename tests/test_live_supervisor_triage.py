@@ -18,6 +18,7 @@ from evallab.production.live_supervisor import (
     propose,
     scan_once,
 )
+from evallab.production.live_supervisor_harbor import triggers_for
 from evallab.production.live_supervisor_triage import (
     _SYSTEM,
     BUDGET_FILE,
@@ -312,11 +313,12 @@ FORBIDDEN = ("cheatbench", "some-task", "trial-1", "reward", "dataset", "label",
 
 def test_prompt_contains_no_forbidden_fields() -> None:
     obs = observation(metrics={
-        "elapsed_seconds": 600, "steps": 25, "reward": 1.0, "dataset": "cheatbench", "label_cheat": True,
+        "elapsed_seconds": 6000, "steps": 25, "reward": 1.0, "dataset": "cheatbench", "label_cheat": True,
         "split": "dev", "verifier_passed": False, "benchmark": "goodfire", "nested": {"a": 1},
-        "prompt_tokens_p99": 228000.0,
+        "source": "goodfire", "wall_p99_seconds": 5877.0, "prompt_tokens_p99": 228000.0,
     })
-    prompt, _ = build_prompt(obs, [repetition_hit()], propose(obs.subject, [repetition_hit()]))
+    hits = triggers_for(obs)
+    prompt, _ = build_prompt(obs, hits, propose(obs.subject, hits))
     for word in FORBIDDEN:
         assert word not in (prompt + _SYSTEM).lower(), word
 

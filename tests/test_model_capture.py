@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 import urllib.error
 import urllib.request
 from datetime import UTC
@@ -1717,6 +1718,42 @@ def test_capture_smoke_adapter_selector_fails_when_echo_is_base(
                 upstream=f"http://127.0.0.1:{stub.server_address[1]}",
                 out_dir=tmp_path / "smoke-mismatch",
                 model=f"selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:{adapter}",
+            )
+    finally:
+        stub.shutdown()
+        _RecordingStub.echo_model = None
+
+
+def test_capture_smoke_validates_evidence_after_a_late_journal_append(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """HAR-221: a capture handler appends its record after the body reaches the client.
+
+    The smoke's HTTP call returns a complete body before ``CaptureRecorder.append``
+    has run, so reading ``calls.jsonl`` on the caller's schedule can see zero
+    records. The smoke must drain the capture handler first: a slow append has to
+    be judged on its content (identity mismatch), never as a missing call.
+    """
+    from evallab.model_capture import SmokeError, run_capture_smoke
+
+    real_append = CaptureRecorder.append
+
+    def slow_append(self: CaptureRecorder, record: dict[str, Any]) -> int:
+        time.sleep(0.25)
+        return real_append(self, record)
+
+    monkeypatch.setattr(CaptureRecorder, "append", slow_append)
+    _RecordingStub.received = []
+    _RecordingStub.echo_model = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-005")
+        with pytest.raises(SmokeError, match="does not match requested"):
+            run_capture_smoke(
+                upstream=f"http://127.0.0.1:{stub.server_address[1]}",
+                out_dir=tmp_path / "smoke-late-append",
+                model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds2-b",
             )
     finally:
         stub.shutdown()

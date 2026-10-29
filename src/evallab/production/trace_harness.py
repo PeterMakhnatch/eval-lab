@@ -633,6 +633,10 @@ def register_subcommands(actions: Any) -> None:
 
     add_score_parser(actions)
 
+    from evallab.production.trace_harness_length import add_length_control_parser
+
+    add_length_control_parser(actions)
+
 
 def cohort_ids(corpus: str, *, database: Path = DEFAULT_DATABASE, repo_root: Path = Path(".")) -> frozenset[str]:
     """Run ids of a corpus: its label loader's cohort, or its run loader's runs when unlabelled. No label is returned."""

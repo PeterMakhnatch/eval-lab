@@ -451,11 +451,12 @@ def _served_run_ids(ctx: QaContext) -> set[str]:
     return {row["run_id"] for row in ctx.database.search_runs({}, registry=ctx.retriever.registry)}
 
 
+@pytest.mark.parametrize("sealed_text", ["synthetic/sealed", "sealed-item", "atrx-vep-crispr"])
 def test_a_run_whose_facet_record_names_a_sealed_task_cites_no_evidence_like_an_unfaceted_run(
-    ctx: QaContext, tmp_path: Path,
+    ctx: QaContext, tmp_path: Path, sealed_text: str,
 ) -> None:
     with CloudTraceDatabase(ctx.database_path, sqlite_fts=False) as database:
-        named = {**_facet("trace-b", 2), "approach": "Compared with synthetic/sealed"}
+        named = {**_facet("trace-b", 2), "approach": "Compared with " + sealed_text}
         assert database.upsert_run_facets([named], registry=ctx.retriever.registry)["stored"] == 1
     assert _served_run_ids(ctx) == {"trace-a", "trace-z"}  # `runs` withholds the record
     data = _export(ctx, tmp_path / "out", facets={}, trace_ids=["trace-a", "trace-b", "trace-unfaceted"])

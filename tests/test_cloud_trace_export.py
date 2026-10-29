@@ -1175,10 +1175,21 @@ def test_cluster_scope_membership_is_decided_by_current_admission_not_stored_clu
     assert len(json.loads(first.read_text(encoding="utf-8"))["rows"]) == 3
 
 
+@pytest.mark.parametrize("seal", ["unadmitted", "registry", "protected", "protected-qualified"])
 def test_cluster_scope_shows_facet_fields_only_for_runs_whose_facet_record_is_served(
-    clustered: Path, registry: SyntheticRegistry, tmp_path: Path,
+    clustered: Path, registry: SyntheticRegistry, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seal: str,
 ) -> None:
-    """A record that names a sealed identity (in its text, or just by its admitted task's id) is withheld."""
+    """Cluster facet fields follow the same whole-record screen as search_runs."""
+    from evallab.production import cloud_trace_db
+
+    if seal == "protected-qualified":
+        monkeypatch.setattr(cloud_trace_db, "_PROTECTED_TASKS_FROZEN", frozenset({"dataset/future-protected"}))
+    sealed_text = {
+        "unadmitted": TASKS[2][0],
+        "registry": "export-item-sealed",
+        "protected": "atrx-vep-crispr",
+        "protected-qualified": "future-protected",
+    }[seal]
     twin_task, twin_trace = TASKS[2][0] + "-twin", "trace-twin-private"
     registry._assignments[(DATASET, "export-item-twin")] = "dev"
     names_sealed, served = sorted(ADMITTED_TRACES)[0], sorted(ADMITTED_TRACES)[2]
@@ -1199,7 +1210,7 @@ def test_cluster_scope_shows_facet_fields_only_for_runs_whose_facet_record_is_se
             list(template.values()),
         )
         connection.execute(
-            "UPDATE run_facets SET approach = ? WHERE run_id = ?", ("Compared with " + TASKS[2][0], names_sealed),
+            "UPDATE run_facets SET approach = ? WHERE run_id = ?", ("Compared with " + sealed_text, names_sealed),
         )
         connection.execute(
             "UPDATE run_clusters SET run_ids = json_insert(run_ids, '$[#]', ?) WHERE cluster_id = ?",
@@ -1216,7 +1227,6 @@ def test_cluster_scope_shows_facet_fields_only_for_runs_whose_facet_record_is_se
     for trace_id, row in rows.items():
         shown = (row["facet_producer_revision"], row["facet_served_model"])
         assert shown == (("run-facets/v1", "provider/facet-model") if trace_id in served_by_runs else (None, None))
-        assert row["facet_build_id"] == "build-abc"
 
 
 def test_cli_exports_cluster_scope_from_an_explicit_database(

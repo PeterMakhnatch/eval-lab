@@ -39,6 +39,7 @@ from evallab.production.cloud_trace_db import (
     _PROTECTED_TASKS_FROZEN,
     TRUST_TIERS,
     admitted_cloud_task_ids,
+    base_seals,
     decode_row,
     registry_seals,
     served_facet_rows,
@@ -522,7 +523,7 @@ _FACET_SCOPE_SQL = (
 
 def _served_facets(
     connection: sqlite3.Connection, identities: Sequence[Mapping[str, Any]], admitted: frozenset[str],
-    registry: CorpusRegistry, run_ids: Sequence[str],
+    registry: CorpusRegistry, run_ids: Sequence[str], sealed_ids: set[str],
 ) -> dict[str, dict[str, Any]]:
     """Facet records of ``run_ids`` that ``CloudTraceDatabase.search_runs`` serves, in the caller's snapshot."""
     if not run_ids:
@@ -531,7 +532,7 @@ def _served_facets(
     columns = [column[0] for column in cursor.description]
     seals = unadmitted_seals(
         identities, admitted,
-        registry_seals(registry, (identity.casefold() for identity in _PROTECTED_TASKS_FROZEN)),
+        registry_seals(registry, sealed_ids),
     )
     records = served_facet_rows([decode_row(columns, values) for values in cursor], seals)
     return {record["run_id"]: record for record in records}
@@ -615,7 +616,11 @@ def export_cluster_scope(
                 })
         # The same screened read as ``qa-data runs``: a facet record that names a sealed identity is
         # not served, so its run shows no facet fields, exactly like an unfaceted member.
-        served = _served_facets(connection, identities, admitted, authority, [row["trace_id"] for row in rows])
+        sealed_ids = base_seals()
+        facet_admitted = admitted_cloud_task_ids(identities, registry=authority, sealed_task_ids=sealed_ids)
+        served = _served_facets(
+            connection, identities, facet_admitted, authority, [row["trace_id"] for row in rows], sealed_ids,
+        )
         for row in rows:
             facet = served.get(row["trace_id"])
             if facet is not None:

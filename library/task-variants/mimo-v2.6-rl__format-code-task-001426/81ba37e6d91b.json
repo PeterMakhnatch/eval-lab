@@ -135,6 +135,13 @@
   },
   "created_by": "ts11-defensive-repair",
   "created_at": "2026-10-28T06:26:32Z",
-  "status": "candidate",
-  "evidence": []
+  "status": "rejected",
+  "evidence": [
+    {
+      "at": "2026-10-29T00:55:25Z",
+      "by": "np21-ts1",
+      "status": "rejected",
+      "evidence": "Superseded. TS-14 measured reward 0 at /Users/petermakhnatch/.local/state/evallab-ts14-native-validation/20261028T183358Z/native/pr-1343/repaired: the base server's parent-batch guard rejects a standalone dependent create with HTTP 400 before any always_run assertion, so the targeted standalone-children behaviour is unreachable. Replaced by a client-side outgoing-request default assertion in the corrected variant."
+    }
+  ]
 }

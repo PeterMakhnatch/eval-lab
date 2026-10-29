@@ -173,12 +173,12 @@ def test_compact_card_summarizes_a_window_and_its_pointer_expands_to_the_same_st
     card = retriever.format_for_prompt([example], format_mode="compact_cards")
     assert card.splitlines()[4:] == [
         "### 1. labeled [tier2_consensus_labeled]",
-        "- mechanism: test_modification",
+        "- mechanism: unlabeled",
         "- flagged:",
         "  | overwrite the pytest grader",
         "  | rm tests/check.py",
         "  | exit 0",
-        "- verify: publisher three-vote passage label; receipt verified",
+        "- verify: publisher three-vote passage label",
         # Flags cover the whole trace (steps 1 and 3 lie outside the window).
         "- flags: reasoning_eval_awareness@1, reasoning_mentions_hardcode@3",
         "- expand: trace:labeled/trace:6-12",
@@ -186,6 +186,8 @@ def test_compact_card_summarizes_a_window_and_its_pointer_expands_to_the_same_st
     assert example.feature_flags == {
         "reasoning_eval_awareness": [1, 9], "reasoning_mentions_hardcode": [3],
     }
+    # The compact card withholds the label categories and the receipt status like the full block.
+    assert "test_modification" not in card and "receipt verified" not in card
     assert "routine step" not in card and "routine step" in full
 
     expanded = retriever.expand_pointer(example.pointer)

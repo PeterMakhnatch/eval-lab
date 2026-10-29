@@ -82,7 +82,13 @@ def export(
     ctx: QaContext, *, facets: dict[str, Any], trace_ids: Sequence[str], ids_file: Path | None,
     limit: int | None, format: str, out: Path,
 ) -> dict[str, Any]:
-    """Publish up to 200 blinded runs; budget omissions affect the reply, never the export."""
+    """Publish up to 200 blinded runs; budget omissions affect the reply, never the export.
+
+    ``receipt.admitted`` is the selection size before ``--limit`` (every run the facet
+    filters matched), ``receipt.exported`` the runs actually published, so a limited
+    call shows how many matched runs the limit left out; ``omitted``/``truncated``
+    only count reply-budget omissions.
+    """
     explicit = bool(trace_ids) or ids_file is not None
     if bool(facets) == explicit:
         raise QaDataError("give either --facet or --trace-id/--ids-file, not both or neither")
@@ -132,7 +138,7 @@ def export(
     result: dict[str, Any] = {
         "output_directory": str(output), "sealed_manifest": str(manifest_path),
         "receipt": {
-            "admitted": len(requested_ids) if explicit else len(ids),
+            "admitted": len(requested_ids),
             "exported": len(ids), "refused": 0, "format": format,
             "manifest_sha256": "0" * 64,
         },
@@ -154,6 +160,9 @@ def export(
             UNAVAILABLE if str(exc) == "requested traces are missing or not admitted" else str(exc),
         ) from exc
     result["receipt"] = {key: receipt[key] for key in result["receipt"]}
+    # The exporter counts the runs it was handed, which a facet selection may already have
+    # cut to --limit; report the whole selection so the runs the limit left out stay visible.
+    result["receipt"]["admitted"] = len(requested_ids)
     by_trace = {
         entry["trace_id"]: (blind_id, entry["step_origin"], entry["actor_inputs_available"])
         for blind_id, entry in _manifest(manifest_path).items()

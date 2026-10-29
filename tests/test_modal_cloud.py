@@ -2638,13 +2638,16 @@ def test_atlas_admission_precedes_trace_body_reads(
     reads = _guard_atlas_step_bodies(runtime, monkeypatch, denied)
 
     assert set(runtime._atlas_traces()) == {"trace-atlas-allowed"}
+    assert reads == []  # identity collection does not inspect transcript contents
     listing = client.get("/api/cloud-db/atlas", headers=AUTH)
     assert listing.status_code == 200, listing.text
     assert {run["run_id"] for run in listing.json()["runs"]} == {"trace-atlas-allowed"}
+    assert listing.json()["runs"][0]["actor_inputs_available"] is True
+    assert "Synthetic body." not in listing.text  # presence is returned, never the actor text
     for trace_id in denied:
         response = client.get("/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": trace_id})
         assert response.status_code == 404, response.text
-    assert reads == []
+    assert not denied.intersection(reads)
     detail = client.get(
         "/api/cloud-db/atlas/run", headers=AUTH, params={"run_id": "trace-atlas-allowed"}
     )
@@ -3431,6 +3434,54 @@ def test_harness_endpoints_serve_the_combined_card_and_overview_for_admitted_run
     assert "harnessneedle" not in json.dumps(overview)
     facets = next(row for row in client.get(overview_url, headers=AUTH).json()["findings"]["detectors"] if row["detector"] == "facets")
     assert (facets["alarm"], facets["clear"], facets["unknown"]) == (1, 0, 1)  # PROVISIONAL has no actor transcript
+
+
+def test_atlas_picks_runs_by_detector_alarms_from_tool_results_and_harness_findings(
+    client: TestClient, runtime: CloudRuntime, records: dict[str, Any]
+) -> None:
+    url = "/api/cloud-db/atlas"
+    _write_atlas(runtime, [_atlas_facet(VERIFIED, suspicion=1), _atlas_facet(PROVISIONAL, suspicion=3)])
+    before = client.get(url, headers=AUTH).json()
+    assert before["alarms_available"] is False and before["options"]["alarmed_by"] == {}
+    assert [run["alarms"] for run in before["runs"]] == [[], []]  # nothing recorded: not "no alarm"
+
+    tools = runtime.data_root / "trace-tools"
+    tools.mkdir()
+    (tools / "results-v1.jsonl").write_text(
+        json.dumps({"run_id": VERIFIED, "tool": "scout", "detector": "repeated", "flag": True,
+                    "at": "2026-10-27T22:00:00+00:00", "evidence_steps": [2]}) + "\n"
+        + json.dumps({"run_id": PROVISIONAL, "tool": "scout", "detector": "repeated", "flag": False,
+                      "at": "2026-10-27T22:00:00+00:00", "evidence_steps": []}) + "\n",
+        encoding="utf-8",
+    )
+    harness = runtime.data_root / "trace-harness"
+    harness.mkdir()
+    (harness / "findings-v1.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in [
+            _harness_finding(VERIFIED, detector="run_health.loop", detector_version="rh/v1", reader_model=None, kind="loop"),
+            _harness_finding(PROVISIONAL, verdict="clear"),
+            _harness_finding("not-a-trace"),
+        ]),
+        encoding="utf-8",
+    )
+    listing = client.get(url, headers=AUTH).json()
+    assert listing["alarms_available"] is True
+    assert {run["run_id"]: run["alarms"] for run in listing["runs"]} == {
+        VERIFIED: ["run_health.loop", "scout"], PROVISIONAL: [],  # a clear and a clean read add no alarm
+    }
+    rows = {run["run_id"]: run for run in listing["runs"]}
+    # a clear or a clean read adds no alarm but still counts as read; PROVISIONAL has no actor transcript
+    assert (rows[VERIFIED]["detector_results_n"], rows[VERIFIED]["actor_inputs_available"]) == (2, True)
+    assert (rows[PROVISIONAL]["detector_results_n"], rows[PROVISIONAL]["actor_inputs_available"]) == (2, False)
+    assert listing["options"]["alarmed_by"] == {"run_health.loop": 1, "scout": 1}
+    assert [run["run_id"] for run in listing["runs"]] == [PROVISIONAL, VERIFIED]  # suspicion order by default
+    by_alarms = client.get(url, headers=AUTH, params={"sort": "alarms"}).json()
+    assert [run["run_id"] for run in by_alarms["runs"]] == [VERIFIED, PROVISIONAL]
+    scout = client.get(url, headers=AUTH, params={"alarmed_by": "scout"}).json()
+    assert [run["run_id"] for run in scout["runs"]] == [VERIFIED] and scout["total"] == 1
+    assert client.get(url, headers=AUTH, params={"alarmed_by": "nobody"}).json()["total"] == 0
+    for bad in ({"alarmed_by": "a b"}, {"alarmed_by": "x" * 81}, {"sort": "random"}):
+        assert client.get(url, headers=AUTH, params=bad).status_code == 422
 
 
 def test_the_container_runtime_reads_data_files_from_the_volume_or_the_environment_settings(

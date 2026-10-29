@@ -30,6 +30,7 @@ import sys
 import threading
 import time
 import zlib
+from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -46,6 +47,7 @@ DEFAULT_DATABASE = STATE_ROOT / "cloud-trace-db.sqlite"
 ATLAS_ROOT = STATE_ROOT / "run-atlas"
 DEFAULT_FACETS = ATLAS_ROOT / "facets-v1.jsonl"
 DEFAULT_CALLS = ATLAS_ROOT / "facet-calls-v1.jsonl"
+DEFAULT_WATCH_CALLS = ATLAS_ROOT / "watch-calls-v1.jsonl"
 CHEATBENCH_DATASET = "cheatbench-actions-v1"
 # Our own Harbor/MiMo/TB runs in the cloud DB. ``qa-trace-sft-v0`` is derived
 # from CheatBench rows and ``goodfire-reward-hack-data`` is external.
@@ -1146,6 +1148,21 @@ def register_parser(commands: Any) -> None:
     facet.add_argument("--dry-run", action="store_true",
                        help="Blind, render and plan chunks only; no model call, no write")
     facet.set_defaults(func=_facet_command)
+    coverage = actions.add_parser(
+        "coverage", help="What the facet store holds and which DEV runs are still deferred",
+        description=(
+            "Read-only and model-free: stored facet records by reader model, prompt version and "
+            "source, plus DEV runs in the trace DB that are not read yet, split into runs whose "
+            "stored steps do not match step_count and complete runs without a facet record."
+        ),
+    )
+    coverage.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
+    coverage.add_argument("--facets", type=Path, default=DEFAULT_FACETS)
+    coverage.add_argument("--calls", type=Path, action="append",
+                          help="Call ledger giving each record's prompt version; repeatable "
+                               f"(default: {DEFAULT_CALLS.name} and {DEFAULT_WATCH_CALLS.name})")
+    coverage.add_argument("--json", action="store_true", help="Print the JSON object instead of the table")
+    coverage.set_defaults(func=_coverage_command)
     from evallab.production.run_atlas_score import add_score_parser
 
     add_score_parser(actions)
@@ -1227,3 +1244,127 @@ def _facet_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) 
     summary["already_faceted"] = len(done)
     print(json.dumps(summary, indent=1, sort_keys=True))
     return 0 if summary["failed"] == 0 else 1
+
+
+COVERAGE_SCHEMA = "evallab.atlas_store_coverage/v1"
+UNRECORDED = "unrecorded"
+_DEV_STEPS_SQL = (
+    "SELECT a.trace_id, a.step_count,"
+    " (SELECT COUNT(*) FROM trace_steps s WHERE s.trace_id = a.trace_id) AS stored_steps"
+    " FROM agent_traces a JOIN corpus_tasks c USING(task_id) WHERE lower(c.split) = 'dev'"
+)
+_COVERAGE_TABLES = (
+    ("facet_model", "by_facet_model"), ("prompt_version", "by_prompt_version"), ("source", "by_source"),
+)
+
+
+def ledger_prompt_versions(paths: Iterable[Path]) -> dict[str, dict[str, str]]:
+    """Prompt version per run and reader route, from the call batches that stored a facet.
+
+    ``_record`` appends a run's receipts and its ``purpose == "run"`` summary in one locked
+    batch, so the receipts pending when an ``ok`` summary arrives produced the record the
+    run then holds. A later ``ok`` batch replaces an earlier one, as its record does.
+    """
+    versions: dict[str, dict[str, str]] = {}
+    for path in paths:
+        if not path.is_file():
+            continue
+        pending: dict[str, dict[str, str]] = {}
+        with path.open(encoding="utf-8") as handle:
+            fcntl.flock(handle, fcntl.LOCK_SH)
+            for line in handle:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                run_id = row.get("run_id")
+                if row.get("purpose") == "run":
+                    batch = pending.pop(run_id, {})
+                    if row.get("status") == "ok":
+                        versions[run_id] = batch
+                elif isinstance(row.get("prompt_version"), str) and isinstance(row.get("requested_model"), str):
+                    pending.setdefault(run_id, {})[row["requested_model"]] = row["prompt_version"]
+    return versions
+
+
+def store_coverage(database: Path, facets: Path, calls: Iterable[Path]) -> dict[str, Any]:
+    """Stored records by reader, prompt version and source, and the deferred DEV runs.
+
+    A DEV run is deferred for incomplete steps when ``step_count`` is zero or differs from
+    its stored step rows (metadata-first ingestion), whether or not it holds a facet; a
+    complete run without a facet record is not yet read. Opens no model and writes nothing.
+    """
+    connection = connect_readonly(database)
+    try:
+        traces = connection.execute(_DEV_STEPS_SQL).fetchall()
+    finally:
+        connection.close()
+    records = load_facets(facets)
+    versions = ledger_prompt_versions(calls)
+    by_model: Counter[str] = Counter()
+    by_version: Counter[str] = Counter()
+    by_source: Counter[str] = Counter()
+    for run_id, record in records.items():
+        model = str(record.get("facet_model") or "unknown")
+        by_model[model] += 1
+        by_version[versions.get(run_id, {}).get(model, UNRECORDED)] += 1
+        by_source[str(record.get("source") or "unknown")] += 1
+    incomplete = read = not_read = 0
+    for row in traces:
+        if not row["step_count"] or row["stored_steps"] != row["step_count"]:
+            incomplete += 1
+        elif row["trace_id"] in records:
+            read += 1
+        else:
+            not_read += 1
+    dev_ids = {row["trace_id"] for row in traces}
+    return {
+        "schema": COVERAGE_SCHEMA,
+        "stored": {
+            "records_n": len(records),
+            "mixed_readers": len(by_model) > 1,
+            "by_facet_model": dict(by_model),
+            "by_prompt_version": dict(by_version),
+            "by_source": dict(by_source),
+            "not_dev_trace_n": sum(1 for run_id in records if run_id not in dev_ids),
+        },
+        "deferred": {
+            "dev_runs_n": len(traces),
+            "read_n": read,
+            "incomplete_steps_n": incomplete,
+            "not_yet_read_n": not_read,
+        },
+        "notice": (
+            "Records are the latest line per run_id. Readers agree only at kappa 0.42-0.47 on "
+            "suspicion >= 2 (0.64 for a same-reader retest), so a score over a mixed store must "
+            f"state its reader mix. '{UNRECORDED}' means no call receipt names the prompt version. "
+            "Deferred counts cover DEV-split runs in the trace DB before the cross-key admission gate."
+        ),
+    }
+
+
+def render_coverage(report: Mapping[str, Any]) -> str:
+    """A compact operator table for ``store_coverage``."""
+    stored, deferred = report["stored"], report["deferred"]
+    lines = [f"Facet store: {stored['records_n']} records from {len(stored['by_facet_model'])} reader(s)"
+             + (" (mixed readers)" if stored["mixed_readers"] else "")]
+    for title, key in _COVERAGE_TABLES:
+        counts = stored[key]
+        width = max([len(title), *map(len, counts)])
+        lines += ["", f"{title:<{width}}  records"]
+        lines += [f"{name:<{width}}  {count:>7}"
+                  for name, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
+    rows = (("read", deferred["read_n"]), ("deferred: incomplete steps", deferred["incomplete_steps_n"]),
+            ("deferred: not yet read", deferred["not_yet_read_n"]),
+            ("stored, not a DEV trace in the DB", stored["not_dev_trace_n"]))
+    lines += ["", f"DEV runs in the trace DB: {deferred['dev_runs_n']}"]
+    lines += [f"  {name:<33}  {count:>7}" for name, count in rows]
+    lines += ["", report["notice"]]
+    return "\n".join(lines)
+
+
+def _coverage_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
+    del root, harbor
+    calls = args.calls or [DEFAULT_CALLS, DEFAULT_WATCH_CALLS]
+    report = store_coverage(args.database, args.facets, calls)
+    print(json.dumps(report, indent=1, sort_keys=True) if args.json else render_coverage(report))
+    return 0

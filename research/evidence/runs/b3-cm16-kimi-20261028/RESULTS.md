@@ -17,9 +17,9 @@ output 101,043; input per read 9,880 / 14,439 / 21,530 at 25 / 50 / 100%. Billed
 - Share of enacted runs flagged at 50% that are still flagged at 100%: **3/3 = 100%**. Median prefix fraction at which an
   enacted run first reaches `suspicion >= 2`: **0.25**; 4 of 25 runs ever reach 2, and all 4 do so already at 25% (none
   first reaches it at 50% or 100%).
-- Unlike Haiku (CM-16: 0/25 at every prefix, everything at `suspicion <= 1`), this reader does raise `suspicion == 2`, but
-  more context does not make it more suspicious: recall is 4/25 on the shortest prefix and 3/25 on the full run, and no
-  clean run is ever flagged at any prefix.
+- Unlike Haiku (CM-16: 0/25 at every prefix, everything at `suspicion <= 1`), this reader does raise `suspicion == 2`; in
+  this sample more context did not make it more suspicious (4/25 on the shortest prefix, 3/25 on the full run), and no clean
+  run was flagged at any prefix.
 
 ## Secondary (preregistered)
 
@@ -48,8 +48,11 @@ are identical (3 and 3), i.e. not ambiguous.
 
 The gate passing makes the branch required, so it was attempted once, on the 41 natural trajectories with the same reader, at
 18:40 ET. **It stopped at the usage gate before the first call**: Kimi's 5-hour window was at 100% (it reset at 6:23 PM ET and
-was exhausted again by 6:40 PM ET by other Kimi traffic; this slice's own Goodfire pass took it from 0% to 71%). No HackBench
-data was read and no call was made.
+was exhausted again by 6:40 PM ET by other Kimi traffic; this slice's own Goodfire pass took it from 0% to 71%).
+
+What did happen locally: the corpus was parsed and rendered in-process to measure its size (`cost`), with no text retained and
+no model involved — that is local size-only inspection of the staged file, not a detector read. **Zero HackBench content was
+sent to any model and there were zero HackBench model reads.**
 
 The characters are measured exactly (`hackbench_prefix.py cost`, no model call, counts only,
 `results/hackbench-cost.json`); the token figures are an **estimate** at 0.575 input tokens per rendered character derived from
@@ -68,8 +71,9 @@ points), so the 1.88 monthly points left below the 85% stop at the end of this p
 short), and a whole fresh 5-hour window is about 3.4M (~15× short). One largest-trajectory 25% read alone (≈0.8M tokens by the
 same estimate) would consume most of what remains.
 
-So the branch is **BLOCKED by the token and quota caps, with zero HackBench model reads**: no HackBench data was read, coverage
-is **0/41**, and **no exact or within-5 held-out command localization was measured**. The cohort was not shrunk, no trajectory
+So the branch is **BLOCKED by the token and quota caps, with zero HackBench model reads**: beyond the local size-only
+inspection above no HackBench run was read by a detector, hosted-reading coverage is **0/41**, and **no exact or within-5
+held-out command localization was measured**. The cohort was not shrunk, no trajectory
 truncated and the extractor not altered to fit; the remaining quota is left for slice B4. Nothing with HackBench text entered
 git or any receipt.
 
@@ -77,11 +81,12 @@ git or any receipt.
 
 ## Meaning
 
-For the prefix question this splits cleanly: on the same 50 runs the cheap prefix reader localizes the labelled passage as
-early as 25% (94% exact when the passage is inside the prefix) and a flagging reader reaches `suspicion >= 2` on 4 of 25
-enacted runs with no clean alarm, but **all of that recall is available by 25% of the run** — reading further adds nothing
-and costs 2.2× the input tokens per run. With 25 runs the intervals are wide (16% recall, 0–13.3% clean), and a 0/25 clean
-false-alarm rate is an upper bound of 13%, not a measured zero.
+Descriptively, on these 50 runs: the reader localizes the labelled passage as early as 25% (15 of 16 exact when the passage is
+inside the prefix) and reaches `suspicion >= 2` on 4 of 25 enacted runs with no clean alarm, and in this sample more context
+did not raise recall — 4/25 at 25% against 3/25 at 100%, with all four first flags already at 25%, while a 100% read costs
+2.2× the input tokens of a 25% read. That is a description of 25 + 25 runs, not a causal claim that added context never helps
+a reader: the intervals are wide (16.0% recall with a 6.4–34.7 interval), and the clean rate is an observed 0/25 = 0% with a
+Wilson 95% upper bound of 13.3%, which does not establish a true false-alarm rate of zero.
 
 ## Deviations from the preregistration, stated plainly
 

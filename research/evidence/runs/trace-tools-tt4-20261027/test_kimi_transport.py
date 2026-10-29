@@ -367,6 +367,8 @@ def test_recover_bounds_old_429_holds_and_supersedes_only_rate_limited_traces(
     arm = budget.snapshot()["arms"]["tt4"]
     assert Decimal(arm["held_usd"]) == 0 and Decimal(arm["settled_usd"]) == amount
     assert kimi.recover()["bounded_429_attempts"] == 0  # idempotent
+    assert kimi.recover(retry_failed=True)["superseded_traces"] == 1
+    assert not (kimi.CAMPAIGN / "traces" / f"{other}.json").exists()
 
 
 def fetch_cash_fixture():

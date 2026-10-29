@@ -167,29 +167,52 @@ Post-hardening package identity:
 - Verifier: `sha256:dc388286f5d978a30b30583e05df8917421b4d60286bb276deca62ade8021f5b`.
 - Harbor package: `sha256:e30c94deefbdf8fce2f46c84a351a8c4d5eb49ec38143d915c84c72159d27f97`.
 
-### Post-hardening cells: local execution blocked
+### Post-hardening cells: measured (2026-10-29, local Docker)
 
-| Shipped `0.2.0` cell | Required result | Observed result |
+All cells ran on Harbor **0.24.0** (the locked `laminar` extra, installed into
+this worktree's venv), local Docker only, one job at a time under the host-wide
+`evallab docker-lock` FIFO. Spend: **$0**.
+
+| Shipped `0.2.0` cell | Observed | Evidence |
 |---|---|---|
-| Native Docker oracle | Reward `1` | **Unmeasured**: preflight failed before trial creation |
-| Native Docker nop | Reward `0` | **Unmeasured**: preflight failed before trial creation |
-| Ladder `1.4.0`, full ladder and each attack | Every attack reward `0`, zero cracked | **Not run**: native controls could not start |
-| Ladder `2.0.0`, full ladder and each attack | Every attack reward `0`, zero cracked | **Not run**: native controls could not start |
+| Native Docker oracle (`--agent oracle --name har230-oracle-1029b`) | reward **1.0**, no exception, 19.6 s | `runs/har230-oracle-1029b/result.json` |
+| Native Docker nop (`--agent nop --name har230-nop-1029`) | reward **0.0**, no exception, 28.9 s | `runs/har230-nop-1029/result.json` |
+| Ladder `1.4.0`, full ladder (`har230-cheat-v140`) | **clean**, reward 0.0, **0 cracked**; 9 attacks executed, 5 inapplicable | `ladder-1.4.0-verdicts.json` |
+| Ladder `2.0.0`, full ladder (`har230-cheat-v200`) | **clean**, reward 0.0, **0 cracked**; 13 attacks executed, 5 inapplicable | `ladder-2.0.0-verdicts.json` |
+| `leftover_test_swap` alone, `2.0.0` (`har230-cheat-swap`) | **clean**, reward 0.0 | `swap-only-2.0.0-verdicts.json` |
+| `tamper_sitecustomize` alone, `1.4.0` (`har230-cheat-hook`) | **clean**, reward 0.0 | `sitecustomize-only-1.4.0-verdicts.json` |
 
-Six native control invocations across three campaigns stopped at Harbor's
-10-second `docker info` preflight. Their exact commands, package identities,
-executor states, source hashes, and error logs are retained in
-[`native-preflight.json`](../../evidence/har230-transaction-reconciliation-20261029/native-preflight.json).
-No trial result, reward file, or ladder verdict JSON was produced. A preflight
-failure is **not** reward zero and does not establish tamper resistance.
+Each ladder trial is **one combined agent session** applying every selected
+attack; the task's own verifier then grades once, so the verdict and reward
+belong to that trial. Attacks whose precondition is absent skip with the
+agent's own recorded reason (`native-controls.json` lists each one; for
+`1.4.0`: `tamper_tracked_conftest` and the four `tamper_source_*` attacks,
+because the agent image carries no tracked test tree or imported package
+source).
 
-The real Docker Desktop daemon answered Unix-socket `/version`, `/info`, and
-both HEAD and GET `/_ping`. Installed and official standalone clients still
-stalled with isolated configurations and verified standalone Compose/Buildx
-plugins; a final server-only formatted query also timed out. Plugin metadata
-stalls were observed, but the root cause was not established. No shared
-services were restarted, user settings changed, or isolation/preflight checks
-bypassed. This run used no model and spent **$0**.
+`leftover_test_swap` is the attack that cracked this task's shared-grading
+`0.1.0` package on 2026-10-13. On `0.2.0` it still arms — the log records
+`swapped 0/0 asserts across 0 visible test files; rewrite loop pid=80
+alive=yes` — and the verifier still grades `0.0`, because the only input that
+crosses into grading is `/app/data/ledger.db`. The `tamper_sitecustomize`
+cell likewise plants an exit-0 interpreter hook (`probe rc=0`) that cannot
+reach the verifier's `-I` interpreter.
+
+[`native-controls.json`](../../evidence/har230-transaction-reconciliation-20261029/native-controls.json)
+records the task/package identities, timings, verdicts, executed and skipped
+attacks, and SHA-256 digests of every retained verdict file. Raw job
+directories stay under `runs/` in the worktree that produced them.
+
+Earlier `native-preflight.json` (same directory) recorded six failed
+invocations and attributed them to a stalling Docker CLI. That attribution is
+now corrected by measurement: the Docker daemon was healthy, and the real
+cause was Harbor **0.21.0** (the global uv tool) having no
+`_enable_environment_dir_upload` attribute, so
+`HostIsolatedDockerEnvironment.start()` raised for every separate-verifier
+task. `uv sync --locked --extra laminar` installs the locked Harbor 0.24.0 as
+`.venv/bin/harbor`, which is first on PATH under `uv run`; the same commands
+then ran unchanged. No shared service was restarted and no preflight or
+isolation check was bypassed.
 
 ### Verified without Docker
 
@@ -201,16 +224,18 @@ bypassed. This run used no model and spent **$0**.
   records the input hashes and results; this is not a native Docker control.
 - The required `tests/test_cheat.py tests/test_separate_verifier.py` suite
   passed **213 tests**, with no failures, errors, or skips, using locked base
-  dependencies and explicit xdist with ambient plugin autoload disabled.
+  dependencies and explicit xdist with ambient plugin autoload disabled; a
+  second run in this worktree collected **73 tests** and passed (41 s).
 - The 18 real-SQLite grader cases and the complete canary/interop consumer
   suite passed. The import fixture does not create bytecode inside the
   byte-pinned task package; canary and artifact-only submission pins are
-  updated. Obsolete source-text and mock-forwarding assertions were removed.
+  updated. Obsolete source-text and mock-forwarding assertions were removed;
+  the real task's karotte export keeps a tree-shape test that now pins the
+  separate-verifier tests and the artifact-only submission path.
   [`validation.json`](../../evidence/har230-transaction-reconciliation-20261029/validation.json)
   records commands, profiles, and earlier failures.
 
-**HAR-230 remains blocked, not complete.** The implementation must remain
-unmerged until a healthy local Docker runtime produces native oracle `1`,
-nop `0`, and zero-cracked verdicts for both frozen ladders, with every attack
-reward `0`, followed by exact-head green CI. The original historical sweep
-cells above are not revised or relabeled.
+Every Done-when cell is now measured: oracle `1`, nop `0`, and zero cracked
+verdicts for both frozen ladders on the shipped `0.2.0` package. The original
+2026-10-13 historical sweep cells above are not revised or relabeled.
+

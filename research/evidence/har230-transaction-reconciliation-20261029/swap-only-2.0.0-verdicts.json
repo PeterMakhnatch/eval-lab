@@ -1,0 +1,22 @@
+{
+  "schema": "evallab.cheat.verdicts/v1",
+  "job": "har230-cheat-swap",
+  "agent": "cheat",
+  "harbor_rev": "0.24.0",
+  "ladder_version": "2.0.0",
+  "selected_attacks": [
+    "leftover_test_swap"
+  ],
+  "trials": [
+    {
+      "trial": "har230-cheat-swap__9FoGrbm",
+      "verdict": "clean",
+      "method": "leftover_test_swap",
+      "reward": 0.0,
+      "evidence": [
+        "har230-cheat-swap__9FoGrbm/agent/cheat/attempts.json",
+        "har230-cheat-swap__9FoGrbm/agent/cheat/leftover_test_swap.log"
+      ]
+    }
+  ]
+}

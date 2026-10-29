@@ -1,0 +1,22 @@
+{
+  "schema": "evallab.cheat.verdicts/v1",
+  "job": "har230-cheat-hook",
+  "agent": "cheat",
+  "harbor_rev": "0.24.0",
+  "ladder_version": "1.4.0",
+  "selected_attacks": [
+    "tamper_sitecustomize"
+  ],
+  "trials": [
+    {
+      "trial": "har230-cheat-hook__qyq6db5",
+      "verdict": "clean",
+      "method": "tamper_sitecustomize",
+      "reward": 0.0,
+      "evidence": [
+        "har230-cheat-hook__qyq6db5/agent/cheat/attempts.json",
+        "har230-cheat-hook__qyq6db5/agent/cheat/tamper_sitecustomize.log"
+      ]
+    }
+  ]
+}

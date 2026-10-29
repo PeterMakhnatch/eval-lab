@@ -344,6 +344,32 @@ def test_karotte_flags_cover_lossy_case(tmp_path: Path) -> None:
         export_karotte(compose_dir, tmp_path / "composed-out")
 
 
+def test_export_karotte_writes_the_shipped_task_tree(tmp_path: Path) -> None:
+    """The real task exports its separate-verifier tests and artifact-only submission."""
+    out = tmp_path / "env"
+    summary = export_karotte(REAL_TASK, out)
+    assert summary["target"] == "karotte"
+    assert summary["karotte_id"] == "petermakhnatch-transaction-reconciliation"
+    digest = summary["base"].removeprefix("evallab-harbor-")
+    assert len(digest) == 16 and all(c in "0123456789abcdef" for c in digest)
+    containerfile = (out / "Containerfile").read_text(encoding="utf-8")
+    assert f"FROM {summary['base']}" in containerfile
+    assert f"karotte=={interop.KAROTTE_PIN}" in containerfile
+    tests = out / "root_data" / "tests"
+    assert (tests / "test.sh").is_file() and (tests / "verify.py").is_file()
+    assert not (tests / "test_outputs.py").exists()
+    pkg = out / "src" / "environment" / "tasks" / "petermakhnatch_transaction_reconciliation"
+    assert (pkg / "__init__.py").is_file() and (pkg / "scoring_script.py").is_file()
+    assert (out / "src" / "environment" / "fake_model.py").is_file()
+    assert f'"karotte=={interop.KAROTTE_PIN}"' in (out / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+    assert not (out / "uv.lock").exists()
+    mapping = (out / "MAPPING.md").read_text(encoding="utf-8")
+    assert "/app/data/ledger.db" in mapping
+    assert "separate-verifier-image" in mapping
+
+
 
 
 def test_export_karotte_docker_image_base_and_setup(tmp_path: Path) -> None:

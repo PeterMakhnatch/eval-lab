@@ -100,7 +100,14 @@ def test_two_builds_agree_on_the_task_set() -> None:
 
 
 def test_manifest_frozen_packages_remain_registry_compatible() -> None:
-    """Historical freeze bytes stay compatible even when admission state changes."""
+    """Historical freeze bytes stay compatible even when admission state changes.
+
+    A frozen entry is bound to the exact bytes it froze. A later generation may
+    supersede one task with a new version; when it does, the frozen generation
+    is not edited, and the live record must leave admission so it cannot inherit
+    the frozen generation's approval or control evidence. Re-admission then
+    needs fresh control evidence and a fresh human approval.
+    """
     from evallab.registry import TaskRegistry
 
     registry = TaskRegistry.from_repo(REPO_ROOT)
@@ -112,10 +119,17 @@ def test_manifest_frozen_packages_remain_registry_compatible() -> None:
         task_id = entry["task_id"]
         assert task_id in records
         record = records[task_id]
-        assert entry["version"] == record.version
         assert entry["task_path"] == record.task_path
-        assert entry["digests"]["package"] == record.digests.package
-        assert entry["digests"]["verifier"] == record.digests.verifier
+        if entry["version"] == record.version:
+            assert entry["digests"]["package"] == record.digests.package
+            assert entry["digests"]["verifier"] == record.digests.verifier
+            continue
+        assert record.state != "registered", (
+            f"{task_id}: a version superseding the frozen {entry['version']} "
+            "must not remain admitted without fresh approval"
+        )
+        assert record.approved_by is None and record.approved_at is None
+        assert record.control_evidence is None
 
 
 def test_registry_digest_mismatch_is_refused_for_frozen_task_inputs(tmp_path: Path) -> None:
@@ -179,6 +193,7 @@ def test_all_gym_v1_specs_resolve_frozen_local_packages() -> None:
     manifest = json.loads(MANIFEST_V1_PATH.read_text(encoding="utf-8"))
     frozen = {entry["task_id"]: entry for entry in manifest["tasks"]}
     registry = TaskRegistry.from_repo(REPO_ROOT)
+    records = {record.task_id: record for record in registry.list_records()}
     specs_dir = REPO_ROOT / "research/experiments/specs/gym-v1"
     spec_paths = sorted(specs_dir.glob("*.json"))
 
@@ -192,9 +207,13 @@ def test_all_gym_v1_specs_resolve_frozen_local_packages() -> None:
         task_id = task_path.name
         assert task_id in frozen
         entry = frozen[task_id]
-        digests = compute_task_digests(task_path)
         assert spec.task_version == entry["version"]
         assert spec.verifier_digest == entry["digests"]["verifier"]
+        if records[task_id].version != entry["version"]:
+            # A superseded frozen task keeps its own pinned bytes; the live
+            # package is pinned by the live registry record instead.
+            continue
+        digests = compute_task_digests(task_path)
         assert digests.package == entry["digests"]["package"]
         assert digests.verifier == entry["digests"]["verifier"]
 

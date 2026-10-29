@@ -503,7 +503,7 @@ def card_flags(run: HarnessRun) -> tuple[list[str], list[str]]:
 
 
 def _finding_line(record: Mapping[str, Any], summary_words: int) -> str:
-    reader = record["reader_model"] or "deterministic"
+    reader = record["reader_model"] or "none / unrecorded"
     score = "" if record["score"] is None else f" score={record['score']:g}"
     steps = record["evidence_steps"]
     cited = f" steps={','.join(map(str, steps[:8]))}{'…' if len(steps) > 8 else ''}" if steps else ""

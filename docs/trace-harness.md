@@ -176,6 +176,10 @@ families**, each with 5–35 retained rows. These include Harbor analyze, Kev,
 Sol, QA Trace, Laminar Signals, rules/content rules and both Run Health kinds.
 Absent cached judgments are missing, not successful detector runs or clean verdicts.
 
+A missing reader identity is displayed as `none / unrecorded` in cards and
+score tables. It is not evidence of a deterministic detector: some native
+model-backed caches retain the model version but no provider-qualified reader.
+
 Run Health uses cloud-native times/token facts on admitted cloud runs and the
 same allowlisted `trial_metadata` on local Harbor trials. Those facts are not
 included in `HarnessRun.atlas_run` or the blinded model view. A generic staged

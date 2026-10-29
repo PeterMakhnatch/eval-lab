@@ -1,0 +1,63 @@
+{
+ "schema": "np33-floors-sample/v1",
+ "note": "computed on the drawn samples, not the full sets; auroc = in the README's direction, oriented = max(A, 1 - A), the floor a rule may use in either direction",
+ "sets": {
+  "cnt": {
+   "primary": {
+    "positives": 46,
+    "negatives": 80,
+    "auroc": {
+     "n_steps": 0.7132,
+     "est_chars": 0.7562,
+     "diff_chars": 0.764,
+     "len_diff_nudge": 0.849,
+     "nudge_absent": 0.65
+    },
+    "oriented": {
+     "n_steps": 0.7132,
+     "est_chars": 0.7562,
+     "diff_chars": 0.764,
+     "len_diff_nudge": 0.849,
+     "nudge_absent": 0.65
+    },
+    "primary_floor": "len_diff_nudge"
+   }
+  },
+  "agentcheck": {
+   "primary": {
+    "positives": 10,
+    "negatives": 40,
+    "auroc": {
+     "n_steps": 0.66,
+     "est_chars": 0.67,
+     "diff_chars": 0.86
+    },
+    "oriented": {
+     "n_steps": 0.66,
+     "est_chars": 0.67,
+     "diff_chars": 0.86
+    },
+    "primary_floor": "diff_chars"
+   }
+  },
+  "ptb": {
+   "primary": {
+    "positives": 30,
+    "negatives": 30,
+    "auroc": {
+     "n_steps": 0.4994,
+     "est_chars": 0.5356,
+     "benchmark_rate_in_sample": 0.5,
+     "agent_cli_rate_in_sample": 0.6594
+    },
+    "oriented": {
+     "n_steps": 0.5006,
+     "est_chars": 0.5356,
+     "benchmark_rate_in_sample": 0.5,
+     "agent_cli_rate_in_sample": 0.6594
+    },
+    "primary_floor": "n_steps"
+   }
+  }
+ }
+}

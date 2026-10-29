@@ -136,11 +136,15 @@ record per (run, detector):
   v8 prompt, keys the verdict cache by that model (`judge-cache-<reader>.jsonl` beside the Kimi cache), gates fresh
   calls on that provider's `omp usage` windows (stop at 85%, empty usage reads retried), requires the served model to
   equal the requested one on every call, replays runs concurrently, and writes no finding for a run whose call was
-  refused for quota (so it is retried, never cached as abstain). Its summary keeps two clocks apart: the causal
+  refused for quota or stopped by the call guard (so it is retried, never cached as abstain). The call guard
+  (`CallGuard`) counts refusals per call (a refusal ends the call without retry; an incomplete reply such as `toolUse` is
+  retried), stops fresh calls after 3 consecutive refusals or 3 consecutive failed calls, and can hold a hard
+  budget of `omp` attempts. Its summary keeps two clocks apart: the causal
   prefix the first alarm's judgment was frozen on (comparable with ID-CM-1) and the step
   at which that alarm was actually emitted, with the agent turns elapsed at each. The
   `cascade*` adapters stay stored-result views. P0-F9D7D6-3
-  (`research/evidence/runs/p0-f9d7d6-3-matched-cascade-20261029/`) ran it with Haiku 5.5 on the matched Goodfire pairs.
+  (`research/evidence/runs/p0-f9d7d6-3-matched-cascade-20261029/`) ran it with Haiku 5.5 on the matched Goodfire pairs;
+  NP34-TT-1 (`research/evidence/runs/np34-sonnet-matched-cascade-20261029/`) ran the same 246 runs with Sonnet 5.5.
 
 ## Gaps and duplicates
 

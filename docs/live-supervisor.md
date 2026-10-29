@@ -120,3 +120,32 @@ so the live subscriber and a scan actuator cannot race to send duplicate notices
 - Shadow first. Replay on labelled history (G6 stuck loops 36/16, Harbor timeouts 129/347,
   seeker infra 29/27, dead sandboxes 5, CheatBench DEV 75/75, Goodfire CM-6 80/70) and run
   live. Enable an action only after its precision is 0.9 or better on adjudicated cases.
+
+### Actuator (LS-4)
+
+`production/live_supervisor_act.py` is the only thing that acts, and it is off by default:
+
+- `act_actions` names the actions an operator approved; empty means everything is report-only.
+  Kills also need an operator registration of the immutable identity (`app_id`, or `job/trial`)
+  in `registrations-v1.json`, written with `register_app` / `register_trial`. A lab-looking
+  name, prefix or path is never enough, and a job directory must resolve inside an explicit
+  lab runs root.
+- Every effectful action needs `production/live_supervisor_gate.py` to pass:
+  `gate_from_adjudication(root, headline.json)` publishes LS-3's adjudicated counts as
+  `gate-evidence-v1.json` plus a pinned SHA256. The gate refuses when the file is missing,
+  unpinned or changed, when no scope matches the action + detector version + subject kind +
+  reader model (+ trigger when the scope names one), when fewer than **20** adjudicated cases
+  back the scope, or when `TP/(TP+FP) < 0.9`. Sources are never pooled: an action passes only
+  if every measured source passed it.
+- The LS-3 results as of 2026-10-28 (opus-v1) pass no action: best is model `kill_and_retry`
+  6/7 = 0.857 (n=7, also below the 20-case floor), and rules `kill_and_mark_infra` was 0/15.
+  So the gate refuses every action and the supervisor stays shadow.
+- `kill_and_retry` is also blocked until a real retry admission is injected (an admission into
+  the lab queue). A kill whose admission fails is receipted `partial` and the ledger row says
+  `retry_pending`, never `retried`; `kill_and_mark_infra` has no retry and is unaffected.
+- The rules `kill_and_mark_infra` arm additionally needs a *fallback-succeeded* check (did the
+  retry on another backend actually finish?) before its precision can be trusted; that check is
+  not implemented, so the arm stays refused on its measured precision alone.
+- Caps: one kill per subject ever, three per rolling hour, ten per UTC day; every real attempt
+  counts, and the reservation is persisted before the external stop runs. Every attempt appends
+  a receipt to `actions-v1.jsonl`.

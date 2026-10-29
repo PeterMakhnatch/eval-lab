@@ -7,7 +7,9 @@ right to act:
 
 - the scope must match exactly on ``action``, ``detector_version``, ``subject_kind`` and
   ``reader_model`` (``None`` for rules-only decisions), and on ``trigger`` when the scope names
-  one — unrelated jobs are never pooled into one precision number;
+  one — unrelated jobs are never pooled into one precision number. ``subject_kind="*"`` and
+  ``reader_model="*"`` are used only by the LS-3 adapter, whose artifact measures an action
+  across subjects and across its reader models;
 - ``true_positives / (true_positives + false_positives) >= min_precision`` (default 0.9) with at
   least ``min_samples`` adjudicated cases (default 20), and ``true_positives + false_positives``
   must equal the declared ``samples``;
@@ -15,8 +17,19 @@ right to act:
   fails closed instead of silently raising precision.
 
 Everything is default-deny: a missing file, an unpinned digest, an unknown schema, no matching
-scope, thin samples or low precision all return a refusal reason. Nothing here enables anything by
-itself; :class:`evallab.production.live_supervisor_act.LabActuator` still requires an operator
+scope, thin samples or low precision all return a refusal reason. The sample floor is
+:data:`MIN_SAMPLES` (20 adjudicated cases); an action measured on fewer cases can never match.
+
+:func:`adjudication_scopes` / :func:`gate_from_adjudication` read LS-3's adjudicated
+``headline.json`` (per source, per arm) and keep the **worst** measured source per (arm, action),
+so an action passes only when every measured source passed it; counts are never pooled.
+
+Note from LS-3's results: the rules ``kill_and_mark_infra`` arm was wrong on all 15 replayed cases,
+and its proposed "infra" stops need a *fallback-succeeded* check (did the retry on another backend
+actually finish?) before that arm could be trusted. That check is not implemented here; the gate
+refuses the arm on its measured precision alone.
+
+Nothing here enables anything by itself; :class:`evallab.production.live_supervisor_act.LabActuator` still requires an operator
 registration for the subject identity.
 """
 
@@ -38,8 +51,16 @@ from evallab.production.live_supervisor import (
 )
 
 GATE_SCHEMA = "live-supervisor-gate-evidence/v1"
+#: LS-3's adjudication artifact: ``<dir>/headline.json`` with per-source, per-arm ``per_action``
+#: counts (``tp``, ``fp``, ``n_decided``); see the ``ls-3`` lane.
+ADJUDICATION_HEADLINE = "headline.json"
+#: Sources inside the headline. Every source must pass on its own; counts are never pooled.
+ADJUDICATION_SECTIONS = ("replay", "seeker_pilot")
+#: Arms inside a section: rules-only decisions have no reader model, model arms any reader.
+ADJUDICATION_ARMS = ("rules", "model")
 GATE_EVIDENCE_FILE = "gate-evidence-v1.json"
 GATE_DIGEST_FILE = "gate-evidence-v1.sha256"
+#: An action may act only at this adjudicated precision and with at least this many cases.
 MIN_PRECISION = 0.9
 MIN_SAMPLES = 20
 
@@ -82,6 +103,8 @@ class Scope:
             raise GateEvidenceError(f"trigger {self.trigger!r} not in {TRIGGERS}")
         if not self.subject_kind:
             raise GateEvidenceError("subject_kind is required")
+        if self.reader_model == "":
+            raise GateEvidenceError("reader_model must be a name, None (rules) or '*' (any)")
         if self.true_positives + self.false_positives != self.samples:
             raise GateEvidenceError(
                 f"true_positives + false_positives must equal samples "
@@ -99,10 +122,11 @@ class Scope:
 
     def matches(self, *, action: str, subject_kind: str, detector_version: str,
                 reader_model: str | None, trigger: str | None) -> bool:
-        if (self.action, self.subject_kind, self.detector_version) != (action, subject_kind,
-                                                                       detector_version):
+        if (self.action, self.detector_version) != (action, detector_version):
             return False
-        if self.reader_model != reader_model:
+        if self.subject_kind != "*" and self.subject_kind != subject_kind:
+            return False
+        if self.reader_model != "*" and self.reader_model != reader_model:
             return False
         return self.trigger is None or self.trigger == trigger
 
@@ -143,6 +167,84 @@ def parse_evidence(payload: Any) -> list[Scope]:
             source=str(row.get("source") or ""),
         ))
     return scopes
+
+
+def adjudication_scopes(headline: Mapping[str, Any], *,
+                        sections: Sequence[str] = ADJUDICATION_SECTIONS) -> list[Scope]:
+    """LS-3's adjudicated ``headline.json`` as evidence scopes, conservatively.
+
+    Counts are **never pooled across sources**: for each (arm, action) the scope carries the
+    *worst* measured source (lowest precision, then fewest cases), so the gate can only pass an
+    action that every measured source passed. ``subject_kind="*"`` (any subject) and
+    ``trigger=None`` because the artifact measures the action, not a subject kind or trigger;
+    the model arm is written as ``"*"`` because the artifact aggregates its readers.
+    """
+    if not isinstance(headline, Mapping):
+        raise GateEvidenceError("adjudication headline must be an object")
+    worst: dict[tuple[str, str], Scope] = {}
+    for section in sections:
+        block = headline.get(section)
+        if not isinstance(block, Mapping):
+            continue
+        for arm in ADJUDICATION_ARMS:
+            stats = (block.get(arm) or {}).get("per_action")
+            if not isinstance(stats, Mapping):
+                continue
+            for action, row in stats.items():
+                if action not in ACTIONS or action == "continue" or not isinstance(row, Mapping):
+                    continue
+                scope = _scope_from_row(action, arm, section, row)
+                if scope is None:
+                    continue
+                key = (arm, action)
+                current = worst.get(key)
+                if current is None or (scope.precision, scope.samples) < (
+                        current.precision, current.samples):
+                    worst[key] = scope
+    return sorted(worst.values(), key=lambda s: s.key())
+
+
+def _scope_from_row(action: str, arm: str, section: str,
+                    row: Mapping[str, Any]) -> Scope | None:
+    """One ``per_action`` row as a scope (``None`` when it is empty or inconsistent)."""
+    try:
+        tp = _int(row, "tp")
+        fp = _int(row, "fp")
+        decided = _int(row, "n_decided")
+    except GateEvidenceError:
+        return None
+    if decided == 0 or tp + fp != decided:
+        return None
+    return Scope(action=action, subject_kind="*", detector_version=DETECTOR_VERSION,
+                 reader_model=None if arm == "rules" else "*", trigger=None,
+                 true_positives=tp, false_positives=fp, samples=decided,
+                 measured_at=str(row.get("measured_at") or ""),
+                 source=f"{section}/{arm}")
+
+
+def write_adjudication_evidence(headline_path: Path, evidence_path: Path, *,
+                                sections: Sequence[str] = ADJUDICATION_SECTIONS) -> str:
+    """Convert an LS-3 headline into gate evidence; returns the digest to pin."""
+    try:
+        headline = json.loads(Path(headline_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise GateEvidenceError(f"cannot read {headline_path}: {type(exc).__name__}: {exc}") from exc
+    return write_evidence(evidence_path, adjudication_scopes(headline, sections=sections))
+
+
+def gate_from_adjudication(root: Path, headline_path: Path, *,
+                           min_precision: float = MIN_PRECISION,
+                           min_samples: int = MIN_SAMPLES) -> EvidenceGate:
+    """Publish LS-3 evidence under ``root`` and return a gate pinned to it.
+
+    A new measurement must be re-published (and therefore re-approved); an action that no source
+    measured to ``min_precision`` over ``min_samples`` cases simply never matches and is refused.
+    """
+    root = Path(root)
+    digest = write_adjudication_evidence(headline_path, root / GATE_EVIDENCE_FILE)
+    (root / GATE_DIGEST_FILE).write_text(f"{digest}\n", encoding="utf-8")
+    return EvidenceGate(root / GATE_EVIDENCE_FILE, expected_sha256=digest,
+                        min_precision=min_precision, min_samples=min_samples)
 
 
 def write_evidence(path: Path, scopes: Sequence[Scope]) -> str:

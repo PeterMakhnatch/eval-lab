@@ -50,7 +50,7 @@ import json
 import subprocess
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -376,12 +376,16 @@ class LabActuator:
         with self._locked():
             ledger = KillLedger.load(self.caps_path)
             retry = False
+            blocked = self._gate_reason(observation, decision)
             if not self.dry_run and decision.action != "continue" \
                     and decision.action not in self.act_actions:
                 # An unapproved action never reaches a channel, so nothing can happen by accident.
                 outcome = Outcome("refused", "none",
                                   f"action not enabled for act: {decision.action} is not in the "
                                   f"approved act scopes {sorted(self.act_actions)}")
+            elif not self.dry_run and blocked is not None:
+                outcome = Outcome("refused", self._channel(observation, decision),
+                                  f"adjudication gate declined: {blocked}")
             elif decision.action in KILL_ACTIONS:
                 outcome, retry = self._kill(observation, decision, ledger, now)
             elif decision.action == "nudge":
@@ -392,6 +396,8 @@ class LabActuator:
                 outcome = self._flag(observation, decision)
             else:
                 outcome = Outcome("refused", "none", f"no effect for {decision.action}")
+            if self.dry_run and blocked is not None and outcome.status == "dry_run":
+                outcome = replace(outcome, detail=f"{outcome.detail} (blocked: gate: {blocked})")
             self._receipt(observation, decision, outcome, now, retry_requested=retry)
         return outcome.acted
 
@@ -461,27 +467,41 @@ class LabActuator:
                        outcome.command, outcome.target)
 
     def _blockers(self, observation: Observation, decision: Decision, now: datetime) -> list[str]:
-        """Why a real kill would not be allowed: registration, then the LS-3 gate."""
+        """Why a real kill would not be allowed: registration, then the retry channel."""
         out: list[str] = []
         missing = registration_refusal(self.registrations, observation.subject, now)
         if missing is not None:
             out.append(missing)
         if decision.action == "kill_and_retry" and self.retry_admitter is None:
             out.append(RETRY_BLOCKED)
-        if self.gate is None:
-            out.append("no adjudication gate: real kills need LS-3 precision evidence")
-        else:
-            try:
-                refusal = getattr(self.gate, "refusal", None)
-                if callable(refusal):
-                    why = refusal(observation, decision)
-                    if why:
-                        out.append(f"adjudication gate declined: {why}")
-                elif not self.gate(observation, decision):
-                    out.append("adjudication gate declined: not an adjudicated kill case")
-            except Exception as exc:  # noqa: BLE001 - a broken gate must block, never allow
-                out.append(f"adjudication gate failed: {type(exc).__name__}: {exc}"[:200])
         return out
+
+    def _gate_reason(self, observation: Observation, decision: Decision) -> str | None:
+        """The LS-3 evidence refusal for this action (``None`` when the gate passes)."""
+        if decision.action == "continue":
+            return None
+        if self.gate is None:
+            return "no adjudication gate: every action needs LS-3 precision evidence"
+        try:
+            refusal = getattr(self.gate, "refusal", None)
+            if callable(refusal):
+                return refusal(observation, decision)
+            if not self.gate(observation, decision):
+                return "not an adjudicated case for this action"
+        except Exception as exc:  # noqa: BLE001 - a broken gate must block, never allow
+            return f"gate failed: {type(exc).__name__}: {exc}"[:200]
+        return None
+
+    @staticmethod
+    def _channel(observation: Observation, decision: Decision) -> str:
+        if decision.action == "nudge":
+            return "queue_append"
+        if decision.action == "alert_research":
+            return "research_alert"
+        if decision.action == "flag_cheating":
+            return "cheat_router"
+        return {"harbor_trial": "harbor_stop_request", "modal_app": "modal_app_stop"}.get(
+            observation.subject.kind, "none")
 
     def _job_dir(self, observation: Observation, job: str) -> Path | None:
         """Resolve ``job`` only inside an explicit lab runs root (symlinks resolved first)."""

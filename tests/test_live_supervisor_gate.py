@@ -16,11 +16,14 @@ from evallab.production.live_supervisor_gate import (
     GATE_DIGEST_FILE,
     GATE_EVIDENCE_FILE,
     GATE_SCHEMA,
+    MIN_SAMPLES,
     DeniedGate,
     EvidenceGate,
     GateEvidenceError,
     Scope,
+    adjudication_scopes,
     gate_for_root,
+    gate_from_adjudication,
     parse_evidence,
     reason_trigger,
     write_evidence,
@@ -175,3 +178,81 @@ def test_actuator_kills_only_with_registration_and_measurable_evidence(tmp_path:
     assert act.act(_app("ap-1"), rules) is True
     assert runner.calls == [("keys", "run", "--", "modal", "app", "stop", "ap-1")]
     assert act.act(_app("ap-2"), rules) is False  # registration is per immutable app_id
+
+
+# --------------------------------------------------------------------------- LS-3 adjudication
+
+
+def _headline(replay: dict, seeker: dict | None = None) -> dict:
+    return {"gate": {"threshold": 0.9},
+            "replay": {"model": {"per_action": replay.get("model", {})},
+                       "rules": {"per_action": replay.get("rules", {})}},
+            "seeker_pilot": {"model": {"per_action": (seeker or {}).get("model", {})},
+                             "rules": {"per_action": (seeker or {}).get("rules", {})}}}
+
+
+def _stats(tp: int, fp: int) -> dict:
+    return {"tp": tp, "fp": fp, "n_decided": tp + fp, "precision": None, "recall": None}
+
+
+def test_adjudication_adapter_keeps_the_worst_measured_source() -> None:
+    headline = _headline(
+        replay={"model": {"kill_and_retry": _stats(6, 1)}, "rules": {"kill_and_mark_infra": _stats(40, 0)}},
+        seeker={"model": {"kill_and_retry": _stats(1, 0)}, "rules": {"kill_and_mark_infra": _stats(1, 0)}})
+    scopes = adjudication_scopes(headline)
+    by_key = {s.key(): s for s in scopes}
+    retry = by_key["kill_and_retry|live-supervisor/1|*|*|*"]
+    assert (retry.true_positives, retry.false_positives, retry.samples) == (6, 1, 7)
+    assert retry.source == "replay/model" and retry.precision == pytest.approx(6 / 7)
+    infra = by_key["kill_and_mark_infra|live-supervisor/1|*|rules|*"]
+    assert infra.samples == 1 and infra.source == "seeker_pilot/rules"  # thin, worst source wins
+    assert "continue" not in {s.action for s in scopes}
+
+
+def test_adjudication_evidence_refuses_an_action_below_the_bar(tmp_path: Path) -> None:
+    headline = _headline(replay={"model": {"kill_and_retry": _stats(6, 1)}},
+                         seeker={"model": {"kill_and_retry": _stats(1, 0)}})
+    path = tmp_path / "headline.json"
+    path.write_text(json.dumps(headline))
+    gate = gate_from_adjudication(tmp_path / "ls", path)
+    model = _decision(reader_model="anthropic/claude-sonnet-5-5")  # any reader matches the arm
+    why = gate.refusal(_app(), model)
+    assert why is not None and why.startswith("gate samples thin: 7 < 20")  # LS-3's best n is 7
+    assert (tmp_path / "ls" / GATE_DIGEST_FILE).read_text().strip() == gate.expected_sha256
+
+
+def test_adjudication_evidence_refuses_low_precision_at_a_full_sample(tmp_path: Path) -> None:
+    headline = _headline(replay={"rules": {"kill_and_retry": _stats(19, 6)}})  # 25 cases, 0.76
+    path = tmp_path / "headline.json"
+    path.write_text(json.dumps(headline))
+    gate = gate_from_adjudication(tmp_path / "ls", path)
+    why = gate.refusal(_app(), _decision(reader_model=None))
+    assert why is not None and why.startswith("gate precision low: 0.760 < 0.90")
+
+
+def test_adjudication_evidence_allows_a_source_that_measured_the_action_safely(tmp_path: Path) -> None:
+    headline = _headline(
+        replay={"rules": {"kill_and_mark_infra": _stats(30, 1)}, "model": {}},
+        seeker={"rules": {"kill_and_mark_infra": _stats(24, 0)}})
+    path = tmp_path / "headline.json"
+    path.write_text(json.dumps(headline))
+    gate = gate_from_adjudication(tmp_path / "ls", path)
+    decision = _decision(action="kill_and_mark_infra", reason="error_signature: backend gone",
+                         reader_model=None)
+    assert gate.refusal(_app(), decision) is None
+    assert gate.refusal(_app(), _decision(reader_model="anthropic/claude-sonnet-5-5")) is not None
+
+
+def test_min_samples_is_twenty() -> None:
+    assert MIN_SAMPLES == 20
+
+
+def test_adjudication_rows_that_are_empty_or_inconsistent_are_skipped(tmp_path: Path) -> None:
+    headline = _headline(replay={"rules": {
+        "kill_and_retry": {"tp": 0, "fp": 0, "n_decided": 0},
+        "kill_and_mark_infra": {"tp": 3, "fp": 1, "n_decided": 99},
+        "alert_research": _stats(1, 0),
+    }})
+    scopes = adjudication_scopes(headline)
+    assert [s.action for s in scopes] == ["alert_research"]
+    assert scopes[0].samples == 1  # present but thin: the gate refuses it on samples

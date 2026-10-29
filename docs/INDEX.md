@@ -81,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
-    digest: sha256:2e737b34a3a41ecb627fa93d94d10610dabf9dc3f9c28aaf720a2daf047f4180
+    digest: sha256:64aee393ba09f28fee1a04a7667883123a0ae0a28be76817526cb62fe1772b47
   - path: docs/live-watch.md
     digest: sha256:f57774603a04786c12ab6051e86d0b03f170eb4e9f688fce513798d6d1bcf581
   - path: docs/lora-sft-runbook.md

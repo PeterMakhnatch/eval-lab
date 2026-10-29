@@ -230,7 +230,7 @@ def test_real_kill_needs_the_adjudication_gate_even_when_registered(tmp_path: Pa
         raise RuntimeError("evidence missing")
 
     assert _actuator(tmp_path, runner=runner, gate=broken).act(_app("ap-1"), KILL) is False
-    assert "adjudication gate failed: RuntimeError" in _receipts(tmp_path)[-1]["detail"]
+    assert "declined: gate failed: RuntimeError: evidence missing" in _receipts(tmp_path)[-1]["detail"]
     assert runner.calls == []
     assert not (tmp_path / "ls" / CAPS_FILE).exists()
 
@@ -410,6 +410,31 @@ def test_peter_owned_lane_is_never_nudged(tmp_path: Path) -> None:
     act = _actuator(tmp_path)
     assert act.act(_obs(Subject("omp_lane", "wK:pH", "peter")), Decision("nudge", "latency", "idle")) is False
     assert not (tmp_path / "queue-append.jsonl").exists()
+
+
+def test_every_effectful_action_needs_the_evidence_gate(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    act = _actuator(tmp_path, runner=runner, gate=None)  # no evidence: nothing may act
+    _register_apps(act, "ap-1")
+    lane = _obs(Subject("omp_lane", "w1C:pZ", "fleet"))
+    acts = [
+        (_app("ap-1"), Decision("kill_and_mark_infra", "infra", "dead backend")),
+        (lane, Decision("nudge", "latency", "silence")),
+        (_app("ap-1"), Decision("alert_research", "infra", "needs a human")),
+        (_app("ap-1"), Decision("flag_cheating", "cheat", "trace_alarm")),
+    ]
+    for observation, decision in acts:
+        assert act.act(observation, decision) is False
+    assert runner.calls == [] and not (tmp_path / "queue-append.jsonl").exists()
+    assert not (tmp_path / "live-supervisor.md").exists() and not (tmp_path / "ls" / CAPS_FILE).exists()
+    rows = _receipts(tmp_path)
+    assert {r["channel"] for r in rows} == {"modal_app_stop", "queue_append", "research_alert",
+                                            "cheat_router"}
+    assert all(r["detail"].startswith("adjudication gate declined: no adjudication gate") for r in rows)
+
+    dry = _actuator(tmp_path, dry_run=True, gate=None)
+    assert dry.act(lane, Decision("nudge", "latency", "silence")) is False
+    assert "(blocked: gate: no adjudication gate" in _receipts(tmp_path)[-1]["detail"]
 
 
 def test_alert_is_deduped_per_subject_per_utc_day(tmp_path: Path) -> None:

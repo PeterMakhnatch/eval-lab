@@ -184,7 +184,8 @@ def _summary(report: Any) -> dict[str, Any]:
         raise TypeError("report")
     return {
         "selected": report.get("selected", 0), "synced": report.get("synced", 0),
-        "unchanged": report.get("unchanged", 0), "rejected": len(report.get("rejected") or []),
+        "unchanged": report.get("unchanged", 0), "quarantined": report.get("quarantined", 0),
+        "rejected": len(report.get("rejected") or []),
         "sources": report.get("sources") or {}, "payload_bytes": report.get("payload_bytes", 0),
         "sent_bytes": report.get("sent_bytes", 0), "requests": report.get("requests"),
         "wall_seconds": report.get("wall_seconds"), "stopped": report.get("stopped"),

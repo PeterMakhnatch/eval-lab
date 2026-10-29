@@ -32,6 +32,7 @@ from evallab.laminar import (
     _sql,
 )
 from evallab.readers.harbor_analyze import flash_cost
+from evallab.trace_store.laminar_quarantine import skip_quarantined
 
 #: Scorecard reader -> Laminar Cloud Signal name.
 READERS = {
@@ -95,8 +96,15 @@ def read_signal_state(
     api_key: str,
     endpoint: str = LAMINAR_ENDPOINT,
     opener: Any = urlopen,
+    skipped: list[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Per ``(trace, signal-name)``: latest run row + whether an event fired."""
+    """Per ``(trace, signal-name)``: latest run row + whether an event fired.
+
+    Quarantined Laminar copies are never queried; their ids are appended to ``skipped``.
+    """
+    trace_ids, quarantined = skip_quarantined(trace_ids, lambda trace: trace)
+    if skipped is not None:
+        skipped.extend(quarantined)
     if not trace_ids or not signal_map:
         return {}
     call: dict[str, Any] = {"api_key": api_key, "endpoint": endpoint, "opener": opener}
@@ -136,8 +144,15 @@ def await_signal_runs(
     deadline_s: float = 600.0,
     interval_s: float = 20.0,
     sleep: Any = time.sleep,
+    skipped: list[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Poll until every trace has a terminal run for every billed Signal."""
+    """Poll until every trace has a terminal run for every billed Signal.
+
+    Quarantined Laminar copies are neither polled nor awaited; their ids are appended to ``skipped``.
+    """
+    trace_ids, quarantined = skip_quarantined(trace_ids, lambda trace: trace)
+    if skipped is not None:
+        skipped.extend(quarantined)
     wanted = {f"{t}\x00{name}" for t in trace_ids for name in signal_map}
     state: dict[str, dict[str, Any]] = {}
     start = time.monotonic()

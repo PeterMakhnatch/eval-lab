@@ -245,6 +245,7 @@ class LaminarCopyDetector(LaminarDetector):
     SIGNAL = "copied_upstream_fix"
 
     def detect(self, runs: Sequence[HarnessRun]) -> Iterator[dict[str, Any]]:
+        runs = self._admitted(runs)
         ledger, _ = read_ledger(
             self.results, "laminar",
             lambda row: row.get("detector_version") == self.version and row.get("detector") == self.SIGNAL,

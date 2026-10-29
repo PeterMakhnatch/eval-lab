@@ -81,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
-    digest: sha256:cbf418864681534cfb1d1457bd4864a8cdb64f35a185437de5b42768bfa3039e
+    digest: sha256:51b837b4ad8943135a7cad6f4517f9d2bc78e8b263aa1e42c8cb11dc0bcae718
   - path: docs/live-watch.md
     digest: sha256:715acdba0981feb39df990cf26495507fa93cd5c5c498f66fa8aba193cd866dc
   - path: docs/lora-sft-runbook.md
@@ -159,7 +159,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md
-    digest: sha256:9712529fd4b2714e7a26453c7ccd80ce37ca8b2f9b7c0fced4fdc66f01045d20
+    digest: sha256:05eb153ac9601671f3e0ca76de278f977fc3250ddbe8743c91ae71487e43b174
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md

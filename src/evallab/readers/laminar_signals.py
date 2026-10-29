@@ -23,6 +23,7 @@ from typing import Any
 from urllib.request import urlopen
 
 from evallab.laminar import LAMINAR_ENDPOINT, _json_call, _sql, _trial_cloud_trace_uuid
+from evallab.trace_store.laminar_quarantine import skip_quarantined
 
 READER = "laminar_signals"
 SCHEMA = "evallab.reader_verdict/v1"
@@ -45,8 +46,12 @@ def collect(
     api_key: str,
     endpoint: str = LAMINAR_ENDPOINT,
     opener: Callable[..., Any] = urlopen,
+    skipped: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Verdicts for every trial with a resolvable Cloud trace."""
+    """Verdicts for every trial with a resolvable Cloud trace.
+
+    Quarantined Laminar copies get no verdict; their trace ids are appended to ``skipped``.
+    """
     call = {"api_key": api_key, "endpoint": endpoint, "opener": opener}
     project = (_json_call("GET", "/v1/project", **call) or {}).get("projectId", "")
     signals = {
@@ -59,6 +64,10 @@ def collect(
         trace = _trial_cloud_trace_uuid(Path(trial_dir))
         if trace is not None:
             trials[trace] = Path(trial_dir)
+    kept, quarantined = skip_quarantined(list(trials), lambda trace: trace)
+    if skipped is not None:
+        skipped.extend(quarantined)
+    trials = {trace: trials[trace] for trace in kept}
     if not trials or not signals:
         return []
     params = {"ids": list(trials), "signals": list(signals)}

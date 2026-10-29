@@ -69,6 +69,7 @@ from evallab.readers.docent_reading import DETECTOR as DOCENT_RH_DETECTOR
 from evallab.readers.docent_reading import MODEL as DOCENT_RH_MODEL
 from evallab.readers.docent_reading import VERSION as DOCENT_RH_VERSION
 from evallab.readers.scout_clouddb import SCOUT_VERSION
+from evallab.trace_store.laminar_quarantine import skip_quarantined
 
 RESULT_SCHEMA = "evallab.trace_tool_result/v1"
 STATE_ROOT = Path.home() / ".local/state/evallab-prod-live"
@@ -586,6 +587,13 @@ class LaminarDetector:
         _no_reader(self.name, options)
         self.options = options
         self.results = results or TRACE_TOOLS / "results-v1.jsonl"
+        self.quarantined_skipped = 0
+
+    def _admitted(self, runs: Sequence[HarnessRun]) -> list[HarnessRun]:
+        """Runs that are not quarantined Laminar copies; the skips are counted, never scored."""
+        kept, skipped = skip_quarantined(runs, lambda run: run.run_id)
+        self.quarantined_skipped += len(skipped)
+        return kept
 
     @classmethod
     def _steps(cls, signal: str, row: Row) -> list[Any]:
@@ -612,6 +620,7 @@ class LaminarDetector:
         return read, written
 
     def detect(self, runs: Sequence[HarnessRun]) -> Iterator[dict[str, Any]]:
+        runs = self._admitted(runs)
         ledger, flagging = read_ledger(
             self.results, "laminar", lambda row: row.get("detector_version") == self.version,
             [run.run_id for run in runs],
@@ -786,6 +795,7 @@ class LedgerDetector:
         self.version = compact_version(ledger_version)
         self.database = options.database
         self.results = results or TRACE_TOOLS / "results-v1.jsonl"
+        self.quarantined_skipped = 0
 
     def _keep(self, row: Row) -> bool:
         return (
@@ -794,6 +804,9 @@ class LedgerDetector:
         )
 
     def detect(self, runs: Sequence[HarnessRun]) -> Iterator[dict[str, Any]]:
+        if self.tool == "laminar":  # a Laminar ledger version without its own adapter
+            runs, skipped = skip_quarantined(runs, lambda run: run.run_id)
+            self.quarantined_skipped += len(skipped)
         ledger, flagging = read_ledger(self.results, self.tool, self._keep, [run.run_id for run in runs])
         by_run: dict[str, list[Row]] = defaultdict(list)
         for (detector, run_id), row in ledger.items():

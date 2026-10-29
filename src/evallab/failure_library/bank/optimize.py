@@ -386,6 +386,19 @@ def _science_pins(repo_root: Path, oq6_freeze: Mapping[str, Any]) -> dict[str, A
     return pins
 
 
+def _units(task: str, ledger: Mapping[str, frozenset[str]], population: Counter) -> list[str]:
+    """Ledger task-family units, else the task itself as its only group (counted, never silent).
+
+    Runs from sources outside ``assignments.csv`` (e.g. Goodfire) have no ledger family. Their
+    task name still keeps every run of one task on one side of the split; cross-task family
+    leakage inside DEV is possible and is reported through ``task_only_grouping``.
+    """
+    if ledger.get(task):
+        return sorted(ledger[task])
+    population["task_only_grouping"] += 1
+    return ["task-only:" + task]
+
+
 def _prepare_inputs(
     repo_root: Path,
     *,
@@ -489,7 +502,7 @@ def _prepare_inputs(
                     "id": identifier,
                     "prompt": "trace",
                     "task": task,
-                    "units": sorted(units.get(task, ())),
+                    "units": _units(task, units, population["trace"]),
                     "messages": messages,
                 }
             )
@@ -558,7 +571,7 @@ def _prepare_inputs(
                 "id": identifier,
                 "prompt": "taskqa",
                 "task": task,
-                "units": sorted(units.get(task, ())),
+                "units": _units(task, units, population["taskqa"]),
                 "messages": [
                     [
                         {"role": "system", "content": system},

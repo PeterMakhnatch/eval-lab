@@ -57,6 +57,18 @@ def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
 def postgres_server() -> Iterator[str]:
     initdb, pg_ctl = shutil.which("initdb"), shutil.which("pg_ctl")
     if initdb is None or pg_ctl is None:
+        candidates = list(Path("/usr/lib/postgresql").glob("*/bin"))
+        candidates += list(Path("/opt/homebrew/opt").glob("postgresql@*/bin"))
+        candidates.sort(
+            key=lambda path: tuple(int(part) for part in path.parent.name.removeprefix("postgresql@").split(".")
+                                   if part.isdigit()),
+            reverse=True,
+        )
+        for directory in candidates:
+            if (directory / "initdb").is_file() and (directory / "pg_ctl").is_file():
+                initdb, pg_ctl = str(directory / "initdb"), str(directory / "pg_ctl")
+                break
+    if initdb is None or pg_ctl is None:
         pytest.skip("native PostgreSQL server binaries are not installed")
     with tempfile.TemporaryDirectory(prefix="cloud-trace-pg-") as directory:
         root = Path(directory).resolve()
@@ -801,3 +813,21 @@ def test_read_only_open_reads_the_same_store_and_refuses_writes(target: tuple[st
         assert reader.get_trace("trace-1")["task_id"] == "synthetic-task"
         with pytest.raises((sqlite3.OperationalError, psycopg.errors.ReadOnlySqlTransaction)):
             reader.upsert_task(task("other-task"))
+
+
+def test_postgres_read_only_preserves_environment_options(
+    postgres_server: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = "cloud_trace_" + uuid4().hex
+    with psycopg.connect(postgres_server, autocommit=True) as connection:
+        connection.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
+        try:
+            monkeypatch.setenv("PGOPTIONS", f"-csearch_path={schema} -cdefault_transaction_read_only=off")
+            with CloudTraceDatabase(postgres_server) as writer:
+                seed(writer)
+            with CloudTraceDatabase(postgres_server, read_only=True) as reader:
+                assert reader.get_trace("trace-1")["task_id"] == "synthetic-task"
+                with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
+                    reader.upsert_task(task("other-task"))
+        finally:
+            connection.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))

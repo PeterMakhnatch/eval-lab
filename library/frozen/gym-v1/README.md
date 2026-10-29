@@ -30,6 +30,17 @@ makes next month's numbers comparable to tomorrow's.
 
 Tests for all three live in `tests/test_gym_freeze.py`.
 
+## Superseding a frozen task
+
+A shipped task can be revised. The revision is a new task **version**, not an
+edit to this manifest: the frozen entry keeps the bytes it froze, and the live
+registry record leaves admission (`candidate`, no approval, no control
+evidence) so it cannot inherit the frozen generation's approval. Re-admission
+needs fresh oracle/nop control evidence and a fresh human approval;
+`tests/test_gym_freeze.py` enforces both halves. The one supersession so far is
+`transaction-reconciliation` `0.1.0` → `0.2.0` (separate verifier, HAR-230).
+
+
 ## What gym-v1 contains: four human-approved registered tasks
 
 `task_count` is **4**. All four registered packages carry control evidence (oracle=1.0,

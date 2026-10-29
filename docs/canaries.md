@@ -12,7 +12,7 @@ members, one agent, and three attempts per agent/job:
 
 | Canary | Local path | Immutable source |
 |---|---|---|
-| transaction reconciliation | `library/tasks/transaction-reconciliation` | local task version `0.1.0`, migrated from the frozen source repository |
+| transaction reconciliation | `library/tasks/transaction-reconciliation` | local task version `0.2.0`, separate verifier; `0.1.0` was migrated from the frozen source repository |
 | Terminal-Bench HTML/JS filter | `library/tasks/terminal-bench-html-js-filter` | Harbor dataset `terminal-bench/terminal-bench@1`, task `html-js-filter` |
 | event summary | `library/tasks/event-summary` | local task version `1.0.0` |
 

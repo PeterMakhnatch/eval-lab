@@ -1,0 +1,32 @@
+{
+  "schema": "evallab.har230_validation_receipt/v1",
+  "recorded_at": "2026-10-29T19:41:52.247805+00:00",
+  "task_version": "0.2.0",
+  "required_suite": {
+    "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 UV_PROJECT_ENVIRONMENT=/tmp/har230-static-env uv run --no-sync pytest -p xdist.plugin tests/test_cheat.py tests/test_separate_verifier.py -q --junitxml=/tmp/har230-required-tests.xml",
+    "profile": "Locked base dependencies, explicitly enabled xdist, ambient third-party pytest plugin autoload disabled.",
+    "result": "passed",
+    "tests": 213,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "junit_sha256": "f8ce21aef3317d85b0eee8de7c94a42cd0ade118570ad77820208162c113b036"
+  },
+  "grader_behavior": {
+    "command": "uv run --no-sync pytest tests/test_transaction_reconciliation.py -q",
+    "result": "passed",
+    "tests": 18,
+    "scope": "Real seeded SQLite databases and the grader main entrypoint; not a native Docker oracle/nop control."
+  },
+  "affected_consumers": {
+    "command": "uv run --no-sync pytest tests/test_transaction_reconciliation.py tests/test_canary.py tests/test_interop.py tests/test_interop_karotte.py -q",
+    "result": "passed"
+  },
+  "earlier_failures": {
+    "required_suite": "The optional-runtime environment timed out in two fixture subprocesses at their existing 120-second limit. The hermetic base-profile rerun above passed the entire required suite.",
+    "affected_consumers": "The initial run exposed source-tree bytecode pollution from the new dynamic-import fixture and obsolete /app-wide mock expectations. The fixture now suppresses bytecode writes; obsolete wiring-only tests were removed, and the full consumer suite passed."
+  },
+  "limits": [
+    "Native Docker controls and cheat-ladder verdicts remain unmeasured because of the separate execution dependency recorded in native-preflight.json."
+  ]
+}

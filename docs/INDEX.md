@@ -39,7 +39,7 @@ inputs:
   - path: docs/blind-review.md
     digest: sha256:7f133de2910eec169b03e21af24d239aa02c87bc74aed5db6c66f82731312d79
   - path: docs/canaries.md
-    digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
+    digest: sha256:71550fb643b44577fbd1a129cf438e867e49c246e9c97cfafb6f1c8200d4ef0f
   - path: docs/catalog-tables.md
     digest: sha256:0392155288dbabcf02852f4eb1625ec3fe0bd4954019d3591b4c83258cd4ef2c
   - path: docs/context-packs.md

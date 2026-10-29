@@ -1,0 +1,486 @@
+{
+  "schema": "evallab.har230_preflight_receipt/v1",
+  "recorded_at": "2026-10-29T19:41:12.164897+00:00",
+  "card": "HAR-230",
+  "status": "blocked",
+  "cost_usd": 0,
+  "model": null,
+  "harbor_distribution": "0.24.0",
+  "task": "library/tasks/transaction-reconciliation",
+  "task_version": "0.2.0",
+  "task_digests": {
+    "task_toml": "sha256:173c3cf248cfca523c9837ea6c4a8d62e6340fd3b1a47629557582dc3e872d93",
+    "instruction": "sha256:b80061c213826ea3a292428e5f8830564e2dfe4b028a2cd435d9e3eddabcff7c",
+    "environment": "sha256:bc3e3dcd3140e0a900b952920acc21c70d5d43b38ecf94456c09bbd695742020",
+    "verifier": "sha256:dc388286f5d978a30b30583e05df8917421b4d60286bb276deca62ade8021f5b",
+    "package": "sha256:3015ba24852da3470728e20ceda0ecced70016ca9a098e2fdcebb1dcd4fdb23a"
+  },
+  "harbor_task_digest": "sha256:e30c94deefbdf8fce2f46c84a351a8c4d5eb49ec38143d915c84c72159d27f97",
+  "observed_cells": [
+    {
+      "cell": "oracle",
+      "expected_reward": 1,
+      "status": "unmeasured",
+      "reward": null
+    },
+    {
+      "cell": "nop",
+      "expected_reward": 0,
+      "status": "unmeasured",
+      "reward": null
+    },
+    {
+      "cell": "ladder-1.4.0",
+      "expected_cracked": 0,
+      "status": "not_run",
+      "cracked": null
+    },
+    {
+      "cell": "ladder-2.0.0",
+      "expected_cracked": 0,
+      "status": "not_run",
+      "cracked": null
+    }
+  ],
+  "meaning": "All six native control invocations failed before a trial directory existed. There are no native rewards or cheat verdicts; infrastructure failure is not reward zero.",
+  "observations": {
+    "native_preflight": "Harbor Docker preflight runs docker info with a 10-second timeout.",
+    "daemon_http": "Unix-socket GET /version and /info succeeded; latest GET /_ping returned OK and HEAD /_ping returned HTTP 200 with API 1.56. Engine 29.8.0, Docker Desktop 4.91.0, linux/arm64.",
+    "client_failures": "Installed Docker CLI 29.8.0 and official standalone 28.5.1 still stalled with isolated configurations, verified official Compose/Buildx binaries, anonymous configuration and an isolated home. A final server-only formatted info query also timed out at 15 seconds.",
+    "diagnosis_limit": "Plugin metadata stalls were observed, but the root cause was not established. Healthy daemon HTTP does not make the native CLI usable.",
+    "shared_services_restarted": false,
+    "user_configuration_changed": false,
+    "isolation_or_preflight_bypassed": false
+  },
+  "attempts": [
+    {
+      "source": "runs/har230-20261029/campaign.json",
+      "source_sha256": "80ce208f32302b359c37e5d7993872ee196c107b5595016e65bc40e70d8522d0",
+      "campaign": {
+        "schema": "evallab.har230_campaign/v1",
+        "created_at": "2026-10-29T18:44:48.141095+00:00",
+        "task": "library/tasks/transaction-reconciliation",
+        "task_version": "0.2.0",
+        "task_digests": {
+          "task_toml": "sha256:173c3cf248cfca523c9837ea6c4a8d62e6340fd3b1a47629557582dc3e872d93",
+          "instruction": "sha256:b80061c213826ea3a292428e5f8830564e2dfe4b028a2cd435d9e3eddabcff7c",
+          "environment": "sha256:bc3e3dcd3140e0a900b952920acc21c70d5d43b38ecf94456c09bbd695742020",
+          "verifier": "sha256:dc388286f5d978a30b30583e05df8917421b4d60286bb276deca62ade8021f5b",
+          "package": "sha256:3015ba24852da3470728e20ceda0ecced70016ca9a098e2fdcebb1dcd4fdb23a"
+        },
+        "harbor_task_digest": "sha256:e30c94deefbdf8fce2f46c84a351a8c4d5eb49ec38143d915c84c72159d27f97",
+        "backend": "docker",
+        "model": null,
+        "cost_usd": 0,
+        "max_concurrent_trials": 2,
+        "foreman_run_id": "20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23",
+        "cells": [
+          {
+            "name": "har230-oracle",
+            "agent": "oracle",
+            "ladder_version": null,
+            "attack": null,
+            "selection": "control",
+            "command": [
+              "uv",
+              "run",
+              "--no-sync",
+              "evallab",
+              "run",
+              "--agent",
+              "oracle",
+              "--environment",
+              "docker",
+              "--task",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/library/tasks/transaction-reconciliation",
+              "--name",
+              "har230-oracle",
+              "--jobs-dir",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/runs/har230-20261029",
+              "--timeout-seconds",
+              "1200"
+            ],
+            "started_at": "2026-10-29T18:44:48.903227+00:00",
+            "finished_at": "2026-10-29T18:51:24.260925+00:00",
+            "exit_code": 2,
+            "job": "runs/har230-20261029/har230-oracle",
+            "command_log": "runs/har230-20261029/commands/har230-oracle.log",
+            "trials": [],
+            "passed": false
+          },
+          {
+            "name": "har230-nop",
+            "agent": "nop",
+            "ladder_version": null,
+            "attack": null,
+            "selection": "control",
+            "command": [
+              "uv",
+              "run",
+              "--no-sync",
+              "evallab",
+              "run",
+              "--agent",
+              "nop",
+              "--environment",
+              "docker",
+              "--task",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/library/tasks/transaction-reconciliation",
+              "--name",
+              "har230-nop",
+              "--jobs-dir",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/runs/har230-20261029",
+              "--timeout-seconds",
+              "1200"
+            ],
+            "started_at": "2026-10-29T18:44:48.913610+00:00",
+            "finished_at": "2026-10-29T18:51:24.260269+00:00",
+            "exit_code": 2,
+            "job": "runs/har230-20261029/har230-nop",
+            "command_log": "runs/har230-20261029/commands/har230-nop.log",
+            "trials": [],
+            "passed": false
+          }
+        ],
+        "finished_at": "2026-10-29T18:51:24.328993+00:00"
+      },
+      "executions": [
+        {
+          "name": "har230-oracle",
+          "status": "unmeasured",
+          "reward": null,
+          "state_source": "runs/har230-20261029/.executor/har230-oracle.state.json",
+          "state_sha256": "2c7bd1b43a5630d109379c8356473ac6edf4e23aec271a45dba7eed77365ebf4",
+          "state": {
+            "exit_code": 1,
+            "finished_at": "2026-10-29T18:51:18.356177+00:00",
+            "job_timeout_seconds": 1800,
+            "log_path": ".executor/har230-oracle.log",
+            "schema_version": 1,
+            "started_at": "2026-10-29T18:49:55.804011+00:00",
+            "status": "failed",
+            "timed_out": false,
+            "timed_out_trial": null,
+            "trial_timeout_seconds": 1800
+          },
+          "log_source": "runs/har230-20261029/.executor/har230-oracle.log",
+          "log_sha256": "a88325009349eea12e14313b842119da9174eb7b0fce0f7893569f663c3cece3",
+          "log": "Docker daemon is not running. Please start Docker and try again.\n"
+        },
+        {
+          "name": "har230-nop",
+          "status": "unmeasured",
+          "reward": null,
+          "state_source": "runs/har230-20261029/.executor/har230-nop.state.json",
+          "state_sha256": "b5a4f4868512da0b710dddb17099ae29ce5241261ee53c5aa0f43b3f8fa05262",
+          "state": {
+            "exit_code": 1,
+            "finished_at": "2026-10-29T18:51:18.359518+00:00",
+            "job_timeout_seconds": 1800,
+            "log_path": ".executor/har230-nop.log",
+            "schema_version": 1,
+            "started_at": "2026-10-29T18:49:55.805816+00:00",
+            "status": "failed",
+            "timed_out": false,
+            "timed_out_trial": null,
+            "trial_timeout_seconds": 1800
+          },
+          "log_source": "runs/har230-20261029/.executor/har230-nop.log",
+          "log_sha256": "a88325009349eea12e14313b842119da9174eb7b0fce0f7893569f663c3cece3",
+          "log": "Docker daemon is not running. Please start Docker and try again.\n"
+        }
+      ]
+    },
+    {
+      "source": "runs/har230-20261029-r2/campaign.json",
+      "source_sha256": "86efc70ff3105e57bff1954fc5d87525de9deca436c1e7bcc3033a6f856fc71b",
+      "campaign": {
+        "schema": "evallab.har230_campaign/v1",
+        "created_at": "2026-10-29T18:56:20.683667+00:00",
+        "task": "library/tasks/transaction-reconciliation",
+        "task_version": "0.2.0",
+        "task_digests": {
+          "task_toml": "sha256:173c3cf248cfca523c9837ea6c4a8d62e6340fd3b1a47629557582dc3e872d93",
+          "instruction": "sha256:b80061c213826ea3a292428e5f8830564e2dfe4b028a2cd435d9e3eddabcff7c",
+          "environment": "sha256:bc3e3dcd3140e0a900b952920acc21c70d5d43b38ecf94456c09bbd695742020",
+          "verifier": "sha256:dc388286f5d978a30b30583e05df8917421b4d60286bb276deca62ade8021f5b",
+          "package": "sha256:3015ba24852da3470728e20ceda0ecced70016ca9a098e2fdcebb1dcd4fdb23a"
+        },
+        "harbor_task_digest": "sha256:e30c94deefbdf8fce2f46c84a351a8c4d5eb49ec38143d915c84c72159d27f97",
+        "backend": "docker",
+        "model": null,
+        "cost_usd": 0,
+        "max_concurrent_trials": 2,
+        "foreman_run_id": "20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23",
+        "docker_client_config": "/tmp/har230-docker-config",
+        "docker_host": "unix:///Users/petermakhnatch/.docker/run/docker.sock",
+        "cells": [
+          {
+            "name": "har230-r2-oracle",
+            "agent": "oracle",
+            "ladder_version": null,
+            "attack": null,
+            "selection": "control",
+            "command": [
+              "uv",
+              "run",
+              "--no-sync",
+              "evallab",
+              "run",
+              "--agent",
+              "oracle",
+              "--environment",
+              "docker",
+              "--task",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/library/tasks/transaction-reconciliation",
+              "--name",
+              "har230-r2-oracle",
+              "--jobs-dir",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/runs/har230-20261029-r2",
+              "--timeout-seconds",
+              "1200"
+            ],
+            "started_at": "2026-10-29T18:56:21.971533+00:00",
+            "finished_at": "2026-10-29T19:02:02.307092+00:00",
+            "exit_code": 2,
+            "job": "runs/har230-20261029-r2/har230-r2-oracle",
+            "command_log": "runs/har230-20261029-r2/commands/har230-r2-oracle.log",
+            "trials": [],
+            "passed": false
+          },
+          {
+            "name": "har230-r2-nop",
+            "agent": "nop",
+            "ladder_version": null,
+            "attack": null,
+            "selection": "control",
+            "command": [
+              "uv",
+              "run",
+              "--no-sync",
+              "evallab",
+              "run",
+              "--agent",
+              "nop",
+              "--environment",
+              "docker",
+              "--task",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/library/tasks/transaction-reconciliation",
+              "--name",
+              "har230-r2-nop",
+              "--jobs-dir",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/runs/har230-20261029-r2",
+              "--timeout-seconds",
+              "1200"
+            ],
+            "started_at": "2026-10-29T18:56:21.974943+00:00",
+            "finished_at": "2026-10-29T19:02:02.310256+00:00",
+            "exit_code": 2,
+            "job": "runs/har230-20261029-r2/har230-r2-nop",
+            "command_log": "runs/har230-20261029-r2/commands/har230-r2-nop.log",
+            "trials": [],
+            "passed": false
+          }
+        ],
+        "finished_at": "2026-10-29T19:02:02.345429+00:00"
+      },
+      "executions": [
+        {
+          "name": "har230-r2-oracle",
+          "status": "unmeasured",
+          "reward": null,
+          "state_source": "runs/har230-20261029-r2/.executor/har230-r2-oracle.state.json",
+          "state_sha256": "45fde437f409e8178edf61732b997204774bffb0ed6364c707dc2e212f0e762a",
+          "state": {
+            "exit_code": 1,
+            "finished_at": "2026-10-29T19:01:59.530122+00:00",
+            "job_timeout_seconds": 1800,
+            "log_path": ".executor/har230-r2-oracle.log",
+            "schema_version": 1,
+            "started_at": "2026-10-29T19:00:48.184740+00:00",
+            "status": "failed",
+            "timed_out": false,
+            "timed_out_trial": null,
+            "trial_timeout_seconds": 1800
+          },
+          "log_source": "runs/har230-20261029-r2/.executor/har230-r2-oracle.log",
+          "log_sha256": "a88325009349eea12e14313b842119da9174eb7b0fce0f7893569f663c3cece3",
+          "log": "Docker daemon is not running. Please start Docker and try again.\n"
+        },
+        {
+          "name": "har230-r2-nop",
+          "status": "unmeasured",
+          "reward": null,
+          "state_source": "runs/har230-20261029-r2/.executor/har230-r2-nop.state.json",
+          "state_sha256": "b19f7f47df6dde2adf9d7afedada2175960a9ce6084aa1dee2023f94b9747461",
+          "state": {
+            "exit_code": 1,
+            "finished_at": "2026-10-29T19:01:59.503682+00:00",
+            "job_timeout_seconds": 1800,
+            "log_path": ".executor/har230-r2-nop.log",
+            "schema_version": 1,
+            "started_at": "2026-10-29T19:00:48.184294+00:00",
+            "status": "failed",
+            "timed_out": false,
+            "timed_out_trial": null,
+            "trial_timeout_seconds": 1800
+          },
+          "log_source": "runs/har230-20261029-r2/.executor/har230-r2-nop.log",
+          "log_sha256": "a88325009349eea12e14313b842119da9174eb7b0fce0f7893569f663c3cece3",
+          "log": "Docker daemon is not running. Please start Docker and try again.\n"
+        }
+      ]
+    },
+    {
+      "source": "runs/har230-20261029-r3/campaign.json",
+      "source_sha256": "6dfafeaf170ed735a3ead5777ba9e1a2d4396cff978371f4719aa1b225a93bf7",
+      "campaign": {
+        "schema": "evallab.har230_campaign/v1",
+        "created_at": "2026-10-29T19:09:54.855354+00:00",
+        "task": "library/tasks/transaction-reconciliation",
+        "task_version": "0.2.0",
+        "task_digests": {
+          "task_toml": "sha256:173c3cf248cfca523c9837ea6c4a8d62e6340fd3b1a47629557582dc3e872d93",
+          "instruction": "sha256:b80061c213826ea3a292428e5f8830564e2dfe4b028a2cd435d9e3eddabcff7c",
+          "environment": "sha256:bc3e3dcd3140e0a900b952920acc21c70d5d43b38ecf94456c09bbd695742020",
+          "verifier": "sha256:dc388286f5d978a30b30583e05df8917421b4d60286bb276deca62ade8021f5b",
+          "package": "sha256:3015ba24852da3470728e20ceda0ecced70016ca9a098e2fdcebb1dcd4fdb23a"
+        },
+        "harbor_task_digest": "sha256:e30c94deefbdf8fce2f46c84a351a8c4d5eb49ec38143d915c84c72159d27f97",
+        "backend": "docker",
+        "model": null,
+        "cost_usd": 0,
+        "max_concurrent_trials": 2,
+        "foreman_run_id": "20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23",
+        "docker_client_config": "/tmp/har230-docker-config-v3",
+        "docker_host": "unix:///Users/petermakhnatch/.docker/run/docker.sock",
+        "derived_root": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/derived/har230",
+        "docker_plugins": {
+          "compose": {
+            "version": "5.6.1",
+            "sha256": "fcce41226abd2b7b2936094e688bbd61284673dddafea542e08cb9a3b4423a8b"
+          },
+          "buildx": {
+            "version": "0.38.1",
+            "sha256": "6f20ba2437865311ef99015bf5d1039c3c8e4d2177c1c64aa41b134b5ecd3012"
+          }
+        },
+        "cells": [
+          {
+            "name": "har-230-r3-oracle",
+            "agent": "oracle",
+            "ladder_version": null,
+            "attack": null,
+            "selection": "control",
+            "command": [
+              "uv",
+              "run",
+              "--no-sync",
+              "evallab",
+              "run",
+              "--agent",
+              "oracle",
+              "--environment",
+              "docker",
+              "--task",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/library/tasks/transaction-reconciliation",
+              "--name",
+              "har-230-r3-oracle",
+              "--jobs-dir",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/runs/har230-20261029-r3",
+              "--timeout-seconds",
+              "1200"
+            ],
+            "started_at": "2026-10-29T19:09:55.759772+00:00",
+            "finished_at": "2026-10-29T19:22:17.374350+00:00",
+            "exit_code": 2,
+            "job": "runs/har230-20261029-r3/har-230-r3-oracle",
+            "command_log": "runs/har230-20261029-r3/commands/har-230-r3-oracle.log",
+            "trials": [],
+            "passed": false
+          },
+          {
+            "name": "har-230-r3-nop",
+            "agent": "nop",
+            "ladder_version": null,
+            "attack": null,
+            "selection": "control",
+            "command": [
+              "uv",
+              "run",
+              "--no-sync",
+              "evallab",
+              "run",
+              "--agent",
+              "nop",
+              "--environment",
+              "docker",
+              "--task",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/library/tasks/transaction-reconciliation",
+              "--name",
+              "har-230-r3-nop",
+              "--jobs-dir",
+              "/Users/petermakhnatch/.local/state/foreman/worktrees/20261029T182558635552Z-bbe41b083a0c49de88df81f6e2802b23/runs/har230-20261029-r3",
+              "--timeout-seconds",
+              "1200"
+            ],
+            "started_at": "2026-10-29T19:09:55.770629+00:00",
+            "finished_at": "2026-10-29T19:22:17.373891+00:00",
+            "exit_code": 2,
+            "job": "runs/har230-20261029-r3/har-230-r3-nop",
+            "command_log": "runs/har230-20261029-r3/commands/har-230-r3-nop.log",
+            "trials": [],
+            "passed": false
+          }
+        ],
+        "finished_at": "2026-10-29T19:22:17.386956+00:00"
+      },
+      "executions": [
+        {
+          "name": "har-230-r3-oracle",
+          "status": "unmeasured",
+          "reward": null,
+          "state_source": "runs/har230-20261029-r3/.executor/har-230-r3-oracle.state.json",
+          "state_sha256": "93c982b68c9fa22abd0b0ad5729a4310c68fe71269f0f344563ce2fa89b08ab4",
+          "state": {
+            "exit_code": 1,
+            "finished_at": "2026-10-29T19:22:11.102161+00:00",
+            "job_timeout_seconds": 1800,
+            "log_path": ".executor/har-230-r3-oracle.log",
+            "schema_version": 1,
+            "started_at": "2026-10-29T19:21:42.053382+00:00",
+            "status": "failed",
+            "timed_out": false,
+            "timed_out_trial": null,
+            "trial_timeout_seconds": 1800
+          },
+          "log_source": "runs/har230-20261029-r3/.executor/har-230-r3-oracle.log",
+          "log_sha256": "a88325009349eea12e14313b842119da9174eb7b0fce0f7893569f663c3cece3",
+          "log": "Docker daemon is not running. Please start Docker and try again.\n"
+        },
+        {
+          "name": "har-230-r3-nop",
+          "status": "unmeasured",
+          "reward": null,
+          "state_source": "runs/har230-20261029-r3/.executor/har-230-r3-nop.state.json",
+          "state_sha256": "a8255fdbfd23088062817e5e30bfd58b264899a392235732f860f5c6a14d54f3",
+          "state": {
+            "exit_code": 1,
+            "finished_at": "2026-10-29T19:22:11.070503+00:00",
+            "job_timeout_seconds": 1800,
+            "log_path": ".executor/har-230-r3-nop.log",
+            "schema_version": 1,
+            "started_at": "2026-10-29T19:21:42.053433+00:00",
+            "status": "failed",
+            "timed_out": false,
+            "timed_out_trial": null,
+            "trial_timeout_seconds": 1800
+          },
+          "log_source": "runs/har230-20261029-r3/.executor/har-230-r3-nop.log",
+          "log_sha256": "a88325009349eea12e14313b842119da9174eb7b0fce0f7893569f663c3cece3",
+          "log": "Docker daemon is not running. Please start Docker and try again.\n"
+        }
+      ]
+    }
+  ]
+}

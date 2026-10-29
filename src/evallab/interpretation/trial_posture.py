@@ -22,8 +22,10 @@ Sources per key (all recorded, never reconstructed):
   precedence-ordered agent record at a time (landed ``result.config``
   before the config file); the ``mimoagent`` alias maps to the known
   native class, nothing else is heuristically mapped.
-- ``egress_lock``: actual applied lock from ``trial/egress-lock.json``
-  (``applied is True``). Intent alone is not evidence.
+- ``egress_lock``: lock actually enforced per ``trial/egress-lock.json``
+  (:func:`evallab.egress_verification.lock_enforced`: applied, and for
+  Daytona verified from inside the sandbox). Intent and a provider
+  acknowledgement alone are not evidence.
 - ``reference_profile`` / ``reference_profile_match`` /
   ``reference_profile_diffs``: HAR-149 exact match of the observed
   setup fingerprint against the named reference profile. A present
@@ -44,6 +46,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from evallab.egress_verification import lock_enforced
 
 __all__ = ["cut_short_by_our_limits", "trial_posture"]
 
@@ -436,12 +440,12 @@ def _harness(record: dict[str, Any], config: dict[str, Any]) -> str | None:
 
 
 def _observed_egress_lock(trial_dir: Path) -> bool:
-    """True only when the trial record shows the lock actually applied."""
+    """True only when the trial record shows the lock actually enforced."""
     try:
         payload = json.loads((Path(trial_dir) / "egress-lock.json").read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeDecodeError):
         return False
-    return isinstance(payload, dict) and payload.get("applied") is True
+    return lock_enforced(payload)
 
 
 def _infra(record: dict[str, Any]) -> bool:

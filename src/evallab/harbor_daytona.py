@@ -7,7 +7,9 @@ has only the internal proxy network, never the VM filesystem or Docker socket.
 
 ``BoundedDaytonaEnvironment`` also offers a post-setup egress lock (HAR-122,
 mandatory for MiMo runs since HAR-140): Daytona's runner-side firewall, which
-a root agent cannot undo.
+a root agent cannot undo. Since HAR-205 the provider's acknowledgement is not
+trusted: DNS and TCP (IPv4 and IPv6) probes run from inside the sandbox after
+the lock, and the agent phase starts only if every one is blocked.
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ from harbor.environments.daytona.environment import (  # ty: ignore[unresolved-i
 from harbor.models.task.config import NetworkMode  # ty: ignore[unresolved-import]
 
 from evallab.daytona_guard import AdmissionRefused, DaytonaGuard, GuardUnavailable
+from evallab.egress_verification import PROBES, VERIFICATION_SCHEMA_VERSION, run_probes, verdict
 from evallab.execution_contracts import (
     DAYTONA_AUTO_STOP_INTERVAL_MINS,
     ZAI_OPENAPI_PROXY_HOST,
@@ -150,7 +153,10 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
     agent cannot lift it by editing ``/etc/hosts``, changing the index URL or
     dialing an IP; the verifier runs under it too. The lock is taken before
     the first command after agent setup, whichever agent runs; if Daytona
-    refuses it, that command fails and the agent never runs unlocked.
+    refuses it, or the in-sandbox self-test (``evallab.egress_verification``)
+    cannot show the block works, that command fails and the agent never runs
+    unlocked. The outcome, per probe, is in ``egress-lock.json``: ``applied``
+    is only the provider acknowledgement, ``verified`` is the evidence.
     """
 
     def __init__(
@@ -170,6 +176,7 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         self._egress_lock_due = False
         self._egress_locked = False
         self._egress_record_written = False
+        self._egress_failure: str | None = None
         self._egress_lock_guard = asyncio.Lock()
         self._daytona_guard = DaytonaGuard()
         self._daytona_usage: dict[str, Any] = {"schema_version": 1}
@@ -265,24 +272,31 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         mechanism: str | None = None,
         locked_at: str | None = None,
         error: str | None = None,
+        verification: dict[str, Any] | None = None,
     ) -> None:
-        """Write ``egress-lock.json`` for this trial (HAR-140).
+        """Write ``egress-lock.json`` for this trial (HAR-140, HAR-205).
 
         Every Daytona trial leaves one: whether the lock was requested,
-        whether it was applied, when, and the method or error. A lock failure
-        still records (``applied: false`` with the error) before the trial
-        raises, so the trial ends as ``infra`` with evidence on disk.
+        whether the provider acknowledged it (``applied``, a control-plane
+        fact only), whether an in-sandbox self-test showed the block works
+        (``verified``, with the per-probe ``verification``), when, and the
+        method or error. A lock or verification failure still records
+        (``error``) before the trial raises, so the trial ends as ``infra``
+        with evidence on disk. ``verified`` is ``None`` when no verification
+        was attempted.
         """
         record = {
-            "schema_version": 2,
+            "schema_version": 3,
             "requested": requested,
             "applied": applied,
+            "verified": None if verification is None else verification["verified"],
             "locked_at": locked_at,
             "recorded_at": datetime.now(UTC).isoformat(),
             "sandbox_id": sandbox_id,
             "network_block_all": network_block_all,
             "mechanism": mechanism,
             "error": error,
+            "verification": verification,
         }
         (self.trial_paths.trial_dir / EGRESS_LOCK_RECORD).write_text(
             json.dumps(record, indent=2) + "\n"
@@ -466,10 +480,33 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
             await self._capture_daytona_disappearance(error)
             raise
 
+    async def _probe_exec(self, command: str, timeout_sec: int) -> Any:
+        """Run one verification command in the sandbox.
+
+        The seam tests replace. It deliberately skips this class's own
+        ``exec``, which takes the lock and would re-enter it.
+        """
+        return await super().exec(command, timeout_sec=timeout_sec)
+
+    def _runner_identity(self) -> dict[str, Any]:
+        """Control-plane identity of the sandbox's runner, as the SDK reports it."""
+        sandbox = self._sandbox
+        identity: dict[str, Any] = {}
+        for field in ("id", "runner_id", "target", "snapshot", "sandbox_class", "daemon_version"):
+            value = getattr(sandbox, field, None)
+            value = getattr(value, "value", value)
+            identity[field] = value if value is None or isinstance(value, (str, int, bool)) else str(value)
+        identity["outbound_proxy_configured"] = bool(getattr(sandbox, "outbound_proxy_url", None))
+        return identity
+
     async def _lock_egress(self) -> None:
         async with self._egress_lock_guard:
             if self._egress_locked:
                 return
+            if self._egress_failure is not None:
+                # A sandbox whose block failed verification stays condemned:
+                # a later pass must not let the agent phase start in it.
+                raise RuntimeError(self._egress_failure)
             sandbox = self._sandbox
             try:
                 if sandbox is None:
@@ -487,16 +524,35 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
                         error=f"{type(error).__name__}: {error}",
                     )
                 raise
-            self._egress_locked = True
+            locked_at = datetime.now(UTC).isoformat()
+            mechanism = "daytona update_network_settings(network_block_all=True)"
+            # The acknowledgement is not the block (HAR-205): probe from inside.
+            results = await run_probes(self._probe_exec, PROBES)
+            verified, reason = verdict(results, PROBES)
+            verification = {
+                "schema_version": VERIFICATION_SCHEMA_VERSION,
+                "verified": verified,
+                "reason": reason,
+                "checked_at": datetime.now(UTC).isoformat(),
+                "runner": self._runner_identity(),
+                "probes": results,
+            }
+            failure = None if verified else f"egress_lock: post-lock verification failed: {reason}"
             self._write_egress_record(
                 requested=True,
                 applied=True,
-                locked_at=datetime.now(UTC).isoformat(),
+                locked_at=locked_at,
                 sandbox_id=sandbox.id,
                 network_block_all=sandbox.network_block_all,
-                mechanism="daytona update_network_settings(network_block_all=True)",
+                mechanism=mechanism,
+                error=failure,
+                verification=verification,
             )
-            self.logger.info("egress locked after agent setup: sandbox %s", sandbox.id)
+            if failure is not None:
+                self._egress_failure = failure
+                raise RuntimeError(failure)
+            self._egress_locked = True
+            self.logger.info("egress locked and verified after agent setup: sandbox %s", sandbox.id)
 
     async def _apply_network_policy(self, network_policy: Any) -> None:
         if self._egress_locked:

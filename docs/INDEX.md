@@ -63,7 +63,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:a7d771ec4cb764fd164557e30a5f3fa31b6b03862b1cf51c2d3dd8a7f4877c48
+    digest: sha256:27c954be78fd297f809bec812ea4f5d0582cdd3edbf2b48f70155891ad1de9f9
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -161,7 +161,7 @@ inputs:
   - path: docs/trace-harness.md
     digest: sha256:48366de064152f909ba0dfa009805b7662d30466ac85141eb0b863c5d90159a7
   - path: docs/trial-treatment.md
-    digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
+    digest: sha256:1c6e4147cc2ba6cc215482e6315f53cb4a0aec7ec2ef768a72d8d87bb85b7023
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

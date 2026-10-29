@@ -1394,8 +1394,19 @@ timeout plus ten minutes, sixteen-minute inactivity stop, and deletion on stop.
 Since HAR-140 every MiMo run on Daytona (self-hosted MiMo model or MiMo-dataset
 task, including nop/oracle census runs) additionally passes
 `egress_lock=true` to the bounded environment, blocking sandbox egress after
-agent setup through Daytona's runner-side firewall; each trial records the
-outcome in `egress-lock.json`, and a lock failure ends the trial as `infra`.
+agent setup through Daytona's runner-side firewall. Since HAR-205 the
+provider's acknowledgement is not trusted: after the call, DNS and TCP
+(IPv4 and IPv6) probes plus two loopback tool controls run from inside the
+sandbox, and the agent phase starts only if every probe is blocked and the
+controls pass. `egress-lock.json` keeps `applied` (acknowledged by the
+provider) apart from `verified` and the per-probe `verification` (outcomes,
+reason, runner identity); a lock or verification failure ends the trial as
+`infra`, and a sandbox that failed verification is never re-probed.
+Readers decide "blocked" with `evallab.egress_verification.lock_enforced`: a
+Daytona record without `verified: true`, including every record written
+before HAR-205, does not count as locked. The 14-in-2 miss rate and its cause
+(the IPv6 explanation is still a hypothesis) need the live battery proposed in
+`research/experiments/har205-egress-verify/PROPOSAL.md`, which is not approved.
 Remote credentials, capacity, and explicit spending approval remain prerequisites.
 
 Completed runs are ingested into the existing PostgreSQL catalog and Parquet

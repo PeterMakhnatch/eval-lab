@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import importlib
 import json
 import logging
@@ -100,6 +101,7 @@ def _install_harbor_stubs() -> None:
 
 _install_harbor_stubs()
 
+from evallab import egress_verification  # noqa: E402
 from evallab.counts import classify_counts  # noqa: E402
 from evallab.database import AGENT_STOP_EXCEPTIONS  # noqa: E402
 from evallab.execution_contracts import (  # noqa: E402
@@ -324,8 +326,7 @@ def test_no_network_task_does_not_admit_in_container_model_agents(
         ("terminus-2", '[agent]\nnetwork_mode = "no-network"\n'),
         (
             "mimoagent",
-            '[agent]\nnetwork_mode = "no-network"\n'
-            '[verifier]\nnetwork_mode = "no-network"\n',
+            '[agent]\nnetwork_mode = "no-network"\n[verifier]\nnetwork_mode = "no-network"\n',
         ),
         ("oracle", '[agent]\nnetwork_mode = "no-network"\n'),
         ("nop", '[verifier]\nnetwork_mode = "no-network"\n'),
@@ -352,9 +353,7 @@ def test_locked_docker_admits_no_network_phases_for_host_loops(
 
 @pytest.mark.parametrize("phase", ["agent", "verifier"])
 @pytest.mark.parametrize("mode", ['"public"', '"allowlist"', "false"])
-def test_locked_docker_refuses_phase_network_grants(
-    tmp_path: Path, phase: str, mode: str
-) -> None:
+def test_locked_docker_refuses_phase_network_grants(tmp_path: Path, phase: str, mode: str) -> None:
     task = tmp_path / "network-grant"
     task.mkdir()
     (task / "task.toml").write_text(f"[{phase}]\nnetwork_mode = {mode}\n", encoding="utf-8")
@@ -496,6 +495,7 @@ def _env(trial_dir: Path, *, locked: bool) -> BoundedDaytonaEnvironment:
     env._egress_lock_due = False
     env._egress_locked = False
     env._egress_record_written = False
+    env._egress_failure = None
     env._egress_lock_guard = asyncio.Lock()
     env._compose_mode = False
     env._network_policy = object()
@@ -551,6 +551,7 @@ def test_nop_locks_on_the_verifier_first_exec(tmp_path: Path) -> None:
             self.network_block_all = True
 
     env._sandbox = LockingSandbox()
+    env._probe_exec = _network(blocked=True)
     # Agent setup runs inside the first top-level scope; a nop agent then
     # issues no exec of its own.
     with env.scoped_exec_env({}):
@@ -564,6 +565,264 @@ def test_nop_locks_on_the_verifier_first_exec(tmp_path: Path) -> None:
     assert record["requested"] is True
     assert record["applied"] is True
     assert record["network_block_all"] is True
+    assert record["verified"] is True
+
+
+# --- post-lock verification from inside the sandbox (HAR-205) -------------------
+
+_NO_ANSWER = SimpleNamespace(return_code=2, stdout="", stderr="")
+
+
+def _result(code: int | None, out: str = "", err: str = "") -> Any:
+    return SimpleNamespace(return_code=code, stdout=out, stderr=err)
+
+
+def _network(
+    *,
+    blocked: bool = True,
+    leaks: tuple[str, ...] = (),
+    broken: dict[str, Any] | None = None,
+    calls: list[str] | None = None,
+) -> Any:
+    """A fake in-sandbox shell keyed on the probe command, never a real socket.
+
+    ``leaks`` names probes (or name prefixes such as ``tcp6``) that get
+    through; ``broken`` maps a probe name to the exception to raise, the
+    coroutine function to await, or the result to return in place of the
+    answer.
+    """
+
+    by_command = {probe.command: probe.name for probe in egress_verification.PROBES}
+
+    async def execute(command: str, timeout_sec: int) -> Any:
+        name = by_command[command]
+        if calls is not None:
+            calls.append(name)
+        replacement = (broken or {}).get(name)
+        if isinstance(replacement, BaseException):
+            raise replacement
+        if callable(replacement):
+            return await replacement()
+        if replacement is not None:
+            return replacement
+        if name == "control_loopback_tcp":
+            return _result(1, "", "bash: connect: Connection refused")
+        if name == "control_local_dns":
+            return _result(0, "127.0.0.1 localhost")
+        leaked = (not blocked) or any(name.startswith(prefix) for prefix in leaks)
+        if name.startswith("dns"):
+            return _result(0, "93.184.216.34 STREAM example.com") if leaked else _NO_ANSWER
+        return _result(0) if leaked else _result(124)
+
+    return execute
+
+
+def _locking_sandbox() -> Any:
+    class Sandbox:
+        id = "sbx-verify"
+        network_block_all = False
+        runner_id = "runner-7"
+        target = "us"
+        snapshot = "snap-1"
+        sandbox_class = SimpleNamespace(value="container")
+        daemon_version = "0.9"
+        outbound_proxy_url = None
+
+        async def update_network_settings(self, **kwargs: Any) -> None:
+            self.network_block_all = kwargs["network_block_all"]
+
+    return Sandbox()
+
+
+def _locked_env(tmp_path: Path, probe: Any) -> tuple[BoundedDaytonaEnvironment, Path]:
+    trial_dir = tmp_path / "trial"
+    trial_dir.mkdir()
+    env = _env(trial_dir, locked=True)
+    env._sandbox = _locking_sandbox()
+    env._probe_exec = probe
+    # exec's failure path asks the admission guard whether the sandbox vanished.
+    env._daytona_usage = {"schema_version": 1}
+    env._daytona_guard = SimpleNamespace(sandbox_missing=lambda sandbox_id: False)
+    return env, trial_dir
+
+
+def _record_of(trial_dir: Path) -> dict[str, Any]:
+    return json.loads((trial_dir / "egress-lock.json").read_text(encoding="utf-8"))
+
+
+def test_working_block_is_verified_and_recorded_durably(tmp_path: Path) -> None:
+    env, trial_dir = _locked_env(tmp_path, _network(blocked=True))
+    asyncio.run(env._lock_egress())
+    assert env._egress_locked is True
+    record = _record_of(trial_dir)
+    assert (record["applied"], record["verified"], record["error"]) == (True, True, None)
+    verification = record["verification"]
+    assert verification["verified"] is True and verification["reason"]
+    assert verification["runner"] == {
+        "id": "sbx-verify",
+        "runner_id": "runner-7",
+        "target": "us",
+        "snapshot": "snap-1",
+        "sandbox_class": "container",
+        "daemon_version": "0.9",
+        "outbound_proxy_configured": False,
+    }
+    families = {(p["kind"], p["family"]): p["outcome"] for p in verification["probes"]}
+    # IPv4, IPv6 and DNS are separate probes, each with its own outcome.
+    assert families[("tcp", "v4")] == families[("tcp", "v6")] == "blocked"
+    assert families[("dns", "v4")] == families[("dns", "v6")] == "blocked"
+    assert egress_verification.lock_enforced(record) is True
+
+
+@pytest.mark.parametrize(
+    ("leaks", "leaked"),
+    [
+        (("tcp6",), {"tcp6_cloudflare", "tcp6_google"}),
+        (("tcp4",), {"tcp4_cloudflare", "tcp4_google"}),
+        (("dns",), {"dns_a", "dns_aaaa"}),
+        (("tcp6_google",), {"tcp6_google"}),
+    ],
+)
+def test_any_leak_blocks_the_agent_phase_and_names_the_path(
+    tmp_path: Path, leaks: tuple[str, ...], leaked: set[str]
+) -> None:
+    env, trial_dir = _locked_env(tmp_path, _network(leaks=leaks))
+    env._egress_lock_due = True
+    with pytest.raises(RuntimeError, match="post-lock verification failed"):
+        asyncio.run(env.exec("agent-first-command"))
+    assert env._egress_locked is False
+    record = _record_of(trial_dir)
+    # The provider acknowledged; the block did not hold. Both facts are kept.
+    assert (record["applied"], record["verified"]) == (True, False)
+    assert "post-lock verification failed" in record["error"]
+    reachable = {p["name"] for p in record["verification"]["probes"] if p["outcome"] == "reachable"}
+    assert reachable == leaked
+    assert all(name in record["error"] for name in leaked)
+    assert egress_verification.lock_enforced(record) is False
+    # Fail closed: the infra classification the agent-phase refusal produces.
+    counts = classify_counts(
+        reward=None,
+        scored=False,
+        exception={"exception_type": "RuntimeError", "exception_message": record["error"]},
+    )
+    assert counts["verdict"] == "excluded" and "infra" in counts["reasons"]
+
+
+def test_failed_verification_is_sticky_and_never_reprobes(tmp_path: Path) -> None:
+    calls: list[str] = []
+    env, _ = _locked_env(tmp_path, _network(leaks=("tcp6",), calls=calls))
+    env._egress_lock_due = True
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="post-lock verification failed"):
+            asyncio.run(env.exec("agent-command"))
+    # One probe plan only: a later command cannot pass a retry into the agent phase.
+    assert len(calls) == len(egress_verification.PROBES)
+
+
+@pytest.mark.parametrize(
+    ("broken", "expected"),
+    [
+        # Probe tool missing: the bash/timeout control fails too.
+        (
+            {"control_loopback_tcp": _result(127, "", "bash: timeout: command not found")},
+            "controls failed",
+        ),
+        ({"control_local_dns": _result(127, "", "getent: not found")}, "controls failed"),
+        # Only one network probe cannot run: no block is established for it.
+        ({"dns_aaaa": _result(127, "", "getent: not found")}, "dns_aaaa"),
+        # bash built without /dev/tcp: exit 1, but not a network failure message.
+        (
+            {"tcp6_google": _result(1, "", "bash: /dev/tcp/::1/443: No such file or directory")},
+            "tcp6_google",
+        ),
+        ({"tcp4_google": RuntimeError("sandbox exec channel closed")}, "tcp4_google"),
+        ({"tcp4_cloudflare": _result(None)}, "tcp4_cloudflare"),
+    ],
+)
+def test_unusable_probe_leaves_the_lock_unverified(
+    tmp_path: Path, broken: dict[str, Any], expected: str
+) -> None:
+    env, trial_dir = _locked_env(tmp_path, _network(broken=broken))
+    with pytest.raises(RuntimeError, match="post-lock verification failed"):
+        asyncio.run(env._lock_egress())
+    record = _record_of(trial_dir)
+    assert record["verified"] is False and expected in record["verification"]["reason"]
+    outcomes = {p["name"]: p["outcome"] for p in record["verification"]["probes"]}
+    assert "reachable" not in outcomes.values()  # an error, not a claimed leak
+    assert env._egress_locked is False
+
+
+def test_probe_that_never_returns_times_out_as_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def hang() -> Any:
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(egress_verification, "EXEC_SLACK_SEC", 0)
+    monkeypatch.setattr(egress_verification, "OUTER_SLACK_SEC", 0.02)
+    quick = tuple(
+        dataclasses.replace(probe, inner_timeout_sec=0) for probe in egress_verification.PROBES
+    )
+    monkeypatch.setattr("evallab.harbor_daytona.PROBES", quick)
+    env, trial_dir = _locked_env(tmp_path, _network(blocked=True, broken={"tcp6_google": hang}))
+    with pytest.raises(RuntimeError, match="tcp6_google"):
+        asyncio.run(env._lock_egress())
+    probes = {p["name"]: p for p in _record_of(trial_dir)["verification"]["probes"]}
+    assert probes["tcp6_google"]["outcome"] == "error"
+    assert "deadline" in probes["tcp6_google"]["detail"]
+    assert probes["tcp6_cloudflare"]["outcome"] == "blocked"
+
+
+def test_provider_refusal_records_no_verification(tmp_path: Path) -> None:
+    calls: list[str] = []
+    env, trial_dir = _locked_env(tmp_path, _network(calls=calls))
+
+    async def refuse(**kwargs: Any) -> None:
+        raise RuntimeError("Daytona refused the lock")
+
+    env._sandbox.update_network_settings = refuse
+    with pytest.raises(RuntimeError, match="Daytona refused"):
+        asyncio.run(env._lock_egress())
+    record = _record_of(trial_dir)
+    assert (record["applied"], record["verified"], record["verification"]) == (False, None, None)
+    assert calls == []
+    assert egress_verification.lock_enforced(record) is False
+
+
+def test_lock_enforced_never_reads_an_acknowledgement_as_a_block() -> None:
+    enforced = egress_verification.lock_enforced
+    daytona = "daytona update_network_settings(network_block_all=True)"
+    # Daytona record from before HAR-205: acknowledged, never verified.
+    assert enforced({"applied": True, "network_block_all": True, "mechanism": daytona}) is False
+    assert enforced({"applied": True, "verified": None, "mechanism": daytona}) is False
+    assert enforced({"applied": True, "verified": False, "mechanism": daytona}) is False
+    assert enforced({"applied": True, "verified": True, "mechanism": daytona}) is True
+    assert enforced({"applied": True, "verified": True, "error": "late failure"}) is False
+    assert enforced({"applied": False, "verified": True}) is False
+    # Backends that record their own enforcement observation keep their meaning.
+    assert enforced({"applied": True, "mechanism": "docker-compose main network_mode=none"}) is True
+    assert enforced({"applied": True}) is True
+    assert enforced(None) is False and enforced([]) is False
+
+
+def test_acknowledged_only_trial_reads_open_in_fingerprint_and_posture(tmp_path: Path) -> None:
+    from evallab.interpretation.trial_posture import _observed_egress_lock
+    from evallab.setup_fingerprint import trial_fingerprint
+
+    daytona = "daytona update_network_settings(network_block_all=True)"
+    for name, record, enforced in (
+        ("acked", {"applied": True, "mechanism": daytona, "network_block_all": True}, False),
+        ("leaky", {"applied": True, "verified": False, "mechanism": daytona}, False),
+        ("proved", {"applied": True, "verified": True, "mechanism": daytona}, True),
+    ):
+        trial = tmp_path / name
+        trial.mkdir()
+        (trial / "egress-lock.json").write_text(json.dumps(record), encoding="utf-8")
+        lock = trial_fingerprint({"lock": {"mode": "locked"}}, trial)["lock"]
+        assert lock["mode"] == ("locked" if enforced else "open")
+        assert lock["observed_applied"] is True
+        assert lock["observed_enforced"] is enforced
+        assert _observed_egress_lock(trial) is enforced
 
 
 # --- admission reservation is released once Daytona's async delete lands -----
@@ -638,9 +897,7 @@ def _modal_task(tmp_path: Path, *, agent_network: str) -> Path:
 def test_modal_mimoagent_lock_admitted_with_exact_upstream_allowlist(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(
-        "EVALLAB_MIMO_SELFHOSTED_UPSTREAM", "https://trainer.example/modal"
-    )
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", "https://trainer.example/modal")
     request = _request(
         _modal_task(tmp_path, agent_network="no-network"),
         tmp_path,

@@ -169,6 +169,12 @@ class Actuator(Protocol):
     def act(self, observation: Observation, decision: Decision) -> bool: ...
 
 
+class WindowSink(Protocol):
+    """Persists the observation behind one recorded decision (``live_supervisor_windows.WindowLog``)."""
+
+    def write(self, record: Mapping[str, Any], observation: Observation, hits: Sequence[TriggerHit]) -> None: ...
+
+
 # --------------------------------------------------------------------------- rules
 
 
@@ -335,12 +341,15 @@ class ScanReport:
 
 
 def scan_once(sources: Sequence[Source], decider: Decider, log: DecisionLog, *, now: datetime,
-              mode: str = "shadow", actuator: Actuator | None = None) -> ScanReport:
+              mode: str = "shadow", actuator: Actuator | None = None,
+              windows: WindowSink | None = None) -> ScanReport:
     """Observe every source once, decide on triggered subjects and record each decision.
 
     A failing source is reported and skipped. A reader failure alerts research instead
     of executing an unconfirmed proposal. Action failures remain recorded and do not
-    prevent the remaining subjects from being observed.
+    prevent the remaining subjects from being observed. With ``windows``, each recorded
+    decision is followed by the window it was made on; that write comes after the decision
+    is durable, and a failure is recorded against the subject without touching the decision.
     """
     if mode not in MODES:
         raise ValueError(f"mode {mode!r} not in {MODES}")
@@ -388,4 +397,9 @@ def scan_once(sources: Sequence[Source], decider: Decider, log: DecisionLog, *, 
                              produced_at=now)
             log.append(subject, key, record, now)
             report.records.append(record)
+            if windows is not None:
+                try:
+                    windows.write(record, observation, hits)
+                except Exception as exc:  # noqa: BLE001 - the decision above is already recorded
+                    report.errors[f"window:{subject.kind}:{subject.id}"] = f"{type(exc).__name__}: {exc}"
     return report

@@ -10,7 +10,8 @@ or live ``trace-findings/v1`` records from ``decisions-v1.jsonl`` (keyed by
      "observed_at", "metrics": {...}, "actor_inputs_available": bool,
      "events": [{"index", "at", "source", "text"}, ...], "triggers": [...]}
 
-:func:`window_record` writes that shape from an :class:`~live_supervisor.Observation`.
+:func:`window_record` writes that shape from an :class:`~live_supervisor.Observation`;
+``live_supervisor_windows`` persists one per live decision (``<root>/windows-v1.jsonl``).
 
 :func:`sample` draws a stratified, capped, deterministic sample. :func:`adjudicate`
 shows the adjudicator the subject (kind, owner, killable), the trigger hits, the metrics

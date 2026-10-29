@@ -1,0 +1,36 @@
+{
+  "schema": "evallab.evidence.seal_guard/v1",
+  "item": "SEAL-GUARD",
+  "date": "2026-10-29",
+  "base": "origin/main 42bf8a8fb",
+  "tool_versions": {"rg": "15.2.0"},
+  "sealed_rules_tracked_file_counts": {
+    "research/answer-keys/*": 794,
+    "research/datasets/*/test.jsonl": 2,
+    "research/datasets/qa-trace-sft-v0/baseline-results.json": 1,
+    "research/datasets/qa-trace-sft-v0/harness-v2-results.json": 1,
+    "research/datasets/qa-trace-sft-v0/harness-v3-results.json": 1,
+    "research/datasets/seeker-sft-v1/quarantined.jsonl": 1,
+    "research/datasets/seeker-sft-v1/source_manifests.json": 1
+  },
+  "tracked_sealed_total": 801,
+  "tracked_sealed_not_matched_by_ignore_after": 0,
+  "search_counts_before_after": {
+    "rg --files research": {"before": 52165, "after": 51365},
+    "rg --files research | answer-keys files": {"before": 793, "after": 0},
+    "fd -t f . research": {"before": 52165, "after": 51365},
+    "rg -l expected_verdict research": {"before": 86, "after": 27},
+    "rg -l expected_verdict research | answer-keys files": {"before": 59, "after": 0},
+    "rg -l reported_test_split research": {"before": 4, "after": 3},
+    "rg --files research/datasets": {"before": 37, "after": 30},
+    "rg --files research/answer-keys (sealed dir named as the search root)": {"before": 793, "after": 793},
+    "rg -c expected_verdict <explicit sealed file>": {"before": "match", "after": "match (39)"},
+    "rg --no-ignore -l expected_verdict research": {"before": 86, "after": 86}
+  },
+  "governance_check": {
+    "live_tree_with_patterns": "passed",
+    "live_tree_with_datasets/*/test.jsonl pattern removed": "failed: 2 tracked sealed paths not matched (qa-sft-mimo-v0, qa-trace-sft-v0 test.jsonl)"
+  },
+  "preexisting_ignore_file": "tracked since d8663d64e (#425), three archive patterns, already registered in agents/STRUCTURE.md",
+  "consumers_broken": 0
+}

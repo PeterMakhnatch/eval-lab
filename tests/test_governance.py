@@ -1,8 +1,15 @@
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from evallab.governance import collect_issues, declared_roots, folder_documents
+from evallab.governance import (
+    collect_issues,
+    declared_roots,
+    folder_documents,
+    git_tracked_paths,
+    sealed_tracked_paths,
+)
 
 pytestmark = pytest.mark.docs_consumer
 
@@ -166,3 +173,85 @@ def test_folder_documents_exempt_directories_are_not_reported(tmp_path: Path) ->
     for exempt in (".github", ".omp", ".claude", "derived", "runs", "queue", "backups", "docs"):
         (tmp_path / exempt).mkdir(parents=True, exist_ok=True)
     assert folder_documents(tmp_path) == []
+
+
+SEALED_IGNORE = (
+    "research/answer-keys/\n"
+    "research/datasets/*/test.jsonl\n"
+    "research/datasets/qa-trace-sft-v0/baseline-results.json\n"
+    "research/datasets/qa-trace-sft-v0/harness-v2-results.json\n"
+    "research/datasets/qa-trace-sft-v0/harness-v3-results.json\n"
+    "research/datasets/seeker-sft-v1/quarantined.jsonl\n"
+    "research/datasets/seeker-sft-v1/source_manifests.json\n"
+)
+
+
+def _git_repo_with(root: Path, files: dict[str, str]) -> tuple[str, ...]:
+    """Seed governance documents plus ``files`` in a throwaway Git repo; return tracked paths."""
+    seed_governance(root)
+    structure = root / "agents/STRUCTURE.md"
+    structure.write_text(
+        structure.read_text().replace(
+            "├── agents/ governance", "├── .ignore\n├── agents/ governance"
+        )
+    )
+    for relative, content in files.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A", "--force"], cwd=root, check=True)
+    return git_tracked_paths(root)
+
+
+def test_sealed_paths_cover_answer_keys_and_test_splits_but_not_dev() -> None:
+    paths = (
+        "research/answer-keys/splits/assignments.csv",
+        "research/answer-keys/new-key/items.jsonl",
+        "research/datasets/new-set-v1/test.jsonl",
+        "research/datasets/new-set-v1/dev.jsonl",
+        "research/datasets/new-set-v1/train.jsonl",
+        "src/evallab/governance.py",
+    )
+    assert sealed_tracked_paths(paths) == [
+        "research/answer-keys/new-key/items.jsonl",
+        "research/answer-keys/splits/assignments.csv",
+        "research/datasets/new-set-v1/test.jsonl",
+    ]
+
+
+def test_sealed_path_covered_by_root_ignore_passes(tmp_path: Path) -> None:
+    tracked = _git_repo_with(
+        tmp_path,
+        {
+            ".ignore": SEALED_IGNORE,
+            "research/answer-keys/k/items.jsonl": "{}\n",
+            "research/datasets/d/test.jsonl": "{}\n",
+            "research/datasets/d/dev.jsonl": "{}\n",
+        },
+    )
+    assert collect_issues(tmp_path, tracked) == []
+
+
+def test_new_test_split_file_not_in_root_ignore_fails(tmp_path: Path) -> None:
+    tracked = _git_repo_with(
+        tmp_path,
+        {
+            ".ignore": "research/answer-keys/\n",
+            "research/answer-keys/k/items.jsonl": "{}\n",
+            "research/datasets/d/test.jsonl": "{}\n",
+            "research/datasets/d/dev.jsonl": "{}\n",
+        },
+    )
+    issues = collect_issues(tmp_path, tracked)
+    assert len(issues) == 1
+    assert "research/datasets/d/test.jsonl" in issues[0]
+    assert "research/answer-keys/k/items.jsonl" not in issues[0]
+    assert "dev.jsonl" not in issues[0]
+
+
+def test_missing_root_ignore_exposes_every_sealed_path(tmp_path: Path) -> None:
+    tracked = _git_repo_with(tmp_path, {"research/answer-keys/k/items.jsonl": "{}\n"})
+    issues = collect_issues(tmp_path, tracked)
+    assert len(issues) == 1
+    assert "research/answer-keys/k/items.jsonl" in issues[0]

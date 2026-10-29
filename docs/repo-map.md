@@ -375,7 +375,7 @@ inputs:
   - path: src/evallab/gepa_optimizer/workflow.py
     digest: sha256:54e886855a9caa7fdf081e24e359085f30aff7e6320569a1c8bc2494c976057d
   - path: src/evallab/governance.py
-    digest: sha256:ae2a14127f4be7f73748c01aa694858a8015ef1173b1e76019b91212c5e61ddc
+    digest: sha256:c8ae6df221da0a00335ea23560438a28aa86c3c0d0ed58d6be761a13a9567380
   - path: src/evallab/grid.py
     digest: sha256:f8ac61ab1168834ea73b671484132bebace118d3ad8cb8c5d129b01c6c9948aa
   - path: src/evallab/hack_queue.py

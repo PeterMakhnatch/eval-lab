@@ -106,7 +106,10 @@ def adapter_rows(set_id: str) -> Any:
             steps,
             {
                 "set": set_id,
-                "state": gold.get("state") or labels.get("state"),
+                "state": gold.get("state")
+                or gold.get("label_state")
+                or labels.get("state")
+                or labels.get("label_state"),
                 "positive": row.get("positive") if isinstance(row.get("positive"), bool) else None,
             },
         )
@@ -117,9 +120,15 @@ def main() -> int:
     if digest != FROZEN:
         raise SystemExit(f"classifier digest {digest} is not the frozen one")
     set_id = sys.argv[1]
-    rows_source = {"cm18": cm18, "np21": np21, "np33": np33}.get(set_id) or (
-        lambda: adapter_rows(set_id)
-    )
+    dumped = (
+        OUT / f"{set_id}-rows.pkl"
+    )  # rows an adapter needing Python 3.14 (zstd zip) wrote with dump314.py
+    if dumped.exists():
+        rows_source = lambda: iter(pickle.loads(dumped.read_bytes()))  # noqa: E731
+    else:
+        rows_source = {"cm18": cm18, "np21": np21, "np33": np33}.get(set_id) or (
+            lambda: adapter_rows(set_id)
+        )
     OUT.mkdir(parents=True, exist_ok=True)
     started = time.time()
     signal.signal(signal.SIGALRM, _alarm)

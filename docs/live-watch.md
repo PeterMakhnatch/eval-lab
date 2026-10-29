@@ -1592,6 +1592,12 @@ uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out -
   (exact McNemar p on the discordant pairs).
 - `--resume` skips a turn only when its retained `result.json` passes that predicate; a failed
   turn is renamed `turn-N.superseded-K`, never overwritten.
+- A submission whose own solution exits nonzero before any assertion is recorded as
+  `candidate_failed`, not `original_grader_unavailable`: the grader ran, so the cell is a model
+  failure and must not be counted as infrastructure. `original_grader_unavailable` is reserved
+  for a grade the harness could not produce (missing reward file, image build failure, backend
+  refusal). The exit code is read from the trial's `agent/exit-code.txt`, never guessed from
+  error prose.
 - Model calls log `tool: omp`, `usd: 0` rows and Modal grades log `route: modal` rows to
   `~/.local/state/evallab-failure-library/spend.jsonl` (`--spend-log` overrides it).
 

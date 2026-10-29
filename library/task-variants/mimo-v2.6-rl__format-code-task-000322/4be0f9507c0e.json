@@ -65,6 +65,13 @@
   },
   "created_by": "omp:TS9AiohttpRepair",
   "created_at": "2026-10-28T04:01:34Z",
-  "status": "candidate",
-  "evidence": []
+  "status": "rejected",
+  "evidence": [
+    {
+      "at": "2026-10-29T00:48:54Z",
+      "by": "np21-ts1",
+      "status": "rejected",
+      "evidence": "TS-14 native oracle control at /Users/petermakhnatch/.local/state/evallab-ts14-native-validation/20261028T183358Z/native/pr-1331/repaired measured reward 0: both added sender-variant nodes passed, but an unchanged SSL test raised an unraisable ResourceWarning during teardown. Superseded by corrected variant sha256:fcf3cfd67818."
+    }
+  ]
 }

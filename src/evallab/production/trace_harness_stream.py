@@ -70,6 +70,12 @@ PASS_THROUGH = frozenset(window_cascade.PASS_THROUGH_RULES)
 LABELS = frozenset({"exploit-pass", "defect-fail", "neither"})
 OVERLAY = 'memory:\n  backend: "off"\nretry:\n  enabled: false\n  modelFallback: false\n  fallbackChains: {}\n'
 ATTEMPTS = 3
+MAX_CONSECUTIVE_REFUSALS = 3
+# A refusal is the provider declining the request: a refusal-type stop reason, a ``refusal`` flag on the reply, or
+# refusal / policy wording in the reply's own error text. A non-``stop`` reply that is none of these (``toolUse``,
+# ``length``, a transport ``error``) is an incomplete answer, not a refusal.
+REFUSAL_STOP_REASONS = frozenset({"refusal", "sensitive", "safety", "content_filter"})
+REFUSAL_TEXT = re.compile(r"cyber_policy|reasoning_extraction|\brefusal \(|policy refusal|terms of service", re.IGNORECASE)
 CALL_TIMEOUT_SECONDS = 240
 QUOTA_REFRESH_SECONDS = 60.0
 
@@ -143,7 +149,10 @@ class VerdictCache:
 
 @dataclass
 class JudgeStats:
-    """Call accounting for one judge, or (via ``add``) one detector; ``quota_stopped`` marks a quota refusal."""
+    """Call accounting for one judge, or (via ``add``) one detector.
+
+    ``quota_stopped`` marks a stop of the fresh-call route: a quota refusal or a :class:`CallGuard` stop.
+    """
 
     hits: int = 0
     misses: int = 0
@@ -209,7 +218,7 @@ class StoredVerdictJudge:
             if not row.get("ok"):
                 with self._lock:
                     self.stats.failed += 1
-                    self.stats.quota_stopped |= any("QuotaStop" in e for e in row.get("errors") or ())
+                    self.stats.quota_stopped |= any("QuotaStop" in e or "GuardStop" in e for e in row.get("errors") or ())
                     # A failed attempt consumed tokens too; count them, never hide them.
                     self.stats.input_tokens += int(row.get("input_tokens") or 0)
                     self.stats.output_tokens += int(row.get("output_tokens") or 0)
@@ -317,22 +326,34 @@ def attempt_receipt(stdout: str) -> dict[str, Any]:
         if isinstance(event, dict) and event.get("type") == "agent_end":
             end = event
     if not isinstance(end, dict) or not isinstance(end.get("messages"), list):
-        return {"served": None, "stop_reason": None, "input_tokens": 0, "output_tokens": 0}
+        return {"served": None, "stop_reason": None, "error_message": None, "refusal": False, "input_tokens": 0, "output_tokens": 0}
     replies = [m for m in end["messages"] if isinstance(m, dict) and m.get("role") == "assistant"]
     if not replies:
-        return {"served": None, "stop_reason": None, "input_tokens": 0, "output_tokens": 0}
+        return {"served": None, "stop_reason": None, "error_message": None, "refusal": False, "input_tokens": 0, "output_tokens": 0}
     reply = replies[0]
     usage = reply.get("usage") if isinstance(reply.get("usage"), dict) else {}
     tokens = [
         usage.get(name) for name in ("input", "cacheRead", "cacheWrite", "output")
     ]
     numbers = [value if isinstance(value, int) and not isinstance(value, bool) else 0 for value in tokens]
+    message = reply.get("errorMessage")
     return {
         "served": f"{reply.get('provider')}/{reply.get('model')}",
         "stop_reason": reply.get("stopReason"),
+        "error_message": message[:240] if isinstance(message, str) else None,
+        "refusal": bool(reply.get("refusal")),
         "input_tokens": numbers[0] + numbers[1] + numbers[2],
         "output_tokens": numbers[3],
     }
+
+
+def is_refusal(error: str, receipt: Mapping[str, Any]) -> bool:
+    """Whether one failed attempt was the provider declining the request (see ``REFUSAL_STOP_REASONS``)."""
+    return bool(
+        receipt.get("refusal")
+        or receipt.get("stop_reason") in REFUSAL_STOP_REASONS
+        or REFUSAL_TEXT.search(f"{receipt.get('error_message') or ''} {error}")
+    )
 
 
 def _ledger(path: Path | None, row: Mapping[str, Any]) -> None:
@@ -353,6 +374,8 @@ def judge_call(
     provider credentials stripped, served model attested, three attempts. Every
     attempt (including a refusal, a wrong served model or an unusable answer) is
     appended to ``ledger`` and contributes its own attested usage to the totals.
+    A refusal (:func:`is_refusal`) or a quota stop ends the call at once; any other failed attempt is
+    retried. A failed call carries ``refusal`` (whether its last attempt was a refusal).
     """
     env = subscription_env(os.environ)
     errors: list[str] = []
@@ -404,20 +427,23 @@ def judge_call(
         except (QuotaStop, OmpRouteError, subprocess.TimeoutExpired, OSError) as error:
             errors.append(f"{type(error).__name__}: {error}"[:240])
             seen = attempt_receipt(stdout)
+            refused = not isinstance(error, QuotaStop) and is_refusal(str(error), seen)
             receipt = {
                 "attempt": attempt, "ok": False, "error": type(error).__name__,
                 "served": seen["served"], "stop_reason": seen["stop_reason"],
+                "error_message": seen["error_message"], "refusal": refused,
                 "input_tokens": seen["input_tokens"], "output_tokens": seen["output_tokens"],
                 "elapsed_s": round(time.perf_counter() - started, 3),
             }
             attempts.append(receipt)
             _ledger(ledger, {"key": key, "requested_model": model, **receipt})
-            if isinstance(error, QuotaStop) or "cyber_policy" in str(error) or "refus" in str(error):
+            if isinstance(error, QuotaStop) or refused:
                 break
             if attempt < ATTEMPTS:
                 time.sleep(5 * attempt)
     return {
         "ok": False, "attempts": attempt, "answer": None, "errors": errors,
+        "refusal": bool(attempts) and bool(attempts[-1].get("refusal")),
         "requested_model": model, "input_tokens": sum(a["input_tokens"] for a in attempts),
         "output_tokens": sum(a["output_tokens"] for a in attempts),
         "elapsed_s": round(sum(a["elapsed_s"] for a in attempts), 3), "attempt_usage": attempts,
@@ -429,12 +455,95 @@ def provider_of(model: str) -> str:
     return model.split("/", 1)[0]
 
 
+class CallGuard:
+    """Stop the fresh-call route after repeated refusals, repeated failed calls, or when its attempt budget is spent.
+
+    ``wrap(call)`` returns a :data:`Call` that counts every ``omp`` invocation (``attempts``, the unit of
+    ``max_attempts``; the budget is reserved before a call starts, so concurrent workers cannot overshoot it),
+    every refusal, and the consecutive refusals / failed calls since the last accepted call. The first stop
+    condition reached sets ``stop_reason``; from then on every call returns a failed row marked ``GuardStop``
+    without invoking the model, which the judge treats as a stop (no finding for the run). A quota stop is not
+    a failure of the call and leaves the counters alone.
+    """
+
+    def __init__(
+        self, *, max_attempts: int | None = None, max_consecutive_refusals: int = MAX_CONSECUTIVE_REFUSALS,
+        max_consecutive_failures: int = MAX_CONSECUTIVE_REFUSALS,
+    ) -> None:
+        self.max_attempts = max_attempts
+        self.max_consecutive_refusals = max_consecutive_refusals
+        self.max_consecutive_failures = max_consecutive_failures
+        self.calls = self.attempts = self.refusals = self.failed_calls = self.parse_failed_attempts = 0
+        self.consecutive_refusals = self.consecutive_failures = 0
+        self.stop_reason: str | None = None
+        self._reserved = 0
+        self._lock = threading.Lock()
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "calls": self.calls, "attempts": self.attempts, "refusals": self.refusals,
+            "failed_calls": self.failed_calls, "parse_failed_attempts": self.parse_failed_attempts,
+            "consecutive_refusals": self.consecutive_refusals, "consecutive_failures": self.consecutive_failures,
+            "stop_reason": self.stop_reason,
+        }
+
+    def wrap(self, call: Call) -> Call:
+        def guarded(model: str, system: str, user: str) -> dict[str, Any]:
+            with self._lock:
+                if (
+                    self.stop_reason is None and self.max_attempts is not None
+                    and self.attempts + self._reserved + ATTEMPTS > self.max_attempts
+                ):
+                    self.stop_reason = f"attempt budget {self.max_attempts} reached ({self.attempts} used)"
+                reason = self.stop_reason
+                if reason is None:
+                    self._reserved += ATTEMPTS
+            if reason is not None:
+                return {
+                    "ok": False, "attempts": 0, "answer": None, "errors": [f"GuardStop: {reason}"], "refusal": False,
+                    "requested_model": model, "input_tokens": 0, "output_tokens": 0, "elapsed_s": 0.0,
+                    "attempt_usage": [],
+                }
+            row = call(model, system, user)
+            self._record(row)
+            return row
+
+        return guarded
+
+    def _record(self, row: Mapping[str, Any]) -> None:
+        errors = [str(e) for e in row.get("errors") or ()]
+        with self._lock:
+            self._reserved -= ATTEMPTS
+            self.calls += 1
+            self.attempts += int(row.get("attempts") or 0)
+            self.parse_failed_attempts += sum("not the judge JSON schema" in e for e in errors)
+            if row.get("ok"):
+                self.consecutive_refusals = self.consecutive_failures = 0
+            elif not any("QuotaStop" in e for e in errors):
+                self.failed_calls += 1
+                self.consecutive_failures += 1
+                if row.get("refusal"):
+                    self.refusals += 1
+                    self.consecutive_refusals += 1
+                else:
+                    self.consecutive_refusals = 0
+            if self.stop_reason is None and self.consecutive_refusals >= self.max_consecutive_refusals:
+                self.stop_reason = f"{self.consecutive_refusals} consecutive refusals"
+            elif self.stop_reason is None and self.consecutive_failures >= self.max_consecutive_failures:
+                self.stop_reason = f"{self.consecutive_failures} consecutive failed calls"
+
+
 def live_call(
     model: str = JUDGE_MODEL, gate: QuotaGate | None = None, ledger: Path | None = DEFAULT_ATTEMPTS,
+    guard: CallGuard | None = None,
 ) -> Call:
-    """``judge_call`` bound to one quota gate (default: the reader's own provider) and attempt ledger."""
+    """``judge_call`` bound to one quota gate (default: the reader's own provider), attempt ledger and call guard."""
     gate = gate or QuotaGate(provider=provider_of(model))
-    return lambda requested, system, user: judge_call(requested, system, user, gate=gate, ledger=ledger)
+
+    def call(requested: str, system: str, user: str) -> dict[str, Any]:
+        return judge_call(requested, system, user, gate=gate, ledger=ledger)
+
+    return (guard or CallGuard()).wrap(call)
 
 
 # --------------------------------------------------------------------------- #

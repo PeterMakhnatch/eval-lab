@@ -242,3 +242,75 @@ def test_a_quota_stopped_run_yields_no_finding_so_it_is_not_cached_as_abstain(tm
     )
     (record,) = other.detect([_run("run-a", _flagged_steps())])
     assert record["verdict"] == "abstain"  # a refusal is unknown, kept as abstain; only quota is retried
+
+
+def _refused_stream(served: str, *, stop_reason: str = "error", message: str | None = None) -> str:
+    reply: dict[str, Any] = {"role": "assistant", "provider": served.split("/")[0], "model": served.split("/")[1],
+                             "stopReason": stop_reason, "content": [], "usage": {"input": 7, "output": 0}}
+    if message:
+        reply["errorMessage"] = message
+    return json.dumps({"type": "agent_end", "messages": [{"role": "user", "content": "u"}, reply]}) + "\n"
+
+
+def test_a_refusal_ends_the_call_at_once_but_an_incomplete_stop_is_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(stream.time, "sleep", lambda _seconds: None)
+    refusal = _refused_stream(HAIKU, message="502 Refusal (reasoning_extraction): blocked as it violates the Terms")
+    monkeypatch.setattr(stream.subprocess, "run", lambda *_a, **_k: type("P", (), {"returncode": 0, "stdout": refusal})())
+    row = stream.judge_call(HAIKU, "s", "u", ledger=tmp_path / "a.jsonl")
+    assert row["ok"] is False and row["refusal"] is True and row["attempts"] == 1
+    assert json.loads((tmp_path / "a.jsonl").read_text())["refusal"] is True
+
+    tool_use = _refused_stream(HAIKU, stop_reason="toolUse")
+    monkeypatch.setattr(stream.subprocess, "run", lambda *_a, **_k: type("P", (), {"returncode": 0, "stdout": tool_use})())
+    row = stream.judge_call(HAIKU, "s", "u", ledger=tmp_path / "b.jsonl")
+    assert row["ok"] is False and row["refusal"] is False and row["attempts"] == stream.ATTEMPTS
+
+
+def _row(*, ok: bool = False, refusal: bool = False, attempts: int = 1, errors: tuple[str, ...] = ()) -> dict[str, Any]:
+    return {"ok": ok, "attempts": attempts, "refusal": refusal, "errors": list(errors), "answer": None}
+
+
+def test_guard_stops_after_three_consecutive_refusals_and_a_success_resets_the_count() -> None:
+    outcomes = [_row(refusal=True), _row(refusal=True), _row(ok=True), _row(refusal=True), _row(refusal=True),
+                _row(refusal=True)]
+    calls: list[int] = []
+
+    def call(model: str, system: str, user: str) -> dict[str, Any]:
+        calls.append(1)
+        return outcomes[len(calls) - 1]
+
+    guard = stream.CallGuard()
+    guarded = guard.wrap(call)
+    for _ in outcomes:
+        guarded(HAIKU, "s", "u")
+    assert guard.stop_reason == "3 consecutive refusals" and guard.refusals == 5 and len(calls) == 6
+    stopped = guarded(HAIKU, "s", "u")
+    assert len(calls) == 6 and stopped["errors"][0].startswith("GuardStop")  # no model call after the stop
+
+
+def test_guard_budget_is_a_hard_cap_over_attempts_and_a_guard_stop_yields_no_finding(tmp_path: Path) -> None:
+    guard = stream.CallGuard(max_attempts=3)
+    guarded = guard.wrap(lambda *_: _row(ok=True, attempts=1))
+    assert guarded(HAIKU, "s", "u")["ok"] is True  # 0 used + 3 reserved <= 3
+    assert guarded(HAIKU, "s", "u")["errors"][0].startswith("GuardStop")  # 1 used + 3 > 3
+    assert guard.attempts == 1 and guard.stop_reason == "attempt budget 3 reached (1 used)"
+
+    detector = stream.CascadeStreamDetector(
+        HarnessOptions(allow_model=True, reader=HAIKU),
+        cache=stream.VerdictCache(tmp_path / "c.jsonl", model=HAIKU), call=guarded,
+    )
+    assert list(detector.detect([_run("run-a", _flagged_steps())])) == []
+    assert detector.stats.quota_stopped
+
+
+def test_guard_counts_failed_calls_of_any_kind_and_ignores_quota_stops() -> None:
+    guard = stream.CallGuard()
+    rows = iter([_row(errors=("QuotaStop: x",)), _row(errors=("OmpRouteError: a",)),
+                 _row(errors=("OmpRouteError: answer is not the judge JSON schema",)), _row(errors=("OSError: c",))])
+    guarded = guard.wrap(lambda *_: next(rows))
+    for _ in range(4):
+        guarded(HAIKU, "s", "u")
+    assert guard.refusals == 0 and guard.failed_calls == 3 and guard.parse_failed_attempts == 1
+    assert guard.stop_reason == "3 consecutive failed calls"

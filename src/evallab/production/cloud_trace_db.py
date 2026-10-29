@@ -13,6 +13,7 @@ and held-out cohort, and supports leave-one-out exclusion.
 from __future__ import annotations
 
 import bisect
+import copy
 import csv
 import hashlib
 import json
@@ -580,6 +581,10 @@ class CloudTraceDatabase:
                 self._connection.commit()
             except BaseException:
                 self._connection.rollback()
+                # SQLite total_changes includes rolled-back writes, so a memo built
+                # inside this transaction cannot be associated with the next snapshot.
+                self._memo_values.clear()
+                self._memo_token = None
                 raise
 
     def _initialize(self, *, sqlite_fts: bool) -> None:
@@ -1166,18 +1171,28 @@ class CloudTraceDatabase:
             allowed = allowed.intersection(allowed_task_ids)
         if not allowed or (run_ids is not None and not run_ids):
             return [], sealed_ids
-        parameters: list[Any] = []
-        clauses = [self._task_id_scope("a.task_id", allowed, parameters), "a.task_id = f.task_id"]
-        if run_ids is not None:
-            clauses.append(self._task_id_scope("f.run_id", run_ids, parameters))
-        clauses.extend(self._task_id_scope(f"f.{field}", values, parameters) for field, values in filters)
-        query = (
-            "SELECT f.* FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
-            f"WHERE {' AND '.join(clauses)} ORDER BY f.suspicion DESC, f.run_id"
+        sealed = frozenset(sealed_ids)
+        scoped_runs = None if run_ids is None else frozenset(run_ids)
+        typed_filters = tuple(
+            (field, tuple((type(value).__name__, value) for value in values)) for field, values in filters
         )
-        if limit is not None:
-            query += f" LIMIT {limit}"
-        return served_facet_rows(self._rows(query, parameters), sealed_ids), sealed_ids
+
+        def build() -> list[dict[str, Any]]:
+            parameters: list[Any] = []
+            clauses = [self._task_id_scope("a.task_id", allowed, parameters), "a.task_id = f.task_id"]
+            if scoped_runs is not None:
+                clauses.append(self._task_id_scope("f.run_id", scoped_runs, parameters))
+            clauses.extend(self._task_id_scope(f"f.{field}", values, parameters) for field, values in filters)
+            query = (
+                "SELECT f.* FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+                f"WHERE {' AND '.join(clauses)} ORDER BY f.suspicion DESC, f.run_id"
+            )
+            if limit is not None:
+                query += f" LIMIT {limit}"
+            return served_facet_rows(self._rows(query, parameters), sealed)
+
+        rows = self._read_memo(("admitted_facets", allowed, scoped_runs, sealed, typed_filters, limit), build)
+        return copy.deepcopy(rows), sealed_ids
 
     def _replace_steps(self, trace_id: str, rows: Sequence[Mapping[str, Any]]) -> None:
         self._execute("DELETE FROM trace_steps WHERE trace_id = ?", (trace_id,))
@@ -2484,20 +2499,24 @@ class CloudTraceRetriever:
             if like_run_id is not None:
                 raise refused
             return {}, {}, None
-        parameters: list[Any] = []
-        scope = database._task_id_scope("a.task_id", admitted, parameters)
-        # Cluster sizes and membership must depend only on this admitted
-        # projection, before the query's hard filters narrow the candidates.
-        facets = {
-            row["run_id"]: row for row in database._rows(
-                "SELECT f.*, a.trust_tier AS trace_trust_tier "
-                "FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
-                f"WHERE {scope} AND a.task_id = f.task_id ORDER BY f.run_id",
-                parameters,
-            ) if not self._sealed_text(
-                "\n".join(value for value in row.values() if isinstance(value, str)), sealed,
-            )
-        }
+        def build() -> dict[str, dict[str, Any]]:
+            parameters: list[Any] = []
+            scope = database._task_id_scope("a.task_id", admitted, parameters)
+            return {
+                row["run_id"]: row for row in database._rows(
+                    "SELECT f.*, a.trust_tier AS trace_trust_tier "
+                    "FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+                    f"WHERE {scope} AND a.task_id = f.task_id ORDER BY f.run_id",
+                    parameters,
+                ) if not self._sealed_text(
+                    "\n".join(value for value in row.values() if isinstance(value, str)), sealed,
+                )
+            }
+
+        # Cluster membership is computed on the complete admitted projection.
+        facets = copy.deepcopy(database._read_memo(
+            ("retrieval_facets", tuple(admitted), sealed.pattern, sealed.flags), build,
+        ))
         like = None if like_run_id is None else facets.get(like_run_id)
         if like_run_id is not None and like is None:
             raise refused

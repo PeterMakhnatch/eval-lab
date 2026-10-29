@@ -4345,6 +4345,35 @@ def _tidy_command(
     return run_tidy(root, apply=apply)
 
 
+def _worktrees_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.worktree_disposition import (
+        collect_report,
+        fetch_pr_records,
+        render_json,
+        render_markdown,
+    )
+
+    report = collect_report(
+        root,
+        base_ref=args.base,
+        pr_records=None if args.no_pr else fetch_pr_records(),
+    )
+    markdown = render_markdown(report, home=Path.home())
+    payload = render_json(report)
+    if args.markdown_out is not None:
+        args.markdown_out.parent.mkdir(parents=True, exist_ok=True)
+        args.markdown_out.write_text(markdown, encoding="utf-8")
+    if args.json_out is not None:
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.json_out.write_text(payload, encoding="utf-8")
+    if args.markdown_out is None and args.json_out is None:
+        print(payload if args.json else markdown, end="")
+    return 0
+
+
 def _verdict_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -7136,6 +7165,27 @@ def parser() -> argparse.ArgumentParser:
         help="Report findings without making changes (default behavior)",
     )
     tidy.set_defaults(func=_tidy_command)
+
+    worktrees = commands.add_parser(
+        "worktrees",
+        help="Report delivered / unique-unmerged / blocked for every registered worktree",
+    )
+    worktrees.add_argument(
+        "--base",
+        default="origin/main",
+        help="Integration ref the worktrees are compared against (default: origin/main)",
+    )
+    worktrees.add_argument(
+        "--no-pr",
+        action="store_true",
+        help="Skip GitHub PR state; delivery rests on Git ancestry and patch-ids only",
+    )
+    worktrees.add_argument("--json", action="store_true", help="Print JSON instead of Markdown")
+    worktrees.add_argument("--json-out", type=Path, help="Write the JSON report to this path")
+    worktrees.add_argument(
+        "--markdown-out", type=Path, help="Write the Markdown report to this path"
+    )
+    worktrees.set_defaults(func=_worktrees_command)
 
     verdict = commands.add_parser(
         "verdict",

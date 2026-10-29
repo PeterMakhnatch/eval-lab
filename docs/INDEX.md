@@ -9,7 +9,7 @@ inputs:
   - path: docs/ACTIVE-VS-HISTORICAL.md
     digest: sha256:be0eb686a7c6956c7c53fe435c5a7fbe1ef5d24e885102b174e4e53a0a7761ca
   - path: docs/GENERATED-CACHE-POLICY.md
-    digest: sha256:4d70e54cef4c3ace6add3d1d8bf3eb1fc4faacc4c33dc1a18d73df847ea21b58
+    digest: sha256:f1da8676305f3f6cddd0ebc0c97d1587930b2b95e771511ac109eda44ad1559c
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md

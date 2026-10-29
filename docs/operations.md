@@ -1123,6 +1123,13 @@ non-secret force-auth-file switch is set by the executor. Claude runs through
 force-OAuth switches in the immediate Harbor child; it never aliases OAuth to
 an API-key variable.
 
+Every Harbor child, in-process Harbor call, launchd job, CI workflow and wrapper script
+runs with `HARBOR_TELEMETRY=off`. Harbor otherwise sends `harbor.job_finished` (job id,
+agents, models, token usage, cost, duration and reward) to PostHog
+([usage stats](https://docs.harborframework.com/telemetry/telemetry.md)). New Python
+launch paths take their environment from `evallab.harbor_telemetry.harbor_child_environment`
+or `execution_contracts.subscription_environment`.
+
 Render a digest on demand (the file date is the morning/report date; its primary
 reporting period is the preceding catalog day):
 

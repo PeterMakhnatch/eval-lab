@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Free oracle k=1 then nop k=1 per task path. Sequential; -n 2 max.
 set -euo pipefail
+export HARBOR_TELEMETRY=off
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="$ROOT/runs"
 mkdir -p "$OUT"

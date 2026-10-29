@@ -27,6 +27,8 @@
 	<dict>
 		<key>EVAL_LAB_OPERATOR_LOG_DIR</key>
 		<string>__EVAL_LAB_LOG_DIR__</string>
+		<key>HARBOR_TELEMETRY</key>
+		<string>off</string>
 	</dict>
 	<key>Umask</key>
 	<integer>63</integer>

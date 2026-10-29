@@ -251,7 +251,10 @@ def _facet_filters(facets: Any) -> list[tuple[str, list[Any]]]:
             if field == "suspicion":
                 _integer(item, f"facets[{field!r}]")
             if accepted is None:
-                _text(item, f"facets[{field!r}]")
+                try:
+                    _text(item, f"facets[{field!r}]").encode("utf-8")
+                except UnicodeEncodeError as exc:
+                    raise ValueError(f"facets[{field!r}] must be UTF-8 text") from exc
             elif item not in accepted or isinstance(item, bool) != (field in _FACET_BOOLEANS):
                 raise ValueError(f"facets[{field!r}] must be one of {', '.join(map(str, accepted))}")
         filters.append((field, values))
@@ -1137,26 +1140,34 @@ class CloudTraceDatabase:
             _integer(limit, "limit", minimum=1)
         retriever = CloudTraceRetriever(self, registry=registry, sealed_task_ids=sealed_task_ids)
         with self._transaction():
-            admitted, sealed_ids = retriever._admitted_ids()
-            allowed = frozenset(admitted)
-            if allowed_task_ids is not None:
-                allowed = allowed.intersection(allowed_task_ids)
-            if not allowed:
-                return []
-            parameters: list[Any] = []
-            clauses = [self._task_id_scope("a.task_id", allowed, parameters), "a.task_id = f.task_id"]
-            clauses.extend(self._task_id_scope(f"f.{field}", values, parameters) for field, values in filters)
-            query = (
-                "SELECT f.* FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
-                f"WHERE {' AND '.join(clauses)} ORDER BY f.suspicion DESC, f.run_id"
-            )
-            if limit is not None:
-                query += f" LIMIT {limit}"
-            sealed = _sealed_pattern(frozenset(sealed_ids))
-            return [
-                row for row in self._rows(query, parameters)
-                if not retriever._sealed_text(_json_text(row), sealed)
-            ]
+            return self._admitted_facets(retriever, filters, allowed_task_ids=allowed_task_ids, limit=limit)[0]
+
+    def _admitted_facets(
+        self, retriever: CloudTraceRetriever, filters: Sequence[tuple[str, list[Any]]] = (), *,
+        allowed_task_ids: Collection[str] | None = None, limit: int | None = None,
+    ) -> tuple[list[dict[str, Any]], set[str]]:
+        """``search_runs`` rows for validated ``filters``, with the sealed identities that screened them.
+
+        The caller owns the snapshot, so admission, facet reads and the returned seals agree.
+        """
+        admitted, sealed_ids = retriever._admitted_ids()
+        allowed = frozenset(admitted)
+        if allowed_task_ids is not None:
+            allowed = allowed.intersection(allowed_task_ids)
+        if not allowed:
+            return [], sealed_ids
+        parameters: list[Any] = []
+        clauses = [self._task_id_scope("a.task_id", allowed, parameters), "a.task_id = f.task_id"]
+        clauses.extend(self._task_id_scope(f"f.{field}", values, parameters) for field, values in filters)
+        query = (
+            "SELECT f.* FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+            f"WHERE {' AND '.join(clauses)} ORDER BY f.suspicion DESC, f.run_id"
+        )
+        if limit is not None:
+            query += f" LIMIT {limit}"
+        rows = self._rows(query, parameters)
+        withheld = _sealed_texts([_json_text(row) for row in rows], frozenset(sealed_ids))
+        return [row for row, hidden in zip(rows, withheld, strict=True) if not hidden], sealed_ids
 
     def _replace_steps(self, trace_id: str, rows: Sequence[Mapping[str, Any]]) -> None:
         self._execute("DELETE FROM trace_steps WHERE trace_id = ?", (trace_id,))
@@ -1761,6 +1772,36 @@ def _literal_alternation(values: Sequence[str]) -> str:
 @lru_cache(maxsize=8)
 def _sealed_pattern(identities: frozenset[str]) -> re.Pattern[str]:
     return re.compile(_literal_alternation(sorted(value for value in identities if value)))
+
+
+_WORD_CHARS = frozenset("-./0123456789:@_abcdefghijklmnopqrstuvwxyz")
+_WORD_RUN = re.compile(r"[-./0-9:@_a-z]+")
+
+
+@lru_cache(maxsize=8)
+def _sealed_split(identities: frozenset[str]) -> tuple[re.Pattern[str], re.Pattern[str]]:
+    """``_sealed_pattern`` split into identities made only of ``_WORD_CHARS`` and all others."""
+    values = sorted(value for value in identities if value)
+    words = [value for value in values if _WORD_CHARS.issuperset(value)]
+    others = [value for value in values if not _WORD_CHARS.issuperset(value)]
+    return re.compile(_literal_alternation(words)), re.compile(_literal_alternation(others))
+
+
+def _sealed_texts(texts: Sequence[str], identities: frozenset[str]) -> list[bool]:
+    """``CloudTraceRetriever._sealed_text`` of each text against ``_sealed_pattern(identities)``, in one pass.
+
+    An identity made only of ``_WORD_CHARS`` can occur only inside one maximal run of those
+    characters, so it is searched once per distinct run across all texts instead of at every
+    offset of every text; the remaining identities are searched in each whole text.
+    """
+    words, others = _sealed_split(identities)
+    folded = [text.casefold() for text in texts]
+    runs = [_WORD_RUN.findall(text) for text in folded]
+    sealed_runs = {run for run in set().union(*runs) if words.search(run)}
+    return [
+        not sealed_runs.isdisjoint(text_runs) or others.search(text) is not None
+        for text, text_runs in zip(folded, runs, strict=True)
+    ]
 
 
 def _clip(text: str, limit: int) -> str:

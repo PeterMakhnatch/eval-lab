@@ -1,0 +1,105 @@
+{
+ "schema": "np21-sample-public/v1",
+ "rule": "per set and stratum, the first n runs in sha256(SEED + ':' + key) order, key = sha256(set + ':' + native id)[:16]",
+ "seed": "20261028",
+ "caps": {
+  "positive": 60,
+  "negative_per_stratum": 60
+ },
+ "registry_counts_positive_negative": {
+  "baitbench": [
+   681,
+   488
+  ],
+  "flake": [
+   7,
+   217
+  ],
+  "kobayashi": [
+   789,
+   7916
+  ],
+  "osf": [
+   467,
+   653
+  ]
+ },
+ "sets": {
+  "baitbench": {
+   "pool": {
+    "positive": 681,
+    "negative_established": 0,
+    "negative_other": 488
+   },
+   "drawn": {
+    "positive": 60,
+    "negative_established": 0,
+    "negative_other": 60
+   },
+   "drawn_empty_steps": 0
+  },
+  "flake": {
+   "pool": {
+    "positive": 7,
+    "negative_established": 215,
+    "negative_other": 2
+   },
+   "drawn": {
+    "positive": 7,
+    "negative_established": 60,
+    "negative_other": 2
+   },
+   "drawn_empty_steps": 0
+  },
+  "kobayashi": {
+   "pool": {
+    "positive": 789,
+    "negative_established": 0,
+    "negative_other": 7916
+   },
+   "drawn": {
+    "positive": 60,
+    "negative_established": 0,
+    "negative_other": 60
+   },
+   "drawn_empty_steps": 0
+  },
+  "osf": {
+   "pool": {
+    "positive": 467,
+    "negative_established": 0,
+    "negative_other": 653
+   },
+   "drawn": {
+    "positive": 60,
+    "negative_established": 0,
+    "negative_other": 60
+   },
+   "drawn_empty_steps": 0
+  }
+ },
+ "total_runs": 429,
+ "keys_sha256": "52fc606a3a3e0b3e8905f04fb37083e470361f59afa705712a1c9263da736206",
+ "key_lists_sha256": {
+  "baitbench:positive": "d6ffd2d2f85e9fe4f8f32749d1a94364c5ee63d15a01fa4e72bc146d8391ed60",
+  "baitbench:negative_established": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "baitbench:negative_other": "2714e57962d77671f55ec5c1d7ccb532b0ddc36d21861bfd5f486a7893c5ae9d",
+  "flake:positive": "d5482ca17f8dad8dc4160fc7ec75b9eea802896f99a17c4550ee1f52d1a3571e",
+  "flake:negative_established": "453ed7141fb16025120db84ecf6d45dc1f935be1f35b355c923c7d74e41f08c4",
+  "flake:negative_other": "a1b64d88fa32d79f69b9d4252801633e93d474c52189cad7fc1793b358d110ac",
+  "kobayashi:positive": "bf8549ae635dc03838493f792e562294b84da339f26e3601805fda3098e61c4d",
+  "kobayashi:negative_established": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "kobayashi:negative_other": "439dadd6f90f30e101ba6a77ed425e025870d2b2cbfc584707a578fc071ecad1",
+  "osf:positive": "6f6679e91732e905bc8e56069dd113ebd7863f04aeb8ed2ba9427c75a1be3624",
+  "osf:negative_established": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "osf:negative_other": "08aae0de8cd9ae6576188f0fafa1c8d2218d96e31db987f429b8de3534d6fd34"
+ },
+ "steps_per_run_median": 10,
+ "cross_key": {
+  "assignments_sha256": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+  "literals_checked": 3597,
+  "test_or_sealed_hits": 0
+ },
+ "runs_pickle_sha256": "3f675469c78107fe68e1c207d55f776a0bcac3835f630e91c99aa0fb19b9bd16",
+ "sample_sha256": "297447304522913b93cd5bef9f620c222f9e17c6b6da2186262bf71e24497bdf"
+}

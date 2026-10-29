@@ -33,6 +33,8 @@
 	<dict>
 		<key>PATH</key>
 		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>HARBOR_TELEMETRY</key>
+		<string>off</string>
 	</dict>
 	<key>StandardOutPath</key>
 	<string>__LOG_DIR__/__LABEL__.out</string>

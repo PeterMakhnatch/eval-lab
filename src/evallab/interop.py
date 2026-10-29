@@ -54,6 +54,7 @@ from evallab.cheat_ladder import (
     parse_attack_selection,
     parse_ladder_version,
 )
+from evallab.harbor_telemetry import harbor_child_environment
 
 INSPECT_AI_PIN = "0.3.276"
 INSPECT_HARBOR_PIN = "1.0.0"
@@ -268,6 +269,7 @@ def harbor_revision() -> str:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                env=harbor_child_environment(),
             )
         except (OSError, subprocess.TimeoutExpired):
             completed = None
@@ -1501,6 +1503,7 @@ def run_inspect_cell(
             text=True,
             timeout=agent_timeout + 600,
             cwd=str(work),
+            env=harbor_child_environment(),
         )
     except subprocess.TimeoutExpired as exc:
         _cleanup_inspect_containers(before, work)

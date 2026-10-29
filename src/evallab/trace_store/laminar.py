@@ -12,7 +12,13 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 from evallab import laminar
-from evallab.trace_store.core import METADATA_FIELDS, TracePayload, trace_uuid
+from evallab.trace_store.core import (
+    ALLOWED_DATASETS,
+    GOODFIRE_DATASET,
+    METADATA_FIELDS,
+    TracePayload,
+    trace_uuid,
+)
 from evallab.trace_store.secrets import SecretScanRejected, secret_hits
 
 PROJECT_ID = "a5586b6d-55e8-466f-9718-c38255c2ae94"
@@ -26,7 +32,9 @@ def _text(value: Any) -> str:
     return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
 
 
-def trace_spans(trace: TracePayload, *, at_ns: int = PROJECTION_NS) -> list[dict[str, Any]]:
+def trace_spans(
+    trace: TracePayload, *, at_ns: int = PROJECTION_NS, signals_opt_in: bool = False,
+) -> list[dict[str, Any]]:
     steps: list[dict[str, Any]] = []
     calls: dict[str, dict[str, Any]] = {}
     assistant_messages: dict[str, dict[str, Any]] = {}
@@ -84,6 +92,7 @@ def trace_spans(trace: TracePayload, *, at_ns: int = PROJECTION_NS) -> list[dict
         "lmnr.span.output": _text({"messages": len(trace.messages)}),
         "evallab.timing": "synthetic_sequence",
         **{laminar.METADATA_PREFIX + k: v for k, v in trace.metadata.items()},
+        **({laminar.TAGS_ATTRIBUTE: [laminar.SIGNAL_OPT_IN_TAG]} if signals_opt_in else {}),
     }
     # Root goes last: all child payloads must arrive before root-finished triggers.
     spans.append(root)
@@ -117,8 +126,15 @@ def _span_secret_hits(spans: list[dict[str, Any]]) -> bool:
 class LaminarTarget:
     def __init__(
         self, *, api_key: str | None = None, endpoint: str | None = None,
-        opener: Callable[..., Any] = urlopen,
+        opener: Callable[..., Any] = urlopen, signals_opt_in: bool = False,
     ) -> None:
+        """``signals_opt_in`` tags every trace for the opt-in Laminar Signals.
+
+        It is a target-level switch so one sync can never mix tagged and untagged
+        traces. Only the public Goodfire dataset may be tagged: Laminar's Privacy
+        Mode is unconfirmed, so our own runs never reach a Signal.
+        """
+        self.signals_opt_in = signals_opt_in
         self.key = api_key if api_key is not None else os.environ.get(laminar.LAMINAR_KEY_ENV, "")
         if not self.key:
             raise ValueError("LMNR_PROJECT_API_KEY is required (use keys run --)")
@@ -138,11 +154,19 @@ class LaminarTarget:
         if not signals or any(signal.get("projectId") != PROJECT_ID for signal in signals):
             raise ValueError("Cannot verify the existing private Laminar project")
         for signal in signals:
-            if signal.get("disabled") is not True:
+            if self.signals_opt_in:
+                # Live Signals are acceptable only while each one still requires the tag.
+                if laminar.SIGNAL_OPT_IN_FILTER not in (signal.get("filters") or []):
+                    raise ValueError(f"Laminar Signal lacks the opt-in filter: {signal.get('name')}")
+            elif signal.get("disabled") is not True:
                 raise ValueError(f"Pause Laminar Signal before sync: {signal.get('name')}")
         self.safe = True
 
     def upload(self, trace: TracePayload) -> dict[str, Any]:
+        if trace.dataset_id not in ALLOWED_DATASETS:
+            raise ValueError("Dataset is not admitted to the private trace store")
+        if self.signals_opt_in and trace.dataset_id != GOODFIRE_DATASET:
+            raise ValueError("Laminar Signals may read only the public Goodfire dataset")
         if (
             set(trace.metadata) != METADATA_FIELDS
             or trace.metadata["run_id"] != trace.trace_id
@@ -153,7 +177,7 @@ class LaminarTarget:
             raise ValueError("Laminar metadata must contain exactly the admitted scalar fields")
         if not self.safe:
             self.check_signals()
-        spans = trace_spans(trace, at_ns=time.time_ns())
+        spans = trace_spans(trace, at_ns=time.time_ns(), signals_opt_in=self.signals_opt_in)
         if _span_secret_hits(spans):
             raise SecretScanRejected(trace.trace_id)
         # A small span batch stays below the documented 5 MiB HTTP default.

@@ -59,6 +59,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from evallab.harbor_telemetry import harbor_child_environment
+
 SCHEMA = "harbor_view/v1"
 REWARD_DETAILS_SCHEMA = "harbor_view/reward_details/v1"
 
@@ -1081,7 +1083,11 @@ def installed_harbor_version() -> tuple[int, ...] | None:
         return None
     try:
         proc = subprocess.run(
-            [which, "--version"], capture_output=True, text=True, timeout=30
+            [which, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=harbor_child_environment(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -1184,7 +1190,7 @@ def _view_command(
     print(f"serving: {url}")
     print(f"running: {' '.join(cmd)}")
     try:
-        completed = subprocess.run(cmd)
+        completed = subprocess.run(cmd, env=harbor_child_environment())
     except KeyboardInterrupt:
         return 0
     return completed.returncode

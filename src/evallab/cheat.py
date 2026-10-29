@@ -40,6 +40,7 @@ from evallab.execution_contracts import (
     CHEAT_ATTACKS_ENV_VAR,
     CHEAT_LADDER_VERSION_ENV_VAR,
 )
+from evallab.harbor_telemetry import harbor_child_environment
 
 #: Serializes the process-env handoff below: build_command reads the attack
 #: subset from the host environment, so concurrent in-process cheat runs must
@@ -302,7 +303,12 @@ def harbor_version() -> str | None:
         return None
     try:
         completed = subprocess.run(
-            [exe, "--version"], check=False, capture_output=True, text=True, timeout=15
+            [exe, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            env=harbor_child_environment(),
         )
     except (OSError, subprocess.SubprocessError):
         return None

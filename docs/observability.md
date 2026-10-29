@@ -61,6 +61,12 @@ filtered before historical ingestion. Before changing live definitions, retain a
 GET snapshot under `~/.local/state/evallab-prod-live/trace-store/`, then verify
 the stored definitions and a single trace's `signal_runs` via read-only SQL.
 
+`LaminarTarget(signals_opt_in=True)` is the only way to add that tag (an array on
+the root span). It accepts only the public Goodfire dataset, because Laminar's
+Privacy Mode is unconfirmed and our own runs must never reach a Signal, and it
+tolerates live Signals only while each still carries the tag filter. Every other
+target and dataset keeps requiring all Signals to be paused.
+
 ## Private cloud trace store
 
 `src/evallab/trace_store/` reads the live cloud trace SQLite database in read-only

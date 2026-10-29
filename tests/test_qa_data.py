@@ -172,6 +172,15 @@ def test_run_search_budget_omits_whole_runs_and_says_so(store: CloudTraceDatabas
     assert len(data["runs"]) == 1 and data["matched"] == 2 and data["omitted"] == 1 and data["truncated"]
 
 
+def test_run_search_limit_omissions_are_reported_like_every_other_listing(store: CloudTraceDatabase) -> None:
+    ctx = context(store)
+    data = qa_data_calls.runs(
+        ctx, facets={"tests": "modified"}, cluster_id=None, like_run_id=None, query="", task_id=None, limit=1,
+    )
+    assert (len(data["runs"]), data["matched"], data["omitted"], data["truncated"]) == (1, 2, 1, True)
+    assert ctx.budget.omitted == 1
+
+
 def test_cluster_and_similarity_search_attach_the_runs_deepest_cluster(store: CloudTraceDatabase) -> None:
     registry = SyntheticRegistry()
     store.replace_run_clusters([
@@ -318,6 +327,14 @@ def test_invalid_numeric_facets_return_json_without_exporting(
     assert reply["ok"] is False and "data" not in reply
     assert "suspicion" in reply["error"] or "--facet" in reply["error"]
     assert not output.exists() and not output.with_suffix(".sealed-manifest.json").exists()
+
+
+def test_window_refuses_a_step_index_the_store_cannot_bind(store: CloudTraceDatabase) -> None:
+    beyond = 2**63
+    with pytest.raises(QaDataError, match="at most 9223372036854775807"):
+        qa_data_calls.window(context(store), "alpha/a1", first=beyond, last=None, around=None, radius=0)
+    with pytest.raises(QaDataError, match="at most 9223372036854775807"):
+        qa_data_calls.window(context(store), "alpha/a1", first=None, last=None, around=beyond, radius=0)
 
 
 def test_window_steps_carry_no_evaluator_annotations_or_pointers(store: CloudTraceDatabase) -> None:

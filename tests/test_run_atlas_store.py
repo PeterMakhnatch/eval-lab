@@ -278,7 +278,7 @@ def test_search_runs_filters_every_facet_and_ranks_by_suspicion(faceted: CloudTr
 
 @pytest.mark.parametrize("facets", [
     {"test": "modified"}, {"tests": "rewritten"}, {"outcome": []}, {"suspicion": True},
-    {"answer_material_accessed": 1}, {"source": ""}, ["tests"], {"suspicion": [1, 2.0]},
+    {"answer_material_accessed": 1}, {"source": ""}, ["tests"], {"suspicion": [1, 2.0]}, {"split": "\udcff"},
 ])
 def test_search_runs_rejects_unknown_fields_and_values(faceted: CloudTraceDatabase, facets: Any) -> None:
     with pytest.raises(ValueError, match="facets"):
@@ -291,6 +291,27 @@ def test_retriever_search_runs_reads_admitted_dev_runs_only(faceted: CloudTraceD
     unloaded = SyntheticRegistry()
     unloaded.split_assignments_digest = None
     assert CloudTraceRetriever(faceted, registry=unloaded).search_runs() == []
+
+
+@pytest.mark.parametrize(("seal", "goal", "withheld"), [
+    ("hidden-task", "patched ns/hidden-task@v2:12 first", True),
+    ("hidden-task", "opened hidden-taskbar", True),
+    ("hidden-task", "HIDDEN-TASK", True),
+    ("hidden-task", "hidden task", False),
+    ("hidden-task", "hidden-tas", False),
+    ("two words", "read Two Words, then", True),
+    ("two words", "read two  words", False),
+    ("strasse", "Straße", True),
+])
+def test_search_runs_withholds_a_record_naming_a_sealed_identity_anywhere_in_its_text(
+    db: CloudTraceDatabase, seal: str, goal: str, withheld: bool,
+) -> None:
+    db.upsert_run_facets(
+        [facet("dev-task/pass", goal=goal), facet("dev-task/fail", suspicion=1)],
+        registry=SyntheticRegistry(), allowed_task_ids=["dev-task"],
+    )
+    rows = db.search_runs(registry=SyntheticRegistry(), sealed_task_ids=[seal])
+    assert run_ids(rows) == (["dev-task/fail"] if withheld else ["dev-task/pass", "dev-task/fail"])
 
 
 def cluster(cluster_id: str, level: int, parent: str | None, runs: list[str], **extra: Any) -> dict[str, Any]:

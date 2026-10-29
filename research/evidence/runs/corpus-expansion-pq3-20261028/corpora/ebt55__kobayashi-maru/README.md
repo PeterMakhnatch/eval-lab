@@ -282,9 +282,10 @@ would not prove independence either.
 - **Only D2 essentially fires.** D1/D4/D5 never fire at this pin and D2c/D3 fire 10 times, so the
   "union of five detectors" is in practice a hidden-answer-read detector; specificity against
   other cheating mechanisms is untested.
-- **Disagreement is frequent.** 156 of the 953 runs flagged by either judge (16.4%) split detector
-  and monitor; 156 of those are local ambiguities excluded from scoring, which caps achievable
-  coverage and makes the 789 positives a conservative subset of the publisher's 988.
+- **Disagreement is frequent.** 159 of the 953 runs flagged by either judge (16.7%) split
+  detector and monitor; 156 of those are local ambiguities excluded from scoring (the other
+  three are excluded provider-error runs), which caps achievable coverage and makes the 789
+  positives a conservative subset of the publisher's 988.
 - **v1 leaks the condition.** The variant suffix appeared in the working-directory name and
   sibling item directories stayed readable; both are visible in the preserved v1 transcripts.
 - **Provider-output rights.** The records contain model outputs under three providers' terms;

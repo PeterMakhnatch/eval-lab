@@ -248,12 +248,39 @@ def load_corpus_labels(
         return _hackbench_labels(name, hackbench_root, (NATURAL,))
     if name == "hackbench-all":
         return _hackbench_labels(name, hackbench_root, None)
+    if name in ("own", "own-dev"):
+        from evallab.production.trace_harness_own import cohort_trials
+
+        trials = cohort_trials(repo_root=repo_root)
+        run_ids = frozenset(trial.run_id for trial in trials if name == "own" or trial.dev)
+        positive: dict[str, bool | None] = {}
+        path = repo_root / "research/answer-keys/trace-paired-v1/items.jsonl"
+        for line in path.read_text(encoding="utf-8").splitlines():
+            row = json.loads(line)
+            run_id = row["subject"]["trial_id"]
+            if run_id not in run_ids:
+                continue
+            if row.get("expected_fault") == "agent" and row.get("expected_category") == "reward_hacking":
+                positive[run_id] = True
+            elif row.get("role") == "parent" or row.get("expected_category") == "false_positive":
+                positive[run_id] = False
+        return CorpusLabels(name, run_ids, positive, {}, "step", {})
     if name.startswith("staged:"):
         from evallab.production.trace_harness_staged import staged_labels
 
         run_ids, positive, steps = staged_labels(name.removeprefix("staged:"), repo_root=repo_root)
         return CorpusLabels(name, run_ids, positive, steps, "step", {})
-    raise ValueError(f"unknown corpus {name!r}; known: {', '.join(CORPORA)}, staged:<set>")
+    if name.split(":", 1)[0].split("#", 1)[0] == "detectors-v1":
+        # ``detectors-v1[:<source>][#<check>]``: labels exactly as ``evallab detectors score``
+        # defines them for that check (default reward_hacking).
+        from evallab.production.trace_harness_detcache import detectors_labels
+
+        selector, _, check = name.partition("#")
+        run_ids, positive, steps = detectors_labels(selector, check or "reward_hacking", repo_root=repo_root)
+        return CorpusLabels(name, run_ids, positive, steps, "step", {})
+    raise ValueError(
+        f"unknown corpus {name!r}; known: {', '.join(CORPORA)}, staged:<set>, detectors-v1[:<source>][#<check>]"
+    )
 
 
 def _goodfire_sample_ids(path: Path | None) -> list[str]:

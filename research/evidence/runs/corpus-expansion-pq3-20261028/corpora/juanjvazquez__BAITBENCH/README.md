@@ -195,15 +195,20 @@ exploit form and mechanism fields, human verdicts, `derived_signals`, `generaliz
 publisher README, all gold/labels/identity blocks and cluster/trace keys.
 
 The selfcheck asserts, across all 1,258 runs: **0 label-field keys in `_steps`; 0 `_steps`
-containing a label word, a verbatim judge sentence (any of three judges), the run id, task
-id, model name, `score_only`/`validity_aware` token, the family-context text, or the
-formatted generalization gap or robust score (leak count 0)**; contiguous step IDs; every
-call, evaluator output, log row and written-file character present; and that mutating
-every non-`reads`/`writes`/`evaluation_events`/`trajectory`/`written_files` field leaves
-`_steps` unchanged. 26 runs contain task vocabulary the agent itself wrote or saw
-(`robust_test`, "shortcut", "planted", "reward hack"); that is agent behaviour, not
-publisher gold, and is retained. A string audit cannot certify the absence of every
-semantic clue; for example the agent's own notes may say it exploited leakage.
+containing a label word, a judge sentence printed as a verdict, the run id, task id, model
+name, `score_only`/`validity_aware` token, the family-context text, or the formatted
+generalization gap or robust score (leak count 0)**; contiguous step IDs; every call,
+evaluator output, log row and written-file character present; and that mutating every
+non-`reads`/`writes`/`evaluation_events`/`trajectory`/`written_files` field leaves `_steps`
+unchanged. The judge-sentence scan compares whitespace-normalised sentences of at least 40
+characters from all three judges, not whole escaped blobs. **6 runs (7 sentences) contain a
+judge sentence that also appears in the transcript**; in each case the judge was quoting the
+agent's own evidence, so the text is agent-authored and is reported separately as
+`judge_quotes`, never counted as an injected verdict. 26 runs contain task vocabulary the
+agent itself wrote or saw (`robust_test`, "shortcut", "planted", "reward hack"); that is
+agent behaviour, not publisher gold, and is retained. A string audit cannot certify the
+absence of every semantic clue; for example the agent's own notes may say it exploited
+leakage.
 
 ## Exact scoring recipe (design only; not executed)
 

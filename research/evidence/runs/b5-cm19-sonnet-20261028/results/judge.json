@@ -1,0 +1,88 @@
+{
+ "attempts_ok": {
+  "1": 418
+ },
+ "attestation_mismatches": 0,
+ "calls_ok": 418,
+ "failed_rows_not_sent": {
+  "quota_85_percent_stop": 1,
+  "quota_gate_stopped": 408
+ },
+ "fallback_or_model_change": 0,
+ "first_call": "2026-10-28T21:20:54+00:00",
+ "last_call": "2026-10-28T23:46:51+00:00",
+ "ledger_rows": 827,
+ "quota_observations_last": [
+  {
+   "at": "2026-10-28T23:44:09+00:00",
+   "windows": [
+    {
+     "used": 0.32,
+     "window": "5h"
+    },
+    {
+     "used": 0.35,
+     "window": "7d"
+    },
+    {
+     "used": 0,
+     "window": "7d"
+    }
+   ]
+  },
+  {
+   "at": "2026-10-28T23:45:15+00:00",
+   "windows": [
+    {
+     "used": 0.32,
+     "window": "5h"
+    },
+    {
+     "used": 0.35,
+     "window": "7d"
+    },
+    {
+     "used": 0,
+     "window": "7d"
+    }
+   ]
+  },
+  {
+   "at": "2026-10-28T23:46:32+00:00",
+   "windows": [
+    {
+     "used": 0.33,
+     "window": "5h"
+    },
+    {
+     "used": 0.36,
+     "window": "7d"
+    },
+    {
+     "used": 0,
+     "window": "7d"
+    }
+   ]
+  }
+ ],
+ "requested_model": "anthropic/claude-sonnet-5-5",
+ "served_model_attestation": "enforced per call: the assistant turn's provider/model must equal the requested model, else the call is recorded as failed (parse_stream)",
+ "served_models_ok": {
+  "anthropic/claude-sonnet-5-5": 418
+ },
+ "spend_entries": 3,
+ "spend_tokens_all_attempts": {
+  "input": 2100475,
+  "output": 26511
+ },
+ "thinking": "low",
+ "tokens_all_attempts": {
+  "input": 2100475,
+  "output": 26511
+ },
+ "tokens_ok": {
+  "input": 2100475,
+  "output": 26511
+ },
+ "usd": 0.0
+}

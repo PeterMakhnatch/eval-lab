@@ -1,0 +1,18 @@
+{
+ "schema": "b6-freeze/v1",
+ "frozen_at_utc": "2026-10-28T21:30:36Z",
+ "git_head": "6d6ad1f8076023128a32e2da468b991728f68a95",
+ "files": {
+  "src/evallab/production/run_atlas.py": "7ec1f288759d2e33e19044e096c3492270859763174f6ac93f2f232144003e53",
+  "research/evidence/runs/b6-cm18-sonnet-20261028/tools/b6_cm18_sonnet.py": "c43535f05c33a937e40c48bf7a770f634d4252c299faa444eaf2db146a21a979",
+  "research/evidence/runs/cm11-hackbench-crosstest-20261028/tools/hackbench_cascade.py": "a94c1cb360e95527dff1c0eb5adfd82992f5d5257776c013fca4f7e01ffbaa72"
+ },
+ "cm18_run_atlas_sha256": "608877e475eb6a9be118c6631236a22ffb22e693b457e77972dcf5a51deb66df",
+ "reader": "anthropic/claude-sonnet-5-5",
+ "comparator_reader": "anthropic/claude-haiku-5-5",
+ "facet_prompt_version": "run-atlas-prompt/v2",
+ "facet_version": "run-facets/v1",
+ "subsample_sha256": "36d79279060c38f22f87a63464d66af690cad171af21c0aaaff54308a546fbf8",
+ "runs_pickle_sha256": "4ccd490384f090249a48af5b74e932c437554a116b2042b4f723a3a2b0b90c25",
+ "haiku_facets_sha256": "6f81f91d7c007b71476d34cf298b5dd247a5d748c79c6bb44cf4daba88896faa"
+}

@@ -728,9 +728,8 @@ def _phase_seconds(result: Mapping[str, Any], phase: str) -> float | None:
     return round(end - start, 3) if start is not None and end is not None and end >= start else None
 
 
-def trial_run(trial_dir: Path, *, run_id: str | None = None, source: str = "harbor") -> HealthRun:
-    """A Harbor trial directory (stitched ATIF trajectory plus ``result.json``)."""
-    steps, _reason = _stitched_steps(trial_dir)
+def trial_metadata(trial_dir: Path) -> dict[str, Any]:
+    """Allowlisted run-health facts; never returns rewards, labels or grader output."""
     try:
         result = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -743,7 +742,7 @@ def trial_run(trial_dir: Path, *, run_id: str | None = None, source: str = "harb
     metadata = agent_result.get("metadata")
     metadata = metadata if isinstance(metadata, Mapping) else {}
     setup = [s for p in ("environment_setup", "agent_setup") if (s := _phase_seconds(result, p)) is not None]
-    meta = {
+    return {
         "started_at": _dig(result, "agent_execution.started_at") or result.get("started_at"),
         "finished_at": _dig(result, "agent_execution.finished_at") or result.get("finished_at"),
         "exception_type": exc.get("exception_type"),
@@ -754,7 +753,13 @@ def trial_run(trial_dir: Path, *, run_id: str | None = None, source: str = "harb
         "setup_seconds": round(sum(setup), 3) if setup else None,
         "verifier_seconds": _phase_seconds(result, "verifier"),
     }
-    return HealthRun(run_id=run_id or trial_dir.name, source=source, steps=steps or [], meta=meta)
+
+
+def trial_run(trial_dir: Path, *, run_id: str | None = None, source: str = "harbor") -> HealthRun:
+    """A Harbor trial directory (stitched ATIF trajectory plus health facts)."""
+    steps, _reason = _stitched_steps(trial_dir)
+    return HealthRun(run_id=run_id or trial_dir.name, source=source, steps=steps or [],
+                     meta=trial_metadata(trial_dir))
 
 
 #: Per-step timestamp paths inside ``trace_steps.flags_json``, first hit wins (Goodfire

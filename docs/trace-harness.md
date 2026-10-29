@@ -9,10 +9,10 @@ audience:
 
 One page that says what each trace detector or reader is, how to run it, what it
 reads and writes, who uses its output, and the latest number we measured. Written
-2026-10-28 from code on `origin/main` (380ee1e93) plus the harness branch
-`th/trace-harness-core`. Every number gives its corpus and denominator; none is a
-held-out result unless said so. Labels never reach a detector; they are joined only
-by a scorer (`AGENTS.md` DEV/TEST rules apply to everything below).
+2026-10-28; updated for the unified integrations and retained-reader burst below.
+Native implementations remain authoritative; the harness normalizes their input,
+identity, findings and scoring. Every number names its cohort and denominator.
+Labels reach only the scorer, never a detector or reader.
 
 Corpora used in the table: **GF-200** = frozen Goodfire sample (80 enacted-hack,
 70 clean, 50 considered-only, never counted as clean); **CB-150** = CheatBench DEV
@@ -36,32 +36,59 @@ local-only, counts only here). "Reader" is the model that reads the trace.
 | Failure library (`failure_library/`, #1276 #1309) | `evallab failures ingest\|runs\|mine\|pack\|loop\|stats` | published findings and runs | `research/failure-library/` in git; run records in local state | Task QA loop, seeker lanes | none for trace detection; it holds records, not detectors | none (loop lanes use subscription agents) |
 | `evallab qa-data` (#1335; 13 calls incl. `scan`, `export`, `steps`) | `evallab qa-data <call> --help` | admitted DEV store only; one identical refusal for TEST, cross-key, unknown ids | nothing | read-only QA agents | not a detector. CE-21: 26 of 27 agent answers right (9 Haiku agents, 3 rounds) | none |
 | Scorecards: `atlas score`; `readers/tool_scorecard.py`; `evallab detectors` (`detectors.py`, `production/detector_scope.py`) | `evallab atlas score`; `python -m evallab.readers.tool_scorecard --results ...`; `evallab detectors list\|verify\|score\|run` | facets + frozen cascade files; `results-v1.jsonl`; `research/calibration/detectors-v1` cache | `run-atlas/scorecards/*`; `trace-tools/tt1-scorecard.{json,md}`; cache verdicts | analysts, Trace Tools page | the tables above come from these; see Gaps for why they do not agree | n/a |
-| Run health (`production/run_health.py`, `run_health.loop\|runaway\|latency\|infra`) | pending: owned by the Run Health tab | steps plus run facts | pending | pending | pending | none, deterministic |
+| Run health (`production/run_health.py`, `run_health.loop\|runaway\|latency\|infra`) | `evallab trace run --runs goodfire --detectors run_health.loop,run_health.runaway,run_health.latency,run_health.infra`; native `evallab run-health detect` | steps plus allowlisted times, stop reasons and exception facts | `trace-findings/v1`, version `run-health/4` | harness card and score, cloud DB importer | 4,492 overlapping retained records: 0 verdict/score/evidence mismatches; separate native CLI comparison: 160 records, 0 mismatches. GF-200 loop 1/80 at 0/70; CB-150 latency abstains 150/150 (no clocks) | none, deterministic |
 
-Run health is **pending**: the only code is one local commit on
-`run-health/rh-1-features` (5f124f60b), not on `origin/main`.
+
+Trace Tools operations (offline, read-only unless stated):
+
+- `python -m evallab.readers.cost_inventory`: counts the exact actor bytes of admitted DEV
+  traces by safe, actor-history-unavailable, hydration-unavailable and secret-veto bucket.
+  Prices only an explicit versioned scenario; a missing rate, token count, generation,
+  retry or tariff stays `null`, never a full-corpus quote.
+- `python -m evallab.readers.scorecard_watch`: re-derives the existing whole-run scorecard
+  into identity-bound immutable snapshots, moving `current.json` atomically only after a
+  complete valid calculation. Incomplete, malformed or other-projection inputs keep the
+  last valid card; missing results remain abstentions.
+- `python -m evallab.trace_store.owner_cleanup`: read-only check that exactly the 108
+  owner-action Laminar copies are absent. Only a complete, project-bound inventory with
+  108 `absent` returns exit 0; partial, failed, empty or wrong-project output is `unknown`.
+- `scout-watch` keeps a derived `coverage-v1.json` (ledger SHA-256 plus projection and
+  scanner contract) and opens the transcript store only when a transcript exists.
+  Admission is re-decided every sweep.
 
 ## The harness
 
-`evallab trace run|card|score` (branch `th/trace-harness-core`, lands with the
-harness PR) runs the detectors above on one shared blinded input and writes one
-`trace-findings/v1` record per (run, detector):
+`evallab trace run|merge|card|score|coverage` (`src/evallab/production/trace_harness*.py`)
+runs the detectors above on one shared input and writes one `trace-findings/v1`
+record per (run, detector):
 
 - `run_id, detector, detector_version, reader_model, verdict (alarm|clear|abstain|unknown), score, kind, evidence_steps, summary (<=40 words), tokens, cost_usd, latency_ms, produced_at`.
-- `evidence_steps` are original step ids, never renumbered blind ids. A run with no
-  actor transcript is `unknown`, never `clear`; a run a detector has nothing for is
-  omitted.
+  Records are validated with the cloud DB importer's own rules (`trace_findings._finding`),
+  so every stored record is importable by `evallab prod import-trace-findings`.
+- `evidence_steps` are original step ids, never renumbered blind ids. A run without
+  actor inputs is unknown, never clear. Explicit run-level stops or exceptions
+  may still alarm; a detector with no retained result emits nothing.
 - Store: `~/.local/state/evallab-prod-live/trace-harness/findings-v1.jsonl`, append
   only, latest line per (run, detector, version, reader) wins. It is an interim
-  JSONL, like the facets file; it is not the cloud DB.
-- `run --runs goodfire|goodfire-dev|cheatbench|hackbench|dataset:<id>|file:<path>|ids
-  --detectors LIST|all [--allow-model] [--refresh]`. Model-backed detectors only call a
-  subscription reader when `--allow-model` is given. `card RUN_ID` prints a short
-  evidence card (fired flags plus findings). `score` is registered from
-  `trace_harness_score` when that module exists.
-- The Phoenix shipper moved: on `origin/main` it is still `evallab trace <path>`;
-  on the harness branch it is `evallab trace otel <path>` and `docs/observability.md`
-  is updated to match. The harness PR lands both.
+  JSONL, like the facets file; the cloud DB `trace_findings` table imports it.
+- `run --runs goodfire|goodfire-dev|cheatbench|own|own-dev|hackbench|hackbench-all|staged:<set>|detectors-v1[:source]|dataset:<id>|file:<path>|ids
+  --detectors LIST|all [--allow-model] [--refresh]`. `all` attempts every non-cache
+  adapter; on `detectors-v1` it also expands the cached native detector family.
+  Model-backed adapters read retained results. Only facets can generate, gated by
+  `--allow-model`; there is no automatic call when a retained result is absent.
+- `merge INPUT.jsonl [INPUT.jsonl ...] --findings TARGET.jsonl` validates every input
+  before writing and deduplicates by run/detector/version/reader. Newest timestamp
+  wins (ties use input order); an older import cannot replace a newer target, and
+  replay is idempotent.
+- `card RUN_ID` prints one label-free evidence card (≤1.5k tokens): every verdict with
+  its reader, cited steps, fired flags and playbook cards.
+- `score --corpus …` reports recall/false alarms (Wilson intervals), thresholds at 3% and
+  5% false-alarm budgets, localization and cost per detector and per OR/AND combination,
+  after a reproduction gate of the published single-detector numbers; `--publish` writes
+  the UI Harness tab's `trace-harness/scorecard-v1.json`.
+- `coverage --corpus … [--corpus …]` lists findings per detector identity and corpus,
+  and every registered detector that has no findings there.
+- The Phoenix shipper is `evallab trace otel <path>`.
 
 ## Gaps and duplicates
 
@@ -103,9 +130,106 @@ Checked against code or files unless marked **[not verified]**.
 7. **Facet readers disagree with each other.** Cross-reader kappa 0.42-0.47 on
    `suspicion >= 2`, against 0.64 for a Haiku retest (`docs/run-atlas.md`; morning
    report). Every score in this page must state its reader, hence the column.
-8. **No detector writes `trace_findings` to the cloud DB yet.** `origin/main` has no
-   `trace_findings` in `src/`; the table, importer and `qa-data trace-card` exist only on
-   local branch `ce23-trace-findings-20261028` (b88981143, no remote head). That lane owns
-   the table; the harness JSONL is the interim store.
+8. **Cloud persistence is an explicit operator step.** The cloud table/importer and
+   `qa-data trace-card` are now on `main`. `trace merge` only writes local JSONL;
+   `evallab prod import-trace-findings --cloud-database … --jsonl …` admits cloud
+   DEV runs and stored step ids. CheatBench item ids and local-only HackBench rows
+   cannot be inserted as cloud trace ids. No live import is part of this integration.
 9. **Unmeasured on HackBench or DEV**: Laminar, harbor analyze, trace feature flags and
    playbook cards have no detection number against GF-200 or CB-150.
+
+## Additional unified integrations (2026-10-28)
+
+All rows use the same `trace run`, finding store, `trace card`, `trace coverage`
+and `trace score` interfaces. Frozen-reader adapters verify the retained prompt,
+model/version and input checksums; they do not silently generate replacement calls.
+
+| detector selector | retained/native input | measured operating point | interpretation |
+|---|---|---|---|
+| `facet_windows_baseline` | CM-13 arm A, Goodfire 200 | 9/80 TP, 2/70 FP | whole-run baseline; frozen Codex Terra reader |
+| `facet_windows_only` | CM-13 arm B, Goodfire 200 | 23/80 TP, 5/70 FP | selected windows only |
+| `facet_windows_first` | CM-13 arm B1, Goodfire 200 | 17/80 TP, 4/70 FP | first selected window |
+| `facet_windows` | CM-13 arm C, Goodfire 200 | 25/80 TP, 6/70 FP | whole-run facets plus selected windows |
+| `facet_windows_random` | CM-13 arm D, Goodfire 200 | 16/80 TP, 5/70 FP | random-window control |
+| `facets_prefix25`, `facets_prefix50`, `facets_prefix100` | CM-16, the same 50 Goodfire DEV runs outside GF-200; Haiku 5.5 | each 0/25 TP, 0/25 FP | read coverage is complete, but native suspicion produced no alarms; no tuning on the cross-test |
+| `recheck_sol` | CM-12 frozen Sol rechecks, theta 86 | 14 GF-200 and 9 CB-150 retained judgments | scored only on the runs actually judged; `unclear` is abstain, not clean. This is not the original full Stage-1 denominator |
+| `whole_run_logistic` | frozen pK-SELF M3 per-run scores, CB-150 | 12/75 TP, 4/75 FP | native threshold, not a new fit; GF/HB aggregate-only results cannot become per-run findings |
+| `qa_trace_t0` | fixed `combined_v1` agentic-default literals computed from steps | measured literals agree with native deterministic features on 120 runs | this is the steps-only projection, not a source-specific retune. Missing score/file literals force abstention unless a measured OR literal fires |
+
+### Local-run admission and cached native detectors
+
+`own` and `own-dev` read the retained TT-3 cohort, but neither trusts a cohort's
+`dev` string. A real `CorpusRegistry` must admit the task/item under the current
+cross-key assignments and seals **before any actor file is opened**. The score
+join uses the identical admitted set; reviewed agent reward hacks are positive,
+clean parents/evaluation-fault children are negative, and unreviewed runs remain
+unlabelled. The historical 169-run TT-3 table is not the new DEV denominator.
+
+| admitted `own` integration | findings / 37 admitted runs | native verdicts (alarm / clear / abstain) |
+|---|---|---|
+| `cascade_own`, Kimi | 14/37 | 4 / 4 / 6 |
+| `cascade_own:xai-oauth/grok-4.3` | 23/37 | 12 / 11 / 0 |
+| `docent:rh_reading_v1`, GPT-5.4 mini | 37/37 | 8 / 25 / 4 |
+| `laminar`, GLM 5.3 Flash | 32/37 | 25 / 7 / 0 |
+| `laminar_copy`, GLM 5.3 Flash | 31/37 | 12 / 19 / 0 |
+
+The two cascade readers cover disjoint retained runs; they are not a matched
+reader comparison. `all` includes both and the separate hosted Docent rubric.
+
+`detectors-v1[:source]` exposes only materialized, explicitly assigned DEV trial
+identities from the checksum-verified native corpus. Old ordinal ids (for example
+`cb-000001`) are not converted into canonical item ids by guessing. Published
+trials may supply their real task identity from `result.json`; results/rewards
+never enter detector inputs. `detcache:<name>` imports native cached booleans or
+scores, not synthetic actor transcripts. Score-only readers abstain natively but
+may participate in numeric FAR-budget sweeps; unknown/missing rows never do.
+Use `trace score --corpus 'detectors-v1:g6#stuck_loop'` for loop labels or
+`#infra` for infrastructure labels. The old full-G6 published gate is not
+re-pinned to a smaller admitted cohort.
+
+The strict native-cache smoke admitted **44 materialized trials** from the
+6,768-row historical manifest and emitted results for **20 cached detector
+families**, each with 5–35 retained rows. These include Harbor analyze, Kev,
+Sol, QA Trace, Laminar Signals, rules/content rules and both Run Health kinds.
+Absent cached judgments are missing, not successful detector runs or clean verdicts.
+
+A missing reader identity is displayed as `none / unrecorded` in cards and
+score tables. It is not evidence of a deterministic detector: some native
+model-backed caches retain the model version but no provider-qualified reader.
+
+Run Health uses cloud-native times/token facts on admitted cloud runs and the
+same allowlisted `trial_metadata` on local Harbor trials. Those facts are not
+included in `HarnessRun.atlas_run` or the blinded model view. A generic staged
+trajectory with no exception/stop/timing facts remains steps-only; no facts are
+invented. Health alarm rates against Goodfire cheating labels are associations,
+not estimates of loop/infra detection accuracy.
+
+On the current admitted G6 label cohorts, the native and cached Health paths
+agree: loop 6/7 TP at 0/1 FP, infra 1/1 TP at 0/8 FP. These tiny subsets prove
+adapter parity; they are not precise estimates for the historical full G6 population.
+
+### Reader burst provenance and limits
+
+Seven retained stores from six independent workers were merged without reader
+overwrites. Quota stops, refusals and missing reads remain explicit, not clean
+results. A denser card or scorecard does not make partial reader comparisons
+full-cohort experiments.
+
+| burst reader/method | GF-200 findings; native TP/positive, FP/negative | CB-150 findings; native TP/positive, FP/negative |
+|---|---|---|
+| Facets Sonnet 5.5 | 200/200; 5/80, 0/70 | 93/150; 19/56, 0/37 |
+| Facets Opus 5.5 | 155/200; 4/55, 0/60 | 3/150; 2/2, 0/1 (not a useful estimate) |
+| Facets Kimi K3.1 | 61/200; 3/22, 0/23 | 35/150; 2/17, 1/18 |
+| OMP form Sonnet 5.5, new reads only | 65/200 findings, 9 scored; 1/4, 0/2 (56 abstentions) | 80/150 findings, 69 scored; 18/40, 0/29 (11 abstentions) |
+
+The separate Haiku DEV fill retained 491/600 selected non-GF-200 runs; it is not
+another GF-200 arm. All counts are actual retained findings, not extrapolated
+completion rates. Refusals and unread runs do not become false negatives or true
+negatives in these conditional rates; coverage remains visible alongside them.
+
+The burst incurred **29 unintended DeepSeek Flash fallback calls, estimated
+$0.380644 total** (token-price estimate, not an invoice). Every call is in the
+private spend ledger; served-model mismatches were rejected, not attributed to
+Claude or Kimi. Generation stopped on quota/fallback barriers. METR Kimi was
+retained-output import only: the sealed native OMP transport was not bypassed.
+No Docker, local inference, or HackBench upload was used.

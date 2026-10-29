@@ -1726,6 +1726,8 @@ stated where this repository can see it.
 
 The atlas is a read-only projection of two retained files under `<data_root>/run-atlas/`,
 validated by `evallab.production.atlas_view` and re-read only when a file changes.
+The admitted DEV identities and step indices it joins are read from the trace database once per
+database state (any committed write starts a fresh read), not once per request.
 Neither endpoint calls a model, joins source labels, or writes anything.
 
 - The dashboard's **Run Atlas** tab shows store health, the recorded cluster tree,
@@ -2105,7 +2107,10 @@ most alarming detectors. `GET /api/cloud-db/harness/card?run_id=` returns `evall
 for one admitted DEV run (404 otherwise): one row per detector, version and reader, grouped as
 trace detectors and run health, each with verdict, kind, score, cited steps (steps that are not
 steps of the run are hidden and counted), summary, tokens, cost and latency; the detectors that
-recorded nothing for this run; and the Run Atlas facet lead. Nothing is merged into one verdict.
+recorded nothing for this run (among those recorded for any admitted DEV run, so a detector that only
+read runs outside the admitted set is never named); and the Run Atlas facet lead. Nothing is merged
+into one verdict. Which findings runs are admitted, and which hold an actor transcript, is read from
+the trace database once per findings-file and database state, not once per request.
 
 A run with no actor transcript (no agent step with text or a tool call) is unknown, never clean: a
 recorded `clear` for it is shown as `unknown`, and a run no detector read says so rather than

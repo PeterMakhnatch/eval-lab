@@ -29,13 +29,13 @@ refuses to proceed unless the frozen plan's runs equal the admitted cohort. Obse
 ## Quota stop (the reason there is no measurement)
 
 `omp usage --json --provider kimi-code`, gate stop at 85% of any window. Exact observation from the same 0-call smoke run
-(2026-10-28T23:30:35Z):
+(2026-10-28T23:30:35Z = 7:30 PM ET):
 
 | Window | Used | Status | Resets (UTC) |
 |---|---|---|---|
 | `5h` | 100% | `exhausted` | 2026-10-29T03:23:00Z (11:23 PM ET) |
-| `limit_month_total` | 84.93% | `ok` | 2026-11-24T00:00:00Z (Nov 23, 8:00 PM ET) |
-| `limit_month_code` | 84.19% | `ok` | 2026-11-24T00:00:00Z |
+| `limit_month_total` | 84.93% | `ok` | 2026-11-24T00:00:00Z (Nov 23, 7:00 PM EST) |
+| `limit_month_code` | 84.19% | `ok` | 2026-11-24T00:00:00Z (Nov 23, 7:00 PM EST) |
 
 Gate outcome at that probe: `quota_85_percent_stop`. The first attempted call at 17:21 ET was refused the same way, when the `5h`
 window was already `exhausted` (100%) — no prompt left the machine and `judge-cache.jsonl` was never created.
@@ -43,7 +43,8 @@ window was already `exhausted` (100%) — no prompt left the machine and `judge-
 Why this cannot be waited out this evening: the slice needs ~1.9M route-reported input tokens (418 prompts at roughly the CM-13 terra
 / CM-19 Opus per-call scale); the monthly window is ~56M tokens (1% ≈ 0.56M), so the remaining headroom of about 0.07 points is
 ~0.04M tokens (≈ 8 calls). The `5h` reset at 23:23 ET frees nothing on the monthly window, and the monthly window resets
-2026-11-24T00:00Z. Kimi headroom was shared with slice B3, which had priority and consumed it.
+2026-11-24T00:00Z. Kimi headroom is shared provider traffic: slice B3 had priority and took the monthly window from 78.83% to
+83.12%, and the rest of the 84.93% was other fleet use.
 
 ## What was exercised, and what was not
 
@@ -51,7 +52,7 @@ Why this cannot be waited out this evening: the slice needs ~1.9M route-reported
 |---|---|
 | `prepare` | ran: copied the CM-13 plan/prompts to `comparisons/cm19-kimi/` and re-checked both sha256 pins |
 | `smoke` | ran twice: admission guard passes, real quota probe stops the gate (`results/smoke.json`) |
-| `run` | invoked once at 17:21 ET with `--limit 1`: the gate stopped it before any model call |
+| `run` | invoked once at 17:21 ET with `--limit 1`: the gate stopped it before any model call; no attempt was made between then and the 19:30 ET smoke (the lane paused 17:21-19:30 ET for B3's priority pass and the 5h reset) |
 | `score` | never run (no Kimi judgments exist to score) |
 
 ## Deviation from the preregistration, stated plainly

@@ -1,8 +1,11 @@
 """Periodic hosted-free Docent triage of attested, admitted own DEV actors.
 
-One whole run is approved per tick, serially. Exhausted/unknown allowance,
-privacy failure, unknown model routing, or ambiguous submission never generates.
-The existing own-run rubric is operational triage, not a TT-7 model selection.
+One whole run is approved per tick, serially. For new work, exhausted or
+unknown allowance is denied before admission or actor hydration; an
+already-approved reading is harvested without either. Exhausted/unknown
+allowance, privacy failure, unknown model routing, or ambiguous submission never
+generates. The existing own-run rubric is operational triage, not a TT-7 model
+selection.
 """
 
 from __future__ import annotations
@@ -15,12 +18,13 @@ import os
 import sqlite3
 import time
 from collections import Counter
+from collections.abc import Callable
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from evallab.readers.clouddb_blind import opaque_id
+from evallab.readers.clouddb_blind import TraceRef, opaque_id
 from evallab.readers.docent_reading import (
     DETECTOR,
     MODEL,
@@ -42,6 +46,25 @@ DEFAULT_SPEND = Path.home() / ".local/state/evallab-failure-library/spend.jsonl"
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _admitted(
+    con: sqlite3.Connection, *, repo_root: Path, evidence_path: Path | None,
+) -> list[TraceRef]:
+    """The shared own-actor admission inventory, minus the frozen Goodfire sample."""
+    return [ref for ref in select_traces(con, repo_root=repo_root, evidence_path=evidence_path)
+            if ref.dataset_id != GOODFIRE_DATASET]
+
+
+def _record_inventory(
+    report: dict[str, Any], refs: list[TraceRef], jobs: dict[str, Any],
+) -> None:
+    """Publish coverage counts only after admission actually measured them."""
+    report.update(
+        inventory="measured",
+        eligible=len(refs),
+        completed=sum(jobs.get(ref.trace_id, {}).get("status") == "terminal" for ref in refs),
+    )
 
 
 def _save(path: Path, value: Any) -> None:
@@ -99,8 +122,9 @@ def _finish(
 
 def _advance(
     service: HostedReading, job: dict[str, Any], journal: dict[str, Any], journal_path: Path,
-    *, results_path: Path, spend_path: Path,
+    *, results_path: Path, spend_path: Path, verify: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
+    """Advance one plan; hydrate only to authorize a not-yet-requested approval."""
     collection = service.collection(job["dataset_id"])
     if collection["id"] != job["collection_id"]:
         raise ReadingBlocked("private_collection_identity_changed")
@@ -119,6 +143,12 @@ def _advance(
     if status == "needs_approval":
         if job.get("approval_requested_at"):
             raise ReadingBlocked("approval_unresolved_no_automatic_retry")
+        if verify is not None:
+            # Deny exhausted/unknown allowance before admission and hydration.
+            # The authoritative fresh check follows verification, immediately
+            # before the saved intent and approval POST.
+            service.gate()
+            verify()
         free, _ = service.gate()
         job["approval_requested_at"] = _now()
         job["allowance_before_approval"] = free
@@ -143,9 +173,11 @@ def run_once(
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            return {"at": _now(), "status": "busy", "model_approvals": 0}
+            return {"at": _now(), "status": "busy", "model_approvals": 0,
+                    "inventory": "not_measured"}
         report: dict[str, Any] = {"at": _now(), "status": "idle", "model_approvals": 0,
-                                  "result_lines": 0, "model": MODEL, "detector_version": VERSION}
+                                  "result_lines": 0, "model": MODEL, "detector_version": VERSION,
+                                  "inventory": "not_measured"}
         try:
             journal: dict[str, Any] = json.loads(journal_path.read_text()) if journal_path.exists() else {
                 "schema": VERSION, "jobs": {},
@@ -153,38 +185,49 @@ def run_once(
             if journal.get("schema") != VERSION:
                 raise ReadingBlocked("journal_version_changed")
             uri = db_path.expanduser().resolve().as_uri() + "?mode=ro"
-            with closing(sqlite3.connect(uri, uri=True)) as con:
-                refs = [ref for ref in select_traces(con, repo_root=repo_root, evidence_path=evidence_path)
-                        if ref.dataset_id != GOODFIRE_DATASET]
-                by_id = {ref.trace_id: ref for ref in refs}
-                jobs = journal["jobs"]
-                active = [job for job in jobs.values() if job["status"] != "terminal"]
-                if len(active) > 1:
-                    raise ReadingBlocked("multiple_active_readings")
-                report.update(eligible=len(refs), completed=sum(
-                    jobs.get(ref.trace_id, {}).get("status") == "terminal" for ref in refs))
-                if service is None:
-                    from evallab.trace_store.docent import new_client
+            jobs = journal["jobs"]
+            active = [job for job in jobs.values() if job["status"] != "terminal"]
+            if len(active) > 1:
+                raise ReadingBlocked("multiple_active_readings")
+            if service is None:
+                from evallab.trace_store.docent import new_client
 
-                    service = HostedReading(new_client())
-                if active:
-                    job = active[0]
-                    # Repeat source admission and privacy projection before any
-                    # approval; a task may acquire a cross-key TEST seal meanwhile.
-                    if job["run_id"] not in by_id:
-                        raise ReadingBlocked("active_reading_no_longer_admitted")
-                    trace = load_trace(con, by_id[job["run_id"]], cas_root=cas_root)
-                    text = render(trace.messages)
-                    if secret_hits(text) or hashlib.sha256(text.encode()).hexdigest() != job["payload_sha256"]:
-                        raise ReadingBlocked("active_reading_payload_changed_or_private")
-                    report.update(_advance(service, job, journal, journal_path,
-                                           results_path=results_path, spend_path=spend_path))
-                else:
+                service = HostedReading(new_client())
+            if active:
+                job = active[0]
+
+                def verify() -> None:
+                    # Source admission and privacy projection are repeated only
+                    # to authorize a new approval; a task may acquire a
+                    # cross-key TEST seal meanwhile.
+                    with closing(sqlite3.connect(uri, uri=True)) as con:
+                        refs = _admitted(con, repo_root=repo_root, evidence_path=evidence_path)
+                        _record_inventory(report, refs, jobs)
+                        by_id = {ref.trace_id: ref for ref in refs}
+                        if job["run_id"] not in by_id:
+                            raise ReadingBlocked("active_reading_no_longer_admitted")
+                        trace = load_trace(con, by_id[str(job["run_id"])], cas_root=cas_root)
+                        text = render(trace.messages)
+                        if secret_hits(text) or hashlib.sha256(
+                            text.encode()
+                        ).hexdigest() != job["payload_sha256"]:
+                            raise ReadingBlocked("active_reading_payload_changed_or_private")
+
+                report.update(_advance(service, job, journal, journal_path,
+                                       results_path=results_path, spend_path=spend_path,
+                                       verify=verify))
+            else:
+                # New generation: exhausted/unknown allowance must deny before
+                # inventory admission or actor hydration. No count is published
+                # when the inventory was not measured.
+                free, model = service.gate()
+                report["allowance"] = free
+                with closing(sqlite3.connect(uri, uri=True)) as con:
+                    refs = _admitted(con, repo_root=repo_root, evidence_path=evidence_path)
+                    _record_inventory(report, refs, jobs)
                     pending = [ref for ref in refs if ref.trace_id not in jobs]
                     report["pending"] = len(pending)
                     if pending:
-                        free, model = service.gate()
-                        report["allowance"] = free
                         quarantines: Counter[str] = Counter()
                         for ref in pending:
                             try:
@@ -218,7 +261,8 @@ def run_once(
                             job["plan_id"] = service.submit(collection["id"], job["plan_name"], opaque, text)
                             _save(journal_path, journal)
                             report.update(_advance(service, job, journal, journal_path,
-                                                   results_path=results_path, spend_path=spend_path))
+                                                   results_path=results_path,
+                                                   spend_path=spend_path))
                             break
                         report["quarantined"] = dict(quarantines)
                         if report["status"] == "idle" and quarantines:

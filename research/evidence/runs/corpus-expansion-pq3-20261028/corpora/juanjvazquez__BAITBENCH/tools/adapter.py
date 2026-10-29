@@ -407,19 +407,34 @@ def _text(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 
+def _normalise(text: str) -> str:
+    return " ".join(text.split())
+
+
 def _judge_texts(judged: dict[str, dict[str, dict[str, Any]]], run_id: str) -> list[str]:
+    """Normalised judge sentences long enough to be evidence rather than a shared phrase.
+
+    Whole ``short_analysis`` blobs are compared in their raw form by the older check, which
+    cannot match once JSON escaping, quotes or newlines are involved; sentences are compared
+    on whitespace-normalised text so the check is not vacuous.
+    """
     out = []
     for judge in judged.values():
         j = judge.get(run_id)
         if not j:
             continue
-        out.append(str(j.get("short_analysis") or ""))
-        out.extend(
+        parts = [str(j.get("short_analysis") or "")]
+        parts.extend(
             str(item.get("text") or "")
             for item in j.get("evidence") or []
             if isinstance(item, dict)
         )
-    return [t for t in out if len(t) >= 30]
+        for part in parts:
+            for sentence in re.split(r"(?<=[.;!?])\s+|\n+", part):
+                normalised = _normalise(sentence)
+                if len(normalised) >= 40:
+                    out.append(normalised)
+    return sorted(set(out))
 
 
 def leak_hits(
@@ -428,6 +443,7 @@ def leak_hits(
     """Count nonagent-visible material (labels, judge text, scores, ids) found in ``_steps``."""
     hits: Counter[str] = Counter()
     blob = _text(steps)
+    plain = _normalise(blob)
     meta = row["metadata"]
     hits["label_field_keys"] = len(_keys(steps) & FIELDS_DETECTOR_MUST_NOT_SEE)
     hits["label_words"] = len(LABEL_WORDS.findall(blob))
@@ -442,7 +458,9 @@ def leak_hits(
     ):
         if isinstance(value, float):
             hits[f"{name}_repr"] = repr(value) in blob and len(repr(value)) >= 8
-    hits["judge_text_verbatim"] = sum(text in blob for text in _judge_texts(judged, row["run_id"]))
+    hits["judge_sentence_verbatim"] = sum(
+        sentence in plain for sentence in _judge_texts(judged, row["run_id"])
+    )
     hits["family_context_verbatim"] = row["evidence"]["task_context"]["family_context"][:60] in blob
     return hits
 
@@ -455,6 +473,7 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
     leaks: Counter[str] = Counter()
     reasons: Counter[str] = Counter()
     context: Counter[str] = Counter()
+    quotes: Counter[str] = Counter()
     identities: set[str] = set()
     for row in iter_rows(root):
         counts["rows"] += 1
@@ -505,9 +524,14 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
         if slug_free:
             issues["written_file_roundtrip"] += file_chars != audit["written_file_chars"]
         hits = leak_hits(row, steps, judged)
+        # A judge sentence that reappears in the transcript is a quote of the agent's own
+        # evidence, so it is reported separately and never treated as an injected verdict.
+        quoted = hits.pop("judge_sentence_verbatim", 0)
         for name, value in hits.items():
             leaks[name] += int(value) > 0
         leaks["episodes_with_any_hit"] += any(hits.values())
+        quotes["episodes_with_judge_sentence"] += quoted > 0
+        quotes["judge_sentences_present"] += quoted
         # Informational: the agent's own text can mention task vocabulary.
         context["episodes_mentioning_task_vocabulary"] += bool(CONTEXT_WORDS.search(_text(steps)))
     counts["unique_run_ids"] = len(identities)
@@ -521,6 +545,7 @@ def selfcheck(root: Path = ROOT) -> dict[str, Any]:
         "transcript_audit": dict(audit_totals),
         "leak_check": {**dict(sorted(leaks.items())), "leak_count": leak_total},
         "informational_context": dict(context),
+        "judge_quotes": dict(sorted(quotes.items())),
         "label_fields_in_steps": leaks["label_field_keys"],
         "issue_count": sum(issues.values()),
         "issues": nonzero,

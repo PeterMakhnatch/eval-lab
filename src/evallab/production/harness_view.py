@@ -338,8 +338,8 @@ def build_card(
 ) -> dict[str, Any]:
     """Every detector's newest result for one admitted DEV run, grouped, with nothing merged away.
 
-    ``known`` is every (detector, version, reader) the findings file holds for any run, so the card
-    can name the detectors that recorded nothing here.
+    ``known`` is every (detector, version, reader) the findings file holds for any admitted DEV run,
+    so the card can name the detectors that recorded nothing here.
     """
     results = sorted(
         (_public(record, steps, actor_inputs) for record in records.values()),

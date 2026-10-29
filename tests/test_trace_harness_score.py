@@ -173,15 +173,19 @@ def test_thresholds_are_calibrated_elsewhere_and_applied_unchanged() -> None:
     assert in_corpus["basis"] == ths.IN_CORPUS and in_corpus["thresholds"] != [4.0]
 
 
-def test_unscored_or_abstained_runs_do_not_enter_the_sweep() -> None:
-    cohort = labels("c", {"p1": True, "p2": True, "n1": False, "n2": False})
+def test_sweep_uses_scored_abstains_but_not_unscored_or_unknown_runs() -> None:
+    cohort = labels("c", {"p1": True, "p2": True, "p3": True, "n1": False, "n2": False})
     records = store(
-        rec("p1", "alarm", score=5), rec("p2", "abstain", score=9),
+        rec("p1", "alarm", score=5), rec("p2", "abstain", score=9), rec("p3", "unknown", score=9),
         rec("n1", "clear", score=1), rec("n2", "alarm", score=None),
     )
-    entry = budget_entry(ths.score_corpus(cohort, records, far_budgets=(0.5,)), 0.5)
-    applied = entry["applied"]
-    assert (applied["positives"], applied["negatives"], applied["unscored_excluded"]) == (1, 1, 1)
+    result = ths.score_corpus(cohort, records, far_budgets=(0.5,))
+    applied = budget_entry(result, 0.5)["applied"]
+    # a score-only reader's abstain still has a score to threshold; the no-actor run does not
+    # enter, and the alarm without a score is counted as excluded
+    assert (applied["positives"], applied["negatives"], applied["unscored_excluded"]) == (2, 1, 1)
+    native = result["detectors"][0]["native"]
+    assert (native["positives"], native["negatives"]) == (1, 2)  # native point excludes abstain
 
 
 # --------------------------------------------------------------------------- #

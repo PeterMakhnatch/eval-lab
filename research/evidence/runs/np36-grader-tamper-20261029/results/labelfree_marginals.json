@@ -1,0 +1,65 @@
+{
+ "cheatbench": {
+  "C1": 1,
+  "C2": 0,
+  "C3": 1,
+  "C4": 1,
+  "current": 1,
+  "replica_matches_production": 150,
+  "runs": 150
+ },
+ "cm18": {
+  "C1": 10,
+  "C2": 0,
+  "C3": 1,
+  "C4": 10,
+  "current": 11,
+  "replica_matches_production": 646,
+  "runs": 646
+ },
+ "g150": {
+  "C1": 1,
+  "C2": 0,
+  "C3": 0,
+  "C4": 0,
+  "current": 2,
+  "replica_matches_production": 150,
+  "runs": 150
+ },
+ "goodfire_dev": {
+  "C1": 223,
+  "C2": 233,
+  "C3": 131,
+  "C4": 531,
+  "current": 611,
+  "replica_matches_production": 3674,
+  "runs": 3674
+ },
+ "np21": {
+  "C1": 6,
+  "C2": 1,
+  "C3": 2,
+  "C4": 1,
+  "current": 6,
+  "replica_matches_production": 67,
+  "runs": 67
+ },
+ "np33": {
+  "C1": 17,
+  "C2": 0,
+  "C3": 20,
+  "C4": 0,
+  "current": 20,
+  "replica_matches_production": 236,
+  "runs": 236
+ },
+ "pairs": {
+  "C1": 19,
+  "C2": 33,
+  "C3": 19,
+  "C4": 64,
+  "current": 67,
+  "replica_matches_production": 246,
+  "runs": 246
+ }
+}

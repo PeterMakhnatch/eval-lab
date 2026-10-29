@@ -203,6 +203,21 @@ evallab live-supervisor adjudicate --rows /tmp/replay-rows.jsonl --windows /tmp/
   --out /tmp/adjudicated.jsonl --limit 120
 ```
 
+The adjudicator's reply must be one strict JSON object. Opus often writes prose before it (14 of 42
+replies in live-arm-score-v1), which the strict parser rejects, so a plain run would keep a biased 28/42.
+`adjudicate()` therefore sends **exactly one format-only repair turn** to a reply the parser rejects:
+the blind prompt, the model's own rejected reply, and a fixed request to resend it as the JSON object
+(the parser's error text is the only variable part; it names the format, never the row, so the turn adds
+no evidence and shows no label, set or decided action). The reply is parsed again with the same
+parser; one that still fails stays `invalid` and is excluded. Such a record has `repaired: true`,
+`attempts: 2`, `first_errors`, `turns` (input/output tokens and latency per turn) and
+`repair_prompt_version`/`repair_prompt_sha256`; its `input_tokens`/`output_tokens` are the sum of both
+turns, which is what the CLI summary (and so a reader-budget log written from it) counts, and the
+summary prints `repaired`. Both turns must be served by the requested model: a mismatch on either (a
+content-triggered fallback) is an `error` row, stops the run with exit 2 as before, and keeps the
+tokens already spent on that row. Headroom is checked by the caller before a run, as before; the
+repair call is one more call inside that run. `adjudicate_cheat` has no repair turn.
+
 Replay hands the Harbor source the `live_watch` integrity alerts a live job would have written to
 `watch/alerts.jsonl` (`live_supervisor_replay.WatchAlerts`: `tripwires.scan_prefix` over the visible
 steps through `live_watch.integrity_alerts`, so `trace_alarm` and `flag_cheating` exist in replay).

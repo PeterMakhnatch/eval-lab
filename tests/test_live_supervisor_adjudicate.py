@@ -18,10 +18,11 @@ MODEL = adj.ADJUDICATOR_MODEL
 
 
 def _reply(action: str = "kill_and_retry", *, reason: str = "same failing command repeated", confidence: Any = 0.8,
-           served_model: str = MODEL, **extra: Any) -> atlas.Completion:
+           served_model: str = MODEL, input_tokens: int = 900, output_tokens: int = 40,
+           **extra: Any) -> atlas.Completion:
     text = json.dumps({"action": action, "reason": reason, "confidence": confidence, **extra})
-    return atlas.Completion(text=text, served_model=served_model, input_tokens=900, output_tokens=40,
-                            latency_seconds=1.5)
+    return atlas.Completion(text=text, served_model=served_model, input_tokens=input_tokens,
+                            output_tokens=output_tokens, latency_seconds=1.5)
 
 
 class FakeTransport:
@@ -196,8 +197,119 @@ def test_adjudicate_rejects_other_served_model_and_paid_routes() -> None:
                      latency_seconds=0.1),
 ])
 def test_adjudicate_marks_non_strict_replies_invalid(reply: atlas.Completion) -> None:
-    record = adj.adjudicate(_row("a"), _window("a"), transport=FakeTransport([reply]))
+    transport = FakeTransport([reply, reply])
+    record = adj.adjudicate(_row("a"), _window("a"), transport=transport)
     assert record["status"] == "invalid" and record["errors"] and "adjudicated_action" not in record
+    assert record["repaired"] is True and len(transport.requests) == 2
+
+
+# --------------------------------------------------------------------------- repair turn
+
+PROSE = "Looking at the window, the run is making progress.\n\n"
+
+
+def _prose_reply(action: str = "continue", *, served_model: str = MODEL, input_tokens: int = 900,
+                 output_tokens: int = 300) -> atlas.Completion:
+    body = json.dumps({"action": action, "reason": "tests are advancing", "confidence": 0.7})
+    return atlas.Completion(text=PROSE + body, served_model=served_model, input_tokens=input_tokens,
+                            output_tokens=output_tokens, latency_seconds=2.0)
+
+
+def test_valid_first_reply_sends_no_repair_turn() -> None:
+    transport = FakeTransport([_reply("continue")])
+    record = adj.adjudicate(_row("a"), _window("a"), transport=transport)
+    assert len(transport.requests) == 1 and record["repaired"] is False and record["attempts"] == 1
+    assert "turns" not in record and "first_errors" not in record
+
+
+def test_prose_then_json_reply_is_repaired_with_one_format_only_turn() -> None:
+    transport = FakeTransport([_prose_reply(), _reply("continue", input_tokens=1_400, output_tokens=40)])
+    record = adj.adjudicate(_row("a"), _window("a"), transport=transport)
+    assert record["status"] == "ok" and record["adjudicated_action"] == "continue"
+    assert record["repaired"] is True and record["attempts"] == 2 and record["first_errors"]
+    assert record["repair_prompt_version"] == adj.REPAIR_PROMPT_VERSION and len(record["repair_prompt_sha256"]) == 64
+    assert "errors" not in record and "reply_excerpt" not in record
+    first, second = (request[1] for request in transport.requests)
+    assert len(transport.requests) == 2 and second[: len(first)] == first
+    assert [m["role"] for m in second[len(first):]] == ["assistant", "user"]
+    assert second[len(first)]["content"] == _prose_reply().text
+    assert all(request[0] == MODEL and request[2] == adj.MAX_OUTPUT_TOKENS for request in transport.requests)
+
+
+def test_repair_turn_shows_no_label_set_or_decided_action_and_is_independent_of_the_row() -> None:
+    reply = _prose_reply("continue")
+    rows = [_row("secret-case-1", set_name="cheat_cheatbench_dev", action="kill_and_retry", label="nudge"),
+            _row("other-case-2", set_name="g6_loop", action="alert_research", label="continue")]
+    added: list[list[dict[str, str]]] = []
+    for row in rows:
+        transport = FakeTransport([reply, _reply("continue")])
+        adj.adjudicate(row, _window(row["case_id"]), transport=transport)
+        first, second = (request[1] for request in transport.requests)
+        added.append(second[len(first):])
+    assert added[0] == added[1]
+    text = json.dumps(added[0])
+    for shown in ("secret-case-1", "cheatbench", "g6_loop", "kill_and_retry", "nudge", "alert_research", "label",
+                  "decided", "supervisor"):
+        assert shown not in text, shown
+
+
+def test_repair_messages_skip_an_empty_assistant_turn() -> None:
+    base = [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}]
+    assert [m["role"] for m in adj.repair_messages(base, "  \n", ["not one JSON object"])] == [
+        "system", "user", "user"]
+
+
+def test_second_failure_stays_invalid_and_never_makes_a_third_call() -> None:
+    bad = _reply(confidence=1.5)
+    transport = FakeTransport([_prose_reply(), bad])
+    record = adj.adjudicate(_row("a"), _window("a"), transport=transport)
+    assert record["status"] == "invalid" and record["repaired"] is True and record["attempts"] == 2
+    assert record["errors"] == ["confidence must be a number from 0 to 1"] and record["first_errors"] != record["errors"]
+    assert record["reply_excerpt"] == bad.text and "adjudicated_action" not in record
+    assert len(transport.requests) == 2 and transport.replies == []
+
+
+def test_record_tokens_are_the_sum_of_both_turns() -> None:
+    transport = FakeTransport([_prose_reply(input_tokens=900, output_tokens=300),
+                               _reply("continue", input_tokens=1_400, output_tokens=40)])
+    record = adj.adjudicate(_row("a"), _window("a"), transport=transport)
+    assert (record["input_tokens"], record["output_tokens"], record["latency_ms"]) == (2_300, 340, 3_500)
+    assert record["turns"] == [{"input_tokens": 900, "output_tokens": 300, "latency_ms": 2_000},
+                               {"input_tokens": 1_400, "output_tokens": 40, "latency_ms": 1_500}]
+
+
+def test_served_model_mismatch_on_the_repair_turn_excludes_the_row_and_keeps_the_spent_tokens() -> None:
+    wrong = _reply("continue", served_model="anthropic/claude-sonnet-5-5", input_tokens=1_400, output_tokens=40)
+    with pytest.raises(adj.ReaderTransportError) as caught:
+        adj.adjudicate(_row("a"), _window("a"), transport=FakeTransport([_prose_reply(), wrong]))
+    assert caught.value.quota and (caught.value.spent_input_tokens, caught.value.spent_output_tokens) == (2_300, 340)
+
+
+def test_transport_failure_on_the_repair_turn_keeps_the_first_turn_tokens() -> None:
+    failure = atlas.TransportError("timed out", retryable=True)
+    with pytest.raises(adj.ReaderTransportError) as caught:
+        adj.adjudicate(_row("a"), _window("a"), transport=FakeTransport([_prose_reply(), failure]))
+    assert caught.value.retryable and not caught.value.quota
+    assert (caught.value.spent_input_tokens, caught.value.spent_output_tokens) == (900, 300)
+
+
+def test_main_counts_both_turns_in_the_summary_and_stops_on_a_repair_turn_fallback(
+        tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    rows_path, windows_path, out = _files(tmp_path, [_row("a"), _row("b")], [_window("a"), _window("b")])
+    argv = ["--rows", str(rows_path), "--windows", str(windows_path), "--out", str(out)]
+    wrong = _reply("continue", served_model="anthropic/claude-sonnet-5-5", input_tokens=1_400, output_tokens=40)
+    transport = FakeTransport([_reply("continue"), _prose_reply(), wrong])
+    assert adj.main(argv, transport=transport) == 2
+    capsys.readouterr()
+    records = {r["key"]: r for r in adj.read_jsonl(out)}
+    assert sorted(records) == ["a", "b"] and records["a"]["status"] == "ok"
+    assert records["b"]["status"] == "error" and "sonnet" in records["b"]["error"]
+    assert (records["b"]["input_tokens"], records["b"]["output_tokens"]) == (2_300, 340)
+    transport = FakeTransport([_prose_reply(), _reply("continue", input_tokens=1_400, output_tokens=40)])
+    assert adj.main(argv, transport=transport) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["repaired"] == 1 and summary["counts"] == {"ok": 2}
+    assert (summary["input_tokens"], summary["output_tokens"]) == (900 + 2_300, 40 + 340)
 
 
 def test_parse_reply_accepts_a_json_fence_only() -> None:

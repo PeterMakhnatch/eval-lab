@@ -1782,7 +1782,9 @@ Neither endpoint calls a model, joins source labels, or writes anything.
 
 `GET /api/cloud-db/atlas` (always `split=dev`) takes the facet filters `source`,
 `outcome`, `tests`, `eval_awareness`, `facet_model` (the reader), `min_suspicion`, the three
-boolean facets, `cluster_id`, free-text `q` and `limit`/`offset` (at most 200). It returns the cluster
+boolean facets, `cluster_id`, `alarmed_by` (a detector that alarms on the run), `results`
+(`none` or `any` recorded detector result for it), `sort` (`suspicion` or `alarms`),
+free-text `q` and `limit`/`offset` (at most 200). It returns the cluster
 tree (recorded `size`, `admitted_n` and `matching_n` under the current filters, the
 recorded label rates), counts for every filter value, the matching runs (most
 suspicious first) and `store` counters: facets read, shown, rejected, superseded, runs
@@ -1804,14 +1806,24 @@ remain separate leads, not independent votes or evidence of quality. Each run ro
 names), `options.alarmed_by` counts admitted runs per detector, and `alarms_available` says
 whether either source is retained: an empty `alarms` with `alarms_available: false` means nothing
 was recorded, never that no detector alarmed. A detector that read the run and found nothing, or
-abstained, adds nothing, but it counts in `detector_results_n` (how many distinct detectors
-recorded any result for the run), and `actor_inputs_available` says whether the run has an agent
-step with text or a tool call. With no alarm the cell therefore says one of "No detector read this
-run", "No actor transcript: unknown, not clean" or "No detector alarm", never a bare pass. The page shows these as the **Detector alarm** filter, the **Order**
-selector and a **Detector alarms** column, all in the shareable `#atlas?alarmed_by=&sort=` link.
-An agent can use the same endpoint with the bearer token, for example
-`GET /api/cloud-db/atlas?alarmed_by=scout&sort=alarms&limit=25`, then open
-`/api/cloud-db/harness/card?run_id=` for the full card.
+abstained, adds nothing to `alarms`, but it counts in `detector_results_n`, the number of distinct
+detectors with a stored result of any kind: a whole-run tool with any result (flagged, clean or
+abstained) or a `trace-findings/v1` detector with any verdict, `abstain` and `unknown` included.
+It counts presence of a recorded result, not a successful read. `results=none` keeps the runs with
+no recorded detector result and `results=any` keeps the runs with at least one, and
+`options.results` counts both over admitted runs, so "has results, none alarm" and "no recorded
+detector result" are different rows. `actor_inputs_available` says whether the run has an agent
+step with text or a tool call. With no alarm the cell therefore says one of "No recorded detector
+result", "No actor transcript: unknown, not clean" or "No detector alarm", never a bare pass, and a
+run with results adds "results from N detectors". `alarms_available` covers both counts and names:
+with neither source retained `options.results` is empty, a `results` filter selects nothing, and
+the column says `No detector results retained` — never "no recorded detector result". The page
+shows these as the **Detector alarm** and **Detector results** filters, the **Order** selector and
+a **Detectors · results / alarms** column, all in the shareable
+`#atlas?alarmed_by=&results=&sort=` link. An agent can use the same endpoint with the bearer token,
+for example `GET /api/cloud-db/atlas?results=none&limit=25` or
+`alarmed_by=scout&sort=alarms&limit=25`, then open `/api/cloud-db/harness/card?run_id=` for the
+full card.
 
 `GET /api/cloud-db/atlas/run?run_id=` returns one run: its facet, the cluster chains
 that hold it, its evidence steps with one neighbour each side (bounded excerpts from

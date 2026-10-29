@@ -664,11 +664,14 @@ class CloudRuntime:
     def _run_alarms(
         self, run_ids: Collection[str]
     ) -> tuple[dict[str, list[str]], dict[str, int], bool]:
-        """Per run, the detectors that alarm on it and how many detectors read it at all.
+        """Per run, the detectors that alarm on it and how many detectors recorded a result.
 
         Sources are whole-run tool results and harness findings. A detector that recorded nothing for
-        a run adds nothing; the flag says whether any source is retained, so "no run alarmed" is never
-        confused with "nothing was read".
+        a run adds nothing; the flag says whether any source is retained, so "no run alarmed" and "no
+        recorded detector result" are never confused with "nothing was read". A tool counts when it
+        stored any result for the run (flagged, clean or abstained) and a harness detector when it
+        stored any verdict, abstain and unknown included: this is presence of a recorded result, not
+        a successful read.
         """
         tools = self._tool_results.for_runs(run_ids)
         findings = self._harness_findings.get()
@@ -903,6 +906,7 @@ class CloudRuntime:
             answer_material_accessed: bool | None = None,
             success_claim_without_evidence: bool | None = None,
             alarmed_by: str | None = Query(None, pattern=r"^[A-Za-z0-9_.-]{1,80}$"),
+            results: Literal["none", "any"] | None = None,
             sort: Literal["suspicion", "alarms"] = "suspicion",
             cluster_id: str | None = None,
             limit: int = Query(50, ge=1, le=atlas_view.MAX_PAGE),
@@ -923,6 +927,7 @@ class CloudRuntime:
                 success_claim_without_evidence=success_claim_without_evidence,
                 cluster_id=cluster_id,
                 alarmed_by=alarmed_by,
+                results=results,
                 sort=sort,
             )
             try:

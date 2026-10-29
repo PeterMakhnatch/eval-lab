@@ -498,6 +498,48 @@ def test_non_measured_grades_never_count_as_differentials(
     assert summary["unevaluated_cells"]
 
 
+class _ExitCodeGrader(FakeGrader):
+    """Fake grader that records the trial exit code the native runner would write."""
+
+    def __init__(self, exit_code: int) -> None:
+        super().__init__()
+        self.exit_code = exit_code
+
+    def __call__(self, task: Path | str, *, output_dir: Path, **kwargs: Any) -> dict[str, Any]:
+        result = super().__call__(task, output_dir=output_dir, **kwargs)
+        agent = Path(output_dir) / "trial" / "agent"
+        agent.mkdir(parents=True, exist_ok=True)
+        (agent / "exit-code.txt").write_text(f"{self.exit_code}\n", encoding="utf-8")
+        return result
+
+
+def test_a_nonzero_candidate_exit_is_not_an_unavailable_grader(tmp_path: Path) -> None:
+    # The grader ran and the submitted script died before any assertion: a model
+    # failure, not infrastructure, so it must not inflate the unavailable bucket.
+    harness = Harness(tmp_path)
+    harness.grader = _ExitCodeGrader(1)
+    harness.grader.script("alpha", "original", (None, "error"), (None, "error"))
+    harness.run()
+    one = harness.result("alpha", 1)
+    assert one["outcome"] == "candidate_failed"
+    assert one["failure_reason"].startswith("candidate solution exited 1;")
+    assert one["verified_differential"] is False
+    assert sef.result_is_evaluated(one) is False
+    assert one["original_reward"] is None and one["repaired_status"] == "not_run"
+
+
+def test_a_zero_or_absent_candidate_exit_stays_an_unavailable_grader(tmp_path: Path) -> None:
+    for exit_code in (0, None):
+        harness = Harness(tmp_path / f"case-{exit_code}")
+        if exit_code is not None:
+            harness.grader = _ExitCodeGrader(exit_code)
+        harness.grader.script("alpha", "original", (None, "error"), (None, "error"))
+        harness.run()
+        one = harness.result("alpha", 1)
+        assert one["outcome"] == "original_grader_unavailable"
+        assert sef.result_is_evaluated(one) is False
+
+
 def test_measured_double_pass_is_evaluated_but_not_a_differential(tmp_path: Path) -> None:
     harness = Harness(tmp_path)
     harness.grader.script("alpha", "original", (1.0, "measured"), (1.0, "measured"))

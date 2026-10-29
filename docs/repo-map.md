@@ -174,10 +174,38 @@ inputs:
     digest: sha256:54d43eef14b171bfc3bc173c8e3922e10616cc5bb161ef2edbf3eb1284c87a98
   - path: src/evallab/failure_library/bank/__init__.py
     digest: sha256:cd23963c9b542810f9c9a4c88473f52604f0073321ae0ea36d896cdc8cb7e34c
+  - path: src/evallab/failure_library/bank/actors/__init__.py
+    digest: sha256:86e9809ad537fa14a7e93b8fad75ab7dcb043a8168fea41c66e101c16512194a
+  - path: src/evallab/failure_library/bank/actors/ablation.py
+    digest: sha256:f523157123666eefda58adab74e4ae319e57f246bea9f506420a0c01fae03f16
+  - path: src/evallab/failure_library/bank/actors/cheatbench.py
+    digest: sha256:cba785b08a05c474cd8023aba3920aa6a554644ddb904f1cee759f8ee0d39a20
+  - path: src/evallab/failure_library/bank/actors/goodfire.py
+    digest: sha256:0e9b1c3c363c14badb9bda18d566e3f99aad7d79ed6553d3f8fa222b19770204
+  - path: src/evallab/failure_library/bank/actors/malt.py
+    digest: sha256:df0b9e6cbcf8e0ba6e53a4e95fe02282c13c1db3309e9378a069ee0c1a909886
+  - path: src/evallab/failure_library/bank/actors/messages.py
+    digest: sha256:52f1f06209245f1c84a37e82505efaf67a6bb51647ba122cbf7b162de007cdde
+  - path: src/evallab/failure_library/bank/actors/resolve.py
+    digest: sha256:522b8a79ea5d413475fcbca6d725c5de051238ed700a066be67ac7bcc3c6120e
+  - path: src/evallab/failure_library/bank/actors/wrench.py
+    digest: sha256:e1fdac8b27062bf842a71f33968e14523f43a9da42c398902a83a115ba5b9150
+  - path: src/evallab/failure_library/bank/examples.py
+    digest: sha256:644ebc755780074d1c9e6517d6ab6419b053f692850729539620241f9da32a9e
+  - path: src/evallab/failure_library/bank/hard_cases.py
+    digest: sha256:46e4c4a9b0f8015fb590b737e5287713573afacae2085161811f121ad935c81c
+  - path: src/evallab/failure_library/bank/matrix.py
+    digest: sha256:737218aeccc4bdc879110617c1d6a2b98ae51c0c5d44d61dcd4731e4b3865db2
+  - path: src/evallab/failure_library/bank/optimize.py
+    digest: sha256:ed14b2344dfbc89e658f41ec22dcb810201f39e7fe8ee61c3ff0307d283686c4
+  - path: src/evallab/failure_library/bank/refresh.py
+    digest: sha256:f480fe7e1ab096d00ded45f32d5d4619e8955cc5b616abfd871c7c2fdc6c0770
   - path: src/evallab/failure_library/bank/sources/__init__.py
     digest: sha256:d35d520445eae16ed3d056dc9186a545d3cc6f7e9fdb508cd6dec4da20fad2f2
   - path: src/evallab/failure_library/bank/sources/answer_keys.py
     digest: sha256:5b6e9b066c1231f5fb51a19b4e4911f310d35ff978c2d8bf6a85c862f52bb321
+  - path: src/evallab/failure_library/bank/sources/clean_controls.py
+    digest: sha256:9e1d3a4ffba6b45ca36bf393746ff9e574f048f34b08bd828be7381b44d52069
   - path: src/evallab/failure_library/bank/sources/cloud_task_issues.py
     digest: sha256:a262f5f166c454ba52aaa67d417075ed85a5310ffa15b4a320d2c38cde0080cb
   - path: src/evallab/failure_library/bank/sources/cloud_traces.py
@@ -194,12 +222,20 @@ inputs:
     digest: sha256:8a75f5fd2535c85283ede8cf425c9b680b11025fea426db4122488d4136bf633
   - path: src/evallab/failure_library/bank/sources/seeker.py
     digest: sha256:ab49f9b74e29fce1962de63eab16c7b0c670766e7f9f49636605e8748e2e4a93
+  - path: src/evallab/failure_library/bank/taskqa_cases.py
+    digest: sha256:6bbb14591678f8215c8660f935af6f7d8ec036733106d95327df2f1a7d07eba9
+  - path: src/evallab/failure_library/bank/taskqa_findings.py
+    digest: sha256:5ef32c87c836e9132b8225e7d292d8ece05d9d26ce5710a052e1ba976462e308
   - path: src/evallab/failure_library/cli.py
     digest: sha256:d8dcb8f74122596696e0ce4dde2df02a9bd85c690a6cfa587bd5cc3e6964aa20
   - path: src/evallab/failure_library/commands/__init__.py
     digest: sha256:4bc6b2240ce0bab80521af0073d6b6af0ffb74e3bdbc1ae57291d5503e202093
   - path: src/evallab/failure_library/commands/bank.py
     digest: sha256:31f3eca36014fa16b93b97c33ccf8bc3abcd4dc6fb4e4d277d915f6fc6e7f7eb
+  - path: src/evallab/failure_library/commands/bank_matrix.py
+    digest: sha256:30d2c039e8c49442b988245df4e0c735c00405db2e250720adc4cf96eddaf011
+  - path: src/evallab/failure_library/commands/bank_refresh.py
+    digest: sha256:5614fbab2012e975b60878e7af932186f01a48cd383d0dd83110c119c852ca97
   - path: src/evallab/failure_library/commands/ingest.py
     digest: sha256:762d02ded5b16521c4c319c04630c708e15707a8213063207622d785799f6960
   - path: src/evallab/failure_library/commands/loop.py
@@ -698,6 +734,8 @@ inputs:
     digest: sha256:275f9f39858ec2c53d077f9522d4cb46d0085e0167779253c7b9547ea8d39135
   - path: src/evallab/production/live_supervisor_harbor.py
     digest: sha256:df5ad16be0cedf5b9e213adac93f62ead4b4c3fb29ce450448ef1f1b402242ac
+  - path: src/evallab/production/live_supervisor_replay.py
+    digest: sha256:c51a08b35604fa205e2089293c666182af1ffe8c4885c8ad9a094a7d390610b7
   - path: src/evallab/production/live_supervisor_services.py
     digest: sha256:b0af0a71d5e84a349ffd14ead463d36cd266f4191a625a51b33b3aeb4e129082
   - path: src/evallab/production/live_supervisor_triage.py
@@ -1155,7 +1193,7 @@ inputs:
   - path: src/evallab/trial_treatment.py
     digest: sha256:932748bb92147c7a6c240d9e40ad1baae5b028ade560ee69abc8c93a05fc0d5b
   - path: src/evallab/tripwires.py
-    digest: sha256:703713f384bbe546a9a0fa1572469215dc17f3c8b43d3d7f0e75dbbb1a254c45
+    digest: sha256:f17e1ad395be6f0b4015dbd3a74308bfead59eb56b67cd229e8da5f11700d649
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7ecf5e66b3e99887465bada34fcc09729dbffdc4346f95d79cb793bdd9bb82fb
   - path: src/evallab/upstream_fetch.py
@@ -1302,8 +1340,22 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `explorer` | 2500 | Read-only run and analysis explorer (M005). | — |
 | `failure_library` | 100 | Failure Library: provenance-first broken tasks and failed or hacked runs. | — |
 | `failure_library.bank` | 400 | ``issue-bank/v1``: one inventory of every known-issue item across all sources. | — |
+| `failure_library.bank.actors` | 100 | Source-native actor projections for issue-bank detector replay. | — |
+| `failure_library.bank.actors.ablation` | 300 | Source-native actor projection for reward-hacking-ablation rollouts. | — |
+| `failure_library.bank.actors.cheatbench` | 100 | Source-native CheatBench actor projection for issue-bank detector replay. | — |
+| `failure_library.bank.actors.goodfire` | 200 | Source-native actor projection for Goodfire reward-hack traces. | — |
+| `failure_library.bank.actors.malt` | 100 | Source-native actor projection for redistributed METR MALT responses. | — |
+| `failure_library.bank.actors.messages` | 200 | Source-native actor projection for HackTrace and OLMo message transcripts. | — |
+| `failure_library.bank.actors.resolve` | 200 | Resolve ``RunRecord.transcript_ref`` locators to native actor projections. | — |
+| `failure_library.bank.actors.wrench` | 200 | Source-native actor projection for Terminal Wrench ATIF trajectories. | — |
+| `failure_library.bank.examples` | 700 | Compile local, target-excluded defensive demos from ``issue-hard-case/v1``. | — |
+| `failure_library.bank.hard_cases` | 700 | DEV-only, unadjudicated trace hard cases and a frozen offline review sample. | — |
+| `failure_library.bank.matrix` | 600 | Catch/miss matrix: every DEV issue item against every detector identity. | — |
+| `failure_library.bank.optimize` | 1700 | FW-4: real GEPA over the retained CM-13 and OQ-6 defensive readers. | `python -m evallab.failure_library.bank.optimize plan` |
+| `failure_library.bank.refresh` | 700 | Incremental, local-only refresh of the lab's own issue-bank collections. | — |
 | `failure_library.bank.sources` | 100 | Issue-bank source builders, one module per source, discovered in name order. | — |
 | `failure_library.bank.sources.answer_keys` | 600 | Answer keys: every labelled item of ``research/answer-keys/*/items.jsonl``. | — |
+| `failure_library.bank.sources.clean_controls` | 100 | Criterion-scoped human negatives from OpenAI's SWE-bench annotations. | — |
 | `failure_library.bank.sources.cloud_task_issues` | 200 | Task-level grader issues from the cloud trace DB ``task_issues`` table. | — |
 | `failure_library.bank.sources.cloud_traces` | 300 | Cloud trace DB runs: labelled cheat positives and real clean negatives. | — |
 | `failure_library.bank.sources.cross_test` | 300 | Issue-bank source: the staged cross-test sets of the cross-test registry. | — |
@@ -1312,9 +1364,13 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `failure_library.bank.sources.library_runs` | 300 | Issue-bank source: run-level cheat labels from the Failure Library run records. | — |
 | `failure_library.bank.sources.run_health` | 200 | Run Health: detector alarms and the blind DEV loop audit. | — |
 | `failure_library.bank.sources.seeker` | 200 | Seeker: known-hack run labels (SB-2 export) and SB-1 pilot cell outcomes. | — |
+| `failure_library.bank.taskqa_cases` | 800 | Materialize defensive Task QA hard cases from frozen, already-scored OQ-6 audits. | — |
+| `failure_library.bank.taskqa_findings` | 600 | Task QA gate (OQ-6) task-level findings for DEV issue-bank task items. | — |
 | `failure_library.cli` | 100 | ``evallab failures`` command group. | — |
 | `failure_library.commands` | 100 | Subcommands of ``evallab failures``; each module exposes ``register(subparsers)``. | — |
 | `failure_library.commands.bank` | 100 | ``evallab failures bank``: the issue-bank inventory (build, stats, verify). | — |
+| `failure_library.commands.bank_matrix` | 200 | ``evallab failures bank-matrix``: DEV issue items × detector identities (catch/miss). | — |
+| `failure_library.commands.bank_refresh` | 100 | ``evallab failures bank-refresh``: scoped, local own-run bank updates. | — |
 | `failure_library.commands.ingest` | 100 | ``evallab failures ingest <collection>``: rebuild pinned finding collections. | — |
 | `failure_library.commands.loop` | 100 | ``evallab failures loop canary``: manual DEV integration heartbeat. | — |
 | `failure_library.commands.mine` | 200 | ``evallab failures mine``: version-pinned upstream-diff candidates, not proof. | — |
@@ -1564,6 +1620,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `production.live_supervisor_cheat` | 600 | Live Supervisor LS-5: route ``flag_cheating`` decisions to the Trace Watcher lane. | `python -m evallab.production.live_supervisor_cheat latency` |
 | `production.live_supervisor_fleet` | 800 | Live Supervisor source ``fleet``: the OMP lanes (herdr panes), the queue keeper and provider quotas. | — |
 | `production.live_supervisor_harbor` | 400 | Live Supervisor source ``harbor``: live Harbor trials on this Mac, read-only. | — |
+| `production.live_supervisor_replay` | 800 | Live Supervisor replay: run the supervisor over a historical case as if it were live. | — |
 | `production.live_supervisor_services` | 600 | Live Supervisor sources for launchd services, Modal apps and local lab processes. | — |
 | `production.live_supervisor_triage` | 300 | Live Supervisor model reader: Haiku triage, then Sonnet or Opus when the call matters. | — |
 | `production.modal_cloud` | 1200 | Authenticated Modal production control plane, durable stores, and CPU workers. | — |
@@ -1792,7 +1849,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `trial_decision` | 900 | One-page trial decision, composed from records already on disk. | — |
 | `trial_diagnosis` | 1300 | Deterministic trial diagnosis: trajectory -> failure modes + bounded Reef feedback. | — |
 | `trial_treatment` | 1400 | Per-trial treatment keys and capture records (HAR-93). | — |
-| `tripwires` | 6800 | Deterministic trace tripwires: one shared rule surface for live + offline. | — |
+| `tripwires` | 6900 | Deterministic trace tripwires: one shared rule surface for live + offline. | — |
 | `upstream_adapter` | 600 | Offline, file-only boundaries for pinned upstream evaluation results. | — |
 | `upstream_fetch` | 1100 | Detect agent trials that fetched upstream remote content (answer-leak guard). | — |
 | `upstream_grader` | 2400 | Run an unchanged Harbor task's native verifier in a fresh declared-resource environment. | — |
@@ -1966,6 +2023,7 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `python -m evallab.craft compile` | `craft` | compile pinned TB4 v4.0.0 Harbor job plan with flat 8h timeout and drift guards |
 | `python -m evallab.docindex generate` | `docindex` | Write a deterministic documentation index |
 | `python -m evallab.docindex check` | `docindex` | Fail-closed validation of front-matter and index freshness |
+| `python -m evallab.failure_library.bank.optimize plan` | `failure_library.bank.optimize` | preregister frozen DEV inputs without a model request |
 | `python -m evallab.file_access_capture probe` | `file_access_capture` | report sandbox discovery as JSON |
 | `python -m evallab.file_access_capture snapshot` | `file_access_capture` | hash protected roots as JSON |
 | `python -m evallab.file_access_capture capture` | `file_access_capture` | supervise inotifywait for one window |

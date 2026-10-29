@@ -103,6 +103,13 @@
   },
   "created_by": "ts11-defensive-repair",
   "created_at": "2026-10-28T06:35:42Z",
-  "status": "candidate",
-  "evidence": []
+  "status": "rejected",
+  "evidence": [
+    {
+      "at": "2026-10-29T00:47:57Z",
+      "by": "np21-ts1",
+      "status": "rejected",
+      "evidence": "TS-14 native oracle control at /Users/petermakhnatch/.local/state/evallab-ts14-native-validation/20261028T183358Z/native/pr-1348/repaired measured reward 0: the repaired CLI-default assertion required !threw, but the reference deliberately raises SilentError when an adapter would extend itself (reference.patch lines 20-23). Superseded by corrected variant sha256:af43b3058ca7."
+    }
+  ]
 }

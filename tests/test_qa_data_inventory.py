@@ -359,6 +359,16 @@ def test_db_clusters_project_members_withhold_unsafe_names_and_bind_build(ctx: Q
         assert str(error.value) == UNAVAILABLE
 
 
+def test_db_clusters_count_only_runs_whose_facet_record_is_served(ctx: QaContext) -> None:
+    named = facet("run-a", approach="Compared with sealed-task")
+    assert ctx.database.upsert_run_facets([named], registry=ctx.retriever.registry)["stored"] == 1
+    write_db_clusters(ctx, {"cluster_id": "group", "run_ids": ["run-a", "run-c"]})
+    payload = clusters(ctx, members="group", source="db")
+    assert payload["admitted_members"] == ["run-c"]
+    listed = clusters(ctx, members=None, source="db")["clusters"]
+    assert [(node["cluster_id"], node["admitted_size"]) for node in listed] == [("group", 1)]
+
+
 def test_file_clusters_use_latest_build_and_admit_registry_items_with_cross_key_gate(ctx: QaContext) -> None:
     write_cluster_file(ctx,
         {"build_id": "old-build", "cluster_id": "group", "run_ids": ["run-c"]},

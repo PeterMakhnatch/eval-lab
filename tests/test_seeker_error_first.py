@@ -108,6 +108,7 @@ class FakeOmp:
         self.peak: dict[str, int] = {}
         self.peak_total = 0
         self.delay = 0.0
+        self.raise_error: BaseException | None = None
 
     @staticmethod
     def reply(route: str, number: int) -> str:
@@ -124,6 +125,8 @@ class FakeOmp:
     def __call__(
         self, argv: Sequence[str], timeout: float, environment: Mapping[str, str]
     ) -> subprocess.CompletedProcess[str]:
+        if self.raise_error is not None:
+            raise self.raise_error
         route = argv[list(argv).index("--model") + 1]
         with self.lock:
             number = len([c for c in self.calls if c["route"] == route]) + 1
@@ -174,6 +177,7 @@ class FakeGrader:
         self.scripts: dict[tuple[str, str], list[tuple[float | None, str]]] = {}
         self.calls: list[dict[str, Any]] = []
         self.lock = threading.Lock()
+        self.raw_tail: bytes = b""
 
     def script(self, name: str, side: str, *results: tuple[float | None, str]) -> None:
         self.scripts[(name, side)] = list(results)
@@ -191,10 +195,13 @@ class FakeGrader:
         marker = ORIGINAL_MARKER if side == "original" else REPAIRED_MARKER
         log = verifier / "test-stdout.txt"
         failing = reward != 1.0
-        log.write_text(
-            "=== test session starts ===\n"
-            + (f"FAILED {TARGET_CHECK} - AssertionError: expected 5 got 4\n" if failing else "")
-            + f"{marker} verifier exit\n"
+        log.write_bytes(
+            (
+                "=== test session starts ===\n"
+                + (f"FAILED {TARGET_CHECK} - AssertionError: expected 5 got 4\n" if failing else "")
+                + f"{marker} verifier exit\n"
+            ).encode()
+            + (self.raw_tail if side == "original" else b"")
         )
         ctrf = verifier / "ctrf.json"
         ctrf.write_text(
@@ -496,6 +503,48 @@ def test_non_measured_grades_never_count_as_differentials(
     assert summary["paired"]["denominator"] == 0
     assert summary["differential_tasks_turn_1"] == [] == summary["differential_tasks_turn_2"]
     assert summary["unevaluated_cells"]
+
+
+class _ExitCodeGrader(FakeGrader):
+    """Fake grader that records the trial exit code the native runner would write."""
+
+    def __init__(self, exit_code: int) -> None:
+        super().__init__()
+        self.exit_code = exit_code
+
+    def __call__(self, task: Path | str, *, output_dir: Path, **kwargs: Any) -> dict[str, Any]:
+        result = super().__call__(task, output_dir=output_dir, **kwargs)
+        agent = Path(output_dir) / "trial" / "agent"
+        agent.mkdir(parents=True, exist_ok=True)
+        (agent / "exit-code.txt").write_text(f"{self.exit_code}\n", encoding="utf-8")
+        return result
+
+
+def test_a_nonzero_candidate_exit_is_not_an_unavailable_grader(tmp_path: Path) -> None:
+    # The grader ran and the submitted script died before any assertion: a model
+    # failure, not infrastructure, so it must not inflate the unavailable bucket.
+    harness = Harness(tmp_path)
+    harness.grader = _ExitCodeGrader(1)
+    harness.grader.script("alpha", "original", (None, "error"), (None, "error"))
+    harness.run()
+    one = harness.result("alpha", 1)
+    assert one["outcome"] == "candidate_failed"
+    assert one["failure_reason"].startswith("candidate solution exited 1;")
+    assert one["verified_differential"] is False
+    assert sef.result_is_evaluated(one) is False
+    assert one["original_reward"] is None and one["repaired_status"] == "not_run"
+
+
+def test_a_zero_or_absent_candidate_exit_stays_an_unavailable_grader(tmp_path: Path) -> None:
+    for exit_code in (0, None):
+        harness = Harness(tmp_path / f"case-{exit_code}")
+        if exit_code is not None:
+            harness.grader = _ExitCodeGrader(exit_code)
+        harness.grader.script("alpha", "original", (None, "error"), (None, "error"))
+        harness.run()
+        one = harness.result("alpha", 1)
+        assert one["outcome"] == "original_grader_unavailable"
+        assert sef.result_is_evaluated(one) is False
 
 
 def test_measured_double_pass_is_evaluated_but_not_a_differential(tmp_path: Path) -> None:
@@ -877,6 +926,110 @@ def test_feedback_block_is_bounded_and_scrubbed() -> None:
     assert later.startswith("# Runner error from your turn-4 submission")
     assert "Your turn-4 `solve.sh` was run" in later and "turn-1" not in later
     assert sef.RunnerError.from_json(error.to_json()) == error
+
+
+def test_control_characters_are_dropped_from_the_runner_error_block() -> None:
+    assert sef.strip_prompt_controls("keep\t\n\rNUL\x00ESC\x1bBEL\x07") == (
+        "keep\t\nNULESCBEL",
+        4,
+    )
+    # Not C0 and not a lone surrogate: the replacement character and DEL survive.
+    assert sef.strip_prompt_controls("plain \ufffd \x7f") == ("plain \ufffd \x7f", 0)
+    assert sef.strip_prompt_controls("lone \ud800 surrogate") == ("lone  surrogate", 1)
+
+    raw = {
+        "error": "grader\x00error\x1b[0m",
+        "failed": "tests/test_outputs.py::test_bad\x00name",
+        "excerpt": "trace\x00 line\x1b",
+        "verifier": "binary\x00png\x1b\nline two\n",
+    }
+
+    def error(fields: dict[str, str]) -> sef.RunnerError:
+        return sef.RunnerError(
+            status="measured",
+            reward=0.0,
+            error=fields["error"],
+            sandbox_exit_codes=(1,),
+            failed_tests=(fields["failed"],),
+            excerpts=(("tests/test_outputs.py::test_bad", fields["excerpt"]),),
+            verifier_output=fields["verifier"],
+            verifier_files=("test-stdout.txt",),
+        )
+
+    block, removed = sef.render_feedback_block_counted(error(raw))
+    expected = sum(
+        1 for text in raw.values() for ch in text if ord(ch) < 32 and ch not in "\n\t"
+    )
+    assert removed == expected == 7
+    assert block == sef.render_feedback_block(error(raw))
+    # Removing the control characters is the only difference in the visible text.
+    stripped = {key: sef.strip_prompt_controls(text)[0] for key, text in raw.items()}
+    assert block == sef.render_feedback_block(error(stripped))
+    assert "gradererror[0m" in block and "binarypng" in block
+
+
+def test_turn_two_prompt_carries_no_control_bytes_from_the_verifier(tmp_path: Path) -> None:
+    """A verifier that emits raw bytes must not put NUL/ESC into the ``omp`` argv."""
+    raw_tail = b"\x89PNG\r\n\x00\x00\x00\rIHDR\x1b[31mred\x07\x00\n"
+    harness = Harness(tmp_path)
+    _confirmed(harness, "alpha")
+    harness.grader.raw_tail = raw_tail
+    assert harness.run()["ok"]
+
+    first, second = harness.omp.prompts(ROUTE)
+    controls = {chr(code) for code in range(0x20)} - {"\n", "\t"}
+    assert not (set(first) | set(second)) & controls
+    assert second == (harness.cell("alpha") / "turn-2/prompt.md").read_text()
+    # Everything the runner printed survives except the control characters themselves.
+    assert "AssertionError: expected 5 got 4" in second and "[31mred" in second
+
+    two = harness.result("alpha", 2)
+    error = sef.RunnerError.from_json(
+        json.loads((harness.cell("alpha") / "turn-1/runner_error.json").read_text())
+    )
+    # The raw evidence keeps its bytes; only the prompt dropped them.
+    assert "\x00" in error.verifier_output and "\x1b" in error.verifier_output
+    # The runner's own \r/\r\n normalisation happens first; NUL, ESC and BEL still reach
+    # the block builder and every one of them is counted.
+    expected = sum(
+        1
+        for ch in sef.scrub_blind_task_text(error.verifier_output)
+        if ord(ch) < 32 and ch not in "\n\t"
+    )
+    assert two["feedback_control_chars_removed"] == expected == 6
+    assert harness.result("alpha", 1)["feedback_control_chars_removed"] is None
+    assert two["feedback_source"] == "runner_error"
+    # The cell is generated and graded normally instead of dying on the argv.
+    assert two["outcome"] == "confirmed_differential" and two["evaluated"] is True
+    assert two["verified_differential"] is True
+    block = (harness.cell("alpha") / "turn-2/feedback.md").read_bytes()
+    assert b"\x00" not in block and b"\x1b" not in block
+    assert two["feedback_block_sha256"] == hashlib.sha256(block).hexdigest()
+
+
+@pytest.mark.parametrize(
+    ("raised", "reason"),
+    [
+        (ValueError("embedded null byte"), "ValueError: embedded null byte"),
+        (OSError("argument list too long"), "OSError: argument list too long"),
+    ],
+)
+def test_prompt_the_os_refuses_is_prompt_rejected_not_a_generation_failure(
+    tmp_path: Path, raised: Exception, reason: str
+) -> None:
+    harness = Harness(tmp_path)
+    harness.omp.raise_error = raised
+    harness.run()
+    cell = harness.result("alpha", 1)
+    assert cell["outcome"] == "prompt_rejected"
+    assert cell["failure_reason"] == reason
+    assert cell["evaluated"] is False and cell["attestation_ok"] is False
+    # No model call happened and nothing was graded.
+    assert harness.omp.calls == [] and harness.grader.calls == []
+    attempt = json.loads((harness.cell("alpha") / "workspace/omp_attempt.json").read_text())
+    assert attempt["prompt_rejected"] is True and attempt["returncode"] is None
+    assert attempt["error"] == reason
+    assert harness.result("alpha", 2)["outcome"] == "not_evaluated_no_runner_error"
 
 
 def test_failure_token_enrichment_and_fallback_query() -> None:

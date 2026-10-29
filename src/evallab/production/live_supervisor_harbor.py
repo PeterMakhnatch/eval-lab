@@ -200,7 +200,7 @@ def triggers_for(observation: Observation) -> list[TriggerHit]:
         reasons.append((steps_seen / run_health.RUNAWAY_AGENT_STEPS,
                         f"agent_steps={steps_seen} (>= {run_health.RUNAWAY_AGENT_STEPS})"))
     if elapsed is not None and p99 and elapsed >= p99:
-        reasons.append((elapsed / p99, f"elapsed={elapsed:.0f}s (>= {p99:.0f}s p99 for {m.get('source')})"))
+        reasons.append((elapsed / p99, f"elapsed={elapsed:.0f}s (>= {p99:.0f}s source p99)"))
     if reasons:
         score, _ = max(reasons)
         hits.append(TriggerHit("wall_time", "runaway", score, "; ".join(r for _, r in reasons), tail))

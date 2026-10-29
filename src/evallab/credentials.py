@@ -68,6 +68,8 @@ LOCAL_OLLAMA_ENDPOINT = "local_ollama_endpoint"
 AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
     "claude-code": CLAUDE_OAUTH,
     ("claude-code", "claude-gateway/claude-haiku-5-5"): CLAUDE_GATEWAY,
+    ("claude-code", "claude-gateway/claude-sonnet-5-5"): CLAUDE_GATEWAY,
+    ("claude-code", "claude-gateway/claude-opus-5-5"): CLAUDE_GATEWAY,
     "codex": CODEX_AUTH,
     "cursor-cli": CURSOR_SESSION,
     "antigravity-cli": ANTIGRAVITY_SESSION,

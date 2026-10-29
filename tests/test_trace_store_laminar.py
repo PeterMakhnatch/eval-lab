@@ -6,14 +6,14 @@ from typing import Any
 
 import pytest
 
-from evallab.trace_store.core import TracePayload
+from evallab.trace_store.core import ALLOWED_DATASETS, TracePayload
 from evallab.trace_store.laminar import PROJECT_ID, LaminarTarget
 from evallab.trace_store.secrets import SecretScanRejected
 
 
-def trace() -> TracePayload:
-    return TracePayload("own", "mimo-defect-map-v1", {
-        "model": "m", "run_id": "own", "source": "mimo-defect-map-v1",
+def trace(dataset: str = "mimo-defect-map-v1") -> TracePayload:
+    return TracePayload("own", dataset, {
+        "model": "m", "run_id": "own", "source": dataset,
         "benchmark": "terminal-bench", "task_id": "terminal-bench/task",
         "outcome": "unknown", "split": "DEV",
     }, [
@@ -40,6 +40,27 @@ def test_upload_refuses_live_signals_or_wrong_project(disabled: bool, project: s
     with pytest.raises(ValueError):
         LaminarTarget(api_key="test", opener=recorder).upload(trace())
     assert not recorder.posts
+
+
+@pytest.mark.parametrize("dataset", ["hackbench", "cheatbench", "HackBench", "unknown-dataset"])
+def test_upload_rejects_unadmitted_dataset_before_any_span(
+    dataset: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("span built for an unadmitted dataset")
+
+    monkeypatch.setattr("evallab.trace_store.laminar.trace_spans", forbidden)
+    recorder = Recorder()
+    with pytest.raises(ValueError, match="not admitted"):
+        LaminarTarget(api_key="test", opener=recorder).upload(trace(dataset))
+    assert not recorder.posts
+
+
+@pytest.mark.parametrize("dataset", sorted(ALLOWED_DATASETS))
+def test_upload_accepts_every_docent_admitted_dataset(dataset: str) -> None:
+    recorder = Recorder()
+    LaminarTarget(api_key="test", opener=recorder).upload(trace(dataset))
+    assert recorder.posts
 
 
 def test_wire_byte_budget_is_checked_before_any_post() -> None:

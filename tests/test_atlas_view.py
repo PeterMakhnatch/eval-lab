@@ -309,6 +309,44 @@ def test_detector_alarms_filter_order_and_never_turn_missing_results_into_a_pass
     assert {run["run_id"]: run["detector_results_n"] for run in default["runs"]} == {"run-a": 0, "run-c": 1, "run-b": 3}
 
 
+def test_detector_results_filter_separates_unrecorded_runs_from_quiet_ones(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    results = {
+        "run-a": 3, "run-c": 1, "run-ghost": 5,  # run-b is admitted and faceted, but no detector stored a result for it
+    }
+    alarms = {"run-c": ["scout"]}
+
+    def listing(**fields: Any) -> dict[str, Any]:
+        return atlas_listing(
+            store, TRACES, AtlasFilters(**fields), alarms=alarms, alarms_available=True, read=results
+        )
+
+    default = listing()
+    assert {run["run_id"]: run["detector_results_n"] for run in default["runs"]} == {
+        "run-a": 3, "run-c": 1, "run-b": 0,
+    }
+    assert default["options"]["results"] == {"any": 2, "none": 1}  # admitted runs only: run-ghost is not counted
+    assert "run-ghost" not in [run["run_id"] for run in listing(results="any")["runs"]]
+    unread, read_any = listing(results="none")["runs"], listing(results="any")["runs"]
+    assert [run["run_id"] for run in unread] == ["run-b"]
+    assert [run["run_id"] for run in read_any] == ["run-a", "run-c"]
+    # read and not alarmed (run-a) is not the same row as unread (run-b), although neither alarms
+    assert read_any[0]["alarms"] == [] and unread[0]["alarms"] == []
+    assert [run["run_id"] for run in listing(results="any", alarmed_by="scout")["runs"]] == ["run-c"]
+    narrowed = listing(results="none")
+    assert narrowed["total"] == 1 and {c["cluster_id"]: c["matching_n"] for c in narrowed["clusters"]}["root"] == 1
+    quiet = atlas_listing(store, TRACES, AtlasFilters(), alarms_available=False, read={})
+    assert quiet["options"]["results"] == {} and quiet["total"] == 3
+    assert all(run["detector_results_n"] == 0 for run in quiet["runs"])
+    # nothing retained: a read filter selects nothing rather than calling every run unread
+    assert atlas_listing(
+        store, TRACES, AtlasFilters(results="none"), alarms_available=False, read={}
+    )["total"] == 0
+    assert atlas_listing(
+        store, TRACES, AtlasFilters(results="any"), alarms_available=False, read={}
+    )["total"] == 0
+
+
 def test_cluster_paths_run_root_to_leaf(tmp_path: Path) -> None:
     store = _store(tmp_path)
     assert [[item["cluster_id"] for item in chain] for chain in cluster_paths(store, "run-a")] == [

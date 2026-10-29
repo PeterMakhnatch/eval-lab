@@ -315,6 +315,7 @@ class AtlasFilters:
     success_claim_without_evidence: bool | None = None
     cluster_id: str | None = None
     alarmed_by: str | None = None
+    results: Literal["none", "any"] | None = None
     sort: Literal["suspicion", "alarms"] = "suspicion"
 
 
@@ -395,6 +396,15 @@ def atlas_listing(
         raise ValueError(f"limit must be 1..{MAX_PAGE} and offset non-negative")
     shown, withheld = visible_facets(store, traces)
     alarmed: Mapping[str, Collection[str]] = alarms or {}
+    read_n: Mapping[str, int] = read or {}
+
+    def results_match(run_id: str) -> bool:
+        if filters.results is None:
+            return True
+        if not alarms_available:
+            return False  # nothing is retained: a run is never reported as result-less on no evidence
+        return (read_n.get(run_id, 0) > 0) == (filters.results == "any")
+
     members: set[str] | None = None
     tree = list((store.clusters or {}).get("clusters", []))
     if filters.cluster_id is not None:
@@ -407,6 +417,7 @@ def atlas_listing(
         for run_id, facet in shown.items()
         if (members is None or run_id in members)
         and (filters.alarmed_by is None or filters.alarmed_by in alarmed.get(run_id, ()))
+        and results_match(run_id)
         and _matches(facet, traces[run_id], filters)
     ]
     matching_set = set(matching)
@@ -426,6 +437,14 @@ def atlas_listing(
     } | {name: sum(1 for facet in shown.values() if facet[name]) for name in _FLAGS}
     options["alarmed_by"] = dict(
         sorted(Counter(name for run_id in shown for name in alarmed.get(run_id, ())).items())
+    )
+    options["results"] = (
+        {
+            "any": sum(1 for run_id in shown if read_n.get(run_id, 0) > 0),
+            "none": sum(1 for run_id in shown if not read_n.get(run_id, 0)),
+        }
+        if alarms_available
+        else {}
     )
     return {
         "store": {
@@ -465,7 +484,7 @@ def atlas_listing(
                 "step_count": traces[run_id]["step_count"],
                 "cluster_ids": by_run[run_id],
                 "alarms": sorted(alarmed.get(run_id, ())),
-                "detector_results_n": (read or {}).get(run_id, 0),
+                "detector_results_n": read_n.get(run_id, 0),
                 "blinding": None if blinding is None else blinding.get(run_id),
             }
             for run_id in page

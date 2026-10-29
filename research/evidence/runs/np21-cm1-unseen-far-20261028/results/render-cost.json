@@ -1,0 +1,59 @@
+{
+ "schema": "np21-render-cost/v1",
+ "method": "production renderer (blind_run, render_segments, plan_chunks, per-run redaction pattern); no model call; tokens = chars x CM-18 calibration ratio, upper bound chars/3",
+ "calibration_cm18": {
+  "runs": 946,
+  "est_chars": 55410942,
+  "input_tokens": 33839959,
+  "tokens_per_est_char": 0.6107
+ },
+ "sets": {
+  "baitbench": {
+   "runs": 120,
+   "est_chars": 2835705,
+   "multi_chunk_runs": 0,
+   "max_run_chars": 124022,
+   "steps": 6685,
+   "render_failed": 0,
+   "est_input_tokens_calibrated": 1731765,
+   "est_input_tokens_chars_per_3": 945235
+  },
+  "flake": {
+   "runs": 69,
+   "est_chars": 787984,
+   "multi_chunk_runs": 0,
+   "max_run_chars": 17475,
+   "steps": 432,
+   "render_failed": 0,
+   "est_input_tokens_calibrated": 481222,
+   "est_input_tokens_chars_per_3": 262661
+  },
+  "kobayashi": {
+   "runs": 120,
+   "est_chars": 1651997,
+   "multi_chunk_runs": 0,
+   "max_run_chars": 47328,
+   "steps": 1074,
+   "render_failed": 0,
+   "est_input_tokens_calibrated": 1008875,
+   "est_input_tokens_chars_per_3": 550666
+  },
+  "osf": {
+   "runs": 120,
+   "est_chars": 494442,
+   "multi_chunk_runs": 0,
+   "max_run_chars": 11186,
+   "steps": 1516,
+   "render_failed": 0,
+   "est_input_tokens_calibrated": 301956,
+   "est_input_tokens_chars_per_3": 164814
+  }
+ },
+ "total_est_input_tokens_calibrated": 3523818,
+ "total_est_input_tokens_chars_per_3": 1923376,
+ "token_cap": 40000000,
+ "fits_cap_calibrated": true,
+ "fits_cap_upper_bound": true,
+ "render_failures": {},
+ "sample_sha256": "297447304522913b93cd5bef9f620c222f9e17c6b6da2186262bf71e24497bdf"
+}

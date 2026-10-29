@@ -55,6 +55,17 @@ Trace Tools operations (offline, read-only unless stated):
 - `scout-watch` keeps a derived `coverage-v1.json` (ledger SHA-256 plus projection and
   scanner contract) and opens the transcript store only when a transcript exists.
   Admission is re-decided every sweep.
+- `python -m evallab.readers.metr_campaign_plan prepare|export`: offline planner for the
+  frozen 200 Goodfire runs plus the disjoint rest of admitted DEV. `export` converts only
+  already-stored METR results into `trace-findings/v1`; an unread run has no finding, a
+  stored null stays an abstention, and numeric 0 is `clear` only with exact `false` flags.
+  It runs no model: native generation stays sealed (#1388), so unread runs stay unread.
+- `evallab.readers.harbor_trace_inputs`: `preflight_harbor_inputs` (writes nothing) and
+  `prepare_harbor_analysis_inputs` stage label-free native Harbor 0.24 analysis tasks for
+  admitted DEV runs. A selection is refused whole when any run lacks full actor history,
+  would lose recorded content, contains a secret, or fails the DEV and cross-key gates.
+  Backend and funding are reported, never probed or launched; the tests run in the native
+  Harbor CI step because they skip unless Harbor is exactly 0.24.0.
 
 ## The harness
 
@@ -89,6 +100,15 @@ record per (run, detector):
 - `coverage --corpus … [--corpus …]` lists findings per detector identity and corpus,
   and every registered detector that has no findings there.
 - The Phoenix shipper is `evallab trace otel <path>`.
+- `--detectors cascade_stream` is the only live path: it feeds a run's steps one
+  `trace.step` event at a time to `MisalignmentLiveWorker`
+  (`production/trace_harness_stream.py`), and it is the second adapter that may
+  generate, gated the same way: Stage 2 serves only stored or injected verdicts, so a
+  missing verdict is an unavailable judgment and the run abstains, and `--allow-model`
+  is the only route to a fresh Kimi call. Its summary keeps two clocks apart: the causal
+  prefix the first alarm's judgment was frozen on (comparable with ID-CM-1) and the step
+  at which that alarm was actually emitted, with the agent turns elapsed at each. The
+  `cascade*` adapters stay stored-result views.
 
 ## Gaps and duplicates
 

@@ -281,6 +281,14 @@ def _dec(observation: ls.Observation, hits: Sequence[ls.TriggerHit], proposal: l
                        reason=f"reader failed ({type(exc).__name__}); unconfirmed {proposal.action}: {proposal.reason}")
 
 
+def hit_via(hit: ls.TriggerHit) -> str:
+    """Which detector family produced ``hit``, from its detail text (the hit carries no source field)."""
+    for prefix, via in (("run_health", "run_health"), ("live_watch", "live_watch"), ("trace harness", "trace_harness")):
+        if hit.detail.startswith(prefix):
+            return via
+    return "clock"
+
+
 def replay_timeline(case: Mapping[str, Any], rp: Replayable, *, decider: ls.Decider | None = None) -> dict[str, Any]:
     """Replay one prepared case; the row carries the first non-continue decision (or none)."""
     with memoized_run_health():
@@ -293,6 +301,7 @@ def _replay(case: Mapping[str, Any], rp: Replayable, decider: ls.Decider | None)
     first: tuple[float, ls.Observation, list[ls.TriggerHit], ls.Decision, ls.Decision] | None = None
     last_observation: ls.Observation | None = None
     evaluated = 0
+    seen: dict[tuple[str, str, str], tuple[float, int, str]] = {}
     for t in grid:
         visible = bisect_right(stamps, t)
         observation = rp.observe(visible, to_dt(t))
@@ -303,6 +312,8 @@ def _replay(case: Mapping[str, Any], rp: Replayable, decider: ls.Decider | None)
         hits = rp.source.triggers(observation)
         if not hits:
             continue
+        for h in hits:
+            seen.setdefault((h.trigger, h.kind, hit_via(h)), (t, bisect_right(stamps, t), h.detail[:160]))
         proposal = ls.guard(rp.subject, ls.propose(rp.subject, hits))
         decision = ls.guard(rp.subject, _dec(observation, hits, proposal, decider))
         if decision.action != "continue":
@@ -324,6 +335,11 @@ def _replay(case: Mapping[str, Any], rp: Replayable, decider: ls.Decider | None)
         "first_alarm_at": None, "action": "continue", "kind": None, "triggers": [],
         "detection_delay_s": None, "lead_before_end_s": None, "steps_at_alarm": None,
         "elapsed_to_first_alarm_s": None, "proposal": None, "reason": None, "reader_model": None,
+        # Every distinct trigger that fired up to the first alarm (or the end), even when its rule
+        # proposal was ``continue``: what a model reader would have been shown.
+        "first_hits": [{"trigger": k[0], "kind": k[1], "via": k[2], "steps": v[1], "detail": v[2],
+                        "elapsed_s": round(v[0] - rp.start, 3) if observed else None}
+                       for k, v in sorted(seen.items(), key=lambda kv: kv[1][0])],
     }
     if observed or rp.timing != "synthetic":
         # Start and end come from the case's own metadata even when the step times do not.

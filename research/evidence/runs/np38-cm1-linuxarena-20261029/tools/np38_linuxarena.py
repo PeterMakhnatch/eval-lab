@@ -2036,8 +2036,8 @@ def _score(partial: bool, rescore: str | None) -> None:
         # Pool suppression across all the detector's partitions, including headline complements and reasons.
         partition_counts = [*raw["S"].values(), *raw["non-S"].values(), *cells.values(), *reasons.values(),
                             *(v["task_keys_with_alarm"] for v in groups.values())]
-        if any(0 < value < 3 for value in partition_counts):
-            result = {"suppressed": "whole detector block withheld: a cell of 1 or 2 or its complement",
+        if any(0 < value < 3 for value in partition_counts) or any(cells[name] < 3 for name in names[:4]):
+            result = {"suppressed": "whole detector block withheld: a small cell or its complement",
                       "partial": partial}
         out["detectors"][detector] = result
     ledger = ledger_summary(index)
@@ -2102,6 +2102,7 @@ def _selftest_np38_scoring() -> None:
             assert "suppressed" in public["detectors"]["facets_susp_ge_2"]
             assert private["detectors"]["facets_susp_ge_2"]["groups"]["S"]["rate"]["k"] == 1
             assert "matched" not in public["detectors"]["facets_susp_ge_2"]
+            assert "suppressed" in public["detectors"]["cascade_v8"]
             try:
                 score(False, None)
             except SystemExit:

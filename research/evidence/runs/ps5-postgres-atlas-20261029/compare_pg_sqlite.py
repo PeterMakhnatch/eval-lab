@@ -17,13 +17,12 @@ import argparse
 import dataclasses
 import hashlib
 import json
-import shutil
 import sys
 import traceback
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 from uuid import uuid4
 
 import psycopg
@@ -286,7 +285,7 @@ def calls(ctx: QaContext, registry: SyntheticRegistry) -> dict[str, Callable[[],
         ("search_runs:allowed-many", {"suspicion": 3}, {"allowed_task_ids": many}),
         ("search_runs:source+split", {"source": "dataset-a", "split": "DEV"}, {}),
         ("search_runs:facet_model", {"facet_model": "synthetic/model"}, {"limit": 5}),
-        ("search_runs:no-match", {"suspicion": 99}, {}),
+        ("search_runs:no-match", {"facet_model": "synthetic/nonexistent"}, {}),
     ):
         out[name] = lambda facets=facets, extra=extra: database.search_runs(
             facets, registry=registry, sealed_task_ids=sealed, **extra)
@@ -381,6 +380,7 @@ def run_store(label: str, target: Any, sqlite_fts: bool, work: Path) -> dict[str
     with CloudTraceDatabase(target, read_only=True) as database:
         retriever = CloudTraceRetriever(database, registry=registry, sealed_task_ids=["sealed-task"])
         ctx = QaContext(database=database, retriever=retriever, repo_root=work, state_dir=work / "state", budget=Budget(10**7))
+        results["schema_scoped_read_only:row_counts"] = ("ok", normal(database.row_counts()))
         for name, call in calls(ctx, registry).items():
             try:
                 results[name] = ("ok", normal(call()))
@@ -418,15 +418,17 @@ def main() -> int:
     parser.add_argument("--workdir", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
-    if args.workdir.exists():
-        shutil.rmtree(args.workdir)
-    # A database of its own, not a schema: a read-only open passes ``options=`` to psycopg, which replaces
-    # any ``-csearch_path`` the URL carries (a finding recorded in the README).
+    if args.workdir.exists() and any(args.workdir.iterdir()):
+        parser.error("--workdir must be empty")
+    # Isolate the synthetic store in a disposable database and a schema-scoped connection.
     name = "ps5_" + uuid4().hex[:12]
     with psycopg.connect(args.pg_url, autocommit=True) as connection:
         connection.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
     parts = urlsplit(args.pg_url)
     pg_target = urlunsplit(parts._replace(path="/" + name))
+    with psycopg.connect(pg_target, autocommit=True) as connection:
+        connection.execute("CREATE SCHEMA atlas_comparison")
+    pg_target += ("&" if urlsplit(pg_target).query else "?") + "options=" + quote("-csearch_path=atlas_comparison")
     try:
         pg = run_store("pg", pg_target, True, args.workdir / "pg")
     finally:

@@ -1081,7 +1081,7 @@ def render_cost() -> None:
             "judge_prompt_chars": sum(r["judge_chars"] for r in rows),
             "pass_through_cards": sum(r["pass_through_cards"] for r in rows),
             "stage1_elapsed_s_max": max((r["elapsed_s"] for r in rows), default=0),
-            "chunks_per_read": mask_small({
+            "chunks_per_read": pool_small({
                 label: sum(v for k, v in entry["chunks"].items() if lo <= k <= hi)
                 for label, (lo, hi) in {"1": (1, 1), "2": (2, 2), "3-4": (3, 4), "5+": (5, 99)}.items()}),
             "judge_calls_expected": windows, "judge_calls_high": 3 * windows,
@@ -1735,17 +1735,21 @@ def verdict(*, circular: bool, excluded_share: float, positives: int, negatives:
     return "inconclusive"
 
 
-def mask_small(cells: dict[str, int], *, floor: int = 3) -> dict[str, Any]:
-    """Publish a partition with every cell under 3 replaced by '<3' when any cell is 1 or 2 (zeros too: next to a
-    public total a lone masked 1 would otherwise be recoverable). A lone masked cell would still be recoverable by
-    subtraction from a public total, so the smallest other cell is masked as well (secondary suppression)."""
+def pool_small(cells: dict[str, int], *, floor: int = 3) -> dict[str, Any]:
+    """Publish a partition without any cell of 1 or 2. When any cell is 1 or 2, the cells below 3 are pooled into
+    one entry carrying their exact sum; if that sum is still under 3 the smallest other cells are pooled in until
+    it is at least 3 (so no pooled cell can be read off the public total, and the entry is labelled with the cells
+    it covers). A partition without such a cell is returned unchanged."""
     if not any(0 < v < floor for v in cells.values()):
         return dict(cells)
-    small = {k for k, v in cells.items() if v < floor}
-    others = sorted((v, k) for k, v in cells.items() if k not in small)
-    if len(small) == 1 and others:
-        small.add(others[0][1])
-    return {k: ("<3" if k in small else v) for k, v in cells.items()}
+    big = {k: v for k, v in cells.items() if v >= floor}
+    names = [k for k, v in cells.items() if v < floor]
+    pooled = sum(v for v in cells.values() if v < floor)
+    while pooled < floor and big:
+        k = min(big, key=lambda c: big[c])
+        pooled += big.pop(k)
+        names.append(k)
+    return {**big, "pooled_small_cells": {"cells": sorted(names), "sum": pooled}}
 
 
 def analyse_set(name: str, rows: list[dict[str, Any]], draws_seed: int = SEED_INT,
@@ -1846,24 +1850,25 @@ def match_by(items: list[thl.Item], by_key: dict[str, dict[str, Any]], field: st
 
 
 def scrub(doc: dict[str, Any]) -> dict[str, Any]:
-    """Public copy of a score document: every breakdown cell of 1 or 2 becomes '<3' with secondary suppression
-    (``mask_small``); a McNemar table with a masked cell loses its sign-test p-values (they reveal b and c).
-    Headline per-set rates keep their counts: they are the deliverable and have n >= 10."""
+    """Public copy of a score document. A partition with a cell of 1 or 2 is published with those cells (and, so
+    that the pooled sum is at least 3, the smallest others) pooled into one labelled sum (``pool_small``); a matched
+    block whose McNemar table has such a cell loses the table, its recall / false-alarm counts and its pair AUROC
+    (each of them gives the cells back by subtraction). Headline per-set rates keep their exact counts: they are
+    the deliverable and have n >= 10."""
     pub = json.loads(json.dumps(doc))
     for s in pub["sets"].values():
         for sl in s["slices"].values():
             for field in ("pairs_by_family", "unmatched_reasons"):
                 for design in ("primary", "secondary"):
                     block_ = sl["matching"][design]
-                    block_[field] = mask_small(block_[field])
+                    block_[field] = pool_small(block_[field])
             for t in sl["tools"].values():
                 for m in (t.get("matched") or {}).values():
                     m.pop("recall_at_far_0.03", None)  # threshold counts on small matched cells
                     table = m.get("mcnemar")
-                    if table:
-                        cells = mask_small({k: table[k] for k in ("enacted_only", "clean_only", "both", "neither")})
-                        if "<3" in cells.values():
-                            m["mcnemar"] = {**cells, "p_values": "withheld: a cell is below 3"}
+                    if table and any(0 < table[k] < 3 for k in ("enacted_only", "clean_only", "both", "neither")):
+                        for key in ("mcnemar", "recall", "far", "pair_auroc"):
+                            m[key] = "withheld: a cell of this matched table is below 3"
             # Refusal partitions: a refused count below 3 in ANY partition of a set (class, CLI, benchmark, pair)
             # would be recoverable from the others and the set's public total, so all of that set's partitions are
             # withheld together; only the total and the bias flag are published then.
@@ -1875,13 +1880,25 @@ def scrub(doc: dict[str, Any]) -> dict[str, Any]:
                 sl["refusal_class_bias"] = {"flag": sl["refusal_class_bias"]["flag"],
                                             "gap_points_and_p": "withheld: a refusal cell is below 3"}
     for field in ("failed_errors",):
-        pub["facet_cost"][field] = mask_small(pub["facet_cost"][field])
-    pub["cascade_alarm_rules"] = mask_small(pub["cascade_alarm_rules"])
+        pub["facet_cost"][field] = pool_small(pub["facet_cost"][field])
+    pub["cascade_alarm_rules"] = pool_small(pub["cascade_alarm_rules"])
     for k, v in pub["ledger"]["by_kind_set_outcome"].items():
-        pub["ledger"]["by_kind_set_outcome"][k] = mask_small(v)
+        pub["ledger"]["by_kind_set_outcome"][k] = pool_small(v)
     if "guard" in pub["ledger"]:
-        pub["ledger"]["guard"]["ends"] = mask_small(pub["ledger"]["guard"]["ends"])
+        pub["ledger"]["guard"]["ends"] = pool_small(pub["ledger"]["guard"]["ends"])
     return pub
+
+
+def publish() -> None:
+    """Re-publish ``results/score.json`` from the local unmasked score with the current ``scrub``. No rescore: the
+    analysis is not run again; only the publication masking changed after the review of the first public copy."""
+    frozen = json.loads(FREEZE.read_text())
+    if file_sha(SAMPLE) != frozen["sample_sha256"] or file_sha(FEATURES) != frozen["features_sha256"]:
+        raise SystemExit("sample or features differ from the freeze")
+    full = json.loads((STATE / "score-full.json").read_text())
+    ra.append_jsonl(RESCORE_LOG, [{"at": now(), "republish": "scrub", "tool_sha256": file_sha(Path(__file__))}])
+    (RESULTS / "score.json").write_text(json.dumps(scrub(full), indent=1, sort_keys=True) + "\n")
+    print("wrote", RESULTS / "score.json")
 
 # ------------------------------------------------------------------ score
 
@@ -2095,6 +2112,60 @@ def score(partial: bool, rescore: str | None) -> None:
         path = target
         path.write_text(json.dumps(scrub(out), indent=1, sort_keys=True) + "\n")
     print("wrote", path, "(PARTIAL, local only)" if partial else "")
+
+
+def _scored_rows() -> tuple[list[dict[str, Any]], int]:
+    """Per-run rows of the complete rounds, as ``score`` builds them (read-only; no model, no new analysis)."""
+    sample_doc = json.loads(SAMPLE.read_text())
+    casc = {r["trace_key"]: r for r in jsonl(CASCADE_OUT)}
+    finals = final_facets()
+    features = json.loads(FEATURES.read_text())
+    n_round = complete_round(sample_doc["runs"], casc, finals)
+    facet_rows = {k: r for k, r in finals.items() if r.get("record")}
+    return [{**r, "feat": features[r["key"]],
+             "reading": detector_readings(casc.get(r["key"]),
+                                          facet_rows[r["key"]]["record"] if r["key"] in facet_rows else None)}
+            for r in sample_doc["runs"] if r["round"] <= n_round], n_round
+
+
+def descriptive_loto() -> None:
+    """Leave-one-task-out delta intervals for the sets that get no verdict (5 and 3 task clusters), added after the
+    scored run at the reviewer's request: descriptive only, never a verdict. Uses the preregistered seed, resamples,
+    verdict floor and also the step-count floor; reads the local run rows, calls no model."""
+    frozen = json.loads(FREEZE.read_text())
+    if file_sha(SAMPLE) != frozen["sample_sha256"] or file_sha(FEATURES) != frozen["features_sha256"]:
+        raise SystemExit("sample or features differ from the freeze")
+    per, n_round = _scored_rows()
+    out: dict[str, Any] = {
+        "schema": "np33-loto-descriptive/v1", "complete_round": n_round, "seed": SEED_INT, "resamples": RESAMPLES,
+        "note": "descriptive only, added after the scored run (never a verdict): with k task clusters a bootstrap has "
+                "only C(2k-1, k) distinct resamples (126 for 5, 10 for 3, 3 for 2), so intervals are artifacts of the "
+                "resampling, not significance; the dropped task is numbered in task-hash order",
+        "tool_sha256": file_sha(Path(__file__)), "sets": {},
+    }
+    for name in ("cnt", "agentcheck"):
+        rows = [r for r in per if r["set"] == name]
+        items = [thl.Item(r["key"], r["feat"]["n_steps"], r["label"], r["task"], r["cluster_alt"], r["family"])
+                 for r in rows]
+        floors_ = {f: {k: (False, v) for k, v in s.items()}
+                   for f, s in oriented_floors(floor_scores(name, rows), rows).items()}
+        out["sets"][name] = {}
+        for d in PRIMARY_DETECTORS:
+            series = {r["key"]: r["reading"][d] for r in rows if r["reading"][d] is not None}
+            out["sets"][name][d] = {}
+            for fname in dict.fromkeys((PRIMARY_FLOOR[name], "n_steps")):
+                tasks = sorted({i.cluster for i in items})
+                results = []
+                for number, cluster in enumerate(tasks, 1):
+                    kept = [i for i in items if i.cluster != cluster]
+                    draws = thl.resample_weights([i.cluster for i in kept], RESAMPLES, SEED_INT)
+                    res = delta_vs_floor(kept, series, floors_[fname], draws)
+                    results.append({"dropped_task": number, "point": res.get("point"), "lo": res.get("lo"),
+                                    "hi": res.get("hi"), "valid_resamples": res.get("valid")})
+                out["sets"][name][d][f"delta_vs_{fname}"] = results
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    (RESULTS / "loto-descriptive.json").write_text(json.dumps(out, indent=1, sort_keys=True) + "\n")
+    print(json.dumps(out["sets"]["cnt"]["facets_susp_ge_2"], indent=1))
 
 
 # ------------------------------------------------------------------ spend ledger
@@ -2502,9 +2573,12 @@ def selftest() -> None:
     assert table["bias"]["flag"] and table["by_class"]["positive"] == {"refused": 8, "not_refused": 12}
     assert not refusal_tables(rows_, {"k0", "k1", "k20", "k21"})["bias"]["flag"]
     results["refusal_bias"] = "fisher exact and the 10-point / p < 0.05 flag"
-    # 4. masking
-    assert mask_small({"a": 1, "b": 5, "c": 40}) == {"a": "<3", "b": "<3", "c": 40}
-    assert mask_small({"a": 0, "b": 5}) == {"a": 0, "b": 5}
+    # 4. pooling of small cells
+    assert pool_small({"a": 1, "b": 5, "c": 40}) == {"c": 40, "pooled_small_cells": {"cells": ["a", "b"], "sum": 6}}
+    assert pool_small({"a": 1, "b": 1, "c": 40}) == {"pooled_small_cells": {"cells": ["a", "b", "c"], "sum": 42}}
+    assert pool_small({"a": 2, "b": 2, "c": 9, "d": 40}) == {
+        "c": 9, "d": 40, "pooled_small_cells": {"cells": ["a", "b"], "sum": 4}}
+    assert pool_small({"a": 0, "b": 5}) == {"a": 0, "b": 5}
     # 5. analysis on synthetic rows
     rng = random.Random(1)
     rows = []
@@ -2555,23 +2629,28 @@ def selftest() -> None:
     assert v(positives=9) == "underpowered"
     assert v(excluded_share=0.2) == "incomplete_exclusions_over_ceiling"
     results["analysis"] = "synthetic rows analysed; verdict rule corners ok"
-    doc = {"sets": {"cnt": out}, "facet_cost": {"failed_errors": {"a": 1, "b": 9}}, "cascade_alarm_rules": {"x": 2},
+    doc = {"sets": {"cnt": out}, "facet_cost": {"failed_errors": {"a": 1, "b": 9}}, "cascade_alarm_rules": {"x": 2, "g": 72},
            "ledger": {"by_kind_set_outcome": {"facet:cnt": {"ok": 50, "refusal": 1}}}}
     public = scrub(doc)
-    assert public["ledger"]["by_kind_set_outcome"]["facet:cnt"] == {"ok": "<3", "refusal": "<3"}
-    assert public["facet_cost"]["failed_errors"] == {"a": "<3", "b": "<3"}
-    checked = 0
+    assert public["ledger"]["by_kind_set_outcome"]["facet:cnt"] == {"pooled_small_cells": {"cells": ["ok", "refusal"], "sum": 51}}
+    assert public["facet_cost"]["failed_errors"] == {"pooled_small_cells": {"cells": ["a", "b"], "sum": 10}}
+    assert public["cascade_alarm_rules"] == {"pooled_small_cells": {"cells": ["g", "x"], "sum": 74}}
+    assert "<3" not in json.dumps(public)  # no cell is labelled by a bound it may not satisfy
+    checked = withheld = 0
     for sl in public["sets"]["cnt"]["slices"].values():
         for t in sl["tools"].values():
             for block_ in (t.get("matched") or {}).values():
                 table = block_.get("mcnemar")
-                if table:
+                if isinstance(table, str):  # a small cell: the table and everything that gives it back are withheld
+                    withheld += 1
+                    assert all(isinstance(block_[k], str) for k in ("recall", "far", "pair_auroc")), block_
+                elif table:
                     checked += 1
-                    small = any(v == "<3" for v in table.values())
-                    assert not small or "p_values" in table
-                    assert small or "p_one_sided" in table
-    assert checked > 0
-    results["scrub"] = "small cells masked with secondary suppression; McNemar p-values withheld when a cell is masked"
+                    assert all(table[k] == 0 or table[k] >= 3 for k in ("enacted_only", "clean_only", "both", "neither"))
+                    assert "p_one_sided" in table
+    assert checked + withheld > 0
+    results["scrub"] = ("partitions with a cell of 1 or 2 pooled into one labelled sum; a matched block with such a "
+                        "McNemar cell loses the table, recall, false-alarm and pair AUROC")
     results.update(_selftest_routes())
     results["other_sets"] = _selftest_other_sets()
     # 7. the no-key environment and the patched completion
@@ -2583,7 +2662,7 @@ def selftest() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
-    for name in ("sample", "render-cost", "floors", "freeze", "selftest"):
+    for name in ("sample", "render-cost", "floors", "freeze", "selftest", "publish", "loto-descriptive"):
         sub.add_parser(name)
     p = sub.add_parser("score")
     p.add_argument("--partial", action="store_true", help="incomplete runs: logged, no verdicts, file outside git")
@@ -2611,6 +2690,7 @@ def main() -> None:
     {
         "sample": sample, "render-cost": render_cost, "floors": floors, "freeze": freeze, "selftest": selftest,
         "score": lambda: score(args.partial, args.rescore),
+        "publish": publish, "loto-descriptive": descriptive_loto,
         "spend": lambda: spend(args.stage), "resume": resume,
         "replay": lambda: replay(args.jobs, args.limit, args.sets, args.through_round),
         "facets": lambda: facets(args.jobs, args.limit, args.sets, args.through_round),

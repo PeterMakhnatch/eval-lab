@@ -1,0 +1,262 @@
+{
+ "complete_round": 8,
+ "note": "descriptive only, added after the scored run (never a verdict): with k task clusters a bootstrap has only C(2k-1, k) distinct resamples (126 for 5, 10 for 3, 3 for 2), so intervals are artifacts of the resampling, not significance; the dropped task is numbered in task-hash order",
+ "resamples": 2000,
+ "schema": "np33-loto-descriptive/v1",
+ "seed": 20261029,
+ "sets": {
+  "agentcheck": {
+   "cascade_v8": {
+    "delta_vs_diff_chars": [
+     {
+      "dropped_task": 1,
+      "hi": -0.11199999999999999,
+      "lo": -0.13913043478260878,
+      "point": -0.11199999999999999,
+      "valid_resamples": 1460
+     },
+     {
+      "dropped_task": 2,
+      "hi": -0.04705882352941171,
+      "lo": -0.053333333333333344,
+      "point": -0.04705882352941171,
+      "valid_resamples": 1460
+     },
+     {
+      "dropped_task": 3,
+      "hi": -0.053333333333333344,
+      "lo": -0.13913043478260878,
+      "point": -0.125,
+      "valid_resamples": 2000
+     }
+    ],
+    "delta_vs_n_steps": [
+     {
+      "dropped_task": 1,
+      "hi": 0.034782608695652084,
+      "lo": 0.02400000000000002,
+      "point": 0.02400000000000002,
+      "valid_resamples": 1460
+     },
+     {
+      "dropped_task": 2,
+      "hi": 0.18823529411764706,
+      "lo": 0.18666666666666665,
+      "point": 0.18823529411764706,
+      "valid_resamples": 1460
+     },
+     {
+      "dropped_task": 3,
+      "hi": 0.18666666666666665,
+      "lo": 0.034782608695652084,
+      "point": 0.0881578947368421,
+      "valid_resamples": 2000
+     }
+    ]
+   },
+   "facets_susp_ge_2": {
+    "delta_vs_diff_chars": [
+     {
+      "dropped_task": 1,
+      "hi": -0.12,
+      "lo": -0.14782608695652177,
+      "point": -0.12,
+      "valid_resamples": 1460
+     },
+     {
+      "dropped_task": 2,
+      "hi": -0.04117647058823526,
+      "lo": -0.046666666666666634,
+      "point": -0.04117647058823526,
+      "valid_resamples": 1460
+     },
+     {
+      "dropped_task": 3,
+      "hi": -0.046666666666666634,
+      "lo": -0.14782608695652177,
+      "point": -0.09999999999999998,
+      "valid_resamples": 2000
+     }
+    ],
+    "delta_vs_n_steps": [
+     {
+      "dropped_task": 1,
+      "hi": 0.02608695652173909,
+      "lo": 0.016000000000000014,
+      "point": 0.016000000000000014,
+      "valid_resamples": 1460
+     },
+     {
+      "dropped_task": 2,
+      "hi": 0.1941176470588235,
+      "lo": 0.19333333333333336,
+      "point": 0.1941176470588235,
+      "valid_resamples": 1460
+     },
+     {
+      "dropped_task": 3,
+      "hi": 0.19333333333333336,
+      "lo": 0.02608695652173909,
+      "point": 0.11315789473684212,
+      "valid_resamples": 2000
+     }
+    ]
+   }
+  },
+  "cnt": {
+   "cascade_v8": {
+    "delta_vs_len_diff_nudge": [
+     {
+      "dropped_task": 1,
+      "hi": -0.2216796875,
+      "lo": -0.48036858974358976,
+      "point": -0.32664695945945943,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 2,
+      "hi": -0.2216796875,
+      "lo": -0.4722222222222222,
+      "point": -0.3232996323529411,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 3,
+      "hi": -0.359375,
+      "lo": -0.484375,
+      "point": -0.3966346153846154,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 4,
+      "hi": -0.16536458333333337,
+      "lo": -0.46875,
+      "point": -0.3190456081081081,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 5,
+      "hi": -0.2455729166666667,
+      "lo": -0.4829861111111111,
+      "point": -0.3992820945945946,
+      "valid_resamples": 2000
+     }
+    ],
+    "delta_vs_n_steps": [
+     {
+      "dropped_task": 1,
+      "hi": 0.02509469696969696,
+      "lo": -0.3409288194444444,
+      "point": -0.17314189189189189,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 2,
+      "hi": 0.006510416666666685,
+      "lo": -0.3467881944444444,
+      "point": -0.20013786764705888,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 3,
+      "hi": -0.24774305555555554,
+      "lo": -0.3531650641025641,
+      "point": -0.28665865384615385,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 4,
+      "hi": 0.006510416666666685,
+      "lo": -0.3531650641025641,
+      "point": -0.20608108108108103,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 5,
+      "hi": 0.02682291666666664,
+      "lo": -0.3453525641025641,
+      "point": -0.20439189189189189,
+      "valid_resamples": 2000
+     }
+    ]
+   },
+   "facets_susp_ge_2": {
+    "delta_vs_len_diff_nudge": [
+     {
+      "dropped_task": 1,
+      "hi": 0.2470703125,
+      "lo": -0.08854166666666663,
+      "point": 0.0981841216216216,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 2,
+      "hi": 0.2470703125,
+      "lo": -0.07118055555555558,
+      "point": 0.11029411764705888,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 3,
+      "hi": 0.10216346153846156,
+      "lo": -0.10503472222222221,
+      "point": 0.03165064102564097,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 4,
+      "hi": 0.2633928571428572,
+      "lo": -0.0401785714285714,
+      "point": 0.12690033783783783,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 5,
+      "hi": 0.16974431818181812,
+      "lo": -0.10503472222222221,
+      "point": 0.011824324324324342,
+      "valid_resamples": 2000
+     }
+    ],
+    "delta_vs_n_steps": [
+     {
+      "dropped_task": 1,
+      "hi": 0.44933712121212116,
+      "lo": 0.11758814102564108,
+      "point": 0.25168918918918914,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 2,
+      "hi": 0.43567708333333327,
+      "lo": 0.078125,
+      "point": 0.23345588235294112,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 3,
+      "hi": 0.16857638888888882,
+      "lo": 0.078125,
+      "point": 0.14162660256410253,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 4,
+      "hi": 0.45651041666666664,
+      "lo": 0.0905448717948718,
+      "point": 0.2398648648648649,
+      "valid_resamples": 2000
+     },
+     {
+      "dropped_task": 5,
+      "hi": 0.43567708333333327,
+      "lo": 0.078125,
+      "point": 0.20671452702702708,
+      "valid_resamples": 2000
+     }
+    ]
+   }
+  }
+ },
+ "tool_sha256": "b340283fc82f808b1313604221904f292178e322fcfd8b0611cb7d317620c503"
+}

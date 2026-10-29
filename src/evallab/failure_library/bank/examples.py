@@ -159,7 +159,19 @@ def _hashed_sources(
                 raise _Refusal("source_unavailable", f"cannot read {ref}: {exc}") from exc
         actual, raw = cache[path]
         if actual != _digest(expected):
-            raise _Refusal("source_hash_mismatch", f"source bytes drifted: {ref}")
+            # ``file#field`` names a digest RECORDED inside a JSON file (e.g. a cell's
+            # response_sha256), not the file's own bytes. It binds only if the whole file is
+            # itself bound in this case and the recorded digest occurs in those exact bytes.
+            base = ref.split("#", 1)[0]
+            if (
+                "#" not in ref
+                or raw is None
+                or _digest(digests.get(base)) != actual
+                or str(_digest(expected)).encode() not in raw
+            ):
+                raise _Refusal("source_hash_mismatch", f"source bytes drifted: {ref}")
+            verified[ref] = None
+            continue
         verified[ref] = raw
     return verified
 

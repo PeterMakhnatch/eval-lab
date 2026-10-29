@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 from collections.abc import Iterator
 from contextlib import closing
@@ -1032,3 +1033,148 @@ def test_cluster_import_refuses_unfaceted_runs_unless_asked_to_drop_and_count_th
     # The level-3 cluster that held only the unstored run vanishes; the others shrink.
     assert set(stored_clusters) == {"l1", "l2", "l3"}
     assert stored_clusters["l1"]["run_ids"] == ["dev-task/pass"] and stored_clusters["l1"]["size"] == 1
+
+
+@pytest.fixture
+def screened(faceted: CloudTraceDatabase) -> CloudTraceDatabase:
+    faceted.upsert_task({
+        "task_id": "other-task", "dataset_id": "synthetic-corpus", "split": "dev",
+        "instruction_text": "synthetic task",
+    })
+    faceted.upsert_trace({
+        "trace_id": "other-task/pass", "run_id": "batch-1", "task_id": "other-task",
+        "model_id": "synthetic-model", "reward": 1.0,
+    }, steps=[{"step_index": index, "role": "assistant"} for index in range(4)])
+    receipt = faceted.upsert_run_facets(
+        [facet("other-task/pass", goal="Read secret-name docs", suspicion=2)],
+        registry=SyntheticRegistry(), allowed_task_ids=["other-task"],
+    )
+    assert receipt["stored"] == 1
+    return faceted
+
+
+@pytest.mark.parametrize("scope", ["run_ids", "admission"])
+def test_screened_memo_preserves_narrowing_and_copies(screened: CloudTraceDatabase, scope: str) -> None:
+    registry = SyntheticRegistry()
+    retriever = CloudTraceRetriever(screened, registry=registry)
+    with screened._transaction():
+        full, seals = screened._admitted_facets(retriever)
+        if scope == "run_ids":
+            narrow, _ = screened._admitted_facets(retriever, run_ids=["other-task/pass"])
+            expected = {"other-task/pass"}
+        else:
+            narrow, _ = screened._admitted_facets(retriever, admission=(["dev-task"], seals))
+            expected = {"dev-task/pass", "dev-task/fail", "dev-task/open"}
+        assert set(run_ids(narrow)) == expected
+        narrow[0]["evidence_steps"].append(99)
+        if scope == "run_ids":
+            again, _ = screened._admitted_facets(retriever, run_ids=["other-task/pass"])
+        else:
+            again, _ = screened._admitted_facets(retriever, admission=(["dev-task"], seals))
+        assert 99 not in again[0]["evidence_steps"]
+        assert screened._admitted_facets(retriever)[0] == full
+
+
+@pytest.mark.parametrize(("change", "expected"), [
+    ("write", ["dev-task/fail", "dev-task/pass", "other-task/pass", "dev-task/open"]),
+    ("seal", ["dev-task/pass", "dev-task/fail", "dev-task/open"]),
+    ("admission", []),
+    ("authority", []),
+    ("filter", ["dev-task/pass"]),
+    ("scope", ["other-task/pass"]),
+    ("limit", ["dev-task/pass", "other-task/pass"]),
+])
+def test_screened_read_after_warm_call_follows_its_inputs(
+    screened: CloudTraceDatabase, change: str, expected: list[str],
+) -> None:
+    registry = SyntheticRegistry()
+    arguments: dict[str, Any] = {}
+    screened.search_runs(registry=registry)
+    if change == "write":
+        screened.upsert_run_facets(
+            [facet("dev-task/fail", suspicion=3)], registry=registry, allowed_task_ids=["dev-task"],
+        )
+    elif change == "seal":
+        registry._sealed_names.add("secret-name")
+    elif change == "admission":
+        registry._assigned_test_ids.update(("dev-task", "other-task"))
+    elif change == "authority":
+        registry.split_assignments_digest = None
+    elif change == "filter":
+        arguments["facets"] = {"suspicion": 3}
+    elif change == "scope":
+        arguments["allowed_task_ids"] = ["other-task"]
+    else:
+        arguments["limit"] = 2
+    assert run_ids(screened.search_runs(registry=registry, **arguments)) == expected
+
+
+def test_screened_read_observes_another_connection_commit(screened: CloudTraceDatabase) -> None:
+    registry = SyntheticRegistry()
+    before = screened.search_runs(registry=registry)
+    path = screened._connection.execute("PRAGMA database_list").fetchone()[2]
+    with sqlite3.connect(path) as writer:
+        writer.execute("UPDATE run_facets SET goal = ? WHERE run_id = ?", ("New goal", "dev-task/pass"))
+    after = screened.search_runs(registry=registry)
+    assert before[0]["goal"] != "New goal"
+    assert after[0]["goal"] == "New goal"
+
+
+def test_screened_read_does_not_reuse_rolled_back_rows(screened: CloudTraceDatabase) -> None:
+    registry = SyntheticRegistry()
+    retriever = CloudTraceRetriever(screened, registry=registry)
+    before = screened.search_runs(registry=registry)
+    with pytest.raises(RuntimeError, match="abort"), screened._transaction(write=True):
+        screened._execute("UPDATE run_facets SET goal = ? WHERE run_id = ?", ("Rolled back", "dev-task/pass"))
+        assert screened._admitted_facets(retriever)[0][0]["goal"] == "Rolled back"
+        raise RuntimeError("abort")
+    assert screened.search_runs(registry=registry) == before
+
+
+def test_atlas_retrieval_after_warm_call_follows_new_seal_and_write(
+    retrieval_db: CloudTraceDatabase,
+) -> None:
+    db = retrieval_db
+    for task_id in ("kept", "named"):
+        retrieval_task(db, task_id)
+    retrieval_trace(db, "kept")
+    named = retrieval_trace(db, "named", facet_changes={"goal": "Read secret-name docs"})
+    registry = SyntheticRegistry()
+    retriever = CloudTraceRetriever(db, registry=registry)
+
+    def served(**facets: Any) -> set[str]:
+        return {
+            example.task_id for example in retriever.retrieve_similar_examples(
+                "parser", top_k=10, facets=facets, exclude_task_ids=AUDITED,
+            )
+        }
+
+    assert served() == {"kept", "named"}
+    assert served() == {"kept", "named"}
+    receipt = db.upsert_run_facets([
+        facet(named, goal="Read secret-name docs", tests="deleted", evidence_steps=[0]),
+    ], registry=registry)
+    assert receipt["stored"] == 1
+    assert served(tests="deleted") == {"named"}
+    registry._sealed_names.add("secret-name")
+    assert served() == {"kept"}
+    assert served(tests="deleted") == set()
+    registry._assigned_test_ids.add("kept")
+    assert served() == set()
+
+
+def test_retrieval_facets_follow_admitted_scope_with_same_seals(retrieval_db: CloudTraceDatabase) -> None:
+    for task_id in ("kept", "named"):
+        retrieval_task(retrieval_db, task_id)
+        retrieval_trace(retrieval_db, task_id)
+    retriever = CloudTraceRetriever(retrieval_db, registry=SyntheticRegistry())
+    sealed = re.compile(r"(?!)")
+    with retrieval_db._transaction():
+        full, _, _ = retriever._retrieval_facets(["kept", "named"], sealed, (), None, None)
+        narrowed, _, _ = retriever._retrieval_facets(["kept"], sealed, (), None, None)
+        assert {row["task_id"] for row in full.values()} == {"kept", "named"}
+        assert {row["task_id"] for row in narrowed.values()} == {"kept"}
+        row = next(iter(narrowed.values()))
+        row["evidence_steps"].append(99)
+        again, _, _ = retriever._retrieval_facets(["kept"], sealed, (), None, None)
+        assert 99 not in next(iter(again.values()))["evidence_steps"]

@@ -1,0 +1,23 @@
+{
+  "status": "blocked_at_canary",
+  "preregistration_commit": "50d3bc33d274e75cced3e96ee2f6dbb3754846f6",
+  "preregistration_time": "2026-10-29T18:33:15Z",
+  "transport_addendum_commit": "f0875b7ebc4d9624a9493d5e1c285425a1bfb633",
+  "transport_addendum_time": "2026-10-29T18:44:40Z",
+  "strict_dev_admission": {"pairs": 123, "unique_runs": 246, "admitted": 246},
+  "blocking_reason": "Terra canary returned the requested provider and model, but the JSON event stream did not contain resolvedModelIsFallback; the preregistered explicit false attestation is missing.",
+  "model_calls": {"terra_transcript": 0, "sol_transcript": 0, "terra_canary": 1, "sol_canary": 0},
+  "input_tokens": 659,
+  "output_tokens": 5,
+  "refusals": 0,
+  "parse_failures": 0,
+  "fallbacks_rejected": 0,
+  "missing_attestation_rejected": 1,
+  "exact_served_model_observed": 1,
+  "fallback_disabled_canary": "failed: explicit resolvedModelIsFallback absent",
+  "codex_7_day_before_percent": 59.0,
+  "codex_7_day_after_percent": 60.0,
+  "length_comparator": {"pairs": 123, "task_clusters": 101, "pair_auroc": 0.43089430894308944, "bootstrap_ci": [0.34146341463414637, 0.5198412698412699], "resamples": 2000, "seed": 40104},
+  "haiku_np31_reference": {"pairs": 123, "enacted_only": 9, "clean_only": 13, "pair_auroc": 0.496, "bootstrap_ci": [0.437, 0.556]},
+  "decision": "not evaluable"
+}

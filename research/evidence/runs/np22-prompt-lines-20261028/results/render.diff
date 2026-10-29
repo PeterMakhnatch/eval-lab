@@ -1,0 +1,12 @@
+2c2
+<  "evallab": "/private/tmp/np22/before-src/src/evallab/__init__.py",
+---
+>  "evallab": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/np22-prompt-lines-20261028/src/evallab/__init__.py",
+11c11
+<   "- source: dataset dataset-marker; issue related-issue/i1; trace related-issue/t1",
+---
+>   "- source: issue related-issue/i1; trace related-issue/t1",
+21c21
+<   "- provenance: {\"dataset_id\":\"dataset-marker\",\"flagged_step_indices\":[],\"issue_cas_uri\":null,\"issue_id\":\"related-issue/i1\",\"issue_trust_tier\":\"tier1_container_verified\",\"label_categories\":[\"category-marker\"],\"model_id\":\"synthetic-agent\",\"observation_cas_uris\":[null,null],\"passage_window\":false,\"raw_cas_uri\":null,\"receipt_status\":\"receipt-marker\",\"run_id\":\"synthetic-run\",\"split\":\"dev\",\"step_indices…"
+---
+>   "- provenance: {\"flagged_step_indices\":[],\"issue_cas_uri\":null,\"issue_id\":\"related-issue/i1\",\"issue_trust_tier\":\"tier1_container_verified\",\"model_id\":\"synthetic-agent\",\"observation_cas_uris\":[null,null],\"passage_window\":false,\"raw_cas_uri\":null,\"run_id\":\"synthetic-run\",\"step_indices\":[1,2],\"task_cas_uri\":null,\"task_id\":\"related-issue\",\"trace_id\":\"related-issue/t1\",\"trace_ids\":[\"related-issue/t1\"],…"

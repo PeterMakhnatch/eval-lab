@@ -681,7 +681,7 @@ inputs:
   - path: src/evallab/production/cli.py
     digest: sha256:02f3a17aa273500044c972a31a53ee24350b2a25aeda9982dc5dd7b1897e718d
   - path: src/evallab/production/cloud_trace_db.py
-    digest: sha256:5026700239c9caec25155f59d39d5fbca5b25061d2c1dd205bc9937f0e602a68
+    digest: sha256:c9d10e8dd715e03c91b89e421b177b2ad843d2acd5053e008f34c0f1af69c644
   - path: src/evallab/production/cloud_trace_export.py
     digest: sha256:5aa7b044f41c88c57cec50cdd92f501682ba8b81ec6b060bb6a34b550e2d6927
   - path: src/evallab/production/cloud_trace_retriever.py
@@ -793,7 +793,7 @@ inputs:
   - path: src/evallab/production/safe_paths.py
     digest: sha256:bcaab5996fe97a77fa456f340ff5a215f5a063d4cbfbb72645038740e3708e70
   - path: src/evallab/production/seeker_blind_examples.py
-    digest: sha256:df33681c91e07c27be8984127a962bd104a483817aa1d6fbede15696bf408775
+    digest: sha256:503e7b1acc410bbe957264de7005a326863278f52947534a7ff0ca765adb115f
   - path: src/evallab/production/seeker_error_first.py
     digest: sha256:d3455a471b59824620739f6090d67ee842cecb3231d47aaba0eacbed0c0e6891
   - path: src/evallab/production/seeker_known_hacks.py

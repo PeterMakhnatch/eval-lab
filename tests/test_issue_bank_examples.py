@@ -300,6 +300,21 @@ def test_hash_drift_refuses_input_sources_and_bank_snapshots(ctx: BankContext, a
     assert not result.examples
 
 
+@pytest.mark.parametrize("binding", ["recorded", "absent_value", "unbound_file"])
+def test_recorded_field_digest_binds_only_inside_a_bound_file(ctx: BankContext, binding: str) -> None:
+    case, item = _case(ctx, "fragment-" + binding)
+    recorded = _sha(b"auditor response bytes")
+    cell = ctx.repo_root / f"cell-{binding}.json"
+    cell.write_text(json.dumps({"prediction": {"response_sha256": "sha256:" + recorded}}), encoding="utf-8")
+    digests = {f"{cell}#auditor-response": recorded if binding != "absent_value" else _sha(b"other")}
+    if binding != "unbound_file":
+        digests[str(cell)] = _sha(cell.read_bytes())
+    case = case.model_copy(update={"source_digests": {**case.source_digests, **digests}})
+    _store(ctx, [item])
+    result = compile_examples([case], ctx)
+    assert _reasons(result, case) == ([] if binding == "recorded" else ["source_hash_mismatch"])
+
+
 @pytest.mark.parametrize("leak", ["Goodfire", "label_metadata", "reviewed-positive", "sealed-task"])
 def test_unblinded_or_test_identity_input_is_refused(ctx: BankContext, leak: str) -> None:
     body = _native_body("leak", "trace-watcher")

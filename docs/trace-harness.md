@@ -111,6 +111,11 @@ record per (run, detector):
   `trace-tools/results-v1.jsonl` rows up to a fixed cutoff, joins labels inside scoring, never changes a
   threshold, and never calls a model. Definitions are fixed in
   `research/evidence/runs/np30-length-control-20261029/PREREGISTRATION.md`.
+- `trace_harness_fused.py` (P0-F9D7D6-2) holds the pure rules, CM-14-style grouped CV, and NP30-tertile length
+  control for fused native rules (`v8 OR facet term`, k-of-n votes); it is driven by the evidence script
+  `research/evidence/runs/p0-f9d7d6-2-fused-scorecard-20261029/tools/score.py`, not by a subcommand. Result:
+  no Family-A fusion beat cascade v8 by the preregistered 15%-at-3% criterion on Goodfire DEV
+  (`RESULTS.md` there); the chosen rule's recall gain replicates on CheatBench and CM-18 at v8's own false-alarm rate.
 - The Phoenix shipper is `evallab trace otel <path>`.
 - `--detectors cascade_stream` is the only live path: it feeds a run's steps one
   `trace.step` event at a time to `MisalignmentLiveWorker`

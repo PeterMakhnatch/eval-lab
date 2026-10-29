@@ -166,6 +166,15 @@ falls back to `alert_research` and is not a model decision. A `rules` row's `act
 proposal and `recorded_action` is what was recorded; both arms share a key, so score them in
 separate `--out` files.
 
+The blind action and cheat-question adjudicators make one format-only repair request when
+the first reply fails strict validation. The repair carries the original blind prompt,
+the reader's own reply and parser errors, not the label or supervisor's decision; it does
+not ask for a new judgment. A second invalid reply remains invalid. Records report
+`repaired`, `attempts`, `first_errors` and per-turn token usage when repaired, with total
+tokens covering both turns. A served-model mismatch on either turn is an error;
+`ReaderTransportError` carries tokens consumed before the failure, including a refused
+reply, for the caller to charge to its reader budget.
+
 Cheating alarms produce evidence cards and one queue notification per UTC day. Routing
 holds a shared file lock around card, index, notification and deduplication-state writes,
 so the live subscriber and a scan actuator cannot race to send duplicate notices.

@@ -119,7 +119,7 @@ def read(batch: int = BATCH, workers: int = WORKERS) -> int:
         offset = ledger.stat().st_size if ledger.exists() else 0
         before = detector.stats.fresh
         started = time.monotonic()
-        summary = run_detectors(chunk, [detector], store, log=lambda message: print(message, flush=True))
+        run_detectors(chunk, [detector], store, log=lambda message: print(message, flush=True))
         rows = attempts_since(ledger, offset)
         SPEND.parent.mkdir(parents=True, exist_ok=True)
         with SPEND.open("a", encoding="utf-8") as handle:

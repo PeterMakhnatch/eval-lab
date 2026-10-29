@@ -19,7 +19,7 @@ import hashlib
 import json
 import os
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 
 os.environ.setdefault("EVALLAB_DISABLE_LOCAL_DOCKER", "1")

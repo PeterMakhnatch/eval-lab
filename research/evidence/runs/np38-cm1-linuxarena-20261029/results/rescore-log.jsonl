@@ -1,0 +1,2 @@
+{"at": "2026-10-29T20:01:19Z", "event": "rescore_start", "reason": "first score was a stopped prefix after a gate read failure; frozen design completed", "prefix_sha256": "3ff4559753dbd682b719400455f729e96bcf3755acee09db1cf5568427391668"}
+{"at": "2026-10-29T20:01:19Z", "event": "rescore_complete", "reason": "first score was a stopped prefix after a gate read failure; frozen design completed", "score_sha256": "607ad022ded9c62dbfb60e9d6e39658e433799ddc156a9ed9e44638109c83a79"}

@@ -1,0 +1,9 @@
+{
+ "schema": "np38-resumption-freeze/v1",
+ "frozen_at_utc": "2026-10-29T19:45:32Z",
+ "git_head": "5693ba92c721eb387bac34f3f15ad69a797b9272",
+ "wrapper_sha256": "029f506a814ca779882536036ab0e3807b8b4ea23100fec9279b5db10b027758",
+ "plan_sha256": "99715edab2f5373a67373d7a0924d63dc3722c60a78e526314859305b1c76432",
+ "prefix_score_sha256": "3ff4559753dbd682b719400455f729e96bcf3755acee09db1cf5568427391668",
+ "original_freeze_sha256": "cc2b6b977bdfea2b9b9e5161b8b7966fae3920427b8adecd81dbb1375c2d2ca2"
+}

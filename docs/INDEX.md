@@ -159,7 +159,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md
-    digest: sha256:359abecc76dcaad19e384c9f93435b6bfcf007caf38c1814faac150e99c27631
+    digest: sha256:6dea619323e99493dfd268fd02a4ee02a67fe9850ca4e4b81d87e488deb9558b
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md

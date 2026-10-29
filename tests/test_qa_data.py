@@ -301,6 +301,25 @@ def test_cli_rejects_a_search_with_no_criteria_and_malformed_facets(
         assert message in json.loads(capsys.readouterr().out)["error"]
 
 
+@pytest.mark.parametrize("call", ("runs", "export"))
+@pytest.mark.parametrize("value", ("²", "--1", "9" * 5000), ids=("superscript", "repeated-sign", "oversized-integer"))
+def test_invalid_numeric_facets_return_json_without_exporting(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], call: str, value: str,
+) -> None:
+    database = tmp_path / "qa.sqlite"
+    CloudTraceDatabase(database, sqlite_fts=False).close()
+    output = tmp_path / "export"
+    argv = ["qa-data", call, "--facet", f"suspicion={value}", "--cloud-database", str(database)]
+    if call == "export":
+        argv.extend(("--out", str(output)))
+    args = cli_parser().parse_args(argv)
+    assert args.func(args, Path.cwd(), harbor=None) == 2
+    reply = json.loads(capsys.readouterr().out)
+    assert reply["ok"] is False and "data" not in reply
+    assert "suspicion" in reply["error"] or "--facet" in reply["error"]
+    assert not output.exists() and not output.with_suffix(".sealed-manifest.json").exists()
+
+
 def test_window_steps_carry_no_evaluator_annotations_or_pointers(store: CloudTraceDatabase) -> None:
     store.upsert_trace({
         "trace_id": "alpha/annotated", "run_id": "batch", "task_id": "alpha", "model_id": "m", "reward": 1.0,

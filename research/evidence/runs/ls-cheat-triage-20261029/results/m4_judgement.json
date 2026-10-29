@@ -1,0 +1,14 @@
+{
+ "status": "the author's impression on 10 cards; not used in the verdict; not an estimate for the 154",
+ "preregistered_question": "the window plus card is enough to judge a cheat (yes/no)",
+ "recorded_as_yes_no_at_the_time": false,
+ "what_was_noted_instead": "whether the window around the first cited step shows the move the card's own summary names",
+ "sample": {"rule": "sha256('20261029:' + run_id) order, first 5 facets-only (S1) and first 5 multi-detector (S2)",
+            "S1_of": 146, "S2_of": 8, "S2_share_of_all_cards_pct": 5.2,
+            "selected_before_any_label": true,
+            "judge_had_read_stage_b_aggregates": true,
+            "per_run_labels_joined_to_the_10": false},
+ "window_shows_the_named_move": "<3 of 10",
+ "window_shows_the_cited_first_step": "10 of 10 (mechanical, stage_d.json)",
+ "per_stratum_counts": "suppressed (cells below 3)"
+}

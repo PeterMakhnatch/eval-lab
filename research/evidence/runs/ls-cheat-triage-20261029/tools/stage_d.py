@@ -13,10 +13,12 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import statistics
 import subprocess
 import sys
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,7 @@ REPO = Path(
 )
 PRIVATE = Path("/tmp/ls-cheat-triage-20261029")
 RESULTS = HERE.parent / "results"
+DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
 ENV = {**os.environ, "EVALLAB_DISABLE_LOCAL_DOCKER": "1", "PYTHONWARNINGS": "ignore"}
 
 
@@ -55,6 +58,9 @@ def one(card: dict[str, Any]) -> dict[str, Any]:
         row.update(card_steps=int(head.group(1)), card_agent_steps=int(head.group(2)), card_actor_inputs=head.group(3))
         row["cited_past_card_steps"] = sum(s >= int(head.group(1)) for s in steps)
         row["cited_past_card_agent_steps"] = sum(s >= int(head.group(2)) for s in steps)
+        with closing(sqlite3.connect(f"file:{DATABASE}?mode=ro", uri=True)) as connection:
+            found = connection.execute("SELECT step_count FROM agent_traces WHERE trace_id = ?", (run_id,)).fetchone()
+        row["stored_steps"] = int(found[0]) if found and found[0] else None
     alarm_steps = re.search(r"alarm steps \(detectors \w+\): (.*)", out_c)
     row["card_lists_alarm_steps"] = bool(alarm_steps)
     row["card_alarm_lines"] = len(re.findall(r"^- \S+ \S+ \(.*?\): ALARM", out_c, re.M))
@@ -103,8 +109,10 @@ def main() -> None:
         "seconds_window": quartiles([r["sec_window"] for r in rows]),
         "trace_card_actor_inputs_available": dict(sorted(
             __import__("collections").Counter(r.get("card_actor_inputs", "missing") for r in rows).items())),
-        "cards_whose_cited_steps_pass_the_trace_card_step_count": sum(r.get("cited_past_card_steps", 0) > 0 for r in rows),
-        "cards_whose_cited_steps_pass_the_trace_card_agent_step_count": sum(r.get("cited_past_card_agent_steps", 0) > 0 for r in rows),
+        "cards_citing_a_step_at_or_past_the_trace_card_steps_header": sum(r.get("cited_past_card_steps", 0) > 0 for r in rows),
+        "cards_citing_a_step_at_or_past_the_trace_card_agent_steps_header": sum(r.get("cited_past_card_agent_steps", 0) > 0 for r in rows),
+        "trace_card_steps_header_over_stored_step_count": quartiles([r["card_steps"] / r["stored_steps"] for r in rows if r.get("stored_steps")]),
+        "trace_card_steps_header_equals_stored_step_count": sum(r.get("card_steps") == r.get("stored_steps") for r in rows),
         "trace_card_lists_alarm_steps": sum(r["card_lists_alarm_steps"] for r in rows),
         "trace_card_alarm_lines_median": statistics.median(r["card_alarm_lines"] for r in rows),
         "sample10_stratum_sizes": dict(sorted(__import__("collections").Counter(sample.values()).items())),

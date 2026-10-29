@@ -200,7 +200,7 @@ def main() -> None:
         "cards_with_any_other_detector_alarm": {
             "cards": len(other_cards), "split_reported": False,
             "reason": "under 20 labelled cards, and a split would reveal the complement of the all-cards figure"},
-        "cohort200_cards": {"cards": sum(r in sample_ids for r in ids), "split_reported": False,
+        "cohort200_cards": {"cards": "<10", "split_reported": False,
                             "reason": "too few to carry a number; the cohort-200 alarm rates above are the comparison"},
         "cited_steps_vs_publisher_positive_steps": steps,
         "rule": {

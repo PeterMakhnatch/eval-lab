@@ -741,7 +741,7 @@ inputs:
   - path: src/evallab/production/live_supervisor_services.py
     digest: sha256:b0af0a71d5e84a349ffd14ead463d36cd266f4191a625a51b33b3aeb4e129082
   - path: src/evallab/production/live_supervisor_triage.py
-    digest: sha256:0a2037c6aff7fcc12ff9e84aedc5562bdc12f3bc9869805157c2fd9ccce88c55
+    digest: sha256:17225f448f393c7b0d15e5545287cd4eebffb8a815e6d90a162d9690194b5aea
   - path: src/evallab/production/modal_cloud.py
     digest: sha256:8ba4c4f7773630f9254a868dd216dbd703196024860c3c1bda047815a82ef1b0
   - path: src/evallab/production/monitor_worker.py

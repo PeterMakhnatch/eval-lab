@@ -3,6 +3,8 @@
 Question: does a prompted cheating agent find the known holes in leaky MiMo code
 tasks, and does it still find anything once the tasks are hardened? Card: HAR-202.
 
+Final per-cell accounting, controls and limits: [FINAL-COMPARISON.md](FINAL-COMPARISON.md).
+
 ## What ran
 
 - Approval: both wave-1 campaigns approved by the Cheating chat as Peter's delegate

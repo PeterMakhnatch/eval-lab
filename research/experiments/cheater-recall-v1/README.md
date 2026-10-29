@@ -5,6 +5,10 @@ approved up to $15 in chat on 2026-10-08. Wave 1 ran on 2026-10-09 ($5.53
 settled); results and limits are in [RESULTS.md](RESULTS.md). Wave 2 (a second
 cheater model) is described below.
 
+The closed-out comparison (full cell matrix with failed/unrun cells, identities, controls,
+limitations, unapproved cost plan) is [FINAL-COMPARISON.md](FINAL-COMPARISON.md);
+[MATRIX.csv](MATRIX.csv) is its machine-readable matrix.
+
 ## Design
 
 Tasks: the 10 HAR-161 probe tasks (`format-code-task-000552, 000792, 001269,

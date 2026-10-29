@@ -496,6 +496,26 @@ def test_oversized_canonical_objects_resume_at_the_next_object(ctx: QaContext) -
     assert "skipped_lines" not in payload
 
 
+@pytest.mark.parametrize("shift", [-2, -1, 0, 1])
+def test_canonical_escapes_and_brackets_straddling_a_read_boundary_keep_framing(
+    ctx: QaContext, shift: int,
+) -> None:
+    path = ctx.state_dir / "trace-tools/tt7/docent/arms/boundary-canonical.json"
+    path.parent.mkdir(parents=True)
+    target = json.dumps(result(tool="docent", detector="boundary", value={"mechanism": 'say \\" ] } [ { done'}))
+    padding = json.dumps(result("test-task/one", tool="docent", value={"mechanism": ""}))
+    # Put the escaping backslash of the target's mechanism at the last byte of the first read, +shift.
+    width = findings_module._CHUNK_BYTES - 1 + shift - (2 + len(padding) + target.index("\\\\"))
+    padding = json.dumps(result("test-task/one", tool="docent", value={"mechanism": "p" * width}))
+    text = "[" + padding + "," + target + "]"
+    assert text.index("\\\\") == findings_module._CHUNK_BYTES - 1 + shift
+    path.write_text(text, encoding="utf-8")
+    payload = findings(ctx, run_id="dev-task/one")
+    assert [(record["detector"], record["summary"]["mechanism"]) for record in flattened(payload)] == [
+        ("boundary", 'say \\" ] } [ { done'),
+    ]
+
+
 @pytest.mark.parametrize("limit", [60, 120, 200, 400, 1000])
 def test_every_returned_key_fits_the_data_budget(ctx: QaContext, limit: int) -> None:
     ledger(ctx, *(result(detector=f"detector-{index}") for index in range(12)))
@@ -725,6 +745,24 @@ def test_ascii_unicode_escapes_in_run_ids_are_decoded_before_ownership_checks(
     payload = findings(ctx, run_id="dev-task/one")
     assert [record["run_id"] for record in flattened(payload)] == ["dev-task/one"]
     assert payload["counts"] == {"scout": {"total": 1, "flagged": 0}}
+
+
+def test_a_task_whose_run_ids_ladder_by_one_character_still_returns_findings(
+    ctx: QaContext,
+) -> None:
+    ladder = ["ladder-task/" + "a" * width for width in range(1, 601)]
+    ctx.database.upsert_task({
+        "task_id": "ladder-task", "dataset_id": "secret-synthetic-dataset", "split": "dev",
+        "instruction_text": "synthetic task content",
+    })
+    for identity in ladder:
+        ctx.database.upsert_trace({
+            "trace_id": identity, "run_id": "batch", "task_id": "ladder-task", "model_id": "synthetic",
+        }, steps=[])
+    ledger(ctx, result(ladder[-1]))
+    payload = findings(ctx, task_id="ladder-task")
+    assert [record["run_id"] for record in flattened(payload)] == [ladder[-1]]
+    assert payload["coverage"]["requested_runs"] == len(ladder)
 
 
 def test_escape_free_irrelevant_lines_never_reach_json_decode(

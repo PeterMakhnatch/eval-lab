@@ -110,6 +110,19 @@ The importer accepts only admitted DEV runs, so the live log is
 `~/.local/state/evallab-prod-live/live-supervisor/decisions-v1.jsonl`. Replay records for
 DEV runs can also be imported with `evallab prod import-trace-findings`.
 
+Each completed `scan` or `serve` cycle appends an aggregate-only heartbeat to
+`<root>/cycles-v1.jsonl` under `supervisor.lock`, even when no decisions were recorded.
+`started_at` is the UTC cycle start and `duration_seconds` is elapsed monotonic time;
+`observed`, `quiet`, `terminal`, `suppressed` and `recorded` are counts. `source_errors`
+contains only failing source names, not error text, subject identifiers, labels or lane content.
+`reader_mode` is `rules` or `model`; `reader_status` is `rules`, `ok`,
+`budget_exhausted` or `headroom_blocked` (the last observed headroom gate takes precedence
+over budget exhaustion). `reader_tokens_used` and `reader_tokens_cap` are the model
+reader's UTC-day token usage and limit; both are zero for rules. A heartbeat failure is
+reported as `errors.heartbeat` and cannot undo decisions or stop the cycle.
+At the 120-second interval this is approximately 720 lines/day, roughly 200 bytes each;
+there is no rotation, so archive or truncate it when needed.
+
 Every recorded decision is followed by one **window** row in `<root>/windows-v1.jsonl`, the
 observation the reader saw, so LS-3 can adjudicate live decisions:
 

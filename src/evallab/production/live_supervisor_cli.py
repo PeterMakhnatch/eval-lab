@@ -33,6 +33,7 @@ from evallab.production import live_supervisor as ls
 #: One cycle per launchd ``StartInterval``; the plist renders this interval.
 DEFAULT_INTERVAL = 120.0
 LOCK_FILE = "supervisor.lock"
+CYCLES_FILE = "cycles-v1.jsonl"
 MODULE_PREFIX = "evallab.production."
 READERS = ("rules", "model")
 #: A model reader without a daily cap is refused: no unattended run spends tokens uncapped.
@@ -247,6 +248,36 @@ def _payload(report: ls.ScanReport, *, sources: Sequence[ls.Source], moment: dat
             "records": report.records, "observed_at": _stamp(moment)}
 
 
+def _write_heartbeat(root: Path, report: ls.ScanReport, sources: Sequence[ls.Source],
+                     reader: str, decider: ls.Decider, moment: datetime, started: float) -> None:
+    """Append aggregate-only cycle metadata; failures cannot affect a completed scan."""
+    try:
+        inner = decider.decider if isinstance(decider, HeadroomGatedDecider) else decider
+        budget = getattr(inner, "budget", None) if reader == "model" else None
+        used = budget.spent() if budget is not None else 0
+        cap = budget.limit if budget is not None else 0
+        if reader == "rules":
+            status = "rules"
+        elif isinstance(decider, HeadroomGatedDecider) and decider._blocked is not None:
+            status = "headroom_blocked"
+        elif budget is not None and used >= cap:
+            status = "budget_exhausted"
+        else:
+            status = "ok"
+        source_errors = sorted({source.name for source in sources
+                                if source.name in report.errors
+                                or any(key.startswith(f"trigger:{source.name}:") for key in report.errors)})
+        row = {"started_at": _stamp(moment), "duration_seconds": round(time.monotonic() - started, 3),
+               "observed": report.observed, "quiet": report.quiet, "terminal": report.terminal,
+               "suppressed": report.suppressed, "recorded": len(report.records),
+               "source_errors": source_errors, "reader_mode": reader, "reader_status": status,
+               "reader_tokens_used": used, "reader_tokens_cap": cap}
+        with (root / CYCLES_FILE).open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
+    except Exception as exc:  # noqa: BLE001 - telemetry must not break or lose a completed cycle
+        report.errors["heartbeat"] = f"{type(exc).__name__}: {exc}"
+
+
 def run_scan(*, root: Path, names: Sequence[str] = (), reader: str = "rules",
              daily_token_budget: int | None = None, now: datetime | None = None,
              sources: Sequence[ls.Source] | None = None,
@@ -257,7 +288,9 @@ def run_scan(*, root: Path, names: Sequence[str] = (), reader: str = "rules",
     with hold_lock(root / LOCK_FILE):
         chosen = list(sources) if sources is not None else build_sources(names, root=root)
         with decider_for(reader, root=root, daily_token_budget=daily_token_budget, override=decider) as active:
+            started = time.monotonic()
             report = ls.scan_once(chosen, active, ls.DecisionLog(root), now=moment, windows=_window_log(root))
+            _write_heartbeat(root, report, chosen, reader, active, moment, started)
     return _payload(report, sources=chosen, moment=moment)
 
 
@@ -286,7 +319,9 @@ def serve(*, root: Path, names: Sequence[str] = (), interval: float = DEFAULT_IN
             done = 0
             while cycles is None or done < cycles:
                 moment = clock()
+                started = time.monotonic()
                 report = ls.scan_once(chosen, active, log, now=moment, windows=windows)
+                _write_heartbeat(root, report, chosen, reader, active, moment, started)
                 say(_payload(report, sources=chosen, moment=moment))
                 done += 1
                 if cycles is not None and done >= cycles:

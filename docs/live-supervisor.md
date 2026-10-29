@@ -229,6 +229,14 @@ subscriber already skips the supervisor's own records — and hands each new run
 `queue-append.jsonl` line for the Trace Watcher pane per UTC day. It writes no document, pages
 nobody and cannot stop a run.
 
+The queue line stays small whatever the batch: it says how many runs were flagged and how many
+are live trials versus stored runs (`flagged N runs (L live, S stored)`; a run is *live* when
+its subject is a `harbor_trial` whose directory exists under a trial root, otherwise stored),
+names at most `NOTICE_MAX_CARDS` (3) card paths and points to the day index
+`<root>/cheat-cards/days/<date>.md`, which lists every card. The text is capped at
+`NOTICE_MAX_CHARS` (1000) characters, so a 154-run backfill is one short line rather than a
+20 KB prompt. Later cards of the same UTC day are appended to that index only.
+
 - The first start begins at **EOF**: the existing findings are consumed without routing, so the
   Trace Watcher is not flooded with history. `--replay-existing` routes the history instead.
 - The cursor `<root>/alarm-cursor.json` is read into `alarm-cursor.candidate.json` and replaces

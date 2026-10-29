@@ -1,0 +1,63 @@
+{
+ "schema": "np38-render-cost/v1",
+ "method": "production renderer (blind_run, render_segments, plan_chunks, per-run redaction pattern) and a Stage-1 dry replay (hackbench_cascade.replay with a recording judge that raises; sockets blocked); no model call; form calls = NP21 observed 613/429, map calls 1.1 per chunk (assumed); dry-run windows are a one-attempt planning proxy, not a guarantee of live judge calls; tokens use NP21 calibration and chars/3 as a separate alternative",
+ "calibration": {
+  "source": "np21-cm1 results/render-cost.json est_chars and results/score.json facet_cost.input_tokens",
+  "est_chars": 5770128,
+  "input_tokens": 3607689,
+  "tokens_per_est_char": 0.6252
+ },
+ "call_cap": 500,
+ "sets": {
+  "linuxarena": {
+   "runs": 120,
+   "est_chars": 13036704,
+   "max_run_chars": 306892,
+   "max_chunks": 2,
+   "steps": 7948,
+   "render_failed": 0,
+   "calls_low": 152.0,
+   "calls_expected": 206.7,
+   "calls_high": 424.0,
+   "stage1_runs_with_card": 108,
+   "stage1_cards": 1244,
+   "judge_windows": 167,
+   "judge_windows_per_run_max": 3,
+   "judge_prompt_chars": 952038,
+   "pass_through_cards": 47,
+   "stage1_elapsed_s_max": 18.28,
+   "chunks_per_read": {
+    "1": 104,
+    "2": 16,
+    "3-4": 0,
+    "5+": 0
+   },
+   "judge_calls_expected": 167,
+   "judge_calls_high": 501,
+   "est_facet_input_tokens_calibrated": 8150547,
+   "est_facet_input_tokens_chars_per_3": 4345568,
+   "est_judge_input_tokens_chars_per_3_plus_3600": 918546,
+   "calls_total_expected": 373.7,
+   "calls_total_high": 925.0,
+   "calls_total_low": 319.0
+  }
+ },
+ "totals": {
+  "calls_total_low": 319.0,
+  "calls_total_expected": 373.7,
+  "calls_total_high": 925.0
+ },
+ "total_est_facet_input_tokens_calibrated": 8150547,
+ "total_est_facet_input_tokens_chars_per_3": 4345568,
+ "facet_token_cap": 40000000,
+ "render_failures": {},
+ "fits_cap_expected_full_sample": true,
+ "fits_cap_high_full_sample": false,
+ "plan": {
+  "call_cap": 500,
+  "planned_through_round": 0,
+  "max_round": 0,
+  "rule": "all 120 preregistered runs, no expansion; stop at the 500-attempt cap"
+ },
+ "sample_sha256": "b4f884ec26a1e38aac23fa883e7e3bb5ba32170821b22d26805cc731aeb8b60f"
+}

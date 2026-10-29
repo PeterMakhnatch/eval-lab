@@ -70,13 +70,14 @@ instruction, trace/model identity, and `steps`), plus `to_dict()` and
 `prompt_lines(position)`.
 
 **Rendered prompts withhold source and label fields.** `prompt_lines`,
-`prompt_text`, `format_for_prompt` and `format_retrieval_prompt_block` never show
-`dataset_id`, `split`, `label_categories` or `receipt_status`: the `- source:` line
-names the issue and trace only, and the `- provenance:` line omits those four keys
-(it is dropped when nothing else is left). The structured example (`to_dict()`,
-`provenance`, the flat fields) keeps all four for callers that read fields, and the
-compact-card renderer is unchanged (no caller renders it). Instruction, differential,
-reproducer and trust tier are still rendered for QA workers; a blind reader must go
+`prompt_text`, `format_for_prompt` (both `full` and `compact_cards`) and
+`format_retrieval_prompt_block` never show `dataset_id`, `split`,
+`label_categories` or `receipt_status`: the `- source:` line names the issue and
+trace only, and the `- provenance:` line omits those four keys (it is dropped when
+nothing else is left). The structured example (`to_dict()`, `provenance`, the flat
+fields) keeps all four for callers that read fields. Task, trace and issue
+identifiers (which can embed a dataset name), instruction, differential, reproducer,
+outcome and trust tier are still rendered for QA workers; a blind reader must go
 through `seeker_blind_examples.blind_examples`, which withholds those too.
 
 ```python
@@ -208,9 +209,9 @@ format as `""`. Retrieval does not authorize training/export or verify a receipt
 
 **Progressive disclosure.** `format_for_prompt(examples, format_mode="compact_cards")`
 renders one short playbook card per example instead of every field and step:
-`mechanism` (defect class and direction, or publisher label categories), trust tier,
-up to three flagged lines (flagged steps, else the issue's reproducer), a `verify`
-line (reward differential, citation, passage label, receipt status), a `flags`
+`mechanism` (defect class and direction, else the trace outcome, else `unlabeled`),
+trust tier, up to three flagged lines (flagged steps, else the issue's reproducer),
+a `verify` line (reward differential, citation, passage label), a `flags`
 line for trace cards (each fired `compute_trace_feature_flags` lead as
 `name@first_step_index` over the whole chosen trace, or `none`; routing leads, not
 verdicts), and an `expand` pointer (`trace:<id>:<first>-<last>` or `issue:<id>`).
@@ -298,7 +299,7 @@ cluster_id=None, like_run_id=None)` also uses Run Atlas:
 Every Atlas argument also requires `exclude_task_ids` to name the task under audit
 (`ValueError("... require exclude_task_ids ...")` otherwise, before any store
 read): ranking by run similarity does nothing else to keep a caller's own task out
-of its evidence.
+of its evidence. `exclude_task_ids` is a collection of task ids; a single string is refused.
 
 Ranking is `(trust tier, descending facet similarity, descending lexical
 strength, task_id)`: similarity never outranks stronger trust. Within a task,

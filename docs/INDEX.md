@@ -81,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
-    digest: sha256:2760c9641d8f534d77777a0f4b846617ba446c7fc6a7ffcb416d55dbf50960b9
+    digest: sha256:077e13514b60aacdcfdbf5a4ae2de76a86006397fe23614aa8648739c36b270a
   - path: docs/live-watch.md
     digest: sha256:715acdba0981feb39df990cf26495507fa93cd5c5c498f66fa8aba193cd866dc
   - path: docs/lora-sft-runbook.md
@@ -147,7 +147,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:09b7e695af7bdc30c96400c773449398aef17fab359a7df1f82431f2ad24e996
+    digest: sha256:12150f8f3e0bec9a099e7cfda9ebda7f3ee347a2dd950ec477ecca4f8ab485df
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -159,7 +159,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md
-    digest: sha256:efe63c93b9d9cec832a10d72a693c07ffac16c92217fbef167aedad0c467c22d
+    digest: sha256:1defcce1f465827f68529e38c232539885153bb682b5cb3c0aa3ed3ea033c5e0
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md

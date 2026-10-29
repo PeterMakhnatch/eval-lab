@@ -1645,8 +1645,9 @@ _RETRIEVAL_CARDS_EXPAND = (
 FORMAT_MODES = ("full", "compact_cards")
 #: Example fields that name the source benchmark, the split or the label an example
 #: was published with. The structured example (``to_dict``, ``provenance``) keeps
-#: them for consumers that read fields; no rendered prompt block shows them, so a
-#: model never sees which benchmark, split or label verdict an example came from.
+#: them for consumers that read fields; neither rendered form (``full`` lines and
+#: ``compact_cards``) prints them. Task, trace and issue identifiers, trust tier,
+#: instruction and outcome are still rendered, and an identifier can embed a dataset name.
 _PROMPT_WITHHELD_PROVENANCE = frozenset({"dataset_id", "split", "label_categories", "receipt_status"})
 _REGISTRY_LOAD_ERRORS = (OSError, ValueError, KeyError, TypeError, csv.Error)
 _STEP_ROLE_RANK = {"assistant": 0, "tool": 1}
@@ -1963,10 +1964,9 @@ class RetrievedExample:
     def card_lines(self, position: int) -> list[str]:
         """A compact playbook card: mechanism, trust, up to three flagged lines,
         how the evidence was verified, and a pointer to expand on demand."""
-        categories = self.provenance.get("label_categories") or []
         mechanism = (
             f"{self.defect_class} ({self.direction})" if self.defect_class
-            else ", ".join(categories[:3]) or "unlabeled"
+            else f"trace ({self.outcome})" if self.outcome not in (None, "", "unknown") else "unlabeled"
         )
         flagged = [step for step in self.trace_steps if step.get("flagged")]
         texts = [
@@ -1977,11 +1977,9 @@ class RetrievedExample:
             for step in self.trace_steps[:1]
         ]
         excerpt = [line for text in texts if text for line in text.splitlines() if line.strip()][:3]
-        status = self.provenance.get("receipt_status")
         verify = [part for part in (
             self.differential, self.citation and f"cited {self.citation}",
             "publisher three-vote passage label" if self.provenance.get("passage_window") else None,
-            status and f"receipt {status}",
         ) if part]
         lines = [
             _clip(f"### {position}. {self.task_id} [{self.trust_tier}]", 120),
@@ -2537,6 +2535,8 @@ class CloudTraceRetriever:
         like_run_id = None if like_run_id is None else _text(like_run_id, "like_run_id")
         trace_backed = facets is not None or cluster_id is not None or like_run_id is not None
         issue_kind = None if issue_kind is None else _text(issue_kind, "issue_kind").strip()
+        if isinstance(exclude_task_ids, (str, bytes)):
+            raise ValueError("exclude_task_ids must be a collection of task ids, not one string")
         excluded = {
             identity.casefold()
             for task_id in (exclude_task_ids or ())

@@ -1,4 +1,4 @@
-"""Live Supervisor CLI: ``evallab live-supervisor`` scan, serve, replay and adjudicate.
+"""Live Supervisor CLI: ``evallab live-supervisor`` scan, serve, rows, replay and adjudicate.
 
 Design: ``docs/live-supervisor.md``. This is the operator-facing layer: it selects sources
 by name with lazy imports (so registration opens nothing), builds the rules decider or the
@@ -233,6 +233,11 @@ def hold_lock(path: Path) -> Iterator[None]:
 # --------------------------------------------------------------------------- cycles
 
 
+def _window_log(root: Path) -> ls.WindowSink:
+    """The ``windows-v1.jsonl`` writer under ``root``, imported on use (it pulls in the adjudicator)."""
+    return _attr(_import("live_supervisor_windows", "the window log"), "WindowLog", "the window log")(root)
+
+
 def _stamp(moment: datetime) -> str:
     return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -252,7 +257,7 @@ def run_scan(*, root: Path, names: Sequence[str] = (), reader: str = "rules",
     with hold_lock(root / LOCK_FILE):
         chosen = list(sources) if sources is not None else build_sources(names, root=root)
         with decider_for(reader, root=root, daily_token_budget=daily_token_budget, override=decider) as active:
-            report = ls.scan_once(chosen, active, ls.DecisionLog(root), now=moment)
+            report = ls.scan_once(chosen, active, ls.DecisionLog(root), now=moment, windows=_window_log(root))
     return _payload(report, sources=chosen, moment=moment)
 
 
@@ -277,11 +282,11 @@ def serve(*, root: Path, names: Sequence[str] = (), interval: float = DEFAULT_IN
     with hold_lock(root / LOCK_FILE):
         chosen = list(sources) if sources is not None else build_sources(names, root=root)
         with decider_for(reader, root=root, daily_token_budget=daily_token_budget, override=decider) as active:
-            log = ls.DecisionLog(root)
+            log, windows = ls.DecisionLog(root), _window_log(root)
             done = 0
             while cycles is None or done < cycles:
                 moment = clock()
-                report = ls.scan_once(chosen, active, log, now=moment)
+                report = ls.scan_once(chosen, active, log, now=moment, windows=windows)
                 say(_payload(report, sources=chosen, moment=moment))
                 done += 1
                 if cycles is not None and done >= cycles:
@@ -550,6 +555,18 @@ def _replay_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
     return delegate("live_supervisor_replay", replay_argv(args), what="the replay harness")
 
 
+def _rows_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
+    del root, harbor
+    export = _attr(_import("live_supervisor_windows", "the window log"), "export_rows", "the window log")
+    try:
+        summary = export(args.root, args.arm, args.out)
+    except FileNotFoundError as exc:
+        print(f"live-supervisor rows: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(summary, sort_keys=True))
+    return 0
+
+
 def _adjudicate_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
     del root, harbor
     return delegate("live_supervisor_adjudicate", adjudicate_argv(args), what="the adjudicator")
@@ -637,6 +654,15 @@ def register_parser(commands: Any) -> None:
     adjudicate.add_argument("extra", nargs=argparse.REMAINDER,
                             help="further flags for the adjudicator, after --")
     adjudicate.set_defaults(func=_adjudicate_command)
+    rows = actions.add_parser(
+        "rows", help="turn live decisions and their windows into adjudicator rows, one arm per file")
+    rows.add_argument("--root", type=Path, default=ls.DEFAULT_ROOT,
+                      help=f"state root holding decisions-v1.jsonl and windows-v1.jsonl (default: {ls.DEFAULT_ROOT})")
+    rows.add_argument("--arm", choices=("model", "rules"), required=True,
+                      help="model = decisions a model reader made; rules = the rule-table proposal")
+    rows.add_argument("--out", type=Path, required=True,
+                      help="rows JSONL for `adjudicate --rows`; pass <root>/windows-v1.jsonl as --windows")
+    rows.set_defaults(func=_rows_command)
     alarms = actions.add_parser(
         "route-alarms", help="route new cheat alarms to the Trace Watcher queue (cards + one queue line)")
     alarms.add_argument("--findings", type=Path, action="append",

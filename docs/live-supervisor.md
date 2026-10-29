@@ -106,6 +106,48 @@ The importer accepts only admitted DEV runs, so the live log is
 `~/.local/state/evallab-prod-live/live-supervisor/decisions-v1.jsonl`. Replay records for
 DEV runs can also be imported with `evallab prod import-trace-findings`.
 
+Every recorded decision is followed by one **window** row in `<root>/windows-v1.jsonl`, the
+observation the reader saw, so LS-3 can adjudicate live decisions:
+
+- The row is `live_supervisor_adjudicate.window_record`'s shape, keyed by `row_key` of the
+  decision (`run_id@observed_at`), so `adjudicate --windows <root>/windows-v1.jsonl` reads it
+  unchanged and each decision joins to exactly one window. A second decision with the same key
+  in one cycle is refused (an error `window:<kind>:<id>`), not overwritten.
+- It is bounded to what the reader prompt shows: the last 20 events of at most 600 characters,
+  at most 10 trigger hits, scalar metrics (at most 40). A row over 64 KB loses its oldest
+  events first.
+- It is blinded: every string passes `run_atlas.redact_sources`, and metric keys that could
+  carry a label, split, reward or source (`source`, `label`, `dataset`, `score`, …) are dropped.
+  The decision's action, proposal and reason are not in it. The join key is the only identifier
+  and the adjudicator never shows it.
+- Events of an OMP lane are kept only for an authorized lane the fleet source read
+  (`owner=fleet`, `authorized` and `session_read` true), and never for any subject Peter owns.
+  Other panes keep their metadata only, as in the decision.
+- The window is written after the decision is durable, under the same `supervisor.lock`, as one
+  appended line (a torn last line from a crash is cut first). A failed write never drops the
+  decision or stops the cycle; it is reported under `errors` as `window:<kind>:<id>`.
+- Size: typical rows are a few KB, the cap is 64 KB, and there is one row per recorded decision
+  (a subject repeats at most once per 30-minute cooldown or when its trigger fingerprint
+  changes). There is no rotation: archive or truncate the file together with
+  `decisions-v1.jsonl` when it grows.
+
+The decision record carries `proposal` (the rule-table action) next to `action` (the final
+one), so the rules arm and the model arm come from the same file. `evallab live-supervisor rows`
+joins the two files and writes one arm as the adjudicator's `--rows`:
+
+```bash
+evallab live-supervisor rows --arm model --out /tmp/rows-model.jsonl   # decisions a model reader made
+evallab live-supervisor rows --arm rules --out /tmp/rows-rules.jsonl   # the rule-table proposal
+evallab live-supervisor adjudicate --rows /tmp/rows-model.jsonl \
+  --windows ~/.local/state/evallab-prod-live/live-supervisor/windows-v1.jsonl --out /tmp/adj-model.jsonl
+```
+
+Rows without a window (decisions older than this file) are skipped and counted. The `model`
+arm has only decisions whose `reader_model` is set: a reader failure or an exhausted budget
+falls back to `alert_research` and is not a model decision. A `rules` row's `action` is the
+proposal and `recorded_action` is what was recorded; both arms share a key, so score them in
+separate `--out` files.
+
 Cheating alarms produce evidence cards and one queue notification per UTC day. Routing
 holds a shared file lock around card, index, notification and deduplication-state writes,
 so the live subscriber and a scan actuator cannot race to send duplicate notices.
@@ -139,8 +181,8 @@ evallab live-supervisor serve --interval 120
   checks reader headroom once per cycle through `run_atlas_watch.routes_with_headroom` (the
   `omp usage` contract, 90% window rule) and sends nothing while a reader route is used up.
 - `--root` defaults to `~/.local/state/evallab-prod-live/live-supervisor` and holds
-  `decisions-v1.jsonl`, `state.json` (the 30-minute per-subject cooldown), `fleet-state.json`
-  and `supervisor.lock`.
+  `decisions-v1.jsonl`, `windows-v1.jsonl`, `state.json` (the 30-minute per-subject cooldown),
+  `fleet-state.json` and `supervisor.lock`.
 - `scan` and `serve` take an exclusive, non-blocking flock on `<root>/supervisor.lock`. A second
   process exits with `another live-supervisor process holds …` instead of interleaving writes;
   the lock file is never unlinked, so two processes cannot agree on different inodes.

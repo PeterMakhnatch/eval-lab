@@ -674,6 +674,16 @@ def test_every_atlas_argument_requires_a_named_exclusion(
     assert "audited" not in {example.task_id for example in named}
 
 
+@pytest.mark.parametrize("exclusion", ("audited", b"audited"))
+def test_a_single_string_is_not_a_task_id_collection(retrieval_db: CloudTraceDatabase, exclusion: Any) -> None:
+    retrieval_task(retrieval_db, "audited")
+    retrieval_trace(retrieval_db, "audited")
+    with pytest.raises(ValueError, match="not one string"):
+        CloudTraceRetriever(retrieval_db, registry=SyntheticRegistry()).retrieve_similar_examples(
+            "parser", facets={}, exclude_task_ids=exclusion,
+        )
+
+
 def test_unknown_cluster_and_unavailable_like_runs_raise_without_disclosing_admission(
     retrieval_db: CloudTraceDatabase,
 ) -> None:

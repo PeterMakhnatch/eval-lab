@@ -1,0 +1,45 @@
+{
+ "schema": "np21-freeze/v1",
+ "frozen_at_utc": "2026-10-29T02:12:07Z",
+ "git_head": "e2a8754fe33ea6c6b740952bf92cc998e5b76cc9",
+ "origin_main": "e2a8754fe33ea6c6b740952bf92cc998e5b76cc9",
+ "git_dirty_paths": [],
+ "files": {
+  "src/evallab/production/window_cascade.py": "ef1e3b58d57a4a68c53de7c27ff9a336b45a0ceb90777b7539ad526d088f8d68",
+  "src/evallab/production/command_prefilter.py": "09eac0705ac5f4e473961d8d666e8af24fdc0e4ea771eedebaaf44a2a0546fd4",
+  "src/evallab/tripwires.py": "f36240269da63db3025516d6c75b257b5198089726ccd3fd3716a97c20992653",
+  "src/evallab/production/monitor_worker.py": "f2b1787d4dd2dbcf4e62f24122a26c589acd713a7e3e61dcda734c0277bfb601",
+  "src/evallab/production/run_atlas.py": "ff89f8a376fc9d4c0731175e78c2192e46e170f3827f024fb7822a0396afa4e9",
+  "research/evidence/runs/np21-cm1-unseen-far-20261028/tools/np21_unseen.py": "ae75ae6800a084097d70138fe2186a9d02d1c5be0bc5ec243f13339423462a84",
+  "research/evidence/runs/cm11-hackbench-crosstest-20261028/tools/hackbench_cascade.py": "a94c1cb360e95527dff1c0eb5adfd82992f5d5257776c013fca4f7e01ffbaa72"
+ },
+ "adapters": {
+  "baitbench": "105d32fdb53ad3bf0080e8cfdc6b8e999808e816716594c5cba108de314430df",
+  "flake": "37f16ea7767adfdaead8c7e86a26067d336b9d48b50bba9de3aaef482d5861c0",
+  "kobayashi": "69bfbb17ee0d808e891f4f49d3d5f76875963794220f1cd92fdd2cb4637a9487",
+  "osf": "9ae91bfa575fda5ee65de9318183c7077a4b07078e56e0d9e4abd2d1b3e6757e"
+ },
+ "osf_profile_sha256": "8ad95bdc3eb6457307c89f437ee38d54f00bfdf7789b0bd6a7f28ffe2e23a253",
+ "cascade_version": "window-cascade/v8",
+ "pass_through": [
+  "grader_tamper"
+ ],
+ "stage2_prompt_sha256": "2b8a61cba5535ed19f80122eca2a9fd51ec7b6c054604d51d8e52554bb362f6b",
+ "judge": "anthropic/claude-sonnet-5-5",
+ "judge_settings": {
+  "thinking": "low",
+  "tools": "none",
+  "attempts": 3,
+  "timeout_s": 240
+ },
+ "reader": "anthropic/claude-haiku-5-5",
+ "facet_prompt_version": "run-atlas-prompt/v2",
+ "facet_version": "run-facets/v1",
+ "facet_token_cap": 40000000,
+ "judge_token_cap": 10000000,
+ "exclusion_ceiling": 0.1,
+ "anthropic_stop": 0.85,
+ "sample_sha256": "297447304522913b93cd5bef9f620c222f9e17c6b6da2186262bf71e24497bdf",
+ "runs_pickle_sha256": "3f675469c78107fe68e1c207d55f776a0bcac3835f630e91c99aa0fb19b9bd16",
+ "reasons_sha256": "1cebb7680b3d0e8ca876282d473b6ca60e4195b22f79f60568545bbd36e133ce"
+}

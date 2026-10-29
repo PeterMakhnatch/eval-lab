@@ -67,7 +67,7 @@ BUDGET_PREFIX = "reader budget exhausted:"
 MAX_TOKENS = 600
 
 #: Metric keys that could carry a dataset name, label, reward or verifier outcome never reach a prompt.
-_FORBIDDEN_KEY = re.compile(
+FORBIDDEN_METRIC_KEY = re.compile(
     r"^source$|reward|label|dataset|benchmark|split|verdict|verifier|ground|truth|resolved|passed|score|gold",
     re.IGNORECASE,
 )
@@ -153,7 +153,7 @@ def compact_metrics(metrics: Mapping[str, Any]) -> str:
     """Scalar metrics as ``key=value`` pairs, without keys that could leak a label."""
     parts = []
     for key in sorted(metrics):
-        if _FORBIDDEN_KEY.search(str(key)):
+        if FORBIDDEN_METRIC_KEY.search(str(key)):
             continue
         value = _metric_value(metrics[key])
         if value is not None:

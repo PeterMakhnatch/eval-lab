@@ -287,6 +287,14 @@ def metr_arms(path: Path) -> list[MetrArm]:
     return [arm for version in versions if (arm := parse_metr_arm(version)) is not None]
 
 
+#: The arm ``metr`` reads with no reader override: the default reader on the actor-v2 projection.
+METR_DEFAULT_LEDGER_VERSION = f"{METR_BUILD};{arm_slug(METR_DEFAULT_READER)};projection-{ACTOR_PROJECTION_VERSION}"
+METR_DEFAULT_VERSION = MetrArm(
+    METR_DEFAULT_LEDGER_VERSION, tuple(METR_BUILD.split(";")), arm_slug(METR_DEFAULT_READER), (),
+    ACTOR_PROJECTION_VERSION,
+).version
+
+
 def first_class(tool: str, detector: str, version: str) -> bool:
     """Whether a dedicated adapter reads these rows (so the generic one must not)."""
     if tool == "scout":

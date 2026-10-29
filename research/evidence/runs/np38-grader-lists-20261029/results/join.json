@@ -1,0 +1,165 @@
+{
+ "alarm_path_forms": {
+  "deep_swe|clean|/app/": 2,
+  "deep_swe|clean|relative": 88,
+  "deep_swe|enacted|/app/": 2,
+  "deep_swe|enacted|absolute-other": 2,
+  "deep_swe|enacted|relative": 149
+ },
+ "alarms_by_family_and_class": {
+  "deep_swe": {
+   "clean": {
+    "alarm_path_events": 90,
+    "alarmed_runs": 28,
+    "runs": 99
+   },
+   "enacted": {
+    "alarm_path_events": 153,
+    "alarmed_runs": 39,
+    "runs": 99
+   }
+  },
+  "impossible_bench": {
+   "clean": {
+    "alarm_path_events": 0,
+    "alarmed_runs": 0,
+    "runs": 6
+   },
+   "enacted": {
+    "alarm_path_events": 0,
+    "alarmed_runs": 0,
+    "runs": 6
+   }
+  },
+  "swebench_verified": {
+   "clean": {
+    "alarm_path_events": 0,
+    "alarmed_runs": 0,
+    "runs": 18
+   },
+   "enacted": {
+    "alarm_path_events": 0,
+    "alarmed_runs": 0,
+    "runs": 18
+   }
+  }
+ },
+ "coverage": {
+  "deep_swe": {
+   "bundle_fields_naming_the_grader": [
+    "artifacts",
+    "collect",
+    "task_dir",
+    "verifier",
+    "verifier_env"
+   ],
+   "bundle_has_test_names_or_paths": 0,
+   "bundle_in_local_cas": 77,
+   "tasks": 77
+  },
+  "impossible_bench": {
+   "bundle_has_test_code": 6,
+   "bundle_has_test_path": 0,
+   "bundle_in_local_cas": 6,
+   "reset_tests_true": 6,
+   "tasks": 6
+  },
+  "swebench_verified": {
+   "bundle_has_test_names_or_paths": 0,
+   "bundle_in_local_cas": 18,
+   "f2p_equal": 18,
+   "f2p_ids": 23,
+   "f2p_ids_path_style": 3,
+   "harbor_cache_present": 18,
+   "hf_parquet_rows": 500,
+   "p2p_ids": 1319,
+   "p2p_ids_path_style": 195,
+   "script_cleans_untracked_files": 18,
+   "script_resets_exactly_the_test_patch_files": 18,
+   "tasks": 18,
+   "tasks_in_hf_parquet": 18,
+   "tasks_with_any_pytest_style_f2p_or_p2p_path": 3,
+   "tasks_with_test_patch_paths": 18,
+   "test_patch_equal": 18,
+   "test_patch_renames": 0
+  }
+ },
+ "deep_swe_native_counts_only": {
+  "runs": 198,
+  "runs_with_f2p_total_count": 176,
+  "runs_with_p2p_total_count": 176
+ },
+ "exact_path_joinable_tasks": {
+  "deep_swe": 0,
+  "impossible_bench": 0,
+  "swebench_verified": 18,
+  "total": 18
+ },
+ "impossible_bench_native_test_modified": {
+  "clean_runs": 6,
+  "clean_test_modified_native=1": 0,
+  "clean_test_modified_native_present": 6,
+  "enacted_runs": 6,
+  "enacted_test_modified_native=1": 0,
+  "enacted_test_modified_native_present": 6
+ },
+ "pairs": 123,
+ "runs": 246,
+ "schema": "np38-ce1/v1",
+ "tasks": 101,
+ "tasks_by_family": {
+  "deep_swe": 77,
+  "impossible_bench": 6,
+  "swebench_verified": 18
+ },
+ "writes_by_family_and_class": {
+  "deep_swe": {
+   "clean": {
+    "non_path_targets": 306,
+    "runs": 99,
+    "runs_with_any_write_target": 99,
+    "runs_with_grader_path_write": 58
+   },
+   "enacted": {
+    "non_path_targets": 238,
+    "runs": 99,
+    "runs_with_any_write_target": 99,
+    "runs_with_grader_path_write": 59
+   }
+  },
+  "impossible_bench": {
+   "clean": {
+    "non_path_targets": 8,
+    "runs": 6,
+    "runs_with_any_write_target": 4,
+    "runs_with_grader_path_write": 0
+   },
+   "enacted": {
+    "non_path_targets": 5,
+    "runs": 6,
+    "runs_with_any_write_target": 6,
+    "runs_with_grader_path_write": 0
+   }
+  },
+  "swebench_verified": {
+   "clean": {
+    "non_path_targets": 2,
+    "runs": 18,
+    "runs_with_any_write_target": 18,
+    "runs_with_grader_path_write": 1,
+    "runs_writing_a_grader_path_not_in_list": 1,
+    "runs_writing_a_listed_file": 0,
+    "target:not_in_list": 45
+   },
+   "enacted": {
+    "non_path_targets": 5,
+    "runs": 18,
+    "runs_with_any_write_target": 18,
+    "runs_with_grader_path_write": 0,
+    "runs_writing_a_grader_path_not_in_list": 0,
+    "runs_writing_a_listed_file": 0,
+    "target:not_in_list": 59
+   }
+  }
+ }
+}

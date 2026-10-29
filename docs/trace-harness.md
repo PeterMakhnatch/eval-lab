@@ -76,6 +76,9 @@ record per (run, detector):
   adapter; on `detectors-v1` it also expands the cached native detector family.
   Model-backed adapters read retained results. Only facets can generate, gated by
   `--allow-model`; there is no automatic call when a retained result is absent.
+  `all` also adds every stored import-only reading found in the Trace Tools ledger (each METR arm
+  of a known reader, each Docent and OMP form reader) and `ledger` (below), so a new arm or reader
+  appears without a code change. Those only read stored rows; none can start a model call.
 - `merge INPUT.jsonl [INPUT.jsonl ...] --findings TARGET.jsonl` validates every input
   before writing and deduplicates by run/detector/version/reader. Newest timestamp
   wins (ties use input order); an older import cannot replace a newer target, and
@@ -164,6 +167,39 @@ model/version and input checksums; they do not silently generate replacement cal
 | `recheck_sol` | CM-12 frozen Sol rechecks, theta 86 | 14 GF-200 and 9 CB-150 retained judgments | scored only on the runs actually judged; `unclear` is abstain, not clean. This is not the original full Stage-1 denominator |
 | `whole_run_logistic` | frozen pK-SELF M3 per-run scores, CB-150 | 12/75 TP, 4/75 FP | native threshold, not a new fit; GF/HB aggregate-only results cannot become per-run findings |
 | `qa_trace_t0` | fixed `combined_v1` agentic-default literals computed from steps | measured literals agree with native deterministic features on 120 runs | this is the steps-only projection, not a source-specific retune. Missing score/file literals force abstention unless a measured OR literal fires |
+
+### Trace-tool readings as detectors (stored-result adapters)
+
+Scout, METR, Laminar Signals, Docent and OMP form readings are imported from the
+`evallab.trace_tool_result/v1` ledger (`trace-tools/results-v1.jsonl`; Scout actor-v2 has its own
+ledger). Nothing here runs a tool or model. A run with no row is **missing** (no finding);
+a row with a null flag is **abstain**; neither is ever `clear`. Run selection still goes through
+the DEV admission gate before any actor file is opened; labels are joined only by `trace score`.
+Verdicts are the tool's own flag: Scout, Laminar and `ledger` use the any-flag union of the
+tool's flagging detectors (always-null informational ones excluded); METR the `@ge5`/`@ge7`
+union on the native 0-10 score; Docent/OMP form suspicion >= 2.
+
+| selector | stored rows read | identity (`detector_version` / reader) | GF-200 findings (alarm / clear / abstain) |
+|---|---|---|---|
+| `scout` | Scout 0.5.4 four text scanners, `native-actor-v2` ledger | `inspect-scout/0.5.4+native-actor-v2` / none | 200 (0 / 200 / 0) |
+| `scout_legacy` (new) | same scanners, pre-projection ledger behind `tt1-scorecard` | `inspect-scout/0.5.4+unversioned-pre-native-actor-v2` / none | 200 (0 / 200 / 0) |
+| `metr` | METR 0.1.11 Kimi `native-actor-v2` arm (default) | `metr-scanners/0.1.11@c12893d1+scanner-v0+native-actor-v2` / `kimi-code/k3.1-pro-highspeed` | 200 (3 / 34 / 163); native 3/13 TP, 0/12 FP |
+| `metr:<reader>@none` (new) | Kimi arm stored without a projection | `metr-scanners/0.1.11@c12893d1+scanner-v0` / same Kimi reader | 200 (0 / 0 / 200) |
+| `metr:xai-oauth/grok-4.3` | Grok arm | `…+scanner-v0` / `xai-oauth/grok-4.3` | 200 (1 / 7 / 192); native 1/3 TP, 0/5 FP |
+| `metr:openrouter/google/gemini-2.5-flash-lite` (new) | OpenRouter arm; no rows stored yet | `…+scanner-v0+<option digest>+native-actor-v2` / `openrouter/google/gemini-2.5-flash-lite` | 0 (nothing stored) |
+| `laminar` | Laminar Signals read back for our own Harbor runs | `existing-signals/readback-v1` / `zai/glm-5.3-flash` | own runs only: none on Goodfire |
+| `docent:<reader>` | TT-7 form readings, one reader each | `tt7-frozen-20261027` / the reader | Sonnet 5.5: 150 (3 / 66 / 81); GPT-5.4 mini, GPT-6.1 Sol, Gemini 3.8 Flash (new in `all`): 150 each, all abstain (`docent_usage_limit`) |
+| `omp_form:<reader>` | the same form read through OMP | `tt7-frozen-20261027/v1` / the reader | Opus 5.5: 41 (0 / 24 / 17); Luna: 10 (1 / 7 / 2) |
+| `ledger[:<tool>]` (new) | every (tool, version, reader) no adapter above reads | compacted ledger version / the row's own `reader_model` or none | nothing unclaimed in today's ledger |
+
+METR arms are parsed from the ledger `detector_version` (`<build>;<route>-<model slug>[;options][;projection-<v>]`),
+not listed: a reader selects the arm whose slug it produces, `@<projection>` chooses among a reader's
+arms (`@none` is the unprojected one; with no `@` the actor-v2 arm wins), and an ambiguous or unstored
+reader is refused. Option segments fold into a 6-hex digest only when the version would exceed the
+64-character identifier limit. Arms of a reader not in the known list are still imported by
+`ledger` with an unrecorded reader (never decoded from the slug). Facets (`facets:<reader>`),
+the Docent rubric (`docent:rh_reading_v1`) and Laminar copy (`laminar_copy`) were already
+first-class and are unchanged.
 
 ### Local-run admission and cached native detectors
 

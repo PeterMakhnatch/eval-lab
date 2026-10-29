@@ -11,12 +11,23 @@ from typing import Any
 import pytest
 
 from evallab.production import trace_harness_tools as tools
-from evallab.production.trace_harness import DETECTORS, HarnessOptions, HarnessRun, validate_finding
+from evallab.production.trace_harness import (
+    DETECTORS,
+    HarnessOptions,
+    HarnessRun,
+    load_detectors,
+    validate_finding,
+)
 
 SCHEMA = "evallab.trace_tool_result/v1"
 SCOUT_VERSION = "inspect-scout/0.5.4:1"
-KIMI = tools.METR_BUILD + tools.METR_READERS["kimi-code/k3.1-pro-highspeed"][0]
-GROK = tools.METR_BUILD + tools.METR_READERS["xai-oauth/grok-4.3"][0]
+KIMI = tools.METR_BUILD + ";omp-kimi-code-k3.1-pro-highspeed;projection-native-actor-v2"
+KIMI_UNPROJECTED = tools.METR_BUILD + ";omp-kimi-code-k3.1-pro-highspeed"
+GROK = tools.METR_BUILD + ";omp-xai-oauth-grok-4.3"
+OPENROUTER = (
+    tools.METR_BUILD
+    + ";openrouter-google-gemini-2.5-flash-lite;max-output4096;no-reasoning;no-http-retry;projection-native-actor-v2"
+)
 
 
 def run(run_id: str, step_ids: tuple[int, ...] = (0, 1, 2, 3)) -> HarnessRun:
@@ -56,7 +67,9 @@ def test_registry_names_match_classes() -> None:
     for name, target in DETECTORS.items():
         module, _, attribute = target.partition(":")
         if module == tools.__name__:
-            assert getattr(importlib.import_module(module), attribute).name == name
+            factory = importlib.import_module(module).__dict__[attribute]
+            # `ledger` is a factory of many detectors named `ledger.<tool>`, all of the one class
+            assert (tools.LedgerDetector if factory is tools.ledger_detectors else factory).name == name
 
 
 def test_scout_unions_flagging_scanners_and_ignores_informational(tmp_path: Path) -> None:
@@ -135,11 +148,11 @@ def test_metr_selects_reader_version_and_abstains_on_null(tmp_path: Path) -> Non
     assert {k: v["verdict"] for k, v in kimi.items()} == {"hit": "alarm", "low": "clear", "quota": "abstain"}
     assert kimi["hit"]["score"] == 9.0 and kimi["quota"]["score"] is None
     assert kimi["hit"]["reader_model"] == "kimi-code/k3.1-pro-highspeed"
-    assert kimi["hit"]["detector_version"] == tools.METR_READERS["kimi-code/k3.1-pro-highspeed"][1]
+    assert kimi["hit"]["detector_version"] == "metr-scanners/0.1.11@c12893d1+scanner-v0+native-actor-v2"
     grok = tools.MetrDetector(options(tmp_path, reader="xai-oauth/grok-4.3"), results=path, tt4_root=tmp_path)
     assert set(by_run(grok.detect(runs))) == {"other"}
-    with pytest.raises(ValueError, match="unknown METR reader"):
-        tools.MetrDetector(options(tmp_path, reader="x/y"))
+    with pytest.raises(ValueError, match="no stored METR arm for reader 'x/y'"):
+        tools.MetrDetector(options(tmp_path, reader="x/y"), results=path)
 
 
 def test_metr_tokens_and_explanation_come_from_the_report_receipt(tmp_path: Path) -> None:
@@ -259,3 +272,145 @@ def test_tool_rows_map_to_the_agent_step_that_called_them(tmp_path: Path) -> Non
     # 2 -> its caller (by tool_call_id); 4 -> the last agent step before it; 5 is off the final path; 99 unknown
     assert tools.known_steps(cloud, [1, "2", 4, 5, 99, True, None], database) == [1, 3]
     assert tools.known_steps(cloud, [2, 4]) == []  # no database: cited tool rows are dropped, not guessed
+
+
+def test_metr_reads_every_stored_arm_of_a_reader_and_openrouter_routes(tmp_path: Path) -> None:
+    path = ledger(tmp_path / "r.jsonl", [
+        *metr_rows("native", KIMI, 9.0), *metr_rows("plain", KIMI_UNPROJECTED, 9.0),
+        *metr_rows("gemini", OPENROUTER, 3.0),
+    ])
+    runs = [run(name) for name in ("native", "plain", "gemini")]
+
+    def read(reader: str | None) -> Any:
+        detector = tools.MetrDetector(options(tmp_path, reader=reader), results=path, tt4_root=tmp_path)
+        return detector, by_run(detector.detect(runs))
+
+    default, found = read(None)  # both Kimi arms exist: the actor-v2 one wins unless named
+    assert set(found) == {"native"} and default.version.endswith("+native-actor-v2")
+    plain, found = read("kimi-code/k3.1-pro-highspeed@none")
+    assert set(found) == {"plain"} and plain.version == "metr-scanners/0.1.11@c12893d1+scanner-v0"
+    gemini, found = read("openrouter/google/gemini-2.5-flash-lite")
+    assert set(found) == {"gemini"} and found["gemini"]["verdict"] == "clear"
+    assert found["gemini"]["reader_model"] == "openrouter/google/gemini-2.5-flash-lite"
+    # the options do not fit the identifier rule next to the build, so they become a digest
+    assert len(gemini.version) <= tools.VERSION_LIMIT and gemini.version.endswith("+native-actor-v2")
+    assert "no-reasoning" not in gemini.version
+    other = tools.parse_metr_arm(OPENROUTER.replace("no-reasoning", "reasoning-low"))
+    assert other is not None and other.version != gemini.version
+
+
+def test_metr_refuses_an_ambiguous_reader_and_checks_the_receipt_model(tmp_path: Path) -> None:
+    two = KIMI + ";option-b"
+    path = ledger(tmp_path / "r.jsonl", [*metr_rows("a", KIMI, 9.0), *metr_rows("b", two, 9.0)])
+    with pytest.raises(ValueError, match="several stored arms"):
+        tools.MetrDetector(options(tmp_path, reader="kimi-code/k3.1-pro-highspeed@native-actor-v2"), results=path)
+    openrouter = ledger(tmp_path / "o.jsonl", [
+        {**r, "scan": "/scans/scan_id=OR"} for r in metr_rows("hit", OPENROUTER, 9.0)
+    ])
+    (tmp_path / "private-keymap.json").write_text(json.dumps([{"opaque_id": "run-1", "run_id": "hit"}]))
+    usage = {"tt4openrouter/google/gemini-2.5-flash-lite": {"input_tokens": 50, "output_tokens": 5, "total_cost": 0.001}}
+    (tmp_path / "reports-scan_id=OR.json").write_text(json.dumps([
+        {"transcript_id": "run-1", "explanation": "reads the answer key", "model_usage": usage},
+    ]))
+    detector = tools.MetrDetector(
+        options(tmp_path, reader="openrouter/google/gemini-2.5-flash-lite"), results=openrouter, tt4_root=tmp_path,
+    )
+    record = by_run(detector.detect([run("hit")]))["hit"]
+    assert (record["input_tokens"], record["output_tokens"], record["cost_usd"]) == (50, 5, 0.001)
+
+
+def test_scout_legacy_is_a_registered_detector_with_its_own_identity(tmp_path: Path) -> None:
+    path = ledger(tmp_path / "scout.jsonl", [
+        *scout_rows("a", {"repeated_assistant_message": (True, 3), "x": (False, 0)}),
+        *scout_rows("a", {"repeated_assistant_message": (False, 0)}, projection_version="native-actor-v2"),
+    ])
+    detector = tools.ScoutLegacyDetector(options(tmp_path), results=path)
+    found = by_run(detector.detect([run("a")]))
+    assert detector.name == "scout_legacy" and found["a"]["detector"] == "scout_legacy"
+    assert found["a"]["verdict"] == "alarm" and found["a"]["kind"] == "loop"
+    assert found["a"]["detector_version"].endswith(tools.LEGACY_PROJECTION)
+
+
+def product_rows(run_id: str, flags: dict[str, bool | None], version: str = "prod/v1", **extra: Any) -> list[dict[str, Any]]:
+    return [row(run_id, "product", name, version, flag, value=1.5 if flag is not None else None, steps=(1,) if flag else (), **extra)
+            for name, flag in flags.items()]
+
+
+def test_ledger_imports_an_unlisted_tool_with_an_unrecorded_reader(tmp_path: Path) -> None:
+    path = ledger(tmp_path / "r.jsonl", [
+        *product_rows("hit", {"a": True, "b": False}), *product_rows("clear", {"a": False, "b": False}),
+        *product_rows("quiet", {"a": None, "b": False}), *product_rows("skip", {"a": None, "b": None}),
+        *product_rows("recorded", {"a": True}, version="prod/v2", reader_model="vendor/model-x"),
+        *metr_rows("covered", KIMI, 9.0), *scout_rows("covered", {"a": (True, 1)}),
+    ])
+    detectors = tools.ledger_detectors(options(tmp_path), results=path)
+    assert [(d.name, d.version, d.reader_model) for d in detectors] == [
+        ("ledger.product", "prod/v1", None), ("ledger.product", "prod/v2", "vendor/model-x"),
+    ]
+    runs = [run(name) for name in ("hit", "clear", "quiet", "skip", "recorded", "covered", "never")]
+    first = by_run(detectors[0].detect(runs))
+    assert {k: v["verdict"] for k, v in first.items()} == {
+        "hit": "alarm", "clear": "clear", "quiet": "clear", "skip": "abstain",
+    }
+    assert first["hit"]["evidence_steps"] == [1] and first["hit"]["score"] == 1.5 and first["hit"]["reader_model"] is None
+    assert first["skip"]["score"] is None  # abstained: no verdict, but never a clean run
+    assert set(by_run(detectors[1].detect(runs))) == {"recorded"}
+
+
+def test_ledger_does_not_duplicate_dedicated_adapters_and_names_missing_tools(tmp_path: Path) -> None:
+    path = ledger(tmp_path / "r.jsonl", [
+        *metr_rows("a", KIMI, 9.0), *scout_rows("a", {"x": (True, 1)}),
+        *metr_rows("b", GROK.replace("xai-oauth-grok-4.3", "unlisted-model-9"), 7.0),
+    ])
+    assert [d.name for d in tools.ledger_detectors(options(tmp_path), results=path)] == ["ledger.scout_metr"]
+    with pytest.raises(ValueError, match="no stored rows without a dedicated adapter"):
+        tools.ledger_detectors(options(tmp_path, reader="scout"), results=path)
+    with pytest.raises(ValueError, match="no stored rows"):
+        tools.ledger_detectors(options(tmp_path, reader="nothing"), results=path)
+    detector = tools.ledger_detectors(options(tmp_path, reader="scout_metr"), results=path)[0]
+    assert by_run(detector.detect([run("a"), run("b")])).keys() == {"b"}
+    assert tools.ledger_detectors(options(tmp_path), results=tmp_path / "missing.jsonl") == []
+
+
+def test_discovery_lists_every_stored_import_only_reading_and_load_dedupes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = ledger(tmp_path / "results-v1.jsonl", [
+        *metr_rows("a", KIMI, 9.0), *metr_rows("a", KIMI_UNPROJECTED, 9.0), *metr_rows("a", GROK, 9.0),
+        *metr_rows("a", OPENROUTER, 9.0),
+        tt7("a", "docent", "openai/gpt-5.4-mini", tools.TT7_DOCENT_VERSION, 3),
+        tt7("a", "omp", "openai-codex/gpt-6-luna", tools.TT7_OMP_VERSION, 3),
+        tt7("a", "omp", "x/old", "other-version", 3),
+    ])
+    specs = tools.discovered_specs(path)
+    assert specs == [
+        "docent:openai/gpt-5.4-mini",
+        "metr:kimi-code/k3.1-pro-highspeed@native-actor-v2",
+        "metr:kimi-code/k3.1-pro-highspeed@none",
+        "metr:openrouter/google/gemini-2.5-flash-lite@native-actor-v2",
+        "metr:xai-oauth/grok-4.3@none",
+        "omp_form:openai-codex/gpt-6-luna",
+    ]
+    monkeypatch.setattr(tools, "TRACE_TOOLS", tmp_path)
+    loaded = load_detectors(["metr", "docent", *specs, "ledger"], options(tmp_path))
+    identities = [(d.name, d.version, d.reader_model) for d in loaded]
+    assert len(identities) == len(set(identities))  # the default METR reader is named and discovered once
+    assert sum(name == "metr" for name, _, _ in identities) == 4
+    # the row of an unregistered omp form version is not lost: the generic adapter takes it
+    assert [i for i in identities if i[0].startswith("ledger.")] == [("ledger.omp", "other-version", None)]
+
+
+def test_ledger_versions_fit_the_identifier_rule_and_stay_distinct() -> None:
+    short = tools.compact_version("prod;v 1")
+    assert short == "prod+v_1"
+    long_a, long_b = "p" * 80 + ";a", "p" * 80 + ";b"
+    compact_a, compact_b = tools.compact_version(long_a), tools.compact_version(long_b)
+    assert len(compact_a) == len(compact_b) == tools.VERSION_LIMIT and compact_a != compact_b
+
+
+def test_a_row_reader_without_a_provider_is_refused_and_a_rewritten_ledger_is_reread(tmp_path: Path) -> None:
+    path = ledger(tmp_path / "r.jsonl", product_rows("a", {"x": True}, reader_model="no-provider"))
+    with pytest.raises(ValueError, match="provider/id"):
+        tools.ledger_detectors(options(tmp_path), results=path)
+    ledger(path, product_rows("a", {"x": True}) + product_rows("b", {"x": False}, version="prod/v2"))
+    assert [d.version for d in tools.ledger_detectors(options(tmp_path), results=path)] == ["prod/v1", "prod/v2"]

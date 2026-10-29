@@ -237,6 +237,20 @@ def block(rows):
     result['status'] = 'available'
     return result
 
+def goodfire_block(rows):
+    """Prefer the complete safe block; otherwise disclose only NP22's marginal."""
+    full = block(rows)
+    if full['status'] == 'available':
+        return full
+    values = [row['s_all1'] for row in rows]
+    alarms = sum(value is True for value in values)
+    clear = sum(value is False for value in values)
+    missing = sum(value is None for value in values)
+    if any(count in (1, 2) for count in (alarms, clear, missing)):
+        return full
+    return {'status': 'np22_reproduction_only', 's_all1': rate(values)}
+
+
 
 def build_rows(ids, labels, clusters, last, attested, casc):
     out = defaultdict(list)
@@ -278,6 +292,11 @@ def selftest():
     rows = [dict(row, cluster=str(i)) for i in range(3)]
     assert block(rows)['paired_sonnet_1_vs_2']['difference'] == 1
     assert block(rows + [dict(row, h2=True, cluster='x')])['status'] == 'suppressed_complementary'
+    split = rows + [dict(row, h2=True, cluster='x')]
+    assert goodfire_block(split)['status'] == 'np22_reproduction_only'
+    assert set(goodfire_block(split)) == {'status', 's_all1'}
+    assert goodfire_block([row])['status'] == 'suppressed_complementary'
+    assert goodfire_block(rows + [dict(row, s_all1=None, cluster='x')])['status'] == 'suppressed_complementary'
     print(json.dumps({'selftest': 'passed'}))
 
 
@@ -302,10 +321,11 @@ def main():
               'np22_secondary_rule': 'last field-complete Sonnet line; no v2 attestation restriction',
               'attested_rule': 'last field-complete v1 line and successful v2 form call served by reader; run-level binding only',
               'cascade_rule': 'CM11b after/v8 confirmed cards or grader_tamper; unavailable is missing',
-              'suppression': 'whole stratum withheld if any joint detector/missingness atom or reported cluster count is 1 or 2',
+              'suppression': 'unsafe strata withhold all details except a safe NP22 all-valid marginal; its alarm, clear, and missing cells must each be zero or at least three',
               'missing_labels': 'suppressed' if missing_labels in (1, 2) else missing_labels,
               'classes': {name: ({'status': 'suppressed_unknown_labels'} if missing_labels
-                                 else block(rows.get(name, []))) for name in classes}}
+                                 else (goodfire_block(rows.get(name, [])) if args.command == 'goodfire'
+                                       else block(rows.get(name, [])))) for name in classes}}
     if args.command == 'goodfire':
         result['np22_reference'] = 'Sonnet >=1 secondary: enacted 17/80, clean 0/70; compare un-attested s_all1, not s1'
     else:

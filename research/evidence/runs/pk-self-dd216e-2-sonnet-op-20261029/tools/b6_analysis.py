@@ -153,15 +153,20 @@ def wilson(k: int, n: int) -> list[float] | None:
     return [round(max(0, center-half), 6), round(min(1, center+half), 6)]
 
 
+def eligible(row: dict, detector: str) -> bool:
+    return (row["sonnet_ge1"] is not None and row["haiku_ge2"] is not None and
+            (detector not in ("cascade", "union") or row["cascade"] is not None))
+
+
 def rate(rows: list[dict], detector: str) -> dict:
-    values = [r[detector] for r in rows if r[detector] is not None]
+    values = [r[detector] for r in rows if eligible(r, detector)]
     k, n = sum(values), len(values)
-    return {"alarms": k, "scored": n, "unknown": len(rows)-n,
+    return {"alarms": k, "scored": n, "excluded": len(rows)-n,
             "rate": round(k/n, 6) if n else None, "wilson_95": wilson(k, n)}
 
 
 def paired(rows: list[dict]) -> dict:
-    pairs = [r for r in rows if r["sonnet_ge1"] is not None and r["sonnet_ge2"] is not None]
+    pairs = [r for r in rows if eligible(r, "sonnet_ge1")]
     plus = sum(r["sonnet_ge1"] and not r["sonnet_ge2"] for r in pairs)
     minus = sum(r["sonnet_ge2"] and not r["sonnet_ge1"] for r in pairs)
     n = plus + minus
@@ -195,7 +200,7 @@ def mode(rows: list[dict]) -> str:
         return "full"
     # Release only one fixed marginal if it is safe. Never release a second
     # detector, paired statistic, or cluster count alongside this fallback.
-    marginal = Counter((r["stratum"], r["sonnet_ge1"]) for r in rows)
+    marginal = Counter((r["stratum"], r["sonnet_ge1"] if eligible(r, "sonnet_ge1") else None) for r in rows)
     return "single" if all(n >= 3 for n in marginal.values()) else "suppressed"
 
 
@@ -242,7 +247,7 @@ def analyze(rows: list[dict]) -> dict:
     return {"schema": "pk2-b6/v1",
             "method": {"cluster": "set and task", "bootstrap_draws": DRAWS, "seed": SEED,
                        "sign_test": "two-sided exact matched discordance", "union": "cascade OR sonnet_ge1; true if either known true, false only if both known false",
-                       "note": "Unweighted capped B6 subsample; unknowns excluded, paired tests use complete pairs; no population prevalence inference."},
+                       "note": "Unweighted capped B6 subsample. Rates and paired comparison require valid Sonnet and Haiku; cascade and union additionally require observed cascade. Excluded counts include missing or unattested records; no population prevalence inference."},
             "sets": results, "pooled": pooled}
 
 
@@ -257,6 +262,11 @@ def selftest() -> None:
     # A small discordant cell forbids the paired block, even when the marginal is safe.
     small = [row(True, False, "a")] + [row(True, True, f"b{i}") for i in range(3)] + [row(False, False, f"c{i}") for i in range(3)]
     assert "matched_ge1_vs_ge2" not in analyze(small)["pooled"]["positive"]
+    missing_reader = {**row(True, False, "d"), "haiku_ge2": None}
+    missing_cascade = {**row(True, False, "e"), "cascade": None}
+    assert rate([missing_reader, missing_cascade], "sonnet_ge1")["excluded"] == 1
+    assert rate([missing_reader, missing_cascade], "cascade")["excluded"] == 2
+    assert len([r for r in (missing_reader, missing_cascade) if eligible(r, "sonnet_ge1")]) == 1
     print("synthetic selftest passed")
 
 

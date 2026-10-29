@@ -2,6 +2,13 @@
  "adapter_selfcheck": {
   "issues": [],
   "leak_audit": {
+   "code_view_units": 567,
+   "code_view_word_hits_by_state": {
+    "attack:ambiguous": 1,
+    "attack:negative": 1,
+    "secret:ambiguous": 1,
+    "secret:negative": 1
+   },
    "judge_text_hits": 0,
    "name_token_hits": 0,
    "side_task_quote_by_mode": {
@@ -11,36 +18,287 @@
    "units": 584
   },
   "states": {
-   "ambiguous": 125,
-   "excluded": 166,
-   "negative": 242,
-   "positive": 51
+   "ambiguous": 142,
+   "excluded": 209,
+   "negative": 200,
+   "positive": 33
+  },
+  "states_attempted": {
+   "ambiguous": 42,
+   "excluded": 209,
+   "negative": 200,
+   "positive": 133
   },
   "step_string_chars": 16396787,
   "steps": 1276,
   "tool_calls": 653,
   "tool_results": 653,
-  "units": 584
+  "units": 584,
+  "units_without_code_view": {
+   "ambiguous": 12,
+   "excluded": 5
+  }
  },
- "content_free_floor_auroc_positive_vs_negative": {
-  "agent_text_mentions_side_task": 0.9902,
-  "n_steps": 0.676,
-  "n_tool_calls": 0.6787,
-  "reasoning_chars": 0.8907,
-  "submit_has_secret_input": 1.0,
-  "total_chars": 0.8868
+ "computed_claims": {
+  "a3_probe_staged_samples": 10,
+  "attack_samples_quoting_side_task_in_a_message": 147,
+  "attack_samples_with_side_task_text": 230,
+  "dataset_id_groups_disjoint": true,
+  "dataset_id_ranges": {
+   "e2_e3": {
+    "distinct": 100,
+    "max": 122,
+    "min": 0
+   },
+   "e8": {
+    "distinct": 100,
+    "max": 244,
+    "min": 123
+   }
+  },
+  "e3_reruns": 27,
+  "e3_reruns_with_matching_e2_original_task": 27,
+  "eval_files_zip_crc_failures": 0,
+  "logged_system_prompt_distinct_hashes": 1,
+  "logged_system_prompt_hashes_by_mode": {
+   "attack": 1,
+   "honest": 1
+  },
+  "side_task_text_messages_by_role": {
+   "assistant": 176
+  }
+ },
+ "content_free_floors": {
+  "code_view": {
+   "primary_working_backdoor": {
+    "features": {
+     "code_chars": {
+      "ci95": [
+       0.501,
+       0.612
+      ],
+      "separability_auroc": 0.5067
+     },
+     "code_lines": {
+      "ci95": [
+       0.501,
+       0.613
+      ],
+      "separability_auroc": 0.505
+     },
+     "eq_literal_ge3_digits": {
+      "ci95": [
+       0.562,
+       0.712
+      ],
+      "separability_auroc": 0.634
+     },
+     "if_count": {
+      "ci95": [
+       0.502,
+       0.633
+      ],
+      "separability_auroc": 0.5395
+     },
+     "task_text_chars": {
+      "ci95": [
+       0.503,
+       0.627
+      ],
+      "separability_auroc": 0.5414
+     }
+    },
+    "n_negative": 200,
+    "n_positive": 33
+   },
+   "slice_attempted_attack": {
+    "features": {
+     "code_chars": {
+      "ci95": [
+       0.57,
+       0.68
+      ],
+      "separability_auroc": 0.6277
+     },
+     "code_lines": {
+      "ci95": [
+       0.585,
+       0.696
+      ],
+      "separability_auroc": 0.6436
+     },
+     "eq_literal_ge3_digits": {
+      "ci95": [
+       0.529,
+       0.58
+      ],
+      "separability_auroc": 0.5539
+     },
+     "if_count": {
+      "ci95": [
+       0.583,
+       0.697
+      ],
+      "separability_auroc": 0.6436
+     },
+     "task_text_chars": {
+      "ci95": [
+       0.5,
+       0.532
+      ],
+      "separability_auroc": 0.5042
+     }
+    },
+    "n_negative": 200,
+    "n_positive": 133
+   }
+  },
+  "whole_trace_view": {
+   "primary_working_backdoor": {
+    "features": {
+     "agent_text_mentions_side_task": {
+      "ci95": [
+       1.0,
+       1.0
+      ],
+      "separability_auroc": 1.0
+     },
+     "dataset_id_ge_123_config": {
+      "ci95": [
+       0.503,
+       0.63
+      ],
+      "separability_auroc": 0.553
+     },
+     "n_steps": {
+      "ci95": [
+       0.604,
+       0.771
+      ],
+      "separability_auroc": 0.6863
+     },
+     "n_tool_calls": {
+      "ci95": [
+       0.608,
+       0.774
+      ],
+      "separability_auroc": 0.6897
+     },
+     "reasoning_chars": {
+      "ci95": [
+       0.884,
+       0.956
+      ],
+      "separability_auroc": 0.9229
+     },
+     "submit_has_secret_input": {
+      "ci95": [
+       1.0,
+       1.0
+      ],
+      "separability_auroc": 1.0
+     },
+     "task_text_chars": {
+      "ci95": [
+       0.503,
+       0.627
+      ],
+      "separability_auroc": 0.5414
+     },
+     "total_chars": {
+      "ci95": [
+       0.882,
+       0.955
+      ],
+      "separability_auroc": 0.9205
+     }
+    },
+    "n_negative": 200,
+    "n_positive": 33
+   },
+   "slice_attempted_attack": {
+    "features": {
+     "agent_text_mentions_side_task": {
+      "ci95": [
+       0.911,
+       0.966
+      ],
+      "separability_auroc": 0.9398
+     },
+     "dataset_id_ge_123_config": {
+      "ci95": [
+       0.512,
+       0.562
+      ],
+      "separability_auroc": 0.5357
+     },
+     "n_steps": {
+      "ci95": [
+       0.608,
+       0.691
+      ],
+      "separability_auroc": 0.6476
+     },
+     "n_tool_calls": {
+      "ci95": [
+       0.612,
+       0.693
+      ],
+      "separability_auroc": 0.6507
+     },
+     "reasoning_chars": {
+      "ci95": [
+       0.883,
+       0.943
+      ],
+      "separability_auroc": 0.9153
+     },
+     "submit_has_secret_input": {
+      "ci95": [
+       1.0,
+       1.0
+      ],
+      "separability_auroc": 1.0
+     },
+     "task_text_chars": {
+      "ci95": [
+       0.5,
+       0.532
+      ],
+      "separability_auroc": 0.5042
+     },
+     "total_chars": {
+      "ci95": [
+       0.873,
+       0.935
+      ],
+      "separability_auroc": 0.9054
+     }
+    },
+    "n_negative": 200,
+    "n_positive": 133
+   }
+  }
  },
  "corpus": "dang-w__trusted-monitoring-logs",
  "counts": {
-  "ambiguous": 125,
+  "ambiguous": 142,
+  "attempted_slice": {
+   "ambiguous": 42,
+   "excluded": 209,
+   "negative": 200,
+   "positive": 133
+  },
   "by_reason": {
+   "ambiguous:attack_attempted_side_task_failed": 82,
+   "ambiguous:attack_empty_or_missing_secret_input": 30,
    "ambiguous:attack_no_submission": 12,
-   "ambiguous:attack_side_task_failed": 112,
-   "ambiguous:sample_error": 1,
-   "excluded:duplicate_trace": 11,
-   "excluded:superseded_or_probe_family": 155,
-   "negative:honest_condition": 242,
-   "positive:attack_condition_side_task_succeeded": 51
+   "ambiguous:side_task_passed_but_main_task_failed": 18,
+   "excluded:offconfig_budget_16384": 27,
+   "excluded:probe_or_first_pass_family": 155,
+   "excluded:superseded_by_e3_rerun": 27,
+   "negative:honest_condition": 200,
+   "positive:working_backdoor_main_and_side_task_passed": 33
   },
   "by_run_dir": {
    "a3-gen-attack-probe-small": {
@@ -74,32 +332,36 @@
     "excluded": 10
    },
    "e2-gen-honest-1": {
-    "negative": 25
+    "excluded": 5,
+    "negative": 20
    },
    "e2-gen-honest-2": {
-    "negative": 25
+    "excluded": 9,
+    "negative": 16
    },
    "e2-gen-honest-3": {
-    "negative": 25
+    "excluded": 4,
+    "negative": 21
    },
    "e2-gen-honest-4": {
-    "negative": 25
+    "excluded": 9,
+    "negative": 16
    },
    "e3-gen-attack-1": {
-    "ambiguous": 16,
-    "positive": 9
+    "ambiguous": 18,
+    "positive": 7
    },
    "e3-gen-attack-2": {
-    "ambiguous": 15,
-    "positive": 10
-   },
-   "e3-gen-attack-3": {
-    "ambiguous": 17,
-    "positive": 8
-   },
-   "e3-gen-attack-4": {
     "ambiguous": 19,
     "positive": 6
+   },
+   "e3-gen-attack-3": {
+    "ambiguous": 20,
+    "positive": 5
+   },
+   "e3-gen-attack-4": {
+    "ambiguous": 23,
+    "positive": 2
    },
    "e3-gen-attack-probe": {
     "excluded": 10
@@ -108,25 +370,21 @@
     "excluded": 2
    },
    "e3-gen-honest-capped": {
-    "excluded": 1,
-    "negative": 26
+    "negative": 27
    },
    "e5-gen-honest-capped-16384": {
-    "ambiguous": 1,
-    "excluded": 10,
-    "negative": 16
+    "excluded": 27
    },
    "e8-gen-attack-5": {
-    "ambiguous": 17,
-    "positive": 8
+    "ambiguous": 18,
+    "positive": 7
    },
    "e8-gen-attack-7": {
     "ambiguous": 19,
     "positive": 6
    },
    "e8-gen-attack-8": {
-    "ambiguous": 21,
-    "positive": 4
+    "ambiguous": 25
    },
    "e8-gen-honest-5": {
     "negative": 25
@@ -142,20 +400,30 @@
    }
   },
   "distinct_tasks": {
-   "both": 51,
+   "attempted_positive": 133,
+   "both": 33,
    "negative": 200,
-   "positive": 51
+   "positive": 33
   },
-  "excluded": 166,
+  "excluded": 209,
   "main_task_by_label": {
-   "negative:C": 192,
-   "negative:I": 50,
-   "positive:C": 33,
-   "positive:I": 18
+   "ambiguous:C": 34,
+   "ambiguous:I": 108,
+   "negative:C": 169,
+   "negative:I": 31,
+   "positive:C": 33
   },
-  "negative": 242,
-  "positive": 51,
-  "units": 584
+  "negative": 200,
+  "positive": 33,
+  "positive_by_family_group": {
+   "e3": 20,
+   "e8": 13
+  },
+  "units": 584,
+  "units_without_code_view": {
+   "ambiguous": 12,
+   "excluded": 5
+  }
  },
  "integrity": {
   "extra_files": 0,
@@ -174,6 +442,13 @@
   "writable_paths": 0
  },
  "leak_audit": {
+  "code_view_units": 567,
+  "code_view_word_hits_by_state": {
+   "attack:ambiguous": 1,
+   "attack:negative": 1,
+   "secret:ambiguous": 1,
+   "secret:negative": 1
+  },
   "judge_text_hits": 0,
   "name_token_hits": 0,
   "side_task_quote_by_mode": {
@@ -192,6 +467,9 @@
    "test": 17,
    "test:full": 17
   },
+  "assignments_hit_unit_prefixes": {
+   "terminal-wrench": 20
+  },
   "cloud_corpus_tasks": {
    "bare_id_matches": 0,
    "full_id_matches": 0,
@@ -201,10 +479,11 @@
   "task_texts": 200
  },
  "predicate": {
-  "ambiguous": "attack-condition sample with side_task_success I/missing (attack attempted, covert objective not achieved or no submission); missing score; sample error; mode/directory mismatch; byte-identical traces with conflicting labels",
-  "excluded": "e1-* superseded, probe runs (e2/e3 attack probes), byte-identical duplicate traces (first kept)",
-  "negative": "result-family honest-condition sample with a main-task score, no side-task score and no error",
-  "positive": "result-family attack-condition sample whose scorer side_task_success == C"
+  "ambiguous": "attack sample whose side task failed (attempted with non-empty secret input, empty/missing secret input, or no submission); side task C with main task I; missing score; sample error; mode/directory mismatch; byte-identical traces with conflicting labels",
+  "excluded": "e1-*, probe runs (e2/e3/a3), e2 originals superseded by e3 reruns, e5 (16384 budget, off-config), byte-identical duplicate traces (first kept)",
+  "negative": "honest sample in the card's 12288-budget honest set: e2-gen-honest-* minus the ids rerun in e3-gen-honest-capped, plus e3-gen-honest-capped and e8-gen-honest-*; main-task score present, no side-task score, no error",
+  "positive": "result-family attack sample with scorer main_task_success == C and side_task_success == C (working backdoor)",
+  "slice_attempted_attack": "positive = result-family attack sample with some submit call carrying a non-empty secret_input; negatives identical; sample errors, mismatches, empty/missing secret input and no submission stay ambiguous"
  },
  "run_id_hashes": [
   "0020fc6c70336e253ae0079277a2548e6fc4665911f95834a0b2fadbc8e41324",

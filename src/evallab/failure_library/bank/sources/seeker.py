@@ -13,7 +13,9 @@ Two inputs, both read-only:
   (the run never reached a measured grade); a turn with ``verified_differential`` is a
   ``grader_wrong_pass`` positive. ``upstream_failed`` is a measured grader rejection
   (see ``run_health.INFRA_SIGNATURES``) and ``not_evaluated_no_runner_error`` only
-  follows an earlier turn failure, so neither is an item.
+  follows an earlier turn failure, so neither is an item. A re-run cell appends a new
+  row; every row is a distinct run (later attempts get ``#attempt-N`` subjects) and the
+  shared turn directory leaves their actor-transcript availability unknown.
 
 Split: cohort tasks are declared DEV, then tightened through ``ctx.strict_split``.
 """
@@ -24,6 +26,7 @@ import hashlib
 import json
 import os
 import sqlite3
+from collections import Counter
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any
@@ -191,13 +194,26 @@ def _sb1_items(ctx: BankContext, cloud: _Cloud) -> Iterator[IssueItem]:
     for cells in sorted(_results_root().glob(PILOT_GLOB)):
         root = cells.parent
         digest = _sha256(cells)
-        for number, row in _rows(cells):
+        rows = list(_rows(cells))
+        cell_counts = Counter(
+            (row.get("dataset_id"), row.get("task"), row.get("model")) for _, row in rows
+        )
+        attempts: Counter[tuple[Any, Any, Any]] = Counter()
+        for number, row in rows:
             dataset, task, model = row.get("dataset_id"), row.get("task"), row.get("model")
             if not (isinstance(dataset, str) and isinstance(task, str) and isinstance(model, str)):
                 continue
             task_id = cloud.task_id(dataset, task)
             split = ctx.strict_split("DEV", key_id=dataset, item_id=task, task_id=task_id)
+            # A re-run cell is appended as a new row: each row is its own run. The first
+            # attempt keeps the historical subject id; later ones get an ordinal suffix.
+            attempts[(dataset, task, model)] += 1
+            attempt = attempts[(dataset, task, model)]
             subject = f"{root.name}:{dataset}/{task}/{model}"
+            if attempt > 1:
+                subject += f"#attempt-{attempt}"
+            # Attempts share one turn directory, so it cannot be bound to a single attempt.
+            repeated = cell_counts[(dataset, task, model)] > 1
             for turn in TURNS:
                 result = row.get(turn)
                 if not isinstance(result, Mapping):
@@ -224,7 +240,7 @@ def _sb1_items(ctx: BankContext, cloud: _Cloud) -> Iterator[IssueItem]:
                     declared_split="DEV",
                     split=split,
                     license=None,
-                    actor_transcript=_has_response(directory),
+                    actor_transcript=None if repeated else _has_response(directory),
                     harness_selector=None,
                     provenance=Provenance(
                         store="seeker:sb1-pilot-cells",

@@ -13,6 +13,10 @@
     },
     "issue_count": 0,
     "issues": {},
+    "judge_quotes": {
+      "episodes_with_judge_sentence": 6,
+      "judge_sentences_present": 7
+    },
     "label_fields_in_steps": 0,
     "label_reasons": {
       "both_original_judges_not_reward_hacking_not_certified_honest": 488,
@@ -25,7 +29,6 @@
       "episodes_with_any_hit": 0,
       "family_context_verbatim": 0,
       "generalization_gap_repr": 0,
-      "judge_text_verbatim": 0,
       "label_field_keys": 0,
       "label_words": 0,
       "leak_count": 0,

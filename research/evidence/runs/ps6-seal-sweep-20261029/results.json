@@ -1,0 +1,141 @@
+{
+  "admitted_tasks": 3474,
+  "cluster_records": 68,
+  "collision_tasks": 1,
+  "commands": {
+    "clusters": {
+      "b": 0,
+      "invocations": 71,
+      "refusals": 0,
+      "replies": 71,
+      "unclassified": 0
+    },
+    "export": {
+      "b": 0,
+      "invocations": 3,
+      "refusals": 0,
+      "replies": 3,
+      "unclassified": 0
+    },
+    "export-cluster-scope": {
+      "b": 9,
+      "fields": {
+        "b:canonical_task_id": 3,
+        "b:task_id": 6
+      },
+      "invocations": 68,
+      "refusals": 0,
+      "replies": 68,
+      "unclassified": 0
+    },
+    "findings": {
+      "b": 0,
+      "invocations": 62,
+      "refusals": 0,
+      "replies": 62,
+      "unclassified": 0
+    },
+    "history": {
+      "b": 3,
+      "fields": {
+        "b:citation": 1,
+        "b:task_id": 2
+      },
+      "invocations": 31,
+      "refusals": 0,
+      "replies": 31,
+      "unclassified": 0
+    },
+    "inventory": {
+      "b": 0,
+      "invocations": 1,
+      "refusals": 0,
+      "replies": 1,
+      "unclassified": 0
+    },
+    "recount": {
+      "b": 0,
+      "invocations": 1,
+      "refusals": 0,
+      "replies": 1,
+      "unclassified": 0
+    },
+    "runs": {
+      "b": 0,
+      "invocations": 152,
+      "refusals": 28,
+      "replies": 124,
+      "unclassified": 0
+    },
+    "scan": {
+      "b": 0,
+      "invocations": 1,
+      "refusals": 0,
+      "replies": 1,
+      "unclassified": 0
+    },
+    "split": {
+      "b": 0,
+      "invocations": 31,
+      "refusals": 0,
+      "replies": 31,
+      "unclassified": 0
+    },
+    "steps": {
+      "b": 0,
+      "invocations": 1,
+      "refusals": 0,
+      "replies": 1,
+      "unclassified": 0
+    },
+    "task": {
+      "b": 4,
+      "fields": {
+        "b:how_to_read_a_file": 2,
+        "b:task_id": 2
+      },
+      "invocations": 31,
+      "refusals": 0,
+      "replies": 31,
+      "unclassified": 0
+    },
+    "trace-card": {
+      "b": 2,
+      "fields": {
+        "b:task_id": 2
+      },
+      "invocations": 30,
+      "refusals": 0,
+      "replies": 30,
+      "unclassified": 0
+    },
+    "traces": {
+      "b": 4,
+      "fields": {
+        "b:task_id": 4
+      },
+      "invocations": 32,
+      "refusals": 0,
+      "replies": 32,
+      "unclassified": 0
+    },
+    "window": {
+      "b": 0,
+      "invocations": 30,
+      "refusals": 1,
+      "replies": 29,
+      "unclassified": 0
+    }
+  },
+  "encoding": {
+    "delimiter_seals": 0,
+    "escaped_seals": 0,
+    "literal_fragment_seals": 0,
+    "numeric_fragment_seals": 0
+  },
+  "cli_parity_cases": 30,
+  "cli_parity_matches": 30,
+  "sampled_runs": 30,
+  "sampled_tasks": 31,
+  "seals": 1425
+}

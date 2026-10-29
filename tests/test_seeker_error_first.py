@@ -13,6 +13,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace as repl
 from pathlib import Path
 from typing import Any
 
@@ -170,6 +171,32 @@ class FakeOmp:
         return [call["prompt"] for call in self.calls if call["route"] == route]
 
 
+class FakeProbe:
+    """Stand-in for the one-call route probe; records its own calls, not the generator's."""
+
+    def __init__(self, served: str | None = None, code: int = 0) -> None:
+        # ``served`` overrides the route every probe reports, modelling a fallback.
+        self.served = served
+        self.code = code
+        self.calls: list[str] = []
+
+    def __call__(
+        self, argv: Sequence[str], timeout: float, environment: Mapping[str, str]
+    ) -> subprocess.CompletedProcess[str]:
+        route = argv[list(argv).index("--model") + 1]
+        self.calls.append(route)
+        served = self.served or route
+        provider, _, model = served.partition("/")
+        message = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "OK"}],
+            "provider": provider,
+            "model": model,
+        }
+        stdout = json.dumps({"type": "agent_end", "messages": [message]}) + "\n"
+        return subprocess.CompletedProcess(list(argv), self.code, stdout, "")
+
+
 class FakeGrader:
     """Inert replay of the native grade shape; rewards come from per-task scripts."""
 
@@ -283,6 +310,7 @@ class Harness:
         self.out = tmp_path / "out"
         self.omp = FakeOmp()
         self.grader = FakeGrader()
+        self.probe = FakeProbe()
         self.retriever = FakeRetriever()
         self.spend_path = tmp_path / "spend.jsonl"
         self.config = sef.CampaignConfig(
@@ -316,6 +344,7 @@ class Harness:
             generator_factory=self.factory,
             grader_fn=self.grader,
             spend_log=sef.SpendLog(self.spend_path),
+            probe_runner=overrides.pop("probe_runner", self.probe),
         )
 
     def cell(self, name: str, route: str = ROUTE) -> Path:
@@ -545,6 +574,68 @@ def test_a_zero_or_absent_candidate_exit_stays_an_unavailable_grader(tmp_path: P
         one = harness.result("alpha", 1)
         assert one["outcome"] == "original_grader_unavailable"
         assert sef.result_is_evaluated(one) is False
+
+
+def test_probe_route_accepts_the_requested_route() -> None:
+    probe = sef.probe_route(ROUTE, runner=FakeProbe())
+    assert probe.ok is True and probe.reason == "served the requested route"
+    assert (probe.served_provider, probe.served_model) == tuple(ROUTE.split("/", 1))
+
+
+def test_probe_route_rejects_a_fallback_served_route() -> None:
+    # Rate-limited providers answer with another model; the probe must say so
+    # before the campaign spends a grader run per cell on the wrong model.
+    probe = sef.probe_route(ROUTE, runner=FakeProbe(served="anthropic/claude-opus-5-5"))
+    assert probe.ok is False
+    assert "requested" in probe.reason and "claude-opus-5-5" in probe.reason
+    assert (probe.served_provider, probe.served_model) == ("anthropic", "claude-opus-5-5")
+
+
+def test_probe_route_rejects_a_nonzero_exit() -> None:
+    probe = sef.probe_route(ROUTE, runner=FakeProbe(code=2))
+    assert probe.ok is False and "probe exited 2" in probe.reason
+
+
+def test_probe_route_rejects_a_runner_that_cannot_start() -> None:
+    def broken(argv, timeout, environment):
+        raise OSError("omp not found")
+
+    probe = sef.probe_route(ROUTE, runner=broken)
+    assert probe.ok is False and "OSError" in probe.reason
+
+
+def test_campaign_skips_every_cell_of_an_unavailable_route(tmp_path: Path) -> None:
+    harness = Harness(tmp_path, ("alpha", "beta"))
+    harness.grader.script("alpha", "original", (1.0, "measured"))
+    harness.run(probe_runner=FakeProbe(served="anthropic/claude-opus-5-5"))
+    # No generation and no grading happened: the route was never usable.
+    assert harness.omp.calls == [] and harness.grader.calls == []
+    assert not any(harness.cell(name).exists() for name in ("alpha", "beta"))
+    summary = json.loads((harness.out / "summary.json").read_text())
+    (model,) = summary["models"]
+    assert model["route_unavailable"] is True
+    assert model["status_counts"] == {"route_unavailable": 2}
+    assert model["paired"]["denominator"] == 0
+    assert model["missing_cells"] == [] and model["unevaluated_cells"] == []
+    probes = json.loads((harness.out / "route-probes.json").read_text())
+    assert probes["probes"][0]["ok"] is False
+
+
+def test_an_available_route_is_probed_once_then_runs_normally(tmp_path: Path) -> None:
+    harness = Harness(tmp_path, ("alpha",))
+    harness.grader.script("alpha", "original", (1.0, "measured"))
+    harness.run()
+    assert harness.probe.calls == [ROUTE]
+    assert harness.result("alpha", 1)["outcome"] == "confirmed_differential"
+
+
+def test_probe_routes_can_be_disabled(tmp_path: Path) -> None:
+    harness = Harness(tmp_path, ("alpha",))
+    harness.grader.script("alpha", "original", (1.0, "measured"))
+    config = repl(harness.config, probe_routes=False)
+    harness.run(config=config)
+    assert harness.probe.calls == []
+    assert harness.result("alpha", 1)["outcome"] == "confirmed_differential"
 
 
 def test_measured_double_pass_is_evaluated_but_not_a_differential(tmp_path: Path) -> None:

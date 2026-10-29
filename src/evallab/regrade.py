@@ -47,7 +47,6 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import math
-import os
 import re
 import shutil
 import subprocess
@@ -64,6 +63,7 @@ from pydantic import Field
 
 from evallab.benchmark_program_contracts import canonical_json, compute_prefixed_sha256
 from evallab.execution_backend import require_local_docker
+from evallab.harbor_telemetry import harbor_child_environment
 from evallab.schemas import ContractModel
 
 __all__ = [
@@ -379,6 +379,7 @@ def _probe_harbor() -> str | None:
                 text=True,
                 check=False,
                 timeout=_HARBOR_VERSION_TIMEOUT_SECONDS,
+                env=harbor_child_environment(),
             )
             words = (completed.stdout or completed.stderr).split()
             found = words[-1] if words else None
@@ -1044,7 +1045,7 @@ def regrade_trial(
                 invocation=invocation,
             )
         invocation.cloud_spend = spend_gate.to_json()
-    runner_kwargs: dict[str, Any] = {}
+    runner_kwargs: dict[str, Any] = {"env": harbor_child_environment()}
     if environment == "modal" and spend_gate is not None:
         environment_kwargs = _modal_environment_kwargs(
             spend_gate.modal_app_name, spend_gate.billing_tag
@@ -1053,7 +1054,7 @@ def regrade_trial(
             # Harbor's regrade CLI cannot express environment kwargs. Bind the
             # validated gate to this one output trial in the child process only.
             runner_kwargs["env"] = {
-                **os.environ,
+                **harbor_child_environment(),
                 _REGRADE_MODAL_POLICY_ENV: json.dumps(
                     {
                         "trial_dir": str((trials_dir / trial_name).resolve()),
@@ -1741,7 +1742,13 @@ def regrade_job(
     )
     Path(plan.jobs_dir).mkdir(parents=True, exist_ok=True)
     require_local_docker()
-    completed = runner(plan.command, capture_output=True, text=True, check=False)
+    completed = runner(
+        plan.command,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=harbor_child_environment(),
+    )
     exit_code = int(getattr(completed, "returncode", 1))
     stderr = getattr(completed, "stderr", "") or ""
     stdout = getattr(completed, "stdout", "") or ""

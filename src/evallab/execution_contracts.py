@@ -29,6 +29,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from evallab.harbor_repeat_verifier import VERIFIER_IMPORT_PATH
+from evallab.harbor_telemetry import HARBOR_TELEMETRY_ENV, HARBOR_TELEMETRY_OFF
 from evallab.schemas import (
     ExperimentSpec,
     RunProvenance,
@@ -1941,6 +1942,7 @@ def subscription_environment(
     sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
     sanitized["CLAUDE_FORCE_OAUTH"] = "1"
     sanitized["REWARDKIT_FORCE_OAUTH"] = "1"
+    sanitized[HARBOR_TELEMETRY_ENV] = HARBOR_TELEMETRY_OFF
     return sanitized
 
 

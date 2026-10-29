@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Sequential free oracle k=3 + nop for curator candidates. -n <= 2.
 set -euo pipefail
+export HARBOR_TELEMETRY=off
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="${SRC:-/Users/petermakhnatch/Developer/lab-extras/data/agent-evals/frontier-bench/tasks}"
 OUT="$ROOT/runs"

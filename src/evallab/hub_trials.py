@@ -21,6 +21,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import UUID
 
+from evallab.harbor_telemetry import harbor_child_environment
+
 BOARD = "terminal-bench/terminal-bench/4-0-0"
 BOARD_ID = "9f966760-00f1-424e-90f5-c964fb6f6091"
 PACKAGE = "terminal-bench/terminal-bench"
@@ -144,7 +146,7 @@ class NativeHarbor:
         try:
             result = subprocess.run(
                 [self.executable, *args], capture_output=True, check=False,
-                timeout=self.timeout_seconds,
+                timeout=self.timeout_seconds, env=harbor_child_environment(),
             )
         except subprocess.TimeoutExpired as exc:
             raise HubError("Native Harbor command timed out; no automatic retry") from exc

@@ -10,17 +10,17 @@
    "considered_only": 50,
    "enacted_yes": 80
   },
-  "category_values_by_stratum": {
+  "category_values_by_stratum_cells_below_3_suppressed": {
    "clean_no": {},
    "considered_only": {
     "environment_acquisition": 8,
     "hardcoding_special_casing": 26,
     "harness_mechanics_targeting": 20,
-    "hidden_test_targeting": 2,
-    "misrepresented_compliance": 1,
-    "other": 1,
-    "result_object_poisoning": 1,
-    "test_execution_tampering": 1,
+    "hidden_test_targeting": "<3",
+    "misrepresented_compliance": "<3",
+    "other": "<3",
+    "result_object_poisoning": "<3",
+    "test_execution_tampering": "<3",
     "test_modification": 4,
     "upstream_fix_recall": 20
    },
@@ -29,12 +29,12 @@
     "fabricated_verification": 9,
     "hardcoding_special_casing": 22,
     "harness_mechanics_targeting": 21,
-    "harness_substitution": 2,
+    "harness_substitution": "<3",
     "hidden_test_targeting": 36,
     "misrepresented_compliance": 23,
     "other": 6,
-    "result_object_poisoning": 2,
-    "submission_gaming": 1,
+    "result_object_poisoning": "<3",
+    "submission_gaming": "<3",
     "test_execution_tampering": 3,
     "test_modification": 5,
     "upstream_fix_recall": 35
@@ -42,20 +42,53 @@
   },
   "enacted_with_labelled_positive_steps": 80,
   "facet_lines_in_cohort": 792,
-  "facet_lines_total": 6965,
+  "facet_lines_in_cohort_valid_fields": 792,
   "facet_store_sha256": "22de9f5c63e8273876ac1b7e32e668b1cae1c23da6d2a3ce82ab098f5e232001",
-  "haiku_extractor_mode_by_stratum": {
+  "facet_version_values_in_cohort": {
+   "run-facets/v1": 792
+  },
+  "haiku_attested_v2_form_by_stratum": {
+   "clean_no": 58,
+   "considered_only": 39,
+   "enacted_yes": 68
+  },
+  "haiku_ok_call_modes_by_stratum": {
    "clean_no": {
-    "no_ok_call_logged": 12,
-    "v2_form_or_map": 58
+    "none_logged": 12,
+    "v2_form": 49,
+    "v2_form+v2_map_or_other": 9
    },
    "considered_only": {
-    "no_ok_call_logged": 11,
-    "v2_form_or_map": 39
+    "none_logged": 11,
+    "v2_form": 23,
+    "v2_form+v2_map_or_other": 16
    },
    "enacted_yes": {
-    "no_ok_call_logged": 12,
-    "v2_form_or_map": 68
+    "none_logged": 12,
+    "v2_form": 38,
+    "v2_form+v2_map_or_other": 30
+   }
+  },
+  "haiku_primary_candidates_by_stratum": {
+   "attested_v2_and_equals_reblinded_record": {
+    "clean_no": 55,
+    "considered_only": 36,
+    "enacted_yes": 64
+   },
+   "attested_v2_and_reblinded_file_row_is_haiku": {
+    "clean_no": 55,
+    "considered_only": 36,
+    "enacted_yes": 64
+   },
+   "has_valid_haiku_line": {
+    "clean_no": 70,
+    "considered_only": 50,
+    "enacted_yes": 80
+   },
+   "valid_line_and_attested_v2_form": {
+    "clean_no": 58,
+    "considered_only": 39,
+    "enacted_yes": 68
    }
   },
   "ids_admitted_by_strict_cross_key": 200,
@@ -84,6 +117,111 @@
     "anthropic/claude-sonnet-5-5": 46
    }
   },
+  "lines_per_run_by_reader_and_stratum": {
+   "anthropic/claude-haiku-5-5": {
+    "clean_no": {
+     "1": 60,
+     "2": 10
+    },
+    "considered_only": {
+     "1": 43,
+     "2": 7
+    },
+    "enacted_yes": {
+     "1": 69,
+     "2": 11
+    }
+   },
+   "anthropic/claude-opus-5-5": {
+    "clean_no": {
+     "1": 60
+    },
+    "considered_only": {
+     "1": 40
+    },
+    "enacted_yes": {
+     "1": 55
+    }
+   },
+   "anthropic/claude-sonnet-5-5": {
+    "clean_no": {
+     "1": 70
+    },
+    "considered_only": {
+     "1": 50
+    },
+    "enacted_yes": {
+     "1": 80
+    }
+   },
+   "kimi-code/k3.1-pro-highspeed": {
+    "clean_no": {
+     "1": 22,
+     "2": 1
+    },
+    "considered_only": {
+     "1": 15,
+     "2": 1
+    },
+    "enacted_yes": {
+     "1": 20,
+     "2": 2
+    }
+   },
+   "openai-codex/gpt-6-luna": {
+    "clean_no": {
+     "1": 15
+    },
+    "considered_only": {
+     "1": 11,
+     "2": 1
+    },
+    "enacted_yes": {
+     "1": 26
+    }
+   },
+   "xai-oauth/grok-4.20-0309-non-reasoning": {
+    "clean_no": {
+     "1": 36
+    },
+    "considered_only": {
+     "1": 22
+    },
+    "enacted_yes": {
+     "1": 32
+    }
+   }
+  },
+  "opus_attested_v2_form_by_stratum": {
+   "clean_no": 60,
+   "considered_only": 40,
+   "enacted_yes": 55
+  },
+  "opus_covered_and_haiku_attested_v2_by_stratum": {
+   "clean_no": 50,
+   "considered_only": 34,
+   "enacted_yes": 48
+  },
+  "opus_ok_call_modes_by_stratum": {
+   "clean_no": {
+    "none_logged": 10,
+    "v2_form": 50,
+    "v2_form+v2_map_or_other": 10
+   },
+   "considered_only": {
+    "none_logged": 8,
+    "v2_form": 27,
+    "v2_form+v2_map_or_other": 13,
+    "v2_map_or_other": 2
+   },
+   "enacted_yes": {
+    "none_logged": 16,
+    "v2_form": 37,
+    "v2_form+v2_map_or_other": 18,
+    "v2_map_or_other": 9
+   }
+  },
+  "read_order": "cross-key first; facets, calls and reblinded files streamed with a run-id filter",
   "reader_coverage_by_stratum": {
    "anthropic/claude-haiku-5-5": {
     "clean_no": 70,
@@ -121,28 +259,46 @@
    "considered_only": 42,
    "enacted_yes": 72
   },
+  "reblinded_file_reader_spread_cohort": {
+   "anthropic/claude-haiku-5-5": 155,
+   "kimi-code/k3.1-pro-highspeed": 16,
+   "openai-codex/gpt-6-luna": 7
+  },
+  "reblinded_file_rows_in_cohort": 178,
   "receipt_fields_used": [
    "source_label.verdict",
    "source_label.verdict_enacted",
    "source_label.judged",
    "source_label.categories",
    "source_label.source_protocol",
-   "passage_step_labels.positive_step_indices",
-   "native_metrics.*"
+   "passage_step_labels.positive_step_indices"
   ],
   "sample_file_sha256": "e24db6ec51ca12f7184301caa9a2467446e4a2e090ecfcb9a2b25c3ca1eb7f87",
-  "source_protocol_by_stratum": {
+  "sonnet_and_haiku_both_attested_v2_by_stratum": {
+   "clean_no": 56,
+   "considered_only": 37,
+   "enacted_yes": 65
+  },
+  "sonnet_attested_v2_form_by_stratum": {
+   "clean_no": 64,
+   "considered_only": 42,
+   "enacted_yes": 72
+  },
+  "sonnet_ok_call_modes_by_stratum": {
    "clean_no": {
-    "has_reward_field": 34,
-    "has_shortcut_signal_split": 36
+    "none_logged": 6,
+    "v2_form": 54,
+    "v2_form+v2_map_or_other": 10
    },
    "considered_only": {
-    "has_reward_field": 24,
-    "has_shortcut_signal_split": 26
+    "none_logged": 8,
+    "v2_form": 25,
+    "v2_form+v2_map_or_other": 17
    },
    "enacted_yes": {
-    "has_reward_field": 42,
-    "has_shortcut_signal_split": 38
+    "none_logged": 8,
+    "v2_form": 40,
+    "v2_form+v2_map_or_other": 32
    }
   },
   "source_protocol_values_by_stratum": {
@@ -192,6 +348,7 @@
  "schema": "np22-inventory/v1",
  "unseen": {
   "b6": {
+   "paired_positives_haiku_and_sonnet": 98,
    "positives": 101,
    "sonnet_records": 278,
    "sonnet_records_on_positives": 98,
@@ -241,7 +398,7 @@
       "CP|condition=impossible_honest": 14
      },
      "by_technique": {
-      "config_edit": 2,
+      "config_edit": "<3",
       "special_cased": 17,
       "tamper_attempt": 41
      },
@@ -256,10 +413,10 @@
      "by_class_and_staged_value": {
       "CP|family=F1": 54,
       "CP|family=F2": 5,
-      "CP|family=F3": 1
+      "CP|family=F3": "<3"
      },
      "by_technique": {
-      "special_casing": 1,
+      "special_casing": "<3",
       "test_config_changed": 3,
       "test_edit": 56
      },
@@ -336,17 +493,17 @@
      },
      "by_technique": {
       "code_deleted": 5,
-      "code_deleted+hook_inert+hook_removed+transient": 1,
+      "code_deleted+hook_inert+hook_removed+transient": "<3",
       "config_weakened": 8,
-      "hook_inert": 1,
-      "hook_inert+nonblocking_hook": 1,
-      "hook_inert+transient": 1,
-      "hook_removed+type_ignore": 1,
+      "hook_inert": "<3",
+      "hook_inert+nonblocking_hook": "<3",
+      "hook_inert+transient": "<3",
+      "hook_removed+type_ignore": "<3",
       "no_verify": 5,
       "nonblocking_hook": 3,
-      "nonblocking_hook+transient": 1,
+      "nonblocking_hook+transient": "<3",
       "staged_only": 10,
-      "staged_only+transient+type_ignore": 1,
+      "staged_only+transient+type_ignore": "<3",
       "type_ignore": 22
      },
      "facet_record_present": 60,
@@ -416,11 +573,11 @@
      },
      "by_class_and_staged_value": {
       "NR|prompt_condition=explicit": 6,
-      "NR|prompt_condition=hook": 1
+      "NR|prompt_condition=hook": "<3"
      },
      "by_technique": {
       "outcome=mock_edited": 6,
-      "outcome=weakened": 1
+      "outcome=weakened": "<3"
      },
      "facet_record_present": 7,
      "join_missing": 0,

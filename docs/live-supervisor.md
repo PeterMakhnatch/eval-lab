@@ -35,7 +35,7 @@ Inventory as of 2026-10-28 at about 4:30 PM ET, from `ps`, `launchctl list`,
 | `prod-live` runner (`LiveRunner`: execution, replay, monitor, scheduler) | LaunchAgent `…evallab.prod-live` | `prod.sqlite` journal, `service.heartbeat` every 15 s, leases | `launchctl bootout`; `release_unfinished(system)` | no; disabled since 2026-10-25 (`cloud-local-shutdown.json`) |
 | Task QA rerun controllers (`oq6-tq-gate-rerun-*/controller.py`) and their `omp -p` workers | the Task QA lane | controller PID and its result directory under `~/Developer/eval-lab-results/<date>/` | SIGTERM to the controller | yes, lab job, after triage escalation |
 | `queue_keeper.py` | Research or Night Planner | `_queue.log` (`dispatch`, `outcome`, `hold`, `queued … from queue-append`), `queue-state.json` | none by us | no, report only |
-| OMP lanes and Peter's chats (herdr panes) | Peter or Research | session JSONL in `~/.omp/agent/sessions/` (`message.usage`, `stopReason`, `model_change.resolvedModelIsFallback`, tool calls); `herdr pane list` `agent_status`; `omp usage` | never | **no**: report, and append a fix item to `queue-append.jsonl` for the lane or the Night Planner (`wK:p1J`) |
+| OMP lanes and Peter's chats (herdr panes) | Peter or Research | session JSONL in `~/.omp/agent/sessions/` (`message.usage`, `stopReason`, `model_change.resolvedModelIsFallback`, tool calls); `herdr pane list` `agent_status`; `herdr pane process-info` and `ps` (process state only); `omp usage` | never | **no**: report, and append a fix item to `queue-append.jsonl` for the lane or the Night Planner (`wK:p1J`) |
 
 `trace-store-*sync` and `trace-store/watch-state.json`: a Laminar tick never uploads the 108
 quarantined Laminar copies (`trace_store/laminar_quarantine.py`); its summary reports
@@ -67,6 +67,44 @@ Each trigger reuses an existing detector where one exists. Thresholds are fixed 
 | wall time | elapsed above the source p99 (Goodfire 5,877 s, TB4 5,371 s), or `run_health.runaway` | app `tasks > 0` for longer than its declared timeout | one item longer than 3 h, or a blocked outcome after more than 1 h |
 | error signature | `run_health.infra` catalog on the tool-output tail, for a class only when it matches the last 3 tool outputs in a row (a one-off, or a failure a later tool output recovered from, is transient and not a trigger; infra-kill proposals over the 1,063 replay cases fell 88 → 6, false ones 83 → 1, and the 5 dead sandboxes stayed 5/5, alarming 2 steps later); `live_watch` `proxy_errors` and `infra_spike` | `ImageBuildError`, `served_route_mismatch`, sandbox not found, budget or allowance exhausted | `stopReason=error` or fallback switches 5 or more times in 10 min |
 | trace-harness alarm | a new `alarm` record with `kind=cheat` in `trace-harness/findings-v1.jsonl`, or a `live_watch` integrity rule (`hidden_test_read`, `grader_tamper`, `history_mining`) | — | — |
+| frozen | — | — | (a) `omp`, or a process in its tree, is job-control stopped (`ps` state `T`); (b) `omp` is alive but not in its pane's foreground process group (the pane foreground is the shell); (c) `agent_status=unknown`, an item in flight (dispatched, no outcome line), the turn still open and no session event for 60 min outside a declared tool timeout or an open `ask`; (d) the supervisor's own previous cycle is 15 min or more old: the host slept or the supervisor stalled, so the lane's heartbeat and wall time are suspect |
+
+### Frozen lanes
+
+A lane that stops without exiting looks like a quiet healthy one, so the `silence` trigger cannot see it.
+On 2026-10-29 the `omp` of 12 lane panes stopped at 5:54:55 PM ET: zsh took the terminal back
+(`zsh: suspended (signal)`) and herdr no longer names an agent for those panes (`agent` absent,
+`agent_status: unknown`). The shadow supervisor cycled on through 6:55 PM and recorded no lane decision:
+`silence` needs `agent_status=working` (`_lane_hits`), a pane without `agent == "omp"` was not joined to its
+session, so no heartbeat was read (the lane baselines in `fleet-state.json` are empty), and `wall_time` needs an
+item 3 h old. In the
+1:36 to 8:45 AM host sleep the whole fleet and the supervisor were frozen together; the first cycle after the wake
+saw 7 h old heartbeats and reported nine `wall_time` and three `silence` hits that were the sleep.
+
+`frozen` is a normal trigger (kind `infra`, ordered after `trace_alarm`, above `wall_time`) and always proposes
+`alert_research`: a stopped or background process cannot read a `queue-append.jsonl` nudge. Detection is
+deterministic and model-free; every probe goes through the source's injected
+runner (`herdr pane process-info --pane <id>` and `ps -axo pid=,ppid=,pgid=,stat=,command=`), reads process state
+only, and never signals, resumes or messages a lane.
+
+| Signal | Rule | Notes |
+|---|---|---|
+| (a) stopped | state `T` on the lane's `omp` or any descendant | the lane is the interactive `omp` under the pane's shell; a headless `omp -p` worker is not a lane |
+| (b) background | `omp` pgid differs from herdr's `foreground_process_group_id` | all 12 frozen panes; metadata only, so it also covers panes the source may not read |
+| (c) heartbeat | `HEARTBEAT_STALE_S` = 60 min | only with `agent_status=unknown` (a `working` lane keeps the 30-min `silence`); an open `ask` is a human wait |
+| (d) gap | `SUPERVISOR_GAP_S` = 15 min | `fleet-state.json` keeps `last_observed_at` and `awake_since`; ages of events and dispatches older than `awake_since` are counted from it, so a sleep is not silence, and each in-flight lane gets one `frozen` hit for the gap |
+
+A pane with no `agent` is joined to its session by `omp --resume <file>` in the process table, under the same
+read scope as before (an authorized, unpinned lane); every other pane keeps process metadata only.
+
+Thresholds come from recorded quiet periods, not from the two incidents. Replaying the shipped trigger over
+11 authorized lanes for 1.3 days (4,558 lane-cycles with an item in flight, a cycle every 150 s, the host sleep
+excluded), mid-turn silence with an item in flight and no excuse made 4 episodes at 30 min, 3 at 45 min and 1
+at 60 min; the 30 and 45 min episodes were a long `eval` with no declared timeout or a `wait`, the 60 min one a
+6 h silence on `wK:p1J` after a `wait` result. A further 514 lane-cycles quiet for an hour were left alone (426 turn ended, 88
+open `ask`). The 94 recorded cycles are 123 to 330 s apart (median 162 s) and a cycle takes up to 187 s, so
+15 min is 2.7 times the longest recorded gap. The numbers, the replay script and the live probe are in
+`research/evidence/runs/ls-freeze-20261029/`.
 
 ## Decisions
 
@@ -221,7 +259,7 @@ evallab live-supervisor serve --interval 120
   substituted.
 - `--root` defaults to `~/.local/state/evallab-prod-live/live-supervisor` and holds
   `decisions-v1.jsonl`, `windows-v1.jsonl`, `state.json` (the 30-minute per-subject cooldown),
-  `fleet-state.json` and `supervisor.lock`.
+  `fleet-state.json` (quota snapshots, token baselines, `last_observed_at`, `awake_since`) and `supervisor.lock`.
 - `scan` and `serve` take an exclusive, non-blocking flock on `<root>/supervisor.lock`. A second
   process exits with `another live-supervisor process holds …` instead of interleaving writes;
   the lock file is never unlinked, so two processes cannot agree on different inodes.

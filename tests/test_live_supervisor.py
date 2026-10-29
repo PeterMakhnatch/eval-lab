@@ -52,6 +52,9 @@ def test_trigger_hit_must_have_fired() -> None:
         (_trial(), [_hit("silence", "latency", 3.0)], "kill_and_retry", "latency"),
         (_lane(), [_hit("repetition", "loop")], "nudge", "loop"),
         (_lane(), [_hit("silence", "latency")], "nudge", "latency"),
+        (_lane(), [_hit("frozen", "infra")], "alert_research", "infra"),  # a frozen lane cannot read a nudge
+        # the frozen lane outranks the wall time it also shows: a nudge would never be read
+        (_lane(), [_hit("wall_time", "runaway", 2.0), _hit("frozen", "infra")], "alert_research", "infra"),
         (_lane(), [_hit("burn", "runaway")], "alert_research", "runaway"),
         (ls.Subject("launchd_service", "docent-watch", "lab"), [_hit("repetition", "infra")], "alert_research",
          "infra"),

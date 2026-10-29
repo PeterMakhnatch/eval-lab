@@ -34,7 +34,7 @@ ACTIONS = ("continue", "nudge", "kill_and_retry", "kill_and_mark_infra", "flag_c
 KILL_ACTIONS = frozenset({"kill_and_retry", "kill_and_mark_infra"})
 KINDS = ("cheat", "loop", "runaway", "latency", "infra", "other")
 #: Trigger names, in decision priority order (first wins when several fire).
-TRIGGERS = ("trace_alarm", "error_signature", "repetition", "wall_time", "burn", "silence")
+TRIGGERS = ("trace_alarm", "frozen", "error_signature", "repetition", "wall_time", "burn", "silence")
 OWNERS = ("lab", "fleet", "peter", "production", "other")
 MODES = ("shadow", "act")
 #: Subjects whose owner can receive a nudge (a queue-append item); everything else
@@ -192,6 +192,10 @@ def propose(subject: Subject, hits: Sequence[TriggerHit]) -> Decision:
         action = "flag_cheating"
     elif top.trigger == "error_signature":
         action = "kill_and_mark_infra" if subject.killable else "alert_research"
+    elif top.trigger == "frozen":
+        # A frozen lane cannot read a nudge (the queue-append item would never be consumed), and a lane that
+        # was frozen with the host asleep is not evidence of a stall: a human decides.
+        action = "alert_research"
     elif top.trigger == "silence":
         if lane:
             action = "nudge"

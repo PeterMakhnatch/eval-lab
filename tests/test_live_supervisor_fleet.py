@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -380,6 +381,8 @@ class FakeMachine:
             {"pane_id": "wK:pH", "tab_id": "wK:tH", "agent": "omp", "agent_status": "idle", "agent_session": {}},
             {"pane_id": "w1C:pF", "tab_id": "w1C:tF", "agent_status": "unknown"},
         ]
+        self.extra_ps: list[str] = []
+        self.process_info: dict[str, dict[str, Any]] = {}  # pane -> herdr process_info; absent = probe fails
         self.tabs = [{"tab_id": "w1C:tJ", "label": "\N{ROBOT FACE} QA Agent - Task"},
                      {"tab_id": "wK:tH", "label": "\N{PUSHPIN} Research"}, {"tab_id": "w1C:tF", "label": "fxtr"}]
 
@@ -390,19 +393,40 @@ class FakeMachine:
         if argv[:3] == ["herdr", "tab", "list"]:
             return json.dumps({"result": {"tabs": self.tabs}})
         if argv[0] == "ps":
-            return "  1 /sbin/launchd\n" + (
-                " 68325 /opt/Python.app/Contents/MacOS/Python queue_keeper.py --run run-x --hours 10\n"
-                if self.keeper_running else " 99 grep queue_keeper.py --run run-x\n")
+            return "    1     0     1 Ss   /sbin/launchd\n" + (
+                " 68325     1 68325 S    /opt/Python.app/Contents/MacOS/Python queue_keeper.py --run run-x --hours 10\n"
+                if self.keeper_running else " 99     1    99 S    grep queue_keeper.py --run run-x\n"
+            ) + "".join(f"{row}\n" for row in self.extra_ps)
+        if argv[:3] == ["herdr", "pane", "process-info"]:
+            info = self.process_info.get(argv[4])
+            if info is None:
+                raise subprocess.CalledProcessError(1, list(argv))
+            return json.dumps({"result": {"process_info": info}})
         if argv[:3] == ["omp", "usage", "--json"]:
             return json.dumps(self.usage)
         raise AssertionError(f"unexpected command {argv}")
 
     def add_pane(self, pane_id: str, label: str, session: Path | None, *, status: str = "working",
-                 agent: str = "omp") -> None:
+                 agent: str | None = "omp") -> None:
         tab_id = f"tab:{pane_id}"
-        self.panes.append({"pane_id": pane_id, "tab_id": tab_id, "agent": agent, "agent_status": status,
-                           "agent_session": {"value": str(session)} if session else {}})
+        pane: dict[str, Any] = {"pane_id": pane_id, "tab_id": tab_id, "agent_status": status,
+                                "agent_session": {"value": str(session)} if session else {}}
+        if agent:
+            pane["agent"] = agent
+        self.panes.append(pane)
         self.tabs.append({"tab_id": tab_id, "label": label})
+
+    def add_omp(self, pane_id: str, *, shell: int, omp: int, state: str = "S+", foreground: int | None = None,
+                resume: Path | None = None, extra: str = "omp") -> None:
+        """A pane whose shell ``shell`` runs ``omp``; ``foreground`` is the pane's foreground group (default the
+        omp itself, i.e. a healthy lane)."""
+        tail = f" --resume {resume}" if resume else ""
+        self.extra_ps.append(f"{shell:6d}     1 {shell:5d} Ss   -zsh")
+        self.extra_ps.append(f"{omp:6d} {shell:5d} {omp:5d} {state:<4} {extra}{tail} --model m/x")
+        group = foreground if foreground is not None else omp
+        name, pid = ("omp", omp) if group == omp else ("zsh", shell)
+        self.process_info[pane_id] = {"foreground_process_group_id": group, "shell_pid": shell,
+                                      "foreground_processes": [{"name": name, "pid": pid}]}
 
     def write_config(self, *, log_lines: str, pending: bool = True, fleet_md: str = "| `w1C:p12` |",
                      queue_panes: dict[str, list[str]] | None = None,
@@ -548,8 +572,8 @@ def test_source_is_read_only_toward_subjects_and_uses_the_fake_runner(tmp_path: 
     _write_session(machine.session, [result(60)])
     fl.FleetSource(runner=machine, home=tmp_path, run_name="run-x").observe(NOW)
     assert {c[0] for c in machine.calls} == {"herdr", "ps", "omp"}
-    assert all(c[1:3] in (("pane", "list"), ("tab", "list"), ("-axo", "pid=,command="), ("usage", "--json"))
-               for c in machine.calls)
+    assert all(c[1:3] in (("pane", "list"), ("tab", "list"), ("-axo", "pid=,ppid=,pgid=,stat=,command="),
+                          ("usage", "--json"), ("pane", "process-info")) for c in machine.calls)
 
 
 def test_keeper_hits(tmp_path: Path) -> None:
@@ -625,3 +649,182 @@ def test_failing_herdr_raises_so_the_scan_reports_the_source(tmp_path: Path) -> 
     log = ls.DecisionLog(tmp_path / "log")
     report = ls.scan_once([source], ls.RuleDecider(), log, now=NOW)
     assert report.errors == {"fleet": "RuntimeError: herdr down: herdr"}
+
+
+# --------------------------------------------------------------------------- frozen lanes (LS-FREEZE)
+
+
+def process(rows: list[str], *, shell: int = 100, group: int | None = 101) -> fl.LaneProcess:
+    """``lane_process`` over ps rows ``pid ppid pgid stat command``; ``group`` is the pane's foreground group."""
+    return fl.lane_process(shell, group, ["omp" if group == 101 else "zsh"], fl.parse_process_table("\n".join(rows)))
+
+
+SHELL = "100 1 100 Ss -zsh"
+
+
+def test_healthy_lane_is_in_the_pane_foreground() -> None:
+    lane = process([SHELL, "101 100 101 S+ omp --resume /s/a.jsonl --model m/x"])
+    assert (lane.pids, lane.stopped, lane.background, lane.resume) == ((101,), None, False, Path("/s/a.jsonl"))
+
+
+def test_omp_alive_but_outside_the_foreground_group_is_background() -> None:  # the 8 lanes in state S
+    lane = process([SHELL, "101 100 101 S omp --model m/x"], group=100)
+    assert (lane.pids, lane.stopped, lane.background) == ((101,), None, True)
+    assert lane.foreground == "zsh"
+
+
+def test_job_control_stopped_omp_and_tool_child_are_reported() -> None:  # the 4 lanes in state T
+    assert process([SHELL, "101 100 101 T omp"], group=100).stopped == "omp pid 101 state T"
+    stopped_child = process([SHELL, "101 100 101 S+ omp", "102 101 102 Ss bash -c x", "103 102 102 TN sleep 9"])
+    assert stopped_child.stopped == "sleep pid 103 state TN" and stopped_child.background is False
+
+
+def test_only_the_lanes_own_tree_and_only_interactive_omp_count() -> None:
+    # a headless worker, a stopped editor beside omp and an omp under a wrapper
+    rows = [SHELL, "101 100 101 S+ omp", "110 100 110 T vim notes", "120 100 120 S env omp -p x"]
+    assert process(rows).stopped is None
+    only_headless = process([SHELL, "101 100 101 S omp -p do-it", "102 100 102 S omp --print x"], group=100)
+    assert (only_headless.pids, only_headless.background) == ((), False)
+    wrapped = process([SHELL, "105 100 105 S+ env FOO=1 omp", "106 105 105 T+ /opt/bin/omp --resume /s/b.jsonl"])
+    assert (wrapped.pids, wrapped.stopped) == ((106,), "omp pid 106 state T+")
+    assert wrapped.resume == Path("/s/b.jsonl")
+    assert process([SHELL, "101 100 101 S omp"], group=None).background is None
+
+
+def test_parse_process_table_skips_malformed_rows() -> None:
+    table = fl.parse_process_table("PID PPID PGID STAT COMMAND\n 7 1 7 Ss /sbin/x --a b\n\n 8 1\n 9 1 9 R\n")
+    assert list(table) == [7] and table[7].argv == ("/sbin/x", "--a", "b")
+
+
+def frozen_metrics(**extra: Any) -> ls.Observation:
+    return ls.Observation(LANE, NOW, (), {"agent_status": "unknown", "omp_pids": [101], "omp_stopped": None,
+                                          "omp_background": False, **extra}, actor_inputs_available=False)
+
+
+@pytest.mark.parametrize(("extra", "text"), [
+    ({"omp_background": True, "pane_foreground": "zsh"}, "alive outside the pane foreground (foreground: zsh)"),
+    ({"omp_stopped": "omp pid 101 state T"}, "job-control stopped (omp pid 101 state T)"),
+])
+def test_frozen_process_is_a_frozen_trigger_the_rules_send_to_research(extra: dict[str, Any], text: str) -> None:
+    (hit,) = fl.fleet_triggers(frozen_metrics(**extra))
+    assert (hit.trigger, hit.kind) == ("frozen", "infra") and text in hit.detail and "omp pid 101" in hit.detail
+    assert ls.propose(LANE, [hit]).action == "alert_research"
+    assert fl.fleet_triggers(frozen_metrics()) == []  # omp in the foreground, nothing stopped
+
+
+def stale(events: list[dict[str, Any]], *, status: str = "unknown", item: bool = True, **kwargs: Any) -> bool:
+    queue = fl.LaneQueue(1, "OQ-6" if item else None, NOW - timedelta(hours=2) if item else None)
+    return any(h.trigger == "frozen" for h in fl.fleet_triggers(observe(events, agent_status=status, queue=queue, **kwargs)))
+
+
+@pytest.mark.parametrize(("age", "fires"), [(3599, False), (3600, True)])
+def test_unknown_status_lane_mid_turn_with_an_item_in_flight_goes_stale_after_an_hour(age: int, fires: bool) -> None:
+    assert stale([result(age)]) is fires
+    assert stale([start(age)]) is fires  # an open call, with no declared timeout, is not an excuse
+
+
+def test_stale_heartbeat_needs_an_open_turn_an_item_and_an_unknown_status() -> None:
+    assert not stale([result(7200)], item=False)  # waiting for dispatch
+    assert not stale([assistant(7200, stop="stop")])  # the turn ended: waiting for input
+    assert not stale([start(7200, "ask", "q")])  # waiting for a human
+    assert not stale([start(7200, "bash", "c", timeout=9000)])  # waiting on CI inside its declared timeout
+    assert not stale([result(7200)], activity_at=NOW - timedelta(seconds=60))  # a subagent is writing
+    for status in ("working", "idle", "done", "blocked"):  # herdr still sees the agent: other rules apply
+        assert not stale([result(7200)], status=status)
+
+
+def test_supervisor_gap_is_suspect_not_silent_and_ages_count_from_the_wake(tmp_path: Path) -> None:
+    machine = FakeMachine(tmp_path)
+    machine.write_config(log_lines=_fresh_log(10))
+    _write_session(machine.session, [result(60)])
+    source = fl.FleetSource(runner=machine, home=tmp_path, run_name="run-x")
+
+    def lane(at: datetime) -> tuple[ls.Observation, list[ls.TriggerHit]]:
+        observation = next(o for o in source.observe(at) if o.subject.id == "w1C:pJ")
+        return observation, source.triggers(observation)
+
+    first, found = lane(NOW)
+    assert first.metrics["supervisor_gap_s"] is None and found == []  # no previous cycle, no gap
+    warm, found = lane(NOW + timedelta(seconds=fl.SUPERVISOR_GAP_S - 1))
+    assert warm.metrics["supervisor_gap_s"] is None and not warm.metrics["heartbeat_suspect"]
+    assert [h.trigger for h in found] == []
+
+    wake = NOW + timedelta(hours=7)  # the host slept: the lane's last event and dispatch are 7 h old
+    woken, found = lane(wake)
+    assert woken.metrics["supervisor_gap_s"] == 7 * 3600 - (fl.SUPERVISOR_GAP_S - 1)
+    assert woken.metrics["heartbeat_suspect"]
+    assert woken.metrics["last_event_age_s"] == 0 and woken.metrics["queue_open_item_age_s"] == 0
+    assert [(h.trigger, h.kind) for h in found] == [("frozen", "infra")]  # no wall_time, no 7 h silence
+    assert "host sleep" in found[0].detail and ls.propose(LANE, found).action == "alert_research"
+
+    again, found = lane(wake + timedelta(minutes=2))  # one decision per gap, then quiet
+    assert again.metrics["supervisor_gap_s"] is None and again.metrics["last_event_age_s"] == 120 and found == []
+    for minutes in (12, 22):  # cycles stay under the gap threshold
+        lane(wake + timedelta(minutes=minutes))
+    _, found = lane(wake + timedelta(minutes=31))  # silence is counted from the wake, so it still fires
+    assert [h.kind for h in found] == ["latency"]
+    state = json.loads((tmp_path / ".local/state/evallab-prod-live/live-supervisor/fleet-state.json").read_text())
+    assert state["awake_since"] == wake.isoformat()
+
+
+def test_supervisor_gap_ignores_lanes_with_no_work_in_flight(tmp_path: Path) -> None:
+    machine = FakeMachine(tmp_path)
+    machine.write_config(log_lines="", pending=False)  # nothing dispatched, nothing queued
+    machine.panes[0]["agent_status"] = "idle"
+    _write_session(machine.session, [result(60)])
+    source = fl.FleetSource(runner=machine, home=tmp_path, run_name="run-x")
+    source.observe(NOW)
+    lane = next(o for o in source.observe(NOW + timedelta(hours=7)) if o.subject.id == "w1C:pJ")
+    assert lane.metrics["supervisor_gap_s"] > 0 and source.triggers(lane) == []
+
+
+def frozen_machine(tmp_path: Path, *, state: str, group: int | None) -> FakeMachine:
+    """w1C:pJ after the herdr agent was lost: no ``agent``, status unknown, omp only in the process table."""
+    machine = FakeMachine(tmp_path)
+    machine.write_config(log_lines=_fresh_log(10))
+    _write_session(machine.session, [result(60)])
+    pane = machine.panes[0]
+    del pane["agent"]
+    pane["agent_session"] = {}
+    pane["agent_status"] = "unknown"
+    machine.add_omp("w1C:pJ", shell=200, omp=201, state=state, foreground=group, resume=machine.session)
+    return machine
+
+
+@pytest.mark.parametrize(("state", "group"), [("T", 200), ("S", 200)])
+def test_frozen_lane_is_observed_through_the_process_table(tmp_path: Path, state: str, group: int) -> None:
+    machine = frozen_machine(tmp_path, state=state, group=group)
+    source = fl.FleetSource(runner=machine, home=tmp_path, run_name="run-x")
+    lane = next(o for o in source.observe(NOW) if o.subject.id == "w1C:pJ")
+    assert lane.metrics["omp_background"] is True and lane.metrics["omp_probe"] == "ok"
+    assert (lane.metrics["omp_stopped"] is not None) is (state == "T")
+    assert lane.metrics["session_read"] is True  # joined by ``omp --resume``, so the heartbeat is read again
+    (hit,) = source.triggers(lane)
+    assert (hit.trigger, hit.kind) == ("frozen", "infra")
+    assert ls.propose(lane.subject, [hit]).action == "alert_research"
+
+
+def test_healthy_lane_and_unprobed_pane_raise_nothing(tmp_path: Path) -> None:
+    machine = frozen_machine(tmp_path, state="S+", group=None)  # omp is its own foreground group
+    source = fl.FleetSource(runner=machine, home=tmp_path, run_name="run-x")
+    lanes = {o.subject.id: o for o in source.observe(NOW) if o.subject.kind == "omp_lane"}
+    assert lanes["w1C:pJ"].metrics["omp_background"] is False and source.triggers(lanes["w1C:pJ"]) == []
+    # herdr could not report w1C:pF: unprobed is not frozen
+    assert lanes["w1C:pF"].metrics["omp_probe"] == "unavailable" and source.triggers(lanes["w1C:pF"]) == []
+
+
+def test_frozen_unauthorized_lane_is_flagged_from_metadata_without_reading_its_session(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine = FakeMachine(tmp_path)
+    private = tmp_path / "sessions" / "private.jsonl"
+    _write_session(private, [start(60, "bash", "p", command=f"echo {PRIVATE}")])
+    machine.write_config(log_lines=_fresh_log(10), fleet_md="| `w1C:p12` |", queue_panes={"w1C:pJ": [{"id": "X"}]})
+    del machine.panes[1]["agent"]  # wK:pH is pinned and not authorized
+    machine.add_omp("wK:pH", shell=300, omp=301, state="T", foreground=300, resume=private)
+    spy = ReadSpy(monkeypatch)
+    source = fl.FleetSource(runner=machine, home=tmp_path, run_name="run-x")
+    observations = source.observe(NOW)
+    lane = next(o for o in observations if o.subject.id == "wK:pH")
+    assert [h.trigger for h in source.triggers(lane)] == ["frozen"]
+    assert lane.metrics["session_read"] is False and private not in spy.paths
+    assert str(private) not in json.dumps([o.metrics for o in observations], default=str)

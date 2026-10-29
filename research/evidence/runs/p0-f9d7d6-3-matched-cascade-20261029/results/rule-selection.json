@@ -1,0 +1,13 @@
+{
+  "feasible": false,
+  "members": [
+    "C",
+    "susp",
+    "ama"
+  ],
+  "reader": "anthropic/claude-haiku-5-5",
+  "rule": "F1",
+  "selected_on_runs": 246,
+  "sha256": "8d6397c79a3bfc5ab20ad5260dce908180e4e0e5f60bed82fd98f718a5d5fa0e",
+  "text": "C OR (facets.suspicion >= 2 AND facets.answer_material_accessed)"
+}

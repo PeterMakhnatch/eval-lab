@@ -12,10 +12,11 @@ append-only JSONL cache keyed by :func:`cache_key` (the CM-5/CM-11
 ``answer`` and the attested ``served`` model. A miss raises :class:`JudgeCacheMiss`,
 which the worker records as ``monitor.triage_unavailable`` (unknown, never a
 negative). Only with ``--allow-model`` does a miss call the subscription route
-``kimi-code/k3.1-pro-highspeed`` through ``omp -p`` (no tools, thinking low, retry and
+(default ``kimi-code/k3.1-pro-highspeed``) through ``omp -p`` (no tools, thinking low, retry and
 fallback disabled by a config overlay, inherited API keys stripped, served model
-attested), after a quota check that stops at 85% of any Kimi window; fresh rows are
-appended to the cache.
+attested), after a quota check that stops at 85% of any window of the reader's provider;
+fresh rows are appended to the cache. ``cascade_stream:<provider>/<model>`` is a reader
+override: its verdicts have their own cache keyed by that model and its finding carries it.
 
 Verdicts follow the stored cascade adapters: ``alarm`` iff some card is
 ``confirmed`` or its rule passes through (``grader_tamper``); ``clear`` iff none and
@@ -49,6 +50,7 @@ import threading
 import time
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -141,7 +143,7 @@ class VerdictCache:
 
 @dataclass
 class JudgeStats:
-    """Per-judge call accounting; ``reset`` returns and clears one run's share."""
+    """Call accounting for one judge, or (via ``add``) one detector; ``quota_stopped`` marks a quota refusal."""
 
     hits: int = 0
     misses: int = 0
@@ -150,6 +152,7 @@ class JudgeStats:
     input_tokens: int = 0
     output_tokens: int = 0
     latency_ms: int = 0
+    quota_stopped: bool = False
     served: Counter[str] = field(default_factory=Counter)
 
     def as_dict(self) -> dict[str, Any]:
@@ -158,6 +161,13 @@ class JudgeStats:
             "input_tokens": self.input_tokens, "output_tokens": self.output_tokens,
             "latency_ms": self.latency_ms, "served": dict(sorted(self.served.items())),
         }
+
+    def add(self, other: JudgeStats) -> None:
+        """Fold one run's accounting into a detector-wide total."""
+        for name in ("hits", "misses", "fresh", "failed", "input_tokens", "output_tokens", "latency_ms"):
+            setattr(self, name, getattr(self, name) + getattr(other, name))
+        self.quota_stopped |= other.quota_stopped
+        self.served.update(other.served)
 
 
 class StoredVerdictJudge:
@@ -199,6 +209,7 @@ class StoredVerdictJudge:
             if not row.get("ok"):
                 with self._lock:
                     self.stats.failed += 1
+                    self.stats.quota_stopped |= any("QuotaStop" in e for e in row.get("errors") or ())
                     # A failed attempt consumed tokens too; count them, never hide them.
                     self.stats.input_tokens += int(row.get("input_tokens") or 0)
                     self.stats.output_tokens += int(row.get("output_tokens") or 0)
@@ -218,25 +229,35 @@ class StoredVerdictJudge:
 # --------------------------------------------------------------------------- #
 
 
-def quota_used(provider: str = QUOTA_PROVIDER) -> float:
-    """Highest used fraction over every window ``omp usage`` reports for ``provider``."""
-    try:
-        out = subprocess.run(
-            ["omp", "usage", "--json", "--redact", "-p", provider],
-            capture_output=True, text=True, timeout=120, check=False,
-        ).stdout
-        reports = json.loads(out).get("reports") or []
-    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
-        raise QuotaStop(f"{provider} usage unreadable: {type(error).__name__}") from error
-    used = [
-        float(limit["amount"]["usedFraction"])
-        for report in reports
-        for limit in report.get("limits") or []
-        if isinstance((limit.get("amount") or {}).get("usedFraction"), int | float)
-    ]
-    if not used:
-        raise QuotaStop(f"{provider} usage has no windows")
-    return max(used)
+def quota_used(provider: str = QUOTA_PROVIDER, *, attempts: int = 6, pause: float = 10.0) -> float:
+    """Highest used fraction over every window ``omp usage`` reports for ``provider``.
+
+    An unreadable or empty report is retried (``omp usage`` is occasionally empty under concurrent calls);
+    only after ``attempts`` tries does it raise :class:`QuotaStop`, so a real stop is never retried away.
+    """
+    failure = ""
+    for attempt in range(attempts):
+        if attempt:
+            time.sleep(pause)
+        try:
+            out = subprocess.run(
+                ["omp", "usage", "--json", "--redact", "-p", provider],
+                capture_output=True, text=True, timeout=120, check=False,
+            ).stdout
+            reports = json.loads(out).get("reports") or []
+        except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+            failure = f"{provider} usage unreadable: {type(error).__name__}"
+            continue
+        used = [
+            float(limit["amount"]["usedFraction"])
+            for report in reports
+            for limit in report.get("limits") or []
+            if isinstance((limit.get("amount") or {}).get("usedFraction"), int | float)
+        ]
+        if used:
+            return max(used)
+        failure = f"{provider} usage has no windows"
+    raise QuotaStop(failure)
 
 
 class QuotaGate:
@@ -322,7 +343,7 @@ def _ledger(path: Path | None, row: Mapping[str, Any]) -> None:
         handle.write(json.dumps(row, sort_keys=True) + "\n")
 
 
-def kimi_call(
+def judge_call(
     model: str, system: str, user: str, *, gate: QuotaGate | None = None,
     ledger: Path | None = DEFAULT_ATTEMPTS,
 ) -> dict[str, Any]:
@@ -403,10 +424,17 @@ def kimi_call(
     }
 
 
-def live_call(gate: QuotaGate | None = None, ledger: Path | None = DEFAULT_ATTEMPTS) -> Call:
-    """``kimi_call`` bound to one quota gate and attempt ledger."""
-    gate = gate or QuotaGate()
-    return lambda model, system, user: kimi_call(model, system, user, gate=gate, ledger=ledger)
+def provider_of(model: str) -> str:
+    """The subscription provider a ``provider/id`` reader is metered under (``omp usage -p``)."""
+    return model.split("/", 1)[0]
+
+
+def live_call(
+    model: str = JUDGE_MODEL, gate: QuotaGate | None = None, ledger: Path | None = DEFAULT_ATTEMPTS,
+) -> Call:
+    """``judge_call`` bound to one quota gate (default: the reader's own provider) and attempt ledger."""
+    gate = gate or QuotaGate(provider=provider_of(model))
+    return lambda requested, system, user: judge_call(requested, system, user, gate=gate, ledger=ledger)
 
 
 # --------------------------------------------------------------------------- #
@@ -583,43 +611,68 @@ def first_alarm(alarms: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None
 # --------------------------------------------------------------------------- #
 
 
+def reader_cache_path(model: str) -> Path:
+    """The default verdict cache of a reader: the CM-5/CM-11 file for Kimi, one file per other reader."""
+    if model == JUDGE_MODEL:
+        return DEFAULT_CACHE
+    return DEFAULT_CACHE.with_name(f"judge-cache-{re.sub(r'[^A-Za-z0-9.-]+', '_', model)}.jsonl")
+
+
 class CascadeStreamDetector:
-    """``cascade_stream``: replay each run through the live worker, cache-served judge."""
+    """``cascade_stream``: replay each run through the live worker, cache-served judge.
+
+    ``cascade_stream:<provider>/<model>`` swaps the Stage-2 reader (Stage 1 and the prompt are unchanged):
+    the finding carries that reader, its verdicts live in their own cache keyed by it, and its fresh calls
+    are gated on the quota of its own provider. With ``workers`` > 1 and a live ``call``, runs are replayed
+    concurrently (findings still come back in input order). A run whose fresh judge call was refused for
+    quota yields no finding, so it is never cached as abstain and is retried once quota returns.
+    """
 
     name = DETECTOR_NAME
     version = window_cascade.CASCADE_VERSION
-    reader_model: str | None = JUDGE_MODEL
     kind = "cheat"
 
     def __init__(
         self, options: HarnessOptions | None = None, *, cache: VerdictCache | None = None,
-        call: Call | None = None,
+        call: Call | None = None, workers: int = 4,
     ) -> None:
         self.options = options or HarnessOptions()
-        self.cache = cache if cache is not None else VerdictCache(DEFAULT_CACHE)
+        reader = self.options.reader or JUDGE_MODEL
+        self.reader_model: str | None = reader
+        self.cache = cache if cache is not None else VerdictCache(reader_cache_path(reader), model=reader)
+        if self.cache.model != reader:
+            raise ValueError(f"cache holds {self.cache.model} verdicts, reader is {reader}")
         if call is None and self.options.allow_model:
-            call = live_call()
-        self.judge = StoredVerdictJudge(self.cache, call=call)
+            call = live_call(reader)
+        self._call = call
+        self.workers = max(1, workers) if call is not None else 1
+        self.stats = JudgeStats()
         self.runs: dict[str, dict[str, Any]] = {}
 
     def detect(self, runs: Sequence[HarnessRun]) -> Iterator[dict[str, Any]]:
-        reader = self.options.reader
-        if reader is not None and reader != self.reader_model:
+        if self.workers == 1:
+            results: Iterable[dict[str, Any] | None] = map(self._read, runs)
+            yield from (record for record in results if record is not None)
             return
-        for run in runs:
-            before = self.judge.stats.as_dict()
-            stream = replay(run.run_id, run.steps, self.judge)
-            after = self.judge.stats.as_dict()
-            used = {key: after[key] - before[key] for key in ("hits", "misses", "fresh", "failed",
-                                                              "input_tokens", "output_tokens", "latency_ms")}
-            self.runs[run.run_id] = {
-                "cards": stream.cards(), "alarms": list(stream.alarms),
-                "first_emitted": stream.alarms[0] if stream.alarms else None,
-                "first_frozen": first_alarm(stream.alarms),
-                "alarms_at_eof": sum(alarm["at_eof"] for alarm in stream.alarms),
-                "triage_unavailable": stream.unavailable, "agent_turns": stream.agent_turns, **used,
-            }
-            yield self._record(run, stream, used)
+        with ThreadPoolExecutor(self.workers) as pool:
+            yield from (record for record in pool.map(self._read, runs) if record is not None)
+
+    def _read(self, run: HarnessRun) -> dict[str, Any] | None:
+        judge = StoredVerdictJudge(self.cache, call=self._call)
+        stream = replay(run.run_id, run.steps, judge)
+        self.stats.add(judge.stats)
+        if judge.stats.quota_stopped:
+            return None
+        used = {key: getattr(judge.stats, key) for key in ("hits", "misses", "fresh", "failed",
+                                                           "input_tokens", "output_tokens", "latency_ms")}
+        self.runs[run.run_id] = {
+            "cards": stream.cards(), "alarms": list(stream.alarms),
+            "first_emitted": stream.alarms[0] if stream.alarms else None,
+            "first_frozen": first_alarm(stream.alarms),
+            "alarms_at_eof": sum(alarm["at_eof"] for alarm in stream.alarms),
+            "triage_unavailable": stream.unavailable, "agent_turns": stream.agent_turns, **used,
+        }
+        return self._record(run, stream, used)
 
     def _record(self, run: HarnessRun, stream: CascadeStream, used: Mapping[str, int]) -> dict[str, Any]:
         cards = stream.cards()

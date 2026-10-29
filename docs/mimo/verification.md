@@ -217,6 +217,63 @@ receipt's `verify-detail.csv`. An override with a nonempty `final_digest`
 applies only on that exact digest; rows without aggregates are never
 touched.
 
+### HAR-209 scientific-use exclusions
+
+Harness checks do not establish semantic completeness. The separately consumed
+inventory
+`research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json`
+binds **full task IDs and exact `registry.task_directory_digest` package
+digests**. These are not verifier-component or Harbor digests. Each entry
+retains a reason, claim status, and source/witness evidence:
+
+- `confirmed_defect` / `confirmed`: established defect on the named package,
+  including all 114 supported original v2.1 atlas packages, the five established
+  static code defects carried explicitly to v6, the 13 narrower base-regression
+  gaps (not whole-grader vacuity), and the named terminal defects.
+- `conservative_hold` / `unknown`: an unresolved allegation, **not** a confirmed
+  defect. `002661`, `002402`, `000495`, and `candidate-1702` stay in this class.
+- `conservative_hold` / `unmeasured_on_package`: old evidence does not qualify
+  this distinct child or cover its expanded required wrong cases. A hold is
+  neither an executed failure nor an ID-wide replacement/certification.
+
+`mimo_clean.load_manifest` overlays these vetoes without rewriting historical
+bytes; `write_manifest` enforces them on fresh build/report outputs, including
+rows with no census aggregate. `census_row_pass`, `combine_task_rows`, and the
+report summary also consume the exact identity. Confirmed exclusions and
+conservative holds have separate summary counts; recorded oracle/nop/ladder
+cells are not relabeled. Even an exact-digest `verify=pass` manual override
+cannot remove a scientific-use veto at persistence/acceptance. The older
+`apply_verify_overrides` aggregate requirement above is unchanged.
+
+Direct `evallab tasks admit` also checks the inventory before its selectable
+steps: confirmed defects reject, conservative holds require review, and
+unreadable inventory fails closed. Unlisted children receive no certification
+from a matching task ID; they still require their own ordinary gates.
+
+These exclusions prohibit **accepted scientific/training use**, not diagnostic
+probes or repair work. `ref-subset`, standalone oracle/nop controls (including
+`mimo-clean-v6/resume_controls.py`), and repair controls remain executable.
+`mimo-clean verify-local` retains their observed control results but reports
+scientific acceptance as blocked for an excluded exact package.
+
+Regenerate only the new inventory, never frozen manifests or answer keys:
+
+```bash
+uv run --no-sync python research/experiments/mimo-weak-tests-line-backfill-20261021/build_exclusions.py
+```
+
+The producer consumes the frozen atlas and exclusion audit plus optional
+`backfill-reviews.json` and sorted `review-batches/*.json`. Review task IDs must
+be unique across files; `--reviews PATH` explicitly replaces that default input
+set. Only `required_gap` / `confirmed_weak` adjudications with usable recorded
+full/nop and accepted-witness controls are added. Report, log, reference,
+package, and witness bytes are checked against their exact bindings; uncertain,
+optional, neutral, unscored, and unreviewed survivors do not become positives.
+Each review source keeps its own SHA, with no rewritten review aggregate.
+`--root`, `--package-root`, and `--output` support alternate evidence roots and
+scratch outputs. Regeneration does not execute or invent passing controls.
+
+
 ## Fix-content probe v2 (256 reference tasks + 196 v4 probe-pending)
 
 Probe v2 (`src/evallab/fix_content_census.py`, `batch` subcommand; receipt

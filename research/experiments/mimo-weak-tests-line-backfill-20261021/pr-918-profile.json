@@ -1,0 +1,54 @@
+{
+  "schema": "har209.pr_profile/v1",
+  "observed_at": "2026-10-21T13:05:00Z",
+  "method": "gh pr view/checks and GitHub Actions run/job reads; no workflow rerun, no benchmark replay",
+  "pr": 918,
+  "url": "https://github.com/PeterMakhnatch/eval-lab/pull/918",
+  "state": "MERGED",
+  "title": "ref-subset: line-level pass with one-edit mutants",
+  "head_sha": "cd14f6d814c2d5c6c2e0c2ec89b64fd87c047321",
+  "tested_merge_sha": "08a772f4ff5de901cf644277b4b7e52f0824d318",
+  "merge_sha": "2a62a5d5fe7d000540bfaf692b2b1b690eff1c75",
+  "merged_at": "2026-10-15T18:00:37Z",
+  "checks": {
+    "head": {"success": 10, "failure": 1},
+    "merge_revision": {"success": 10, "failure": 1},
+    "all_reported_green": false,
+    "required_gates": {
+      "quality-required": "success",
+      "typecheck-required": "success"
+    }
+  },
+  "failed_profile": {
+    "check": "profile",
+    "workflow": "perf",
+    "run_id": 38781094530,
+    "job_id": 116581308645,
+    "attempt": 1,
+    "completed_at": "2026-10-15T17:54:33Z",
+    "url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/38781094530/job/116581308645",
+    "harness": "succeeded; the budget ratchet exited 1",
+    "measured": {
+      "projection_median_ms": 58.603,
+      "facts_median_ms": 101.958,
+      "ceiling_ms": 37.5
+    }
+  },
+  "postmerge_push_run": {
+    "run_id": 38782058666,
+    "job_id": 116584733329,
+    "completed_at": "2026-10-15T18:01:55Z",
+    "url": "https://github.com/PeterMakhnatch/eval-lab/actions/runs/38782058666/job/116584733329",
+    "measured": {"facts_median_ms": 44.147, "ceiling_ms": 37.5},
+    "classification": "separate push run on the merge revision; neither a rerun nor a fix"
+  },
+  "supersession": "No later profile attempt or passing replacement was found for either revision. Neither exact revision is all-green under agents/CHECKS.md.",
+  "status": "failed profile retained; not all-green; no rerun performed",
+  "limits": [
+    "The timing overage is measured but its cause (deterministic regression versus runner variance) is not established.",
+    "The profile exercises event-summary evidence-export code with Harbor dispatch stubbed; it is not a ref-subset benchmark replay.",
+    "The merged-918 smoke receipt proves only an owned arithmetic fixture (weak checks 5/7 survivors, strengthened 0/7); it does not repair the historical CI profile or certify corpus-wide acceptance."
+  ],
+  "spend_usd": 0,
+  "new_replays": 0
+}

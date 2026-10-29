@@ -1,0 +1,1268 @@
+{
+  "schema": "mimo.line_backfill_reviews/v1",
+  "reviewed_by": "BackfillReview08A (native requirement-level source and recorded-control review only)",
+  "reviewed_at_utc": "2026-10-21T20:26:08.606559+00:00",
+  "review_scope": {
+    "assigned_task_ids": [
+      "format-code-task-002790"
+    ],
+    "artifact_only": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/08a.json",
+    "output_root": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265",
+    "spend_usd": 0,
+    "new_execution": false,
+    "docker_invoked": false,
+    "model_or_remote_apis_invoked": false,
+    "builds_tests_linters_formatters_or_checks_invoked": false,
+    "commits_or_other_repository_file_edits": false,
+    "immutable_inputs_modified": false,
+    "method": "Read the exact canonical plan/package/reference; complete actual instruction, selected hidden test patch and launcher chain; every one of eleven complete reported patches; and recorded public wrapper/CLI/constructor/segmentation context. Hash all evidence, parse actual authoritative grades.log headers, and adjudicate each candidate against required mode/segmentation behavior. Preserve the unknown direct-constructor surface and avoid promoting annotation metadata changes. No producer, validator or new control was run."
+  },
+  "frozen_source_bindings": {
+    "resume_plan": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+      "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a"
+    },
+    "atlas": {
+      "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+      "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450"
+    }
+  },
+  "summary": {
+    "reports": 1,
+    "block_fail_candidates": 0,
+    "block_labels": {
+      "confirmed_weak": 0,
+      "neutral": 0,
+      "out_of_scope": 0,
+      "uncertain": 0
+    },
+    "reported_survivors": 11,
+    "reviewed_survivors": 11,
+    "survivor_labels": {
+      "required_gap": 1,
+      "equivalent_or_optional": 9,
+      "non_positive": 0,
+      "uncertain": 1
+    },
+    "generated_mutants": 40,
+    "attempted_mutants": 20,
+    "recorded_killed_mutants": 9,
+    "recorded_unscored_mutants": 0,
+    "generated_but_unattempted_mutants": 20,
+    "authoritative_grade_records": 34,
+    "confirmed_positive_claims": 1,
+    "confirmed_positive_identities": [
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "8a67ff570a"
+      }
+    ],
+    "task_ids_with_confirmed_positive_claims": [
+      "format-code-task-002790"
+    ],
+    "uncertain_claims": 1,
+    "uncertain_identities": [
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "a9537af276"
+      }
+    ],
+    "task_ids_with_uncertain_claims": [
+      "format-code-task-002790"
+    ],
+    "not_promoted_identities": [
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "c1dee1dff7",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "c16b2eb485",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "6971856e9a",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "a9537af276",
+        "label": "uncertain"
+      },
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "7b01b1d3a3",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "227aacf821",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "95fa015fa1",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "6de2fe0ecb",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "d9bf37b48f",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002790",
+        "kind": "line",
+        "id": "55e2ea84fb",
+        "label": "equivalent_or_optional"
+      }
+    ],
+    "limitations": [
+      "One completed task record; block is null for its pass verdict. All eleven reported survivors are explicitly adjudicated and bound to exact patch hashes and scored rc=0 grades under current full=1/nop=0 controls.",
+      "Only 8a67ff570a establishes a required gap: absent --trust-lnotab now opts into trusted segmentation. Nine type-annotation-only edits are optional metadata relative to the requested runtime behavior. a9537af276 stays uncertain because direct Decompiler callers/exports are not retained, although the shown required public wrapper explicitly overrides its changed constructor default.",
+      "The actual selected verifier consists of eleven tests in test_trust_lnotab.py; Python false-mode coverage is explicit, while CLI coverage is help and an explicit trusted flag only. Real translation/model/control-flow stages are stubbed.",
+      "The complete image source/caller tree is not retained in the reviewed paths. No broad absence or clean-task claim is made; parent found no additional indexed snapshot. No missing direct-consumer outcome is fabricated.",
+      "Twenty generated-but-unattempted mutants remain outside adjudication. All thirty-four recorded headers are scored rc=0; no timeout or unscored record is converted to a negative.",
+      "Package/image digests are recorded identities, not recomputed directory/image hashes. Individual instruction, grader, reference, report, log and survivor bytes are SHA256-bound.",
+      "No validation commands or new controls were run. No Docker, model/inference/cloud/remote API, build/test/lint/formatter, producer/validator, git/commit or immutable-input modification occurred. Only the assigned new review JSON is written."
+    ]
+  },
+  "reports": [
+    {
+      "task_id": "format-code-task-002790",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790",
+      "package_digest": "sha256:5fb6a006a9378dae37f70b66b76aa22ae2d535b3603a9cbffe7f78de0b35f50f",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch",
+      "reference_sha256": "ba6d5a14ba71c19ad9bf7bd4d239f0cac555a96744c5686f3767b3c245972c60",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/report.json",
+      "report_sha256": "5727d9cd40777b4b8604adc65bd76fc990f224487427b93459f1b71bd1fb6018",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+      "grades_log_sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db",
+      "minimal_patch_path": null,
+      "minimal_patch_sha256": null,
+      "dropped_patch_path": null,
+      "dropped_patch_sha256": null,
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md",
+      "instruction_sha256": "ba81a71a356c29d5ec17f385c7077f47b899a8ce552a78dec0f66a85d2a12fb4",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/task.toml",
+      "task_toml_sha256": "c609e132aeb481d19ec5e89101753490710860aee0d65d1182235977d66fc87c",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch",
+      "test_patch_sha256": "0c31ac3ece5aa6c911eddd15241e1f8f2519e9f130599682400fd5b4eca4899e",
+      "test_runner_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.sh",
+      "test_runner_sha256": "72fd0c99804d7adbb61dabbd08c908d13c61504d17df0ffed26ae95b8c15196e",
+      "test_command_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test_command.sh",
+      "test_command_sha256": "7127a2d85db4abf824b4a311773e247afcb0c1e825c8c3a30979c464a229afd1",
+      "command_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+      "command_log_sha256": "ec22b54642b9455d2b258fda61aa99ff5e9e824d80cedaf9bf53d5bc8eb7768a",
+      "frozen_plan_row": {
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790",
+        "package_digest": "sha256:5fb6a006a9378dae37f70b66b76aa22ae2d535b3603a9cbffe7f78de0b35f50f",
+        "patch": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch",
+        "reference_binding_source": "archived_report",
+        "reference_sha256": "ba6d5a14ba71c19ad9bf7bd4d239f0cac555a96744c5686f3767b3c245972c60",
+        "task_id": "format-code-task-002790"
+      },
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:1d6e56a6cc8d5c9432c8151df533d82a0cc45ef9b74a3155ab4b62b16f607973",
+      "started_at": "2026-10-21T20:13:43+00:00",
+      "finished_at": "2026-10-21T20:15:40+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "pass",
+      "recorded_kept_fraction": 1.0,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 2.0s",
+          "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+          "line": 24,
+          "quote": "== nop reward=0.0 rc=0 scored 1.7s",
+          "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan_and_atlas": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_report_frozen_plan_and_atlas": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_bytes_match_atlas": true,
+        "task_toml_bytes_match_atlas": true,
+        "package_directory_and_image_digests_recomputed": false
+      },
+      "block": null,
+      "block_scope_note": "The completed block verdict is pass, kept_fraction=1.0 and dropped_code=[]; no failing-block omission witness or minimal/dropped patch is reported/present in the exact task listing. This is not a clean-task certificate. The passing drop-docs-comments probe is not promoted into a fail-block claim.",
+      "survivors": [
+        {
+          "id": "c1dee1dff7",
+          "file": "pylingual/decompiler.py",
+          "line": 443,
+          "end_line": 443,
+          "operator": "drop-operand",
+          "original": "PYCFile | Path",
+          "replacement": "(Path)",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/c1dee1dff7.patch",
+          "patch_sha256": "3a6135e37effd2d0584ad703f815ce095233fa651178eb54d86eb66b6c58b06f",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 484,
+            "quote": "== mutant:c1dee1dff7 reward=1.0 rc=0 scored 2.0s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "equivalent_or_optional",
+          "reason": "This narrows only the pyc parameter annotation from PYCFile | Path to (Path). The required decompile arguments, default trust_lnotab=False, segmentation switch and explicit constructor forwarding are unchanged. Python does not enforce parameter annotations on calls; the selected recorded survivor still accepts the FakePYC objects used by the trusted and normal-mode tests and the stubbed Path input. Exact input annotation metadata or a static typing contract is not requested by this issue, so a less accurate hint is not promoted to a required runtime gap.",
+          "semantic_scope": "Optional annotation metadata relative to the requested trusted segmentation behavior; no global claim about external type-hint consumers.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/c1dee1dff7.patch:65-87: only the pyc annotation differs from the reference; mode default and constructor call remain",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:45-55,130-133,150-162,187-199,227-241: both FakePYC and stubbed Path inputs reach pylingual.decompile",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:484: == mutant:c1dee1dff7 reward=1.0 rc=0 scored 2.0s"
+          ]
+        },
+        {
+          "id": "c16b2eb485",
+          "file": "pylingual/main.py",
+          "line": 101,
+          "end_line": 101,
+          "operator": "drop-operand",
+          "original": "Path | None",
+          "replacement": "(Path)",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/c16b2eb485.patch",
+          "patch_sha256": "64523b74428bfbe099698c6f0c24646fbfe9db4f4bbb513075a8bfeccb01b0c0",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 507,
+            "quote": "== mutant:c16b2eb485 reward=1.0 rc=0 scored 1.9s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "equivalent_or_optional",
+          "reason": "This changes only the CLI callback config_file annotation from Path | None to (Path). It does not change an option declaration, an argument value/default, trust_lnotab, or the retained config_file=Path(config_file) if config_file else None forwarding. Python annotations do not themselves reject None. Exact callback annotations are not required by the issue; an annotation-only metadata narrowing is not evidence of wrong trusted or normal segmentation behavior.",
+          "semantic_scope": "Optional callback type metadata, not a whole-repository equivalence certificate. Full earlier Click option declarations and external reflection consumers were not retained.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/c16b2eb485.patch:95-114: config_file annotation changes while CLI mode flag and forwarding remain",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385: selected CLI help and explicit trusted-flag consumers import and invoke the decorated command",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:507: == mutant:c16b2eb485 reward=1.0 rc=0 scored 1.9s"
+          ]
+        },
+        {
+          "id": "8a67ff570a",
+          "file": "pylingual/main.py",
+          "line": 98,
+          "end_line": 98,
+          "operator": "boolean-constant",
+          "original": "False",
+          "replacement": "True",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/8a67ff570a.patch",
+          "patch_sha256": "187ec010dbc607b8b74ccba28f4144d600b9f7004b85cc5e97fa83b7eb64840a",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 582,
+            "quote": "== mutant:8a67ff570a reward=1.0 rc=0 scored 1.8s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "required_gap",
+          "reason": "The CLI boolean flag now has default=True rather than False. An ordinary CLI invocation without --trust-lnotab therefore forwards trust_lnotab=True to the named public decompile wrapper, which explicitly passes it to Decompiler and takes the early trusted-lnotab segmentation branch. This violates the requested opt-in trusted mode and the instruction that False/default uses the normal segmentation model path, exposed with the same behavior on the local CLI. The selected false-mode test calls the Python API with trust_lnotab=False; the CLI tests check only --help and an invocation that explicitly supplies --trust-lnotab. No selected test asserts the CLI value or model path when the flag is absent, explaining this recorded scored survivor without inventing a new execution.",
+          "counterexample": {
+            "kind": "static_required_mode_routing_counterexample",
+            "scenario": "Use the retained CLI flag-test fixture with its existing sample.pyc path and fake_decompile capture, but invoke argv [\"-q\", str(pyc_path)] without --trust-lnotab. Equivalently, invoke pylingual -q /absolute/sample.pyc with a valid .pyc and otherwise successful configuration/setup.",
+            "expected": "The absent opt-in flag supplies trust_lnotab=False; the real decompile wrapper uses the normal segmentation model path.",
+            "predicted_actual": "The mutated Click option default supplies True; the retained main call passes trust_lnotab=True, decompile passes that explicit value into Decompiler, and run_segmentation returns update_segmentation_from_lnotab before its model-segmentation body. In the existing capture fixture calls[0][\"trust_lnotab\"] would be True instead of False.",
+            "fresh_execution": false,
+            "basis": "Source-level routing/default substitution in retained option, caller and callee hunks; neither the altered fixture nor a real .pyc invocation was run."
+          },
+          "missing_evidence": null,
+          "semantic_scope": "Required CLI default-mode routing, not a claim about a particular final reconstructed source string or model loading: the wrapper still loads models before choosing segmentation.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/8a67ff570a.patch:95-103: Click option has is_flag=True, default=True",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/8a67ff570a.patch:107-113: main forwards trust_lnotab=trust_lnotab",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch:69-87: public decompile defaults False but explicitly forwards its received value into Decompiler",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch:17-32: constructor stores trust_lnotab and run_segmentation returns early to trusted boundaries when truthy",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:187-199: only false-mode assertion invokes the Python API with an explicit False",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385: CLI coverage is help plus explicit --trust-lnotab, not omitted-flag default",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:582-603: this exact mutant still passes all eleven selected tests",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:582: == mutant:8a67ff570a reward=1.0 rc=0 scored 1.8s"
+          ]
+        },
+        {
+          "id": "6971856e9a",
+          "file": "pylingual/main.py",
+          "line": 101,
+          "end_line": 101,
+          "operator": "drop-operand",
+          "original": "int | None",
+          "replacement": "(None)",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/6971856e9a.patch",
+          "patch_sha256": "b8646f3440c01e29efbad2f496c198edb6cf1de07dd80f15737225fe0148d09a",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 644,
+            "quote": "== mutant:6971856e9a reward=1.0 rc=0 scored 2.0s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "equivalent_or_optional",
+          "reason": "This changes only the CLI callback timeout annotation from int | None to (None). The actual --timeout option still declares default=None and type=int, and timeout=timeout is still passed to decompile. Thus the mutation neither changes parsing declarations nor removes the requested mode flag/forwarding. The issue does not require exact timeout annotation metadata, and no concrete required segmentation failure follows from this annotation-only change.",
+          "semantic_scope": "Optional timeout type metadata; not a claim that annotations are correct or that all external introspection clients are equivalent.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/6971856e9a.patch:99-113: --timeout default/type and forwarding remain; only the callback annotation changes",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385: actual selected CLI help and explicit --trust-lnotab consumers",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:644: == mutant:6971856e9a reward=1.0 rc=0 scored 2.0s"
+          ]
+        },
+        {
+          "id": "a9537af276",
+          "file": "pylingual/decompiler.py",
+          "line": 103,
+          "end_line": 103,
+          "operator": "boolean-constant",
+          "original": "False",
+          "replacement": "True",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/a9537af276.patch",
+          "patch_sha256": "82c79f8a3f94b3f094ff38c645232e6b67072be4a841a943b79feb67b164e2d6",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 738,
+            "quote": "== mutant:a9537af276 reward=1.0 rc=0 scored 1.7s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "uncertain",
+          "reason": "This flips the internal Decompiler constructor default from False to True. The named required public pylingual.decompile path is demonstrably unaffected: its own default remains False and it always supplies trust_lnotab explicitly in the retained constructor call; the CLI likewise forwards an explicit value through that wrapper. A direct Decompiler(...) caller omitting this argument would change mode, but no full PyLingual source tree, export surface or direct-constructor caller set is retained in the reviewed package/reference/output paths. The instruction names pylingual.decompile and the CLI, not direct Decompiler construction. Without evidence that a direct default-taking caller is required or reachable in those paths, do not promote this real internal default change to a required gap or claim global equivalence.",
+          "counterexample": {
+            "kind": "static_public_path_refutation_with_unresolved_direct_caller",
+            "scenario": "Call the explicitly requested pylingual.decompile(pyc, ...) without trust_lnotab, or with either Boolean value.",
+            "expected_and_predicted_actual": "For each case the public wrapper supplies its actual trust_lnotab value as the sixth constructor argument. The constructor default is not evaluated, so this edit cannot change the shown public mode-routing path.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "A complete retained PyLingual source/export/caller snapshot establishing whether direct Decompiler construction without trust_lnotab belongs to, or is reached from, the required public surface. No such snapshot was located in the exact package/reference/output listings; local broad globs were incomplete and are not proof of global absence. Parent also found no indexed retained path. No source extraction or fresh controls were authorized.",
+          "semantic_scope": "Unknown direct-constructor consumers remain uncertain; the displayed named wrapper path is unaffected.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/a9537af276.patch:12-21: constructor default is True, stored into self.trust_lnotab",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/a9537af276.patch:69-87: public decompile still defaults False and explicitly passes trust_lnotab into the constructor",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/a9537af276.patch:95-113: CLI forwards a supplied flag value into decompile",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:130-133,187-199: selected tests reach pylingual.decompile rather than relying on the Decompiler default",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:195-213: retained traceback independently shows the explicit seven-argument constructor call",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:738-759: this exact constructor-default mutant passes all eleven selected tests",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:738: == mutant:a9537af276 reward=1.0 rc=0 scored 1.7s"
+          ]
+        },
+        {
+          "id": "7b01b1d3a3",
+          "file": "pylingual/main.py",
+          "line": 101,
+          "end_line": 101,
+          "operator": "drop-operand",
+          "original": "Path | None",
+          "replacement": "(None)",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/7b01b1d3a3.patch",
+          "patch_sha256": "192a45189944206c59d0b03c7f7cda747d8375f0375791e0b5c2b2547a583c16",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 761,
+            "quote": "== mutant:7b01b1d3a3 reward=1.0 rc=0 scored 1.6s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "equivalent_or_optional",
+          "reason": "This changes only the CLI callback config_file annotation from Path | None to (None). The actual config_file value and retained conditional Path conversion/forwarding are unchanged, as are the trust flag declaration and forwarding. Python annotations alone do not enforce argument types. Accurate config_file type-hint metadata is not an acceptance requirement of this trusted-segmentation issue; no required input/output or mode-selection counterexample is established by the annotation mutation.",
+          "semantic_scope": "Optional callback metadata relative to this requirement. Missing complete option/source/reflection context is not treated as a proof of global equivalence.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/7b01b1d3a3.patch:95-114: only callback annotation changes; conditional config-file forwarding and trust flag remain",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385: selected CLI consumers import and invoke the decorated command",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:761: == mutant:7b01b1d3a3 reward=1.0 rc=0 scored 1.6s"
+          ]
+        },
+        {
+          "id": "227aacf821",
+          "file": "pylingual/main.py",
+          "line": 101,
+          "end_line": 101,
+          "operator": "drop-operand",
+          "original": "PythonVersion | None",
+          "replacement": "(PythonVersion)",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/227aacf821.patch",
+          "patch_sha256": "6163fd24c99077bfe6511d33fed3c72ed10a979761834f4d4a5c4703b9abd76b",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 826,
+            "quote": "== mutant:227aacf821 reward=1.0 rc=0 scored 1.6s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "equivalent_or_optional",
+          "reason": "This changes only the CLI callback version annotation from PythonVersion | None to (PythonVersion). The version value is still forwarded unchanged, and the explicit trust flag plus its forwarding are identical to the reference. Python does not enforce that annotation on callback invocation. The instruction requests trusted/default segmentation behavior and CLI exposure, not exact version type-hint metadata, so no required behavioral gap is promoted from this hint narrowing.",
+          "semantic_scope": "Optional annotation metadata for the required mode-routing behavior; omitted full version-option/reflection consumers are not globally certified.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/227aacf821.patch:95-114: version annotation is narrowed, while version=version and trust_lnotab forwarding remain",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385: the retained selected CLI consumers import and invoke this command",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:826: == mutant:227aacf821 reward=1.0 rc=0 scored 1.6s"
+          ]
+        },
+        {
+          "id": "95fa015fa1",
+          "file": "pylingual/main.py",
+          "line": 101,
+          "end_line": 101,
+          "operator": "drop-operand",
+          "original": "PythonVersion | None",
+          "replacement": "(None)",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/95fa015fa1.patch",
+          "patch_sha256": "e52278871c60411c7c95d71515d1049d77529da4bf49ef7e7053a41b511542e8",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 887,
+            "quote": "== mutant:95fa015fa1 reward=1.0 rc=0 scored 1.6s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "equivalent_or_optional",
+          "reason": "This changes only the CLI callback version annotation from PythonVersion | None to (None). No runtime version assignment, parser option declaration, trust_lnotab value/default or decompile forwarding changes. Python annotations do not themselves restrict supplied values. Exact callback annotation metadata is outside the requested acceptance behavior, so an inaccurate version hint is not counted as a surviving wrong trusted-segmentation implementation.",
+          "semantic_scope": "Optional annotation metadata only; no assertion about absent external annotation-driven integrations.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/95fa015fa1.patch:95-114: only version annotation differs; version and trust-lnotab values are forwarded as before",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385: selected help and explicit trusted-flag CLI consumers",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:887: == mutant:95fa015fa1 reward=1.0 rc=0 scored 1.6s"
+          ]
+        },
+        {
+          "id": "6de2fe0ecb",
+          "file": "pylingual/main.py",
+          "line": 101,
+          "end_line": 101,
+          "operator": "drop-operand",
+          "original": "Path | None",
+          "replacement": "(Path)",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/6de2fe0ecb.patch",
+          "patch_sha256": "067e53e14b101ff9af6ea788ccbed337cb7c3be322707c336d984410d6f4a475",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 954,
+            "quote": "== mutant:6de2fe0ecb reward=1.0 rc=0 scored 1.6s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "equivalent_or_optional",
+          "reason": "This changes only the CLI callback out_dir annotation from Path | None to (Path). It does not change the out_dir value, a default, any output-directory statement, the trust flag, or the visible decompile call. Python annotations alone are not runtime argument validation. The requested local CLI mode behavior does not require exact out_dir type metadata, so the annotation narrowing is not a requirement-level wrong-answer witness.",
+          "semantic_scope": "Optional type metadata relative to required segmentation behavior. Full output-directory consumers are not retained; no global equivalence claim is made.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/6de2fe0ecb.patch:95-114: only the out_dir annotation differs from the reference; trust flag and decompile forwarding are unchanged",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385: actual selected CLI help and flag invocation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:954: == mutant:6de2fe0ecb reward=1.0 rc=0 scored 1.6s"
+          ]
+        },
+        {
+          "id": "d9bf37b48f",
+          "file": "pylingual/main.py",
+          "line": 101,
+          "end_line": 101,
+          "operator": "drop-operand",
+          "original": "int | None",
+          "replacement": "(int)",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/d9bf37b48f.patch",
+          "patch_sha256": "4348ddb111beb829e2928a21608dc794c892b98d442c3f8bf4427c7281184fad",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 1026,
+            "quote": "== mutant:d9bf37b48f reward=1.0 rc=0 scored 1.8s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "equivalent_or_optional",
+          "reason": "This changes only the CLI callback timeout annotation from int | None to (int). The --timeout option still explicitly has default=None and type=int, and timeout=timeout is still forwarded. There is no changed runtime default, parsing declaration or segmentation branch. The issue does not require exact timeout annotation metadata, so this type-hint narrowing is optional rather than a demonstrated missing trusted-segmentation behavior.",
+          "semantic_scope": "Optional timeout annotation metadata; not a global equivalence assertion for unretained type-introspection consumers.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/d9bf37b48f.patch:99-113: explicit --timeout default=None/type=int and forwarding remain around the annotation-only edit",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385: selected CLI help and explicit trusted invocation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1026: == mutant:d9bf37b48f reward=1.0 rc=0 scored 1.8s"
+          ]
+        },
+        {
+          "id": "55e2ea84fb",
+          "file": "pylingual/main.py",
+          "line": 101,
+          "end_line": 101,
+          "operator": "drop-operand",
+          "original": "Path | None",
+          "replacement": "(None)",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/55e2ea84fb.patch",
+          "patch_sha256": "10a719e9ae491ff5b17dbc8a8c11b95f3850c3906674c61a93d8be37628393f7",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+            "line": 1092,
+            "quote": "== mutant:55e2ea84fb reward=1.0 rc=0 scored 1.6s",
+            "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db"
+          },
+          "label": "equivalent_or_optional",
+          "reason": "This changes only the CLI callback out_dir annotation from Path | None to (None). The callback parameter still receives its actual runtime value, and no output-directory code, mode flag/default or decompile forwarding is modified. Python does not enforce parameter annotations automatically. Exact out_dir annotation metadata is not required by the instruction, so no required mode-selection or segmentation error is established by this edit.",
+          "semantic_scope": "Optional annotation metadata in the specified runtime feature; unretained output-directory/reflection consumers are not globally certified.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/55e2ea84fb.patch:95-114: only out_dir type metadata changes; the trust flag and forwarding are retained",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385: selected CLI help and explicit trusted-flag consumers import and invoke this command",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1092: == mutant:55e2ea84fb reward=1.0 rc=0 scored 1.6s"
+          ]
+        }
+      ],
+      "requirement_map": [
+        {
+          "requirement": "False/default public API mode uses normal model segmentation; True derives lnotab boundaries before translation",
+          "instruction_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3",
+          "retained_implementation_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch:12-32",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch:69-87"
+          ],
+          "selected_test_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:130-162,187-199"
+          ],
+          "review_result": "Only the CLI absent-flag default mutant establishes a required gap. Public wrapper explicit argument forwarding shields the changed internal constructor default on the shown path."
+        },
+        {
+          "requirement": "Trusted one/multi-instruction B/I/E labels, seen-line filtering, confidence 1 and starts_line updates",
+          "instruction_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5",
+          "retained_implementation_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch:38-60"
+          ],
+          "selected_test_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:33-55,136-184"
+          ],
+          "review_result": "All reported patches retain this implementation. No candidate is promoted merely because the line scan reports survival."
+        },
+        {
+          "requirement": "Local CLI has --trust-lnotab and matching help/mode behavior",
+          "instruction_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7",
+          "retained_implementation_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch:95-113"
+          ],
+          "selected_test_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385"
+          ],
+          "review_result": "Help and explicitly supplied flag are selected; omitted flag is not tested, allowing default=True to survive."
+        },
+        {
+          "requirement": "Bad/empty trusted line grouping fails with ValueError",
+          "instruction_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7",
+          "retained_implementation_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch:49-55"
+          ],
+          "selected_test_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:202-215"
+          ],
+          "review_result": "The selected empty-list test exists and all eleven reported patches retain the explicit ValueError branch. No separate invalid-input outcome is invented."
+        }
+      ],
+      "effective_grader": {
+        "selection_chain": [
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.sh",
+            "sha256": "72fd0c99804d7adbb61dabbd08c908d13c61504d17df0ffed26ae95b8c15196e",
+            "lines": "13-35",
+            "behavior": "Resets the two hidden-patch target files, applies /tests/test.patch and runs timeout 1800 sh -c of /tests/test_command.sh. Reward is 1 only for command RC 0; reset/apply failures are unscored."
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test_command.sh",
+            "sha256": "7127a2d85db4abf824b4a311773e247afcb0c1e825c8c3a30979c464a229afd1",
+            "lines": "1",
+            "quote": "bash /workspace/repo/mimo_test_command.sh"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch",
+            "sha256": "0c31ac3ece5aa6c911eddd15241e1f8f2519e9f130599682400fd5b4eca4899e",
+            "lines": "386-411",
+            "behavior": "Adds mimo_test_command.sh with offline and plugin-disabling environment and exec python3 -m pytest /workspace/repo/usercase-test-coderl/test_trust_lnotab.py -v."
+          }
+        ],
+        "selected_test_file": "/workspace/repo/usercase-test-coderl/test_trust_lnotab.py",
+        "recorded_collected_tests": 11,
+        "selection_evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1-22: full control collects and passes all eleven selected tests",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:582-603: exact default-True CLI mutant likewise collects/passes all eleven"
+        ],
+        "coverage_limits": "FakeBytecode/FakePYC/FakeSegmenter are used; load_models, translation, control-flow reconstruction and several later stages are stubbed. The CLI decompile consumer is replaced by a kwargs capture. These records prove the selected verifier accepts each exact mutant, not full real-PYC/model/source reconstruction correctness. The CLI normal/default path is not selected.",
+        "new_execution": false
+      },
+      "source_bindings": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md",
+          "sha256": "ba81a71a356c29d5ec17f385c7077f47b899a8ce552a78dec0f66a85d2a12fb4",
+          "role": "actual required behavior"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/task.toml",
+          "sha256": "c609e132aeb481d19ec5e89101753490710860aee0d65d1182235977d66fc87c",
+          "role": "task identity, image and verifier/environment configuration"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.sh",
+          "sha256": "72fd0c99804d7adbb61dabbd08c908d13c61504d17df0ffed26ae95b8c15196e",
+          "role": "effective hidden-test reset/apply/command launcher and reward rule"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test_command.sh",
+          "sha256": "7127a2d85db4abf824b4a311773e247afcb0c1e825c8c3a30979c464a229afd1",
+          "role": "selected command indirection"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch",
+          "sha256": "0c31ac3ece5aa6c911eddd15241e1f8f2519e9f130599682400fd5b4eca4899e",
+          "role": "actual hidden test definitions and effective mimo_test_command.sh"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/environment/setup/setup.sh",
+          "sha256": "80e3ecb0ec7381071dea7f7372098f406463af24baae04f7b781adf1aa3e0eb6",
+          "role": "setup boundary; does not retain the full image source tree"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch",
+          "sha256": "ba6d5a14ba71c19ad9bf7bd4d239f0cac555a96744c5686f3767b3c245972c60",
+          "role": "complete reference plus retained implementation/caller context"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/report.json",
+          "sha256": "5727d9cd40777b4b8604adc65bd76fc990f224487427b93459f1b71bd1fb6018",
+          "role": "completed frozen block/line report"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+          "sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db",
+          "role": "authoritative exact scored control and mutant headers"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+          "sha256": "ec22b54642b9455d2b258fda61aa99ff5e9e824d80cedaf9bf53d5bc8eb7768a",
+          "role": "recorded producer invocation and limits; read only"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/environment/Dockerfile",
+          "sha256": "ce8cc846c9c1efb5b699eaaf0da18a9c54392ab67a2229f59b402d9383baae5d",
+          "role": "digest-pinned image boundary, not a retained source archive"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/c1dee1dff7.patch",
+          "sha256": "3a6135e37effd2d0584ad703f815ce095233fa651178eb54d86eb66b6c58b06f",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "c1dee1dff7"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/c16b2eb485.patch",
+          "sha256": "64523b74428bfbe099698c6f0c24646fbfe9db4f4bbb513075a8bfeccb01b0c0",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "c16b2eb485"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/8a67ff570a.patch",
+          "sha256": "187ec010dbc607b8b74ccba28f4144d600b9f7004b85cc5e97fa83b7eb64840a",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "8a67ff570a"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/6971856e9a.patch",
+          "sha256": "b8646f3440c01e29efbad2f496c198edb6cf1de07dd80f15737225fe0148d09a",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "6971856e9a"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/a9537af276.patch",
+          "sha256": "82c79f8a3f94b3f094ff38c645232e6b67072be4a841a943b79feb67b164e2d6",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "a9537af276"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/7b01b1d3a3.patch",
+          "sha256": "192a45189944206c59d0b03c7f7cda747d8375f0375791e0b5c2b2547a583c16",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "7b01b1d3a3"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/227aacf821.patch",
+          "sha256": "6163fd24c99077bfe6511d33fed3c72ed10a979761834f4d4a5c4703b9abd76b",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "227aacf821"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/95fa015fa1.patch",
+          "sha256": "e52278871c60411c7c95d71515d1049d77529da4bf49ef7e7053a41b511542e8",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "95fa015fa1"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/6de2fe0ecb.patch",
+          "sha256": "067e53e14b101ff9af6ea788ccbed337cb7c3be322707c336d984410d6f4a475",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "6de2fe0ecb"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/d9bf37b48f.patch",
+          "sha256": "4348ddb111beb829e2928a21608dc794c892b98d442c3f8bf4427c7281184fad",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "d9bf37b48f"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/55e2ea84fb.patch",
+          "sha256": "10a719e9ae491ff5b17dbc8a8c11b95f3850c3906674c61a93d8be37628393f7",
+          "role": "complete reported survivor patch and retained source/caller context",
+          "survivor_id": "55e2ea84fb"
+        }
+      ],
+      "source_context_limits": {
+        "available": "The exact package instruction, task/launcher/setup metadata, entire hidden test patch, complete reference, all eleven complete survivor patches, authoritative grade log and retained trace excerpts. Relevant shown consumers are CLI main -> public decompile -> explicit Decompiler construction -> run_segmentation.",
+        "not_retained_or_not_located": "A full PyLingual source/caller/export snapshot, complete earlier Click option declarations, and installed image dependency sources. The package Dockerfile pins an image rather than bundling source. Incomplete broad glob walks and empty indexed knowledge results are not proof of global absence.",
+        "consequence": "The direct-constructor default survivor stays uncertain. Annotation-only survivors are classified as optional metadata relative to the explicitly requested runtime behavior, not as globally equivalent under arbitrary reflection/static typing clients. No missing source or direct-caller outcome is fabricated.",
+        "no_source_extraction_or_external_api": true
+      },
+      "line_scan_summary": {
+        "generated": 40,
+        "tried": 20,
+        "killed": 9,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 11,
+        "generated_but_unattempted": 20,
+        "grade_records": 20
+      },
+      "recorded_execution_limits": {
+        "grade_timeout_s": 1800,
+        "max_grades": 24,
+        "memory": "3g",
+        "network": "none"
+      },
+      "authoritative_grade_records": 34,
+      "report_embedded_grade_records": 14,
+      "recorded_grade_headers": [
+        {
+          "label": "full",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "nop",
+          "line": 24,
+          "quote": "== nop reward=0.0 rc=0 scored 1.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.7
+        },
+        {
+          "label": "drop-docs-comments",
+          "line": 56,
+          "quote": "== drop-docs-comments reward=1.0 rc=0 scored 2.4s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.4
+        },
+        {
+          "label": "drop-file:pylingual/decompiler.py",
+          "line": 79,
+          "quote": "== drop-file:pylingual/decompiler.py reward=0.0 rc=0 scored 1.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.8
+        },
+        {
+          "label": "drop-file:pylingual/main.py",
+          "line": 113,
+          "quote": "== drop-file:pylingual/main.py reward=0.0 rc=0 scored 2.5s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.5
+        },
+        {
+          "label": "drop-block:pylingual/decompiler.py#4",
+          "line": 158,
+          "quote": "== drop-block:pylingual/decompiler.py#4 reward=0.0 rc=0 scored 1.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.8
+        },
+        {
+          "label": "drop-block:pylingual/decompiler.py#1",
+          "line": 195,
+          "quote": "== drop-block:pylingual/decompiler.py#1 reward=0.0 rc=0 scored 1.9s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.9
+        },
+        {
+          "label": "drop-block:pylingual/decompiler.py#3",
+          "line": 227,
+          "quote": "== drop-block:pylingual/decompiler.py#3 reward=0.0 rc=0 scored 2.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.4
+        },
+        {
+          "label": "drop-block:pylingual/decompiler.py#5",
+          "line": 253,
+          "quote": "== drop-block:pylingual/decompiler.py#5 reward=0.0 rc=0 scored 1.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.8
+        },
+        {
+          "label": "drop-block:pylingual/decompiler.py#7",
+          "line": 287,
+          "quote": "== drop-block:pylingual/decompiler.py#7 reward=0.0 rc=0 scored 2.5s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.5
+        },
+        {
+          "label": "drop-block:pylingual/main.py#1",
+          "line": 313,
+          "quote": "== drop-block:pylingual/main.py#1 reward=0.0 rc=0 scored 2.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.4
+        },
+        {
+          "label": "drop-block:pylingual/decompiler.py#2",
+          "line": 357,
+          "quote": "== drop-block:pylingual/decompiler.py#2 reward=0.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "drop-block:pylingual/main.py#0",
+          "line": 394,
+          "quote": "== drop-block:pylingual/main.py#0 reward=0.0 rc=0 scored 2.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.1
+        },
+        {
+          "label": "drop-block:pylingual/main.py#2",
+          "line": 439,
+          "quote": "== drop-block:pylingual/main.py#2 reward=0.0 rc=0 scored 2.3s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.3
+        },
+        {
+          "label": "mutant:c1dee1dff7",
+          "line": 484,
+          "quote": "== mutant:c1dee1dff7 reward=1.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "mutant:c16b2eb485",
+          "line": 507,
+          "quote": "== mutant:c16b2eb485 reward=1.0 rc=0 scored 1.9s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.9
+        },
+        {
+          "label": "mutant:4e24bdc253",
+          "line": 530,
+          "quote": "== mutant:4e24bdc253 reward=0.0 rc=0 scored 1.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.7
+        },
+        {
+          "label": "mutant:8a67ff570a",
+          "line": 582,
+          "quote": "== mutant:8a67ff570a reward=1.0 rc=0 scored 1.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.8
+        },
+        {
+          "label": "mutant:cf1cfd258c",
+          "line": 605,
+          "quote": "== mutant:cf1cfd258c reward=0.0 rc=0 scored 1.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.7
+        },
+        {
+          "label": "mutant:6971856e9a",
+          "line": 644,
+          "quote": "== mutant:6971856e9a reward=1.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "mutant:fd4314d7da",
+          "line": 667,
+          "quote": "== mutant:fd4314d7da reward=0.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "mutant:90e27b7f49",
+          "line": 694,
+          "quote": "== mutant:90e27b7f49 reward=0.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "mutant:a9537af276",
+          "line": 738,
+          "quote": "== mutant:a9537af276 reward=1.0 rc=0 scored 1.7s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.7
+        },
+        {
+          "label": "mutant:7b01b1d3a3",
+          "line": 761,
+          "quote": "== mutant:7b01b1d3a3 reward=1.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        },
+        {
+          "label": "mutant:95b3cdb069",
+          "line": 784,
+          "quote": "== mutant:95b3cdb069 reward=0.0 rc=0 scored 1.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.7
+        },
+        {
+          "label": "mutant:227aacf821",
+          "line": 826,
+          "quote": "== mutant:227aacf821 reward=1.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        },
+        {
+          "label": "mutant:256f8358bd",
+          "line": 849,
+          "quote": "== mutant:256f8358bd reward=0.0 rc=0 scored 1.5s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.5
+        },
+        {
+          "label": "mutant:95fa015fa1",
+          "line": 887,
+          "quote": "== mutant:95fa015fa1 reward=1.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        },
+        {
+          "label": "mutant:f38e91cdeb",
+          "line": 910,
+          "quote": "== mutant:f38e91cdeb reward=0.0 rc=0 scored 1.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.7
+        },
+        {
+          "label": "mutant:6de2fe0ecb",
+          "line": 954,
+          "quote": "== mutant:6de2fe0ecb reward=1.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        },
+        {
+          "label": "mutant:a4871d218c",
+          "line": 977,
+          "quote": "== mutant:a4871d218c reward=0.0 rc=0 scored 1.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.7
+        },
+        {
+          "label": "mutant:d9bf37b48f",
+          "line": 1026,
+          "quote": "== mutant:d9bf37b48f reward=1.0 rc=0 scored 1.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.8
+        },
+        {
+          "label": "mutant:d280b56a6e",
+          "line": 1049,
+          "quote": "== mutant:d280b56a6e reward=0.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        },
+        {
+          "label": "mutant:55e2ea84fb",
+          "line": 1092,
+          "quote": "== mutant:55e2ea84fb reward=1.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        }
+      ],
+      "limits": [
+        "The report embeds only fourteen block-stage grade rows. All twenty line grades, including every survivor, are bound from actual grades.log headers; none is inferred from report.grades.",
+        "Forty mutants were generated, twenty attempted at the configured mutant limit, nine killed and eleven reported survivors, with zero recorded unscored line attempts. The twenty generated-but-unattempted mutants are not adjudicated.",
+        "Configured max_grades=24 and grade_timeout_s=1800 are preserved as recorded. The actual log has thirty-four scored rc=0 headers across the block and line stages; the review does not replace the observed count with a presumed total hard cap.",
+        "Only this task is reviewed. No fail-block witness exists for its pass block verdict; a pass block result is not a certificate of full test adequacy.",
+        "The one concrete required CLI default-mode counterexample is static source reasoning, not a new scored control, real model run or final-output claim.",
+        "No controls, Docker, model/inference/cloud/remote API, test, build, lint, formatter, producer/validator, git command or commit was run. Only the assigned new JSON is written; parent performs integration and verification."
+      ]
+    }
+  ]
+}

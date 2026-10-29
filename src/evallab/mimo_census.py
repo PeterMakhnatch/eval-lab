@@ -42,7 +42,13 @@ from typing import Any
 
 from evallab.cheat import build_verdicts, collect_cheat_attempts
 from evallab.cheat_ladder import ATTACKS, CHEAT_AGENT_VERSION
-from evallab.mimo_clean import STATUS_BUILT, acceptance_pass, load_manifest, summarize_trials
+from evallab.mimo_clean import (
+    STATUS_BUILT,
+    acceptance_pass,
+    load_manifest,
+    scientific_exclusion,
+    summarize_trials,
+)
 
 #: Census version id (job-name namespace + manifest_version values).
 CENSUS_VERSION = "mimo-clean-census-v1"
@@ -694,6 +700,8 @@ def census_row_pass(row: Mapping[str, Any], *, has_reference_fix: bool = True) -
     Tasks with no reference fix pass with explicit ``"n/a"`` (or a blank
     cell from rows written before the explicit marker existed).
     """
+    if scientific_exclusion(str(row.get("task_id", "")), str(row.get("final_digest", ""))):
+        return False
     oracle_ok = row.get("oracle") in ("1", "n/a")
     nop_ok = row.get("nop") == "0"
     ladder_ok = row.get("ladder_verdict") == "clean" and not row.get("ladder_cracking_attacks")
@@ -806,6 +814,9 @@ def combine_task_rows(
         census_locations=combined["census_locations"],
         has_reference_fix=has_reference_fix,
     )
+    exclusion = scientific_exclusion(combined["task_id"], digest)
+    if exclusion is not None:
+        combined["verify"] = exclusion["verify"]
     return combined
 
 
@@ -946,6 +957,22 @@ def summarize_results(
     for row in rows:
         task_id = str(row.get("task_id", ""))
         fix_known = has_reference_fix.get(task_id, True) if has_reference_fix else True
+        exclusion = scientific_exclusion(task_id, str(row.get("final_digest", "")))
+        if exclusion is not None:
+            bucket = (
+                "excluded" if exclusion["classification"] == "confirmed_defect" else "held"
+            )
+            buckets[bucket] = buckets.get(bucket, 0) + 1
+            failures.append(
+                {
+                    "task_id": task_id,
+                    "reasons": (
+                        f"{exclusion['classification']}:{exclusion['claim_status']}: "
+                        f"{exclusion['reason']}"
+                    ),
+                }
+            )
+            continue
         if census_row_pass(row, has_reference_fix=fix_known):
             buckets["pass"] = buckets.get("pass", 0) + 1
             continue
@@ -985,6 +1012,8 @@ def summarize_results(
         "total": len(rows),
         "passed": buckets.get("pass", 0),
         "failed": buckets.get("fail", 0),
+        "excluded": buckets.get("excluded", 0),
+        "held": buckets.get("held", 0),
         "backend_unsupported": buckets.get("backend-unsupported", 0),
         "partial": buckets.get("partial", 0),
         "failures": sorted(failures, key=lambda item: item["task_id"]),
@@ -2444,10 +2473,16 @@ def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     summary = summarize_results(current_rows, has_reference_fix=has_reference_fix)
     print(
         f"results.csv: {summary['passed']}/{summary['total']} current-digest rows pass "
+        f"({summary['excluded']} confirmed exclusions; {summary['held']} conservative holds) "
         f"({len(rows)} historical/current rows retained) -> {out}"
     )
     for failure in summary["failures"]:
-        print(f"FAIL {failure['task_id']}: {failure['reasons']}")
+        label = (
+            "HOLD" if failure["reasons"].startswith("conservative_hold:")
+            else "EXCLUDE" if failure["reasons"].startswith("confirmed_defect:")
+            else "FAIL"
+        )
+        print(f"{label} {failure['task_id']}: {failure['reasons']}")
     # Task-level aggregate: combine each task's per-backend rows on the exact
     # current manifest digest (controls Daytona + ladder/fix Modal) into the
     # verify grade that lands in manifest.verify. Per-check columns above
@@ -2499,7 +2534,7 @@ def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         print(f"manifest verify updated for {updated}/{len(manifest_rows)} tasks")
         if overridden:
             print(f"manifest verify overrides applied for {overridden} tasks ({overrides_path})")
-    return 0 if summary["failed"] == 0 else 1
+    return 0 if not (summary["failed"] or summary["excluded"] or summary["held"]) else 1
 
 
 def _record_spend_command(args: argparse.Namespace, root: Path, **_: Any) -> int:

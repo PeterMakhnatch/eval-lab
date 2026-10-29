@@ -1,0 +1,1165 @@
+{
+  "schema": "mimo.line_backfill_reviews/v1",
+  "reviewed_by": "ReviewBackfill02B (native requirement-level static source review)",
+  "reviewed_at_utc": "2026-10-21T18:04:54.693591+00:00",
+  "frozen_at_utc": "2026-10-21T17:59:21.272775+00:00",
+  "review_scope": {
+    "task_ids": [
+      "format-code-task-001399",
+      "format-code-task-002680",
+      "format-code-task-000159",
+      "format-code-task-000158",
+      "format-code-task-002884"
+    ],
+    "owned_output": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/02b.json",
+    "method": "Freeze completed report/log/reference/witness byte digests; parse authoritative grades.log headers, review complete mutant/minimal/dropped patches against actual instructions, and preserve missing consumer semantics as uncertainty.",
+    "new_executions": 0,
+    "grade_authority": "grades.log, including mutant headers absent from report.grades snapshot",
+    "report_snapshot_semantics": "report.grades precedes the line-mutant stage; it is provenance only, never used to fill missing recorded log grades.",
+    "resume_plan": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+      "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a"
+    },
+    "old_review_authority": {
+      "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T173454875812Z-c58c97a1bcdb438e8e44d058287010b6/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+      "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+      "rows": {
+        "format-code-task-001399": 27,
+        "format-code-task-002680": 28,
+        "format-code-task-000159": 29,
+        "format-code-task-000158": 30,
+        "format-code-task-002884": 31
+      }
+    }
+  },
+  "label_counts": {
+    "reports": 5,
+    "survivors": 8,
+    "survivor_labels": {
+      "required_gap": 4,
+      "equivalent_or_optional": 2,
+      "non_positive": 0,
+      "uncertain": 2
+    },
+    "block_fail_candidates": 2,
+    "block_labels": {
+      "confirmed_weak": 0,
+      "neutral": 2,
+      "out_of_scope": 0,
+      "uncertain": 0
+    },
+    "reports_with_usable_full_nop_controls": 5,
+    "recorded_mutant_attempts": 71,
+    "recorded_unscored_mutants": 0,
+    "generated_mutants_not_attempted": 295
+  },
+  "limitations": [
+    "No Docker, builds, lint, tests, formatters, model/paid API calls, or fresh replay were run. Required-gap labels are static semantic adjudications bound to already recorded positive scores, not independent new reproductions.",
+    "Two Ppar survivors retain uncertainty because the complete bound public stream/embedding/coercion consumers are not in the retained package/reference sources; passing test names do not substitute for those consumers.",
+    "The 002680 scan attempted 20 of 29 generated mutants; 002884 attempted 20 of 306. The remaining 295 candidates have no attempted grade and are not labelled safe, killed, or unscored.",
+    "All five completed mutant stages are recorded measured with zero unscored attempts. Missing independent survivor confirmation and historical atlas line stages remain explicitly not attempted/not reported; null is not reward zero.",
+    "Zero-survivor rows (001399 and 000158), neutral block omissions, and equivalent/optional line labels are claim-specific negatives, not exhaustive clean-task certificates."
+  ],
+  "reports": [
+    {
+      "task_id": "format-code-task-001399",
+      "package_digest": "sha256:72b7adda0de2c58bc9ed2e46d6b61c120be073467505bc9b2f91cd1fe0a6ddc6",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001399",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001399/report.json",
+      "report_sha256": "ef851bebeaa155a678da54190096b70eabff53d51530edb6f202abcfd6a47c64",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001399/grades.log",
+      "grades_log_sha256": "9e1f54ead01eca14b1228cb6e9209ab18c53ab36f0ee11cc2f6b6952e76e3f12",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001399/solution.patch",
+      "reference_sha256": "8e478e9bb2b6c71ca86d012e5d2868c206417a8b708a53eaa7de6f2bb619fb15",
+      "minimal_patch_path": null,
+      "minimal_patch_sha256": null,
+      "dropped_patch_path": null,
+      "dropped_patch_sha256": null,
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001399/instruction.md",
+      "instruction_sha256": "9206b002a3d99d79d1d7dbf2a512ab59aecf428b90c264fa4777de770233fd5b",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001399/task.toml",
+      "task_toml_sha256": "7a2c9ad3a898a847fadb6ee99c1a14378a421ef98f635c34cd1346083ac876f6",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:3693c7849db23e02565ad4faeb047581e2cdc0f66f9fb8190009d15f27bcb6e5",
+      "started_at": "2026-10-21T17:46:56+00:00",
+      "finished_at": "2026-10-21T17:47:20+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "pass",
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "status": "scored",
+          "rc": 0
+        },
+        "nop": {
+          "reward": 0.0,
+          "status": "scored",
+          "rc": 0
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001399/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.4s",
+          "seconds": 1.4
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001399/grades.log",
+          "line": 33,
+          "quote": "== nop reward=0.0 rc=0 scored 1.5s",
+          "seconds": 1.5
+        }
+      },
+      "binding_checks": {
+        "package_digest_matches_resume_plan": true,
+        "package_digest_matches_frozen_atlas": true,
+        "package_path_matches_resume_plan": true,
+        "reference_sha256_matches_report": true,
+        "reference_sha256_matches_resume_plan": true,
+        "reference_sha256_matches_frozen_atlas": true,
+        "instruction_sha256_matches_frozen_atlas": true,
+        "task_toml_sha256_matches_frozen_atlas": true,
+        "current_package_digest_recomputed": false,
+        "package_binding_scope": "Measured report digest agrees with resume plan and frozen atlas. Instruction/task.toml/reference bytes are separately hashed; the package was not recomposed or rerun."
+      },
+      "block": null,
+      "block_stage": {
+        "status": "measured",
+        "verdict": "pass",
+        "kept_fraction": 1.0,
+        "kept_blocks": [
+          "graphene_django/filter/fields.py#0",
+          "graphene_django/filter/fields.py#1",
+          "graphene_django/filter/fields.py#2",
+          "graphene_django/filter/fields.py#3"
+        ],
+        "dropped_code_blocks": [],
+        "confirmation_grade": null,
+        "confirmation_evidence": null,
+        "confirmation_stage_availability": "not_attempted_no_passing_omission_reported",
+        "bounded_limits": {
+          "grade_timeout_s": 1800,
+          "max_grades": 24,
+          "memory": "3g",
+          "network": "none"
+        }
+      },
+      "survivors": [],
+      "line_scan_summary": {
+        "generated": 3,
+        "killed": 3,
+        "limit": 20,
+        "reason": "",
+        "severity": null,
+        "stage": "S2.ref_mutants",
+        "status": "measured",
+        "tried": 3,
+        "unscored": 0,
+        "verdict": "pass"
+      },
+      "reported_survivor_count": 0,
+      "reviewed_survivor_count": 0,
+      "unreviewed_survivor_ids": [],
+      "recorded_mutant_grade_count": 3,
+      "unscored_mutants": [],
+      "unattempted_generated_mutants": {
+        "count": 0,
+        "ids": [],
+        "status": "all_generated_attempted",
+        "reason": "Every generated candidate was attempted; this is not exhaustive over possible mutations."
+      },
+      "survivor_independent_confirmation": {
+        "status": "not_attempted_in_this_review",
+        "reason": "Assigned review is existing-evidence only; no Docker/test/model execution or new mutant replay was authorized."
+      },
+      "previous_atlas_line_stage": {
+        "primary_pass": "not_run_or_not_reported",
+        "scans": []
+      },
+      "unknowns_not_resolved_by_this_review": [],
+      "not_a_clean_task_certificate": true
+    },
+    {
+      "task_id": "format-code-task-002680",
+      "package_digest": "sha256:205818a003ea443311e98770c8da6aeebfa5c04f71f4b72511f9f6d663cd6606",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002680",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/report.json",
+      "report_sha256": "3ed5205624e2f7d09240e71e9f85665e1cd21ed4c1996df5699e6d7aa62e4f43",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log",
+      "grades_log_sha256": "a18a92ee821d5c3327d693554ecbfd04446627389133c93c57370e8be70b52e4",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002680/solution.patch",
+      "reference_sha256": "9ed7244c7cfe7b15f629cc71d8f9e9989b391710ee46d774b971b10a8dd8c7e8",
+      "minimal_patch_path": null,
+      "minimal_patch_sha256": null,
+      "dropped_patch_path": null,
+      "dropped_patch_sha256": null,
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002680/instruction.md",
+      "instruction_sha256": "c16491e420db071fcbd4b262d9665e0fce13473ada002c21200022d7ae81e6ef",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002680/task.toml",
+      "task_toml_sha256": "53307ace72a3b249e388216ad761dfbfd3621837f408b5748a6b565d98d8ac2f",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:35473262c3e4bea26a36f8ff278aa0d3e1fbf153815d4551b9f48cb104db25d0",
+      "started_at": "2026-10-21T17:47:26+00:00",
+      "finished_at": "2026-10-21T17:48:34+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "pass",
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "status": "scored",
+          "rc": 0
+        },
+        "nop": {
+          "reward": 0.0,
+          "status": "scored",
+          "rc": 0
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.3s",
+          "seconds": 1.3
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log",
+          "line": 44,
+          "quote": "== nop reward=0.0 rc=0 scored 1.3s",
+          "seconds": 1.3
+        }
+      },
+      "binding_checks": {
+        "package_digest_matches_resume_plan": true,
+        "package_digest_matches_frozen_atlas": true,
+        "package_path_matches_resume_plan": true,
+        "reference_sha256_matches_report": true,
+        "reference_sha256_matches_resume_plan": true,
+        "reference_sha256_matches_frozen_atlas": true,
+        "instruction_sha256_matches_frozen_atlas": true,
+        "task_toml_sha256_matches_frozen_atlas": true,
+        "current_package_digest_recomputed": false,
+        "package_binding_scope": "Measured report digest agrees with resume plan and frozen atlas. Instruction/task.toml/reference bytes are separately hashed; the package was not recomposed or rerun."
+      },
+      "block": null,
+      "block_stage": {
+        "status": "measured",
+        "verdict": "pass",
+        "kept_fraction": 1.0,
+        "kept_blocks": [
+          "sc3/seq/patterns/eventpatterns.py#0",
+          "sc3/seq/patterns/eventpatterns.py#1"
+        ],
+        "dropped_code_blocks": [],
+        "confirmation_grade": null,
+        "confirmation_evidence": null,
+        "confirmation_stage_availability": "not_attempted_no_passing_omission_reported",
+        "bounded_limits": {
+          "grade_timeout_s": 1800,
+          "max_grades": 24,
+          "memory": "3g",
+          "network": "none"
+        }
+      },
+      "survivors": [
+        {
+          "id": "97e1f2b3f8",
+          "label": "uncertain",
+          "reason": "The complete witness changes the child-exhaustion handler from queue.peek()[0] to [1]. A bound traceback documents peek as (priority, task), and the visible Ppar code stores child streams as tasks, so using the task in nexttime - now is a concrete timing concern under the explicit silent-gap requirement. However, the recorded survivor also passes the named child-exhaustion test, and the retained inputs do not include the complete stream arithmetic/event coercion and public stream-wrapper implementations. I do not promote this source-level concern to a proven required-gap outcome without resolving that discrepancy in the exact bound implementation.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002680/instruction.md:7: \"If one child stream ends while others remain, the parallel stream should yield a silent event for the gap until the next remaining child event. If all child streams end, the `Ppar` stream should stop cleanly with the standard stream exhaustion behavior; `Ppar()` with no children should stop immediately.\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002680/solution.patch:39-43: \"+                stream = queue.pop()[1] / +                outevent = stream.next(inevent) / +                outevent = evt.event(outevent)  # as_event / +                # // Requeue stream. / +                queue.add(now + float(outevent('delta')), stream)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/97e1f2b3f8.patch:48-54: \"+            except stm.StopStream:  # next / +                if not queue.empty(): / +                    # // That child stream ended, so rest until next one. / +                    nexttime = queue.peek()[1] / +                    outevent = evt.silent(nexttime - now, inevent) / +                    inevent = yield outevent / +                    now = nexttime\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log:431-446: \"== mutant:4ea9befd85 reward=0.0 rc=0 scored 1.3s /  ''' /         Return the lowest/highest prio entry as a tuple (prio, task) without /         removing it. Raise KeyError if empty. /      /         ''' /      /         if self._queue: /             if smallest: /                 prio, count, task = heapq.nsmallest( /                     1, self._queue, key=self._small_key)[0] /             else: /                 prio, count, task = heapq.nlargest( /                     1, self._queue, key=self._large_key)[0] /             if task is not self._REMOVED: /                 return (prio, task)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002680/tests/test.patch:115-128: \"+def test_child_exhaustion_yields_silent_gap_to_remaining_child(): / + / + / + / +    stream = iter(Ppar(_child([\\\"a1\\\", \\\"a2\\\"], 2), _child([\\\"b1\\\"], 0.5))) / + / +    _assert_sequence(_drain_events(stream), [ / +        (\\\"value\\\", \\\"a1\\\", 0.0), / +        (\\\"value\\\", \\\"b1\\\", 0.5), / +        (\\\"silent\\\", None, 1.5), / +        (\\\"value\\\", \\\"a2\\\", 2.0), / +    ]) / +    with pytest.raises(stm.StopStream): / +        stream.next(None)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log:568-571: \"== mutant:97e1f2b3f8 reward=1.0 rc=0 scored 1.3s / _stateful_sequence PASSED [ 22%] / usercase-test-coderl/test_ppar_event_stream.py::test_child_output_dicts_are_converted_to_note_events PASSED [ 33%] / usercase-test-coderl/test_ppar_event_stream.py::test_child_exhaustion_yields_silent_gap_to_remaining_child PASSED [ 44%]\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log:568: \"== mutant:97e1f2b3f8 reward=1.0 rc=0 scored 1.3s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "status": "scored",
+            "rc": 0
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log",
+            "line": 568,
+            "quote": "== mutant:97e1f2b3f8 reward=1.0 rc=0 scored 1.3s",
+            "seconds": 1.3
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/97e1f2b3f8.patch",
+          "patch_sha256": "990b88116b79658c7910c3d57c01146fb0e816c0376258f58e7d0e323ef426c9",
+          "mutation": {
+            "edit": "--- a/sc3/seq/patterns/eventpatterns.py\n+++ b/sc3/seq/patterns/eventpatterns.py\n@@ -248,7 +248,7 @@\n             except stm.StopStream:  # next\n                 if not queue.empty():\n                     # // That child stream ended, so rest until next one.\n-                    nexttime = queue.peek()[0]\n+                    nexttime = queue.peek()[1]\n                     outevent = evt.silent(nexttime - now, inevent)\n                     inevent = yield outevent\n                     now = nexttime\n",
+            "end_line": 251,
+            "file": "sc3/seq/patterns/eventpatterns.py",
+            "id": "97e1f2b3f8",
+            "line": 251,
+            "operator": "integer-shift",
+            "original": "0",
+            "replacement": "1"
+          },
+          "patch_form": "Complete base-to-mutant patch: full reference fix plus the recorded one-edit mutation, not an edit-only patch.",
+          "static_counterexample": null,
+          "missing_evidence": [
+            "Complete bound sc3/base/stream.py and sc3/seq/event.py, including arithmetic/coercion of a queued stream used as a duration; complete TaskQueue implementation and public Ppar import/stream adapters; source-grounded explanation for the recorded child-exhaustion test passing this patch."
+          ],
+          "scope": "Preserved as a positive-scoring unresolved candidate. No TypeError or wrong public event sequence is asserted solely from the omitted consumer code.",
+          "analysis_kind": "Static requirement-level adjudication over existing scored local evidence; no new execution or independent mutant rerun."
+        },
+        {
+          "id": "c3ec037243",
+          "label": "uncertain",
+          "reason": "The mutation changes the terminal generator return from inevent to not inevent; it does not change any visible yield. The requirement promises ordinary public stream exhaustion, not a particular generator return payload. The complete bound EventPattern/stream wrapper and parent-embedding callers are absent, so it is unknown whether that return payload is discarded, propagated as state, or changes the public exhaustion behavior. A reference difference and passing tests alone do not settle this consumer question.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002680/instruction.md:3: \"I want a `Ppar(*patterns)` event pattern that lets me run several child event patterns in parallel through the normal pattern stream API. After constructing it, converting it with `iter()` or `stm.stream()` should produce a stateful event stream whose `next(inevent=None)` calls merge the child streams by scheduled logical time.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002680/instruction.md:7: \"If one child stream ends while others remain, the parallel stream should yield a silent event for the gap until the next remaining child event. If all child streams end, the `Ppar` stream should stop cleanly with the standard stream exhaustion behavior; `Ppar()` with no children should stop immediately.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/c3ec037243.patch:48-61: \"+            except stm.StopStream:  # next / +                if not queue.empty(): / +                    # // That child stream ended, so rest until next one. / +                    nexttime = queue.peek()[0] / +                    outevent = evt.silent(nexttime - now, inevent) / +                    inevent = yield outevent / +                    now = nexttime / +                else: / +                    queue.clear() / +        return not inevent / + / +    def _init_streams(self, queue): / +        for pattern in self.patterns: / +            queue.add(0.0, stm.stream(pattern))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002680/tests/test.patch:131-151: \"+def test_empty_ppar_stops_immediately_with_stopstream(): / + / + / + / +    stream = iter(Ppar()) / + / +    with pytest.raises(stm.StopStream): / +        stream.next(None) / + / + / +def test_next_after_all_children_end_raises_stopstream(): / + / + / + / +    stream = iter(Ppar(_child([\\\"solo\\\"], 1))) / + / +    _assert_value_event(_next_event(stream), \\\"solo\\\", 1.0) / +    with pytest.raises(stm.StopStream): / +        stream.next(None) / +    with pytest.raises(stm.StopStream): / +        stream.next(None)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log:611: \"== mutant:c3ec037243 reward=1.0 rc=0 scored 1.3s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "status": "scored",
+            "rc": 0
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log",
+            "line": 611,
+            "quote": "== mutant:c3ec037243 reward=1.0 rc=0 scored 1.3s",
+            "seconds": 1.3
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/c3ec037243.patch",
+          "patch_sha256": "d86cae38dd10ccdf16aa8d7e68f9c4b2a2695c3dc7b4cb85e5ac529c66b64806",
+          "mutation": {
+            "edit": "--- a/sc3/seq/patterns/eventpatterns.py\n+++ b/sc3/seq/patterns/eventpatterns.py\n@@ -254,7 +254,7 @@\n                     now = nexttime\n                 else:\n                     queue.clear()\n-        return inevent\n+        return not inevent\n \n     def _init_streams(self, queue):\n         for pattern in self.patterns:\n",
+            "end_line": 257,
+            "file": "sc3/seq/patterns/eventpatterns.py",
+            "id": "c3ec037243",
+            "line": 257,
+            "operator": "negate-boolean",
+            "original": "inevent",
+            "replacement": "not inevent"
+          },
+          "patch_form": "Complete base-to-mutant patch: full reference fix plus the recorded one-edit mutation, not an edit-only patch.",
+          "static_counterexample": null,
+          "missing_evidence": [
+            "Bound EventPattern and stream next/embed/StopStream adapters and parent embedding callers that consume, or demonstrably ignore, the value returned by Ppar.__embed__."
+          ],
+          "scope": "Unknown terminal return-value consumption is not inherited from unrelated patterns or inferred from omitted callers.",
+          "analysis_kind": "Static requirement-level adjudication over existing scored local evidence; no new execution or independent mutant rerun."
+        },
+        {
+          "id": "342ebe7469",
+          "label": "equivalent_or_optional",
+          "reason": "The removed queue.clear() occurs only in the else branch of if not queue.empty(), after a child has exhausted and no scheduled child remains. The queue is private to this __embed__ call, and the same empty test controls the surrounding loop; replacing that terminal empty-queue clear with pass changes none of the visible yields, scheduling calculations, or final return. This is not a demonstrated failure of the requested event/exhaustion behavior. The label is limited to that task-visible behavior, not a claim about unrequested internal queue housekeeping.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002680/instruction.md:7: \"If one child stream ends while others remain, the parallel stream should yield a silent event for the gap until the next remaining child event. If all child streams end, the `Ppar` stream should stop cleanly with the standard stream exhaustion behavior; `Ppar()` with no children should stop immediately.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/342ebe7469.patch:25-29: \"+    def __embed__(self, inevent): / +        # assn? / +        queue = tsq.TaskQueue() / +        now = 0.0 / +        self._init_streams(queue)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/342ebe7469.patch:37: \"+        while not queue.empty():\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/342ebe7469.patch:48-57: \"+            except stm.StopStream:  # next / +                if not queue.empty(): / +                    # // That child stream ended, so rest until next one. / +                    nexttime = queue.peek()[0] / +                    outevent = evt.silent(nexttime - now, inevent) / +                    inevent = yield outevent / +                    now = nexttime / +                else: / +                    pass / +        return inevent\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log:699: \"== mutant:342ebe7469 reward=1.0 rc=0 scored 1.3s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "status": "scored",
+            "rc": 0
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log",
+            "line": 699,
+            "quote": "== mutant:342ebe7469 reward=1.0 rc=0 scored 1.3s",
+            "seconds": 1.3
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/342ebe7469.patch",
+          "patch_sha256": "4d6b21941ad54fbc6e57e6d7284012fef7b223a1dc58abd4f4b7f75f0ee70ae9",
+          "mutation": {
+            "edit": "--- a/sc3/seq/patterns/eventpatterns.py\n+++ b/sc3/seq/patterns/eventpatterns.py\n@@ -253,7 +253,7 @@\n                     inevent = yield outevent\n                     now = nexttime\n                 else:\n-                    queue.clear()\n+                    pass\n         return inevent\n \n     def _init_streams(self, queue):\n",
+            "end_line": 256,
+            "file": "sc3/seq/patterns/eventpatterns.py",
+            "id": "342ebe7469",
+            "line": 256,
+            "operator": "drop-statement",
+            "original": "queue.clear()",
+            "replacement": "pass"
+          },
+          "patch_form": "Complete base-to-mutant patch: full reference fix plus the recorded one-edit mutation, not an edit-only patch.",
+          "static_counterexample": null,
+          "missing_evidence": [],
+          "scope": "Base Ppar public event sequence and clean exhaustion. No claim that arbitrary TaskQueue housekeeping or external subclass contracts are identical.",
+          "analysis_kind": "Static requirement-level adjudication over existing scored local evidence; no new execution or independent mutant rerun."
+        },
+        {
+          "id": "2425374389",
+          "label": "equivalent_or_optional",
+          "reason": "The changed call is confined to the initial nexttime > 0.0 branch. Base Ppar._init_streams schedules every supplied child at priority 0.0; peek returns the priority in element 0. Thus nonempty Ppar starts with nexttime == 0.0 and skips this call, while empty Ppar skips the enclosing block. The change can matter for an override that initially delays children, but delayed-start subclasses are not requested and the only such reference code is commented out. It does not alter the specified base Ppar workflow.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002680/instruction.md:5: \"Each child should start scheduled at time 0 in the order it was passed.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/2425374389.patch:29-36: \"+        self._init_streams(queue) / +        # // If first event not at time zero. / +        if not queue.empty(): / +            nexttime = queue.peek()[0] / +            if nexttime > 0.0: / +                outevent = evt.silent(nexttime, not inevent) / +                inevent = yield outevent / +                now = nexttime\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/2425374389.patch:59-61: \"+    def _init_streams(self, queue): / +        for pattern in self.patterns: / +            queue.add(0.0, stm.stream(pattern))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log:433-446: \"        Return the lowest/highest prio entry as a tuple (prio, task) without /         removing it. Raise KeyError if empty. /      /         ''' /      /         if self._queue: /             if smallest: /                 prio, count, task = heapq.nsmallest( /                     1, self._queue, key=self._small_key)[0] /             else: /                 prio, count, task = heapq.nlargest( /                     1, self._queue, key=self._large_key)[0] /             if task is not self._REMOVED: /                 return (prio, task)\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002680/solution.patch:64-70: \"+# class Ptpar(Ppar): / +#     def __init__(self, *args):  # (0, patter)? / +#         self.args = list(args) / +# / +#     def _init_streams(self, queue): / +#         for i in range(0, len(self.args) - 1, 2):  # gen_cclumps(lst, 2) / +#             queue.add(self.args[i], stm.stream(self.args[i + 1]))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log:876: \"== mutant:2425374389 reward=1.0 rc=0 scored 1.4s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "status": "scored",
+            "rc": 0
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/grades.log",
+            "line": 876,
+            "quote": "== mutant:2425374389 reward=1.0 rc=0 scored 1.4s",
+            "seconds": 1.4
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002680/mutants/2425374389.patch",
+          "patch_sha256": "1551511468192c07140771f41c09c2aee11d74d92fa6754906787a64bf04ee43",
+          "mutation": {
+            "edit": "--- a/sc3/seq/patterns/eventpatterns.py\n+++ b/sc3/seq/patterns/eventpatterns.py\n@@ -231,7 +231,7 @@\n         if not queue.empty():\n             nexttime = queue.peek()[0]\n             if nexttime > 0.0:\n-                outevent = evt.silent(nexttime, inevent)\n+                outevent = evt.silent(nexttime, not inevent)\n                 inevent = yield outevent\n                 now = nexttime\n         while not queue.empty():\n",
+            "end_line": 234,
+            "file": "sc3/seq/patterns/eventpatterns.py",
+            "id": "2425374389",
+            "line": 234,
+            "operator": "negate-boolean",
+            "original": "inevent",
+            "replacement": "not inevent"
+          },
+          "patch_form": "Complete base-to-mutant patch: full reference fix plus the recorded one-edit mutation, not an edit-only patch.",
+          "static_counterexample": null,
+          "missing_evidence": [],
+          "scope": "Requested Ppar(*patterns) implementation, not arbitrary _init_streams overrides or the commented Ptpar sketch.",
+          "analysis_kind": "Static requirement-level adjudication over existing scored local evidence; no new execution or independent mutant rerun."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 29,
+        "killed": 16,
+        "limit": 20,
+        "reason": "",
+        "severity": "medium",
+        "stage": "S2.ref_mutants",
+        "status": "measured",
+        "tried": 20,
+        "unscored": 0,
+        "verdict": "fail"
+      },
+      "reported_survivor_count": 4,
+      "reviewed_survivor_count": 4,
+      "unreviewed_survivor_ids": [],
+      "recorded_mutant_grade_count": 20,
+      "unscored_mutants": [],
+      "unattempted_generated_mutants": {
+        "count": 9,
+        "ids": null,
+        "status": "bounded_not_attempted",
+        "reason": "Line mutant stage tried 20 of 29 generated candidates with limit=20; unattempted identities/results are not present in report."
+      },
+      "survivor_independent_confirmation": {
+        "status": "not_attempted_in_this_review",
+        "reason": "Assigned review is existing-evidence only; no Docker/test/model execution or new mutant replay was authorized."
+      },
+      "previous_atlas_line_stage": {
+        "primary_pass": "not_run_or_not_reported",
+        "scans": []
+      },
+      "unknowns_not_resolved_by_this_review": [
+        "No complete bound original application source tree is included in the task package or reference diff; omitted consumers are not reconstructed from unrelated versions."
+      ],
+      "not_a_clean_task_certificate": true
+    },
+    {
+      "task_id": "format-code-task-000159",
+      "package_digest": "sha256:2ad471b8c15d6d1a1cfc5f295e5fd5ce8ead313ea2c3a1b7822893cfb53097d9",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/report.json",
+      "report_sha256": "c03477fda729ff947090abbe87b67643955f0034a28cd1dcaed8648d3378be13",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/grades.log",
+      "grades_log_sha256": "e33bfe1d1ff5ae60d70d86eff8909a625e899b567b074796fb4af480cef97b13",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000159/solution.patch",
+      "reference_sha256": "2ac5f06d6ac8dab4c16caa315bbd141477f85a26acd76d7968edfb8ab811d1a1",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/minimal.patch",
+      "minimal_patch_sha256": "e6d193a69d186eea5dcfc691130b644054b03d04e0c9af11e97cb98a5e7d1f66",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/dropped.patch",
+      "dropped_patch_sha256": "906c034a3d7c16cdc071f7d23b4b072891b235222f4cd398a29af12bceb131fe",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/instruction.md",
+      "instruction_sha256": "118162384d50c89a54847e70aa4f83f5e5b979e821bbc29776b2a7c3550dffc7",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/task.toml",
+      "task_toml_sha256": "dccaba4027bc88a05f088610a7e3d02b3c042448b93e9b0d075c299b049bcedc",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:2260ba9564e3b8fd5b8163f14e752cc9c8cc8caa4b8f6f6292b2c4f1e78fb116",
+      "started_at": "2026-10-21T17:48:59+00:00",
+      "finished_at": "2026-10-21T17:50:29+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "status": "scored",
+          "rc": 0
+        },
+        "nop": {
+          "reward": 0.0,
+          "status": "scored",
+          "rc": 0
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.4s",
+          "seconds": 1.4
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/grades.log",
+          "line": 34,
+          "quote": "== nop reward=0.0 rc=0 scored 1.4s",
+          "seconds": 1.4
+        }
+      },
+      "binding_checks": {
+        "package_digest_matches_resume_plan": true,
+        "package_digest_matches_frozen_atlas": true,
+        "package_path_matches_resume_plan": true,
+        "reference_sha256_matches_report": true,
+        "reference_sha256_matches_resume_plan": true,
+        "reference_sha256_matches_frozen_atlas": true,
+        "instruction_sha256_matches_frozen_atlas": true,
+        "task_toml_sha256_matches_frozen_atlas": true,
+        "current_package_digest_recomputed": false,
+        "package_binding_scope": "Measured report digest agrees with resume plan and frozen atlas. Instruction/task.toml/reference bytes are separately hashed; the package was not recomposed or rerun."
+      },
+      "block": {
+        "label": "neutral",
+        "reason": "The passing minimal witness retains the complete new SIM118 message, _get_sim118 implementation, and visit_Compare registration. The omitted changes are only README rule documentation and the package version bump; neither is an acceptance criterion of the requested membership simplification. This is a neutral block omission, not a missing producer/consumer implementation. The prior neutral adjudication is reusable because the measured package/reference and both old/current minimal and dropped patch byte hashes match exactly, and the new authoritative log supplies scored rc=0 full=1, nop=0, and confirm=1. Neutrality applies only to these omitted blocks; the separately reviewed line mutants can still expose required gaps.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/instruction.md:3: \"[New Rule] Simplify \\\"in dict.keys()\\\" to \\\"in dict\\\"\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/instruction.md:10-15: \"```python / # Bad / key in dict.keys() /  / # Good / key in dict\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/minimal.patch:17-65: \"+def _get_sim118(node: ast.Compare) -> List[Tuple[int, int, str]]: / +    \\\"\\\"\\\" / +    Get a list of all usages of \\\"key in dict.keys()\\\" / + / +    Compare(left=Name(id='key', ctx=Load()), / +            ops=[In()], / +            comparators=[ / +                Call( / +                    func=Attribute( / +                        value=Name(id='dict', ctx=Load()), / +                        attr='keys', / +                        ctx=Load(), / +                    ), / +                    args=[], / +                    keywords=[], / +                ), / +            ], / +        ) / +    \\\"\\\"\\\" / +    errors: List[Tuple[int, int, str]] = [] / +    if not ( / +        len(node.ops) == 1 / +        and isinstance(node.ops[0], ast.In) / +        and len(node.comparators) == 1 / +    ): / +        return errors / +    call_node = node.comparators[0] / +    if not isinstance(call_node, ast.Call): / +        return errors / + / +    attr_node = call_node.func / +    if not ( / +        isinstance(call_node.func, ast.Attribute) / +        and call_node.func.attr == \\\"keys\\\" / +        and isinstance(call_node.func.ctx, ast.Load) / +    ): / +        return errors / +    assert isinstance(attr_node, ast.Attribute), \\\"hint for mypy\\\"  # noqa / + / +    key_str = to_source(node.left) / +    dict_str = to_source(attr_node.value) / +    errors.append( / +        ( / +            node.lineno, / +            node.col_offset, / +            SIM118.format(el=key_str, dict=dict_str), / +        ) / +    ) / +    return errors\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/minimal.patch:74-77: \"     def visit_Compare(self, node: ast.Compare) -> None: / +        self.errors += _get_sim118(node) /          self.errors += _get_sim300(node) /          self.generic_visit(node)\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/dropped.patch:1-55: \"diff --git a/README.md b/README.md / index 007dc8f..94e2829 100644 / --- a/README.md / +++ b/README.md / @@ -30,6 +30,8 @@ $ flake8 . /   /  ## Rules /   / +Python-specific rules: / + /  * `SIM101`: Multiple isinstance-calls which can be merged into a single call by /    using a tuple as a second argument ([example](#SIM101)) /  * `SIM102`: Use a single if-statement instead of nested if-statements ([example](#SIM102)) / @@ -48,6 +50,10 @@ $ flake8 . /  * [`SIM115`](https://github.com/MartinThoma/flake8-simplify/issues/17): Use context handler for opening files ([example](#SIM115)) /  * [`SIM116`](https://github.com/MartinThoma/flake8-simplify/issues/31): Use a dictionary instead of many if/else equality checks ([example](#SIM116)) /  * [`SIM117`](https://github.com/MartinThoma/flake8-simplify/issues/35): Merge with-statements that use the same scope ([example](#SIM117)) / +* [`SIM118`](https://github.com/MartinThoma/flake8-simplify/issues/40): Use 'key in dict' instead of 'key in dict.keys()' ([example](#SIM118)) / + / +Comparations: / + /  * `SIM201`: Use 'a != b' instead of 'not a == b' ([example](#SIM201)) /  * `SIM202`: Use 'a == b' instead of 'not a != b' ([example](#SIM202)) /  * `SIM203`: Use 'a not in b' instead of 'not (a in b)' ([example](#SIM203)) / @@ -265,6 +271,17 @@ with A() as a, B() as b: /   /  Thank you for pointing this one out, [Aaron Gokaslan](https://github.com/Skylion007)! /   / +### SIM118 / + / +```python / +# Bad / +key in dict.keys() / + / +# Good / +key in dict / +``` / + / +Thank you for pointing this one out, [Aaron Gokaslan](https://github.com/Skylion007)! /   /  ### SIM201 /   / diff --git a/setup.cfg b/setup.cfg / index 7c0b0ad..42fe6cb 100644 / --- a/setup.cfg / +++ b/setup.cfg / @@ -7,7 +7,7 @@ author_email = info@martin-thoma.de /  maintainer = Martin Thoma /  maintainer_email = info@martin-thoma.de /   / -version = 0.13.0 / +version = 0.14.0 /   /  description = flake8 plugin which checks for code that can be simpified /  long_description = file: README.md\"",
+          "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T173454875812Z-c58c97a1bcdb438e8e44d058287010b6/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl:29#/block/review: \"\\\"Simplify \\\\\\\"in dict.keys()\\\\\\\" to \\\\\\\"in dict\\\\\\\"\\\" (derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/instruction.md:3,10-15). Dropped behavior: README rule documentation and package version metadata only (derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000159/dropped.patch:1-55). _get_sim118 and its visit_Compare registration are retained, so this is not an emitted-rule-without-consumer case (minimal.patch:17-75).\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/grades.log:245: \"== confirm reward=1.0 rc=0 scored 1.7s\""
+        ],
+        "grade": {
+          "reward": 1.0,
+          "status": "scored",
+          "rc": 0
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/grades.log",
+          "line": 245,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.7s",
+          "seconds": 1.7
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/minimal.patch",
+        "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/minimal.patch",
+        "minimal_patch_sha256": "e6d193a69d186eea5dcfc691130b644054b03d04e0c9af11e97cb98a5e7d1f66",
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/dropped.patch",
+        "dropped_patch_sha256": "906c034a3d7c16cdc071f7d23b4b072891b235222f4cd398a29af12bceb131fe",
+        "dropped_behavior": "README additions and setup.cfg version 0.13.0 to 0.14.0 only.",
+        "inheritance_binding": {
+          "authority_path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T173454875812Z-c58c97a1bcdb438e8e44d058287010b6/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+          "authority_sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+          "authority_line": 29,
+          "authority_json_pointer": "/block/review",
+          "prior_label": "neutral",
+          "prior_requirement_review_reason": "\"Simplify \\\"in dict.keys()\\\" to \\\"in dict\\\"\" (derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/instruction.md:3,10-15). Dropped behavior: README rule documentation and package version metadata only (derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000159/dropped.patch:1-55). _get_sim118 and its visit_Compare registration are retained, so this is not an emitted-rule-without-consumer case (minimal.patch:17-75).",
+          "prior_review_source": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/overnight-2026-10-17/block-review-AtlasBlockA.json",
+            "sha256": "b8741e09dd1e894fe6fafa5a5ea92a73c68d01e3511d88e79f76ff4bf2f170bc"
+          },
+          "package_digest": "sha256:2ad471b8c15d6d1a1cfc5f295e5fd5ce8ead313ea2c3a1b7822893cfb53097d9",
+          "reference_sha256": "2ac5f06d6ac8dab4c16caa315bbd141477f85a26acd76d7968edfb8ab811d1a1",
+          "old_minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000159/minimal.patch",
+          "old_minimal_patch_sha256": "e6d193a69d186eea5dcfc691130b644054b03d04e0c9af11e97cb98a5e7d1f66",
+          "old_dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000159/dropped.patch",
+          "old_dropped_patch_sha256": "906c034a3d7c16cdc071f7d23b4b072891b235222f4cd398a29af12bceb131fe",
+          "new_minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/minimal.patch",
+          "new_minimal_patch_sha256": "e6d193a69d186eea5dcfc691130b644054b03d04e0c9af11e97cb98a5e7d1f66",
+          "new_dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/dropped.patch",
+          "new_dropped_patch_sha256": "906c034a3d7c16cdc071f7d23b4b072891b235222f4cd398a29af12bceb131fe",
+          "exact_package_digest_match": true,
+          "exact_reference_sha256_match": true,
+          "exact_minimal_patch_bytes_hash_match": true,
+          "exact_dropped_patch_bytes_hash_match": true,
+          "new_control_grades": {
+            "full": {
+              "reward": 1.0,
+              "status": "scored",
+              "rc": 0
+            },
+            "nop": {
+              "reward": 0.0,
+              "status": "scored",
+              "rc": 0
+            },
+            "confirm": {
+              "reward": 1.0,
+              "status": "scored",
+              "rc": 0
+            }
+          }
+        },
+        "missing_evidence": [],
+        "scope": "Only the exact omitted blocks in this confirmed minimal witness; not a whole-task correctness certificate."
+      },
+      "block_stage": {
+        "status": "measured",
+        "verdict": "fail",
+        "kept_fraction": 0.9636,
+        "kept_blocks": [
+          "flake8_simplify.py#0",
+          "flake8_simplify.py#1",
+          "flake8_simplify.py#2"
+        ],
+        "dropped_code_blocks": [
+          "setup.cfg#0"
+        ],
+        "confirmation_grade": {
+          "reward": 1.0,
+          "status": "scored",
+          "rc": 0
+        },
+        "confirmation_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/grades.log",
+          "line": 245,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.7s",
+          "seconds": 1.7
+        },
+        "confirmation_stage_availability": "recorded",
+        "bounded_limits": {
+          "grade_timeout_s": 1800,
+          "max_grades": 24,
+          "memory": "3g",
+          "network": "none"
+        }
+      },
+      "survivors": [
+        {
+          "id": "de657bbddd",
+          "label": "required_gap",
+          "reason": "The requested rule replaces membership in dict.keys() with membership in dict. Here len(node.ops) == 1 alone now accepts any single comparison operator because the first and became or. For source x == d.keys(), the ast.Eq comparison passes the mutant guard, passes the .keys() attribute checks, and is emitted as a SIM118 membership suggestion by the retained visit_Compare registration. Equality is not the requested membership simplification; changing it to x in d changes the operation rather than simplifying it. This is a false-positive rule result proven by the complete guard-to-emission path, not merely a difference from the reference. The five recorded verifier cases contain membership expressions only.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/instruction.md:3: \"[New Rule] Simplify \\\"in dict.keys()\\\" to \\\"in dict\\\"\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/instruction.md:10-15: \"```python / # Bad / key in dict.keys() /  / # Good / key in dict\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/mutants/de657bbddd.patch:79-85: \"+    if not ( / +        len(node.ops) == 1 / +        or isinstance(node.ops[0], ast.In) / +        and len(node.comparators) == 1 / +    ): / +        return errors / +    call_node = node.comparators[0]\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/mutants/de657bbddd.patch:89-105: \"+    attr_node = call_node.func / +    if not ( / +        isinstance(call_node.func, ast.Attribute) / +        and call_node.func.attr == \\\"keys\\\" / +        and isinstance(call_node.func.ctx, ast.Load) / +    ): / +        return errors / +    assert isinstance(attr_node, ast.Attribute), \\\"hint for mypy\\\"  # noqa / + / +    key_str = to_source(node.left) / +    dict_str = to_source(attr_node.value) / +    errors.append( / +        ( / +            node.lineno, / +            node.col_offset, / +            SIM118.format(el=key_str, dict=dict_str), / +        )\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/mutants/de657bbddd.patch:116-119: \"     def visit_Compare(self, node: ast.Compare) -> None: / +        self.errors += _get_sim118(node) /          self.errors += _get_sim300(node) /          self.generic_visit(node)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/tests/test.patch:20-52: \"+def test_sim118_basic(): / +    ret = _results(\\\"key in d.keys()\\\") / +    assert ret == { / +        \\\"1:0 SIM118 Use 'key in d' instead of 'key in d.keys()'\\\" / +    } / + / + / +def test_sim118_actual_key_name(): / + / + / +    ret = _results(\\\"x in foo.keys()\\\") / +    assert ret == { / +        \\\"1:0 SIM118 Use 'x in foo' instead of 'x in foo.keys()'\\\" / +    } / + / + / +def test_sim118_no_trigger_plain_in(): / +    ret = _results(\\\"key in d\\\") / +    sim118 = {r for r in ret if \\\"SIM118\\\" in r} / +    assert sim118 == set() / + / + / +def test_sim118_no_trigger_values(): / +    ret = _results(\\\"key in d.values()\\\") / +    sim118 = {r for r in ret if \\\"SIM118\\\" in r} / +    assert sim118 == set() / + / + / +def test_sim118_attribute_dict(): / +    ret = _results(\\\"k in obj.attr.keys()\\\") / +    assert ret == { / +        \\\"1:0 SIM118 Use 'k in obj.attr' instead of 'k in obj.attr.keys()'\\\" / +    }\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/grades.log:448: \"== mutant:de657bbddd reward=1.0 rc=0 scored 1.4s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "status": "scored",
+            "rc": 0
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/grades.log",
+            "line": 448,
+            "quote": "== mutant:de657bbddd reward=1.0 rc=0 scored 1.4s",
+            "seconds": 1.4
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/mutants/de657bbddd.patch",
+          "patch_sha256": "2156893275c0b5b5473f5fd25adbcd0cdf1438b76f333e4abe1a9cf691e731bc",
+          "mutation": {
+            "edit": "--- a/flake8_simplify.py\n+++ b/flake8_simplify.py\n@@ -992,7 +992,7 @@\n     errors: List[Tuple[int, int, str]] = []\n     if not (\n         len(node.ops) == 1\n-        and isinstance(node.ops[0], ast.In)\n+        or isinstance(node.ops[0], ast.In)\n         and len(node.comparators) == 1\n     ):\n         return errors\n",
+            "end_line": 995,
+            "file": "flake8_simplify.py",
+            "id": "de657bbddd",
+            "line": 995,
+            "operator": "boolean-operator",
+            "original": "and",
+            "replacement": "or"
+          },
+          "patch_form": "Complete base-to-mutant patch: full reference fix plus the recorded one-edit mutation, not an edit-only patch.",
+          "static_counterexample": "Static, not executed: lint x == d.keys(). The mutant emits SIM118 Use 'x in d' instead of 'x in d.keys()' despite the input being equality, not an in comparison. For an x equal to d.keys(), that proposed membership operation is not an equivalent simplification.",
+          "missing_evidence": [],
+          "scope": "Incorrect added SIM118 diagnostic on a non-membership comparison; no claim about every possible comparison or call argument.",
+          "analysis_kind": "Static requirement-level adjudication over existing scored local evidence; no new execution or independent mutant rerun."
+        },
+        {
+          "id": "b1b4736291",
+          "label": "required_gap",
+          "reason": "The requested rule replaces membership in dict.keys() with membership in dict. Here len(node.comparators) == 1 alone now accepts any single comparison operator because the second and became or. For source x == d.keys(), the ast.Eq comparison passes the mutant guard, passes the .keys() attribute checks, and is emitted as a SIM118 membership suggestion by the retained visit_Compare registration. Equality is not the requested membership simplification; changing it to x in d changes the operation rather than simplifying it. This is a false-positive rule result proven by the complete guard-to-emission path, not merely a difference from the reference. The five recorded verifier cases contain membership expressions only.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/instruction.md:3: \"[New Rule] Simplify \\\"in dict.keys()\\\" to \\\"in dict\\\"\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/instruction.md:10-15: \"```python / # Bad / key in dict.keys() /  / # Good / key in dict\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/mutants/b1b4736291.patch:79-85: \"+    if not ( / +        len(node.ops) == 1 / +        and isinstance(node.ops[0], ast.In) / +        or len(node.comparators) == 1 / +    ): / +        return errors / +    call_node = node.comparators[0]\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/mutants/b1b4736291.patch:89-105: \"+    attr_node = call_node.func / +    if not ( / +        isinstance(call_node.func, ast.Attribute) / +        and call_node.func.attr == \\\"keys\\\" / +        and isinstance(call_node.func.ctx, ast.Load) / +    ): / +        return errors / +    assert isinstance(attr_node, ast.Attribute), \\\"hint for mypy\\\"  # noqa / + / +    key_str = to_source(node.left) / +    dict_str = to_source(attr_node.value) / +    errors.append( / +        ( / +            node.lineno, / +            node.col_offset, / +            SIM118.format(el=key_str, dict=dict_str), / +        )\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/mutants/b1b4736291.patch:116-119: \"     def visit_Compare(self, node: ast.Compare) -> None: / +        self.errors += _get_sim118(node) /          self.errors += _get_sim300(node) /          self.generic_visit(node)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000159/tests/test.patch:20-52: \"+def test_sim118_basic(): / +    ret = _results(\\\"key in d.keys()\\\") / +    assert ret == { / +        \\\"1:0 SIM118 Use 'key in d' instead of 'key in d.keys()'\\\" / +    } / + / + / +def test_sim118_actual_key_name(): / + / + / +    ret = _results(\\\"x in foo.keys()\\\") / +    assert ret == { / +        \\\"1:0 SIM118 Use 'x in foo' instead of 'x in foo.keys()'\\\" / +    } / + / + / +def test_sim118_no_trigger_plain_in(): / +    ret = _results(\\\"key in d\\\") / +    sim118 = {r for r in ret if \\\"SIM118\\\" in r} / +    assert sim118 == set() / + / + / +def test_sim118_no_trigger_values(): / +    ret = _results(\\\"key in d.values()\\\") / +    sim118 = {r for r in ret if \\\"SIM118\\\" in r} / +    assert sim118 == set() / + / + / +def test_sim118_attribute_dict(): / +    ret = _results(\\\"k in obj.attr.keys()\\\") / +    assert ret == { / +        \\\"1:0 SIM118 Use 'k in obj.attr' instead of 'k in obj.attr.keys()'\\\" / +    }\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/grades.log:563: \"== mutant:b1b4736291 reward=1.0 rc=0 scored 1.6s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "status": "scored",
+            "rc": 0
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/grades.log",
+            "line": 563,
+            "quote": "== mutant:b1b4736291 reward=1.0 rc=0 scored 1.6s",
+            "seconds": 1.6
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000159/mutants/b1b4736291.patch",
+          "patch_sha256": "799424e20117766aa59e507da9f827f2080770468ae8449c69a114fcfad52836",
+          "mutation": {
+            "edit": "--- a/flake8_simplify.py\n+++ b/flake8_simplify.py\n@@ -993,7 +993,7 @@\n     if not (\n         len(node.ops) == 1\n         and isinstance(node.ops[0], ast.In)\n-        and len(node.comparators) == 1\n+        or len(node.comparators) == 1\n     ):\n         return errors\n     call_node = node.comparators[0]\n",
+            "end_line": 996,
+            "file": "flake8_simplify.py",
+            "id": "b1b4736291",
+            "line": 996,
+            "operator": "boolean-operator",
+            "original": "and",
+            "replacement": "or"
+          },
+          "patch_form": "Complete base-to-mutant patch: full reference fix plus the recorded one-edit mutation, not an edit-only patch.",
+          "static_counterexample": "Static, not executed: lint x == d.keys(). The mutant emits SIM118 Use 'x in d' instead of 'x in d.keys()' despite the input being equality, not an in comparison. For an x equal to d.keys(), that proposed membership operation is not an equivalent simplification.",
+          "missing_evidence": [],
+          "scope": "Incorrect added SIM118 diagnostic on a non-membership comparison; no claim about every possible comparison or call argument.",
+          "analysis_kind": "Static requirement-level adjudication over existing scored local evidence; no new execution or independent mutant rerun."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 16,
+        "killed": 14,
+        "limit": 20,
+        "reason": "",
+        "severity": "low",
+        "stage": "S2.ref_mutants",
+        "status": "measured",
+        "tried": 16,
+        "unscored": 0,
+        "verdict": "fail"
+      },
+      "reported_survivor_count": 2,
+      "reviewed_survivor_count": 2,
+      "unreviewed_survivor_ids": [],
+      "recorded_mutant_grade_count": 16,
+      "unscored_mutants": [],
+      "unattempted_generated_mutants": {
+        "count": 0,
+        "ids": [],
+        "status": "all_generated_attempted",
+        "reason": "Every generated candidate was attempted; this is not exhaustive over possible mutations."
+      },
+      "survivor_independent_confirmation": {
+        "status": "not_attempted_in_this_review",
+        "reason": "Assigned review is existing-evidence only; no Docker/test/model execution or new mutant replay was authorized."
+      },
+      "previous_atlas_line_stage": {
+        "primary_pass": "not_run_or_not_reported",
+        "scans": []
+      },
+      "unknowns_not_resolved_by_this_review": [],
+      "not_a_clean_task_certificate": true
+    },
+    {
+      "task_id": "format-code-task-000158",
+      "package_digest": "sha256:648af3093326c8af48859e416cdaf1995d9270821b7aef7de6104fe3d9ccf3e8",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000158",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/report.json",
+      "report_sha256": "36d01115146a1f899dd84999a3257ce578e499f422b3c1f65428ef94ad0faddd",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/grades.log",
+      "grades_log_sha256": "cf5ef1f64969ca08b7fa6692ba57102b6f4bbd6e8179a5ca71c2e0e2773b5480",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000158/solution.patch",
+      "reference_sha256": "b5a1782fb49c0b8db63af82d21ad7191847c5411326e892672b6d2c798381979",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/minimal.patch",
+      "minimal_patch_sha256": "fb94f1448f61b3d5deff55011ba7e123fd07ac5b0af6f94d1eab61d1c0036c67",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/dropped.patch",
+      "dropped_patch_sha256": "354bcc686e550519794d2e4fab9b760d9a0f44faacc86a64e13afa329b8f489c",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000158/instruction.md",
+      "instruction_sha256": "f827527446094dd6c303f8fed409b8fcb5405ca6b2e905c9031a9ec55999064a",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000158/task.toml",
+      "task_toml_sha256": "8a9c663d649f77f9c168198975a3bbddaa7a0bbb76279ce71af66f59df3bd0ea",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:b93f3a9056fc4647d911b2488423c78764f54f2209971d712c23e7546bc28880",
+      "started_at": "2026-10-21T17:50:35+00:00",
+      "finished_at": "2026-10-21T17:51:57+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "status": "scored",
+          "rc": 0
+        },
+        "nop": {
+          "reward": 0.0,
+          "status": "scored",
+          "rc": 0
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.4s",
+          "seconds": 1.4
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/grades.log",
+          "line": 29,
+          "quote": "== nop reward=0.0 rc=0 scored 1.3s",
+          "seconds": 1.3
+        }
+      },
+      "binding_checks": {
+        "package_digest_matches_resume_plan": true,
+        "package_digest_matches_frozen_atlas": true,
+        "package_path_matches_resume_plan": true,
+        "reference_sha256_matches_report": true,
+        "reference_sha256_matches_resume_plan": true,
+        "reference_sha256_matches_frozen_atlas": true,
+        "instruction_sha256_matches_frozen_atlas": true,
+        "task_toml_sha256_matches_frozen_atlas": true,
+        "current_package_digest_recomputed": false,
+        "package_binding_scope": "Measured report digest agrees with resume plan and frozen atlas. Instruction/task.toml/reference bytes are separately hashed; the package was not recomposed or rerun."
+      },
+      "block": {
+        "label": "neutral",
+        "reason": "The passing minimal witness retains SIM117, the single-inner-With guard, construction of the merged with statement, and visit_With dispatch. The dropped changes are README examples, the version bump, and adding ast.withitem to the to_source parameter annotation; the visible implementation still calls astor.to_source, so omitting the annotation addition does not change that callable body. The requirement specifies the nested-with rule, not a release number, documentation, or runtime enforcement of that type annotation. This is neutral for these omissions. The prior neutral adjudication is reused only after exact package/reference and old/current minimal and dropped byte-hash agreement, plus fresh recorded full=1/nop=0/confirm=1 with scored rc=0.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000158/instruction.md:8-9: \"This rule should be applied if and only if: / * context A only contains the code of Context B and no other code. That is all the code in the nested statement will run with context A and B. \"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000158/instruction.md:17-25: \"with A() as a: /     with B() as b: /         print('hello') / ``` / can be transformed into the following: / ```python / # Good / with A() as a, B() as b: /     print('hello')\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/minimal.patch:59-69: \"+    errors: List[Tuple[int, int, str]] = [] / +    if not (len(node.body) == 1 and isinstance(node.body[0], ast.With)): / +        return errors / +    with_items = [] / +    for withitem in node.items + node.body[0].items: / +        with_items.append(f\\\"{to_source(withitem)}\\\") / +    merged_with = f\\\"with {', '.join(with_items)}:\\\" / +    errors.append( / +        (node.lineno, node.col_offset, SIM117.format(merged_with=merged_with)) / +    ) / +    return errors\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/minimal.patch:79-81: \"+    def visit_With(self, node: ast.With) -> Any: / +        self.errors += _get_sim117(node) / +        self.generic_visit(node)\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/dropped.patch:1-61: \"diff --git a/README.md b/README.md / index befcab8..007dc8f 100644 / --- a/README.md / +++ b/README.md / @@ -47,6 +47,7 @@ $ flake8 . /  * [`SIM114`](https://github.com/MartinThoma/flake8-simplify/issues/10): Combine conditions via a logical or to prevent duplicating code ([example](#SIM114)) /  * [`SIM115`](https://github.com/MartinThoma/flake8-simplify/issues/17): Use context handler for opening files ([example](#SIM115)) /  * [`SIM116`](https://github.com/MartinThoma/flake8-simplify/issues/31): Use a dictionary instead of many if/else equality checks ([example](#SIM116)) / +* [`SIM117`](https://github.com/MartinThoma/flake8-simplify/issues/35): Merge with-statements that use the same scope ([example](#SIM117)) /  * `SIM201`: Use 'a != b' instead of 'not a == b' ([example](#SIM201)) /  * `SIM202`: Use 'a == b' instead of 'not a != b' ([example](#SIM202)) /  * `SIM203`: Use 'a not in b' instead of 'not (a in b)' ([example](#SIM203)) / @@ -249,6 +250,22 @@ mapping = {\\\"foo\\\": \\\"bar\\\", \\\"bar\\\": \\\"baz\\\", \\\"boo\\\": \\\"ooh\\\"} /  return mapping.get(a, 42) /  ``` /   / +### SIM117 / + / +```python / +# Bad / +with A() as a: / +    with B() as b: / +        print(\\\"hello\\\") / + / +# Good / +with A() as a, B() as b: / +    print(\\\"hello\\\") / +``` / + / +Thank you for pointing this one out, [Aaron Gokaslan](https://github.com/Skylion007)! / + / + /  ### SIM201 /   /  ```python / diff --git a/flake8_simplify.py b/flake8_simplify.py / index bc62bdb..6f0fd8a 100644 / --- a/flake8_simplify.py / +++ b/flake8_simplify.py / @@ -121,7 +121,7 @@ def strip_triple_quotes(string: str) -> str: /      return string /   /   / -def to_source(node: Union[None, ast.expr, ast.Expr]) -> str: / +def to_source(node: Union[None, ast.expr, ast.Expr, ast.withitem]) -> str: /      if node is None: /          return \\\"None\\\" /      source: str = astor.to_source(node).strip() / diff --git a/setup.cfg b/setup.cfg / index b17f8c3..2fdfae2 100644 / --- a/setup.cfg / +++ b/setup.cfg / @@ -7,7 +7,7 @@ author_email = info@martin-thoma.de /  maintainer = Martin Thoma /  maintainer_email = info@martin-thoma.de /   / -version = 0.12.0 / +version = 0.13.0 /   /  description = flake8 plugin which checks for code that can be simpified /  long_description = file: README.md\"",
+          "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T173454875812Z-c58c97a1bcdb438e8e44d058287010b6/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl:30#/block/review: \"apply SIM117 if and only if \\\"context A only contains the code of Context B and no other code\\\" (derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000158/instruction.md:8-9). Dropped behavior: README examples, a version bump, and adding ast.withitem to to_source's parameter annotation (derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000158/dropped.patch:1-61). The actual rule, single-inner-with guard, source construction, and visit_With dispatch remain in the witness (minimal.patch:17-81), so the omitted annotation does not prevent existing Python calls with ast.withitem arguments.\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/grades.log:255: \"== confirm reward=1.0 rc=0 scored 1.4s\""
+        ],
+        "grade": {
+          "reward": 1.0,
+          "status": "scored",
+          "rc": 0
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/grades.log",
+          "line": 255,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.4s",
+          "seconds": 1.4
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/minimal.patch",
+        "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/minimal.patch",
+        "minimal_patch_sha256": "fb94f1448f61b3d5deff55011ba7e123fd07ac5b0af6f94d1eab61d1c0036c67",
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/dropped.patch",
+        "dropped_patch_sha256": "354bcc686e550519794d2e4fab9b760d9a0f44faacc86a64e13afa329b8f489c",
+        "dropped_behavior": "README additions, setup.cfg version 0.12.0 to 0.13.0, and the ast.withitem addition to the to_source parameter annotation; no callable-body change.",
+        "inheritance_binding": {
+          "authority_path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T173454875812Z-c58c97a1bcdb438e8e44d058287010b6/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+          "authority_sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+          "authority_line": 30,
+          "authority_json_pointer": "/block/review",
+          "prior_label": "neutral",
+          "prior_requirement_review_reason": "apply SIM117 if and only if \"context A only contains the code of Context B and no other code\" (derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000158/instruction.md:8-9). Dropped behavior: README examples, a version bump, and adding ast.withitem to to_source's parameter annotation (derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000158/dropped.patch:1-61). The actual rule, single-inner-with guard, source construction, and visit_With dispatch remain in the witness (minimal.patch:17-81), so the omitted annotation does not prevent existing Python calls with ast.withitem arguments.",
+          "prior_review_source": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/overnight-2026-10-17/block-review-AtlasBlockA.json",
+            "sha256": "b8741e09dd1e894fe6fafa5a5ea92a73c68d01e3511d88e79f76ff4bf2f170bc"
+          },
+          "package_digest": "sha256:648af3093326c8af48859e416cdaf1995d9270821b7aef7de6104fe3d9ccf3e8",
+          "reference_sha256": "b5a1782fb49c0b8db63af82d21ad7191847c5411326e892672b6d2c798381979",
+          "old_minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000158/minimal.patch",
+          "old_minimal_patch_sha256": "fb94f1448f61b3d5deff55011ba7e123fd07ac5b0af6f94d1eab61d1c0036c67",
+          "old_dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000158/dropped.patch",
+          "old_dropped_patch_sha256": "354bcc686e550519794d2e4fab9b760d9a0f44faacc86a64e13afa329b8f489c",
+          "new_minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/minimal.patch",
+          "new_minimal_patch_sha256": "fb94f1448f61b3d5deff55011ba7e123fd07ac5b0af6f94d1eab61d1c0036c67",
+          "new_dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/dropped.patch",
+          "new_dropped_patch_sha256": "354bcc686e550519794d2e4fab9b760d9a0f44faacc86a64e13afa329b8f489c",
+          "exact_package_digest_match": true,
+          "exact_reference_sha256_match": true,
+          "exact_minimal_patch_bytes_hash_match": true,
+          "exact_dropped_patch_bytes_hash_match": true,
+          "new_control_grades": {
+            "full": {
+              "reward": 1.0,
+              "status": "scored",
+              "rc": 0
+            },
+            "nop": {
+              "reward": 0.0,
+              "status": "scored",
+              "rc": 0
+            },
+            "confirm": {
+              "reward": 1.0,
+              "status": "scored",
+              "rc": 0
+            }
+          }
+        },
+        "missing_evidence": [],
+        "scope": "Only the exact omitted blocks in this confirmed minimal witness; not a whole-task correctness certificate."
+      },
+      "block_stage": {
+        "status": "measured",
+        "verdict": "fail",
+        "kept_fraction": 0.9375,
+        "kept_blocks": [
+          "flake8_simplify.py#0",
+          "flake8_simplify.py#2",
+          "flake8_simplify.py#3"
+        ],
+        "dropped_code_blocks": [
+          "flake8_simplify.py#1",
+          "setup.cfg#0"
+        ],
+        "confirmation_grade": {
+          "reward": 1.0,
+          "status": "scored",
+          "rc": 0
+        },
+        "confirmation_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000158/grades.log",
+          "line": 255,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.4s",
+          "seconds": 1.4
+        },
+        "confirmation_stage_availability": "recorded",
+        "bounded_limits": {
+          "grade_timeout_s": 1800,
+          "max_grades": 24,
+          "memory": "3g",
+          "network": "none"
+        }
+      },
+      "survivors": [],
+      "line_scan_summary": {
+        "generated": 12,
+        "killed": 12,
+        "limit": 20,
+        "reason": "",
+        "severity": null,
+        "stage": "S2.ref_mutants",
+        "status": "measured",
+        "tried": 12,
+        "unscored": 0,
+        "verdict": "pass"
+      },
+      "reported_survivor_count": 0,
+      "reviewed_survivor_count": 0,
+      "unreviewed_survivor_ids": [],
+      "recorded_mutant_grade_count": 12,
+      "unscored_mutants": [],
+      "unattempted_generated_mutants": {
+        "count": 0,
+        "ids": [],
+        "status": "all_generated_attempted",
+        "reason": "Every generated candidate was attempted; this is not exhaustive over possible mutations."
+      },
+      "survivor_independent_confirmation": {
+        "status": "not_attempted_in_this_review",
+        "reason": "Assigned review is existing-evidence only; no Docker/test/model execution or new mutant replay was authorized."
+      },
+      "previous_atlas_line_stage": {
+        "primary_pass": "not_run_or_not_reported",
+        "scans": []
+      },
+      "unknowns_not_resolved_by_this_review": [],
+      "not_a_clean_task_certificate": true
+    },
+    {
+      "task_id": "format-code-task-002884",
+      "package_digest": "sha256:85fbd05efb9a40d775a276608da0290944a638b4748577ad4980ff541aed85e8",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002884",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/report.json",
+      "report_sha256": "232903a7b1cbaa79a44a68dfe18a66fc3e4b5ec48d93076e6ec98ce2451635fb",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/grades.log",
+      "grades_log_sha256": "886184c38b59da4d950174729dded0b4d0a4b90ee8842ea6daf73f548c6ca860",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002884/solution.patch",
+      "reference_sha256": "497d748c0ef5079dc23049a32c5f4f0bcb2017500aaae45b886c27405af09699",
+      "minimal_patch_path": null,
+      "minimal_patch_sha256": null,
+      "dropped_patch_path": null,
+      "dropped_patch_sha256": null,
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002884/instruction.md",
+      "instruction_sha256": "95adff86981ed7a8afd6b88b3939fc5c63abfb4ab29304d50c31737f945092b0",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002884/task.toml",
+      "task_toml_sha256": "f447b53ca11c4ba1496074273f6f70884ed62e9fca528dec9a07fba5d90138e9",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:b0de77e482bef04b08bb40175927cabe7dde5d446f492fae5b74159f6c85c5af",
+      "started_at": "2026-10-21T17:52:04+00:00",
+      "finished_at": "2026-10-21T17:54:45+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "pass",
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "status": "scored",
+          "rc": 0
+        },
+        "nop": {
+          "reward": 0.0,
+          "status": "scored",
+          "rc": 0
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 3.7s",
+          "seconds": 3.7
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/grades.log",
+          "line": 5,
+          "quote": "== nop reward=0.0 rc=0 scored 1.6s",
+          "seconds": 1.6
+        }
+      },
+      "binding_checks": {
+        "package_digest_matches_resume_plan": true,
+        "package_digest_matches_frozen_atlas": true,
+        "package_path_matches_resume_plan": true,
+        "reference_sha256_matches_report": true,
+        "reference_sha256_matches_resume_plan": true,
+        "reference_sha256_matches_frozen_atlas": true,
+        "instruction_sha256_matches_frozen_atlas": true,
+        "task_toml_sha256_matches_frozen_atlas": true,
+        "current_package_digest_recomputed": false,
+        "package_binding_scope": "Measured report digest agrees with resume plan and frozen atlas. Instruction/task.toml/reference bytes are separately hashed; the package was not recomposed or rerun."
+      },
+      "block": null,
+      "block_stage": {
+        "status": "measured",
+        "verdict": "pass",
+        "kept_fraction": 1.0,
+        "kept_blocks": [
+          "onlykey/cli.py#0",
+          "onlykey/cli.py#1",
+          "onlykey/client.py#0",
+          "onlykey/client.py#1"
+        ],
+        "dropped_code_blocks": [],
+        "confirmation_grade": null,
+        "confirmation_evidence": null,
+        "confirmation_stage_availability": "not_attempted_no_passing_omission_reported",
+        "bounded_limits": {
+          "grade_timeout_s": 1800,
+          "max_grades": 24,
+          "memory": "3g",
+          "network": "none"
+        }
+      },
+      "survivors": [
+        {
+          "id": "7c02956cd5",
+          "label": "required_gap",
+          "reason": "The task explicitly requires direct and interactive wipeslot to perform the same slot-name mapping and send that slot to the device. The complete mutant maps direct green3a to slot 4 while its unchanged interactive green3a branch maps to slot 3; direct green3a now also collides with green1b. Both branches pass slot_id to the same wipeslot method, which sends it as the slot_id of OKWIPESLOT. Thus the same accepted name targets different credentials depending on mode, directly contradicting the instruction independently of relying on a reference-only numeric mapping. The recorded direct test names omit green3a and the interactive fixture exercises only green1a and numeric 24.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002884/instruction.md:3: \"I want `onlykey-cli` to support wiping an OnlyKey credential slot from both direct command mode and the interactive shell. In direct mode, `onlykey-cli wipeslot <id>` should accept classic slot names `1a` through `6a` and `1b` through `6b`, OnlyKey DUO slot names such as `green1a`, `blue2b`, `yellow3a`, and `purple1b`, and numeric slot ids; it should map those names to the device slot number and send the credential-slot wipe command to the connected OnlyKey. In interactive mode, after starting `onlykey-cli`, entering `wipeslot <id>` should perform the same slot-name mapping and send the same wipe command without exiting the shell.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/7c02956cd5.patch:35-44: \"+                elif sys.argv[2] == 'green1a': / +                    slot_id = 1 / +                elif sys.argv[2] == 'green2a': / +                    slot_id = 2 / +                elif sys.argv[2] == 'green3a': / +                    slot_id = 4 / +                elif sys.argv[2] == 'green1b': / +                    slot_id = 4 / +                elif sys.argv[2] == 'green2b': / +                    slot_id = 5\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/7c02956cd5.patch:123-130: \"+                    elif data[1] == 'green1a': / +                        slot_id = 1 / +                    elif data[1] == 'green2a': / +                        slot_id = 2 / +                    elif data[1] == 'green3a': / +                        slot_id = 3 / +                    elif data[1] == 'green1b': / +                        slot_id = 4\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/7c02956cd5.patch:89: \"+            only_key.wipeslot(slot_id)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/7c02956cd5.patch:177: \"+                only_key.wipeslot(slot_id)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/7c02956cd5.patch:197-201: \"+    def wipeslot(self, slot_number): / +        \\\"\\\"\\\"Wipe all the fields for the given slot.\\\"\\\"\\\" / +        self.send_message(msg=Message.OKWIPESLOT, slot_id=slot_number) / +        for _ in range(8): / +            print(self.read_string())\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002884/tests/test.patch:347-382: \"+run_direct_success \\\"f1_direct_1a\\\" \\\"1a\\\" \\\"1\\\" / + / + / + / + / +run_direct_success \\\"f2_direct_6a\\\" \\\"6a\\\" \\\"6\\\" / + / + / + / + / +run_direct_success \\\"f3_direct_1b\\\" \\\"1b\\\" \\\"7\\\" / + / + / + / + / +run_direct_success \\\"f4_direct_6b\\\" \\\"6b\\\" \\\"12\\\" / + / + / + / + / +run_direct_success \\\"f5_direct_blue2b\\\" \\\"blue2b\\\" \\\"11\\\" / + / + / + / + / +run_direct_success \\\"f6_direct_yellow3a\\\" \\\"yellow3a\\\" \\\"15\\\" / + / + / + / + / +run_direct_success \\\"f7_direct_purple1b\\\" \\\"purple1b\\\" \\\"22\\\" / + / + / + / + / +run_direct_success \\\"f8_direct_numeric24\\\" \\\"24\\\" \\\"24\\\"\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002884/tests/test.patch:402-409: \"+ONLYKEY_FAKE_HID_LOG=\\\"$interactive_log\\\" \\\\ / +ONLYKEY_FAKE_PROMPTS=$'wipeslot green1a\\\\nwipeslot not-a-slot\\\\nwipeslot\\\\nwipeslot 24' \\\\ / +    run_onlykey_cli >\\\"$interactive_out\\\" 2>\\\"$interactive_err\\\" / +interactive_ec=$? / + / +cat >\\\"$interactive_expected_log\\\" <<'EOF' / +write msg=231 slot=1 / +write msg=231 slot=24\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/grades.log:432: \"== mutant:7c02956cd5 reward=1.0 rc=0 scored 3.9s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "status": "scored",
+            "rc": 0
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/grades.log",
+            "line": 432,
+            "quote": "== mutant:7c02956cd5 reward=1.0 rc=0 scored 3.9s",
+            "seconds": 3.9
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/7c02956cd5.patch",
+          "patch_sha256": "7f1c7aa738fbf7c28a71f64212812f89cfc4006523131522d4d3b9f9e67bbcbe",
+          "mutation": {
+            "edit": "--- a/onlykey/cli.py\n+++ b/onlykey/cli.py\n@@ -304,7 +304,7 @@\n                 elif sys.argv[2] == 'green2a':\n                     slot_id = 2\n                 elif sys.argv[2] == 'green3a':\n-                    slot_id = 3\n+                    slot_id = 4\n                 elif sys.argv[2] == 'green1b':\n                     slot_id = 4\n                 elif sys.argv[2] == 'green2b':\n",
+            "end_line": 307,
+            "file": "onlykey/cli.py",
+            "id": "7c02956cd5",
+            "line": 307,
+            "operator": "integer-shift",
+            "original": "3",
+            "replacement": "4"
+          },
+          "patch_form": "Complete base-to-mutant patch: full reference fix plus the recorded one-edit mutation, not an edit-only patch.",
+          "static_counterexample": "Static, not executed: direct onlykey-cli wipeslot green3a sends OKWIPESLOT(slot_id=4), whereas entering wipeslot green3a in the interactive shell sends OKWIPESLOT(slot_id=3). Required same-name/same-mapping behavior fails.",
+          "missing_evidence": [],
+          "scope": "Direct/interactive consistency for the explicitly accepted DUO slot-name family.",
+          "analysis_kind": "Static requirement-level adjudication over existing scored local evidence; no new execution or independent mutant rerun."
+        },
+        {
+          "id": "34a8b23a5c",
+          "label": "required_gap",
+          "reason": "The task requires classic names 1b through 6b and the same mapping in both modes. This complete mutant leaves direct 4b mapped to 10 but maps interactive 4b to 11, the same number as interactive 5b. Both command paths pass that value into the unchanged method that sends OKWIPESLOT with slot_id=slot_number. Therefore an accepted classic name wipes different credential slots in direct and interactive mode; this is a required behavior contradiction, not just a numeric difference from the reference patch. The interactive recorded fixture never submits 4b.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002884/instruction.md:3: \"I want `onlykey-cli` to support wiping an OnlyKey credential slot from both direct command mode and the interactive shell. In direct mode, `onlykey-cli wipeslot <id>` should accept classic slot names `1a` through `6a` and `1b` through `6b`, OnlyKey DUO slot names such as `green1a`, `blue2b`, `yellow3a`, and `purple1b`, and numeric slot ids; it should map those names to the device slot number and send the credential-slot wipe command to the connected OnlyKey. In interactive mode, after starting `onlykey-cli`, entering `wipeslot <id>` should perform the same slot-name mapping and send the same wipe command without exiting the shell.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/34a8b23a5c.patch:23-34: \"+                elif sys.argv[2] == '1b': / +                    slot_id = 7 / +                elif sys.argv[2] == '2b': / +                    slot_id = 8 / +                elif sys.argv[2] == '3b': / +                    slot_id = 9 / +                elif sys.argv[2] == '4b': / +                    slot_id = 10 / +                elif sys.argv[2] == '5b': / +                    slot_id = 11 / +                elif sys.argv[2] == '6b': / +                    slot_id = 12\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/34a8b23a5c.patch:111-122: \"+                    elif data[1] == '1b': / +                        slot_id = 7 / +                    elif data[1] == '2b': / +                        slot_id = 8 / +                    elif data[1] == '3b': / +                        slot_id = 9 / +                    elif data[1] == '4b': / +                        slot_id = 11 / +                    elif data[1] == '5b': / +                        slot_id = 11 / +                    elif data[1] == '6b': / +                        slot_id = 12\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/34a8b23a5c.patch:89: \"+            only_key.wipeslot(slot_id)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/34a8b23a5c.patch:177: \"+                only_key.wipeslot(slot_id)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/34a8b23a5c.patch:197-201: \"+    def wipeslot(self, slot_number): / +        \\\"\\\"\\\"Wipe all the fields for the given slot.\\\"\\\"\\\" / +        self.send_message(msg=Message.OKWIPESLOT, slot_id=slot_number) / +        for _ in range(8): / +            print(self.read_string())\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002884/tests/test.patch:402-409: \"+ONLYKEY_FAKE_HID_LOG=\\\"$interactive_log\\\" \\\\ / +ONLYKEY_FAKE_PROMPTS=$'wipeslot green1a\\\\nwipeslot not-a-slot\\\\nwipeslot\\\\nwipeslot 24' \\\\ / +    run_onlykey_cli >\\\"$interactive_out\\\" 2>\\\"$interactive_err\\\" / +interactive_ec=$? / + / +cat >\\\"$interactive_expected_log\\\" <<'EOF' / +write msg=231 slot=1 / +write msg=231 slot=24\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/grades.log:549: \"== mutant:34a8b23a5c reward=1.0 rc=0 scored 5.7s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "status": "scored",
+            "rc": 0
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/grades.log",
+            "line": 549,
+            "quote": "== mutant:34a8b23a5c reward=1.0 rc=0 scored 5.7s",
+            "seconds": 5.7
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002884/mutants/34a8b23a5c.patch",
+          "patch_sha256": "8f6a027ec8b3403eeda902c2b53ea2ee201de884da9e2ef9bc5914e532b8da9e",
+          "mutation": {
+            "edit": "--- a/onlykey/cli.py\n+++ b/onlykey/cli.py\n@@ -823,7 +823,7 @@\n                     elif data[1] == '3b':\n                         slot_id = 9\n                     elif data[1] == '4b':\n-                        slot_id = 10\n+                        slot_id = 11\n                     elif data[1] == '5b':\n                         slot_id = 11\n                     elif data[1] == '6b':\n",
+            "end_line": 826,
+            "file": "onlykey/cli.py",
+            "id": "34a8b23a5c",
+            "line": 826,
+            "operator": "integer-shift",
+            "original": "10",
+            "replacement": "11"
+          },
+          "patch_form": "Complete base-to-mutant patch: full reference fix plus the recorded one-edit mutation, not an edit-only patch.",
+          "static_counterexample": "Static, not executed: direct onlykey-cli wipeslot 4b sends OKWIPESLOT(slot_id=10), but interactive wipeslot 4b sends OKWIPESLOT(slot_id=11), colliding with 5b and violating the same-mapping requirement.",
+          "missing_evidence": [],
+          "scope": "Direct/interactive consistency for an explicitly accepted classic slot name.",
+          "analysis_kind": "Static requirement-level adjudication over existing scored local evidence; no new execution or independent mutant rerun."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 306,
+        "killed": 18,
+        "limit": 20,
+        "reason": "",
+        "severity": "low",
+        "stage": "S2.ref_mutants",
+        "status": "measured",
+        "tried": 20,
+        "unscored": 0,
+        "verdict": "fail"
+      },
+      "reported_survivor_count": 2,
+      "reviewed_survivor_count": 2,
+      "unreviewed_survivor_ids": [],
+      "recorded_mutant_grade_count": 20,
+      "unscored_mutants": [],
+      "unattempted_generated_mutants": {
+        "count": 286,
+        "ids": null,
+        "status": "bounded_not_attempted",
+        "reason": "Line mutant stage tried 20 of 306 generated candidates with limit=20; unattempted identities/results are not present in report."
+      },
+      "survivor_independent_confirmation": {
+        "status": "not_attempted_in_this_review",
+        "reason": "Assigned review is existing-evidence only; no Docker/test/model execution or new mutant replay was authorized."
+      },
+      "previous_atlas_line_stage": {
+        "primary_pass": "not_run_or_not_reported",
+        "scans": []
+      },
+      "unknowns_not_resolved_by_this_review": [],
+      "not_a_clean_task_certificate": true
+    }
+  ]
+}

@@ -45,6 +45,7 @@ import tempfile
 import tomllib
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -335,6 +336,97 @@ EXCLUDED_FROM_TRAINING: dict[str, str] = {
     "format-code-task-002414": "answer-visible via installed env dependency",
     "format-code-task-000928": "node-build outputs unfixable: pnpm-store leg fails setup before node handling",
 }
+
+#: Scientific-use exclusions are independent of successful harness controls.
+#: They bind full task/package identities, never a task id or its descendants.
+SCIENTIFIC_EXCLUSIONS_REL = Path(
+    "research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json"
+)
+
+
+@cache
+def _scientific_exclusions(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema") != "evallab.mimo_scientific_exclusions/v1"
+    ):
+        raise VariantInvalid(f"unsupported scientific-exclusion inventory: {path}")
+    entries = payload.get("exclusions")
+    if not isinstance(entries, list) or not entries:
+        raise VariantInvalid(f"scientific-exclusion inventory has no entries: {path}")
+    exclusions: dict[tuple[str, str], dict[str, Any]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise VariantInvalid(f"scientific-exclusion entry is not an object: {path}")
+        task_id = entry.get("task_id")
+        digest = entry.get("package_digest")
+        classification = entry.get("classification")
+        claim_status = entry.get("claim_status")
+        verify = entry.get("verify")
+        evidence = entry.get("evidence")
+        if (
+            not isinstance(task_id, str)
+            or not task_id
+            or "/" in task_id
+            or not isinstance(digest, str)
+            or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None
+            or classification not in ("confirmed_defect", "conservative_hold")
+            or claim_status
+            not in (
+                ("confirmed",)
+                if classification == "confirmed_defect"
+                else ("unknown", "unmeasured_on_package")
+            )
+            or not isinstance(verify, str)
+            or not verify.startswith(
+                ("fail:", "env-broken")
+                if classification == "confirmed_defect"
+                else ("unverified:",)
+            )
+            or not isinstance(entry.get("reason"), str)
+            or not entry["reason"].strip()
+            or not isinstance(evidence, list)
+            or not evidence
+            or any(
+                not isinstance(item, dict) or not item.get("kind") or not item.get("path")
+                for item in evidence
+            )
+        ):
+            raise VariantInvalid(f"invalid scientific-exclusion entry for {task_id!r}: {path}")
+        key = (task_id, digest)
+        if key in exclusions:
+            raise VariantInvalid(f"duplicate scientific-exclusion identity {key!r}: {path}")
+        exclusions[key] = entry
+    return exclusions
+
+
+def scientific_exclusion(task_id: str, package_digest: str) -> Mapping[str, Any] | None:
+    """Exact-package scientific-use veto, not a ban on diagnostic controls.
+
+    Missing or malformed inventory fails closed. No old execution grade or
+    task-wide certification transfers to an unlisted repaired child.
+    """
+    if not task_id or not package_digest:
+        return None
+    path = Path(__file__).resolve().parents[2] / SCIENTIFIC_EXCLUSIONS_REL
+    return _scientific_exclusions(path).get((task_id, package_digest))
+
+
+def _scientific_manifest_row(row: Mapping[str, str]) -> dict[str, str]:
+    result = dict(row)
+    exclusion = scientific_exclusion(row.get("task_id", ""), row.get("final_digest", ""))
+    if exclusion is not None:
+        result["verify"] = str(exclusion["verify"])
+        note = (
+            f"excluded-from-scientific-use: {exclusion['classification']}: "
+            f"{exclusion['reason']} [{SCIENTIFIC_EXCLUSIONS_REL}]"
+        )
+        reason = result.get("reason", "")
+        if note not in reason:
+            result["reason"] = f"{reason}; {note}" if reason else note
+    return result
+
 
 #: Language plugs for the builder. ``python`` is the ledger pool;
 #: every other resolved language takes the non-Python chain (including
@@ -1689,8 +1781,10 @@ class ChainBuilder:
 
 
 def write_manifest(rows: Collection[Mapping[str, str]], path: Path) -> Path:
-    """Write the tracked manifest (sorted by task id, deterministic)."""
-    ordered = sorted(rows, key=lambda row: row["task_id"])
+    """Write sorted manifest rows with exact-package scientific-use vetoes."""
+    ordered = sorted(
+        (_scientific_manifest_row(row) for row in rows), key=lambda row: row["task_id"]
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(MANIFEST_COLUMNS))
@@ -1721,8 +1815,8 @@ def write_lineage_index(results: Collection[ChainResult], manifest_path: Path) -
 
 
 def load_manifest(path: Path) -> list[dict[str, str]]:
-    """Read a manifest back (row dicts keyed by MANIFEST_COLUMNS)."""
-    return read_csv_rows(path)
+    """Read manifest rows with current exclusions; never rewrite source bytes."""
+    return [_scientific_manifest_row(row) for row in read_csv_rows(path)]
 
 
 def summarize_trials(job_dir: Path) -> list[float | None]:
@@ -2158,6 +2252,14 @@ def _verify_local_command(args, root: Path) -> int:
             nop_rewards=nop_rewards,
             cracked=cracked,
         )
+        exclusion = scientific_exclusion(task_id, row["final_digest"])
+        if exclusion is not None:
+            print(
+                f"note {task_id}: controls={'PASS' if ok else 'FAIL'}; scientific use "
+                f"{exclusion['classification']}:{exclusion['claim_status']}: "
+                f"{exclusion['reason']}"
+            )
+            ok = False
         failed = failed or not ok
         if has_fix and "oracle" not in checks:
             oracle_cell = "skip"
@@ -2232,6 +2334,7 @@ __all__ = [
     "PYTHON_CHAIN_V5",
     "PYTHON_CHAIN_V6",
     "REFERENCE_INDEX_REL",
+    "SCIENTIFIC_EXCLUSIONS_REL",
     "SELECTED_VERDICTS",
     "SEPARATE_V6_ID",
     "SEPARATE_V7_ID",
@@ -2262,6 +2365,7 @@ __all__ = [
     "read_csv_rows",
     "resolve_language",
     "run_package_rel",
+    "scientific_exclusion",
     "select_usable",
     "setup_carries",
     "snapshot_category",

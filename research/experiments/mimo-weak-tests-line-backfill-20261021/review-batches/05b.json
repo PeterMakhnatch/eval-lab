@@ -1,0 +1,987 @@
+{
+  "schema": "mimo.line_backfill_reviews/v1",
+  "reviewed_by": "BackfillReview05B (native requirement-level source/consumer adjudication; immutable recorded evidence only)",
+  "reviewed_at_utc": "2026-10-21T19:30:09.098514+00:00",
+  "review_scope": {
+    "assigned_task_ids": [
+      "format-code-task-002149",
+      "format-code-task-000363",
+      "format-code-task-002726"
+    ],
+    "artifact_only": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/05b.json",
+    "spend_usd": 0,
+    "new_execution": false,
+    "docker_invoked": false,
+    "model_or_remote_apis_invoked": false,
+    "builds_tests_linters_formatters_or_checks_invoked": false,
+    "commits_or_other_repository_file_edits": false,
+    "immutable_inputs_modified": false,
+    "method": "Read the frozen plan rows, package instruction/grader wrappers and complete grader patches, full references, minimal/dropped patches and all six full survivor patches; adjudicate actual requested behavior and visible call boundaries. Bind every evidence file with SHA-256 and use current grades.log headers, never report.grades, for line grades. Missing pinned consumers remain explicit unknowns. Counterexamples are source reasoning, not fresh executions."
+  },
+  "summary": {
+    "reports": 3,
+    "block_fail_candidates": 3,
+    "reviewed_block_fail_candidates": 3,
+    "block_labels": {
+      "confirmed_weak": 0,
+      "neutral": 1,
+      "out_of_scope": 1,
+      "uncertain": 1
+    },
+    "reported_survivors": 6,
+    "reviewed_survivors": 6,
+    "unreviewed_reported_survivors": 0,
+    "survivor_labels": {
+      "required_gap": 2,
+      "non_positive": 0,
+      "equivalent_or_optional": 3,
+      "uncertain": 1
+    },
+    "confirmed_positive_candidates": 2,
+    "unresolved_candidates": 2,
+    "generated_mutants": 18,
+    "attempted_mutants": 18,
+    "recorded_killed_mutants": 12,
+    "recorded_unscored_mutants": 0,
+    "generated_but_unattempted_mutants": 0,
+    "authoritative_grade_records": 51,
+    "task_ids_with_confirmed_weak_blocks": [],
+    "task_ids_with_confirmed_required_gap_survivors": [
+      "format-code-task-002149",
+      "format-code-task-000363"
+    ],
+    "task_ids_with_unresolved_survivors_or_blocks": [
+      "format-code-task-002149",
+      "format-code-task-002726"
+    ],
+    "positive_identities": [
+      {
+        "task_id": "format-code-task-002149",
+        "kind": "line_survivor",
+        "id": "5c4cbed299",
+        "required_gap": "Public budget_weight default is 2 instead of required 1."
+      },
+      {
+        "task_id": "format-code-task-000363",
+        "kind": "line_survivor",
+        "id": "3b6a3a3b53",
+        "required_gap": "Discards cancel_orders=True on the TradingClient call explicitly present in the issue traceback."
+      }
+    ],
+    "uncertain_identities": [
+      {
+        "task_id": "format-code-task-002149",
+        "kind": "line_survivor",
+        "id": "a73f5ff7bb",
+        "missing_evidence": "Pinned _add_report_generator and report consumers of is_public_partition."
+      },
+      {
+        "task_id": "format-code-task-002726",
+        "kind": "block_omission",
+        "id": null,
+        "missing_evidence": "Pinned enclosing SQL grammar and indentation/reflow consumers for the final Dedent."
+      }
+    ],
+    "limitations": [
+      "Exactly the three assigned reports, their three fail-block omissions and all six reported positive line survivors are covered. No package-wide clean certificate is inferred.",
+      "Every full/nop control is reward 1/0 respectively, rc=0,status=scored. Every block confirm and every reported survivor is reward=1,rc=0,status=scored in the current grades.log. Controls contains only full/nop; block.grade is the exact confirm grade.",
+      "5c4cbed299 is established at the constructor/accountant-input boundary; no exact mixed-session epsilon/noise outcome is invented. 3b6a3a3b53 is established at the documented True TradingClient call boundary; no live API outcome is claimed.",
+      "The Broker-only null-argument survivor also has a real source-level True-forwarding regression, but is explicitly outside the named Trading validation issue. Always-dictionary survivors preserve the model fix and original False request construction. These scoped refutations are not whole-SDK equivalence claims.",
+      "The report-flag survivor and final-Dedent block remain uncertain because the relevant pinned existing consumers are not in the inspected retained artifacts. No marker-name heuristic, unmatched-indent heuristic, or passing grade substitutes for that missing evidence.",
+      "All 18 generated line mutants were attempted: 12 recorded killed and six recorded survivors; no line timeouts, unscored mutants or generated-but-unattempted mutants are recorded for this assigned set. The SQL line stage is not_applicable because no mutable code was found on reference-written lines, not evidence that the task is clean. Block limits and per-stage mutant caps are retained per report.",
+      "Package digest is the recorded immutable execution identity cross-bound to the canonical plan/atlas, not a recomposed directory digest. Report/log/reference/instruction/task.toml/actual grader files/minimal/dropped/all six survivor patches and frozen binding files are byte-hashed.",
+      "No controls, Docker, model/cloud APIs, builds, tests, linters, formatters, producer/validation commands, git commands, original-evidence modifications or other file edits were performed. Parent owns integrated verification and delivery."
+    ]
+  },
+  "reports": [
+    {
+      "task_id": "format-code-task-002149",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149",
+      "package_digest": "sha256:542e9c4b07e173e23cf0b8598629ed1e694e58c7b5c45f296a06f498d63c5167",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002149/solution.patch",
+      "reference_sha256": "0870855992f30f062d38ab1cd6b84c16fdb36afe4bb29664de635fe005c7139b",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/report.json",
+      "report_sha256": "6d207f52c7a833456e3593f48f8e42da770391ee7808b9431dbe7a291cd892b9",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log",
+      "grades_log_sha256": "8f45b81dfac82394ead1e9f26191a9767c5b13297e115556c685e137551de25c",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/minimal.patch",
+      "minimal_patch_sha256": "81567571ab8f82eed8ff6c76021b3751389ac2bece58295d7bd5d17e542d2da8",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/dropped.patch",
+      "dropped_patch_sha256": "05bf6a0dd21082c29a67870c369db6f527fbd537d841c473261579aa60ad654f",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md",
+      "instruction_sha256": "17c44e6ea32fcebcdb561998f8bbe0677284191fa802f1fa67cb1e14f1efbe90",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/task.toml",
+      "task_toml_sha256": "d7c1363731a0c750b3681a133b871f6f7ecdd6ed140a9889162ff30a5de212b5",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.patch",
+      "test_patch_sha256": "a3f30dfe2f1768e57df2cbc8bcaa6ff8a49dc362af62aba7bf88dc176a6aa0a5",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:957b7c64741b40ac5ca11b46cb23db7bbf19cfff43de373cbfae02428620c82e",
+      "started_at": "2026-10-21T19:11:26+00:00",
+      "finished_at": "2026-10-21T19:13:22+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_reason": "",
+      "recorded_block_summary": {
+        "code_blocks": 9,
+        "code_lines": 153,
+        "kept_code_lines": 146,
+        "kept_fraction": 0.9542,
+        "kept": [
+          "pipeline_dp/__init__.py#0",
+          "pipeline_dp/aggregate_params.py#0",
+          "pipeline_dp/dp_engine.py#0",
+          "pipeline_dp/dp_engine.py#1",
+          "pipeline_dp/dp_engine.py#2"
+        ],
+        "dropped_code": [
+          "pipeline_dp/__init__.py#1",
+          "pipeline_dp/__init__.py#2",
+          "pipeline_dp/__init__.py#3",
+          "pipeline_dp/dp_engine.py#3"
+        ],
+        "limits": {
+          "grade_timeout_s": 1800,
+          "max_grades": 24,
+          "memory": "3g",
+          "network": "none"
+        }
+      },
+      "mutant_stage": {
+        "generated": 14,
+        "killed": 12,
+        "limit": 20,
+        "reason": "",
+        "severity": "low",
+        "stage": "S2.ref_mutants",
+        "status": "measured",
+        "tried": 14,
+        "unscored": 0,
+        "verdict": "fail"
+      },
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log",
+          "sha256": "8f45b81dfac82394ead1e9f26191a9767c5b13297e115556c685e137551de25c",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 2.6s",
+          "seconds": 2.6
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log",
+          "sha256": "8f45b81dfac82394ead1e9f26191a9767c5b13297e115556c685e137551de25c",
+          "line": 24,
+          "quote": "== nop reward=0.0 rc=0 scored 2.7s",
+          "seconds": 2.7
+        },
+        "confirm": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log",
+          "sha256": "8f45b81dfac82394ead1e9f26191a9767c5b13297e115556c685e137551de25c",
+          "line": 349,
+          "quote": "== confirm reward=1.0 rc=0 scored 2.5s",
+          "seconds": 2.5
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_hash_matches_frozen_plan": true,
+        "reference_bytes_match_report_hash": true,
+        "package_path_matches_archived_atlas": true,
+        "package_digest_matches_archived_atlas": true,
+        "reference_hash_matches_archived_atlas": true,
+        "instruction_hash_matches_archived_atlas": true,
+        "task_toml_hash_matches_archived_atlas": true,
+        "current_package_digest_recomputed": false,
+        "scope": "Recorded immutable package identity matched to the frozen plan and atlas; SHA-256 binds current report/log/reference/instruction/task.toml/grader files/minimal/dropped/every survivor. No package-directory digest recomposition, replay or producer/validation command."
+      },
+      "frozen_source_bindings": {
+        "resume_plan": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+          "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+          "selector": {
+            "task_id": "format-code-task-002149"
+          }
+        },
+        "atlas": {
+          "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+          "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+          "line": 69,
+          "selector": {
+            "task_id": "format-code-task-002149",
+            "package_digest": "sha256:542e9c4b07e173e23cf0b8598629ed1e694e58c7b5c45f296a06f498d63c5167"
+          },
+          "use": "Source-identity binding and prior-review navigation only; current grades come exclusively from the line-backfill grades.log and current omissions/survivors were reread."
+        }
+      },
+      "source_bindings": {
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/report.json": "6d207f52c7a833456e3593f48f8e42da770391ee7808b9431dbe7a291cd892b9",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log": "8f45b81dfac82394ead1e9f26191a9767c5b13297e115556c685e137551de25c",
+        "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002149/solution.patch": "0870855992f30f062d38ab1cd6b84c16fdb36afe4bb29664de635fe005c7139b",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md": "17c44e6ea32fcebcdb561998f8bbe0677284191fa802f1fa67cb1e14f1efbe90",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/task.toml": "d7c1363731a0c750b3681a133b871f6f7ecdd6ed140a9889162ff30a5de212b5",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.patch": "a3f30dfe2f1768e57df2cbc8bcaa6ff8a49dc362af62aba7bf88dc176a6aa0a5",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.sh": "a1c218bc9b4b547405a16a0b9381e1c86b0feb93d8ff823acf089cfbe40e9a59",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test_command.sh": "7127a2d85db4abf824b4a311773e247afcb0c1e825c8c3a30979c464a229afd1",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/minimal.patch": "81567571ab8f82eed8ff6c76021b3751389ac2bece58295d7bd5d17e542d2da8",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/dropped.patch": "05bf6a0dd21082c29a67870c369db6f527fbd537d841c473261579aa60ad654f",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+        "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/mutants/5c4cbed299.patch": "64664a2dcc38076d6e14b73e57fbc960814af49b6f49584780a2418bdd3e00df",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/mutants/a73f5ff7bb.patch": "df23cdfacfc9504a97629f9ba90b9eadc4055267a4dcca12d5d204364c1878cc"
+      },
+      "block": {
+        "label": "neutral",
+        "reason": "The accepted omission keeps the public pipeline_dp.AddDPNoiseParams import, both noise methods, sensitivity/budget forwarding, map_values, report attachment and runtime annotation call. The removed _annotate Union member is only a type annotation; the import remains the required public attribute without an __all__ entry. Star-import exports, the unrelated QuantileParams export and a 0.3.1-to-0.3.0 version change are not requested behavior. Thus the passing minimal patch is a complete fix for the omitted behaviors, not evidence of an incomplete required runtime path. This does not adjudicate the separate line-default or report-flag mutations.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md:3: \"pipeline_dp.AddDPNoiseParams(noise_kind, l0_sensitivity=None, linf_sensitivity=None, l1_sensitivity=None, l2_sensitivity=None, budget_weight=1, output_noise_stddev=False)\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md:9: \"annotate the returned collection with the params and computed budget\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/minimal.patch:9: \"+from pipeline_dp.aggregate_params import AddDPNoiseParams\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/minimal.patch:146-156: \"+            return self._annotate(anonymized_col, params=params, budget=budgets)\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/minimal.patch:189: \"+        return self._backend.map_values(col, add_noise, \\\"Add noise\\\")\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/dropped.patch:9-21: \"+__version__ = '0.3.0'\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/dropped.patch:31-35: \"+                                aggregate_params.AddDPNoiseParams],\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.patch:81-118: \"+    params = pipeline_dp.AddDPNoiseParams(\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.patch:182-232: \"+def test_budget_weight_changes_allocated_budget_and_noise_per_session():\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:1: \"== full reward=1.0 rc=0 scored 2.6s\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:24: \"== nop reward=0.0 rc=0 scored 2.7s\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:349: \"== confirm reward=1.0 rc=0 scored 2.5s\""
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log",
+          "sha256": "8f45b81dfac82394ead1e9f26191a9767c5b13297e115556c685e137551de25c",
+          "line": 349,
+          "quote": "== confirm reward=1.0 rc=0 scored 2.5s",
+          "seconds": 2.5
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/minimal.patch",
+        "witness_sha256": "81567571ab8f82eed8ff6c76021b3751389ac2bece58295d7bd5d17e542d2da8",
+        "dropped_behavior": "The _annotate type-hint extension, __all__ additions for AddDPNoiseParams/QuantileParams, and an unrelated version downgrade. None removes the retained runtime import or annotation call.",
+        "counterexample": null,
+        "missing_evidence": null
+      },
+      "survivors": [
+        {
+          "id": "5c4cbed299",
+          "label": "required_gap",
+          "reason": "The instruction explicitly specifies budget_weight=1 in the public AddDPNoiseParams constructor. This mutant instead defaults it to 2, so a caller omitting the argument obtains params.budget_weight==2 and the retained engine passes 2 into the accountant scope and _compute_budgets_for_aggregation. This is a direct observable API-contract violation, even though a single aggregation can receive the same normalized total budget. The grader never asserts the default: its only two-session weighted test explicitly supplies budget_weight=1 and budget_weight=2, so that test bypasses the mutation. The bound full=1/nop=0 and mutant=1 headers establish a scored survivor; the constructor/forwarding counterexample is source reasoning, not a fresh control. No exact mixed-session epsilon outcome is inferred without the retained accountant implementation.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md:3: \"budget_weight=1\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md:9: \"The method should allocate privacy budget according to `budget_weight`\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/mutants/5c4cbed299.patch:90: \"+    budget_weight: float = 2\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/mutants/5c4cbed299.patch:166: \"+        with self._budget_accountant.scope(weight=params.budget_weight):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/mutants/5c4cbed299.patch:174-175: \"+            budgets = self._budget_accountant._compute_budgets_for_aggregation(\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.patch:195-211: \"+            budget_weight=1,\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.patch:210: \"+            budget_weight=2,\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:1: \"== full reward=1.0 rc=0 scored 2.6s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:24: \"== nop reward=0.0 rc=0 scored 2.7s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:450: \"== mutant:5c4cbed299 reward=1.0 rc=0 scored 2.5s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log",
+            "sha256": "8f45b81dfac82394ead1e9f26191a9767c5b13297e115556c685e137551de25c",
+            "line": 450,
+            "quote": "== mutant:5c4cbed299 reward=1.0 rc=0 scored 2.5s",
+            "seconds": 2.5
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/mutants/5c4cbed299.patch",
+          "patch_sha256": "64664a2dcc38076d6e14b73e57fbc960814af49b6f49584780a2418bdd3e00df",
+          "file": "pipeline_dp/aggregate_params.py",
+          "line": 819,
+          "end_line": 819,
+          "operator": "integer-shift",
+          "original": "1",
+          "replacement": "2",
+          "semantic_scope": "Required public default and the value forwarded to the accountant; does not claim a fresh noise-distribution measurement or an exact mixed-session budget result.",
+          "counterexample": {
+            "kind": "static_constructor_and_forwarding_reasoning_not_executed",
+            "input": "p = pipeline_dp.AddDPNoiseParams(noise_kind=pipeline_dp.NoiseKind.LAPLACE, l1_sensitivity=5); inspect p.budget_weight, then call engine.add_dp_noise([(0, 0)], p).",
+            "required_outcome": "p.budget_weight is 1; scope(weight=1) and _compute_budgets_for_aggregation(1).",
+            "mutant_outcome": "p.budget_weight is 2; scope(weight=2) and _compute_budgets_for_aggregation(2)."
+          },
+          "missing_evidence": null
+        },
+        {
+          "id": "a73f5ff7bb",
+          "label": "uncertain",
+          "reason": "This changes only the is_public_partition argument supplied to the pre-existing _add_report_generator helper from True to False. The retained value path still invokes _add_dp_noise/map_values and the same report stage; no partition-selection call is introduced in the patch. The recorded tests pass and assert required keys plus noise kind/parameter, but not report partition classification. The bound artifacts do not retain _add_report_generator or its ReportGenerator consumer, so it is not established whether False changes required observable report behavior, only optional metadata, or any later dispatch. The flag name alone cannot prove partition selection or a required reporting failure, and those claims remain unresolved rather than promoted.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md:3: \"the method should not do record-level contribution bounding or partition selection; it should preserve exactly the input partition keys\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md:7: \"If an `ExplainComputationReport` is passed, the call should attach its report generator and include a stage describing the noise kind and parameter\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/mutants/a73f5ff7bb.patch:166-172: \"+                                       is_public_partition=False)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/mutants/a73f5ff7bb.patch:194-209: \"+        return self._backend.map_values(col, add_noise, \\\"Add noise\\\")\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.patch:52-70: \"+    assert any(value == pytest.approx(parameter) for value in numeric_tokens)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.patch:112-118: \"+    _assert_keys_match(rows, [0, 1])\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:1: \"== full reward=1.0 rc=0 scored 2.6s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:24: \"== nop reward=0.0 rc=0 scored 2.7s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:473: \"== mutant:a73f5ff7bb reward=1.0 rc=0 scored 2.6s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log",
+            "sha256": "8f45b81dfac82394ead1e9f26191a9767c5b13297e115556c685e137551de25c",
+            "line": 473,
+            "quote": "== mutant:a73f5ff7bb reward=1.0 rc=0 scored 2.6s",
+            "seconds": 2.6
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/mutants/a73f5ff7bb.patch",
+          "patch_sha256": "df23cdfacfc9504a97629f9ba90b9eadc4055267a4dcca12d5d204364c1878cc",
+          "file": "pipeline_dp/dp_engine.py",
+          "line": 609,
+          "end_line": 609,
+          "operator": "boolean-constant",
+          "original": "True",
+          "replacement": "False",
+          "semantic_scope": "Unresolved existing-helper/report-consumer semantics. Passing stage/key assertions are not certification that this flag is harmless, and False is not itself proof of partition selection.",
+          "counterexample": null,
+          "missing_evidence": "Pinned implementations of DPEngine._add_report_generator and the report-generator consumers of is_public_partition, including any add_dp_noise-specific formatting/dispatch. No such implementation is retained in the inspected package/reference/survivor/test artifacts or scoped local source searches."
+        }
+      ],
+      "unscored_mutants": [],
+      "limits": {
+        "whole_task_clean_certificate": false,
+        "generated_but_unattempted_mutants": 0,
+        "new_execution": false,
+        "source_counterexamples_are_static": true,
+        "package_digest_scope": "Measured report identity matched to frozen plan/atlas; directory digest not recomputed."
+      },
+      "scope_disposition": "All reported positive line survivors and this block-fail omission are individually adjudicated. A non-positive semantic disposition is claim-specific, not package-wide certification.",
+      "requirement_evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md",
+          "line": 3,
+          "quote": "budget_weight=1",
+          "sha256": "17c44e6ea32fcebcdb561998f8bbe0677284191fa802f1fa67cb1e14f1efbe90"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md",
+          "line": 7,
+          "quote": "If an `ExplainComputationReport` is passed, the call should attach its report generator and include a stage describing the noise kind and parameter",
+          "sha256": "17c44e6ea32fcebcdb561998f8bbe0677284191fa802f1fa67cb1e14f1efbe90"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md",
+          "line": 9,
+          "quote": "The method should allocate privacy budget according to `budget_weight`, annotate the returned collection with the params and computed budget, and leave the input collection's keys unchanged.",
+          "sha256": "17c44e6ea32fcebcdb561998f8bbe0677284191fa802f1fa67cb1e14f1efbe90"
+        }
+      ]
+    },
+    {
+      "task_id": "format-code-task-000363",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363",
+      "package_digest": "sha256:a5493a16ee56695f593d4b65409fce776e09b7ae4a19d705c7791be9ec5a92fc",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000363/solution.patch",
+      "reference_sha256": "b8f13cefbca6f13003da642e9ea9e595977605cef348f231bec02a573d069f93",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/report.json",
+      "report_sha256": "9f9272da09b31c26d10196d3c5192c29e598b4b4643e75a4e1fab7b4f59374ed",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log",
+      "grades_log_sha256": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/minimal.patch",
+      "minimal_patch_sha256": "271d98d6fb52bf736e6d25e3ca0e0d5916fe2444b1774710e741e2c2082c8072",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/dropped.patch",
+      "dropped_patch_sha256": "6ef1d2e9db39a40e1109a17505c6a43770dceaa9b9c2fc8e8621e3bf39014776",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md",
+      "instruction_sha256": "3670c7037125fb346b46bc3c054466536495538d9989748e7217e70982fa6579",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/task.toml",
+      "task_toml_sha256": "f3a2d1554e956ca34784ed9d547362811ae12c6fea9bcc4f2766b9e0e546da26",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch",
+      "test_patch_sha256": "9be04808f6eeb6de04d806a5f2e98b375c293ae6011b6998397c8a5198d3c4b3",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:b3abb277933470c8f3e330ea2d52775f3eac689c45ec0b1b69e329a639e08fc7",
+      "started_at": "2026-10-21T19:16:12+00:00",
+      "finished_at": "2026-10-21T19:17:23+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_reason": "",
+      "recorded_block_summary": {
+        "code_blocks": 7,
+        "code_lines": 18,
+        "kept_code_lines": 5,
+        "kept_fraction": 0.2778,
+        "kept": [
+          "alpaca/trading/models.py#2"
+        ],
+        "dropped_code": [
+          "alpaca/broker/client.py#0",
+          "alpaca/broker/client.py#2",
+          "alpaca/trading/client.py#0",
+          "alpaca/trading/client.py#2",
+          "alpaca/trading/models.py#0",
+          "alpaca/trading/models.py#1"
+        ],
+        "limits": {
+          "grade_timeout_s": 1800,
+          "max_grades": 24,
+          "memory": "3g",
+          "network": "none"
+        }
+      },
+      "mutant_stage": {
+        "generated": 4,
+        "killed": 0,
+        "limit": 20,
+        "reason": "",
+        "severity": "high",
+        "stage": "S2.ref_mutants",
+        "status": "measured",
+        "tried": 4,
+        "unscored": 0,
+        "verdict": "fail"
+      },
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log",
+          "sha256": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 2.2s",
+          "seconds": 2.2
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log",
+          "sha256": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d",
+          "line": 19,
+          "quote": "== nop reward=0.0 rc=0 scored 2.1s",
+          "seconds": 2.1
+        },
+        "confirm": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log",
+          "sha256": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d",
+          "line": 196,
+          "quote": "== confirm reward=1.0 rc=0 scored 2.1s",
+          "seconds": 2.1
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_hash_matches_frozen_plan": true,
+        "reference_bytes_match_report_hash": true,
+        "package_path_matches_archived_atlas": true,
+        "package_digest_matches_archived_atlas": true,
+        "reference_hash_matches_archived_atlas": true,
+        "instruction_hash_matches_archived_atlas": true,
+        "task_toml_hash_matches_archived_atlas": true,
+        "current_package_digest_recomputed": false,
+        "scope": "Recorded immutable package identity matched to the frozen plan and atlas; SHA-256 binds current report/log/reference/instruction/task.toml/grader files/minimal/dropped/every survivor. No package-directory digest recomposition, replay or producer/validation command."
+      },
+      "frozen_source_bindings": {
+        "resume_plan": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+          "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+          "selector": {
+            "task_id": "format-code-task-000363"
+          }
+        },
+        "atlas": {
+          "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+          "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+          "line": 74,
+          "selector": {
+            "task_id": "format-code-task-000363",
+            "package_digest": "sha256:a5493a16ee56695f593d4b65409fce776e09b7ae4a19d705c7791be9ec5a92fc"
+          },
+          "use": "Source-identity binding and prior-review navigation only; current grades come exclusively from the line-backfill grades.log and current omissions/survivors were reread."
+        }
+      },
+      "source_bindings": {
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/report.json": "9f9272da09b31c26d10196d3c5192c29e598b4b4643e75a4e1fab7b4f59374ed",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d",
+        "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000363/solution.patch": "b8f13cefbca6f13003da642e9ea9e595977605cef348f231bec02a573d069f93",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md": "3670c7037125fb346b46bc3c054466536495538d9989748e7217e70982fa6579",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/task.toml": "f3a2d1554e956ca34784ed9d547362811ae12c6fea9bcc4f2766b9e0e546da26",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch": "9be04808f6eeb6de04d806a5f2e98b375c293ae6011b6998397c8a5198d3c4b3",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.sh": "8b3b98137ee6923d8efa95ad2dacd5d3c443314d0b2aaa70bc185e6fbc029ac9",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test_command.sh": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/minimal.patch": "271d98d6fb52bf736e6d25e3ca0e0d5916fe2444b1774710e741e2c2082c8072",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/dropped.patch": "6ef1d2e9db39a40e1109a17505c6a43770dceaa9b9c2fc8e8621e3bf39014776",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+        "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/eefd1afce8.patch": "bab76c625a9005ae4fce1c01db79bbddc97da53b55c0d6e8af9b927e42a929cf",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/e66791e7fc.patch": "be809d4184856df7c3f9a3cb8b6917e1b4136ee22350b8ceb41eb851f6ab6871",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/7ce937d7d6.patch": "33075a0c443e0a41e4069d7354cefbf7d053126134fa27a027744de5bd028d06",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/3b6a3a3b53.patch": "9407e7e798369880c48c4fda5decfaff4ee9c96f6d9225d6e9c5a4700386b2e6"
+      },
+      "block": {
+        "label": "out_of_scope",
+        "reason": "The issue is a TradingClient.close_all_positions response ValidationError, with False explicitly supplied in the reproduction and True in the traceback. The kept model definitions make all four missing FailedClosePositionDetails fields optional. Earlier float annotations left above them are overwritten by the later same-name annotations/defaults in the Python class body, so removing those duplicates is not required. The omitted client defaults and omission of false-valued request dictionaries are separate API/request-construction changes; the supplied calls do not omit cancel_orders. The two selected grader tests exercise partial code/message response bodies with False and both pass. This omission therefore does not leave the reported parsing defect unfixed. It is distinct from the Trading line mutant that newly discards an explicitly True cancellation request.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:3: \"[Bug]: pydantic ValidationError when calling close_all_positions\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:26: \"trading_client.close_all_positions(cancel_orders=False)\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:38-46: \"    print(trading_client.close_all_positions(cancel_orders=True))\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:47-54: \"__root__ -> 0 -> body -> available\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/minimal.patch:6-13: \"+    available: Optional[float] = None\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/dropped.patch:8-12: \"+        cancel_orders: Optional[bool] = None,\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/dropped.patch:58-61: \"+            {\\\"cancel_orders\\\": cancel_orders} if cancel_orders else None,\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/dropped.patch:69-79: \"-    existing_qty: float\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:40-53: \"+        account_id, cancel_orders=False\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:88-104: \"+    close_orders = trading_client.close_all_positions(cancel_orders=False)\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:120: \"+python -m pytest -v -rA tests/broker/broker_client/test_trading_routes.py::test_close_all_positions_for_account_partial_failed_body tests/trading/trading_client/test_position_routes.py::test_close_all_positions_partial_failed_body\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:1: \"== full reward=1.0 rc=0 scored 2.2s\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:19: \"== nop reward=0.0 rc=0 scored 2.1s\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:196: \"== confirm reward=1.0 rc=0 scored 2.1s\""
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log",
+          "sha256": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d",
+          "line": 196,
+          "quote": "== confirm reward=1.0 rc=0 scored 2.1s",
+          "seconds": 2.1
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/minimal.patch",
+        "witness_sha256": "271d98d6fb52bf736e6d25e3ca0e0d5916fe2444b1774710e741e2c2082c8072",
+        "dropped_behavior": "Optional cancel_orders defaults; false/None request-parameter omission in Trading/Broker clients; removal of model annotations already superseded by the kept optional fields.",
+        "counterexample": null,
+        "missing_evidence": null
+      },
+      "survivors": [
+        {
+          "id": "eefd1afce8",
+          "label": "equivalent_or_optional",
+          "reason": "This is not globally equivalent: BrokerClient.close_all_positions_for_account(account_id, cancel_orders=True) loses its documented cancellation parameter and calls self.delete with None. However the task describes TradingClient.close_all_positions and the missing response fields, not Broker cancellation routing. This mutant leaves the Trading request and the shared response-model fix intact; its Broker call also has the same None second argument as the reference for the only graded input, False. The grader uses False with a URL-only mocked Broker response and does not inspect cancellation forwarding. Consequently the recorded pass is a real untested Broker regression but not an established gap in the task's named Trading validation requirement.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:24-27: \"trading_client = TradingClient(alpaca_key, secret, url_override='https://api.alpaca.markets')\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:38-46: \"    print(trading_client.close_all_positions(cancel_orders=True))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/eefd1afce8.patch:8-30: \"+            (None),\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/eefd1afce8.patch:21: \"+            cancel_orders (Optional[bool]): If true is specified, cancel all open orders before liquidating all positions.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/eefd1afce8.patch:56-61: \"+            {\\\"cancel_orders\\\": cancel_orders} if cancel_orders else None,\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/eefd1afce8.patch:79-82: \"+    available: Optional[float] = None\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:24-42: \"+        account_id, cancel_orders=False\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:44-53: \"+    assert close_orders[0].body.available is None\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:1: \"== full reward=1.0 rc=0 scored 2.2s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:19: \"== nop reward=0.0 rc=0 scored 2.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:214: \"== mutant:eefd1afce8 reward=1.0 rc=0 scored 2.2s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log",
+            "sha256": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d",
+            "line": 214,
+            "quote": "== mutant:eefd1afce8 reward=1.0 rc=0 scored 2.2s",
+            "seconds": 2.2
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/eefd1afce8.patch",
+          "patch_sha256": "bab76c625a9005ae4fce1c01db79bbddc97da53b55c0d6e8af9b927e42a929cf",
+          "file": "alpaca/broker/client.py",
+          "line": 1034,
+          "end_line": 1034,
+          "operator": "conditional-branch",
+          "original": "{\"cancel_orders\": cancel_orders} if cancel_orders else None",
+          "replacement": "(None)",
+          "semantic_scope": "Claim-specific out-of-task Broker forwarding regression, not whole-SDK equivalence; required Trading parsing and request paths are untouched.",
+          "counterexample": {
+            "kind": "static_out_of_scope_call_boundary_reasoning_not_executed",
+            "input": "BrokerClient.close_all_positions_for_account(valid_account_id, cancel_orders=True).",
+            "reference_outcome": "self.delete(account_positions_path, {\"cancel_orders\": True}).",
+            "mutant_outcome": "self.delete(account_positions_path, None).",
+            "scope": "The Broker cancellation operation is not the named TradingClient reproduction; this counterexample is recorded but is not promoted into a task defect."
+          },
+          "missing_evidence": null
+        },
+        {
+          "id": "e66791e7fc",
+          "label": "equivalent_or_optional",
+          "reason": "Always passing the Trading cancel_orders dictionary restores the pre-fix request construction; the required model fix remains. For the traceback's True call the downstream argument is identical to the full reference, {\"cancel_orders\": True}. For the explicit False reproduction it becomes {\"cancel_orders\": False} instead of None, without removing the newly optional response fields. The task asks to remove the response ValidationError, not to omit False/None arguments or make cancellation optional. Both actual grader tests mock by URL and exercise False response parsing; they neither assert request arguments nor exercise omission. Thus this request-construction difference is optional relative to the reported defect, not an accepted incomplete response-model fix. No claim is made that all False/None wire representations are server-equivalent.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:26: \"trading_client.close_all_positions(cancel_orders=False)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:38: \"    print(trading_client.close_all_positions(cancel_orders=True))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:46-54: \"pydantic.error_wrappers.ValidationError: 18 validation errors for ParsingModel[List[alpaca.trading.models.ClosePositionResponse]]\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000363/solution.patch:58-61: \"-            {\\\"cancel_orders\\\": cancel_orders},\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/e66791e7fc.patch:58-61: \"+            ({\\\"cancel_orders\\\": cancel_orders}),\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/e66791e7fc.patch:79-82: \"+    available: Optional[float] = None\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:72-104: \"+    close_orders = trading_client.close_all_positions(cancel_orders=False)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:1: \"== full reward=1.0 rc=0 scored 2.2s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:19: \"== nop reward=0.0 rc=0 scored 2.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:232: \"== mutant:e66791e7fc reward=1.0 rc=0 scored 2.1s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log",
+            "sha256": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d",
+            "line": 232,
+            "quote": "== mutant:e66791e7fc reward=1.0 rc=0 scored 2.1s",
+            "seconds": 2.1
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/e66791e7fc.patch",
+          "patch_sha256": "be809d4184856df7c3f9a3cb8b6917e1b4136ee22350b8ceb41eb851f6ab6871",
+          "file": "alpaca/trading/client.py",
+          "line": 279,
+          "end_line": 279,
+          "operator": "conditional-branch",
+          "original": "{\"cancel_orders\": cancel_orders} if cancel_orders else None",
+          "replacement": "({\"cancel_orders\": cancel_orders})",
+          "semantic_scope": "Response parsing fixed; True forwarding preserved. Optional False/None omission is not a requirement, and live API wire equivalence is not asserted.",
+          "counterexample": null,
+          "missing_evidence": null
+        },
+        {
+          "id": "7ce937d7d6",
+          "label": "equivalent_or_optional",
+          "reason": "Always passing the Broker dictionary restores that client's old request construction while retaining its optional signature and the shared response-model fix. The task names TradingClient, whose request is unchanged. Even for Broker True the full-reference dictionary is preserved; only False/None serialization differs, which is not requested by the validation issue. The selected Broker test supplies False and checks only the parsed partial-failure body through a URL-based request mock. Its passing grade therefore does not show a missing required model change, nor does it establish global equivalence of Broker wire representations.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:24-27: \"trading_client.close_all_positions(cancel_orders=False)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:46-54: \"__root__ -> 0 -> body -> existing_qty\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/7ce937d7d6.patch:26-30: \"+            ({\\\"cancel_orders\\\": cancel_orders}),\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/7ce937d7d6.patch:58-61: \"+            {\\\"cancel_orders\\\": cancel_orders} if cancel_orders else None,\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/7ce937d7d6.patch:79-82: \"+    available: Optional[float] = None\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:24-53: \"+        account_id, cancel_orders=False\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:1: \"== full reward=1.0 rc=0 scored 2.2s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:19: \"== nop reward=0.0 rc=0 scored 2.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:250: \"== mutant:7ce937d7d6 reward=1.0 rc=0 scored 2.1s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log",
+            "sha256": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d",
+            "line": 250,
+            "quote": "== mutant:7ce937d7d6 reward=1.0 rc=0 scored 2.1s",
+            "seconds": 2.1
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/7ce937d7d6.patch",
+          "patch_sha256": "33075a0c443e0a41e4069d7354cefbf7d053126134fa27a027744de5bd028d06",
+          "file": "alpaca/broker/client.py",
+          "line": 1034,
+          "end_line": 1034,
+          "operator": "conditional-branch",
+          "original": "{\"cancel_orders\": cancel_orders} if cancel_orders else None",
+          "replacement": "({\"cancel_orders\": cancel_orders})",
+          "semantic_scope": "Non-required Broker False/None request omission; Trading reproduction and required optional response fields remain fixed.",
+          "counterexample": null,
+          "missing_evidence": null
+        },
+        {
+          "id": "3b6a3a3b53",
+          "label": "required_gap",
+          "reason": "Unlike merely retaining the original False dictionary, this mutant discards the cancellation request even when True is explicitly supplied to the very TradingClient call shown in the issue traceback. The same method's retained documentation defines True as canceling open orders before liquidating positions; both the original implementation and full reference forward {\"cancel_orders\": True}. The mutant instead calls self.delete(\"/positions\", None), so it cannot preserve that explicit operation while repairing response parsing. The actual grader selects only the two partial-body tests, both call False, and the URL-only mock never asserts downstream request parameters. It therefore awards 1 to a partial fix that parses responses but drops the explicitly exercised True request. The proof is the concrete call boundary; no live API, order cancellation, server response or fresh control is claimed.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:26: \"trading_client.close_all_positions(cancel_orders=False)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:38-41: \"    print(trading_client.close_all_positions(cancel_orders=True))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/3b6a3a3b53.patch:41-52: \"+            cancel_orders (Optional[bool]): If true is specified, cancel all open orders before liquidating all positions.\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000363/solution.patch:58-61: \"+            {\\\"cancel_orders\\\": cancel_orders} if cancel_orders else None,\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/3b6a3a3b53.patch:58-61: \"+            (None),\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:72-88: \"+    close_orders = trading_client.close_all_positions(cancel_orders=False)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:120: \"+python -m pytest -v -rA tests/broker/broker_client/test_trading_routes.py::test_close_all_positions_for_account_partial_failed_body tests/trading/trading_client/test_position_routes.py::test_close_all_positions_partial_failed_body\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:274-283: \"collecting ... collected 2 items\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:1: \"== full reward=1.0 rc=0 scored 2.2s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:19: \"== nop reward=0.0 rc=0 scored 2.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:268: \"== mutant:3b6a3a3b53 reward=1.0 rc=0 scored 2.1s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log",
+            "sha256": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d",
+            "line": 268,
+            "quote": "== mutant:3b6a3a3b53 reward=1.0 rc=0 scored 2.1s",
+            "seconds": 2.1
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/mutants/3b6a3a3b53.patch",
+          "patch_sha256": "9407e7e798369880c48c4fda5decfaff4ee9c96f6d9225d6e9c5a4700386b2e6",
+          "file": "alpaca/trading/client.py",
+          "line": 279,
+          "end_line": 279,
+          "operator": "conditional-branch",
+          "original": "{\"cancel_orders\": cancel_orders} if cancel_orders else None",
+          "replacement": "(None)",
+          "semantic_scope": "Preservation of the explicitly True TradingClient operation in the issue traceback, demonstrated at self.delete; not a generalized new API requirement or proof of live order outcomes.",
+          "counterexample": {
+            "kind": "static_required_call_boundary_reasoning_not_executed",
+            "input": "trading_client.close_all_positions(cancel_orders=True), exactly the explicit mode in instruction.md:38.",
+            "required_outcome": "Preserve the documented True cancellation intent while fixing parsing: self.delete(\"/positions\", {\"cancel_orders\": True}).",
+            "mutant_outcome": "self.delete(\"/positions\", None); the True flag is discarded before the inherited REST method is invoked."
+          },
+          "missing_evidence": null
+        }
+      ],
+      "unscored_mutants": [],
+      "limits": {
+        "whole_task_clean_certificate": false,
+        "generated_but_unattempted_mutants": 0,
+        "new_execution": false,
+        "source_counterexamples_are_static": true,
+        "package_digest_scope": "Measured report identity matched to frozen plan/atlas; directory digest not recomputed."
+      },
+      "scope_disposition": "All reported positive line survivors and this block-fail omission are individually adjudicated. A non-positive semantic disposition is claim-specific, not package-wide certification.",
+      "requirement_evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md",
+          "line": 3,
+          "quote": "[Bug]: pydantic ValidationError when calling close_all_positions",
+          "sha256": "3670c7037125fb346b46bc3c054466536495538d9989748e7217e70982fa6579"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md",
+          "line": 26,
+          "quote": "trading_client.close_all_positions(cancel_orders=False)",
+          "sha256": "3670c7037125fb346b46bc3c054466536495538d9989748e7217e70982fa6579"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md",
+          "line": 38,
+          "quote": "    print(trading_client.close_all_positions(cancel_orders=True))",
+          "sha256": "3670c7037125fb346b46bc3c054466536495538d9989748e7217e70982fa6579"
+        }
+      ]
+    },
+    {
+      "task_id": "format-code-task-002726",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726",
+      "package_digest": "sha256:7c6dd4dd8c72d9cba149293fd2deaa7e3ff01b3f7003df132c18111c0add3467",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-002726/solution.patch",
+      "reference_sha256": "59d1ee549b9d9054a5d27abd63f4c99346371b1410d2e7e653c70c5f17141e92",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/report.json",
+      "report_sha256": "042a8e95abaa2e6e20134291076ee75f4c39f3ede24333f4de760071cc8fd386",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log",
+      "grades_log_sha256": "50c8672b4d5557de2a7056714e8c22e3ea29425b740733b029857917073701a9",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/minimal.patch",
+      "minimal_patch_sha256": "2bcfe62dc538e59c4e43c1bab2dfa48367ea22924eee77b66c3229aa6b8fff56",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/dropped.patch",
+      "dropped_patch_sha256": "2961ad8117c8033e326f93cdcce0d0ec3d07ab8d61f1e8cbc3c41f1827fd05ea",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/instruction.md",
+      "instruction_sha256": "f4546c0df50a73cd67b3ec2bfa8f01ee81e0268cff155c29f4663f6e57968045",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/task.toml",
+      "task_toml_sha256": "3f31da66198fdc1be957008d6eca3545e2cfe7e9d984bb973db3e049ba0099c0",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/tests/test.patch",
+      "test_patch_sha256": "41be9f1f05aed40ea23e817ccd777a6e534f4be2aa7331143e9d03475d35d41b",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:02e9a3db0d77df127907e30a068764b5675f100bf63d8d5daa2026894dbe163a",
+      "started_at": "2026-10-21T19:19:29+00:00",
+      "finished_at": "2026-10-21T19:20:59+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_reason": "",
+      "recorded_block_summary": {
+        "code_blocks": 5,
+        "code_lines": 5,
+        "kept_code_lines": 4,
+        "kept_fraction": 0.8,
+        "kept": [
+          "src/sqlfluff/dialects/dialect_postgres.py#0",
+          "src/sqlfluff/dialects/dialect_postgres.py#1",
+          "src/sqlfluff/dialects/dialect_postgres.py#2",
+          "src/sqlfluff/dialects/dialect_postgres.py#3"
+        ],
+        "dropped_code": [
+          "src/sqlfluff/dialects/dialect_postgres.py#4"
+        ],
+        "limits": {
+          "grade_timeout_s": 1800,
+          "max_grades": 24,
+          "memory": "3g",
+          "network": "none"
+        }
+      },
+      "mutant_stage": {
+        "generated": 0,
+        "killed": 0,
+        "limit": 20,
+        "reason": "no mutable code on the lines the reference wrote",
+        "severity": null,
+        "stage": "S2.ref_mutants",
+        "status": "not_applicable",
+        "tried": 0,
+        "unscored": 0,
+        "verdict": "unknown"
+      },
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log",
+          "sha256": "50c8672b4d5557de2a7056714e8c22e3ea29425b740733b029857917073701a9",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 2.6s",
+          "seconds": 2.6
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log",
+          "sha256": "50c8672b4d5557de2a7056714e8c22e3ea29425b740733b029857917073701a9",
+          "line": 20,
+          "quote": "== nop reward=0.0 rc=0 scored 2.7s",
+          "seconds": 2.7
+        },
+        "confirm": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log",
+          "sha256": "50c8672b4d5557de2a7056714e8c22e3ea29425b740733b029857917073701a9",
+          "line": 280,
+          "quote": "== confirm reward=1.0 rc=0 scored 3.0s",
+          "seconds": 3.0
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_hash_matches_frozen_plan": true,
+        "reference_bytes_match_report_hash": true,
+        "package_path_matches_archived_atlas": true,
+        "package_digest_matches_archived_atlas": true,
+        "reference_hash_matches_archived_atlas": true,
+        "instruction_hash_matches_archived_atlas": true,
+        "task_toml_hash_matches_archived_atlas": true,
+        "current_package_digest_recomputed": false,
+        "scope": "Recorded immutable package identity matched to the frozen plan and atlas; SHA-256 binds current report/log/reference/instruction/task.toml/grader files/minimal/dropped/every survivor. No package-directory digest recomposition, replay or producer/validation command."
+      },
+      "frozen_source_bindings": {
+        "resume_plan": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+          "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+          "selector": {
+            "task_id": "format-code-task-002726"
+          }
+        },
+        "atlas": {
+          "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+          "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+          "line": 76,
+          "selector": {
+            "task_id": "format-code-task-002726",
+            "package_digest": "sha256:7c6dd4dd8c72d9cba149293fd2deaa7e3ff01b3f7003df132c18111c0add3467"
+          },
+          "use": "Source-identity binding and prior-review navigation only; current grades come exclusively from the line-backfill grades.log and current omissions/survivors were reread."
+        }
+      },
+      "source_bindings": {
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/report.json": "042a8e95abaa2e6e20134291076ee75f4c39f3ede24333f4de760071cc8fd386",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log": "50c8672b4d5557de2a7056714e8c22e3ea29425b740733b029857917073701a9",
+        "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-002726/solution.patch": "59d1ee549b9d9054a5d27abd63f4c99346371b1410d2e7e653c70c5f17141e92",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/instruction.md": "f4546c0df50a73cd67b3ec2bfa8f01ee81e0268cff155c29f4663f6e57968045",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/task.toml": "3f31da66198fdc1be957008d6eca3545e2cfe7e9d984bb973db3e049ba0099c0",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/tests/test.patch": "41be9f1f05aed40ea23e817ccd777a6e534f4be2aa7331143e9d03475d35d41b",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/tests/test.sh": "896b91201866ac49bdd6d30dbc3fc2b0b0a2d1ffa31cc085f556c05298c055bd",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/tests/test_command.sh": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/minimal.patch": "2bcfe62dc538e59c4e43c1bab2dfa48367ea22924eee77b66c3229aa6b8fff56",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/dropped.patch": "2961ad8117c8033e326f93cdcce0d0ec3d07ab8d61f1e8cbc3c41f1827fd05ea",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+        "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450"
+      },
+      "block": {
+        "label": "uncertain",
+        "reason": "The minimal patch retains the import plus Indent/ImplicitIndent and the first Dedent that produce the requested SET/assignment/WHERE indentation, but omits the final Dedent after the optional WHERE. The current confirm log records all five selected formatting tests passing. Missing a closing marker creates a source-level concern about suffix/following-statement indentation, yet the bound hunk does not retain the enclosing INSERT grammar or SQLFluff indentation/reflow consumers. There is no demonstrated required SQL/output counterexample in the retained evidence, and marker-balance arithmetic alone cannot prove one. The grader covers simple conflict updates, WHERE, multiple assignments, DO NOTHING and standalone UPDATE, but not a suffix/following statement witness. Keep the exact omission uncertain rather than inheriting a defect or declaring the task clean.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/instruction.md:11-12: \"Within the query, anything that is before the `on` is formatted absolutely perfectly, but after it fails to indent.\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/instruction.md:41-43: \"on conflict (id) do update\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/instruction.md:47-58: \"If I have just a `update` statement (without a `do`) it indents as follows just fine.\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/minimal.patch:13-29: \"+                ImplicitIndent,\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/minimal.patch:27-29: \"                 Sequence(\\\"WHERE\\\", Ref(\\\"ExpressionSegment\\\"), optional=True),\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/dropped.patch:5-12: \"+                Dedent,\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/tests/test.patch:20-50: \"+def test_postgres_on_conflict_do_update_indents_set_clause() -> None:\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/tests/test.patch:53-110: \"+def test_postgres_plain_update_set_indent_preserved() -> None:\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/tests/test.patch:130: \"+PYTHONPATH=src python -m pytest test/dialects/postgres_test.py -k 'on_conflict or plain_update' -v\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log:288-297: \"collecting ... collected 26 items / 21 deselected / 5 selected\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log:1: \"== full reward=1.0 rc=0 scored 2.6s\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log:20: \"== nop reward=0.0 rc=0 scored 2.7s\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log:280: \"== confirm reward=1.0 rc=0 scored 3.0s\""
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log",
+          "sha256": "50c8672b4d5557de2a7056714e8c22e3ea29425b740733b029857917073701a9",
+          "line": 280,
+          "quote": "== confirm reward=1.0 rc=0 scored 3.0s",
+          "seconds": 3.0
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/minimal.patch",
+        "witness_sha256": "2bcfe62dc538e59c4e43c1bab2dfa48367ea22924eee77b66c3229aa6b8fff56",
+        "dropped_behavior": "Final Dedent closing the outer DO UPDATE indentation after the optional WHERE sequence.",
+        "counterexample": null,
+        "missing_evidence": "Pinned enclosing PostgreSQL INSERT/conflict grammar and SQLFluff indentation/reflow consumers sufficient to derive a specific incorrect required suffix or subsequent-statement output from this final-Dedent omission. No fresh formatting run is permitted or claimed."
+      },
+      "survivors": [],
+      "unscored_mutants": [],
+      "limits": {
+        "whole_task_clean_certificate": false,
+        "generated_but_unattempted_mutants": 0,
+        "new_execution": false,
+        "source_counterexamples_are_static": true,
+        "package_digest_scope": "Measured report identity matched to frozen plan/atlas; directory digest not recomputed.",
+        "mutant_stage_not_applicable_reason": "no mutable code on the lines the reference wrote"
+      },
+      "scope_disposition": "All reported positive line survivors and this block-fail omission are individually adjudicated. A non-positive semantic disposition is claim-specific, not package-wide certification.",
+      "requirement_evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/instruction.md",
+          "line": 11,
+          "quote": "I note that any query that I have is not formatted correctly (in terms of indentation) after a `on conflict (..) do` statement.",
+          "sha256": "f4546c0df50a73cd67b3ec2bfa8f01ee81e0268cff155c29f4663f6e57968045"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/instruction.md",
+          "line": 47,
+          "quote": "If I have just a `update` statement (without a `do`) it indents as follows just fine.",
+          "sha256": "f4546c0df50a73cd67b3ec2bfa8f01ee81e0268cff155c29f4663f6e57968045"
+        }
+      ]
+    }
+  ]
+}

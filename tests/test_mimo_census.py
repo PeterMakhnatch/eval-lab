@@ -2565,3 +2565,109 @@ def test_report_applies_verify_overrides(tmp_path: Path) -> None:
     assert _report_command(args, tmp_path) == 0
     rerun = {row["task_id"]: row for row in _load_manifest(manifest)}
     assert rerun[TASK_ID]["verify"] == "unverified:g1-go-nonempty-substring"
+
+
+@pytest.mark.parametrize(
+    ("task_id", "digest", "classification", "bucket"),
+    [
+        (
+            "format-code-task-001694",
+            "sha256:e5f6951aa2ef2ef430a265de536509fec21285a33a598a67ae6a715ac02ae3da",
+            "confirmed_defect",
+            "excluded",
+        ),
+        (
+            "format-code-task-002661",
+            "sha256:9cb4f1a6e6cabf4e939179bffc79bd1ac1249fd3b0d2c90ebe7dec9025307609",
+            "conservative_hold",
+            "held",
+        ),
+    ],
+)
+def test_scientific_exclusions_veto_clean_controls_without_relabelling_them(
+    task_id: str, digest: str, classification: str, bucket: str
+) -> None:
+    from evallab.mimo_clean import scientific_exclusion
+
+    row = {
+        **blank_row(task_id, manifest_version="mimo-clean-v6", backend="docker"),
+        "final_digest": digest,
+        "nop": "0",
+        "oracle": "1",
+        "ladder_verdict": "clean",
+        "census_locations": "0",
+    }
+    original = dict(row)
+    assert not census_row_pass(row)
+    aggregate = combine_task_rows([row], final_digest=digest)
+    assert aggregate is not None
+    exclusion = scientific_exclusion(task_id, digest)
+    assert exclusion is not None
+    assert aggregate["verify"] == exclusion["verify"]
+    summary = summarize_results([row])
+    assert summary["passed"] == summary["failed"] == 0
+    assert summary[bucket] == 1
+    assert classification in summary["failures"][0]["reasons"]
+    assert row == original
+    # This is only the census signal predicate, not certification of a child.
+    assert census_row_pass({**row, "final_digest": "sha256:" + "f" * 64})
+
+
+@pytest.mark.parametrize("has_aggregate", [False, True])
+def test_report_cannot_erase_scientific_exclusion_even_with_pass_override(
+    tmp_path: Path, has_aggregate: bool
+) -> None:
+    import argparse
+    import csv
+    import json
+
+    from evallab.mimo_census import _report_command
+    from evallab.mimo_clean import load_manifest
+
+    task_id = "format-code-task-001694"
+    digest = "sha256:e5f6951aa2ef2ef430a265de536509fec21285a33a598a67ae6a715ac02ae3da"
+    manifest = _write_manifest(
+        tmp_path, [_manifest_row_full(task_id, final_digest=digest, verify="pass")]
+    )
+    jobs = tmp_path / "jobs"
+    jobs.mkdir()
+    row = {
+        **blank_row(task_id, manifest_version="mimo-clean-v6", backend="docker"),
+        "final_digest": digest,
+        "nop": "0",
+        "oracle": "1",
+        "ladder_verdict": "clean",
+        "census_locations": "0",
+    }
+    (jobs / "census-rows.jsonl").write_text(
+        json.dumps(row) + "\n" if has_aggregate else "", encoding="utf-8"
+    )
+    receipt = tmp_path / "receipt"
+    receipt.mkdir()
+    (receipt / "verify-overrides.csv").write_text(
+        f"task_id,verify,reason,final_digest\n{task_id},pass,control-only override,{digest}\n",
+        encoding="utf-8",
+    )
+    args = argparse.Namespace(
+        manifest=manifest,
+        manifest_version="mimo-clean-v6",
+        receipt_dir=receipt,
+        jobs_dir=jobs,
+        cost_default_usd=0.0,
+    )
+    assert _report_command(args, tmp_path) == (1 if has_aggregate else 0)
+    first_manifest = manifest.read_bytes()
+    assert _report_command(args, tmp_path) == (1 if has_aggregate else 0)
+    assert manifest.read_bytes() == first_manifest
+    with manifest.open(newline="", encoding="utf-8") as handle:
+        persisted = list(csv.DictReader(handle))[0]
+    assert persisted["verify"] == "fail:vacuous-grader:compile-only"
+    assert persisted["final_digest"] == digest
+    assert load_manifest(manifest)[0] == persisted
+    if has_aggregate:
+        measured = load_results(receipt / "results.csv")[0]
+        assert (measured["nop"], measured["oracle"], measured["ladder_verdict"]) == (
+            "0",
+            "1",
+            "clean",
+        )

@@ -1,0 +1,303 @@
+{
+  "reports": [
+    {
+      "block": null,
+      "controls": {
+        "full": {
+          "rc": 0,
+          "reward": 1.0,
+          "status": "scored"
+        },
+        "nop": {
+          "rc": 0,
+          "reward": 0.0,
+          "status": "scored"
+        }
+      },
+      "dropped_patch_sha256": null,
+      "finished_at": "2026-10-21T20:11:48+00:00",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log",
+      "grades_log_sha256": "69eb88f5a07f2e5dc144db09e689193750a53eccc706d33f8800734de5a5e9b2",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:8e8838fa7d78527407ffc327834aca18c173e1031c8c77e0cd2aaa5f824b2bca",
+      "limits": {
+        "grade_timeout_s": 1800,
+        "max_grades": 24,
+        "memory": "3g",
+        "network": "none"
+      },
+      "minimal_patch_path": null,
+      "minimal_patch_sha256": null,
+      "mutant_stage": {
+        "generated": 326,
+        "killed": 17,
+        "limit": 20,
+        "reason": "",
+        "severity": "low",
+        "stage": "S2.ref_mutants",
+        "status": "measured",
+        "tried": 20,
+        "unscored": 0,
+        "verdict": "fail"
+      },
+      "package_digest": "sha256:a1fad9f820450cb2de386b844d29236fb729c9a19dd448a5a7075f41eee8bf88",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001886/solution.patch",
+      "reference_sha256": "84d93b4cb1ee97c966c731343f9248c3217b7cddddc4fc2be49d4b1e33db3342",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/report.json",
+      "report_sha256": "25a9a432461dc51a29ffbe802501316d780fad947becbd2a78d708fd548dbc4c",
+      "source_bindings": {
+        "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001886/solution.patch": "84d93b4cb1ee97c966c731343f9248c3217b7cddddc4fc2be49d4b1e33db3342",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log": "69eb88f5a07f2e5dc144db09e689193750a53eccc706d33f8800734de5a5e9b2",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/b603fd8bdf.patch": "e42359ad0445ece5176f642e29b7cf6fc7fed33a0bcdf1e5bd6def925fa8387a",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/ef6c250b29.patch": "1a7df1b0f36c3a0a621c8749204ab4b851748b0430253ebf08a756d0284e0b9c",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/fa099eae83.patch": "2248bca4642177dc049336d0c5b8aa72ca71295449283e075eb13dbe164e03fb",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/report.json": "25a9a432461dc51a29ffbe802501316d780fad947becbd2a78d708fd548dbc4c",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/instruction.md": "c6fca2f6e342b5e294361f7c232942761c3a25c9d4d625a6e9253ee522236bcc",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/task.toml": "09efefd51d34f563c5d8c92d788c126838a1eaeee60223aecc51e0b9bd4a6bc8",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test.patch": "f5f47a80862d9b97f0f870e6e19c3b0b3ea19a9b5fd4da8ad8f226d58189837a",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test.sh": "ad078860c50b38f0565bc983671156dc86669fd89021acd9b6df9dcd8ca477a8",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test_command.sh": "7127a2d85db4abf824b4a311773e247afcb0c1e825c8c3a30979c464a229afd1"
+      },
+      "started_at": "2026-10-21T20:07:03+00:00",
+      "survivors": [
+        {
+          "counterexample": {
+            "accumulated_matrix": [
+              [
+                1,
+                "inf",
+                "inf",
+                "inf"
+              ],
+              [
+                "inf",
+                1,
+                11,
+                "inf"
+              ],
+              [
+                "inf",
+                4,
+                2,
+                2
+              ],
+              [
+                "inf",
+                "inf",
+                2,
+                3
+              ]
+            ],
+            "cost_matrix": [
+              [
+                1,
+                1,
+                1,
+                1
+              ],
+              [
+                1,
+                0,
+                10,
+                1
+              ],
+              [
+                1,
+                3,
+                1,
+                1
+              ],
+              [
+                1,
+                1,
+                1,
+                1
+              ]
+            ],
+            "first_mutant_candidates": [
+              2,
+              1,
+              4
+            ],
+            "first_reference_candidates": [
+              2,
+              11,
+              4
+            ],
+            "kind": "static_source_and_arithmetic_reasoning_not_task_execution",
+            "predicted_mutant_node_cost": 6,
+            "predicted_mutant_path": [
+              [
+                0,
+                0
+              ],
+              [
+                1,
+                0
+              ],
+              [
+                2,
+                1
+              ],
+              [
+                3,
+                3
+              ]
+            ],
+            "public_call": "D=compute_accumulated_cost_matrix_21(np.array(C,dtype=float)); compute_optimal_warping_path_21(D)",
+            "required_reference_path": [
+              [
+                0,
+                0
+              ],
+              [
+                1,
+                1
+              ],
+              [
+                2,
+                2
+              ],
+              [
+                3,
+                3
+              ]
+            ],
+            "scope": "Nonnegative rectangular cost matrices are valid public helper inputs. Values were derived from the fully added recurrence and checked as scalar arithmetic; no Numba/helper/grader replay was performed.",
+            "valid_optimal_cost": 3
+          },
+          "end_line": 144,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/instruction.md:3: public pure DTW helpers for feature-sequence alignment",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/instruction.md:7: constrained path example and purity/immutability contract",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/fa099eae83.patch:167: the sole semantic difference from the full reference",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001886/solution.patch:117: complete valid-shape recurrence",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test.patch:154: constrained three-column fixture",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test.patch:353: actual launcher selects this test file",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:1: full=1 rc=0 scored",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:25: nop=0 rc=0 scored",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:144: current exact witness=1 rc=0 scored"
+          ],
+          "file": "libfmp/c3/c3s2_dtw.py",
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "header": "== mutant:fa099eae83 reward=1.0 rc=0 scored 10.5s",
+            "line": 144,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log"
+          },
+          "id": "fa099eae83",
+          "label": "required_gap",
+          "line": 144,
+          "missing_evidence": null,
+          "operator": "drop-operand",
+          "original": "m-1",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/fa099eae83.patch",
+          "patch_sha256": "2248bca4642177dc049336d0c5b8aa72ca71295449283e075eb13dbe164e03fb",
+          "reason": "The public constrained DTW path helper must backtrack an optimal path from an accumulated cost matrix, not just reproduce the supplied three-column fixture. The mutant replaces the predecessor column m-1 by constant 1. At m=3 this can choose a value that belongs to none of the predecessor locations tested in the following if/elif, sending the path to the wrong fallback. For the explicitly supplied nonnegative 4x4 cost matrix in counterexample, the reference-generated D has first candidates [2,11,4], whereas the mutant computes [2,1,4]. It falls to (2,1), subsequently walks through unreachable (1,0), and returns a path containing a forbidden (1,0) step with node-cost 6 rather than the valid diagonal optimum of cost 3. Every selected constrained correctness/purity fixture has at most three columns (or is single-cell), so the changed expression equals m-1 at the first checked backtracking step; the accepted current grade misses this general valid-shape defect. This is source-derived path/arithmetic reasoning, not task code execution or a fresh scored control.",
+          "replacement": "(1)"
+        },
+        {
+          "counterexample": null,
+          "end_line": 121,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/instruction.md:3: public pure DTW helpers for feature-sequence alignment",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/instruction.md:7: constrained path example and purity/immutability contract",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/ef6c250b29.patch:144: the sole semantic difference from the full reference",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001886/solution.patch:117: complete valid-shape recurrence",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test.patch:154: constrained three-column fixture",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test.patch:353: actual launcher selects this test file",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:1: full=1 rc=0 scored",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:25: nop=0 rc=0 scored",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:383: current exact witness=1 rc=0 scored"
+          ],
+          "file": "libfmp/c3/c3s2_dtw.py",
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "header": "== mutant:ef6c250b29 reward=1.0 rc=0 scored 10.4s",
+            "line": 383,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log"
+          },
+          "id": "ef6c250b29",
+          "label": "equivalent_or_optional",
+          "line": 121,
+          "missing_evidence": null,
+          "operator": "boolean-constant",
+          "original": "True",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/ef6c250b29.patch",
+          "patch_sha256": "1a7df1b0f36c3a0a621c8749204ab4b851748b0430253ebf08a756d0284e0b9c",
+          "reason": "Only the Numba decorator option changes from nopython=True to False; the complete numeric recurrence/backtracking body and public export are unchanged. The instruction requires correct pure returned arrays, invalid-metric behavior, repeatability, unchanged caller inputs and no user-visible I/O/global-state effects, not a particular JIT mode, compilation property or speed. No required mathematical operation or state mutation changes on the specified numeric ndarray domain, and all selected correctness/purity tests still pass in the recorded current grade. This refutes the decorator-only incomplete-solution claim within that functional contract; it does not certify compiler performance or behavior on arbitrary unsupported object arrays.",
+          "replacement": "False"
+        },
+        {
+          "counterexample": null,
+          "end_line": 93,
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/instruction.md:3: public pure DTW helpers for feature-sequence alignment",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/instruction.md:7: constrained path example and purity/immutability contract",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/b603fd8bdf.patch:116: the sole semantic difference from the full reference",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001886/solution.patch:117: complete valid-shape recurrence",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test.patch:154: constrained three-column fixture",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test.patch:353: actual launcher selects this test file",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:1: full=1 rc=0 scored",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:25: nop=0 rc=0 scored",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:866: current exact witness=1 rc=0 scored"
+          ],
+          "file": "libfmp/c3/c3s2_dtw.py",
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "header": "== mutant:b603fd8bdf reward=1.0 rc=0 scored 10.8s",
+            "line": 866,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log"
+          },
+          "id": "b603fd8bdf",
+          "label": "equivalent_or_optional",
+          "line": 93,
+          "missing_evidence": null,
+          "operator": "boolean-constant",
+          "original": "True",
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/b603fd8bdf.patch",
+          "patch_sha256": "e42359ad0445ece5176f642e29b7cf6fc7fed33a0bcdf1e5bd6def925fa8387a",
+          "reason": "Only the Numba decorator option changes from nopython=True to False; the complete numeric recurrence/backtracking body and public export are unchanged. The instruction requires correct pure returned arrays, invalid-metric behavior, repeatability, unchanged caller inputs and no user-visible I/O/global-state effects, not a particular JIT mode, compilation property or speed. No required mathematical operation or state mutation changes on the specified numeric ndarray domain, and all selected correctness/purity tests still pass in the recorded current grade. This refutes the decorator-only incomplete-solution claim within that functional contract; it does not certify compiler performance or behavior on arbitrary unsupported object arrays.",
+          "replacement": "False"
+        }
+      ],
+      "task_id": "format-code-task-001886"
+    }
+  ],
+  "schema": "mimo.line_backfill_reviews/v1",
+  "summary": {
+    "attempted_mutants": 20,
+    "block_fail_candidates": 0,
+    "generated_but_unattempted_mutants": 306,
+    "generated_mutants": 326,
+    "limitations": [
+      "Three assigned survivors only; all26 current grade headers are retained, with full=1/nop=0 scored rc0 and all three exact witnesses=1 scored rc0.",
+      "The 4x4 counterexample is source/arithmetic reasoning. No task helper, Numba compiler, Docker control or new scored grader run was executed.",
+      "306 generated-but-unattempted mutants are outside adjudication; optional decorator labels are not whole-task correctness or performance certificates."
+    ],
+    "recorded_killed_mutants": 17,
+    "recorded_unscored_mutants": 0,
+    "reported_survivors": 3,
+    "reports": 1,
+    "reviewed_survivors": 3,
+    "survivor_labels": {
+      "equivalent_or_optional": 2,
+      "non_positive": 0,
+      "required_gap": 1,
+      "uncertain": 0
+    }
+  }
+}

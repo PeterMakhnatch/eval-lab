@@ -1407,3 +1407,289 @@ def test_v5_fill_does_not_promote_refreshed_packages_from_historical_evidence(
     )
     assert "excluded-from-training pending revalidation" in row["reason"]
     assert old_digest in row["reason"]
+
+
+def test_scientific_exclusions_cover_every_supported_original_atlas_package() -> None:
+    atlas = (
+        Path(__file__).resolve().parents[1]
+        / "research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl"
+    )
+    supported = [
+        row
+        for line in atlas.read_text(encoding="utf-8").splitlines()
+        if (row := json.loads(line))["semantic_verdict"] == "confirmed_weak"
+    ]
+    for row in supported:
+        exclusion = mimo_clean.scientific_exclusion(row["task_id"], row["package_digest"])
+        assert exclusion is not None
+        assert exclusion["classification"] == "confirmed_defect"
+        assert exclusion["claim_status"] == "confirmed"
+        assert exclusion["verify"].startswith("fail:")
+        # An exclusion is not an ID-wide replacement/certification decision.
+        assert mimo_clean.scientific_exclusion(row["task_id"], "sha256:" + "f" * 64) is None
+        assert mimo_clean.scientific_exclusion("another-task", row["package_digest"]) is None
+
+
+def test_manifest_exclusions_overlay_reads_and_enforce_fresh_writes(tmp_path: Path) -> None:
+    task_id = "format-code-task-001694"
+    digest = "sha256:e5f6951aa2ef2ef430a265de536509fec21285a33a598a67ae6a715ac02ae3da"
+    original = ChainResult(
+        task_id=task_id,
+        status=STATUS_BUILT,
+        final_digest=digest,
+        verify="pass",
+        reason="historical control grade",
+    ).manifest_row()
+    source = tmp_path / "historical.csv"
+    with source.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(mimo_clean.MANIFEST_COLUMNS))
+        writer.writeheader()
+        writer.writerow(original)
+    historical_bytes = source.read_bytes()
+    overlaid = load_manifest(source)
+    assert source.read_bytes() == historical_bytes
+    assert overlaid[0]["final_digest"] == digest
+    assert overlaid[0]["verify"] == "fail:vacuous-grader:compile-only"
+    assert original["verify"] == "pass"
+
+    fresh = write_manifest([original], tmp_path / "fresh.csv")
+    with fresh.open(newline="", encoding="utf-8") as handle:
+        written = list(csv.DictReader(handle))
+    assert written == load_manifest(fresh)
+    assert written[0]["verify"] == overlaid[0]["verify"]
+    assert written[0]["final_digest"] == digest
+    assert original["reason"] == "historical control grade"
+    child = {**original, "final_digest": "sha256:" + "f" * 64, "verify": "unverified"}
+    child_path = write_manifest([child], tmp_path / "child.csv")
+    assert load_manifest(child_path)[0] == child
+
+
+@pytest.mark.parametrize(
+    ("task_id", "digest"),
+    [
+        (
+            "format-code-task-002661",
+            "sha256:9cb4f1a6e6cabf4e939179bffc79bd1ac1249fd3b0d2c90ebe7dec9025307609",
+        ),
+        (
+            "format-code-task-002402",
+            "sha256:0374b461751c83e3fab4141517019b9a92f1fbecd67883cea5c7f11c31c1e264",
+        ),
+        (
+            "format-code-task-000495",
+            "sha256:f9025ca2589d5dd1c00c2016b6acf32bf59cd201c78526cd07cb2f584240c0db",
+        ),
+        (
+            "candidate-1702-ml-inference",
+            "sha256:a2a1fda29150f53687f641535c6f83b5c47778895c0ad6a871e683130e514eaf",
+        ),
+    ],
+)
+def test_unresolved_semantic_claims_remain_unknown_holds(task_id: str, digest: str) -> None:
+    exclusion = mimo_clean.scientific_exclusion(task_id, digest)
+    assert exclusion is not None
+    assert exclusion["classification"] == "conservative_hold"
+    assert exclusion["claim_status"] == "unknown"
+    assert exclusion["verify"] == "unverified:semantic-hold"
+
+
+@pytest.mark.parametrize("invalid", ["blank-digest", "duplicate", "confirmed-unknown", "pass"])
+def test_scientific_exclusion_inventory_refuses_unsafe_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, invalid: str
+) -> None:
+    task_id = "format-code-task-001694"
+    digest = "sha256:e5f6951aa2ef2ef430a265de536509fec21285a33a598a67ae6a715ac02ae3da"
+    entry = dict(mimo_clean.scientific_exclusion(task_id, digest) or {})
+    entries = [entry]
+    if invalid == "blank-digest":
+        entry["package_digest"] = ""
+    elif invalid == "duplicate":
+        entries.append(dict(entry))
+    elif invalid == "confirmed-unknown":
+        entry["claim_status"] = "unknown"
+    else:
+        entry["verify"] = "pass"
+    inventory = tmp_path / "exclusions.json"
+    inventory.write_text(
+        json.dumps({"schema": "evallab.mimo_scientific_exclusions/v1", "exclusions": entries}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mimo_clean, "SCIENTIFIC_EXCLUSIONS_REL", inventory)
+    with pytest.raises(VariantInvalid, match="scientific-exclusion"):
+        mimo_clean.scientific_exclusion(task_id, digest)
+
+
+@pytest.mark.parametrize("kind", ["line", "block"])
+def test_backfill_exclusions_require_reviewed_byte_bound_accepted_wrong_witness(
+    tmp_path: Path, kind: str
+) -> None:
+    import runpy
+
+    home = (
+        Path(__file__).resolve().parents[1]
+        / "research/experiments/mimo-weak-tests-line-backfill-20261021"
+    )
+    producer = runpy.run_path(str(home / "build_exclusions.py"))
+    helpers = runpy.run_path(str(home / "build.py"))
+    task_id = "format-code-task-test"
+    package = tmp_path / "package"
+    package.mkdir()
+    (package / "task.toml").write_text(f'[task]\nname = "mimo-v2.6-rl/{task_id}"\n')
+    digest = task_directory_digest(package)
+    reference = tmp_path / "reference.patch"
+    reference.write_text("recorded reference fixture\n")
+    root = tmp_path / "scans"
+    scan = root / task_id
+    (scan / "mutants").mkdir(parents=True)
+    witness = scan / "minimal.patch" if kind == "block" else scan / "mutants/abc.patch"
+    witness.write_text("recorded accepted wrong patch fixture\n")
+    report = scan / "report.json"
+    report.write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "package": str(package),
+                "package_digest": digest,
+                "reference": {"patch": str(reference), "sha256": helpers["sha256"](reference)},
+                "verdict": "fail" if kind == "block" else "pass",
+                "mutants": {
+                    "tried": 0 if kind == "block" else 1,
+                    "survivors": [] if kind == "block" else [{"id": "abc", "file": "f.py", "line": 1}],
+                },
+            }
+        )
+    )
+    log = scan / "grades.log"
+    log.write_text(
+        "== full reward=1 rc=0 scored 1.0s\n"
+        "== nop reward=0 rc=0 scored 1.0s\n"
+        f"== {'confirm' if kind == 'block' else 'mutant:abc'} reward=1 rc=0 scored 1.0s\n"
+    )
+    grade = {"reward": 1.0, "rc": 0, "status": "scored"}
+    judgement = {
+        "id": "abc",
+        "label": "confirmed_weak" if kind == "block" else "required_gap",
+        "reason": "Fixture adjudication: required public-caller behavior is absent.",
+        "evidence_refs": ["fixture-instruction:1", "fixture-source:1"],
+        "patch_path": str(witness),
+        "patch_sha256": helpers["sha256"](witness),
+        "grade": grade,
+    }
+    review = {
+        "task_id": task_id,
+        "package_digest": digest,
+        "reference_sha256": helpers["sha256"](reference),
+        "report_path": str(report),
+        "report_sha256": helpers["sha256"](report),
+        "grades_log_path": str(log),
+        "grades_log_sha256": helpers["sha256"](log),
+        "minimal_patch_path": str(witness) if kind == "block" else str(scan / "minimal.patch"),
+        "minimal_patch_sha256": helpers["sha256"](witness) if kind == "block" else None,
+        "dropped_patch_sha256": None,
+        "controls": {"full": grade, "nop": {**grade, "reward": 0.0}},
+        "block": judgement if kind == "block" else None,
+        "survivors": [] if kind == "block" else [judgement],
+    }
+    reviews_path = tmp_path / "reviews.json"
+
+    def write_review() -> None:
+        reviews_path.write_text(
+            json.dumps({"schema": "mimo.line_backfill_reviews/v1", "reports": [review]})
+        )
+
+    write_review()
+    accepted = producer["backfill_exclusions"](root, reviews_path, helpers)
+    assert len(accepted) == 1
+    assert accepted[0]["classification"] == "confirmed_defect"
+    assert accepted[0]["package_digest"] == digest
+    assert accepted[0]["evidence"][0]["witness_sha256"] == "sha256:" + judgement["patch_sha256"]
+    judgement["label"] = "uncertain"
+    write_review()
+    assert producer["backfill_exclusions"](root, reviews_path, helpers) == []
+    judgement["label"] = "confirmed_weak" if kind == "block" else "required_gap"
+    write_review()
+    witness.write_text("different bytes under the same witness name\n")
+    with pytest.raises(ValueError, match="stale"):
+        producer["backfill_exclusions"](root, reviews_path, helpers)
+
+
+def test_default_backfill_review_inputs_reject_duplicate_task_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import runpy
+
+    home = (
+        Path(__file__).resolve().parents[1]
+        / "research/experiments/mimo-weak-tests-line-backfill-20261021"
+    )
+    producer = runpy.run_path(str(home / "build_exclusions.py"))
+    helpers = runpy.run_path(str(home / "build.py"))
+    monkeypatch.setitem(producer["backfill_exclusions"].__globals__, "HERE", tmp_path)
+    payload = json.dumps(
+        {"schema": "mimo.line_backfill_reviews/v1", "reports": [{"task_id": "same-task"}]}
+    )
+    first = tmp_path / "backfill-reviews.json"
+    first.write_text(payload)
+    batch = tmp_path / "review-batches/02a.json"
+    batch.parent.mkdir()
+    batch.write_text(payload)
+    with pytest.raises(ValueError, match="duplicate reviewed task"):
+        producer["backfill_exclusions"](tmp_path / "scans", None, helpers)
+    assert producer["review_paths"](batch) == [batch]
+
+
+def test_static_defect_excludes_original_bytes_not_only_manifest_run_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import runpy
+
+    from evallab.mimo_census import blank_row, census_row_pass
+
+    home = (
+        Path(__file__).resolve().parents[1]
+        / "research/experiments/mimo-weak-tests-line-backfill-20261021"
+    )
+    producer = runpy.run_path(str(home / "build_exclusions.py"))
+    task_id = "format-code-task-001694"
+    package = tmp_path / "original"
+    (package / "tests").mkdir(parents=True)
+    (package / "task.toml").write_text(f'[task]\nname = "mimo/{task_id}"\n')
+    instruction = package / "instruction.md"
+    instruction.write_text("Implement the requested behavior.\n")
+    tests = package / "tests/test.patch"
+    tests.write_text("Recorded compile-only grader.\n")
+    digest = task_directory_digest(package)
+    case = {
+        "task_id": task_id,
+        "verdict": "confirmed",
+        "claim": "vacuous_whole_grader",
+        "reason": "Compile-only acceptance does not execute required behavior.",
+        "evidence": {
+            "instruction": {"path": str(instruction), "sha256": producer["sha256"](instruction)},
+            "hidden_tests": {"path": str(tests), "sha256": producer["sha256"](tests)},
+        },
+        "manifest_records": {
+            "v5": {"final_digest": "sha256:" + "a" * 64},
+            "v6": {"run_digest": "sha256:" + "b" * 64, "final_digest": "sha256:" + "c" * 64},
+        },
+    }
+    audit = {"cases": [case]}
+    exclusions = producer["audited_code_exclusions"](audit, "sha256:" + "0" * 64, tmp_path)
+    inventory = tmp_path / "exclusions.json"
+    inventory.write_text(
+        json.dumps({"schema": "evallab.mimo_scientific_exclusions/v1", "exclusions": exclusions})
+    )
+    monkeypatch.setattr(mimo_clean, "SCIENTIFIC_EXCLUSIONS_REL", inventory)
+    row = {
+        **blank_row(task_id, manifest_version="mimo-clean-v6", backend="docker"),
+        "final_digest": digest,
+        "nop": "0",
+        "oracle": "1",
+        "ladder_verdict": "clean",
+        "census_locations": "0",
+    }
+    assert not census_row_pass(row)
+
+    instruction.write_text("Changed task requirements.\n")
+    with pytest.raises(ValueError, match="stale evidence hash"):
+        producer["audited_code_exclusions"](audit, "sha256:" + "0" * 64, tmp_path)

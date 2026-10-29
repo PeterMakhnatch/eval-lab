@@ -589,7 +589,7 @@ inputs:
   - path: src/evallab/ladder.py
     digest: sha256:142f028f50d04045289a40ffbc1d69c3d760785a57c356fa23fd70b585dca705
   - path: src/evallab/laminar.py
-    digest: sha256:880b02332f9999a03c4a3522a01d7a396e3e03527ed798442acbe455594da578
+    digest: sha256:0a0c4b3c75d93a4fe1cee7f24b71ffade6296ed03cf513e4be7afe0f48e1e002
   - path: src/evallab/laminar_tracing.py
     digest: sha256:078d8b5e796574b398daf441ac2ea27ec1d87fc5f739bc788c214019e324f2cb
   - path: src/evallab/lance.py
@@ -1163,7 +1163,7 @@ inputs:
   - path: src/evallab/trace_store/fetch.py
     digest: sha256:5705216772cf96c544daf95d0607a4b421ebd455ccdf22024f4e7dc6b6762c7d
   - path: src/evallab/trace_store/laminar.py
-    digest: sha256:7431d89e34a297f9921f2f66f8a55efbd1b98bd4953e31726fe03fefd691f995
+    digest: sha256:472bbd865e736443926e65191c63e1a1149be61f972b238f5322d8d9e888390e
   - path: src/evallab/trace_store/owner_cleanup.py
     digest: sha256:455579da218146f1b97f28a81ea94314967988d873d7275a87031734a5c24d1d
   - path: src/evallab/trace_store/secrets.py

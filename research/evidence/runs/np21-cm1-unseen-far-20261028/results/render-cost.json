@@ -1,6 +1,6 @@
 {
  "schema": "np21-render-cost/v1",
- "method": "production renderer (blind_run, render_segments, plan_chunks, per-run redaction pattern); no model call; tokens = chars x CM-18 calibration ratio, upper bound chars/3",
+ "method": "production renderer (blind_run, render_segments, plan_chunks, per-run redaction pattern); no model call; tokens = chars x CM-18 calibration ratio (ok reads only), upper bound chars/3",
  "calibration_cm18": {
   "runs": 946,
   "est_chars": 55410942,

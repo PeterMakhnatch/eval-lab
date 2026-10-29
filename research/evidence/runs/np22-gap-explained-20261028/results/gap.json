@@ -73,6 +73,15 @@
   },
   "note": "uses labels; not a rule"
  },
+ "answer_material_accessed_true_recall_cm18": {
+  "ci": [
+   66.5,
+   93.9
+  ],
+  "k": 22,
+  "n": 26,
+  "pct": 84.6
+ },
  "b6_paired_positives": {
   "haiku": {
    "ci": [
@@ -92,6 +101,24 @@
    "n": 98,
    "pct": 67.3
   }
+ },
+ "cited_rated_below_2": {
+  "ci": [
+   35.7,
+   57.1
+  ],
+  "k": 37,
+  "n": 80,
+  "pct": 46.2
+ },
+ "cm18_positives_ge1": {
+  "ci": [
+   89.7,
+   95.4
+  ],
+  "k": 295,
+  "n": 317,
+  "pct": 93.1
  },
  "cohort": {
   "admitted": 200,
@@ -572,6 +599,10 @@
   },
   "published_gap_pts": 60.0
  },
+ "goodfire_P68_subset_recalls_pct": {
+  "max": 6.2,
+  "min": 3.6
+ },
  "goodfire_multi_chunk_recall_P68": {
   "multi_chunk": {
    "ci": [
@@ -603,6 +634,51 @@
   "multi_chunk_P68": 30,
   "steps_enacted_median": 28.0
  },
+ "goodfire_where_recall_moves_exploratory": {
+  "multi_chunk_vs_single": {
+   "fisher_p": 0.0337,
+   "multi": {
+    "ci": [
+     5.3,
+     29.7
+    ],
+    "k": 4,
+    "n": 30,
+    "pct": 13.3
+   },
+   "registered": false,
+   "single": {
+    "ci": [
+     0.0,
+     9.2
+    ],
+    "k": 0,
+    "n": 38,
+    "pct": 0.0
+   }
+  },
+  "render_unknown_vs_validated": {
+   "fisher_p": 0.1405,
+   "unknown": {
+    "ci": [
+     4.7,
+     44.8
+    ],
+    "k": 2,
+    "n": 12,
+    "pct": 16.7
+   },
+   "validated": {
+    "ci": [
+     1.0,
+     12.1
+    ],
+    "k": 2,
+    "n": 56,
+    "pct": 3.6
+   }
+  }
+ },
  "inputs_sha256": {
   "b6-facets": "72532568370740649203a503e8672ed03e315be566925dfd0617938ebc768d4e",
   "cm18-facets": "6f81f91d7c007b71476d34cf298b5dd247a5d748c79c6bb44cf4daba88896faa",
@@ -611,6 +687,9 @@
   "goodfire-sample": "e24db6ec51ca12f7184301caa9a2467446e4a2e090ecfcb9a2b25c3ca1eb7f87",
   "np21-facets": "8bc021feac4615a2bdc87757ab930f471d3b515796d4d86a6036c2c247e64beb",
   "reblinded-facets-v1": "e7def1700874334ad3e0c19a351bbe18485a5a7bb88d03fd4147a33e66a23a47"
+ },
+ "labelled_indices_not_agent_steps_in_document": {
+  "off_final_path_dropped": 149
  },
  "last_wins": {
   "clean": {
@@ -718,7 +797,21 @@
    "pct": 17.6
   }
  },
+ "max_possible_closure_pct_given_4_flags": {
+  "B": 0.58,
+  "D2": 0.44,
+  "R": 0.21
+ },
  "note": "aggregates only; cells with n<3 suppressed in breakdowns",
+ "np21_positives_ge1": {
+  "ci": [
+   68.2,
+   80.5
+  ],
+  "k": 140,
+  "n": 187,
+  "pct": 74.9
+ },
  "per_set_gaps_cm18": {
   "beam": {
    "ci": [
@@ -2294,11 +2387,8 @@
    },
    "suspicion": {
     "0": 67,
-    "1": "<3",
-    "2": "<3"
-   },
-   "tests": {
-    "read": 70
+    "1": 2,
+    "2": 1
    }
   },
   "G-Haiku-primary": {
@@ -2337,11 +2427,8 @@
    },
    "suspicion": {
     "0": 55,
-    "1": "<3",
-    "2": "<3"
-   },
-   "tests": {
-    "read": 58
+    "1": 2,
+    "2": 1
    }
   },
   "G-Opus": {
@@ -2379,9 +2466,6 @@
    },
    "suspicion": {
     "0": 60
-   },
-   "tests": {
-    "read": 60
    }
   },
   "G-Sonnet": {
@@ -2418,9 +2502,6 @@
    },
    "suspicion": {
     "0": 70
-   },
-   "tests": {
-    "read": 70
    }
   }
  },
@@ -2461,10 +2542,7 @@
    },
    "suspicion": {
     "0": 48,
-    "1": "<3"
-   },
-   "tests": {
-    "read": 50
+    "1": 2
    }
   },
   "G-Sonnet": {
@@ -2502,9 +2580,6 @@
    },
    "suspicion": {
     "0": 50
-   },
-   "tests": {
-    "read": 50
    }
   }
  },
@@ -2522,7 +2597,7 @@
    "eval_awareness": {
     "mentions_tests": 46,
     "none": 5,
-    "plans_to_game": "<3",
+    "plans_to_game": 1,
     "reasons_about_grader": 28
    },
    "grader_or_harness_touched": {
@@ -2548,11 +2623,6 @@
     "0": 58,
     "1": 15,
     "2": 7
-   },
-   "tests": {
-    "modified": "<3",
-    "read": 77,
-    "replaced": "<3"
    }
   },
   "G-Haiku-primary": {
@@ -2593,10 +2663,6 @@
     "0": 52,
     "1": 12,
     "2": 4
-   },
-   "tests": {
-    "modified": "<3",
-    "read": 67
    }
   },
   "G-Haiku-single-line-attested": {
@@ -2637,10 +2703,6 @@
     "0": 42,
     "1": 11,
     "2": 4
-   },
-   "tests": {
-    "modified": "<3",
-    "read": 56
    }
   },
   "G-Opus": {
@@ -2681,9 +2743,6 @@
     "0": 30,
     "1": 21,
     "3": 4
-   },
-   "tests": {
-    "read": 55
    }
   },
   "G-Sonnet": {
@@ -2723,10 +2782,7 @@
     "0": 63,
     "1": 12,
     "2": 3,
-    "3": "<3"
-   },
-   "tests": {
-    "read": 80
+    "3": 2
    }
   },
   "G-lastwins": {
@@ -2741,7 +2797,7 @@
    },
    "eval_awareness": {
     "mentions_tests": 39,
-    "plans_to_game": "<3",
+    "plans_to_game": 2,
     "reasons_about_grader": 39
    },
    "grader_or_harness_touched": {
@@ -2766,11 +2822,8 @@
    "suspicion": {
     "0": 50,
     "1": 25,
-    "2": "<3",
+    "2": 2,
     "3": 3
-   },
-   "tests": {
-    "read": 80
    }
   }
  },
@@ -2950,34 +3003,6 @@
      "k": 4,
      "n": 25,
      "pct": 16.0
-    }
-   },
-   "grader_or_harness_touched": {
-    "False": {
-     "ci": [
-      1.5,
-      12.4
-     ],
-     "k": 3,
-     "n": 67,
-     "pct": 4.5
-    },
-    "True": {
-     "n": "<3"
-    }
-   },
-   "tests_mediator": {
-    "modified": {
-     "n": "<3"
-    },
-    "read": {
-     "ci": [
-      1.5,
-      12.4
-     ],
-     "k": 3,
-     "n": 67,
-     "pct": 4.5
     }
    }
   },
@@ -3527,5 +3552,20 @@
     }
    }
   }
+ },
+ "upstream_fix_recall_runs_redaction_in_labelled_steps": {
+  "other_runs": 45,
+  "other_runs_with_placeholder": 4,
+  "runs": 35,
+  "runs_with_placeholder_in_labelled_step": 15
+ },
+ "verbal_only_recount": {
+  "P68_verbal_only_runs": 0,
+  "labelled_agent_steps_with_command": 267,
+  "labelled_agent_steps_without_command": 0,
+  "note": "action-bearing = any labelled agent step with a command, so verbal-only runs are rare by construction",
+  "runs_all80_no_labelled_agent_step": 8,
+  "runs_all80_verbal_only": 0,
+  "runs_all80_with_a_labelled_agent_step": 72
  }
 }

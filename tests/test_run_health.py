@@ -99,6 +99,29 @@ def test_loop_period_two_cycle_alarms_via_command_cycle() -> None:
     assert "identical_command_run" not in loop["summary"]
 
 
+def test_identical_failure_feedback_after_resubmission_is_a_loop_but_new_feedback_is_not() -> None:
+    commands = _words(6)
+    prompt = _step(1, None, source="user", message="implement func.py")
+    failed = "Your implementation failed the tests.\nAssertionError: line 13"
+
+    def rounds(feedback: list[str]) -> list[dict[str, Any]]:
+        steps, step_id = [prompt], 2
+        for i, message in enumerate(feedback):
+            steps += [_step(step_id, commands[2 * i]), _step(step_id + 1, commands[2 * i + 1])]
+            steps.append(_step(step_id + 2, None, source="user", message=message))
+            step_id += 3
+        return steps
+
+    repeated = _by_kind(_run(rounds([failed, failed])))["loop"]
+    assert repeated["verdict"] == "alarm"
+    assert "repeated_feedback" in repeated["summary"]
+    assert repeated["evidence_steps"] == [7]
+    # The task prompt is not feedback, and changed feedback means the resubmission changed the outcome.
+    assert _by_kind(_run(rounds([failed, failed + " and line 16"])))["loop"]["verdict"] == "clear"
+    assert _by_kind(_run([_step(1, None, source="user", message=failed), *rounds([failed])[1:]]))["loop"][
+        "verdict"] == "clear"
+
+
 def test_runaway_agent_timeout_exception_alarms_on_short_run() -> None:
     run = _run([_step(1, "ls")], exception_type="AgentTimeoutError")
     assert _by_kind(run)["runaway"]["verdict"] == "alarm"

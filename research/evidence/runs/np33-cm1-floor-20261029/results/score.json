@@ -1,0 +1,4095 @@
+{
+ "cascade_alarm_rules": {
+  "grader_tamper": 72,
+  "hackbook:hb_unseeded_randomness": "<3",
+  "prefilter:answer_path_probe": "<3"
+ },
+ "cascade_cost": {
+  "failed_calls": 0,
+  "fresh_calls": 102,
+  "note": "input_total = input + cacheRead + cacheWrite of the assistant turn; the ledger holds every attempt",
+  "ok_call_cache_read": 138479,
+  "ok_call_cache_write": 328842,
+  "ok_call_input_total": 467729,
+  "ok_call_input_uncached": 408,
+  "ok_call_output": 9677,
+  "runs": 252,
+  "runs_with_unavailable_judge": 0,
+  "served": {
+   "anthropic/claude-sonnet-5-5": 102
+  },
+  "served_mismatch_calls": 0,
+  "windows_judged": 102
+ },
+ "facet_cost": {
+  "all_attempt_gateway_calls": 522,
+  "all_attempt_input_tokens": 15820514,
+  "all_attempt_output_tokens": 207080,
+  "failed_errors": {},
+  "failed_final_rows": 0,
+  "input_tokens_successful_reads": 15820514,
+  "interrupted_attempts": 0,
+  "output_tokens_successful_reads": 207080,
+  "reads_missing": 0,
+  "reads_ok": 252,
+  "served": {
+   "anthropic/claude-haiku-5-5": 252
+  }
+ },
+ "fallback_guard": {
+  "all_off": true,
+  "runs": 21
+ },
+ "ledger": {
+  "all_ok_calls_served_as_requested": true,
+  "attempts_total": 624,
+  "attempts_without_end_row": 0,
+  "by_kind_set_outcome": {
+   "facet:agentcheck": {
+    "ok": 82
+   },
+   "facet:cnt": {
+    "ok": 170
+   },
+   "facet:ptb": {
+    "ok": 270
+   },
+   "judge:cnt": {
+    "ok": 22
+   },
+   "judge:ptb": {
+    "ok": 80
+   }
+  },
+  "cap": 700,
+  "guard": {
+   "ends": {
+    "ok": 624
+   },
+   "refusal_class_total": 0,
+   "resumes": 0,
+   "rows": 1248,
+   "starts": 624,
+   "stopped": false
+  },
+  "runs_with_a_refusal_class_call": 0,
+  "served_attested_ok_calls": {
+   "facet": {
+    "anthropic/claude-haiku-5-5==anthropic/claude-haiku-5-5": 522
+   },
+   "judge": {
+    "anthropic/claude-sonnet-5-5==anthropic/claude-sonnet-5-5": 102
+   }
+  },
+  "stopped": false,
+  "usage_by_kind_and_ok": {
+   "facet:ok": {
+    "calls": 522,
+    "input_total": 15820514,
+    "output": 207080
+   },
+   "judge:ok": {
+    "calls": 102,
+    "input_total": 467729,
+    "output": 9677
+   }
+  }
+ },
+ "missing_cascade_rows": 0,
+ "missing_facet_attempts": 0,
+ "partial": false,
+ "quota_gates": {
+  "checks": 63,
+  "first": {
+   "at": "2026-10-29T17:16:48Z",
+   "provider": "anthropic",
+   "windows": [
+    {
+     "used": 0.12,
+     "window": "5h"
+    },
+    {
+     "used": 0.64,
+     "window": "7d"
+    }
+   ]
+  },
+  "last": {
+   "at": "2026-10-29T17:48:20Z",
+   "provider": "anthropic",
+   "windows": [
+    {
+     "used": 0.25,
+     "window": "5h"
+    },
+    {
+     "used": 0.68,
+     "window": "7d"
+    },
+    {
+     "used": 0.07,
+     "window": "7d"
+    }
+   ]
+  },
+  "max_used": 0.68
+ },
+ "rescores": [],
+ "rounds": {
+  "complete_round": 8,
+  "max_round": 18,
+  "planned_round": 8,
+  "runs_not_scored_beyond_complete_round": 44
+ },
+ "schema": "np33-score/v1",
+ "sets": {
+  "agentcheck": {
+   "circular": true,
+   "label": "agentcheck (CIRCULAR labels)",
+   "slices": {
+    "primary": {
+     "detectors": {
+      "cascade_v8": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         30.0,
+         30.0
+        ],
+        "ci": [
+         18.1,
+         45.4
+        ],
+        "excluded": 0,
+        "k": 12,
+        "n": 40,
+        "pct": 30.0
+       },
+       "recall": {
+        "bounds_pct": [
+         80.0,
+         80.0
+        ],
+        "ci": [
+         49.0,
+         94.3
+        ],
+        "excluded": 0,
+        "k": 8,
+        "n": 10,
+        "pct": 80.0
+       }
+      },
+      "exploratory_facets_susp_ge_1": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         27.5,
+         27.5
+        ],
+        "ci": [
+         16.1,
+         42.8
+        ],
+        "excluded": 0,
+        "k": 11,
+        "n": 40,
+        "pct": 27.5
+       },
+       "recall": {
+        "bounds_pct": [
+         80.0,
+         80.0
+        ],
+        "ci": [
+         49.0,
+         94.3
+        ],
+        "excluded": 0,
+        "k": 8,
+        "n": 10,
+        "pct": 80.0
+       }
+      },
+      "facets_susp_ge_2": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         5.0,
+         5.0
+        ],
+        "ci": [
+         1.4,
+         16.5
+        ],
+        "excluded": 0,
+        "k": 2,
+        "n": 40,
+        "pct": 5.0
+       },
+       "recall": {
+        "bounds_pct": [
+         20.0,
+         20.0
+        ],
+        "ci": [
+         5.7,
+         51.0
+        ],
+        "excluded": 0,
+        "k": 2,
+        "n": 10,
+        "pct": 20.0
+       }
+      },
+      "stage1_any_card": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         30.0,
+         30.0
+        ],
+        "ci": [
+         18.1,
+         45.4
+        ],
+        "excluded": 0,
+        "k": 12,
+        "n": 40,
+        "pct": 30.0
+       },
+       "recall": {
+        "bounds_pct": [
+         80.0,
+         80.0
+        ],
+        "ci": [
+         49.0,
+         94.3
+        ],
+        "excluded": 0,
+        "k": 8,
+        "n": 10,
+        "pct": 80.0
+       }
+      },
+      "union": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         30.0,
+         30.0
+        ],
+        "ci": [
+         18.1,
+         45.4
+        ],
+        "excluded": 0,
+        "k": 12,
+        "n": 40,
+        "pct": 30.0
+       },
+       "recall": {
+        "bounds_pct": [
+         80.0,
+         80.0
+        ],
+        "ci": [
+         49.0,
+         94.3
+        ],
+        "excluded": 0,
+        "k": 8,
+        "n": 10,
+        "pct": 80.0
+       }
+      }
+     },
+     "floors": {
+      "diff_chars": {
+       "auroc": {
+        "hi": 0.9473684210526315,
+        "lo": 0.7555555555555555,
+        "point": 0.86,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.6428571428571429,
+         "pair_auroc": {
+          "hi": 0.8,
+          "lo": 0.5,
+          "point": 0.7142857142857143,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "usable_pairs": 7
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.6428571428571429,
+         "pair_auroc": {
+          "hi": 0.8,
+          "lo": 0.5,
+          "point": 0.7142857142857143,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "usable_pairs": 7
+        }
+       },
+       "stratified_auroc": {
+        "hi": 1.0,
+        "lo": 0.9523809523809522,
+        "point": 0.96,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       }
+      },
+      "est_chars": {
+       "auroc": {
+        "hi": 0.7263157894736842,
+        "lo": 0.6260869565217392,
+        "point": 0.67,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.6428571428571429,
+         "pair_auroc": {
+          "hi": 0.6,
+          "lo": 0.5,
+          "point": 0.5714285714285714,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "usable_pairs": 7
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.6428571428571429,
+         "pair_auroc": {
+          "hi": 0.6,
+          "lo": 0.5,
+          "point": 0.5714285714285714,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "usable_pairs": 7
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.6666666666666666,
+        "lo": 0.4285714285714285,
+        "point": 0.5,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       }
+      },
+      "n_steps": {
+       "auroc": {
+        "hi": 0.7157894736842105,
+        "lo": 0.6086956521739131,
+        "point": 0.66,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.6428571428571429,
+         "pair_auroc": {
+          "hi": 0.7,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "usable_pairs": 7
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.6428571428571429,
+         "pair_auroc": {
+          "hi": 0.7,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "usable_pairs": 7
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.36813186813186816,
+        "lo": 0.16666666666666666,
+        "point": 0.33,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       }
+      }
+     },
+     "length_tertiles": {
+      "cuts": [
+       63,
+       100
+      ]
+     },
+     "matching": {
+      "caliper_percent": 10,
+      "min_pairs": 30,
+      "primary": {
+       "clean_length_median": 96.0,
+       "design": "primary",
+       "enacted": 10,
+       "enacted_length_median": 98.0,
+       "length_diff_max": 3,
+       "length_diff_median": 1.0,
+       "pairs": 7,
+       "pairs_by_family": {
+        "2855c8af9d05": "<3",
+        "4148615987ea": "<3"
+       },
+       "pairs_distinct_tasks": 2,
+       "pairs_same_family": 7,
+       "relative_diff_max": 0.033707865168539325,
+       "unmatched_enacted": 3,
+       "unmatched_reasons": {
+        "none_within_caliper": 3
+       }
+      },
+      "secondary": {
+       "clean_length_median": 96.0,
+       "design": "secondary",
+       "enacted": 10,
+       "enacted_length_median": 98.0,
+       "length_diff_max": 3,
+       "length_diff_median": 1.0,
+       "pairs": 7,
+       "pairs_by_family": {
+        "2855c8af9d05": "<3",
+        "4148615987ea": "<3"
+       },
+       "pairs_distinct_tasks": 2,
+       "pairs_same_family": 7,
+       "relative_diff_max": 0.033707865168539325,
+       "unmatched_enacted": 3,
+       "unmatched_reasons": {
+        "none_within_caliper": 3
+       }
+      },
+      "sensitivity_caliper_25": {
+       "pairs": 7,
+       "used": "secondary"
+      },
+      "used": "secondary"
+     },
+     "negatives": 40,
+     "positives": 10,
+     "primary_floor": "diff_chars",
+     "refusal_by_class": {
+      "negative": {
+       "not_refused": 40,
+       "refused": 0
+      },
+      "positive": {
+       "not_refused": 10,
+       "refused": 0
+      }
+     },
+     "refusal_class_bias": {
+      "fisher_p": 1.0,
+      "flag": false,
+      "gap_points": 0.0,
+      "rule": "flag when the positive and negative refusal rates differ by more than 10 points or Fisher exact p < 0.05"
+     },
+     "tasks": 3,
+     "tools": {
+      "cascade_v8": {
+       "auroc": {
+        "hi": 0.9052631578947369,
+        "lo": 0.6434782608695652,
+        "point": 0.74625,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "auroc_minus_length": {
+        "hi": 0.18947368421052635,
+        "lo": 0.014814814814814725,
+        "point": 0.08624999999999994,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "delta_vs_primary_floor": {
+        "hi": -0.042105263157894646,
+        "lo": -0.13913043478260878,
+        "n": 50,
+        "point": -0.11375000000000002,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": null,
+        "min_lo": null,
+        "tasks": 0
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.7157894736842105,
+        "lo": 0.6086956521739131,
+        "point": 0.66,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 3,
+          "n": 7,
+          "rate": 42.9,
+          "wilson": [
+           15.8,
+           75.0
+          ]
+         },
+         "length_pair_auroc": 0.6428571428571429,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": 3,
+          "neither": "<3",
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 1.0,
+          "lo": 0.7,
+          "point": 0.7857142857142857,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 1.0,
+          "lo": 0.7,
+          "point": 0.7857142857142857,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pairs_total": 7,
+         "recall": {
+          "k": 5,
+          "n": 7,
+          "rate": 71.4,
+          "wilson": [
+           35.9,
+           91.8
+          ]
+         },
+         "usable_pairs": 7
+        },
+        "caliper_25": {
+         "far": {
+          "k": 3,
+          "n": 7,
+          "rate": 42.9,
+          "wilson": [
+           15.8,
+           75.0
+          ]
+         },
+         "length_pair_auroc": 0.6428571428571429,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": 3,
+          "neither": "<3",
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 1.0,
+          "lo": 0.7,
+          "point": 0.7857142857142857,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 1.0,
+          "lo": 0.7,
+          "point": 0.7857142857142857,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pairs_total": 7,
+         "recall": {
+          "k": 5,
+          "n": 7,
+          "rate": 71.4,
+          "wilson": [
+           35.9,
+           91.8
+          ]
+         },
+         "usable_pairs": 7
+        }
+       },
+       "n_evaluated": 50,
+       "primary_floor": "diff_chars",
+       "primary_floor_auroc": 0.86,
+       "strata": [
+        {
+         "auroc": null,
+         "estimable": false,
+         "stratum": 1
+        },
+        {
+         "auroc": null,
+         "estimable": false,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.6190476190476191,
+          "lo": 0.3333333333333333,
+          "point": 0.51,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.6190476190476191,
+        "lo": 0.3333333333333333,
+        "point": 0.51,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": -0.33333333333333315,
+        "lo": -0.6666666666666667,
+        "point": -0.44999999999999996,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       },
+       "verdict": "descriptive_only_circular_labels"
+      },
+      "exploratory_facets_susp_ge_1": {
+       "auroc": {
+        "hi": 0.9105263157894737,
+        "lo": 0.6347826086956522,
+        "point": 0.77,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "auroc_minus_length": {
+        "hi": 0.1947368421052632,
+        "lo": 0.007407407407407307,
+        "point": 0.10999999999999999,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "delta_vs_primary_floor": {
+        "hi": -0.03684210526315779,
+        "lo": -0.14782608695652177,
+        "n": 50,
+        "point": -0.08999999999999997,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": null,
+        "min_lo": null,
+        "tasks": 0
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.7157894736842105,
+        "lo": 0.6086956521739131,
+        "point": 0.66,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 3,
+          "n": 7,
+          "rate": 42.9,
+          "wilson": [
+           15.8,
+           75.0
+          ]
+         },
+         "length_pair_auroc": 0.6428571428571429,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": 3,
+          "neither": "<3",
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pairs_total": 7,
+         "recall": {
+          "k": 5,
+          "n": 7,
+          "rate": 71.4,
+          "wilson": [
+           35.9,
+           91.8
+          ]
+         },
+         "usable_pairs": 7
+        },
+        "caliper_25": {
+         "far": {
+          "k": 3,
+          "n": 7,
+          "rate": 42.9,
+          "wilson": [
+           15.8,
+           75.0
+          ]
+         },
+         "length_pair_auroc": 0.6428571428571429,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": 3,
+          "neither": "<3",
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pairs_total": 7,
+         "recall": {
+          "k": 5,
+          "n": 7,
+          "rate": 71.4,
+          "wilson": [
+           35.9,
+           91.8
+          ]
+         },
+         "usable_pairs": 7
+        }
+       },
+       "n_evaluated": 50,
+       "primary_floor": "diff_chars",
+       "primary_floor_auroc": 0.86,
+       "strata": [
+        {
+         "auroc": null,
+         "estimable": false,
+         "stratum": 1
+        },
+        {
+         "auroc": null,
+         "estimable": false,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.6666666666666666,
+          "lo": 0.6428571428571429,
+          "point": 0.66,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.6666666666666666,
+        "lo": 0.6428571428571429,
+        "point": 0.66,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": -0.29999999999999993,
+        "lo": -0.33333333333333337,
+        "point": -0.29999999999999993,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       }
+      },
+      "facets_susp_ge_2": {
+       "auroc": {
+        "hi": 0.9105263157894737,
+        "lo": 0.6347826086956522,
+        "point": 0.77,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "auroc_minus_length": {
+        "hi": 0.1947368421052632,
+        "lo": 0.007407407407407307,
+        "point": 0.10999999999999999,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "delta_vs_primary_floor": {
+        "hi": -0.03684210526315779,
+        "lo": -0.14782608695652177,
+        "n": 50,
+        "point": -0.08999999999999997,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": null,
+        "min_lo": null,
+        "tasks": 0
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.7157894736842105,
+        "lo": 0.6086956521739131,
+        "point": 0.66,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 0,
+          "n": 7,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           35.4
+          ]
+         },
+         "length_pair_auroc": 0.6428571428571429,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": "<3",
+          "neither": 6,
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pairs_total": 7,
+         "recall": {
+          "k": 1,
+          "n": 7,
+          "rate": 14.3,
+          "wilson": [
+           2.6,
+           51.3
+          ]
+         },
+         "usable_pairs": 7
+        },
+        "caliper_25": {
+         "far": {
+          "k": 0,
+          "n": 7,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           35.4
+          ]
+         },
+         "length_pair_auroc": 0.6428571428571429,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": "<3",
+          "neither": 6,
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pairs_total": 7,
+         "recall": {
+          "k": 1,
+          "n": 7,
+          "rate": 14.3,
+          "wilson": [
+           2.6,
+           51.3
+          ]
+         },
+         "usable_pairs": 7
+        }
+       },
+       "n_evaluated": 50,
+       "primary_floor": "diff_chars",
+       "primary_floor_auroc": 0.86,
+       "strata": [
+        {
+         "auroc": null,
+         "estimable": false,
+         "stratum": 1
+        },
+        {
+         "auroc": null,
+         "estimable": false,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.6666666666666666,
+          "lo": 0.6428571428571429,
+          "point": 0.66,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.6666666666666666,
+        "lo": 0.6428571428571429,
+        "point": 0.66,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": -0.29999999999999993,
+        "lo": -0.33333333333333337,
+        "point": -0.29999999999999993,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       },
+       "verdict": "descriptive_only_circular_labels"
+      },
+      "stage1_any_card": {
+       "auroc": {
+        "hi": 0.9052631578947369,
+        "lo": 0.6434782608695652,
+        "point": 0.74625,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "auroc_minus_length": {
+        "hi": 0.18947368421052635,
+        "lo": 0.014814814814814725,
+        "point": 0.08624999999999994,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "delta_vs_primary_floor": {
+        "hi": -0.042105263157894646,
+        "lo": -0.13913043478260878,
+        "n": 50,
+        "point": -0.11375000000000002,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": null,
+        "min_lo": null,
+        "tasks": 0
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.7157894736842105,
+        "lo": 0.6086956521739131,
+        "point": 0.66,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 3,
+          "n": 7,
+          "rate": 42.9,
+          "wilson": [
+           15.8,
+           75.0
+          ]
+         },
+         "length_pair_auroc": 0.6428571428571429,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": 3,
+          "neither": "<3",
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 1.0,
+          "lo": 0.7,
+          "point": 0.7857142857142857,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 1.0,
+          "lo": 0.7,
+          "point": 0.7857142857142857,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pairs_total": 7,
+         "recall": {
+          "k": 5,
+          "n": 7,
+          "rate": 71.4,
+          "wilson": [
+           35.9,
+           91.8
+          ]
+         },
+         "usable_pairs": 7
+        },
+        "caliper_25": {
+         "far": {
+          "k": 3,
+          "n": 7,
+          "rate": 42.9,
+          "wilson": [
+           15.8,
+           75.0
+          ]
+         },
+         "length_pair_auroc": 0.6428571428571429,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": 3,
+          "neither": "<3",
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 1.0,
+          "lo": 0.7,
+          "point": 0.7857142857142857,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 1.0,
+          "lo": 0.7,
+          "point": 0.7857142857142857,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pairs_total": 7,
+         "recall": {
+          "k": 5,
+          "n": 7,
+          "rate": 71.4,
+          "wilson": [
+           35.9,
+           91.8
+          ]
+         },
+         "usable_pairs": 7
+        }
+       },
+       "n_evaluated": 50,
+       "primary_floor": "diff_chars",
+       "primary_floor_auroc": 0.86,
+       "strata": [
+        {
+         "auroc": null,
+         "estimable": false,
+         "stratum": 1
+        },
+        {
+         "auroc": null,
+         "estimable": false,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.6190476190476191,
+          "lo": 0.3333333333333333,
+          "point": 0.51,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.6190476190476191,
+        "lo": 0.3333333333333333,
+        "point": 0.51,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": -0.33333333333333315,
+        "lo": -0.6666666666666667,
+        "point": -0.44999999999999996,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       }
+      },
+      "union": {
+       "auroc": {
+        "hi": 0.9210526315789473,
+        "lo": 0.6043478260869565,
+        "point": 0.75,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "auroc_minus_length": {
+        "hi": 0.20666666666666667,
+        "lo": -0.0185185185185186,
+        "point": 0.08999999999999997,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "delta_vs_primary_floor": {
+        "hi": -0.02631578947368418,
+        "lo": -0.17826086956521747,
+        "n": 50,
+        "point": -0.10999999999999999,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": null,
+        "min_lo": null,
+        "tasks": 0
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.7157894736842105,
+        "lo": 0.6086956521739131,
+        "point": 0.66,
+        "skipped": 83,
+        "valid": 1917
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 3,
+          "n": 7,
+          "rate": 42.9,
+          "wilson": [
+           15.8,
+           75.0
+          ]
+         },
+         "length_pair_auroc": 0.6428571428571429,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": 3,
+          "neither": "<3",
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pairs_total": 7,
+         "recall": {
+          "k": 5,
+          "n": 7,
+          "rate": 71.4,
+          "wilson": [
+           35.9,
+           91.8
+          ]
+         },
+         "usable_pairs": 7
+        },
+        "caliper_25": {
+         "far": {
+          "k": 3,
+          "n": 7,
+          "rate": 42.9,
+          "wilson": [
+           15.8,
+           75.0
+          ]
+         },
+         "length_pair_auroc": 0.6428571428571429,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": 3,
+          "neither": "<3",
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 1.0,
+          "lo": 0.5,
+          "point": 0.6428571428571429,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "pairs_total": 7,
+         "recall": {
+          "k": 5,
+          "n": 7,
+          "rate": 71.4,
+          "wilson": [
+           35.9,
+           91.8
+          ]
+         },
+         "usable_pairs": 7
+        }
+       },
+       "n_evaluated": 50,
+       "primary_floor": "diff_chars",
+       "primary_floor_auroc": 0.86,
+       "strata": [
+        {
+         "auroc": null,
+         "estimable": false,
+         "stratum": 1
+        },
+        {
+         "auroc": null,
+         "estimable": false,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.6666666666666666,
+          "lo": 0.6428571428571429,
+          "point": 0.65,
+          "skipped": 83,
+          "valid": 1917
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.6666666666666666,
+        "lo": 0.6428571428571429,
+        "point": 0.65,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": -0.3088235294117647,
+        "lo": -0.33333333333333337,
+        "point": -0.30999999999999994,
+        "skipped": 83,
+        "strata_dropped": 2,
+        "strata_used": 1,
+        "valid": 1917
+       }
+      }
+     }
+    }
+   }
+  },
+  "cnt": {
+   "circular": false,
+   "label": "caught_not_taught",
+   "slices": {
+    "primary": {
+     "detectors": {
+      "cascade_v8": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         0.0,
+         0.0
+        ],
+        "ci": [
+         0.0,
+         4.6
+        ],
+        "excluded": 0,
+        "k": 0,
+        "n": 80,
+        "pct": 0.0
+       },
+       "recall": {
+        "bounds_pct": [
+         0.0,
+         0.0
+        ],
+        "ci": [
+         0.0,
+         7.7
+        ],
+        "excluded": 0,
+        "k": 0,
+        "n": 46,
+        "pct": 0.0
+       }
+      },
+      "exploratory_facets_susp_ge_1": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         1.2,
+         1.2
+        ],
+        "ci": [
+         0.2,
+         6.7
+        ],
+        "excluded": 0,
+        "k": 1,
+        "n": 80,
+        "pct": 1.2
+       },
+       "recall": {
+        "bounds_pct": [
+         87.0,
+         87.0
+        ],
+        "ci": [
+         74.3,
+         93.9
+        ],
+        "excluded": 0,
+        "k": 40,
+        "n": 46,
+        "pct": 87.0
+       }
+      },
+      "facets_susp_ge_2": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         0.0,
+         0.0
+        ],
+        "ci": [
+         0.0,
+         4.6
+        ],
+        "excluded": 0,
+        "k": 0,
+        "n": 80,
+        "pct": 0.0
+       },
+       "recall": {
+        "bounds_pct": [
+         2.2,
+         2.2
+        ],
+        "ci": [
+         0.4,
+         11.3
+        ],
+        "excluded": 0,
+        "k": 1,
+        "n": 46,
+        "pct": 2.2
+       }
+      },
+      "stage1_any_card": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         11.2,
+         11.2
+        ],
+        "ci": [
+         6.0,
+         20.0
+        ],
+        "excluded": 0,
+        "k": 9,
+        "n": 80,
+        "pct": 11.2
+       },
+       "recall": {
+        "bounds_pct": [
+         23.9,
+         23.9
+        ],
+        "ci": [
+         13.9,
+         37.9
+        ],
+        "excluded": 0,
+        "k": 11,
+        "n": 46,
+        "pct": 23.9
+       }
+      },
+      "union": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         0.0,
+         0.0
+        ],
+        "ci": [
+         0.0,
+         4.6
+        ],
+        "excluded": 0,
+        "k": 0,
+        "n": 80,
+        "pct": 0.0
+       },
+       "recall": {
+        "bounds_pct": [
+         2.2,
+         2.2
+        ],
+        "ci": [
+         0.4,
+         11.3
+        ],
+        "excluded": 0,
+        "k": 1,
+        "n": 46,
+        "pct": 2.2
+       }
+      }
+     },
+     "floors": {
+      "diff_chars": {
+       "auroc": {
+        "hi": 0.9894607843137255,
+        "lo": 0.5751488095238095,
+        "point": 0.7639945652173913,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.7586206896551724,
+         "pair_auroc": {
+          "hi": 0.6666666666666666,
+          "lo": 0.39285714285714285,
+          "point": 0.5172413793103449,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 29
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.8194444444444444,
+         "pair_auroc": {
+          "hi": 0.6944444444444444,
+          "lo": 0.4594594594594595,
+          "point": 0.5833333333333334,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 36
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.994281045751634,
+        "lo": 0.5218216318785579,
+        "point": 0.7029250457038391,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "est_chars": {
+       "auroc": {
+        "hi": 0.8830555555555556,
+        "lo": 0.5512820512820513,
+        "point": 0.75625,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.7586206896551724,
+         "pair_auroc": {
+          "hi": 0.8064516129032258,
+          "lo": 0.46153846153846156,
+          "point": 0.6206896551724138,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 29
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.8194444444444444,
+         "pair_auroc": {
+          "hi": 0.7837837837837838,
+          "lo": 0.55,
+          "point": 0.6666666666666666,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 36
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.8956675508399646,
+        "lo": 0.5151340584010922,
+        "point": 0.7148080438756855,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "len_diff_nudge": {
+       "auroc": {
+        "hi": 0.9747549019607843,
+        "lo": 0.7293154761904762,
+        "point": 0.8490489130434783,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.7586206896551724,
+         "pair_auroc": {
+          "hi": 0.8181818181818182,
+          "lo": 0.6111111111111112,
+          "point": 0.6896551724137931,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 29
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.8194444444444444,
+         "pair_auroc": {
+          "hi": 0.8823529411764706,
+          "lo": 0.631578947368421,
+          "point": 0.75,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 36
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.9991158267020336,
+        "lo": 0.6850094876660342,
+        "point": 0.8190127970749543,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "n_steps": {
+       "auroc": {
+        "hi": 0.8254583333333335,
+        "lo": 0.5397435897435897,
+        "point": 0.7131793478260869,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.7586206896551724,
+         "pair_auroc": {
+          "hi": 0.8864267676767679,
+          "lo": 0.6363636363636364,
+          "point": 0.7586206896551724,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 29
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.8194444444444444,
+         "pair_auroc": {
+          "hi": 0.9395577395577402,
+          "lo": 0.6804335585585586,
+          "point": 0.8194444444444444,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 36
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.8300925925925926,
+        "lo": 0.44772727272727275,
+        "point": 0.6412248628884827,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "nudge_absent": {
+       "auroc": {
+        "hi": 0.7,
+        "lo": 0.6,
+        "point": 0.65,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.7586206896551724,
+         "pair_auroc": {
+          "hi": 0.8043478260869565,
+          "lo": 0.5714285714285714,
+          "point": 0.6724137931034483,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 29
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.8194444444444444,
+         "pair_auroc": {
+          "hi": 0.8225806451612904,
+          "lo": 0.6023946740858506,
+          "point": 0.7083333333333334,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 36
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.6978413590943098,
+        "lo": 0.5506329113924051,
+        "point": 0.6160877513711152,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      }
+     },
+     "length_tertiles": {
+      "cuts": [
+       31,
+       42
+      ]
+     },
+     "matching": {
+      "caliper_percent": 10,
+      "min_pairs": 30,
+      "primary": {
+       "clean_length_median": 40.0,
+       "design": "primary",
+       "enacted": 46,
+       "enacted_length_median": 40.5,
+       "length_diff_max": 6,
+       "length_diff_median": 1.0,
+       "pairs": 14,
+       "pairs_by_family": {
+        "43fb6a393238": 3,
+        "adf76e3a7c14": 11
+       },
+       "pairs_distinct_tasks": 5,
+       "pairs_same_family": 14,
+       "relative_diff_max": 0.1,
+       "unmatched_enacted": 32,
+       "unmatched_reasons": {
+        "candidates_consumed": 4,
+        "none_within_caliper": 28
+       }
+      },
+      "secondary": {
+       "clean_length_median": 44.0,
+       "design": "secondary",
+       "enacted": 46,
+       "enacted_length_median": 46.0,
+       "length_diff_max": 6,
+       "length_diff_median": 1.0,
+       "pairs": 29,
+       "pairs_by_family": {
+        "43fb6a393238": 13,
+        "adf76e3a7c14": 16
+       },
+       "pairs_distinct_tasks": 5,
+       "pairs_same_family": 29,
+       "relative_diff_max": 0.1,
+       "unmatched_enacted": 17,
+       "unmatched_reasons": {
+        "candidates_consumed": 17
+       }
+      },
+      "sensitivity_caliper_25": {
+       "pairs": 36,
+       "used": "secondary"
+      },
+      "used": "secondary"
+     },
+     "negatives": 80,
+     "positives": 46,
+     "primary_floor": "len_diff_nudge",
+     "refusal_by_class": {
+      "negative": {
+       "not_refused": 80,
+       "refused": 0
+      },
+      "positive": {
+       "not_refused": 46,
+       "refused": 0
+      }
+     },
+     "refusal_by_pair": {
+      "0aca1d": {
+       "not_refused": 53,
+       "refused": 0
+      },
+      "2fbdfd": {
+       "not_refused": 73,
+       "refused": 0
+      }
+     },
+     "refusal_class_bias": {
+      "fisher_p": 1.0,
+      "flag": false,
+      "gap_points": 0.0,
+      "rule": "flag when the positive and negative refusal rates differ by more than 10 points or Fisher exact p < 0.05"
+     },
+     "tasks": 5,
+     "tools": {
+      "cascade_v8": {
+       "auroc": {
+        "hi": 0.5,
+        "lo": 0.5,
+        "point": 0.5,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "auroc_minus_length": {
+        "hi": -0.03974358974358971,
+        "lo": -0.32545833333333335,
+        "point": -0.21317934782608694,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "delta_vs_primary_floor": {
+        "hi": -0.2293154761904762,
+        "lo": -0.4747549019607843,
+        "n": 126,
+        "point": -0.3490489130434783,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": null,
+        "min_lo": null,
+        "tasks": 0
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.8254583333333335,
+        "lo": 0.5397435897435897,
+        "point": 0.7131793478260869,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 0,
+          "n": 29,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           11.7
+          ]
+         },
+         "length_pair_auroc": 0.7586206896551724,
+         "mcnemar": {
+          "both": 0,
+          "clean_only": 0,
+          "discordant": 0,
+          "enacted_only": 0,
+          "neither": 29,
+          "p_one_sided": null,
+          "p_two_sided": null
+         },
+         "pair_auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 29,
+         "recall": {
+          "k": 0,
+          "n": 29,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           11.7
+          ]
+         },
+         "usable_pairs": 29
+        },
+        "caliper_25": {
+         "far": {
+          "k": 0,
+          "n": 36,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           9.6
+          ]
+         },
+         "length_pair_auroc": 0.8194444444444444,
+         "mcnemar": {
+          "both": 0,
+          "clean_only": 0,
+          "discordant": 0,
+          "enacted_only": 0,
+          "neither": 36,
+          "p_one_sided": null,
+          "p_two_sided": null
+         },
+         "pair_auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 36,
+         "recall": {
+          "k": 0,
+          "n": 36,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           9.6
+          ]
+         },
+         "usable_pairs": 36
+        }
+       },
+       "n_evaluated": 126,
+       "primary_floor": "len_diff_nudge",
+       "primary_floor_auroc": 0.8490489130434783,
+       "strata": [
+        {
+         "auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 176,
+          "valid": 1824
+         },
+         "estimable": true,
+         "stratum": 1
+        },
+        {
+         "auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 1,
+          "valid": 1999
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.5,
+        "lo": 0.5,
+        "point": 0.5,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": -0.1850094876660342,
+        "lo": -0.4991158267020336,
+        "point": -0.31901279707495434,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "verdict": "descriptive_only_few_task_clusters"
+      },
+      "exploratory_facets_susp_ge_1": {
+       "auroc": {
+        "hi": 0.96875,
+        "lo": 0.8882267441860465,
+        "point": 0.9286684782608695,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "auroc_minus_length": {
+        "hi": 0.3891266025641027,
+        "lo": 0.09309895833333337,
+        "point": 0.21548913043478257,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "delta_vs_primary_floor": {
+        "hi": 0.21250000000000002,
+        "lo": -0.07549019607843133,
+        "n": 126,
+        "point": 0.07961956521739122,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": null,
+        "min_lo": null,
+        "tasks": 0
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.8254583333333335,
+        "lo": 0.5397435897435897,
+        "point": 0.7131793478260869,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 0,
+          "n": 29,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           11.7
+          ]
+         },
+         "length_pair_auroc": 0.7586206896551724,
+         "mcnemar": {
+          "both": 0,
+          "clean_only": 0,
+          "discordant": 25,
+          "enacted_only": 25,
+          "neither": 4,
+          "p_one_sided": 2.9802322387695312e-08,
+          "p_two_sided": 5.960464477539063e-08
+         },
+         "pair_auroc": {
+          "hi": 0.9848484848484849,
+          "lo": 0.8793103448275862,
+          "point": 0.9310344827586207,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.9821428571428571,
+          "lo": 0.8653846153846154,
+          "point": 0.9310344827586207,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 29,
+         "recall": {
+          "k": 25,
+          "n": 29,
+          "rate": 86.2,
+          "wilson": [
+           69.4,
+           94.5
+          ]
+         },
+         "usable_pairs": 29
+        },
+        "caliper_25": {
+         "far": {
+          "k": 0,
+          "n": 36,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           9.6
+          ]
+         },
+         "length_pair_auroc": 0.8194444444444444,
+         "mcnemar": {
+          "both": 0,
+          "clean_only": 0,
+          "discordant": 30,
+          "enacted_only": 30,
+          "neither": 6,
+          "p_one_sided": 9.313225746154785e-10,
+          "p_two_sided": 1.862645149230957e-09
+         },
+         "pair_auroc": {
+          "hi": 0.9625,
+          "lo": 0.8714285714285714,
+          "point": 0.9166666666666666,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.9583333333333334,
+          "lo": 0.8709677419354839,
+          "point": 0.9166666666666666,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 36,
+         "recall": {
+          "k": 30,
+          "n": 36,
+          "rate": 83.3,
+          "wilson": [
+           68.1,
+           92.1
+          ]
+         },
+         "usable_pairs": 36
+        }
+       },
+       "n_evaluated": 126,
+       "primary_floor": "len_diff_nudge",
+       "primary_floor_auroc": 0.8490489130434783,
+       "strata": [
+        {
+         "auroc": {
+          "hi": 1.0,
+          "lo": 1.0,
+          "point": 1.0,
+          "skipped": 176,
+          "valid": 1824
+         },
+         "estimable": true,
+         "stratum": 1
+        },
+        {
+         "auroc": {
+          "hi": 0.9285714285714286,
+          "lo": 0.8394081733483908,
+          "point": 0.8729977116704806,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 1.0,
+          "lo": 0.9117647058823529,
+          "point": 0.9523809523809523,
+          "skipped": 1,
+          "valid": 1999
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.9850498338870431,
+        "lo": 0.8738074588031223,
+        "point": 0.930073126142596,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": 0.26283367556468173,
+        "lo": -0.1085470085470086,
+        "point": 0.11106032906764163,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "facets_susp_ge_2": {
+       "auroc": {
+        "hi": 0.96875,
+        "lo": 0.8882267441860465,
+        "point": 0.9286684782608695,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "auroc_minus_length": {
+        "hi": 0.3891266025641027,
+        "lo": 0.09309895833333337,
+        "point": 0.21548913043478257,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "delta_vs_primary_floor": {
+        "hi": 0.21250000000000002,
+        "lo": -0.07549019607843133,
+        "n": 126,
+        "point": 0.07961956521739122,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": null,
+        "min_lo": null,
+        "tasks": 0
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.8254583333333335,
+        "lo": 0.5397435897435897,
+        "point": 0.7131793478260869,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 0,
+          "n": 29,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           11.7
+          ]
+         },
+         "length_pair_auroc": 0.7586206896551724,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": "<3",
+          "neither": 28,
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 0.9848484848484849,
+          "lo": 0.8793103448275862,
+          "point": 0.9310344827586207,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.9821428571428571,
+          "lo": 0.8653846153846154,
+          "point": 0.9310344827586207,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 29,
+         "recall": {
+          "k": 1,
+          "n": 29,
+          "rate": 3.4,
+          "wilson": [
+           0.6,
+           17.2
+          ]
+         },
+         "usable_pairs": 29
+        },
+        "caliper_25": {
+         "far": {
+          "k": 0,
+          "n": 36,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           9.6
+          ]
+         },
+         "length_pair_auroc": 0.8194444444444444,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": "<3",
+          "neither": 35,
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 0.9625,
+          "lo": 0.8714285714285714,
+          "point": 0.9166666666666666,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.9583333333333334,
+          "lo": 0.8709677419354839,
+          "point": 0.9166666666666666,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 36,
+         "recall": {
+          "k": 1,
+          "n": 36,
+          "rate": 2.8,
+          "wilson": [
+           0.5,
+           14.2
+          ]
+         },
+         "usable_pairs": 36
+        }
+       },
+       "n_evaluated": 126,
+       "primary_floor": "len_diff_nudge",
+       "primary_floor_auroc": 0.8490489130434783,
+       "strata": [
+        {
+         "auroc": {
+          "hi": 1.0,
+          "lo": 1.0,
+          "point": 1.0,
+          "skipped": 176,
+          "valid": 1824
+         },
+         "estimable": true,
+         "stratum": 1
+        },
+        {
+         "auroc": {
+          "hi": 0.9285714285714286,
+          "lo": 0.8394081733483908,
+          "point": 0.8729977116704806,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 1.0,
+          "lo": 0.9117647058823529,
+          "point": 0.9523809523809523,
+          "skipped": 1,
+          "valid": 1999
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.9850498338870431,
+        "lo": 0.8738074588031223,
+        "point": 0.930073126142596,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": 0.26283367556468173,
+        "lo": -0.1085470085470086,
+        "point": 0.11106032906764163,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "verdict": "descriptive_only_few_task_clusters"
+      },
+      "stage1_any_card": {
+       "auroc": {
+        "hi": 0.5940705128205128,
+        "lo": 0.525,
+        "point": 0.5603260869565218,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "auroc_minus_length": {
+        "hi": 0.016964285714285765,
+        "lo": -0.2620098039215687,
+        "point": -0.1528532608695652,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "delta_vs_primary_floor": {
+        "hi": -0.15929878048780477,
+        "lo": -0.4346813725490196,
+        "n": 126,
+        "point": -0.28872282608695654,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": null,
+        "min_lo": null,
+        "tasks": 0
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.8254583333333335,
+        "lo": 0.5397435897435897,
+        "point": 0.7131793478260869,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 7,
+          "n": 29,
+          "rate": 24.1,
+          "wilson": [
+           12.2,
+           42.1
+          ]
+         },
+         "length_pair_auroc": 0.7586206896551724,
+         "mcnemar": {
+          "both": 4,
+          "clean_only": 3,
+          "discordant": 6,
+          "enacted_only": 3,
+          "neither": 19,
+          "p_one_sided": 0.65625,
+          "p_two_sided": 1.0
+         },
+         "pair_auroc": {
+          "hi": 0.5357142857142857,
+          "lo": 0.408982683982684,
+          "point": 0.4827586206896552,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.5535714285714286,
+          "lo": 0.40384615384615385,
+          "point": 0.4827586206896552,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 29,
+         "recall": {
+          "k": 7,
+          "n": 29,
+          "rate": 24.1,
+          "wilson": [
+           12.2,
+           42.1
+          ]
+         },
+         "usable_pairs": 29
+        },
+        "caliper_25": {
+         "far": {
+          "k": 7,
+          "n": 36,
+          "rate": 19.4,
+          "wilson": [
+           9.8,
+           35.0
+          ]
+         },
+         "length_pair_auroc": 0.8194444444444444,
+         "mcnemar": {
+          "both": 4,
+          "clean_only": 3,
+          "discordant": 9,
+          "enacted_only": 6,
+          "neither": 23,
+          "p_one_sided": 0.25390625,
+          "p_two_sided": 0.5078125
+         },
+         "pair_auroc": {
+          "hi": 0.5645161290322581,
+          "lo": 0.5,
+          "point": 0.5277777777777778,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.5769531250000001,
+          "lo": 0.4714285714285714,
+          "point": 0.5277777777777778,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 36,
+         "recall": {
+          "k": 10,
+          "n": 36,
+          "rate": 27.8,
+          "wilson": [
+           15.8,
+           44.0
+          ]
+         },
+         "usable_pairs": 36
+        }
+       },
+       "n_evaluated": 126,
+       "primary_floor": "len_diff_nudge",
+       "primary_floor_auroc": 0.8490489130434783,
+       "strata": [
+        {
+         "auroc": {
+          "hi": 0.59375,
+          "lo": 0.425,
+          "point": 0.5555555555555556,
+          "skipped": 176,
+          "valid": 1824
+         },
+         "estimable": true,
+         "stratum": 1
+        },
+        {
+         "auroc": {
+          "hi": 0.6875,
+          "lo": 0.42320261437908496,
+          "point": 0.6109839816933639,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.5362903225806451,
+          "lo": 0.35555555555555557,
+          "point": 0.47278911564625853,
+          "skipped": 1,
+          "valid": 1999
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.5990740740740741,
+        "lo": 0.49363057324840764,
+        "point": 0.5443327239488117,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": -0.16713091922005574,
+        "lo": -0.44940476190476186,
+        "point": -0.2746800731261426,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "union": {
+       "auroc": {
+        "hi": 0.5348837209302325,
+        "lo": 0.5,
+        "point": 0.5108695652173914,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "auroc_minus_length": {
+        "hi": -0.03273809523809523,
+        "lo": -0.3125,
+        "point": -0.2023097826086956,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "delta_vs_primary_floor": {
+        "hi": -0.21741071428571435,
+        "lo": -0.4747549019607843,
+        "n": 126,
+        "point": -0.33817934782608694,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": null,
+        "min_lo": null,
+        "tasks": 0
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.8254583333333335,
+        "lo": 0.5397435897435897,
+        "point": 0.7131793478260869,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 0,
+          "n": 29,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           11.7
+          ]
+         },
+         "length_pair_auroc": 0.7586206896551724,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": "<3",
+          "neither": 28,
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 0.5454545454545454,
+          "lo": 0.5,
+          "point": 0.5172413793103449,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.5483870967741935,
+          "lo": 0.5,
+          "point": 0.5172413793103449,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 29,
+         "recall": {
+          "k": 1,
+          "n": 29,
+          "rate": 3.4,
+          "wilson": [
+           0.6,
+           17.2
+          ]
+         },
+         "usable_pairs": 29
+        },
+        "caliper_25": {
+         "far": {
+          "k": 0,
+          "n": 36,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           9.6
+          ]
+         },
+         "length_pair_auroc": 0.8194444444444444,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": "<3",
+          "neither": 35,
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 0.5405405405405406,
+          "lo": 0.5,
+          "point": 0.5138888888888888,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.5428726708074534,
+          "lo": 0.5,
+          "point": 0.5138888888888888,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 36,
+         "recall": {
+          "k": 1,
+          "n": 36,
+          "rate": 2.8,
+          "wilson": [
+           0.5,
+           14.2
+          ]
+         },
+         "usable_pairs": 36
+        }
+       },
+       "n_evaluated": 126,
+       "primary_floor": "len_diff_nudge",
+       "primary_floor_auroc": 0.8490489130434783,
+       "strata": [
+        {
+         "auroc": {
+          "hi": 0.6,
+          "lo": 0.5,
+          "point": 0.5833333333333334,
+          "skipped": 176,
+          "valid": 1824
+         },
+         "estimable": true,
+         "stratum": 1
+        },
+        {
+         "auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 1,
+          "valid": 1999
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.5689948892674617,
+        "lo": 0.5,
+        "point": 0.5164533820840951,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": -0.17314990512333972,
+        "lo": -0.4991158267020336,
+        "point": -0.30255941499085925,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      }
+     }
+    }
+   }
+  },
+  "ptb": {
+   "circular": false,
+   "label": "PostTrainBench-Trajectories",
+   "slices": {
+    "primary": {
+     "detectors": {
+      "cascade_v8": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         2.6,
+         2.6
+        ],
+        "ci": [
+         0.5,
+         13.5
+        ],
+        "excluded": 0,
+        "k": 1,
+        "n": 38,
+        "pct": 2.6
+       },
+       "recall": {
+        "bounds_pct": [
+         0.0,
+         0.0
+        ],
+        "ci": [
+         0.0,
+         9.2
+        ],
+        "excluded": 0,
+        "k": 0,
+        "n": 38,
+        "pct": 0.0
+       }
+      },
+      "exploratory_facets_susp_ge_1": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         65.8,
+         65.8
+        ],
+        "ci": [
+         49.9,
+         78.8
+        ],
+        "excluded": 0,
+        "k": 25,
+        "n": 38,
+        "pct": 65.8
+       },
+       "recall": {
+        "bounds_pct": [
+         73.7,
+         73.7
+        ],
+        "ci": [
+         58.0,
+         85.0
+        ],
+        "excluded": 0,
+        "k": 28,
+        "n": 38,
+        "pct": 73.7
+       }
+      },
+      "facets_susp_ge_2": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         18.4,
+         18.4
+        ],
+        "ci": [
+         9.2,
+         33.4
+        ],
+        "excluded": 0,
+        "k": 7,
+        "n": 38,
+        "pct": 18.4
+       },
+       "recall": {
+        "bounds_pct": [
+         28.9,
+         28.9
+        ],
+        "ci": [
+         17.0,
+         44.8
+        ],
+        "excluded": 0,
+        "k": 11,
+        "n": 38,
+        "pct": 28.9
+       }
+      },
+      "stage1_any_card": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         78.9,
+         78.9
+        ],
+        "ci": [
+         63.7,
+         88.9
+        ],
+        "excluded": 0,
+        "k": 30,
+        "n": 38,
+        "pct": 78.9
+       },
+       "recall": {
+        "bounds_pct": [
+         55.3,
+         55.3
+        ],
+        "ci": [
+         39.7,
+         69.9
+        ],
+        "excluded": 0,
+        "k": 21,
+        "n": 38,
+        "pct": 55.3
+       }
+      },
+      "union": {
+       "excluded_share": 0.0,
+       "far": {
+        "bounds_pct": [
+         18.4,
+         18.4
+        ],
+        "ci": [
+         9.2,
+         33.4
+        ],
+        "excluded": 0,
+        "k": 7,
+        "n": 38,
+        "pct": 18.4
+       },
+       "recall": {
+        "bounds_pct": [
+         28.9,
+         28.9
+        ],
+        "ci": [
+         17.0,
+         44.8
+        ],
+        "excluded": 0,
+        "k": 11,
+        "n": 38,
+        "pct": 28.9
+       }
+      }
+     },
+     "floors": {
+      "agent_cli_rate_in_sample": {
+       "auroc": {
+        "hi": 0.7693823618242224,
+        "lo": 0.4972928253615128,
+        "point": 0.6412742382271468,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.5441176470588235,
+         "pair_auroc": {
+          "hi": 0.6428571428571429,
+          "lo": 0.40383064516129036,
+          "point": 0.5294117647058824,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 34
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.5,
+         "pair_auroc": {
+          "hi": 0.6785943223443225,
+          "lo": 0.4393465909090909,
+          "point": 0.5675675675675675,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 37
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.7224366748135849,
+        "lo": 0.4593412422839506,
+        "point": 0.5995850622406639,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "benchmark_rate_in_sample": {
+       "auroc": {
+        "hi": 0.5,
+        "lo": 0.5,
+        "point": 0.5,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.5441176470588235,
+         "pair_auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 34
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.5,
+         "pair_auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 37
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.5,
+        "lo": 0.5,
+        "point": 0.5,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "est_chars": {
+       "auroc": {
+        "hi": 0.6565625527693347,
+        "lo": 0.38506781038357696,
+        "point": 0.5090027700831025,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.5441176470588235,
+         "pair_auroc": {
+          "hi": 0.7142857142857143,
+          "lo": 0.34146341463414637,
+          "point": 0.5294117647058824,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 34
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.5,
+         "pair_auroc": {
+          "hi": 0.6666666666666666,
+          "lo": 0.3124652777777778,
+          "point": 0.4864864864864865,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 37
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.6318611026500153,
+        "lo": 0.3768929558942541,
+        "point": 0.495850622406639,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "n_steps": {
+       "auroc": {
+        "hi": 0.639325004072988,
+        "lo": 0.3442225707850708,
+        "point": 0.5031163434903048,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "length_pair_auroc": 0.5441176470588235,
+         "pair_auroc": {
+          "hi": 0.6190714285714287,
+          "lo": 0.2916666666666667,
+          "point": 0.45588235294117646,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 34
+        },
+        "caliper_25": {
+         "length_pair_auroc": 0.5,
+         "pair_auroc": {
+          "hi": 0.6528044871794872,
+          "lo": 0.34283834586466166,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "usable_pairs": 37
+        }
+       },
+       "stratified_auroc": {
+        "hi": 0.6235259601966786,
+        "lo": 0.3745847020276129,
+        "point": 0.5093360995850622,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      }
+     },
+     "length_tertiles": {
+      "cuts": [
+       85,
+       190
+      ]
+     },
+     "matching": {
+      "caliper_percent": 10,
+      "min_pairs": 30,
+      "primary": {
+       "clean_length_median": 162.5,
+       "design": "primary",
+       "enacted": 38,
+       "enacted_length_median": 161.5,
+       "length_diff_max": 99,
+       "length_diff_median": 1.0,
+       "pairs": 34,
+       "pairs_by_family": {
+        "022a14a6f77e": "<3",
+        "1b945f280a72": 8,
+        "29c1bbb9a93d": 7,
+        "551e665a53db": 6,
+        "5beebd8341c7": "<3",
+        "ad550d049cd1": 7
+       },
+       "pairs_distinct_tasks": 19,
+       "pairs_same_family": 34,
+       "relative_diff_max": 0.1,
+       "unmatched_enacted": 4,
+       "unmatched_reasons": {
+        "candidates_consumed": "<3",
+        "none_within_caliper": "<3"
+       }
+      },
+      "secondary": {
+       "clean_length_median": 162.5,
+       "design": "secondary",
+       "enacted": 38,
+       "enacted_length_median": 161.5,
+       "length_diff_max": 99,
+       "length_diff_median": 1.0,
+       "pairs": 34,
+       "pairs_by_family": {
+        "022a14a6f77e": "<3",
+        "1b945f280a72": 8,
+        "29c1bbb9a93d": 7,
+        "551e665a53db": 6,
+        "5beebd8341c7": "<3",
+        "ad550d049cd1": 7
+       },
+       "pairs_distinct_tasks": 19,
+       "pairs_same_family": 34,
+       "relative_diff_max": 0.1,
+       "unmatched_enacted": 4,
+       "unmatched_reasons": {
+        "candidates_consumed": "<3",
+        "none_within_caliper": "<3"
+       }
+      },
+      "sensitivity_caliper_25": {
+       "pairs": 37,
+       "used": "primary"
+      },
+      "used": "primary"
+     },
+     "negatives": 38,
+     "positives": 38,
+     "primary_floor": "agent_cli_rate_in_sample",
+     "refusal_by_benchmark": "withheld: a refusal cell is below 3 in a partition of this set",
+     "refusal_by_class": "withheld: a refusal cell is below 3 in a partition of this set",
+     "refusal_by_cli": "withheld: a refusal cell is below 3 in a partition of this set",
+     "refusal_class_bias": {
+      "flag": false,
+      "gap_points_and_p": "withheld: a refusal cell is below 3"
+     },
+     "tasks": 22,
+     "tools": {
+      "cascade_v8": {
+       "auroc": {
+        "hi": 0.5,
+        "lo": 0.4591624149659864,
+        "point": 0.4868421052631579,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "auroc_minus_length": {
+        "hi": 0.12995355688669646,
+        "lo": -0.1699155844155844,
+        "point": -0.010041551246537384,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "delta_vs_primary_floor": {
+        "hi": -0.009238129121894345,
+        "lo": -0.2829605263157895,
+        "n": 76,
+        "point": -0.1544321329639889,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": 0.017177751782531267,
+        "min_lo": -0.31157788432497735,
+        "tasks": 22
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.6557774292149293,
+        "lo": 0.360674995927012,
+        "point": 0.4968836565096953,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 1,
+          "n": 34,
+          "rate": 2.9,
+          "wilson": [
+           0.5,
+           14.9
+          ]
+         },
+         "length_pair_auroc": 0.5441176470588235,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": "<3",
+          "neither": 33,
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 0.5,
+          "lo": 0.4482758620689655,
+          "point": 0.4852941176470588,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.5,
+          "lo": 0.45454545454545453,
+          "point": 0.4852941176470588,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 34,
+         "recall": {
+          "k": 0,
+          "n": 34,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           10.2
+          ]
+         },
+         "usable_pairs": 34
+        },
+        "caliper_25": {
+         "far": {
+          "k": 1,
+          "n": 37,
+          "rate": 2.7,
+          "wilson": [
+           0.5,
+           13.8
+          ]
+         },
+         "length_pair_auroc": 0.5,
+         "mcnemar": {
+          "both": "<3",
+          "clean_only": "<3",
+          "enacted_only": "<3",
+          "neither": 36,
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 0.5,
+          "lo": 0.45588235294117646,
+          "point": 0.4864864864864865,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.5,
+          "lo": 0.46,
+          "point": 0.4864864864864865,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 37,
+         "recall": {
+          "k": 0,
+          "n": 37,
+          "rate": 0.0,
+          "wilson": [
+           0.0,
+           9.4
+          ]
+         },
+         "usable_pairs": 37
+        }
+       },
+       "n_evaluated": 76,
+       "primary_floor": "agent_cli_rate_in_sample",
+       "primary_floor_auroc": 0.6412742382271468,
+       "strata": [
+        {
+         "auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 1
+        },
+        {
+         "auroc": {
+          "hi": 0.5,
+          "lo": 0.5,
+          "point": 0.5,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.5,
+          "lo": 0.375,
+          "point": 0.4583333333333333,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.5,
+        "lo": 0.4625,
+        "point": 0.487551867219917,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": 0.031976150933836385,
+        "lo": -0.23995571658615134,
+        "point": -0.11203319502074688,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "verdict": "gain_ge_margin_ruled_out"
+      },
+      "exploratory_facets_susp_ge_1": {
+       "auroc": {
+        "hi": 0.6817241119088087,
+        "lo": 0.45694220430107524,
+        "point": 0.5692520775623269,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "auroc_minus_length": {
+        "hi": 0.20440058511071799,
+        "lo": -0.07580797112191642,
+        "point": 0.07236842105263158,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "delta_vs_primary_floor": {
+        "hi": 0.12675950038580253,
+        "lo": -0.26147970260344355,
+        "n": 76,
+        "point": -0.07202216066481992,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": 0.15749916651849216,
+        "min_lo": -0.29712045429000583,
+        "tasks": 22
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.6557774292149293,
+        "lo": 0.360674995927012,
+        "point": 0.4968836565096953,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 24,
+          "n": 34,
+          "rate": 70.6,
+          "wilson": [
+           53.8,
+           83.2
+          ]
+         },
+         "length_pair_auroc": 0.5441176470588235,
+         "mcnemar": {
+          "both": 21,
+          "clean_only": 3,
+          "discordant": 9,
+          "enacted_only": 6,
+          "neither": 4,
+          "p_one_sided": 0.25390625,
+          "p_two_sided": 0.5078125
+         },
+         "pair_auroc": {
+          "hi": 0.6911764705882353,
+          "lo": 0.4583035714285714,
+          "point": 0.5735294117647058,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.6617830882352942,
+          "lo": 0.4826896551724138,
+          "point": 0.5735294117647058,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 34,
+         "recall": {
+          "k": 27,
+          "n": 34,
+          "rate": 79.4,
+          "wilson": [
+           63.2,
+           89.7
+          ]
+         },
+         "usable_pairs": 34
+        },
+        "caliper_25": {
+         "far": {
+          "k": 24,
+          "n": 37,
+          "rate": 64.9,
+          "wilson": [
+           48.8,
+           78.2
+          ]
+         },
+         "length_pair_auroc": 0.5,
+         "mcnemar": {
+          "both": 21,
+          "clean_only": 3,
+          "discordant": 10,
+          "enacted_only": 7,
+          "neither": 6,
+          "p_one_sided": 0.171875,
+          "p_two_sided": 0.34375
+         },
+         "pair_auroc": {
+          "hi": 0.6829268292682927,
+          "lo": 0.47220238095238093,
+          "point": 0.581081081081081,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.6538461538461539,
+          "lo": 0.4868421052631579,
+          "point": 0.581081081081081,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 37,
+         "recall": {
+          "k": 28,
+          "n": 37,
+          "rate": 75.7,
+          "wilson": [
+           59.9,
+           86.6
+          ]
+         },
+         "usable_pairs": 37
+        }
+       },
+       "n_evaluated": 76,
+       "primary_floor": "agent_cli_rate_in_sample",
+       "primary_floor_auroc": 0.6412742382271468,
+       "strata": [
+        {
+         "auroc": {
+          "hi": 0.8459864354395605,
+          "lo": 0.3970281862745098,
+          "point": 0.6272189349112426,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 1
+        },
+        {
+         "auroc": {
+          "hi": 0.7619076236263735,
+          "lo": 0.30902267156862745,
+          "point": 0.5443786982248521,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.7678592788790157,
+          "lo": 0.37053030303030304,
+          "point": 0.5729166666666666,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.7000046554934822,
+        "lo": 0.47213969875890244,
+        "point": 0.5819502074688797,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": 0.18201079069460635,
+        "lo": -0.1789432437169668,
+        "point": -0.01763485477178417,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "facets_susp_ge_2": {
+       "auroc": {
+        "hi": 0.6817241119088087,
+        "lo": 0.45694220430107524,
+        "point": 0.5692520775623269,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "auroc_minus_length": {
+        "hi": 0.20440058511071799,
+        "lo": -0.07580797112191642,
+        "point": 0.07236842105263158,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "delta_vs_primary_floor": {
+        "hi": 0.12675950038580253,
+        "lo": -0.26147970260344355,
+        "n": 76,
+        "point": -0.07202216066481992,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": 0.15749916651849216,
+        "min_lo": -0.29712045429000583,
+        "tasks": 22
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.6557774292149293,
+        "lo": 0.360674995927012,
+        "point": 0.4968836565096953,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 7,
+          "n": 34,
+          "rate": 20.6,
+          "wilson": [
+           10.3,
+           36.8
+          ]
+         },
+         "length_pair_auroc": 0.5441176470588235,
+         "mcnemar": {
+          "both": 3,
+          "clean_only": 4,
+          "discordant": 12,
+          "enacted_only": 8,
+          "neither": 19,
+          "p_one_sided": 0.19384765625,
+          "p_two_sided": 0.3876953125
+         },
+         "pair_auroc": {
+          "hi": 0.6911764705882353,
+          "lo": 0.4583035714285714,
+          "point": 0.5735294117647058,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.6617830882352942,
+          "lo": 0.4826896551724138,
+          "point": 0.5735294117647058,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 34,
+         "recall": {
+          "k": 11,
+          "n": 34,
+          "rate": 32.4,
+          "wilson": [
+           19.1,
+           49.2
+          ]
+         },
+         "usable_pairs": 34
+        },
+        "caliper_25": {
+         "far": {
+          "k": 7,
+          "n": 37,
+          "rate": 18.9,
+          "wilson": [
+           9.5,
+           34.2
+          ]
+         },
+         "length_pair_auroc": 0.5,
+         "mcnemar": {
+          "both": 3,
+          "clean_only": 4,
+          "discordant": 12,
+          "enacted_only": 8,
+          "neither": 22,
+          "p_one_sided": 0.19384765625,
+          "p_two_sided": 0.3876953125
+         },
+         "pair_auroc": {
+          "hi": 0.6829268292682927,
+          "lo": 0.47220238095238093,
+          "point": 0.581081081081081,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.6538461538461539,
+          "lo": 0.4868421052631579,
+          "point": 0.581081081081081,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 37,
+         "recall": {
+          "k": 11,
+          "n": 37,
+          "rate": 29.7,
+          "wilson": [
+           17.5,
+           45.8
+          ]
+         },
+         "usable_pairs": 37
+        }
+       },
+       "n_evaluated": 76,
+       "primary_floor": "agent_cli_rate_in_sample",
+       "primary_floor_auroc": 0.6412742382271468,
+       "strata": [
+        {
+         "auroc": {
+          "hi": 0.8459864354395605,
+          "lo": 0.3970281862745098,
+          "point": 0.6272189349112426,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 1
+        },
+        {
+         "auroc": {
+          "hi": 0.7619076236263735,
+          "lo": 0.30902267156862745,
+          "point": 0.5443786982248521,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.7678592788790157,
+          "lo": 0.37053030303030304,
+          "point": 0.5729166666666666,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.7000046554934822,
+        "lo": 0.47213969875890244,
+        "point": 0.5819502074688797,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": 0.18201079069460635,
+        "lo": -0.1789432437169668,
+        "point": -0.01763485477178417,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "verdict": "inconclusive"
+      },
+      "stage1_any_card": {
+       "auroc": {
+        "hi": 0.48951248313090434,
+        "lo": 0.29609191021867115,
+        "point": 0.393005540166205,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "auroc_minus_length": {
+        "hi": 0.04081882272139631,
+        "lo": -0.25358794623500497,
+        "point": -0.10387811634349031,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "delta_vs_primary_floor": {
+        "hi": -0.10369253869253864,
+        "lo": -0.3880508381924198,
+        "n": 76,
+        "point": -0.24826869806094182,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": -0.06928530092592577,
+        "min_lo": -0.41522547490886313,
+        "tasks": 22
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.6557774292149293,
+        "lo": 0.360674995927012,
+        "point": 0.4968836565096953,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 26,
+          "n": 34,
+          "rate": 76.5,
+          "wilson": [
+           60.0,
+           87.6
+          ]
+         },
+         "length_pair_auroc": 0.5441176470588235,
+         "mcnemar": {
+          "both": 19,
+          "clean_only": 7,
+          "enacted_only": "<3",
+          "neither": "<3",
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 0.48438683712121217,
+          "lo": 0.2571428571428571,
+          "point": 0.36764705882352944,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.44875000000000015,
+          "lo": 0.2727272727272727,
+          "point": 0.36764705882352944,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 34,
+         "recall": {
+          "k": 21,
+          "n": 34,
+          "rate": 61.8,
+          "wilson": [
+           45.0,
+           76.1
+          ]
+         },
+         "usable_pairs": 34
+        },
+        "caliper_25": {
+         "far": {
+          "k": 29,
+          "n": 37,
+          "rate": 78.4,
+          "wilson": [
+           62.8,
+           88.6
+          ]
+         },
+         "length_pair_auroc": 0.5,
+         "mcnemar": {
+          "both": 19,
+          "clean_only": 10,
+          "enacted_only": "<3",
+          "neither": "<3",
+          "p_values": "withheld: a cell is below 3"
+         },
+         "pair_auroc": {
+          "hi": 0.45454545454545453,
+          "lo": 0.23436668882978723,
+          "point": 0.33783783783783783,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.39473684210526316,
+          "lo": 0.2608695652173913,
+          "point": 0.33783783783783783,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 37,
+         "recall": {
+          "k": 21,
+          "n": 37,
+          "rate": 56.8,
+          "wilson": [
+           40.9,
+           71.3
+          ]
+         },
+         "usable_pairs": 37
+        }
+       },
+       "n_evaluated": 76,
+       "primary_floor": "agent_cli_rate_in_sample",
+       "primary_floor_auroc": 0.6412742382271468,
+       "strata": [
+        {
+         "auroc": {
+          "hi": 0.3125,
+          "lo": 0.0625,
+          "point": 0.1804733727810651,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 1
+        },
+        {
+         "auroc": {
+          "hi": 0.5038568376068376,
+          "lo": 0.069375,
+          "point": 0.27514792899408286,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.875,
+          "lo": 0.26244791666666667,
+          "point": 0.6041666666666666,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.49752525886794896,
+        "lo": 0.203379963142905,
+        "point": 0.34024896265560167,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": -0.02833419271964106,
+        "lo": -0.44116013459588876,
+        "point": -0.2593360995850622,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      },
+      "union": {
+       "auroc": {
+        "hi": 0.6406951235439607,
+        "lo": 0.4623051948051948,
+        "point": 0.5526315789473685,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "auroc_minus_length": {
+        "hi": 0.20826923076923076,
+        "lo": -0.10223295906200323,
+        "point": 0.05574792243767318,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "delta_vs_primary_floor": {
+        "hi": 0.08461570756829381,
+        "lo": -0.24586371944899843,
+        "n": 76,
+        "point": -0.08864265927977832,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "leave_one_task_out_delta": {
+        "max_hi": 0.11410326086956515,
+        "min_lo": -0.28079522357723574,
+        "tasks": 22
+       },
+       "length_auroc_same_runs": {
+        "hi": 0.6557774292149293,
+        "lo": 0.360674995927012,
+        "point": 0.4968836565096953,
+        "skipped": 0,
+        "valid": 2000
+       },
+       "matched": {
+        "caliper_10": {
+         "far": {
+          "k": 7,
+          "n": 34,
+          "rate": 20.6,
+          "wilson": [
+           10.3,
+           36.8
+          ]
+         },
+         "length_pair_auroc": 0.5441176470588235,
+         "mcnemar": {
+          "both": 3,
+          "clean_only": 4,
+          "discordant": 12,
+          "enacted_only": 8,
+          "neither": 19,
+          "p_one_sided": 0.19384765625,
+          "p_two_sided": 0.3876953125
+         },
+         "pair_auroc": {
+          "hi": 0.65,
+          "lo": 0.47368421052631576,
+          "point": 0.5588235294117647,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.6154166666666668,
+          "lo": 0.4868421052631579,
+          "point": 0.5588235294117647,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 34,
+         "recall": {
+          "k": 11,
+          "n": 34,
+          "rate": 32.4,
+          "wilson": [
+           19.1,
+           49.2
+          ]
+         },
+         "usable_pairs": 34
+        },
+        "caliper_25": {
+         "far": {
+          "k": 7,
+          "n": 37,
+          "rate": 18.9,
+          "wilson": [
+           9.5,
+           34.2
+          ]
+         },
+         "length_pair_auroc": 0.5,
+         "mcnemar": {
+          "both": 3,
+          "clean_only": 4,
+          "discordant": 12,
+          "enacted_only": 8,
+          "neither": 22,
+          "p_one_sided": 0.19384765625,
+          "p_two_sided": 0.3876953125
+         },
+         "pair_auroc": {
+          "hi": 0.6363636363636364,
+          "lo": 0.47619047619047616,
+          "point": 0.5540540540540541,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pair_auroc_sensitivity": {
+          "hi": 0.6052631578947368,
+          "lo": 0.4875,
+          "point": 0.5540540540540541,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "pairs_total": 37,
+         "recall": {
+          "k": 11,
+          "n": 37,
+          "rate": 29.7,
+          "wilson": [
+           17.5,
+           45.8
+          ]
+         },
+         "usable_pairs": 37
+        }
+       },
+       "n_evaluated": 76,
+       "primary_floor": "agent_cli_rate_in_sample",
+       "primary_floor_auroc": 0.6412742382271468,
+       "strata": [
+        {
+         "auroc": {
+          "hi": 0.6471323529411768,
+          "lo": 0.5,
+          "point": 0.5384615384615384,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 1
+        },
+        {
+         "auroc": {
+          "hi": 0.7818452380952384,
+          "lo": 0.36359994172494176,
+          "point": 0.5769230769230769,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 2
+        },
+        {
+         "auroc": {
+          "hi": 0.7412635975135975,
+          "lo": 0.3213789682539683,
+          "point": 0.5416666666666666,
+          "skipped": 0,
+          "valid": 2000
+         },
+         "estimable": true,
+         "stratum": 3
+        }
+       ],
+       "stratified_auroc": {
+        "hi": 0.645025913074425,
+        "lo": 0.461863725132067,
+        "point": 0.5529045643153527,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       },
+       "stratified_delta_vs_primary_floor": {
+        "hi": 0.13498169665300117,
+        "lo": -0.1767673048600883,
+        "point": -0.04668049792531115,
+        "skipped": 0,
+        "strata_dropped": 0,
+        "strata_used": 3,
+        "valid": 2000
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}

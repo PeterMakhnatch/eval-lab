@@ -1,35 +1,560 @@
 {
+ "clean_S_task_check": {
+  "cheatbench": {
+   "clean_S_distinct_write_targets_hashed": 16,
+   "clean_S_exact_distinct_tasks": 1,
+   "clean_S_prompt_chars_min_median_max": [
+    3913,
+    3913,
+    3913
+   ],
+   "clean_S_runs_without_task_prompt": 0,
+   "distinct_first_agent_actions_among_those_runs": 3,
+   "independent_task_source": "none stored: registry metadata holds item_id and a blind projection id only; trial dir holds trajectory.json only",
+   "runs_sharing_those_prompts_all_classes": 23
+  },
+  "goodfire": {
+   "clean_S_distinct_write_targets_hashed": 10,
+   "clean_S_exact_distinct_tasks": 4,
+   "clean_S_prompt_chars_min_median_max": [
+    8339,
+    8598,
+    12563
+   ],
+   "clean_S_runs_without_task_prompt": 0,
+   "distinct_first_agent_actions_among_those_runs": 4,
+   "independent_task_source": "none stored: registry metadata holds item_id and a blind projection id only; trial dir holds trajectory.json only",
+   "runs_sharing_those_prompts_all_classes": 4
+  }
+ },
  "cohort": {
   "admitted_by_strict_cross_key": 350,
   "facet_store_sha256": "22de9f5c63e8273876ac1b7e32e668b1cae1c23da6d2a3ce82ab098f5e232001",
   "identities_required": 350
  },
+ "complement_log": [
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:S",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:SX",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:SI",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:SD",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:L",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:G",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 4,
+   "partition": "goodfire:clean_no:SxG",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:tuning:S0",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:tuning:a_py_var",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:tuning:b_apply_patch",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:tuning:c_bare_test_py",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:tuning:d_code_ext_only",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:S",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:SX",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:SI",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:SD",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:L",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:G",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 4,
+   "partition": "goodfire:considered_only:SxG",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:tuning:S0",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:tuning:a_py_var",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:tuning:b_apply_patch",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:tuning:c_bare_test_py",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:tuning:d_code_ext_only",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:S",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:SX",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:SI",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:SD",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:L",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:G",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 4,
+   "partition": "goodfire:enacted_yes:SxG",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:tuning:S0",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:tuning:a_py_var",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:tuning:b_apply_patch",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:tuning:c_bare_test_py",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:tuning:d_code_ext_only",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:S",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:SX",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:SI",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:SD",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:L",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:G",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 4,
+   "partition": "cheatbench:negative:SxG",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:tuning:S0",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:tuning:a_py_var",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:tuning:b_apply_patch",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:tuning:c_bare_test_py",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:tuning:d_code_ext_only",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:S",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:SX",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:SI",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:SD",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:L",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:G",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 4,
+   "partition": "cheatbench:positive:SxG",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:tuning:S0",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:tuning:a_py_var",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:tuning:b_apply_patch",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:tuning:c_bare_test_py",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:tuning:d_code_ext_only",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:clean_no:R_primary",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:considered_only:R_primary",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "goodfire:enacted_yes:R_primary",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:negative:R_primary",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "cheatbench:positive:R_primary",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:S",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:SX",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:SI",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:SD",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:L",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:G",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 4,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:SxG",
+   "rule": "secondary suppression"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:tuning:S0",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:tuning:a_py_var",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:tuning:b_apply_patch",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:tuning:c_bare_test_py",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/app_fixed_no_masking_test_change:tuning:d_code_ext_only",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:S",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:SX",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:SI",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:SD",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:L",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:G",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 4,
+   "partition": "flake:negative_established/legitimate_test_repair:SxG",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:tuning:S0",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:tuning:a_py_var",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:tuning:b_apply_patch",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:tuning:c_bare_test_py",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:negative_established/legitimate_test_repair:tuning:d_code_ext_only",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:S",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:SX",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:SI",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:SD",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:L",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:G",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 4,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:SxG",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:tuning:S0",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:tuning:a_py_var",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:tuning:b_apply_patch",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:tuning:c_bare_test_py",
+   "rule": "no suppressed cell"
+  },
+  {
+   "cells": 2,
+   "partition": "flake:positive/publisher_mock_edited_and_judge_masks_bug:tuning:d_code_ext_only",
+   "rule": "no suppressed cell"
+  }
+ ],
  "facet_record_sets": {
   "cheatbench": {
    "negative": {
-    "G_Haiku_all_valid_last_haiku_line": 75,
+    "G_Haiku_all": 75,
     "G_Haiku_primary_attested_v2_form": 75,
     "identities": 75,
-    "last_wins_reader_is_haiku": 38,
-    "reader_tests_field_edit_on_haiku_all": {
-     "n": 75,
-     "split": "suppressed (a side below 3)"
-    },
     "reader_tests_field_edit_on_primary": {
+     "flagged": 0,
      "n": 75,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 75
     }
    },
    "positive": {
-    "G_Haiku_all_valid_last_haiku_line": 75,
+    "G_Haiku_all": 75,
     "G_Haiku_primary_attested_v2_form": 75,
     "identities": 75,
-    "last_wins_reader_is_haiku": 19,
-    "reader_tests_field_edit_on_haiku_all": {
-     "flagged": 4,
-     "n": 75,
-     "not_flagged": 71
-    },
     "reader_tests_field_edit_on_primary": {
      "flagged": 4,
      "n": 75,
@@ -39,59 +564,56 @@
   },
   "goodfire": {
    "clean_no": {
-    "G_Haiku_all_valid_last_haiku_line": 70,
+    "G_Haiku_all": 70,
     "G_Haiku_primary_attested_v2_form": 58,
     "identities": 70,
-    "last_wins_reader_is_haiku": 1,
-    "reader_tests_field_edit_on_haiku_all": {
-     "n": 70,
-     "split": "suppressed (a side below 3)"
-    },
     "reader_tests_field_edit_on_primary": {
+     "flagged": 0,
      "n": 58,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 58
     }
    },
    "considered_only": {
-    "G_Haiku_all_valid_last_haiku_line": 50,
+    "G_Haiku_all": 50,
     "G_Haiku_primary_attested_v2_form": 39,
     "identities": 50,
-    "last_wins_reader_is_haiku": 4,
-    "reader_tests_field_edit_on_haiku_all": {
-     "n": 50,
-     "split": "suppressed (a side below 3)"
-    },
     "reader_tests_field_edit_on_primary": {
+     "flagged": 0,
      "n": 39,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 39
     }
    },
    "enacted_yes": {
-    "G_Haiku_all_valid_last_haiku_line": 80,
+    "G_Haiku_all": 80,
     "G_Haiku_primary_attested_v2_form": 68,
     "identities": 80,
-    "last_wins_reader_is_haiku": 6,
-    "reader_tests_field_edit_on_haiku_all": {
-     "flagged": 3,
-     "n": 80,
-     "not_flagged": 77
-    },
     "reader_tests_field_edit_on_primary": {
+     "flagged": "suppressed(1-2)",
      "n": 68,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": "suppressed(secondary)"
     }
    }
   }
  },
- "flake": {
+ "flake_descriptive": {
   "by_stratum_and_publisher_outcome": {
    "negative_established/app_fixed_no_masking_test_change": {
+    "G": {
+     "flagged": "suppressed(1-2)",
+     "n": 50,
+     "not_flagged": "suppressed(secondary)"
+    },
     "L": {
      "flagged": 7,
      "n": 50,
      "not_flagged": 43
     },
     "S": {
+     "flagged": 7,
+     "n": 50,
+     "not_flagged": 43
+    },
+    "SD": {
      "flagged": 7,
      "n": 50,
      "not_flagged": 43
@@ -102,13 +624,57 @@
      "not_flagged": 45
     },
     "SX": {
+     "flagged": 0,
      "n": 50,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 50
+    },
+    "S_by_G": {
+     "S&G": "suppressed(1-2)",
+     "S&notG": "suppressed(secondary)",
+     "notS&G": 0,
+     "notS&notG": 43
     },
     "runs": 50,
-    "runs_without_tool_calls": 0
+    "runs_without_tool_calls": 0,
+    "tuning_S_counts": {
+     "S0": {
+      "flagged": 7,
+      "n": 50,
+      "not_flagged": 43
+     },
+     "S_primary": {
+      "flagged": 7,
+      "n": 50,
+      "not_flagged": 43
+     },
+     "a_py_var": {
+      "flagged": 7,
+      "n": 50,
+      "not_flagged": 43
+     },
+     "b_apply_patch": {
+      "flagged": 7,
+      "n": 50,
+      "not_flagged": 43
+     },
+     "c_bare_test_py": {
+      "flagged": 7,
+      "n": 50,
+      "not_flagged": 43
+     },
+     "d_code_ext_only": {
+      "flagged": 7,
+      "n": 50,
+      "not_flagged": 43
+     }
+    }
    },
    "negative_established/legitimate_test_repair": {
+    "G": {
+     "flagged": 5,
+     "n": 10,
+     "not_flagged": 5
+    },
     "L": {
      "flagged": 5,
      "n": 10,
@@ -119,60 +685,168 @@
      "n": 10,
      "not_flagged": 5
     },
-    "SI": {
+    "SD": {
+     "flagged": 5,
      "n": 10,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 5
+    },
+    "SI": {
+     "flagged": 0,
+     "n": 10,
+     "not_flagged": 10
     },
     "SX": {
+     "flagged": 0,
      "n": 10,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 10
+    },
+    "S_by_G": {
+     "S&G": 5,
+     "S&notG": 0,
+     "notS&G": 0,
+     "notS&notG": 5
     },
     "runs": 10,
-    "runs_without_tool_calls": 0
+    "runs_without_tool_calls": 0,
+    "tuning_S_counts": {
+     "S0": {
+      "flagged": 3,
+      "n": 10,
+      "not_flagged": 7
+     },
+     "S_primary": {
+      "flagged": 5,
+      "n": 10,
+      "not_flagged": 5
+     },
+     "a_py_var": {
+      "flagged": 5,
+      "n": 10,
+      "not_flagged": 5
+     },
+     "b_apply_patch": {
+      "flagged": 3,
+      "n": 10,
+      "not_flagged": 7
+     },
+     "c_bare_test_py": {
+      "flagged": 3,
+      "n": 10,
+      "not_flagged": 7
+     },
+     "d_code_ext_only": {
+      "flagged": 3,
+      "n": 10,
+      "not_flagged": 7
+     }
+    }
    },
    "negative_other/stopped_without_change": {
-    "runs": "<3"
+    "runs": "suppressed(1-2)"
    },
    "positive/publisher_mock_edited_and_judge_masks_bug": {
-    "L": {
+    "G": {
+     "flagged": 0,
      "n": 6,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 6
+    },
+    "L": {
+     "flagged": 0,
+     "n": 6,
+     "not_flagged": 6
     },
     "S": {
+     "flagged": 0,
      "n": 6,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 6
+    },
+    "SD": {
+     "flagged": 0,
+     "n": 6,
+     "not_flagged": 6
     },
     "SI": {
+     "flagged": 0,
      "n": 6,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 6
     },
     "SX": {
+     "flagged": 0,
      "n": 6,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 6
+    },
+    "S_by_G": {
+     "S&G": 0,
+     "S&notG": 0,
+     "notS&G": 0,
+     "notS&notG": 6
     },
     "runs": 6,
-    "runs_without_tool_calls": 0
+    "runs_without_tool_calls": 0,
+    "tuning_S_counts": {
+     "S0": {
+      "flagged": 0,
+      "n": 6,
+      "not_flagged": 6
+     },
+     "S_primary": {
+      "flagged": 0,
+      "n": 6,
+      "not_flagged": 6
+     },
+     "a_py_var": {
+      "flagged": 0,
+      "n": 6,
+      "not_flagged": 6
+     },
+     "b_apply_patch": {
+      "flagged": 0,
+      "n": 6,
+      "not_flagged": 6
+     },
+     "c_bare_test_py": {
+      "flagged": 0,
+      "n": 6,
+      "not_flagged": 6
+     },
+     "d_code_ext_only": {
+      "flagged": 0,
+      "n": 6,
+      "not_flagged": 6
+     }
+    }
    },
    "positive/publisher_weakened_and_judge_masks_bug": {
-    "runs": "<3"
+    "runs": "suppressed(1-2)"
    }
   },
   "distinct_tasks": 16,
-  "distinct_tasks_among_S_established_negatives": "<3",
+  "distinct_tasks_among_S_established_negatives": 2,
   "distinct_tasks_among_established_negatives": 16,
   "reasons_sha256": "1cebb7680b3d0e8ca876282d473b6ca60e4195b22f79f60568545bbd36e133ce",
+  "role": "definition-tuning sample, descriptive; the hypothesis-generating sample",
   "runs": 69,
   "runs_pickle_sha256": "3f675469c78107fe68e1c207d55f776a0bcac3835f630e91c99aa0fb19b9bd16"
  },
  "membership": {
   "cheatbench": {
    "negative": {
+    "G": {
+     "flagged": 0,
+     "n": 75,
+     "not_flagged": 75
+    },
     "L": {
      "flagged": 34,
      "n": 75,
      "not_flagged": 41
     },
     "S": {
+     "flagged": 15,
+     "n": 75,
+     "not_flagged": 60
+    },
+    "SD": {
      "flagged": 15,
      "n": 75,
      "not_flagged": 60
@@ -187,19 +861,64 @@
      "n": 75,
      "not_flagged": 60
     },
-    "distinct_tasks": 57,
-    "distinct_tasks_among_S_runs": "<3",
+    "S_by_G": {
+     "S&G": 0,
+     "S&notG": 15,
+     "notS&G": 0,
+     "notS&notG": 60
+    },
     "runs": 75,
-    "runs_with_unresolved_editor_call": "<3",
-    "runs_without_tool_calls": 0
+    "runs_without_tool_calls": 0,
+    "tuning_S_counts": {
+     "S0": {
+      "flagged": 15,
+      "n": 75,
+      "not_flagged": 60
+     },
+     "S_primary": {
+      "flagged": 15,
+      "n": 75,
+      "not_flagged": 60
+     },
+     "a_py_var": {
+      "flagged": 15,
+      "n": 75,
+      "not_flagged": 60
+     },
+     "b_apply_patch": {
+      "flagged": 15,
+      "n": 75,
+      "not_flagged": 60
+     },
+     "c_bare_test_py": {
+      "flagged": 15,
+      "n": 75,
+      "not_flagged": 60
+     },
+     "d_code_ext_only": {
+      "flagged": 15,
+      "n": 75,
+      "not_flagged": 60
+     }
+    }
    },
    "positive": {
+    "G": {
+     "flagged": "suppressed(1-2)",
+     "n": 75,
+     "not_flagged": "suppressed(secondary)"
+    },
     "L": {
      "flagged": 21,
      "n": 75,
      "not_flagged": 54
     },
     "S": {
+     "flagged": 9,
+     "n": 75,
+     "not_flagged": 66
+    },
+    "SD": {
      "flagged": 9,
      "n": 75,
      "not_flagged": 66
@@ -214,15 +933,55 @@
      "n": 75,
      "not_flagged": 70
     },
-    "distinct_tasks": 63,
-    "distinct_tasks_among_S_runs": 5,
+    "S_by_G": {
+     "S&G": "suppressed(1-2)",
+     "S&notG": "suppressed(secondary)",
+     "notS&G": 0,
+     "notS&notG": 66
+    },
     "runs": 75,
-    "runs_with_unresolved_editor_call": "<3",
-    "runs_without_tool_calls": 0
+    "runs_without_tool_calls": 0,
+    "tuning_S_counts": {
+     "S0": {
+      "flagged": 10,
+      "n": 75,
+      "not_flagged": 65
+     },
+     "S_primary": {
+      "flagged": 9,
+      "n": 75,
+      "not_flagged": 66
+     },
+     "a_py_var": {
+      "flagged": 10,
+      "n": 75,
+      "not_flagged": 65
+     },
+     "b_apply_patch": {
+      "flagged": 10,
+      "n": 75,
+      "not_flagged": 65
+     },
+     "c_bare_test_py": {
+      "flagged": 10,
+      "n": 75,
+      "not_flagged": 65
+     },
+     "d_code_ext_only": {
+      "flagged": 9,
+      "n": 75,
+      "not_flagged": 66
+     }
+    }
    }
   },
   "goodfire": {
    "clean_no": {
+    "G": {
+     "flagged": 0,
+     "n": 70,
+     "not_flagged": 70
+    },
     "L": {
      "flagged": 28,
      "n": 70,
@@ -233,46 +992,140 @@
      "n": 70,
      "not_flagged": 66
     },
-    "SI": {
+    "SD": {
+     "flagged": 4,
      "n": 70,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 66
+    },
+    "SI": {
+     "flagged": "suppressed(1-2)",
+     "n": 70,
+     "not_flagged": "suppressed(secondary)"
     },
     "SX": {
+     "flagged": 0,
      "n": 70,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 70
     },
-    "distinct_tasks": 70,
-    "distinct_tasks_among_S_runs": 4,
+    "S_by_G": {
+     "S&G": 0,
+     "S&notG": 4,
+     "notS&G": 0,
+     "notS&notG": 66
+    },
     "runs": 70,
-    "runs_with_unresolved_editor_call": "<3",
-    "runs_without_tool_calls": 0
+    "runs_without_tool_calls": 0,
+    "tuning_S_counts": {
+     "S0": {
+      "flagged": 4,
+      "n": 70,
+      "not_flagged": 66
+     },
+     "S_primary": {
+      "flagged": 4,
+      "n": 70,
+      "not_flagged": 66
+     },
+     "a_py_var": {
+      "flagged": 4,
+      "n": 70,
+      "not_flagged": 66
+     },
+     "b_apply_patch": {
+      "flagged": 4,
+      "n": 70,
+      "not_flagged": 66
+     },
+     "c_bare_test_py": {
+      "flagged": 4,
+      "n": 70,
+      "not_flagged": 66
+     },
+     "d_code_ext_only": {
+      "flagged": 4,
+      "n": 70,
+      "not_flagged": 66
+     }
+    }
    },
    "considered_only": {
+    "G": {
+     "flagged": 0,
+     "n": 50,
+     "not_flagged": 50
+    },
     "L": {
      "flagged": 34,
      "n": 50,
      "not_flagged": 16
     },
     "S": {
-     "flagged": 4,
+     "flagged": 3,
      "n": 50,
-     "not_flagged": 46
+     "not_flagged": 47
+    },
+    "SD": {
+     "flagged": 3,
+     "n": 50,
+     "not_flagged": 47
     },
     "SI": {
+     "flagged": 0,
      "n": 50,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 50
     },
     "SX": {
+     "flagged": 0,
      "n": 50,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 50
     },
-    "distinct_tasks": 50,
-    "distinct_tasks_among_S_runs": 4,
+    "S_by_G": {
+     "S&G": 0,
+     "S&notG": 3,
+     "notS&G": 0,
+     "notS&notG": 47
+    },
     "runs": 50,
-    "runs_with_unresolved_editor_call": "<3",
-    "runs_without_tool_calls": 0
+    "runs_without_tool_calls": 0,
+    "tuning_S_counts": {
+     "S0": {
+      "flagged": "suppressed(1-2)",
+      "n": 50,
+      "not_flagged": "suppressed(secondary)"
+     },
+     "S_primary": {
+      "flagged": 3,
+      "n": 50,
+      "not_flagged": 47
+     },
+     "a_py_var": {
+      "flagged": "suppressed(1-2)",
+      "n": 50,
+      "not_flagged": "suppressed(secondary)"
+     },
+     "b_apply_patch": {
+      "flagged": "suppressed(1-2)",
+      "n": 50,
+      "not_flagged": "suppressed(secondary)"
+     },
+     "c_bare_test_py": {
+      "flagged": 3,
+      "n": 50,
+      "not_flagged": 47
+     },
+     "d_code_ext_only": {
+      "flagged": "suppressed(1-2)",
+      "n": 50,
+      "not_flagged": "suppressed(secondary)"
+     }
+    }
    },
    "enacted_yes": {
+    "G": {
+     "flagged": "suppressed(1-2)",
+     "n": 80,
+     "not_flagged": "suppressed(secondary)"
+    },
     "L": {
      "flagged": 41,
      "n": 80,
@@ -283,534 +1136,106 @@
      "n": 80,
      "not_flagged": 75
     },
-    "SI": {
+    "SD": {
+     "flagged": 5,
      "n": 80,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 75
+    },
+    "SI": {
+     "flagged": "suppressed(1-2)",
+     "n": 80,
+     "not_flagged": "suppressed(secondary)"
     },
     "SX": {
+     "flagged": 0,
      "n": 80,
-     "split": "suppressed (a side below 3)"
+     "not_flagged": 80
     },
-    "distinct_tasks": 80,
-    "distinct_tasks_among_S_runs": 5,
+    "S_by_G": {
+     "S&G": "suppressed(1-2)",
+     "S&notG": "suppressed(secondary)",
+     "notS&G": 0,
+     "notS&notG": 75
+    },
     "runs": 80,
-    "runs_with_unresolved_editor_call": "<3",
-    "runs_without_tool_calls": 0
+    "runs_without_tool_calls": 0,
+    "tuning_S_counts": {
+     "S0": {
+      "flagged": 4,
+      "n": 80,
+      "not_flagged": 76
+     },
+     "S_primary": {
+      "flagged": 5,
+      "n": 80,
+      "not_flagged": 75
+     },
+     "a_py_var": {
+      "flagged": 5,
+      "n": 80,
+      "not_flagged": 75
+     },
+     "b_apply_patch": {
+      "flagged": 4,
+      "n": 80,
+      "not_flagged": 76
+     },
+     "c_bare_test_py": {
+      "flagged": 4,
+      "n": 80,
+      "not_flagged": 76
+     },
+     "d_code_ext_only": {
+      "flagged": 4,
+      "n": 80,
+      "not_flagged": 76
+     }
+    }
    }
   }
  },
- "option_U_unseen_sets_feasibility_only": {
-  "cm18": {
-   "cells": {
-    "beam/negative_established": {
-     "L": {
-      "flagged": 18,
-      "n": 60,
-      "not_flagged": 42
-     },
-     "S": {
-      "flagged": 6,
-      "n": 60,
-      "not_flagged": 54
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "beam/negative_other": {
-     "L": {
-      "flagged": 6,
-      "n": 60,
-      "not_flagged": 54
-     },
-     "S": {
-      "flagged": 4,
-      "n": 60,
-      "not_flagged": 56
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "beam/positive": {
-     "L": {
-      "flagged": 43,
-      "n": 60,
-      "not_flagged": 17
-     },
-     "S": {
-      "flagged": 43,
-      "n": 60,
-      "not_flagged": 17
-     },
-     "SI": {
-      "flagged": 42,
-      "n": 60,
-      "not_flagged": 18
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "cheatindex/negative_established": {
-     "L": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "cheatindex/negative_other": {
-     "L": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "cheatindex/positive": {
-     "L": {
-      "flagged": 17,
-      "n": 60,
-      "not_flagged": 43
-     },
-     "S": {
-      "flagged": 16,
-      "n": 60,
-      "not_flagged": 44
-     },
-     "SI": {
-      "flagged": 16,
-      "n": 60,
-      "not_flagged": 44
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "evilgenie/negative_established": {
-     "L": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "evilgenie/negative_other": {
-     "L": {
-      "flagged": 9,
-      "n": 60,
-      "not_flagged": 51
-     },
-     "S": {
-      "flagged": 4,
-      "n": 60,
-      "not_flagged": 56
-     },
-     "SI": {
-      "flagged": 3,
-      "n": 60,
-      "not_flagged": 57
-     },
-     "runs": 60,
-     "runs_without_tool_calls": "<3"
-    },
-    "evilgenie/positive": {
-     "L": {
-      "flagged": 24,
-      "n": 60,
-      "not_flagged": 36
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "kernelbench/negative_established": {
-     "L": {
-      "flagged": 7,
-      "n": 19,
-      "not_flagged": 12
-     },
-     "S": {
-      "n": 19,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 19,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 19,
-     "runs_without_tool_calls": 3
-    },
-    "kernelbench/positive": {
-     "L": {
-      "flagged": 4,
-      "n": 11,
-      "not_flagged": 7
-     },
-     "S": {
-      "n": 11,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 11,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 11,
-     "runs_without_tool_calls": "<3"
-    },
-    "reflex/negative_established": {
-     "L": {
-      "flagged": 3,
-      "n": 50,
-      "not_flagged": 47
-     },
-     "S": {
-      "flagged": 3,
-      "n": 50,
-      "not_flagged": 47
-     },
-     "SI": {
-      "n": 50,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 50,
-     "runs_without_tool_calls": 0
-    },
-    "reflex/negative_other": {
-     "L": {
-      "flagged": 5,
-      "n": 60,
-      "not_flagged": 55
-     },
-     "S": {
-      "flagged": 3,
-      "n": 60,
-      "not_flagged": 57
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "reflex/positive": {
-     "L": {
-      "n": 45,
-      "split": "suppressed (a side below 3)"
-     },
-     "S": {
-      "n": 45,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 45,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 45,
-     "runs_without_tool_calls": 0
-    },
-    "researcharena/negative_established": {
-     "L": {
-      "flagged": 9,
-      "n": 20,
-      "not_flagged": 11
-     },
-     "S": {
-      "n": 20,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 20,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 20,
-     "runs_without_tool_calls": 0
-    },
-    "researcharena/positive": {
-     "L": {
-      "flagged": 15,
-      "n": 21,
-      "not_flagged": 6
-     },
-     "S": {
-      "n": 21,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 21,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 21,
-     "runs_without_tool_calls": 0
-    },
-    "sdf/negative_established": {
-     "L": {
-      "flagged": 9,
-      "n": 60,
-      "not_flagged": 51
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "sdf/negative_other": {
-     "L": {
-      "flagged": 5,
-      "n": 60,
-      "not_flagged": 55
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "sdf/positive": {
-     "L": {
-      "flagged": 9,
-      "n": 60,
-      "not_flagged": 51
-     },
-     "S": {
-      "flagged": 5,
-      "n": 60,
-      "not_flagged": 55
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    }
-   },
-   "runs": 946,
-   "runs_pickle_sha256": "7604773bdd78002305e031eea2297b18bf403b3b92bce8b383993266c4a12804"
-  },
-  "np21": {
-   "cells": {
-    "baitbench/negative_other": {
-     "L": {
-      "flagged": 18,
-      "n": 60,
-      "not_flagged": 42
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 10
-    },
-    "baitbench/positive": {
-     "L": {
-      "flagged": 12,
-      "n": 60,
-      "not_flagged": 48
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "flake/negative_established": {
-     "L": {
-      "flagged": 12,
-      "n": 60,
-      "not_flagged": 48
-     },
-     "S": {
-      "flagged": 12,
-      "n": 60,
-      "not_flagged": 48
-     },
-     "SI": {
-      "flagged": 5,
-      "n": 60,
-      "not_flagged": 55
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "flake/negative_other": {
-     "runs": "<3"
-    },
-    "flake/positive": {
-     "L": {
-      "n": 7,
-      "split": "suppressed (a side below 3)"
-     },
-     "S": {
-      "n": 7,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 7,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 7,
-     "runs_without_tool_calls": 0
-    },
-    "kobayashi/negative_other": {
-     "L": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "kobayashi/positive": {
-     "L": {
-      "flagged": 5,
-      "n": 60,
-      "not_flagged": 55
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "osf/negative_other": {
-     "L": {
-      "flagged": 5,
-      "n": 60,
-      "not_flagged": 55
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    },
-    "osf/positive": {
-     "L": {
-      "flagged": 20,
-      "n": 60,
-      "not_flagged": 40
-     },
-     "S": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "SI": {
-      "n": 60,
-      "split": "suppressed (a side below 3)"
-     },
-     "runs": 60,
-     "runs_without_tool_calls": 0
-    }
-   },
-   "runs": 429,
-   "runs_pickle_sha256": "3f675469c78107fe68e1c207d55f776a0bcac3835f630e91c99aa0fb19b9bd16"
-  }
- },
+ "revision": 2,
  "runs_per_strict_form_pooled_over_classes": {
   "cheatbench": {
-   "shell:copy_move": "<3",
+   "shell:copy_move": "suppressed(1-2)",
    "shell:redirect": 3,
    "tool:str_replace_editor:create": 19,
    "tool:str_replace_editor:str_replace": 6
   },
   "goodfire": {
-   "shell:copy_move": "<3",
-   "shell:python_open": "<3",
-   "shell:python_open_var": "<3",
-   "shell:redirect": 11
+   "shell:copy_move": "suppressed(1-2)",
+   "shell:inplace_cli": "suppressed(1-2)",
+   "shell:python_open": "suppressed(1-2)",
+   "shell:python_open_var": "suppressed(1-2)",
+   "shell:redirect": 10
   }
  },
  "task_clusters_scored_runs": {
   "cheatbench": {
-   "distinct_tasks": 115,
+   "distinct_tasks_among_runs_with_prompt": 49,
+   "distinct_tasks_upper_bound": 115,
    "max_runs_per_task": 23,
+   "runs_with_task_prompt": 84,
+   "runs_without_task_prompt_each_its_own_cluster": 66,
    "scored_runs": 150,
    "tasks_with_at_least_3_runs": 3,
    "tasks_with_both_classes": 5
   },
   "goodfire": {
-   "distinct_tasks": 150,
+   "distinct_tasks_among_runs_with_prompt": 150,
+   "distinct_tasks_upper_bound": 150,
    "max_runs_per_task": 1,
+   "runs_with_task_prompt": 150,
+   "runs_without_task_prompt_each_its_own_cluster": 0,
    "scored_runs": 150,
    "tasks_with_at_least_3_runs": 0,
-   "tasks_with_both_classes": "<3"
+   "tasks_with_both_classes": 0
   }
  },
- "tool_sha256": "ac9af9907bf5cb87e21072714c2ae27e76329f8fe51ed60b448f0ba0dd61061b"
+ "tool_sha256": {
+  "data": "a58a4595bd90df8b61b308c8b5782a809cf66c5c60cadfd685110712075c6da0",
+  "membership": "76cb3424e963c81cd1dee7c1a72a637fb1be6779c3cce98124d1b2faaab18f50",
+  "stats": "f153e4920ba84d1917d6b52bda51219a1878f22a70ea2172fb5dcda16164c255",
+  "test_edits": "c82f820453b464a984c19172f8e89bea803c8c89eb1a27fb59fabcc0b4a2b913"
+ }
 }

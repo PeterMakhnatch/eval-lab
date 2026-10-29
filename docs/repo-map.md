@@ -93,7 +93,7 @@ inputs:
   - path: src/evallab/credential_bridge.py
     digest: sha256:b78bbab5a1c51113cfda71df5e6e708a9f030d68ee6c6984b0d6494bd01743a0
   - path: src/evallab/credentials.py
-    digest: sha256:5328e95917e47d88004c4fa34a6b647c9d11bfc74c6da3c2b4409e7f8e84c848
+    digest: sha256:9ac68fe0d040174a60b2acf203ce9a2569331d38319f736aee115c172d9ca7ee
   - path: src/evallab/curve.py
     digest: sha256:2bbaa2bf780ffe0c911bfbcf295a2374f040def19f586cd850e1fc226cd5fb58
   - path: src/evallab/cyber_instruction.py
@@ -165,7 +165,7 @@ inputs:
   - path: src/evallab/execution_backend.py
     digest: sha256:761cc38bdd921537523209e16e0a6be53aa5720b05ee6c48eef707ad2165404d
   - path: src/evallab/execution_contracts.py
-    digest: sha256:30ecd8539fa98518726816ec1edebcb33e1c25510af1d8515853084e1de77812
+    digest: sha256:10e124710b88e288ff3f90981d8a12799784515cf00299d4d60091440d888825
   - path: src/evallab/exploit_probe.py
     digest: sha256:863c1aad2a5885f8520a9a2480010b47499c24a6ef456cda8cb45bf22cfbb649
   - path: src/evallab/explorer.py
@@ -849,7 +849,7 @@ inputs:
   - path: src/evallab/production/window_cascade.py
     digest: sha256:6f5213a670a73487426f185fa79837a58f81820a4328dc459ec629ad998b772e
   - path: src/evallab/profiles.py
-    digest: sha256:de125b35c6b44d2fc6355d552c0fd5cb594f3a7329e1084d0500b4e97fa5ff5f
+    digest: sha256:295f2ecea5447231df911fb9804bc3d66f0135855a1575cfdaeda84023d67a4f
   - path: src/evallab/provenance.py
     digest: sha256:8b76204b8281dc651babfe786a51a88688c3e462adf6e274a8b172d9b6c09807
   - path: src/evallab/purge_build_caches.py
@@ -913,7 +913,7 @@ inputs:
   - path: src/evallab/queue.py
     digest: sha256:d31f916fd4d4092db337dc10b563c98a48e2f4227cdbd01596ac34ba74fafe3e
   - path: src/evallab/quota.py
-    digest: sha256:79b798c4710583be8c809fa7b01a158f52d06f0f3a6f5263ea2ac621befcb43c
+    digest: sha256:0f7e97bfd03457e1d6a7e9a6cf8013fa6a12ee79612dc8e347cf078f68444ca2
   - path: src/evallab/readers/__init__.py
     digest: sha256:57cbc86307fd4f4fb6ef2394550a3fdcad65edf1ab656dab192951608f46534c
   - path: src/evallab/readers/clouddb_blind.py
@@ -1011,7 +1011,7 @@ inputs:
   - path: src/evallab/run_telemetry.py
     digest: sha256:84a91d9e7652d78a1236825ec5bca5516c10d82f674cba6ef786a32531dcf1b7
   - path: src/evallab/runner.py
-    digest: sha256:04174b0da344575add4677bb6553a9e79b4eae1eb1df8ede4d33033961f9cd92
+    digest: sha256:3e35b4c0aa72e86a95ca64860dae5540fb05df84970e467e68e328e2b8b30075
   - path: src/evallab/schemas/__init__.py
     digest: sha256:4bdf2771728b28bc6c609a0bbf5908df8eb0e6d09337f6caa7b2614a17d06f00
   - path: src/evallab/screen.py

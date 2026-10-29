@@ -180,3 +180,7 @@ base rate, and the supervisor's existing ownership and stop-cap checks.
   0.87–1.00; the one false alarm is a productive 125-step DeepSWE run whose last two
   responses hit the output-token limit and got the same harness retry prompt), 1/55 non-fired runs had a loop, and the arm-weighted recall
   is **0.89**. It fires on 474 of 925 ImpossibleBench runs and 5 of 2,749 others.
+  Outside that validated Goodfire/TB4 population it also fires on 15 chat-only
+  `qa-trace-sft` hacktrace runs (three replies to the same failure message); blind
+  raters called 0 of the 11 they agreed on loops (4 disputed), so treat those
+  alarms as unvalidated.

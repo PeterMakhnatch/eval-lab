@@ -1368,19 +1368,30 @@ def verify_differential_replay(
             original_res.get("error")
             or f"original grader returned reward={orig_reward} (status={orig_status})"
         )
+        candidate_exit = _candidate_exit_code(original_res)
+        if original_res.get("reason_code") == "execution_backend_refused":
+            failure_kind = "execution_backend_refused"
+        elif (
+            orig_status == "measured"
+            and not original_res.get("error")
+            and orig_reward is not None
+        ):
+            failure_kind = "upstream_failed"
+        elif candidate_exit not in (None, 0):
+            # The submitted script exited nonzero, so no reward was produced. The
+            # grader ran; the candidate failed. Counting this as an unavailable
+            # grader hides a model failure inside infrastructure.
+            failure_kind = "candidate_failed"
+            reason = f"candidate solution exited {candidate_exit}; {reason}"
+        else:
+            failure_kind = "original_grader_unavailable"
         return DifferentialGradeOutcome(
             original_reward=orig_reward,
             repaired_reward=None,
             original_status=orig_status,
             repaired_status="not_run",
             differential_confirmed=False,
-            failure_kind="execution_backend_refused"
-            if original_res.get("reason_code") == "execution_backend_refused"
-            else "upstream_failed"
-            if orig_status == "measured"
-            and not original_res.get("error")
-            and orig_reward is not None
-            else "original_grader_unavailable",
+            failure_kind=failure_kind,
             failure_reason=reason,
             failed_tests=failed_tests,
             failure_excerpts=excerpts,
@@ -1511,6 +1522,26 @@ def verify_differential_replay(
         original_result=original_res,
         repaired_result=repaired_res,
     )
+
+
+def _candidate_exit_code(result: Mapping[str, Any]) -> int | None:
+    """Exit code the trial recorded for the candidate's own solution.
+
+    ``None`` means the trial recorded none (the usual case for a measured grade),
+    so callers must not read it as success. A nonzero value means the submitted
+    script failed before any grader assertion ran.
+    """
+    trial = result.get("trial_dir")
+    if not isinstance(trial, str) or not trial.strip():
+        return None
+    try:
+        text = (Path(trial) / "agent" / "exit-code.txt").read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
 
 
 def _extract_failed_test_ids(result: Mapping[str, Any]) -> tuple[str, ...]:

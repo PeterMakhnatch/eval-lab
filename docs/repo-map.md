@@ -795,7 +795,7 @@ inputs:
   - path: src/evallab/production/seeker_known_hacks.py
     digest: sha256:ce94c18865b262e585d25ed79a0d338532725ee580c8477ef40005b491b74b51
   - path: src/evallab/production/seeker_worker.py
-    digest: sha256:0282886380804829d8afe9f7758e2074286a9d41916e4aefab592ad6f9d66910
+    digest: sha256:074f9cda485c25ee53667a456769bb97154b780cd9e1885dc01d9139850f320a
   - path: src/evallab/production/stage0_triage.py
     digest: sha256:12390ab3511c4a1b7723e692117ba1dafcac1feb704ea6f1d7f7dc20eccf7d87
   - path: src/evallab/production/supervisor.py

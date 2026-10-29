@@ -736,7 +736,7 @@ def test_cash_is_fetched_under_the_state_lock_and_the_hold_is_durable_before_ret
     reservation = make_budget().reserve("durable-1", "0.11", fetch, {"stage": "smoke"})
     assert seen == ["locked"]
     assert reservation.bound_usd == usd("0.11")
-    assert reservation.required_cash_usd == usd("35.11")  # bound + unspent TT7 earmark
+    assert reservation.required_cash_usd == usd("33.61")  # bound + unspent TT7 earmark
     assert json.loads(json.dumps(reservation.to_dict()))["attempt_id"] == "durable-1"
     snapshot = make_budget().snapshot()  # a new process-equivalent view, no shared memory
     assert [(a["attempt_id"], a["status"], a["charge_usd"]) for a in snapshot["attempts"]] == [
@@ -865,7 +865,7 @@ def test_blank_lock_remains_uninitialized_until_the_first_successful_state_commi
         make_budget().reserve,
         "first-success",
         "0.11",
-        budget_cash("35.10"),
+        budget_cash("33.60"),
     )
     lock_inode = lock_path.stat().st_ino
     assert lock_path.read_bytes() == b""
@@ -1126,7 +1126,7 @@ def test_tt7_is_reserved_but_denied_and_nothing_can_approve_it(
     refused(budget_module, "arm_not_approved", make_budget("tt7").reserve, "tt7-1", "1.00", cash)
     assert cash.calls == 0 and not (budget_dir / "state.json").exists()
     snapshot = make_budget("tt7").snapshot()
-    assert snapshot["caps"] == {"tt4": "14.85", "tt7": "35.00"}
+    assert snapshot["caps"] == {"tt4": "14.85", "tt7": "33.50"}
     assert snapshot["arms"]["tt4"]["dispatch_approved"] is True
     assert snapshot["arms"]["tt7"]["dispatch_approved"] is False
     assert snapshot["attempts"] == []
@@ -1140,7 +1140,7 @@ def test_tt7_is_reserved_but_denied_and_nothing_can_approve_it(
     }
     for constants in (budget_module.CAPS, budget_module.DISPATCH_APPROVED):
         with pytest.raises(TypeError):
-            constants["tt7"] = "35.00"
+            constants["tt7"] = "33.50"
     for arm in ("tt5", None, 4):
         refused(budget_module, "unknown_arm", budget_module.Budget, budget_dir, arm)
 
@@ -1244,31 +1244,31 @@ def test_low_cash_and_other_open_arm_earmark_block_reservations(
     budget_module, make_budget, budget_dir
 ):
     budget = make_budget()
-    # TT4 must leave TT7's whole unspent 35.00 earmark untouched: 0.11 + 35.00.
-    refused(budget_module, "cash_low", budget.reserve, "low-1", "0.11", budget_cash("35.10"))
+    # TT4 must leave TT7's whole unspent 33.50 earmark untouched: 0.11 + 33.50.
+    refused(budget_module, "cash_low", budget.reserve, "low-1", "0.11", budget_cash("33.60"))
     assert not (budget_dir / "state.json").exists()
-    assert budget.reserve("low-1", "0.11", budget_cash("35.11")).required_cash_usd == usd("35.11")
+    assert budget.reserve("low-1", "0.11", budget_cash("33.61")).required_cash_usd == usd("33.61")
     # A refusal never consumed the id; an existing pending hold is subtracted from cash too.
-    refused(budget_module, "cash_low", budget.reserve, "low-2", "0.11", budget_cash("35.21"))
-    assert budget.reserve("low-2", "0.11", budget_cash("35.22")).required_cash_usd == usd("35.22")
+    refused(budget_module, "cash_low", budget.reserve, "low-2", "0.11", budget_cash("33.71"))
+    assert budget.reserve("low-2", "0.11", budget_cash("33.72")).required_cash_usd == usd("33.72")
     budget.fail("low-2", "timeout")  # a failed hold keeps counting against cash
-    refused(budget_module, "cash_low", budget.reserve, "low-3", "0.11", budget_cash("35.32"))
-    assert budget.reserve("low-3", "0.11", budget_cash("35.33")).required_cash_usd == usd("35.33")
+    refused(budget_module, "cash_low", budget.reserve, "low-3", "0.11", budget_cash("33.82"))
+    assert budget.reserve("low-3", "0.11", budget_cash("33.83")).required_cash_usd == usd("33.83")
 
 
 def test_settled_debits_stay_subtracted_without_reflection_inference(budget_module, make_budget):
     budget = make_budget()
     budget.reserve("shadow-1", "0.11", budget_cash("1000.00"))
     budget.settle("shadow-1", "0.10", "generation:gen-4")
-    # Even if the balance already fell by 0.10, the debit is shadowed: 0.11 + 0.10 + 35.00.
-    refused(budget_module, "cash_low", budget.reserve, "shadow-2", "0.11", budget_cash("35.20"))
-    assert budget.reserve("shadow-2", "0.11", budget_cash("35.21")).required_cash_usd == usd(
-        "35.21"
+    # Even if the balance already fell by 0.10, the debit is shadowed: 0.11 + 0.10 + 33.50.
+    refused(budget_module, "cash_low", budget.reserve, "shadow-2", "0.11", budget_cash("33.70"))
+    assert budget.reserve("shadow-2", "0.11", budget_cash("33.71")).required_cash_usd == usd(
+        "33.71"
     )
     budget.settle("shadow-2", "0.11", "generation:gen-5")
-    refused(budget_module, "cash_low", budget.reserve, "shadow-3", "0.11", budget_cash("35.31"))
-    assert budget.reserve("shadow-3", "0.11", budget_cash("35.32")).required_cash_usd == usd(
-        "35.32"
+    refused(budget_module, "cash_low", budget.reserve, "shadow-3", "0.11", budget_cash("33.81"))
+    assert budget.reserve("shadow-3", "0.11", budget_cash("33.82")).required_cash_usd == usd(
+        "33.82"
     )
 
 
@@ -1278,9 +1278,9 @@ def test_closing_tt7_releases_only_its_unused_earmark(budget_module, make_budget
     budget.reserve("close-set", "0.11", budget_cash("1000.00"))
     budget.settle("close-set", "0.05", "generation:gen-6")
     before = budget.snapshot()
-    assert usd(before["global"]["open_earmark_usd"]) == usd("49.69")  # 14.85 - 0.16 + 35.00
+    assert usd(before["global"]["open_earmark_usd"]) == usd("48.19")  # 14.85 - 0.16 + 33.50
     closed = make_budget("tt7").close_arm("TT7 was never dispatched")
-    assert usd(closed["released_earmark_usd"]) == usd("35.00") and usd(closed["used_usd"]) == 0
+    assert usd(closed["released_earmark_usd"]) == usd("33.50") and usd(closed["used_usd"]) == 0
     after = budget.snapshot()
     assert usd(after["global"]["open_earmark_usd"]) == usd("14.69")
     for key in ("settled_usd", "held_usd", "used_usd"):

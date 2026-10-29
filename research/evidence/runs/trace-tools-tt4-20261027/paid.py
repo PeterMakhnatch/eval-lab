@@ -1217,8 +1217,12 @@ def run(keys, limit, shard=None):
     return freeze_and_score(keys, "complete" if not remaining else "guard-stop-or-explicit-limit")
 
 
-def recover():
-    """Free, offline: bound old 429 holds and let rate-limit-only failed traces run again."""
+def recover(retry_failed=False):
+    """Free, offline: bound old 429 holds and let failed traces run again.
+
+    By default only traces with a rate-limited call; ``retry_failed`` also reruns any other
+    attempted trace that ended unscored without a scan error (for example a ``ReadError``).
+    """
     from openrouter_budget import DEFAULT_STATE_DIR, Budget, BudgetError
 
     if not ARM_CONFIG["retry_rate_limited"]:
@@ -1250,7 +1254,7 @@ def recover():
     for path in sorted((CAMPAIGN / "traces").glob("*.json")):
         outcome, opaque = load(path), path.stem
         if (
-            opaque not in limited
+            (opaque not in limited and not retry_failed)
             or outcome.get("phase") != "terminal"
             or outcome.get("scored") is not False
             or not outcome.get("native_scan_attempted")
@@ -1313,6 +1317,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("prepare", "run", "score", "recover"))
     parser.add_argument("--limit", type=int)
+    parser.add_argument(
+        "--retry-failed", action="store_true", help="recover: also rerun non-429 failed traces"
+    )
     parser.add_argument("--shard", type=parse_shard, help="K/N: run keys[K::N] (after the smoke)")
     args = parser.parse_args()
     if args.limit is not None and args.limit <= 0:
@@ -1342,7 +1349,7 @@ def main():
         elif args.mode == "score":
             freeze_and_score(keys, "explicit-offline-score")
         elif args.mode == "recover":
-            print(json.dumps(recover(), sort_keys=True), flush=True)
+            print(json.dumps(recover(args.retry_failed), sort_keys=True), flush=True)
         else:
             try:
                 run(keys, args.limit)

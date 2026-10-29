@@ -13,6 +13,7 @@ and held-out cohort, and supports leave-one-out exclusion.
 from __future__ import annotations
 
 import bisect
+import copy
 import csv
 import hashlib
 import json
@@ -1149,6 +1150,12 @@ class CloudTraceDatabase:
         """``search_runs`` rows for validated ``filters``, with the sealed identities that screened them.
 
         The caller owns the snapshot, so admission, facet reads and the returned seals agree.
+
+        Admission and the returned seals are decided afresh on every call. The SQL read and the
+        sealed-text screening of its rows are a pure function of the store, the allowed task set,
+        the sealed-identity set, the typed filters and the limit, so exactly that tuple keys
+        ``_read_memo``: a committed write, a changed admission or seal set, another filter or scope
+        each miss, and PostgreSQL always rebuilds. Rows are copied out, so a caller cannot edit the memo.
         """
         admitted, sealed_ids = retriever._admitted_ids()
         allowed = frozenset(admitted)
@@ -1156,18 +1163,27 @@ class CloudTraceDatabase:
             allowed = allowed.intersection(allowed_task_ids)
         if not allowed:
             return [], sealed_ids
-        parameters: list[Any] = []
-        clauses = [self._task_id_scope("a.task_id", allowed, parameters), "a.task_id = f.task_id"]
-        clauses.extend(self._task_id_scope(f"f.{field}", values, parameters) for field, values in filters)
-        query = (
-            "SELECT f.* FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
-            f"WHERE {' AND '.join(clauses)} ORDER BY f.suspicion DESC, f.run_id"
+        sealed = frozenset(sealed_ids)
+        typed_filters = tuple(
+            (field, tuple((type(value).__name__, value) for value in values)) for field, values in filters
         )
-        if limit is not None:
-            query += f" LIMIT {limit}"
-        rows = self._rows(query, parameters)
-        withheld = _sealed_texts([_json_text(row) for row in rows], frozenset(sealed_ids))
-        return [row for row, hidden in zip(rows, withheld, strict=True) if not hidden], sealed_ids
+
+        def build() -> tuple[dict[str, Any], ...]:
+            parameters: list[Any] = []
+            clauses = [self._task_id_scope("a.task_id", allowed, parameters), "a.task_id = f.task_id"]
+            clauses.extend(self._task_id_scope(f"f.{field}", values, parameters) for field, values in filters)
+            query = (
+                "SELECT f.* FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+                f"WHERE {' AND '.join(clauses)} ORDER BY f.suspicion DESC, f.run_id"
+            )
+            if limit is not None:
+                query += f" LIMIT {limit}"
+            rows = self._rows(query, parameters)
+            withheld = _sealed_texts([_json_text(row) for row in rows], sealed)
+            return tuple(row for row, hidden in zip(rows, withheld, strict=True) if not hidden)
+
+        served = self._read_memo(("admitted_facets", allowed, sealed, typed_filters, limit), build)
+        return [_copy_row(row) for row in served], sealed_ids
 
     def _replace_steps(self, trace_id: str, rows: Sequence[Mapping[str, Any]]) -> None:
         self._execute("DELETE FROM trace_steps WHERE trace_id = ?", (trace_id,))
@@ -1808,6 +1824,14 @@ def _sealed_texts(texts: Sequence[str], identities: frozenset[str]) -> list[bool
         not sealed_runs.isdisjoint(text_runs) or others.search(text) is not None
         for text, text_runs in zip(folded, runs, strict=True)
     ]
+
+
+def _copy_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    """A row with its decoded JSON columns copied, so a reader cannot edit a memoised row."""
+    return {
+        field: copy.deepcopy(value) if isinstance(value, (list, dict)) else value
+        for field, value in row.items()
+    }
 
 
 def _clip(text: str, limit: int) -> str:
@@ -2452,19 +2476,28 @@ class CloudTraceRetriever:
             if like_run_id is not None:
                 raise refused
             return {}, {}, None
-        parameters: list[Any] = []
-        scope = database._task_id_scope("a.task_id", admitted, parameters)
-        # Cluster sizes and membership must depend only on this admitted
-        # projection, before the query's hard filters narrow the candidates.
+        # Admitted facets and their sealed-text screening are a pure function of the store, the
+        # admitted ids and the seal pattern, so they key ``_read_memo`` (see ``_admitted_facets``);
+        # the cluster and similarity steps below read fresh state and stay uncached.
+        def build() -> dict[str, dict[str, Any]]:
+            parameters: list[Any] = []
+            scope = database._task_id_scope("a.task_id", admitted, parameters)
+            # Cluster sizes and membership must depend only on this admitted
+            # projection, before the query's hard filters narrow the candidates.
+            return {
+                row["run_id"]: row for row in database._rows(
+                    "SELECT f.*, a.trust_tier AS trace_trust_tier "
+                    "FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
+                    f"WHERE {scope} AND a.task_id = f.task_id ORDER BY f.run_id",
+                    parameters,
+                ) if not self._sealed_text(
+                    "\n".join(value for value in row.values() if isinstance(value, str)), sealed,
+                )
+            }
+
         facets = {
-            row["run_id"]: row for row in database._rows(
-                "SELECT f.*, a.trust_tier AS trace_trust_tier "
-                "FROM run_facets f JOIN agent_traces a ON a.trace_id = f.run_id "
-                f"WHERE {scope} AND a.task_id = f.task_id ORDER BY f.run_id",
-                parameters,
-            ) if not self._sealed_text(
-                "\n".join(value for value in row.values() if isinstance(value, str)), sealed,
-            )
+            run_id: _copy_row(row) for run_id, row in
+            database._read_memo(("retrieval_facets", tuple(admitted), sealed.pattern), build).items()
         }
         like = None if like_run_id is None else facets.get(like_run_id)
         if like_run_id is not None and like is None:

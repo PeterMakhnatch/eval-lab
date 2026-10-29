@@ -1032,3 +1032,118 @@ def test_cluster_import_refuses_unfaceted_runs_unless_asked_to_drop_and_count_th
     # The level-3 cluster that held only the unstored run vanishes; the others shrink.
     assert set(stored_clusters) == {"l1", "l2", "l3"}
     assert stored_clusters["l1"]["run_ids"] == ["dev-task/pass"] and stored_clusters["l1"]["size"] == 1
+
+
+@pytest.fixture
+def screened(faceted: CloudTraceDatabase) -> CloudTraceDatabase:
+    """``faceted`` plus a second admitted DEV task whose run names a not-yet-sealed identity."""
+    faceted.upsert_task({
+        "task_id": "other-task", "dataset_id": "synthetic-corpus", "split": "dev",
+        "instruction_text": "synthetic task",
+    })
+    faceted.upsert_trace({
+        "trace_id": "other-task/pass", "run_id": "batch-1", "task_id": "other-task",
+        "model_id": "synthetic-model", "reward": 1.0,
+    }, steps=[{"step_index": index, "role": "assistant"} for index in range(4)])
+    receipt = faceted.upsert_run_facets(
+        [facet("other-task/pass", goal="Read secret-name docs", suspicion=2)],
+        registry=SyntheticRegistry(), allowed_task_ids=["other-task"],
+    )
+    assert receipt["stored"] == 1
+    return faceted
+
+
+def count_facet_reads(database: CloudTraceDatabase) -> list[str]:
+    statements: list[str] = []
+    database._connection.set_trace_callback(statements.append)
+    return statements
+
+
+def test_unchanged_screened_read_is_not_repeated_and_cannot_be_edited_through_its_result(
+    screened: CloudTraceDatabase,
+) -> None:
+    registry = SyntheticRegistry()
+    first = screened.search_runs(registry=registry)
+    assert run_ids(first) == ["dev-task/pass", "other-task/pass", "dev-task/fail", "dev-task/open"]
+    statements = count_facet_reads(screened)
+    try:
+        again = screened.search_runs(registry=registry)
+    finally:
+        screened._connection.set_trace_callback(None)
+    assert again == first
+    assert not [statement for statement in statements if "FROM run_facets" in statement]
+    again[0]["evidence_steps"].append(99)
+    again[0]["goal"] = "edited"
+    again.pop()
+    assert screened.search_runs(registry=registry) == first
+
+
+@pytest.mark.parametrize(("change", "expected"), [
+    ("write", ["dev-task/fail", "dev-task/pass", "other-task/pass", "dev-task/open"]),
+    ("seal", ["dev-task/pass", "dev-task/fail", "dev-task/open"]),
+    ("admission", []),
+    ("authority", []),
+    ("filter", ["dev-task/pass"]),
+    ("scope", ["other-task/pass"]),
+    ("limit", ["dev-task/pass", "other-task/pass"]),
+], ids=str)
+def test_screened_read_after_a_warm_call_follows_every_input_it_depends_on(
+    screened: CloudTraceDatabase, change: str, expected: list[str],
+) -> None:
+    registry = SyntheticRegistry()
+    arguments: dict[str, Any] = {}
+    screened.search_runs(registry=registry)  # warm the memo for the unchanged inputs
+    if change == "write":
+        screened.upsert_run_facets(
+            [facet("dev-task/fail", suspicion=3)], registry=registry, allowed_task_ids=["dev-task"],
+        )
+    elif change == "seal":
+        registry._sealed_names.add("secret-name")
+    elif change == "admission":
+        registry._assigned_test_ids.add("dev-task")
+        registry._assigned_test_ids.add("other-task")
+    elif change == "authority":
+        registry.split_assignments_digest = None
+    elif change == "filter":
+        arguments["facets"] = {"suspicion": 3}
+    elif change == "scope":
+        arguments["allowed_task_ids"] = ["other-task"]
+    else:
+        arguments["limit"] = 2
+    assert run_ids(screened.search_runs(registry=registry, **arguments)) == expected
+
+
+def test_atlas_retrieval_reuses_its_facet_screen_but_never_past_a_new_seal_or_write(
+    retrieval_db: CloudTraceDatabase,
+) -> None:
+    db = retrieval_db
+    for task_id in ("kept", "named"):
+        retrieval_task(db, task_id)
+    retrieval_trace(db, "kept")
+    named = retrieval_trace(db, "named", facet_changes={"goal": "Read secret-name docs"})
+    registry = SyntheticRegistry()
+    retriever = CloudTraceRetriever(db, registry=registry)
+
+    def served(**facets: Any) -> set[str]:
+        return {
+            example.task_id for example in retriever.retrieve_similar_examples(
+                "parser", top_k=10, facets=facets, exclude_task_ids=AUDITED,
+            )
+        }
+
+    assert served() == {"kept", "named"}
+    statements = count_facet_reads(db)
+    try:
+        assert served() == {"kept", "named"}
+    finally:
+        db._connection.set_trace_callback(None)
+    assert not [statement for statement in statements if "FROM run_facets" in statement]
+
+    receipt = db.upsert_run_facets([
+        facet(named, goal="Read secret-name docs", tests="deleted", evidence_steps=[0]),
+    ], registry=registry)
+    assert receipt["stored"] == 1
+    assert served(tests="deleted") == {"named"}
+    registry._sealed_names.add("secret-name")
+    assert served() == {"kept"}
+    assert served(tests="deleted") == set()

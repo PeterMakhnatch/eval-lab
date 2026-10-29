@@ -99,3 +99,11 @@ def test_validity_gate_is_reported_separately_from_alarm_conclusion():
     result = run.decision(original, arm, {"k": 11, "n": 17})
     assert result["alarm_conclusion"] == "stands"
     assert result["calibration_recall"]["validity_gate_passed"] is False
+
+
+def test_fisher_exact_known_values():
+    export = _module("export")
+    assert export.fisher_two_sided(12, 176, 4, 184) == pytest.approx(0.0706, abs=5e-4)
+    assert export.fisher_two_sided(14, 174, 14, 174) == 1.0
+    # lady-tasting-tea table: p = 0.4857
+    assert export.fisher_two_sided(3, 1, 1, 3) == pytest.approx(0.4857, abs=5e-4)

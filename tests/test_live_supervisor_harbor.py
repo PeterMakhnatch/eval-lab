@@ -189,11 +189,48 @@ def test_trial_started_after_now_has_no_elapsed() -> None:
 # --------------------------------------------------------------------------- error_signature
 
 
-def test_error_signature_infra_tail_from_run_health() -> None:
-    steps = [_step(1, offset=-5), _step(2, "ls", offset=-1, observation="Cannot connect to the Docker daemon at x")]
+DOCKER = "Cannot connect to the Docker daemon at x"
+
+
+def _failing(n: int, observation: str = DOCKER, *, first: int = 2) -> list[dict[str, Any]]:
+    return [_step(first + i, f"echo {chr(97 + i)}", offset=-5 + i, observation=observation) for i in range(n)]
+
+
+def test_error_signature_infra_needs_the_class_in_the_last_three_tool_outputs() -> None:
+    steps = [_step(1, offset=-9)] + _failing(3)
     hit = _hits(_run(steps))["error_signature"]
     assert hit.kind == "infra"
-    assert hit.evidence_steps == (2,)
+    assert hit.evidence_steps == (2, 3, 4)
+    assert "tail:sandbox in the last 3 tool outputs" in hit.detail
+
+
+@pytest.mark.parametrize("failing", [1, 2])
+def test_error_signature_infra_one_or_two_matching_outputs_are_transient(failing: int) -> None:
+    # Run Health alarms (signature in the tail); the live trigger waits for it to persist.
+    steps = [_step(1, offset=-9)] + _failing(failing)
+    observation = trial_observation(_run(steps), subject=SUBJECT, now=NOW)
+    assert "infra" in observation.metrics["health"]
+    assert "error_signature" not in {h.trigger for h in triggers_for(observation)}
+
+
+def test_error_signature_infra_a_clean_output_after_the_failures_resets_the_run() -> None:
+    steps = [_step(1, offset=-9)] + _failing(3) + [_step(5, "ls", offset=-1, observation="file.txt")]
+    assert "error_signature" not in _hits(_run(steps))
+
+
+def test_error_signature_infra_blank_outputs_do_not_break_the_run() -> None:
+    steps = [_step(1, offset=-9), *_failing(2), _step(4, "true", offset=-2, observation=""),
+             _step(5, "echo z", offset=-1, observation=DOCKER)]
+    assert _hits(_run(steps))["error_signature"].evidence_steps == (2, 3, 5)
+
+
+def test_error_signature_infra_only_persistent_classes_are_reported() -> None:
+    oom = "MemoryError: Out of memory"
+    steps = [_step(1, offset=-9), _step(2, "a", offset=-4, observation=DOCKER + " " + oom),
+             _step(3, "b", offset=-3, observation=DOCKER), _step(4, "c", offset=-2, observation=DOCKER + " " + oom)]
+    hit = _hits(_run(steps))["error_signature"]
+    assert "tail:sandbox" in hit.detail and "tail:oom" not in hit.detail
+    assert hit.evidence_steps == (2, 3, 4)
 
 
 def test_error_signature_signature_outside_the_tail_is_not_a_hit() -> None:

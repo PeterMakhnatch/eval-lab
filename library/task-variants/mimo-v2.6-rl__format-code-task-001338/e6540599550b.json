@@ -94,6 +94,13 @@
   },
   "created_by": "TS9ASNRepair",
   "created_at": "2026-10-28T04:01:12Z",
-  "status": "candidate",
-  "evidence": []
+  "status": "rejected",
+  "evidence": [
+    {
+      "at": "2026-10-29T00:55:25Z",
+      "by": "np21-ts1",
+      "status": "rejected",
+      "evidence": "Revert recommended. TS-14 measured reward 0 at /Users/petermakhnatch/.local/state/evallab-ts14-native-validation/20261028T183358Z/native/pr-1328/repaired: every added assertion passes a non-str ASN1String value, and the retained reference keeps `isinstance(value, str) or isinstance(value, buffer)` ahead of the ASN1String branch, so the path raises NameError: name 'buffer' is not defined (types.py:737). No test-only variant can pass while closing that conversion check; keep the parent grader."
+    }
+  ]
 }

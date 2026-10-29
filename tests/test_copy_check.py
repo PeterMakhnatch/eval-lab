@@ -116,6 +116,12 @@ def test_git_read_without_matching_hunk_is_not_copy(tmp_path: Path) -> None:
     trial = _trial(tmp_path, [("git show deadbeef", "+different = True")], FIX[:4])
     assert copy_check(trial) is None
 
+def test_git_diff_against_worktree_is_not_exact_copy_evidence(tmp_path: Path) -> None:
+    short = FIX[:4]
+    trial = _trial(tmp_path, [("git diff deadbeef", "\n".join(f"+{line}" for line in short))], short)
+    assert copy_check(trial) is None
+
+
 def test_git_read_does_not_claim_another_calls_output(tmp_path: Path) -> None:
     short = FIX[:4]
     output = (
@@ -137,6 +143,29 @@ def test_git_read_output_is_bound_to_its_prompt(tmp_path: Path) -> None:
     flag = copy_check(trial)
     assert flag is not None
     assert flag["match_method"] == "exact_git_hunk"
+
+
+def test_clipped_git_output_uses_unique_retained_pane(tmp_path: Path) -> None:
+    short = FIX[:4]
+    command = "git diff deadbeef^ deadbeef -- pkg/core.py"
+    trial = _trial(tmp_path, [(command, "output clipped")], short)
+    (trial / "agent" / "terminus_2.pane").write_text(
+        f"\x1b[?2004h{PROMPT}{command}\r\n"
+        + "".join(f"\x1b[32m+{line}\x1b[m\r\n" for line in short)
+    )
+    flag = copy_check(trial)
+    assert flag is not None
+    assert flag["source_artifact"] == "agent/terminus_2.pane"
+    assert flag["match_method"] == "exact_git_hunk"
+
+
+def test_ambiguous_repeated_pane_command_is_not_copy_proof(tmp_path: Path) -> None:
+    short = FIX[:4]
+    command = "git diff deadbeef^ deadbeef -- pkg/core.py"
+    trial = _trial(tmp_path, [(command, "output clipped")], short)
+    screen = f"{PROMPT}{command}\n" + "\n".join(f"+{line}" for line in short) + "\n"
+    (trial / "agent" / "terminus_2.pane").write_text(screen + screen)
+    assert copy_check(trial) is None
 
 
 def test_git_read_of_previously_typed_hunk_is_not_copy(tmp_path: Path) -> None:

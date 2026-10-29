@@ -630,6 +630,9 @@ Integrity rules are deterministic only (HAR-024 contract, no LLM judge):
 For Git object reads, copy evidence also includes an exact match of a submitted
 non-test diff hunk (or its resulting file text) against printed output, without
 the folded-line minimum. A read or patch command by itself is not copy proof.
+When an ATIF observation was clipped, the detector can use a retained terminal
+pane only if the Git command is uniquely attributable; ambiguous repeated
+commands are not joined. Counts cite the pane as the source artifact.
 
 
 Detector preference: trustworthy stored `<job>/processed/trial-<name>.json`

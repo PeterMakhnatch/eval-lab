@@ -166,6 +166,7 @@ def _copy_hit_from_flag(flag: dict[str, Any]) -> dict[str, Any] | None:
         "evidence": {
             "matched_lines": flag.get("matched_lines"),
             "added_lines": flag.get("added_lines"),
+            "source_artifact": flag.get("source_artifact") or "agent/trajectory.json",
             "examples": flag.get("examples"),
         },
     }

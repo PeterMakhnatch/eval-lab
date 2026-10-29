@@ -85,7 +85,7 @@ inputs:
   - path: src/evallab/continuous_control_plane.py
     digest: sha256:a6d9d6a1f40cadae3e82583fcff4265632b435e284592b1822cafad13743eb96
   - path: src/evallab/copy_check.py
-    digest: sha256:0416aa785f648db09e10d7a513e473b7074ef361f2cb9c24381604150d679d84
+    digest: sha256:acca852603453a05aeafd81ff23c9883ddbeea6509e338ad673391abbe9d0927
   - path: src/evallab/counts.py
     digest: sha256:1485541291e575670e0dffd41c6fabf65f30d0fe606ea21ed7022812e25e3fd8
   - path: src/evallab/craft.py
@@ -435,7 +435,7 @@ inputs:
   - path: src/evallab/harbor_terminus.py
     digest: sha256:7567699fb4da47f9e42a56d3a03fb35fd4b78f239fb23ce7785b2b0072053543
   - path: src/evallab/harbor_view.py
-    digest: sha256:4574f01ed2de7c90328ecfbfcf000c1f0d6c7bb8a2bb5eae78d5cc2188eae256
+    digest: sha256:3ad12f8a627488b853f7b318895aad1f1752b7fcf586aca23bb00aaf3f652d3f
   - path: src/evallab/harbor_watch_hooks.py
     digest: sha256:30c260dd4498a2ebd7a505ce1738f2a67072e0c0924ee7f1bc0909fdeff280a5
   - path: src/evallab/harbor_zai_miniswe.py

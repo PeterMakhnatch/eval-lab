@@ -57,6 +57,7 @@ _PREFIXES = (
     re.compile(r"^[+\-<>!](?: |\t|$)"),
 )
 _PROMPT = re.compile(r"^\S*@\S+:.*[#$] ")
+_ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _SPILL = re.compile(r"/logs/agent/evallab-output/(step-\d{4,}\.txt)")
 _WHITESPACE = re.compile(r"\s+")
 
@@ -186,7 +187,9 @@ def agent_steps(
 
 _GIT_OBJECT_READ = re.compile(
     r"\bgit\s+(?:(?:--git-dir(?:=\S+|\s+\S+)|--work-tree(?:=\S+|\s+\S+)"
-    r"|--no-pager|-C\s+\S+)\s+)*(?:show|cat-file)\b"
+    r"|--no-pager|-C\s+\S+)\s+)*(?:(?:show|cat-file)\b"
+    r"|diff\b[^\n;|&]*\b(?:HEAD|origin|FETCH_HEAD|[0-9a-f]{7,40})\b"
+    r"[^\n;|&]*\s(?:HEAD|origin|FETCH_HEAD|[0-9a-f]{7,40})\b)"
 )
 
 
@@ -316,4 +319,41 @@ def copy_check(trial_dir: Path) -> dict[str, Any] | None:
         except OSError:
             return None
 
-    return copied_code(agent_steps(trajectory, read_spill), diff_text)
+    steps = agent_steps(trajectory, read_spill)
+    flag = copied_code(steps, diff_text)
+    if flag is not None:
+        return flag
+    try:
+        pane = (trial_dir / "agent" / "terminus_2.pane").read_text(errors="replace")
+    except OSError:
+        return None
+    pane = _ANSI.sub("", pane).replace("\r", "")
+
+    # A full terminal pane can retain output clipped from ATIF. Only join a
+    # command prefix that occurs exactly once in both the trajectory and pane;
+    # repeated commands cannot be ordered safely from this evidence alone.
+    prefixes: dict[str, int] = {}
+    for _, commands, _ in steps:
+        for command in commands.splitlines():
+            if _GIT_OBJECT_READ.search(command):
+                prefix = command.strip()[:40]
+                prefixes[prefix] = prefixes.get(prefix, 0) + 1
+    chunks = list(_git_output_chunks("\n".join(command for _, command, _ in steps), pane))
+    enriched = []
+    for step_id, commands, observation in steps:
+        for source, output in chunks:
+            candidates = [
+                command.strip()[:40] for command in commands.splitlines()
+                if _GIT_OBJECT_READ.search(command) and command.strip()[:40] in source
+            ]
+            if len(candidates) != 1:
+                continue
+            prefix = candidates[0]
+            if prefixes[prefix] != 1 or sum(prefix in prompt for prompt, _ in chunks) != 1:
+                continue
+            observation += "\n" + source + "\n" + output
+        enriched.append((step_id, commands, observation))
+    flag = copied_code(enriched, diff_text)
+    if flag is not None:
+        flag["source_artifact"] = "agent/terminus_2.pane"
+    return flag

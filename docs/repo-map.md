@@ -689,7 +689,7 @@ inputs:
   - path: src/evallab/production/cli.py
     digest: sha256:02f3a17aa273500044c972a31a53ee24350b2a25aeda9982dc5dd7b1897e718d
   - path: src/evallab/production/cloud_trace_db.py
-    digest: sha256:bc0f5bb4fe90616787e9d7db5943112c6717bfa7928559a0183b5d390b076b57
+    digest: sha256:d264596eff553f79228ff5f016f3477879018388c556c0477832339331899832
   - path: src/evallab/production/cloud_trace_export.py
     digest: sha256:a784bef5528e34c49c3a7274e3b4c39c9f628ada63b1413b8e9022684c1fa2e4
   - path: src/evallab/production/cloud_trace_retriever.py

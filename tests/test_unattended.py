@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+import evallab.automation as automation_module
 import evallab.cli as cli_module
 import evallab.digest as digest_module
 from evallab.automation import (
@@ -134,13 +135,19 @@ def _write_launch_agent(
     return path
 
 
-def _shell_agent(home: Path, label: str, *, checkout: Path, runtime: Path) -> Path:
+def _shell_agent(
+    home: Path, label: str, *, checkout: Path, runtime: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    shell = home / "bin/zsh"
+    shell.parent.mkdir(parents=True, exist_ok=True)
+    shell.touch()
+    monkeypatch.setattr(automation_module, "_SHELL_PROGRAMS", {str(shell)})
     return _write_launch_agent(
         home,
         label,
         {
             "ProgramArguments": [
-                "/bin/zsh",
+                str(shell),
                 "-lc",
                 f"cd {checkout} && {runtime} -I -c 'import sys; sys.exit(0)' tick",
             ],
@@ -149,13 +156,18 @@ def _shell_agent(home: Path, label: str, *, checkout: Path, runtime: Path) -> Pa
     )
 
 
-def test_launch_agent_audit_keeps_a_schedule_whose_paths_still_exist(tmp_path: Path) -> None:
+def test_launch_agent_audit_keeps_a_schedule_whose_paths_still_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     home = tmp_path / "home"
     checkout = home / "eval-lab"
     runtime = checkout / ".venv/bin/python"
     runtime.parent.mkdir(parents=True)
     runtime.write_text("#!/bin/sh\n")
-    _shell_agent(home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=runtime)
+    _shell_agent(
+        home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=runtime,
+        monkeypatch=monkeypatch,
+    )
     _write_launch_agent(
         home,
         "com.petermakhnatch.evallab.nightly",
@@ -173,13 +185,16 @@ def test_launch_agent_audit_keeps_a_schedule_whose_paths_still_exist(tmp_path: P
     assert audit.intact is True
 
 
-def test_launch_agent_audit_names_a_missing_interpreter(tmp_path: Path) -> None:
+def test_launch_agent_audit_names_a_missing_interpreter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     home = tmp_path / "home"
     checkout = home / "eval-lab"
     checkout.mkdir(parents=True)
     dead = checkout / ".worktrees/runtime-reviewed-20260915/.venv/bin/python"
     installed = _shell_agent(
-        home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=dead
+        home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=dead,
+        monkeypatch=monkeypatch,
     )
     original = {path.name: path.read_bytes() for path in installed.parent.glob("*.plist")}
 
@@ -194,19 +209,25 @@ def test_launch_agent_audit_names_a_missing_interpreter(tmp_path: Path) -> None:
     assert {path.name: path.read_bytes() for path in installed.parent.glob("*.plist")} == original
 
 
-def test_launch_agent_audit_names_a_missing_working_directory(tmp_path: Path) -> None:
+def test_launch_agent_audit_names_a_missing_working_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     home = tmp_path / "home"
     retired = home / "retired-checkout"
+    program = home / "bin/true"
+    program.parent.mkdir(parents=True)
+    program.touch()
     _write_launch_agent(
         home,
         "com.petermakhnatch.evallab.janitor",
-        {"ProgramArguments": ["/usr/bin/true"], "WorkingDirectory": str(retired)},
+        {"ProgramArguments": [str(program)], "WorkingDirectory": str(retired)},
     )
     _shell_agent(
         home,
         "com.petermakhnatch.evallab.tick",
         checkout=retired,
-        runtime=Path("/usr/bin/true"),
+        runtime=program,
+        monkeypatch=monkeypatch,
     )
 
     audit = audit_launch_agents(home)
@@ -229,7 +250,10 @@ def test_doctor_lists_a_broken_evallab_launch_agent(
     checkout = home / "eval-lab"
     checkout.mkdir(parents=True)
     dead = home / "retired/.venv/bin/python"
-    _shell_agent(home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=dead)
+    _shell_agent(
+        home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=dead,
+        monkeypatch=monkeypatch,
+    )
     task = tmp_path / "library/tasks/event-summary/task.toml"
     task.parent.mkdir(parents=True)
     task.write_text("version = 1\n")
@@ -258,13 +282,16 @@ def test_doctor_lists_a_broken_evallab_launch_agent(
 
 
 def test_headless_doctor_reports_a_broken_launch_agent_and_is_not_ready(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     home = tmp_path / "home"
     checkout = home / "eval-lab"
     checkout.mkdir(parents=True)
     dead = home / "retired/.venv/bin/python"
-    _shell_agent(home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=dead)
+    _shell_agent(
+        home, "com.petermakhnatch.evallab.tick", checkout=checkout, runtime=dead,
+        monkeypatch=monkeypatch,
+    )
 
     report = HeadlessDoctor(
         tmp_path,

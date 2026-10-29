@@ -1136,6 +1136,7 @@ def test_tt7_is_reserved_but_denied_and_nothing_can_approve_it(
         "fail",
         "snapshot",
         "close_arm",
+        "bound_failed",
     }
     for constants in (budget_module.CAPS, budget_module.DISPATCH_APPROVED):
         with pytest.raises(TypeError):

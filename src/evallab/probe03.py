@@ -102,6 +102,7 @@ from __future__ import annotations
 
 import ast
 import json
+import math
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -121,8 +122,10 @@ def _read_json(path: Path) -> dict:
 def read_reward(trial_dir: Path) -> tuple[float | None, bool, str]:
     """Return (reward, scored, source). Missing or -1 -> not scored."""
     result = _read_json(trial_dir / "result.json")
-    verifier = result.get("verifier_result") or {}
-    rewards = verifier.get("rewards") or {}
+    verifier = result.get("verifier_result")
+    verifier = verifier if isinstance(verifier, dict) else {}
+    rewards = verifier.get("rewards")
+    rewards = rewards if isinstance(rewards, dict) else {}
     reward = rewards.get("reward", "MISSING")
     source = "verifier_result"
     if reward == "MISSING":
@@ -132,9 +135,13 @@ def read_reward(trial_dir: Path) -> tuple[float | None, bool, str]:
             source = "reward.txt"
         except (OSError, ValueError):
             return None, False, "missing"
+    if isinstance(reward, bool):
+        return None, False, source
     try:
         reward = float(reward)
     except (TypeError, ValueError):
+        return None, False, source
+    if not math.isfinite(reward):
         return None, False, source
     if reward == -1:
         return reward, False, source

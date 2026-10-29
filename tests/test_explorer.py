@@ -44,7 +44,7 @@ def tree_state(root: Path) -> dict[str, tuple[int, float]]:
     }
 
 
-# ---- outcomes: pass / reward failure / infra exception ----------------------
+# ---- outcomes: pass / reward failure / unscored agent exit -------------------
 
 
 def test_pass_fail_and_exception_are_distinct_classes():
@@ -52,8 +52,8 @@ def test_pass_fail_and_exception_are_distinct_classes():
     assert idx.trials["job-pass/t1"].outcome_class.value == "pass"
     assert idx.trials["job-fail/t1"].outcome_class.value == "reward-failure"
     exc = idx.trials["job-exc/t1"]
-    assert exc.outcome_class.value == "infra-exception"
-    # infra exceptions never masquerade as scores
+    assert exc.outcome_class.value == "no-verdict"
+    assert "agent_timeout" in exc.outcome_class.reason
     assert exc.reward.provenance == "unavailable"
     assert exc.exception.provenance == "observed"
 
@@ -705,7 +705,8 @@ def test_explorer_agrees_with_status_snapshot_on_rewards():
         trial = idx.trials[key]
         assert trial.job_name in status_text
     exc = idx.trials["job-exc/t1"]
-    assert exc.outcome_class.value == "infra-exception"
+    assert exc.outcome_class.value == "no-verdict"
+    assert "agent_timeout" in exc.outcome_class.reason
     assert "AgentTimeoutError" in status_text
 
 

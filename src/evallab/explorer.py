@@ -879,30 +879,31 @@ def _trial_view(job_name: str, trial_dir: Path, jobs_root: Path) -> TrialView:
     exception = result.get("exception_info")
     verifier_result = _as_mapping(result.get("verifier_result"))
     rewards = _as_mapping(verifier_result.get("rewards"))
-    reward_value = rewards.get("reward")
+    from evallab.probe03 import read_reward
+    from evallab.step_layers import classify_stop_reason
 
-    if result_error:
+    reward_value, scored, reward_source = read_reward(trial_dir)
+    agent_result = _as_mapping(result.get("agent_result"))
+    metadata = _as_mapping(agent_result.get("metadata"))
+    stop_reason, stop_detail = classify_stop_reason(
+        agent_metadata=metadata,
+        exception_info=exception if isinstance(exception, dict) else None,
+    )
+    if scored and reward_value is not None:
+        outcome = derived(
+            "pass" if reward_value >= 1.0 else "reward-failure",
+            f"verifier score from {reward_source}; agent stop: {stop_reason} ({stop_detail})",
+        )
+        reward = observed(reward_value)
+    elif result_error:
         outcome = unavailable(result_error)
         reward = unavailable(result_error)
-    elif exception:
-        outcome = derived("infra-exception", "exception_info present; not a score")
-        reward = (
-            observed(reward_value)
-            if reward_value is not None
-            else unavailable("no reward recorded (exception before verdict)")
-        )
-    elif reward_value is None:
-        outcome = derived("no-verdict", "no exception and no reward recorded")
-        reward = unavailable("no reward recorded")
+    elif reward_source == "verifier_result" and rewards.get("reward") is not None and reward_value is None:
+        outcome = unavailable("reward is not numeric")
+        reward = unavailable("reward is not numeric")
     else:
-        try:
-            numeric_reward = float(reward_value)
-        except (TypeError, ValueError):
-            outcome = unavailable("reward is not numeric")
-            reward = unavailable("reward is not numeric")
-        else:
-            outcome = derived("pass" if numeric_reward >= 1.0 else "reward-failure")
-            reward = observed(reward_value)
+        outcome = derived("no-verdict", f"agent stop: {stop_reason} ({stop_detail})")
+        reward = unavailable("no scored reward recorded")
 
     started, finished = result.get("started_at"), result.get("finished_at")
     timing = (
@@ -910,7 +911,6 @@ def _trial_view(job_name: str, trial_dir: Path, jobs_root: Path) -> TrialView:
         if started or finished
         else unavailable("no timestamps in result.json")
     )
-    agent_result = _as_mapping(result.get("agent_result"))
     cost = (
         observed(agent_result.get("cost_usd"))
         if agent_result.get("cost_usd") is not None
@@ -1460,10 +1460,10 @@ def next_actions_for_trial(trial: TrialView) -> tuple[NextAction, ...]:
             f"uv run evallab analyze plan {shlex.quote(trial.trial_dir)}",
         ),
     ]
-    if trial.outcome_class.value == "infra-exception":
+    if trial.exception.value:
         actions.append(
             NextAction(
-                "Re-run this job's controls before drawing any conclusion",
+                "Check job status before drawing conclusions about the agent exit",
                 f"uv run evallab status --from {shlex.quote(trial.status_root)}",
             )
         )

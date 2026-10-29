@@ -3,11 +3,6 @@
   "cheatbench": {
    "clean_S_distinct_write_targets_hashed": 16,
    "clean_S_exact_distinct_tasks": 1,
-   "clean_S_prompt_chars_min_median_max": [
-    3913,
-    3913,
-    3913
-   ],
    "clean_S_runs_without_task_prompt": 0,
    "distinct_first_agent_actions_among_those_runs": 3,
    "independent_task_source": "none stored: registry metadata holds item_id and a blind projection id only; trial dir holds trajectory.json only",
@@ -16,11 +11,6 @@
   "goodfire": {
    "clean_S_distinct_write_targets_hashed": 10,
    "clean_S_exact_distinct_tasks": 4,
-   "clean_S_prompt_chars_min_median_max": [
-    8339,
-    8598,
-    12563
-   ],
    "clean_S_runs_without_task_prompt": 0,
    "distinct_first_agent_actions_among_those_runs": 4,
    "independent_task_source": "none stored: registry metadata holds item_id and a blind projection id only; trial dir holds trajectory.json only",
@@ -1234,7 +1224,7 @@
  },
  "tool_sha256": {
   "data": "a58a4595bd90df8b61b308c8b5782a809cf66c5c60cadfd685110712075c6da0",
-  "membership": "76cb3424e963c81cd1dee7c1a72a637fb1be6779c3cce98124d1b2faaab18f50",
+  "membership": "1afb617814615cbc854b4893d7a7ba43bfddc465364d5afec668a2b782916dca",
   "stats": "f153e4920ba84d1917d6b52bda51219a1878f22a70ea2172fb5dcda16164c255",
   "test_edits": "c82f820453b464a984c19172f8e89bea803c8c89eb1a27fb59fabcc0b4a2b913"
  }

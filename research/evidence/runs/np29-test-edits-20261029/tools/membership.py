@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import statistics
 import sys
 from collections import Counter
 from pathlib import Path
@@ -107,7 +106,6 @@ def clean_s_check(
             if v["corpus"] == corpus and v["class"] == clean and recs[r]["full"]["flags"]["S"]
         ]
         tasks = {cohort[r]["task"] for r in s_runs}
-        lengths = [len(data.first_prompt(cohort[r]["doc"]) or "") for r in s_runs]
         # every run of those tasks, to see how much the shared prompt could be boilerplate
         members = [
             r
@@ -127,13 +125,6 @@ def clean_s_check(
         out[corpus] = {
             "clean_S_runs_without_task_prompt": sum(not cohort[r]["has_prompt"] for r in s_runs),
             "clean_S_exact_distinct_tasks": len(tasks),
-            "clean_S_prompt_chars_min_median_max": [
-                min(lengths),
-                int(statistics.median(lengths)),
-                max(lengths),
-            ]
-            if lengths
-            else None,
             "runs_sharing_those_prompts_all_classes": len(members),
             "distinct_first_agent_actions_among_those_runs": len(first_actions),
             "clean_S_distinct_write_targets_hashed": len(

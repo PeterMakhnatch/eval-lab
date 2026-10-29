@@ -337,8 +337,12 @@ def test_workflows_with_pr_or_push_declare_cancel_in_progress_concurrency(
     assert group and isinstance(group, str), (
         f"Workflow '{workflow_path.name}' must declare a non-empty concurrency group."
     )
-    assert concurrency.get("cancel-in-progress") is True, (
-        f"Workflow '{workflow_path.name}' concurrency must set cancel-in-progress: true."
+    assert concurrency.get("cancel-in-progress") == "${{ github.event_name == 'pull_request' }}", (
+        f"Workflow '{workflow_path.name}' must cancel superseded PR runs, never push runs."
+    )
+    assert "${{ github.event.pull_request.number || github.run_id }}" in group, (
+        f"Workflow '{workflow_path.name}' must group PR runs together and isolate non-PR runs "
+        "by run_id so newer pushes cannot replace pending runs."
     )
 
 def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:

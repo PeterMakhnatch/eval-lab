@@ -1,7 +1,6 @@
 {
   "distinct_runs": 246,
   "distinct_tasks": 101,
-  "pair_file": "/Users/petermakhnatch/.local/state/evallab-prod-live/trace-harness/np31-length-matched/goodfire-dev-pairs.jsonl",
   "pair_file_sha256": "3e18a9e4c01058f2f4b7678db10f178b9c785edda72a7c37e0aeb7d374caec69",
   "pairs": 123,
   "pairs_both_members_in_strict_goodfire_dev_with_verdict": 123,

@@ -414,7 +414,6 @@ def item_of(spec: dict[str, Any]) -> dict[str, Any]:
         "actor": ident["actor"],
         "scenario_id_sha256": ident["scenario_id_sha256"],
         "world_set": spec["labels"]["world_set"],
-        "run_sha256": ident["run_sha256"],
         "tools": frozenset(c["function_name"] for c in calls),
         "n_steps": len(steps),
         "n_agent_steps": len(agent),
@@ -668,8 +667,10 @@ def profile(root: Path = ROOT, repo_root: Path | None = None) -> dict[str, Any]:
     # Sample items from the adapter (the only text a detector sees).
     items: list[dict[str, Any]] = []
     sample_specs: list[dict[str, Any]] = []
-    for _rec, spec, _audit in iter_episodes(root, records, "primary_sample"):
-        items.append(item_of(spec))
+    for rec, spec, _audit in iter_episodes(root, records, "primary_sample"):
+        item = item_of(spec)
+        item["run_sha256"] = sha256(rec["run"].encode("utf-8"))
+        items.append(item)
         sample_specs.append(spec)
     labelled = [u for u in items if u["state"] in ("positive", "negative")]
     transcript_shas = Counter(s["identity"]["steps_sha256"] for s in sample_specs)
@@ -761,9 +762,12 @@ def profile(root: Path = ROOT, repo_root: Path | None = None) -> dict[str, Any]:
             "scenario_id": scenario_ids,
             "template": sorted({r["template"] for r in records}),
             "instance_id": sorted({r["instance_id"] for r in records}),
+            "episode_id": sorted({r["episode_id"] for r in records}),
+            "run": sorted({r["run"] for r in records}),
         },
         repo_root,
     )
+    overlap_report["run_ids_checked"] = overlap_report["checked"]["episode_id"]
 
     runs: dict[str, dict[str, Any]] = {}
     for run in sorted({r["run"] for r in records}):

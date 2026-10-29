@@ -218,9 +218,9 @@
      "pooled_orientation_free": 0.9268,
      "pooled_raw": 0.9268,
      "scenarios_scored": 24,
-     "within_scenario_mean_orientation_free": 0.8663,
-     "within_scenario_mean_per_context_orientation_free": 0.8738,
-     "within_scenario_mean_raw": 0.8663
+     "within_scenario_mean_orientation_free": 0.8637,
+     "within_scenario_mean_per_context_orientation_free": 0.8712,
+     "within_scenario_mean_raw": 0.8637
     }
    },
    "tool_result_text": {
@@ -394,9 +394,9 @@
      "pooled_orientation_free": 0.5448,
      "pooled_raw": 0.5448,
      "scenarios_scored": 24,
-     "within_scenario_mean_orientation_free": 0.687,
-     "within_scenario_mean_per_context_orientation_free": 0.6918,
-     "within_scenario_mean_raw": 0.313
+     "within_scenario_mean_orientation_free": 0.6875,
+     "within_scenario_mean_per_context_orientation_free": 0.6921,
+     "within_scenario_mean_raw": 0.3125
     }
    },
    "template": {
@@ -426,9 +426,9 @@
      "pooled_orientation_free": 0.7247,
      "pooled_raw": 0.7247,
      "scenarios_scored": 24,
-     "within_scenario_mean_orientation_free": 0.7392,
-     "within_scenario_mean_per_context_orientation_free": 0.7978,
-     "within_scenario_mean_raw": 0.7392
+     "within_scenario_mean_orientation_free": 0.7393,
+     "within_scenario_mean_per_context_orientation_free": 0.7979,
+     "within_scenario_mean_raw": 0.7393
     }
    },
    "tool_name_naive_bayes": {
@@ -454,9 +454,9 @@
      "pooled_orientation_free": 0.8799,
      "pooled_raw": 0.8799,
      "scenarios_scored": 24,
-     "within_scenario_mean_orientation_free": 0.8804,
-     "within_scenario_mean_per_context_orientation_free": 0.8804,
-     "within_scenario_mean_raw": 0.8804
+     "within_scenario_mean_orientation_free": 0.8803,
+     "within_scenario_mean_per_context_orientation_free": 0.8803,
+     "within_scenario_mean_raw": 0.8803
     },
     "within_template_5fold_oof": {
      "pooled_orientation_free": 0.9193,
@@ -620,9 +620,9 @@
      "pooled_orientation_free": 0.6163,
      "pooled_raw": 0.6163,
      "scenarios_scored": 24,
-     "within_scenario_mean_orientation_free": 0.6256,
+     "within_scenario_mean_orientation_free": 0.6252,
      "within_scenario_mean_per_context_orientation_free": 0.6365,
-     "within_scenario_mean_raw": 0.3744
+     "within_scenario_mean_raw": 0.3748
     }
    },
    "template": {
@@ -645,16 +645,16 @@
      "pooled_raw": 0.7215,
      "scenarios_scored": 24,
      "within_scenario_mean_orientation_free": 0.7534,
-     "within_scenario_mean_per_context_orientation_free": 0.7955,
+     "within_scenario_mean_per_context_orientation_free": 0.7956,
      "within_scenario_mean_raw": 0.7534
     },
     "within_template_5fold_oof": {
      "pooled_orientation_free": 0.7838,
      "pooled_raw": 0.7838,
      "scenarios_scored": 24,
-     "within_scenario_mean_orientation_free": 0.8186,
-     "within_scenario_mean_per_context_orientation_free": 0.8186,
-     "within_scenario_mean_raw": 0.8186
+     "within_scenario_mean_orientation_free": 0.8187,
+     "within_scenario_mean_per_context_orientation_free": 0.8187,
+     "within_scenario_mean_raw": 0.8187
     }
    },
    "tool_name_naive_bayes": {
@@ -688,9 +688,9 @@
      "pooled_orientation_free": 0.837,
      "pooled_raw": 0.837,
      "scenarios_scored": 24,
-     "within_scenario_mean_orientation_free": 0.8594,
-     "within_scenario_mean_per_context_orientation_free": 0.8594,
-     "within_scenario_mean_raw": 0.8594
+     "within_scenario_mean_orientation_free": 0.8593,
+     "within_scenario_mean_per_context_orientation_free": 0.8593,
+     "within_scenario_mean_raw": 0.8593
     }
    },
    "transcript_chars": {
@@ -846,9 +846,9 @@
      "pooled_orientation_free": 0.6818,
      "pooled_raw": 0.3182,
      "scenarios_scored": 24,
-     "within_scenario_mean_orientation_free": 0.6832,
-     "within_scenario_mean_per_context_orientation_free": 0.6925,
-     "within_scenario_mean_raw": 0.3168
+     "within_scenario_mean_orientation_free": 0.6829,
+     "within_scenario_mean_per_context_orientation_free": 0.6923,
+     "within_scenario_mean_raw": 0.3171
     }
    },
    "template": {
@@ -945,7 +945,10 @@
  "decisive_fact": {
   "plain_labelled_episodes_by_reason_and_world_permissions": {
    "x_minus_acted_after_permission_request": {
-    "on_request=approved granted=False": 24394,
+    "on_request=approved granted=False": 24356
+   },
+   "x_minus_critical_action_not_flagged_constraint": {
+    "on_request=approved granted=False": 38,
     "on_request=denied granted=False": 72
    },
    "x_minus_no_critical_action": {
@@ -1111,13 +1114,43 @@
  "overlap": {
   "assignments_rows": 3065,
   "checked": {
+   "episode_id": 39504,
    "instance_id": 4724,
+   "run": 101,
    "scenario_id": 1384,
    "template": 40
   },
   "corpus_tasks_rows": 3707,
   "matches": {
+   "episode_id": {
+    "corpus_tasks": {
+     "bare": 0,
+     "full": 0
+    },
+    "dev": {
+     "bare": 0,
+     "full": 0
+    },
+    "test": {
+     "bare": 0,
+     "full": 0
+    }
+   },
    "instance_id": {
+    "corpus_tasks": {
+     "bare": 0,
+     "full": 0
+    },
+    "dev": {
+     "bare": 0,
+     "full": 0
+    },
+    "test": {
+     "bare": 0,
+     "full": 0
+    }
+   },
+   "run": {
     "corpus_tasks": {
      "bare": 0,
      "full": 0
@@ -1160,7 +1193,8 @@
     }
    }
   },
-  "note": "id-level result only; counts, no ids"
+  "note": "id-level result only; counts, no ids",
+  "run_ids_checked": 39504
  },
  "plain_x_minus_completed_violation_rate": {
   "by_model": {
@@ -1310,24 +1344,33 @@
  },
  "planted_leak_proof": {
   "by_plant": {
+   "causal_desc_in_message": true,
    "cf_value_in_reasoning": true,
+   "constraint_violation_in_result": true,
+   "decision_pos_in_result": true,
    "episode_id_in_result": true,
    "extra_call_field": true,
+   "extra_observation_field": true,
+   "extra_result_field": true,
    "extra_step_field": true,
+   "first_critical_event_as_argument_key": true,
    "first_unsafe_event_as_function_name": true,
    "instance_id_in_message": true,
    "oracle_field_in_message": true,
    "pair_id_in_reasoning": true,
+   "report_label_misrepresented_in_message": true,
+   "report_label_spin_in_reasoning": true,
    "row_id_in_result": true,
    "run_name_in_message": true,
    "run_suffix_in_message": true,
    "scenario_id_in_task": true,
+   "tool_raw_as_function_name": true,
    "unsafe_episode_as_argument_key": true,
    "violations_label_in_result": true
   },
-  "caught": 14,
+  "caught": 23,
   "clean_copy_hits": 0,
-  "plants": 14
+  "plants": 23
  },
  "population_by_model_plain_slice": {
   "Qwen/Qwen3.8-27B": {
@@ -1574,7 +1617,8 @@
   "excluded:label_selected_rerun_of_violating_episodes": 319,
   "excluded:smoke_run": 1072,
   "excluded:undocumented_planted_run": 128,
-  "negative:x_minus_acted_after_permission_request": 51813,
+  "negative:x_minus_acted_after_permission_request": 51573,
+  "negative:x_minus_critical_action_not_flagged_constraint": 240,
   "negative:x_minus_no_critical_action": 74315,
   "negative:x_plus_did_not_perform_action": 4359,
   "negative:x_plus_performed_authorised_action": 28948,

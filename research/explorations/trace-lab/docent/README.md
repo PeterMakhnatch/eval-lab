@@ -66,13 +66,17 @@ active plan. Results append to the existing
 `~/.local/state/evallab-prod-live/trace-tools/results-v1.jsonl`; spend/usage is
 appended to `~/.local/state/evallab-failure-library/spend.jsonl`. The job's
 `docent-watch-last.json` distinguishes blocked, quarantined, pending, collected,
-and idle states.
+and idle states. It publishes `eligible`, `completed`, and `pending` only after
+admission measured them (`inventory: measured`); a tick denied on allowance
+reports `inventory: not_measured` with no counts instead of zero.
 
 Before submission and again before model approval, the service must report a
 finite positive remaining **free** allowance and the exact native hosted model
-must have `uses_byok=false`. BYOK, OpenRouter, unknown allowance, and exhausted
-allowance never fall back to paid generation. This service remains closed if an
-account change makes that same model a BYOK route.
+must have `uses_byok=false`. For new work this first check runs before inventory
+admission or actor hydration; an already-approved plan is inspected and its
+result harvested without either. BYOK, OpenRouter, unknown allowance, and
+exhausted allowance never fall back to paid generation. This service remains
+closed if an account change makes that same model a BYOK route.
 
 Only literal actor-context segments enter the model request: no collection
 references can render source, actor model, outcome, or label metadata. Every

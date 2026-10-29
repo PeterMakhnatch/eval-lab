@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from evallab.readers import docent_watch
 from evallab.readers.docent_reading import ReadingBlocked, allowance, hosted_model, judgment, render
 from evallab.readers.docent_watch import run_once
 
@@ -251,3 +252,120 @@ def test_non_actor_journal_is_quarantined_without_blocking_real_actor_arrivals(d
     service.complete()
     run_once(**database, service=service)
     assert json.loads(database["results_path"].read_text())["run_id"] == "real-actor"
+
+
+def _forbid_admission(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("admission or hydration ran before allowance was usable")
+
+    monkeypatch.setattr(docent_watch, "select_traces", fail)
+    monkeypatch.setattr(docent_watch, "load_trace", fail)
+
+
+def test_exhausted_allowance_denies_before_inventory_and_hydration(
+    database: dict, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = Service()
+    service.free = False
+    _forbid_admission(monkeypatch)
+    report = run_once(**database, service=service)
+    assert report["status"] == "blocked"
+    assert report["reason"] == "hosted_free_allowance_exhausted"
+    assert report["inventory"] == "not_measured"
+    assert not {"eligible", "completed", "pending", "quarantined"} & report.keys()
+    assert service.submissions == [] and service.approvals == 0
+    assert not database["results_path"].exists()
+
+
+def test_exhausted_allowance_defers_pending_approval_without_admission(
+    database: dict, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = Service()
+    service.lose_submit_response = True
+    assert run_once(**database, service=service)["status"] == "error"
+    assert len(service.submissions) == 1 and service.approvals == 0
+    service.free = False
+    _forbid_admission(monkeypatch)
+    blocked = run_once(**database, service=service)
+    assert blocked["status"] == "blocked"
+    assert blocked["reason"] == "hosted_free_allowance_exhausted"
+    assert blocked["inventory"] == "not_measured"
+    assert service.approvals == 0
+    journal = json.loads((database["state_dir"] / "docent-watch-jobs.json").read_text())
+    assert journal["jobs"]["own"]["plan_id"]
+    assert "approval_requested_at" not in journal["jobs"]["own"]
+    monkeypatch.undo()
+    service.free = True
+    approved = run_once(**database, service=service)
+    assert approved["status"] == "approved"
+    assert approved["inventory"] == "measured"
+    assert approved["model_approvals"] == 1
+    assert service.approvals == 1
+
+
+def test_exhausted_allowance_harvests_completed_reading_without_reapproval(
+    database: dict, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = Service()
+    assert run_once(**database, service=service)["status"] == "approved"
+    service.complete()
+    service.free = False
+    _forbid_admission(monkeypatch)
+    collected = run_once(**database, service=service)
+    assert collected["status"] == "collected"
+    assert collected["inventory"] == "not_measured"
+    assert collected["model_approvals"] == 0
+    assert service.approvals == 1
+    lines = database["results_path"].read_text().splitlines()
+    assert len(lines) == 1 and json.loads(lines[0])["run_id"] == "own"
+    again = run_once(**database, service=service)
+    assert again["status"] == "blocked"
+    assert again["inventory"] == "not_measured"
+    assert service.approvals == 1
+    assert len(database["results_path"].read_text().splitlines()) == 1
+    assert len(database["spend_path"].read_text().splitlines()) == 1
+
+
+def test_approved_running_reading_waits_without_inventory_or_hydration(
+    database: dict, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = Service()
+    assert run_once(**database, service=service)["status"] == "approved"
+    service.free = False
+    _forbid_admission(monkeypatch)
+    report = run_once(**database, service=service)
+    assert report["status"] == "awaiting_result"
+    assert report["inventory"] == "not_measured"
+    assert report["model_approvals"] == 0
+    assert service.approvals == 1
+
+
+def test_ambiguous_approval_is_not_retried_and_completion_recovers(
+    database: dict, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = Service()
+    service.lose_approval_response = True
+    assert run_once(**database, service=service)["status"] == "error"
+    assert service.approvals == 1
+    journal = json.loads((database["state_dir"] / "docent-watch-jobs.json").read_text())
+    plan_id = journal["jobs"]["own"]["plan_id"]
+    assert journal["jobs"]["own"]["approval_requested_at"]
+    service.plans[plan_id]["status"] = "needs_approval"
+    _forbid_admission(monkeypatch)
+    ambiguous = run_once(**database, service=service)
+    assert ambiguous["status"] == "blocked"
+    assert ambiguous["reason"] == "approval_unresolved_no_automatic_retry"
+    assert service.approvals == 1
+    service.plans[plan_id]["status"] = "completed"
+    service.plans[plan_id]["row"] = {
+        "output": {"reward_hacking": "no", "mechanism": "none", "evidence_step": None,
+                   "confidence": 2},
+        "input_tokens": 100, "output_tokens": 10, "served_provider": "openai",
+    }
+    service.free = False
+    recovered = run_once(**database, service=service)
+    assert recovered["status"] == "collected"
+    assert recovered["inventory"] == "not_measured"
+    assert recovered["model_approvals"] == 0
+    assert service.approvals == 1
+    assert len(database["results_path"].read_text().splitlines()) == 1

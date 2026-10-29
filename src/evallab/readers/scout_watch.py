@@ -13,22 +13,39 @@ plus the sync ``quarantined`` reasons) and never counted as scanned or clean.
 An unversioned results ledger, or a key map or transcript cache of another
 projection, is refused unchanged and never extended. No hosted reader, model
 provider, upload or trial execution is invoked.
+
+An unchanged sweep must not repeat full hydration. The result ledger is read
+under a coverage index bound to the SHA-256 of its exact bytes, so untouched
+bytes reuse the stored run ids without re-parsing every row while a same-length
+rewrite invalidates the index; admission refs are decided once per sweep and
+shared with ``sync``; the key map is read after the import so newly inserted
+runs scan in the same sweep; and the Scout transcript database is never opened
+(never imported) when the unkeyed remainder yields no transcript. Admission is
+still recomputed every sweep, and an unavailable actor history is still retried,
+because both remain the only authoritative statements about what may be read.
 """
 
 from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
-import sqlite3
 import time
 from collections import defaultdict
-from collections.abc import Collection, Iterator
-from contextlib import closing
+from collections.abc import Collection, Iterable, Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+#: Coverage index beside one projection's state. It is bound to the exact
+#: ledger bytes by SHA-256 and to the fields below; bump ``COVERAGE_CONTRACT``
+#: whenever the counting rule in ``_coverage`` changes, so a stored index is
+#: recomputed rather than trusted.
+LEDGER_INDEX_NAME = "coverage-v1.json"
+LEDGER_INDEX_SCHEMA = "evallab.scout_coverage/v1"
+COVERAGE_CONTRACT = "clouddb-coverage-v1"
 
 
 def _records(path: Path) -> Iterator[dict[str, Any]]:
@@ -37,6 +54,29 @@ def _records(path: Path) -> Iterator[dict[str, Any]]:
             for line in stream:
                 if line.strip():
                     yield json.loads(line)
+
+
+def _coverage(
+    rows: Iterable[Mapping[str, Any]], *, scanners: Collection[str], scout_version: str,
+    projection_version: str,
+) -> set[str]:
+    """Runs with a current-projection value from every required scanner."""
+    coverage: dict[str, set[str]] = defaultdict(set)
+    required = set(scanners)
+    if not required:
+        raise ValueError("At least one deterministic scanner is required")
+    prefix = f"inspect-scout/{scout_version}:"
+    for row in rows:
+        if (
+            row.get("tool") == "scout" and row.get("source") == "cloud-trace-db"
+            and row.get("projection_version") == projection_version
+            and str(row.get("detector_version", "")).startswith(prefix)
+            and row.get("value") is not None
+        ):
+            scanner = str(row.get("detector", "")).partition(":")[0]
+            if scanner in required:
+                coverage[row["run_id"]].add(scanner)
+    return {run_id for run_id, seen in coverage.items() if required <= seen}
 
 
 def completed_runs(
@@ -48,22 +88,95 @@ def completed_runs(
     Rows from another actor projection are ignored, so a migrated or older
     measurement never marks a run complete for the current one.
     """
-    coverage: dict[str, set[str]] = defaultdict(set)
+    return _coverage(
+        _records(Path(results_path)), scanners=scanners, scout_version=scout_version,
+        projection_version=projection_version,
+    )
+
+
+def _cached_coverage(path: Path) -> dict[str, Any] | None:
+    """A structurally valid stored index, or ``None`` for anything else."""
+    if not path.is_file():
+        return None
+    try:
+        index = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    runs = index.get("runs") if isinstance(index, dict) else None
+    if (
+        not isinstance(index, dict) or index.get("schema") != LEDGER_INDEX_SCHEMA
+        or not isinstance(runs, list) or not all(isinstance(run, str) for run in runs)
+    ):
+        return None
+    return index
+
+
+def _write_coverage(path: Path, index: dict[str, Any]) -> None:
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def _file_digest(path: Path) -> str:
+    """SHA-256 of the exact ledger bytes, or of nothing when it does not exist."""
+    digest = hashlib.sha256()
+    if path.exists():
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1 << 20), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _hashed_rows(path: Path, digest: Any) -> Iterator[dict[str, Any]]:
+    """Yield parsed ledger rows while hashing the exact bytes just parsed."""
+    if path.exists():
+        with path.open("rb") as stream:
+            for line in stream:
+                digest.update(line)
+                if line.strip():
+                    yield json.loads(line)
+
+
+def ledger_coverage(
+    results_path: Path, *, index_path: Path, scanners: Collection[str], scout_version: str,
+    projection_version: str,
+) -> set[str]:
+    """Current-projection coverage over the exact ledger bytes, indexed by them.
+
+    Unchanged bytes reuse the stored run ids after one streaming hash of the
+    ledger; changed bytes are parsed once, bounded in memory, and the stored
+    index is bound to the digest of the bytes actually parsed. A same-length
+    rewrite therefore invalidates the index, and a ledger holding an unversioned
+    Scout row is refused before any index is trusted or replaced.
+    """
+    from evallab.readers.scout_clouddb import versioned_rows
+
+    results_path, index_path = Path(results_path), Path(index_path)
     required = set(scanners)
     if not required:
         raise ValueError("At least one deterministic scanner is required")
-    prefix = f"inspect-scout/{scout_version}:"
-    for row in _records(results_path):
-        if (
-            row.get("tool") == "scout" and row.get("source") == "cloud-trace-db"
-            and row.get("projection_version") == projection_version
-            and str(row.get("detector_version", "")).startswith(prefix)
-            and row.get("value") is not None
-        ):
-            scanner = str(row.get("detector", "")).partition(":")[0]
-            if scanner in required:
-                coverage[row["run_id"]].add(scanner)
-    return {run_id for run_id, seen in coverage.items() if required <= seen}
+    identity: dict[str, Any] = {
+        "schema": LEDGER_INDEX_SCHEMA, "coverage_contract": COVERAGE_CONTRACT,
+        "projection_version": projection_version, "scout_version": scout_version,
+        "scanners": sorted(required),
+    }
+    cached = _cached_coverage(index_path)
+    if (
+        cached is not None
+        and {key: cached.get(key) for key in identity} == identity
+        and cached.get("ledger_sha256") == _file_digest(results_path)
+    ):
+        return set(cached["runs"])
+    digest = hashlib.sha256()
+    runs = _coverage(
+        versioned_rows(_hashed_rows(results_path, digest), results_path),
+        scanners=required, scout_version=scout_version,
+        projection_version=projection_version,
+    )
+    _write_coverage(
+        index_path, {**identity, "ledger_sha256": digest.hexdigest(), "runs": sorted(runs)},
+    )
+    return runs
 
 
 def _receipt(path: Path, report: dict[str, Any]) -> None:
@@ -86,15 +199,13 @@ def run_once(
 ) -> dict[str, Any]:
     """Import new runs, scan only unscanned admitted ids, and retain useful health."""
     from evallab.readers import ACTOR_PROJECTION_VERSION
-    from evallab.readers.clouddb_blind import (
-        dev_trace_refs,
-        opaque_id,
-    )
+    from evallab.readers.clouddb_blind import opaque_id
     from evallab.readers.scout_clouddb import (
         SCANNERS,
         SCOUT_VERSION,
+        admitted_refs,
         collect,
-        require_current_results,
+        read_keymap,
         scan,
         sync,
     )
@@ -110,23 +221,24 @@ def run_once(
             return {"status": "busy", "at": datetime.now(UTC).isoformat()}
         try:
             # Another projection's ledger is refused before any import or append.
-            require_current_results(results_path)
+            # Unchanged ledger bytes reuse the stored current-projection coverage.
+            completed = ledger_coverage(
+                results_path, index_path=state_dir / LEDGER_INDEX_NAME, scanners=SCANNERS,
+                scout_version=SCOUT_VERSION, projection_version=ACTOR_PROJECTION_VERSION,
+            )
+            # Admission is recomputed every sweep: a task may have acquired a
+            # cross-key TEST seal, or its split registry may have tightened, since
+            # the last import. The same decision then drives the import below.
+            refs = admitted_refs(db_path, repo_root=repo_root)
             report: dict[str, Any] = sync(
-                db_path, transcripts_dir, keymap_path, repo_root=repo_root,
+                db_path, transcripts_dir, keymap_path, repo_root=repo_root, refs=refs,
             )
-            # Admission is checked again before scanning persisted transcripts: a
-            # task may have acquired a cross-key TEST seal since its initial import.
-            uri = db_path.expanduser().resolve().as_uri() + "?mode=ro"
-            with closing(sqlite3.connect(uri, uri=True)) as con:
-                refs = dev_trace_refs(con, repo_root=repo_root)
+            # The import above may have keyed new actor histories; read the map
+            # once, after it, so this sweep can scan what it just inserted.
+            keymap = read_keymap(keymap_path)
             # Only an admitted id with a current actor transcript is scannable.
-            keyed = {row["opaque_id"] for row in _records(keymap_path)}
-            available = [ref for ref in refs if opaque_id(ref.trace_id) in keyed]
-            missing = [ref.trace_id for ref in refs if opaque_id(ref.trace_id) not in keyed]
-            completed = completed_runs(
-                results_path, scanners=SCANNERS, scout_version=SCOUT_VERSION,
-                projection_version=ACTOR_PROJECTION_VERSION,
-            )
+            available = [ref for ref in refs if opaque_id(ref.trace_id) in keymap]
+            missing = [ref.trace_id for ref in refs if opaque_id(ref.trace_id) not in keymap]
             pending = [ref.trace_id for ref in available if ref.trace_id not in completed]
             selected = pending[:batch_size]
             report.update({

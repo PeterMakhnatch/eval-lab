@@ -795,7 +795,7 @@ inputs:
   - path: src/evallab/production/seeker_blind_examples.py
     digest: sha256:df33681c91e07c27be8984127a962bd104a483817aa1d6fbede15696bf408775
   - path: src/evallab/production/seeker_error_first.py
-    digest: sha256:d3455a471b59824620739f6090d67ee842cecb3231d47aaba0eacbed0c0e6891
+    digest: sha256:ebd25b6c235e182723e24f822f9f71258071a386b3453fd990acab891a368ee9
   - path: src/evallab/production/seeker_known_hacks.py
     digest: sha256:ce94c18865b262e585d25ed79a0d338532725ee580c8477ef40005b491b74b51
   - path: src/evallab/production/seeker_worker.py

@@ -24,7 +24,14 @@ keep only the node name after ``::`` (the file part is dropped). Everything free
 is passed through ``scrub_blind_task_text``, which replaces ``tests/...`` paths and
 test file names with ``[scrubbed-test-path]`` and drops ``[verifier]`` blocks and
 comment lines that name the verifier. Never read: hidden test or solution sources.
-Bounds: the block is capped at ``MAX_FEEDBACK_CHARS`` characters.
+Bounds: the block is capped at ``MAX_FEEDBACK_CHARS`` characters. Container output can
+carry raw bytes (a verifier that emits a PNG decodes to NUL and escape characters), and
+``subprocess`` refuses a NUL inside the ``omp`` argv; so the rendered block drops every
+C0 control character except newline and tab, plus lone surrogates, and turn 2 records
+the number dropped as ``feedback_control_chars_removed``. A turn whose OMP process could
+not even be launched with its prompt (the runner raised ``OSError``/``ValueError``; no
+model was called) is ``outcome='prompt_rejected'``, kept apart from
+``generation_failed_or_truncated``.
 
 Retained ``result.json`` is compatible with ``evallab.production.qc_reports``
 (``attestation_ok``, ``requested_model_route``, ``served_*``, ``hide_tests``,
@@ -131,10 +138,16 @@ _PAID_ENV_NAME = re.compile(
 )
 _SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 _SERVED_ROUTE_REASONS = frozenset({"served_route_mismatch", "missing_served_route"})
+# C0 controls except tab (\x09) and newline (\x0a), and lone UTF-16 surrogates.
+_PROMPT_CONTROL_CHARS = re.compile("[\x00-\x08\x0b-\x1f\ud800-\udfff]")
 
 
 class CohortError(ValueError):
     """The cohort manifest does not satisfy ``evallab.sb1_clean_seeker_set/v1``."""
+
+
+class PromptRejectedError(ValueError):
+    """The OS refused the ``omp`` argv, so the model never saw the prompt (e.g. a NUL byte)."""
 
 
 # --------------------------------------------------------------------------- cohort
@@ -593,8 +606,24 @@ def _node_name(test_id: str) -> str:
     return _clip(scrub_blind_task_text(node).strip() or "[scrubbed-test-path]", _MAX_ID_CHARS)
 
 
+def strip_prompt_controls(text: str) -> tuple[str, int]:
+    """(``text`` without C0 controls other than newline/tab or lone surrogates, number removed).
+
+    ``subprocess`` rejects a NUL in an argv element and UTF-8 cannot encode a lone
+    surrogate, so container-derived prompt text passes through here before OMP sees it.
+    """
+    return _PROMPT_CONTROL_CHARS.subn("", text)
+
+
 def render_feedback_block(error: RunnerError, *, attempt_index: int = 1) -> str:
-    """Bounded ORIGINAL-runner markdown; free text is blind-scrubbed."""
+    """Bounded ORIGINAL-runner markdown; free text is blind-scrubbed and control-free."""
+    return render_feedback_block_counted(error, attempt_index=attempt_index)[0]
+
+
+def render_feedback_block_counted(
+    error: RunnerError, *, attempt_index: int = 1
+) -> tuple[str, int]:
+    """(``render_feedback_block`` text, control characters ``strip_prompt_controls`` removed)."""
     reward = "unreported" if error.reward is None else f"{error.reward}"
     exits = ", ".join(str(code) for code in error.sandbox_exit_codes) or "not reported"
     lines = [
@@ -635,7 +664,7 @@ def render_feedback_block(error: RunnerError, *, attempt_index: int = 1) -> str:
     if len(block) > MAX_FEEDBACK_CHARS:
         marker = f"\n[feedback truncated at {MAX_FEEDBACK_CHARS} characters]"
         block = block[: MAX_FEEDBACK_CHARS - len(marker)] + marker
-    return block
+    return strip_prompt_controls(block)
 
 
 # --------------------------------------------------------------------- prompts
@@ -806,7 +835,9 @@ class PromptFileHeadlessGenerator(OmpHeadlessAttemptGenerator):
     constructor contract, argv and attestation, but sends the prompt the driver wrote
     to ``<workspace>/headless_prompt.md``, never falls back to another route, and runs
     OMP with ``strip_paid_api_keys``. It writes ``llm_stdout.txt`` and
-    ``omp_attempt.json`` into the workspace for the driver to retain.
+    ``omp_attempt.json`` into the workspace for the driver to retain. A runner that
+    refuses the argv (``OSError``/``ValueError``, e.g. a NUL inside the prompt) raises
+    ``PromptRejectedError`` after recording ``prompt_rejected`` in its attempt.
     """
 
     def __init__(
@@ -871,6 +902,21 @@ class PromptFileHeadlessGenerator(OmpHeadlessAttemptGenerator):
         candidate: SeekerAttemptCandidate | None = None
         try:
             process = self._runner(argv, self.timeout_seconds, environment)
+        except (OSError, ValueError) as exc:
+            # The OS/subprocess layer refused the argv: no model was called.
+            attempt["error"] = f"{type(exc).__name__}: {exc}"
+            attempt["prompt_rejected"] = True
+            attempt["elapsed_sec"] = round(time.monotonic() - started, 2)
+            attempt["finished_at"] = _utc_now().isoformat()
+            self.attestations.append(attempt)
+            (workspace / "omp_attempt.json").write_text(
+                json.dumps(attempt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            raise PromptRejectedError(
+                f"{self.route} never received a prompt for {task.task_id} "
+                f"(turn {attempt_index}): {type(exc).__name__}: {exc}"
+            ) from exc
+        try:
             stdout = process.stdout or ""
             (workspace / "llm_stdout.txt").write_text(stdout, encoding="utf-8")
             response_text, _, _ = _parse_omp_json_stdout(stdout)
@@ -1215,6 +1261,7 @@ def _base_result(
         "repaired_status": None,
         "outcome": None,
         "failure_reason": None,
+        "feedback_control_chars_removed": None,
         "verified_differential": False,
         "runner_error_sha256": None,
         "original_package_digest": task.original_package_digest,
@@ -1240,6 +1287,7 @@ def _generate(
     for stale in ("llm_stdout.txt", "omp_attempt.json"):
         (workspace / stale).unlink(missing_ok=True)
     candidate: SeekerAttemptCandidate | None = None
+    rejected = False
     generator = runtime.generator_factory(route)
     try:
         with runtime.gates[route]:
@@ -1247,6 +1295,7 @@ def _generate(
         candidate = raw if isinstance(raw, SeekerAttemptCandidate) else None
     except (RuntimeError, SeekerRefusalError, ValueError) as exc:
         result["failure_reason"] = f"{type(exc).__name__}: {exc}"
+        rejected = isinstance(exc, PromptRejectedError)
     stdout_path = workspace / "llm_stdout.txt"
     stdout_text = stdout_path.read_text(encoding="utf-8") if stdout_path.is_file() else None
     if stdout_text is not None:
@@ -1273,7 +1322,7 @@ def _generate(
         scan=str(turn_dir / "result.json"),
     )
     if candidate is None:
-        result["outcome"] = "generation_failed_or_truncated"
+        result["outcome"] = "prompt_rejected" if rejected else "generation_failed_or_truncated"
         return None
     result["llm_solve_sha256"] = candidate.llm_solve_sha256
     result["served_provider"] = candidate.served_provider
@@ -1415,7 +1464,7 @@ def _run_turn2(
         )
         _finish_turn(turn_dir, result)
         return result
-    block = render_feedback_block(runner_error)
+    block, control_chars_removed = render_feedback_block_counted(runner_error)
     (turn_dir / "feedback.md").write_text(block, encoding="utf-8")
     with runtime.retrieval_lock:
         retrieval, query = retrieve_turn2_evidence(
@@ -1437,6 +1486,7 @@ def _run_turn2(
     result.update(
         feedback_source="runner_error",
         feedback_block_sha256=_sha256_text(block),
+        feedback_control_chars_removed=control_chars_removed,
         runner_error_sha256=runner_error.sha256,
         retrieval_query=query,
         retrieval_hits=len(retrieval.hits),

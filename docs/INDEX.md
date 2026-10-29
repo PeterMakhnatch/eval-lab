@@ -81,9 +81,9 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
-    digest: sha256:2e737b34a3a41ecb627fa93d94d10610dabf9dc3f9c28aaf720a2daf047f4180
+    digest: sha256:33d1c97b7a890aa5ca7b9e6b918332ff26fa6e55a5df25353b1b4ec18747a67b
   - path: docs/live-watch.md
-    digest: sha256:1ecb1adab864a2b3c9771b03d20d4862d9f7635296d0ce8225aeecfefc287ba6
+    digest: sha256:2deb42ecd4c328e730bcff917d95d90bcfd14bf31a4f218d9fb8f5d510bb3b09
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
@@ -135,7 +135,7 @@ inputs:
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/run-health.md
-    digest: sha256:adcd18564e59ddd3e863d4c638b8b9c28cfc6ba8c3d1037c5e253917c340f66c
+    digest: sha256:91a425d56a67067097a9611bc6c168e2ec510402f8ed4ab7df29eb9c5ebeb47b
   - path: docs/scaling.md
     digest: sha256:bbd4c2d8efa9cf419366cd7cc9ef60821edc02ace9e4eee6de09426899fb8cae
   - path: docs/storm-alarms.md
@@ -147,7 +147,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:3ab9329dfb02cf38b3716a3e47c9edc69b2f800686268399ae9ea424789467cb
+    digest: sha256:452096a8ca3e37a431dafb9f977c6dd75410c676d30c5042cc4f2929fcab560b
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -159,7 +159,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md
-    digest: sha256:6ca59c0445943832564cba9790a14014cf2239f79debf26f43fbf779d5abb266
+    digest: sha256:359abecc76dcaad19e384c9f93435b6bfcf007caf38c1814faac150e99c27631
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md

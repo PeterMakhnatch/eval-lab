@@ -173,7 +173,7 @@ inputs:
   - path: src/evallab/failure_library/__init__.py
     digest: sha256:54d43eef14b171bfc3bc173c8e3922e10616cc5bb161ef2edbf3eb1284c87a98
   - path: src/evallab/failure_library/bank/__init__.py
-    digest: sha256:cd23963c9b542810f9c9a4c88473f52604f0073321ae0ea36d896cdc8cb7e34c
+    digest: sha256:283e17ddef2ae61b22b67f33a32e9f1a874aa2afec112d2ac2304b03b48db56c
   - path: src/evallab/failure_library/bank/actors/__init__.py
     digest: sha256:86e9809ad537fa14a7e93b8fad75ab7dcb043a8168fea41c66e101c16512194a
   - path: src/evallab/failure_library/bank/actors/ablation.py
@@ -197,7 +197,7 @@ inputs:
   - path: src/evallab/failure_library/bank/crosstest_retest.py
     digest: sha256:5861fb777229fcf3a1f2475d1b9371c6de0d09ffe7bbbad63f0dfdbb8f5b3e1a
   - path: src/evallab/failure_library/bank/examples.py
-    digest: sha256:644ebc755780074d1c9e6517d6ab6419b053f692850729539620241f9da32a9e
+    digest: sha256:7fc5467abc9d55106f1be8b9fb53cfe164da8668684dc567e8f8439f061ede0b
   - path: src/evallab/failure_library/bank/hard_cases.py
     digest: sha256:46e4c4a9b0f8015fb590b737e5287713573afacae2085161811f121ad935c81c
   - path: src/evallab/failure_library/bank/matrix.py

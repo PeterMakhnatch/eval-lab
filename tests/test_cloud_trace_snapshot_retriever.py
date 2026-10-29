@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -601,3 +602,98 @@ def test_path_snapshot_excludes_non_dev_bytes_from_its_content_digest(tmp_path: 
         )
     with CloudTraceRetriever(source) as second:
         assert second.source_digest == before
+
+
+def _answers(retriever: CloudTraceRetriever, current: str, queries: list[str]) -> list[dict[str, Any]]:
+    """Hits and receipt counts, without the provenance fields that legitimately differ by mode."""
+    out = []
+    for query in queries:
+        result = retriever.retrieve(current, query)
+        receipt = {
+            key: value for key, value in result.receipt.items()
+            if key not in {"provenance", "source_path", "source_digest"}
+        }
+        out.append({"hits": [hit.__dict__ for hit in result.hits], "receipt": receipt})
+    return out
+
+
+def test_path_snapshot_answers_like_the_whole_store_when_other_traces_exist(tmp_path: Path) -> None:
+    """Traces whose receipt is not confirmed/verified are not copied, and nothing changes for it."""
+    source = tmp_path / "mixed-receipts.sqlite"
+    with CloudTraceDatabase(source) as setup:
+        seed(setup, "task-a", "trace-a-confirmed")
+        seed(setup, "task-b", "trace-b-verified")
+        setup.upsert_trace(
+            trace("trace-b-verified", "task-b", verified_receipt_json={"status": "verified"}),
+            steps=steps("verified checksum"),
+        )
+        # Same task and same words, but not verified: reachable by search only through ``only_verified``.
+        for suffix, receipt in (
+            ("provisional", {"status": "provisional"}),
+            ("none", None),
+            ("refuted", {"status": "refuted"}),
+            ("upper", {"status": "Confirmed"}),
+            ("note", {"note": "claimed"}),
+        ):
+            setup.upsert_trace(
+                trace(f"trace-a-{suffix}", "task-a", verified_receipt_json=receipt),
+                steps=steps("checksum only in an unverified trace"),
+            )
+    queries = ["checksum", "unverified", "verified checksum", "report", "no such word"]
+    with CloudTraceDatabase(source, read_only=True) as whole:
+        full = _answers(CloudTraceRetriever(whole, **_PROVENANCE), "current", queries)
+    with CloudTraceRetriever(source) as projected:
+        assert _answers(projected, "current", queries) == full
+    assert any(answer["hits"] for answer in full)
+    assert sum(len(answer["hits"]) for answer in full) >= 3
+
+
+def test_path_snapshot_digest_ignores_traces_that_retrieval_cannot_return(tmp_path: Path) -> None:
+    source = tmp_path / "digest.sqlite"
+    with CloudTraceDatabase(source) as setup:
+        seed(setup, "task-a", "trace-a")
+        setup.upsert_trace(
+            trace("trace-a-provisional", "task-a", verified_receipt_json={"status": "provisional"}),
+            steps=steps("provisional text"),
+        )
+    with CloudTraceRetriever(source) as first:
+        before = first.source_digest
+    with CloudTraceDatabase(source) as setup:
+        setup.upsert_trace(
+            trace("trace-a-provisional", "task-a", verified_receipt_json={"status": "provisional"}),
+            steps=steps("completely different provisional text"),
+        )
+    with CloudTraceRetriever(source) as second:
+        assert second.source_digest == before
+    with CloudTraceDatabase(source) as setup:
+        setup.upsert_trace(trace("trace-a", "task-a"), steps=steps("changed verified text"))
+    with CloudTraceRetriever(source) as third:
+        assert third.source_digest != before
+
+
+def test_path_snapshot_holds_only_verified_dev_traces_and_survives_malformed_receipts(tmp_path: Path) -> None:
+    source = tmp_path / "contents.sqlite"
+    with CloudTraceDatabase(source) as setup:
+        seed(setup, "task-a", "trace-a-confirmed")
+        seed(setup, "task-held", "trace-held", split="held")
+        for trace_id, task_id, receipt in (
+            ("trace-a-provisional", "task-a", {"status": "provisional"}),
+            ("trace-a-malformed", "task-a", {"status": "confirmed"}),
+            ("trace-held-malformed", "task-held", {"status": "confirmed"}),
+        ):
+            setup.upsert_trace(
+                trace(trace_id, task_id, verified_receipt_json=receipt), steps=steps("checksum"),
+            )
+    with sqlite3.connect(source) as raw:  # the store's own writer refuses receipts that are not JSON
+        raw.execute(
+            "UPDATE agent_traces SET verified_receipt_json = 'not json' WHERE trace_id LIKE '%-malformed'"
+        )
+    with CloudTraceRetriever(source) as retriever:
+        database = retriever._db
+        assert [row["trace_id"] for row in database._rows("SELECT trace_id FROM agent_traces ORDER BY 1")] == [
+            "trace-a-confirmed",
+        ]
+        assert {row["trace_id"] for row in database._rows("SELECT trace_id FROM trace_steps")} == {
+            "trace-a-confirmed",
+        }
+        assert [hit.task_id for hit in retriever.retrieve("current", "checksum").hits] == ["task-a"]

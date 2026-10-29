@@ -1,0 +1,62 @@
+{
+ "after_run1": {
+  "answers_sha256": "ea0c0d3ff875c1dd3fbbc6c839701d2c51352a7940f93902baf2360f8caef1b8",
+  "errors": [],
+  "label": "after",
+  "maxrss_mb": 81.1,
+  "open_cpu_s": 1.21,
+  "open_wall_s": 4.95,
+  "queries": 120,
+  "query_cpu_s": 1.97,
+  "snapshot_bytes": 38498304,
+  "snapshot_digest": "ab3b55cf9aa6678635fc636c0fbe656899e86e663acc3e2f755875eabf8aaa81",
+  "source_unchanged": true,
+  "total_hits": 796,
+  "with_hits": 106
+ },
+ "after_run2": {
+  "answers_sha256": "ea0c0d3ff875c1dd3fbbc6c839701d2c51352a7940f93902baf2360f8caef1b8",
+  "errors": [],
+  "label": "after2",
+  "maxrss_mb": 80.8,
+  "open_cpu_s": 2.3,
+  "open_wall_s": 28.53,
+  "queries": 120,
+  "query_cpu_s": 2.3,
+  "snapshot_bytes": 38498304,
+  "snapshot_digest": "ab3b55cf9aa6678635fc636c0fbe656899e86e663acc3e2f755875eabf8aaa81",
+  "source_unchanged": true,
+  "total_hits": 796,
+  "with_hits": 106
+ },
+ "after_run3": {
+  "answers_sha256": "ea0c0d3ff875c1dd3fbbc6c839701d2c51352a7940f93902baf2360f8caef1b8",
+  "errors": [],
+  "label": "after3",
+  "maxrss_mb": 77.9,
+  "open_cpu_s": 2.03,
+  "open_wall_s": 2.76,
+  "queries": 120,
+  "query_cpu_s": 3.06,
+  "snapshot_bytes": 38498304,
+  "snapshot_digest": "ab3b55cf9aa6678635fc636c0fbe656899e86e663acc3e2f755875eabf8aaa81",
+  "source_unchanged": true,
+  "total_hits": 796,
+  "with_hits": 106
+ },
+ "before": {
+  "answers_sha256": "ea0c0d3ff875c1dd3fbbc6c839701d2c51352a7940f93902baf2360f8caef1b8",
+  "errors": [],
+  "label": "base",
+  "maxrss_mb": 276.4,
+  "open_cpu_s": 118.67,
+  "open_wall_s": 202.36,
+  "queries": 120,
+  "query_cpu_s": 8.39,
+  "snapshot_bytes": 3737165824,
+  "snapshot_digest": "206be4420151a3fdb107d0956993702ebf2ceae3b908f2ee7f1b4910b2e84c2d",
+  "source_unchanged": true,
+  "total_hits": 796,
+  "with_hits": 106
+ }
+}

@@ -15,10 +15,15 @@ Number (store copy `/private/tmp/ps2/store.sqlite`, real CLI, old = origin/main 
   same counts, same rows; the only changed row is the withheld run, `facet_producer_revision`/`facet_served_model`
   `run-facets/v1` / `xai-oauth/grok-4.20-0309-non-reasoning` -> null / null. L1-07 (no withheld run): identical.
 - CPU (user+sys of the CLI process, n=7, old/new interleaved, medians): export withheld run 0.587 -> 0.538 s,
-  export ordinary run 0.523 -> 0.520 s (facet read is now narrowed to the exported run ids);
-  cluster-scope L1-07 (165 members) 0.946 -> 1.080 s (+0.13 s): that is the screening cost
-  (seal set over every non-admitted task plus whole-record sealed-name search), the same screen `runs` pays.
-  Samples overlapped (old 0.74-1.12, new 0.82-1.30), so treat the scope delta as approximate.
+  export ordinary run 0.523 -> 0.520 s. The old export query already narrowed the facet read with
+  `a.trace_id IN (...)`. Cluster-scope L1-07 (165 members) 0.946 -> 1.080 s (+0.13 s); samples
+  overlapped (old 0.74-1.12, new 0.82-1.30), so this delta is consistent with run-to-run noise,
+  not a measurement of screening cost.
+- Follow-up in-process measurement on L1-07, n=12: the complete facet screen had median CPU 0.00488 s
+  (range 0.00477-0.00672 s), after admission and member selection. Across all 68 stored clusters,
+  old and updated cluster-scope exports had identical facet fields for all 3,435 admitted rows.
+  In separate fresh processes, first screen CPU medians were 0.02645 -> 0.02630 s
+  (n=7 per version, alternating order); this cold measurement includes first-use costs.
 
 Meaning: the facet-derived fields of both exporters now follow the same rule as `runs`: a withheld record
 looks like no record. No sealing, admission or screening rule changed; the screen was extracted

@@ -1053,6 +1053,18 @@ def screened(faceted: CloudTraceDatabase) -> CloudTraceDatabase:
     return faceted
 
 
+def test_admitted_facets_run_ids_only_narrow_screened_rows(screened: CloudTraceDatabase) -> None:
+    retriever = CloudTraceRetriever(screened, registry=SyntheticRegistry(), sealed_task_ids=["secret-name"])
+    selected = {"dev-task/pass", "dev-task/open", "other-task/pass"}
+    with screened._transaction():
+        full, _ = screened._admitted_facets(retriever)
+        narrow, _ = screened._admitted_facets(retriever, run_ids=selected)
+        assert narrow == [row for row in full if row["run_id"] in selected]
+        assert "other-task/pass" not in run_ids(full)
+        assert set(run_ids(narrow)) == {"dev-task/pass", "dev-task/open"}
+        assert screened._admitted_facets(retriever)[0] == full
+
+
 @pytest.mark.parametrize("scope", ["run_ids", "admission"])
 def test_screened_memo_preserves_narrowing_and_copies(screened: CloudTraceDatabase, scope: str) -> None:
     registry = SyntheticRegistry()

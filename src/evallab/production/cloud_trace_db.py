@@ -1837,6 +1837,16 @@ def decode_row(columns: Sequence[str], values: Sequence[Any]) -> dict[str, Any]:
     return row
 
 
+def base_seals(sealed_task_ids: Iterable[str] = ()) -> set[str]:
+    """Base retriever seals, including bare names of protected and explicitly sealed IDs."""
+    return {
+        identity.casefold()
+        for task_id in (*_PROTECTED_TASKS_FROZEN, *sealed_task_ids)
+        for identity in (_text(task_id, "sealed_task_ids"), CorpusRegistry.task_name(task_id))
+        if identity
+    }
+
+
 def registry_seals(registry: CorpusRegistry, sealed_ids: Iterable[str]) -> set[str]:
     """``sealed_ids`` plus every identity the registry seals, casefolded."""
     return set(sealed_ids) | {
@@ -2122,12 +2132,7 @@ class CloudTraceRetriever:
         self.registry = registry
         self.snippet_chars = _integer(snippet_chars, "snippet_chars", minimum=1)
         self.max_steps_per_trace = _integer(max_steps_per_trace, "max_steps_per_trace", minimum=1)
-        self._sealed_ids = {
-            identity.casefold()
-            for task_id in sealed_task_ids
-            for identity in (_text(task_id, "sealed_task_ids"), CorpusRegistry.task_name(task_id))
-            if identity
-        } | {identity.casefold() for identity in _PROTECTED_TASKS_FROZEN}
+        self._sealed_ids = base_seals(sealed_task_ids)
 
     @staticmethod
     def _sealed_text(text: str, sealed: re.Pattern[str]) -> bool:

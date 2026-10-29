@@ -141,3 +141,76 @@ uv run evallab cheat run --task <task-dir> --name <job> \
 uv run evallab cheat run --task library/tasks/transaction-reconciliation \
   --name <job> --ladder-version 2.0.0 --attacks leftover_test_swap
 ```
+
+## Shipped transaction-reconciliation hardening (HAR-230, 2026-10-29)
+
+The table above remains the **2026-10-13 pre-hardening observation**. The
+first-party shipped package now declares task version `0.2.0`, schema `1.4`,
+and `verifier.environment_mode = "separate"`. Only
+`/app/data/ledger.db` crosses into the pristine verifier image. Agent-side
+processes, test rewrites, Python hooks, PATH shims, and reward files do not.
+The grader uses the standard library, opens SQLite read-only, and invokes
+the trusted interpreter by absolute path with `-I`; it installs or fetches
+nothing at grading time. The ledger, feed, and schema checks are preserved.
+
+This promotes the existing design from
+[`task-separate-verifier@1`](../../../library/task-variants/petermakhnatch__transaction-reconciliation/a90ff693ee10.json)
+into the shipped package, adding interpreter isolation. That immutable
+candidate record and the original sweep evidence are unchanged. The
+registry's existing **candidate** identity is refreshed to version `0.2.0`;
+this is not registration, certification, or training/run authorization.
+The imported `query-optimize` package is unchanged.
+
+Post-hardening package identity:
+
+- Package: `sha256:3015ba24852da3470728e20ceda0ecced70016ca9a098e2fdcebb1dcd4fdb23a`.
+- Verifier: `sha256:dc388286f5d978a30b30583e05df8917421b4d60286bb276deca62ade8021f5b`.
+- Harbor package: `sha256:e30c94deefbdf8fce2f46c84a351a8c4d5eb49ec38143d915c84c72159d27f97`.
+
+### Post-hardening cells: local execution blocked
+
+| Shipped `0.2.0` cell | Required result | Observed result |
+|---|---|---|
+| Native Docker oracle | Reward `1` | **Unmeasured**: preflight failed before trial creation |
+| Native Docker nop | Reward `0` | **Unmeasured**: preflight failed before trial creation |
+| Ladder `1.4.0`, full ladder and each attack | Every attack reward `0`, zero cracked | **Not run**: native controls could not start |
+| Ladder `2.0.0`, full ladder and each attack | Every attack reward `0`, zero cracked | **Not run**: native controls could not start |
+
+Six native control invocations across three campaigns stopped at Harbor's
+10-second `docker info` preflight. Their exact commands, package identities,
+executor states, source hashes, and error logs are retained in
+[`native-preflight.json`](../../evidence/har230-transaction-reconciliation-20261029/native-preflight.json).
+No trial result, reward file, or ladder verdict JSON was produced. A preflight
+failure is **not** reward zero and does not establish tamper resistance.
+
+The real Docker Desktop daemon answered Unix-socket `/version`, `/info`, and
+both HEAD and GET `/_ping`. Installed and official standalone clients still
+stalled with isolated configurations and verified standalone Compose/Buildx
+plugins; a final server-only formatted query also timed out. Plugin metadata
+stalls were observed, but the root cause was not established. No shared
+services were restarted, user settings changed, or isolation/preflight checks
+bypassed. This run used no model and spent **$0**.
+
+### Verified without Docker
+
+- A fresh `python -I` process executed the unchanged shipped seed, the unchanged
+  oracle SQL, and the new grader against real temporary SQLite files: initial
+  state `0`, reconciled state `1`, collateral feed mutation `0`. Only fixed
+  container paths were rebased to a temporary directory.
+  [`direct-smoke.json`](../../evidence/har230-transaction-reconciliation-20261029/direct-smoke.json)
+  records the input hashes and results; this is not a native Docker control.
+- The required `tests/test_cheat.py tests/test_separate_verifier.py` suite
+  passed **213 tests**, with no failures, errors, or skips, using locked base
+  dependencies and explicit xdist with ambient plugin autoload disabled.
+- The 18 real-SQLite grader cases and the complete canary/interop consumer
+  suite passed. The import fixture does not create bytecode inside the
+  byte-pinned task package; canary and artifact-only submission pins are
+  updated. Obsolete source-text and mock-forwarding assertions were removed.
+  [`validation.json`](../../evidence/har230-transaction-reconciliation-20261029/validation.json)
+  records commands, profiles, and earlier failures.
+
+**HAR-230 remains blocked, not complete.** The implementation must remain
+unmerged until a healthy local Docker runtime produces native oracle `1`,
+nop `0`, and zero-cracked verdicts for both frozen ladders, with every attack
+reward `0`, followed by exact-head green CI. The original historical sweep
+cells above are not revised or relabeled.

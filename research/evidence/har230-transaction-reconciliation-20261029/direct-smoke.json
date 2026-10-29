@@ -1,0 +1,17 @@
+{
+  "schema": "evallab.har230_direct_smoke/v1",
+  "command": "uv run --no-sync python -I /tmp/har230_direct_smoke.py <owned-worktree>",
+  "result": "passed",
+  "scope": "Fresh isolated Python process, unchanged shipped seed and oracle SQL, real SQLite and verifier main; only fixed filesystem paths rebased to an owned temporary directory. Not a native Docker control.",
+  "sources": {
+    "library/tasks/transaction-reconciliation/environment/seed_db.py": "sha256:bab0b42124fc78ab91a9b69a6e3bb0f96be03cf04043c0a45e99c6a74a443771",
+    "library/tasks/transaction-reconciliation/solution/solve.sh": "sha256:ba7471f2d9be24a9352532327a21001cafb7814c5054788524ba1cf8d58c4596",
+    "library/tasks/transaction-reconciliation/tests/verify.py": "sha256:776da0bec70221720f5500705c340d70b8e140b60b294eb331573c116dba8e98"
+  },
+  "cases": [
+    {"case": "shipped seed without reconciliation", "reward": 0, "failed_checks": ["ledger"]},
+    {"case": "unchanged shipped oracle SQL", "reward": 1, "failed_checks": []},
+    {"case": "collateral feed mutation", "reward": 0, "failed_checks": ["feed"]}
+  ],
+  "limits": ["This direct smoke does not establish native oracle/nop controls or cheat-ladder resistance."]
+}

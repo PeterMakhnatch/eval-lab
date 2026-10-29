@@ -346,40 +346,6 @@ def test_karotte_flags_cover_lossy_case(tmp_path: Path) -> None:
 
 
 
-def test_export_karotte_writes_runnable_tree(tmp_path: Path) -> None:
-    out = tmp_path / "env"
-    summary = export_karotte(REAL_TASK, out)
-    assert summary["target"] == "karotte"
-    assert summary["karotte_id"] == "petermakhnatch-transaction-reconciliation"
-    digest = summary["base"].removeprefix("evallab-harbor-")
-    assert len(digest) == 16 and all(c in "0123456789abcdef" for c in digest)
-    containerfile = (out / "Containerfile").read_text(encoding="utf-8")
-    assert f"FROM {summary['base']}" in containerfile
-    assert f"karotte=={interop.KAROTTE_PIN}" in containerfile
-    assert "chown -R student:student '/app'" in containerfile
-    pkg = out / "src" / "environment" / "tasks" / "petermakhnatch_transaction_reconciliation"
-    assert (pkg / "__init__.py").is_file()
-    assert (pkg / "scoring_script.py").is_file()
-    assert (out / "src" / "environment" / "fake_model.py").is_file()
-    assert (out / "root_data" / "tests" / "test.sh").is_file()
-    assert (out / "root_data" / "tests" / "test_outputs.py").is_file()
-    assert f'"karotte=={interop.KAROTTE_PIN}"' in (out / "pyproject.toml").read_text(
-        encoding="utf-8"
-    )
-    assert not (out / "uv.lock").exists()
-    for support in (
-        "__init__.py",
-        "paths.py",
-        "submissions.py",
-        "system_prompts.py",
-        "check_permissions.py",
-    ):
-        assert (out / "src" / "environment" / support).is_file()
-    assert (out / "src" / "environment" / "tasks" / "__init__.py").is_file()
-    assert (out / "MAPPING.md").is_file()
-    assert "MAPPING.md" in summary["files"]
-
-
 def test_export_karotte_docker_image_base_and_setup(tmp_path: Path) -> None:
     task_dir = make_task(
         tmp_path / "img",
@@ -394,89 +360,6 @@ def test_export_karotte_docker_image_base_and_setup(tmp_path: Path) -> None:
     assert "FROM example.com/img@sha256:abc" in containerfile
     assert "setup.sh" in containerfile
     assert (out / "root_data" / "setup" / "setup.sh").is_file()
-
-
-def _stub_karotte(monkeypatch: pytest.MonkeyPatch) -> None:
-    karotte = types.ModuleType("karotte")
-
-    class Task:
-        def __init__(self, config):
-            self.config = config
-
-    class Step:
-        def __init__(self, config):
-            self.config = config
-
-    karotte.Task = Task
-    karotte.Step = Step
-    judges = types.ModuleType("karotte.judges")
-    judge_mod = types.ModuleType("karotte.judges.judge")
-
-    class Judge:
-        pass
-
-    judge_mod.Judge = Judge
-    exec_mod = types.ModuleType("karotte.judges.executable_judge")
-
-    class ExecutableJudge(Judge):
-        def __init__(self, args, continue_threshold=-1, cwd=None):
-            self.subprocess_run_args = args
-            self.continue_threshold = continue_threshold
-
-    exec_mod.ExecutableJudge = ExecutableJudge
-    monkeypatch.setitem(sys.modules, "karotte", karotte)
-    monkeypatch.setitem(sys.modules, "karotte.judges", judges)
-    monkeypatch.setitem(sys.modules, "karotte.judges.judge", judge_mod)
-    monkeypatch.setitem(sys.modules, "karotte.judges.executable_judge", exec_mod)
-    karotte.judges = judges  # type: ignore[attr-defined]
-
-
-def test_exported_task_module_behavior(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    out = tmp_path / "env"
-    export_karotte(REAL_TASK, out)
-    _stub_karotte(monkeypatch)
-    collected: dict = {}
-    env_pkg = types.ModuleType("environment")
-    submissions = types.ModuleType("environment.submissions")
-
-    def collect(config, paths):
-        collected["config"] = config
-        collected["paths"] = tuple(str(p) for p in paths)
-        return tuple(Path(f"/saved/{p.name}") for p in paths)
-
-    submissions.collect_submission = collect
-    prompts = types.ModuleType("environment.system_prompts")
-    prompts.get_system_prompt = lambda model, extra: "sys"
-    monkeypatch.setitem(sys.modules, "environment", env_pkg)
-    monkeypatch.setitem(sys.modules, "environment.submissions", submissions)
-    monkeypatch.setitem(sys.modules, "environment.system_prompts", prompts)
-    pkg = out / "src" / "environment" / "tasks" / "petermakhnatch_transaction_reconciliation"
-    namespace = _exec_module(pkg / "__init__.py", monkeypatch)
-    task_cls = next(
-        obj
-        for obj in namespace.values()
-        if isinstance(obj, type) and obj.__name__.endswith("Task") and obj.__name__ != "Task"
-    )
-    assert task_cls.id == "petermakhnatch-transaction-reconciliation"
-    config = types.SimpleNamespace(model="fake/fake", extra_config=None)
-    inst = task_cls(config=config)
-    assert inst.system_prompt == "sys"
-    (step,) = inst.steps
-    assert "settlement" in step.instructions
-    assert [str(p) for p in step.submission_paths] == ["/app"]
-    step.pre_scoring_hook()
-    assert collected["config"] is config
-    assert collected["paths"] == ("/app",)
-    judge = step.judge
-    assert type(judge).__name__ == "ExecutableJudge"
-    args = judge.subprocess_run_args
-    assert args[1:3] == [
-        "-m",
-        "environment.tasks.petermakhnatch_transaction_reconciliation.scoring_script",
-    ]
-    assert args[3] == "300.0" and args[4] == "/app"
-    assert args[5:7] == ["/app", "/saved/app"] and args[-1] == "score_output.json"
-    assert judge.continue_threshold == 1.0
 
 
 def test_exported_scoring_restores_and_grades(

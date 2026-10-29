@@ -407,13 +407,13 @@ def supervisor_coverage(text: str, *, now: datetime, window_hours: float,
     in_window = [(at, status) for at, status in rows if start < at <= now]
     awake_seconds = sum(
         max(0.0, (min(b, now) - max(a, start)).total_seconds())
-        for (a, _), (b, _) in zip(rows, rows[1:])
+        for (a, _), (b, _) in zip(rows, rows[1:], strict=False)
         if (b - a).total_seconds() <= 180
     )
     gaps: list[dict[str, Any]] = []
     # Include window edges for unknown coverage, but do not extrapolate heartbeat cadence.
     points = [start] + [at for at, _ in in_window] + [now]
-    for a, b in zip(points, points[1:]):
+    for a, b in zip(points, points[1:], strict=False):
         seconds = (b - a).total_seconds()
         if seconds > 600:
             slept = any(a <= t.astimezone(UTC) <= b for t in sleep_times)
@@ -486,7 +486,7 @@ def render_section(report: Mapping[str, Any], *, now: datetime) -> str:
     lines = [f"## Fleet health (auto, refreshed {_et(now)})", ""]
     hours = f"{window['hours']:g}"
     if window["log_first_at"] is None:
-        lines.append(f"Window: the last {hours} h to {_et(window['end'])}. The keeper log is empty: nothing is known.")
+        lines.append(f"Window: the last {hours} h to {_et(window['end'])}. The keeper log is empty.")
     else:
         covered = (f"the log covers {_hours(window['covered_h'])} of it, because it starts {_et(window['log_first_at'])}"
                    if window["starts_before_log"] else "the log covers all of it")
@@ -494,7 +494,7 @@ def render_section(report: Mapping[str, Any], *, now: datetime) -> str:
             f"Window: the last {hours} h to {_et(window['end'])}; {covered}; last log line "
             f"{_et(window['log_last_at'])} ({_hours(window['log_age_h'])} ago"
             + ("; the keeper has stopped" if window["keeper_stopped"] else "")
-            + f"); {window['keeper_starts']} keeper start(s) in the window. Source: the keeper's own files only.")
+            + f"); {window['keeper_starts']} keeper start(s) in the window. Fleet source: the keeper's files.")
     lines.append("")
     done, blocked = items["done"], items["blocked"]
     share = items["blocked_share_of_hours"]

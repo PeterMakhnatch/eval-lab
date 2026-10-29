@@ -1,0 +1,10 @@
+{
+ "admission_checked": 200,
+ "admitted": 150,
+ "plan_equals_admitted": true,
+ "plan_runs": 150,
+ "strata": {
+  "clean_no": 70,
+  "enacted_yes": 80
+ }
+}

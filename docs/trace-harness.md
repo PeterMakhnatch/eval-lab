@@ -59,6 +59,13 @@ harness PR) runs the detectors above on one shared blinded input and writes one
   subscription reader when `--allow-model` is given. `card RUN_ID` prints a short
   evidence card (fired flags plus findings). `score` is registered from
   `trace_harness_score` when that module exists.
+- `--detectors cascade_stream` is the only live path: it feeds a run's steps one
+  `trace.step` event at a time to `MisalignmentLiveWorker` (`production/trace_harness_stream.py`)
+  with a judge that serves stored or injected verdicts only (a miss is an unavailable
+  judgment, so the run abstains). Its summary keeps two clocks apart: the causal prefix
+  the first alarm's judgment was frozen on (comparable with ID-CM-1) and the step at
+  which that alarm was actually emitted, with the agent turns elapsed at each. The
+  `cascade*` adapters stay stored-result views.
 - The Phoenix shipper moved: on `origin/main` it is still `evallab trace <path>`;
   on the harness branch it is `evallab trace otel <path>` and `docs/observability.md`
   is updated to match. The harness PR lands both.

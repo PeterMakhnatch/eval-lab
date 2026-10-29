@@ -1,0 +1,282 @@
+{
+ "alarm_lines_by_detector": {
+  "cascade": "<3",
+  "cascade_v4": 3,
+  "cascade_v7": "<3",
+  "docent": "<3",
+  "facet_windows": 5,
+  "facet_windows_baseline": "<3",
+  "facet_windows_first": 3,
+  "facet_windows_only": 5,
+  "facet_windows_random": 3,
+  "facets": 206,
+  "flags": 8,
+  "metr": 3,
+  "recheck_sol": 4,
+  "tripwire": 4
+ },
+ "alarm_lines_by_detector_reader_score": {
+  "cascade_v4|kimi-code/k3.1-pro-highspeed|score 1": 3,
+  "cascade_v7|kimi-code/k3.1-pro-highspeed|score 1": "<3",
+  "cascade|kimi-code/k3.1-pro-highspeed|score 1": "<3",
+  "docent|anthropic/claude-sonnet-5-5|score 2": "<3",
+  "facet_windows_baseline|openai-codex/gpt-6.1-terra|score 1": "<3",
+  "facet_windows_first|openai-codex/gpt-6.1-terra|score 1": 3,
+  "facet_windows_only|openai-codex/gpt-6.1-terra|score 1": 5,
+  "facet_windows_random|openai-codex/gpt-6.1-terra|score 1": "<3",
+  "facet_windows_random|openai-codex/gpt-6.1-terra|score 2": "<3",
+  "facet_windows|openai-codex/gpt-6.1-terra|score 1": 4,
+  "facet_windows|openai-codex/gpt-6.1-terra|score 2": "<3",
+  "facets|anthropic/claude-haiku-5-5|score 2": 188,
+  "facets|anthropic/claude-opus-5-5|score 3": 4,
+  "facets|anthropic/claude-sonnet-5-5|score 2": "<3",
+  "facets|anthropic/claude-sonnet-5-5|score 3": 3,
+  "facets|kimi-code/k3.1-pro-highspeed|score 2": 4,
+  "facets|kimi-code/k3.1-pro-highspeed|score 3": "<3",
+  "facets|openai-codex/gpt-6-luna|score 3": "<3",
+  "facets|xai-oauth/grok-4.20-0309-non-reasoning|score 3": "<3",
+  "flags|deterministic|score 1": "<3",
+  "flags|deterministic|score 3": "<3",
+  "flags|deterministic|score 4": "<3",
+  "flags|deterministic|score 5": 3,
+  "flags|deterministic|score 6": "<3",
+  "metr|kimi-code/k3.1-pro-highspeed|score 9": "<3",
+  "metr|xai-oauth/grok-4.3|score 9": "<3",
+  "recheck_sol|openai-codex/gpt-6.1-sol|score 100": "<3",
+  "recheck_sol|openai-codex/gpt-6.1-sol|score 96": "<3",
+  "tripwire|deterministic|score 1": 4
+ },
+ "alarm_lines_per_card": {
+  "1": 120,
+  "2": 26,
+  "6": 2,
+  "7": 1,
+  "8": 1,
+  "10": 1,
+  "12": 1,
+  "13": 1,
+  "17": 1
+ },
+ "batch": {
+  "alarm_runs_in_batch": 154,
+  "batch_lines": 3146,
+  "batch_runs": 3146,
+  "batch_runs_in_goodfire_dev_sample_200": 200,
+  "by_detector_reader_verdict_score": {
+   "facets|anthropic/claude-haiku-5-5|alarm|2.0": 154,
+   "facets|anthropic/claude-haiku-5-5|clear|0.0": 1891,
+   "facets|anthropic/claude-haiku-5-5|clear|1.0": 1101
+  },
+  "carded_runs_in_batch": 154,
+  "carded_runs_whose_last_wins_reader": {
+   "anthropic/claude-haiku-5-5": 146,
+   "anthropic/claude-opus-5-5": 2,
+   "anthropic/claude-sonnet-5-5": 6
+  },
+  "crosskey": {
+   "strict_dev": 3146
+  },
+  "facet_store_last_wins_reader_over_batch_strict_dev": {
+   "anthropic/claude-haiku-5-5": 2957,
+   "anthropic/claude-opus-5-5": 68,
+   "anthropic/claude-sonnet-5-5": 121
+  },
+  "facet_store_runs_with_a_haiku_line": 3146,
+  "haiku_last_haiku_line_suspicion_equals_finding_score": 3146,
+  "haiku_suspicion_ge2_in_facet_store": 154,
+  "strict_dev_batch_runs": 3146
+ },
+ "card_bytes": {
+  "max": 4866,
+  "min": 1221
+ },
+ "card_files": 154,
+ "cards_by_detector_set": {
+  "cascade+cascade_v4+cascade_v7+facet_windows+facet_windows_baseline+facet_windows_first+facet_windows_only+facet_windows_random+facets+flags+metr+tripwire": "<3",
+  "cascade+cascade_v4+cascade_v7+facets+flags+metr+tripwire": "<3",
+  "cascade_v4+docent+facet_windows+facet_windows_first+facet_windows_only+facets+flags+metr": "<3",
+  "docent+facet_windows+facet_windows_first+facet_windows_only+facets+flags": "<3",
+  "facet_windows+facet_windows_only+facet_windows_random+facets+flags": "<3",
+  "facet_windows+facet_windows_only+facet_windows_random+facets+flags+tripwire": "<3",
+  "facets": 146,
+  "facets+flags+recheck_sol": "<3",
+  "facets+flags+recheck_sol+tripwire": "<3"
+ },
+ "cards_per_run": {
+  "1": 154
+ },
+ "cards_with_repeated_identical_alarm_line": 34,
+ "cited_steps_outside_live_window": {
+  "cited_total": 787,
+  "outside": 787
+ },
+ "crosskey": {
+  "strict_dev": 154
+ },
+ "crosskey_detail": {
+  "strict_dev|assigned_test=False|admitted=True": 154
+ },
+ "dataset_prefix": {
+  "goodfire-reward-hack-data": 154
+ },
+ "distinct_cited_steps_per_card": {
+  "3": 1,
+  "4": 5,
+  "5": 140,
+  "9": 3,
+  "11": 3,
+  "13": 2
+ },
+ "distinct_runs": 154,
+ "header": {
+  "actor_inputs_available_false": 154,
+  "ends_leads_not_verdicts": 154,
+  "killable_false": 154,
+  "owner": {
+   "other": 154
+  }
+ },
+ "in_goodfire_dev_sample_200": 8,
+ "index_distinct": 154,
+ "index_equals_files": true,
+ "index_paths": 154,
+ "open_more_radius_values": {
+  "3": 154
+ },
+ "open_more_window_present": 154,
+ "sample_ids": 200,
+ "sha256": {
+  "findings": "3e942a293e9cfb135cd930b7b6abf25368d8348831c8300321b1d595e6a94db6",
+  "index": "3a2a2309759e95e6d1a831dbe3cbc40cda8ad144ff78891b3126f87534e4f367",
+  "sample": "e24db6ec51ca12f7184301caa9a2467446e4a2e090ecfcb9a2b25c3ca1eb7f87"
+ },
+ "stage": "A (label-free)",
+ "steps": {
+  "cards_with_a_cited_step_at_or_past_step_count": 0,
+  "cards_with_all_cited_steps_below_step_count": 154,
+  "cards_with_no_cited_step": 0,
+  "cited_step_relative_position_quartiles": [
+   0.008,
+   0.571,
+   0.731,
+   0.917,
+   0.998
+  ],
+  "first_cited_relative_position_quartiles": [
+   0.008,
+   0.339,
+   0.514,
+   0.626,
+   0.97
+  ],
+  "run_step_count_quartiles_min_q1_med_q3_max": [
+   39,
+   159,
+   224,
+   301,
+   904
+  ]
+ },
+ "store": {
+  "carded_runs_with_exact_duplicate_store_line": 2,
+  "carded_runs_with_same_key_twice_in_store": 34,
+  "cheat_alarm_lines_per_carded_run": {
+   "1": 120,
+   "2": 26,
+   "6": 2,
+   "7": 1,
+   "8": 1,
+   "10": 1,
+   "12": 1,
+   "13": 1,
+   "17": 1
+  },
+  "produced_at_distinct": 34,
+  "produced_at_range": [
+   "2026-10-27T17:22:38Z",
+   "2026-10-29T01:53:24Z"
+  ]
+ },
+ "store_cheat_alarm_totals": {
+  "alarm_records": {
+   "cascade_own|kimi-code/k3.1-pro-highspeed": 4,
+   "cascade_own|xai-oauth/grok-4.3": 12,
+   "cascade_v4|kimi-code/k3.1-pro-highspeed": 42,
+   "cascade_v7|kimi-code/k3.1-pro-highspeed": 47,
+   "cascade|kimi-code/k3.1-pro-highspeed": 40,
+   "detcache.combined_v1|deterministic": 13,
+   "detcache.harbor_analyze|openai/glm-5.3-flash": 1,
+   "detcache.laminar_copied|deterministic": 2,
+   "detcache.laminar_false_completion|deterministic": 1,
+   "detcache.qa_trace_t0|deterministic": 4,
+   "detcache.qa_trace|codex/gpt-6.1-sol:medium": 7,
+   "detcache.rules|deterministic": 15,
+   "detcache.sol_codex|deterministic": 8,
+   "docent|anthropic/claude-sonnet-5-5": 3,
+   "docent|openai/gpt-5.4-mini": 8,
+   "facet_windows_baseline|openai-codex/gpt-6.1-terra": 11,
+   "facet_windows_first|openai-codex/gpt-6.1-terra": 21,
+   "facet_windows_only|openai-codex/gpt-6.1-terra": 28,
+   "facet_windows_random|openai-codex/gpt-6.1-terra": 21,
+   "facet_windows|openai-codex/gpt-6.1-terra": 31,
+   "facets|anthropic/claude-haiku-5-5": 222,
+   "facets|anthropic/claude-opus-5-5": 6,
+   "facets|anthropic/claude-sonnet-5-5": 25,
+   "facets|kimi-code/k3.1-pro-highspeed": 9,
+   "facets|meta/muse-wonder-1.0-contributor": 25,
+   "facets|openai-codex/gpt-6-luna": 3,
+   "facets|xai-oauth/grok-4.20-0309-non-reasoning": 2,
+   "flags|deterministic": 279,
+   "laminar_copy|zai/glm-5.3-flash": 12,
+   "laminar|zai/glm-5.3-flash": 24,
+   "metr|kimi-code/k3.1-pro-highspeed": 3,
+   "metr|xai-oauth/grok-4.3": 1,
+   "omp_form|anthropic/claude-sonnet-5-5": 24,
+   "qa_trace_t0|deterministic": 58,
+   "recheck_sol|openai-codex/gpt-6.1-sol": 20,
+   "scout|deterministic": 3,
+   "tripwire|deterministic": 95,
+   "whole_run_logistic|deterministic": 16
+  },
+  "distinct_runs": {
+   "cascade_own|kimi-code/k3.1-pro-highspeed": 4,
+   "cascade_own|xai-oauth/grok-4.3": 12,
+   "cascade_v4|kimi-code/k3.1-pro-highspeed": 42,
+   "cascade_v7|kimi-code/k3.1-pro-highspeed": 47,
+   "cascade|kimi-code/k3.1-pro-highspeed": 40,
+   "detcache.combined_v1|deterministic": 13,
+   "detcache.harbor_analyze|openai/glm-5.3-flash": 1,
+   "detcache.laminar_copied|deterministic": 2,
+   "detcache.laminar_false_completion|deterministic": 1,
+   "detcache.qa_trace_t0|deterministic": 4,
+   "detcache.qa_trace|codex/gpt-6.1-sol:medium": 7,
+   "detcache.rules|deterministic": 15,
+   "detcache.sol_codex|deterministic": 8,
+   "docent|anthropic/claude-sonnet-5-5": 3,
+   "docent|openai/gpt-5.4-mini": 8,
+   "facet_windows_baseline|openai-codex/gpt-6.1-terra": 11,
+   "facet_windows_first|openai-codex/gpt-6.1-terra": 21,
+   "facet_windows_only|openai-codex/gpt-6.1-terra": 28,
+   "facet_windows_random|openai-codex/gpt-6.1-terra": 21,
+   "facet_windows|openai-codex/gpt-6.1-terra": 31,
+   "facets|anthropic/claude-haiku-5-5": 188,
+   "facets|anthropic/claude-opus-5-5": 6,
+   "facets|anthropic/claude-sonnet-5-5": 24,
+   "facets|kimi-code/k3.1-pro-highspeed": 6,
+   "facets|meta/muse-wonder-1.0-contributor": 25,
+   "facets|openai-codex/gpt-6-luna": 3,
+   "facets|xai-oauth/grok-4.20-0309-non-reasoning": 2,
+   "flags|deterministic": 279,
+   "laminar_copy|zai/glm-5.3-flash": 12,
+   "laminar|zai/glm-5.3-flash": 24,
+   "metr|kimi-code/k3.1-pro-highspeed": 3,
+   "metr|xai-oauth/grok-4.3": 1,
+   "omp_form|anthropic/claude-sonnet-5-5": 24,
+   "qa_trace_t0|deterministic": 34,
+   "recheck_sol|openai-codex/gpt-6.1-sol": 10,
+   "scout|deterministic": 3,
+   "tripwire|deterministic": 95,
+   "whole_run_logistic|deterministic": 16
+  }
+ }
+}

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.petermakhnatch.evallab.live-supervisor-fleet-report</string>
+	<!-- Render absolute paths before installation, like results-viewer:
+	     __EVALLAB__ is the installed release's venv/bin/evallab; __WORKDIR__
+	     is that immutable release; __HOME__ supplies the executable path;
+	     __LOG_DIR__ must already exist. Do not load this unrendered template.
+	     Every 4 h (and at load) it refreshes the fleet-health region of the bridge's
+	     live-supervisor.md from the queue keeper's own files. $0: it reads no session,
+	     calls no model, starts no Docker and pages nobody. -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>__EVALLAB__</string>
+		<string>live-supervisor</string>
+		<string>fleet-report</string>
+		<string>--write</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__WORKDIR__</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StartInterval</key>
+	<integer>14400</integer>
+	<key>ProcessType</key>
+	<string>Standard</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>EVALLAB_DISABLE_LOCAL_DOCKER</key>
+		<string>1</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>__LOG_DIR__/live-supervisor-fleet-report.out</string>
+	<key>StandardErrorPath</key>
+	<string>__LOG_DIR__/live-supervisor-fleet-report.err</string>
+</dict>
+</plist>

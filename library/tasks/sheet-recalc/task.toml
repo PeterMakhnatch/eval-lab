@@ -1,0 +1,37 @@
+schema_version = "1.4"
+artifacts = ["/app/sheet"]
+
+[task]
+name = "peter/sheet-recalc"
+version = "1.0.0"
+description = "Fix incremental recalculation in a spreadsheet engine: transitive dirtying, live ranges, cycle detection and recovery, atomic batches, exactly-once evaluation."
+keywords = ["python", "graphs", "incremental-computation", "spreadsheet", "cycle-detection"]
+[[task.authors]]
+name = "Peter Makhnatch"
+
+[metadata]
+category = "software-engineering"
+difficulty = "hard"
+capability = "repair an incremental dependency-graph recalculation engine to an exact evaluation contract"
+
+[verifier]
+timeout_sec = 900.0
+collect = []
+environment_mode = "separate"
+
+[verifier.env]
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 600.0
+os = "linux"
+cpus = 1
+memory_mb = 2048
+mcp_servers = []
+
+[environment.env]
+
+[solution.env]

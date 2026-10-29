@@ -1,6 +1,6 @@
 {
-  "total_packages": 525,
-  "runnable_packages": 505,
+  "total_packages": 527,
+  "runnable_packages": 507,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
@@ -5210,6 +5210,26 @@
     {
       "task_id": "release-branch-rescue",
       "path": "library/tasks/release-branch-rescue",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "sheet-recalc",
+      "path": "library/tasks/sheet-recalc",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "sheet-recalc-cutoff",
+      "path": "library/tasks/sheet-recalc-cutoff",
       "category": "runnable_task",
       "has_task_toml": true,
       "has_environment": true,

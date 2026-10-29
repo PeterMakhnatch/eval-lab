@@ -19,6 +19,7 @@ from evallab import harbor_view
 from evallab.harbor_view import (
     RULE_COPY_CHECK,
     RULE_GRADER_TAMPER,
+    RULE_RED_TEAM,
     RULE_UPSTREAM_FETCH,
     build_viewer_root,
     compile_arm_pattern,
@@ -267,6 +268,30 @@ def test_native_copied_success_gets_overlay_without_mutating_evidence(tmp_path: 
     assert _snapshot(src) == before
 
 
+@pytest.mark.parametrize("native", [False, True])
+def test_declared_red_team_overlay_excludes_without_mutating_source(tmp_path: Path, native: bool) -> None:
+    src = tmp_path / "src"
+    rewards = {"reward": 1.0}
+    if native:
+        rewards.update({"integrity": 1, "reward_gated": 1.0})
+    job = _make_job(src, "job-a", {"trial-r": rewards}, processed={"trial-r": _stored_record([])})
+    _write_json(job / "trial-r/agent/cheat/attempts.json", {
+        "schema": "evallab.cheat.attempts/v1", "agent": "cheat",
+        "attacks": [{"name": "attack", "status": "executed"}],
+    })
+    before = _snapshot(src)
+    out = tmp_path / "view"
+    build_viewer_root([job], out)
+    result = json.loads((out / "job-a/trial-r/result.json").read_text())
+    assert result["verifier_result"]["rewards"]["reward"] == 1.0
+    assert result["verifier_result"]["rewards"]["reward_gated"] == 0.0
+    details = json.loads((out / "job-a/trial-r/reward-details.json").read_text())
+    assert RULE_RED_TEAM in details["fired_rules"]
+    if native:
+        assert details["original_rewards"] == rewards
+    assert _snapshot(src) == before
+
+
 @pytest.mark.parametrize("rewards", [None, {}])
 def test_unscored_trials_get_no_dims(tmp_path: Path, rewards: dict | None) -> None:
     src = tmp_path / "src"
@@ -494,7 +519,7 @@ def test_rule_versions_are_grounded() -> None:
 
     versions = rule_versions()
     assert versions[RULE_COPY_CHECK] == copy_rule
-    assert set(versions) == {RULE_COPY_CHECK, RULE_UPSTREAM_FETCH, RULE_GRADER_TAMPER}
+    assert set(versions) == {RULE_COPY_CHECK, RULE_UPSTREAM_FETCH, RULE_GRADER_TAMPER, RULE_RED_TEAM}
     assert installed_harbor_version() is None or len(installed_harbor_version()) == 3
 
 

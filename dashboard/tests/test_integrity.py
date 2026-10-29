@@ -422,6 +422,7 @@ def test_unresolvable_run_is_unknown_not_agent() -> None:
     # Token match only: "canonical" must not read as a nop control.
     assert iq.marker_agent("HAR-9-canonical-job", "canonical-job__xyz") is None
     assert iq.is_control_agent("evallab.module:oracle") is True
+    assert iq.is_control_agent("cheat") is True
     assert iq.is_control_agent("codex") is False
 
 

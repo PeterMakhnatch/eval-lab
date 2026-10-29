@@ -344,7 +344,7 @@ def trial_features(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
     import json as _json
 
     from evallab.copy_check import copy_check
-    from evallab.counts import classify_counts
+    from evallab.counts import classify_counts, declared_red_team
     from evallab.live_watch import (
         TRIAL_RESULT,
         WatchThresholds,
@@ -391,6 +391,9 @@ def trial_features(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
     except Exception:  # noqa: BLE001 -- same guard
         copy_flag = None
     taint = [copy_flag] if isinstance(copy_flag, dict) else []
+    red_team = declared_red_team(trial_dir, result)
+    if red_team is not None:
+        taint.append(red_team)
     verdict = classify_counts(reward=reward, scored=scored, taint=taint)["verdict"]
 
     stop_reason, limit_hit = _stop_and_limit(result, job_dir, agent_steps)

@@ -249,6 +249,24 @@ def test_native_dims_trials_pass_through_byte_identical(tmp_path: Path) -> None:
     assert report["jobs"]["job-a"]["overlay"] == 0
 
 
+def test_native_copied_success_gets_overlay_without_mutating_evidence(tmp_path: Path, monkeypatch) -> None:
+    src = tmp_path / "src"
+    rewards = {"reward": 1.0, "integrity": 1.0, "reward_gated": 1.0}
+    job = _make_job(src, "job-a", {"trial-c": rewards}, processed={"trial-c": _stored_record([])})
+    before = _snapshot(src)
+    monkeypatch.setattr("evallab.copy_check.copy_check", lambda _: {
+        "kind": "copied_code", "matched_lines": 1, "added_lines": 1, "examples": ["exact"],
+    })
+    out = tmp_path / "view"
+    build_viewer_root([job], out)
+    result = json.loads((out / "job-a/trial-c/result.json").read_text())
+    assert result["verifier_result"]["rewards"] == {"reward": 1.0, "integrity": 0, "reward_gated": 0.0}
+    details = json.loads((out / "job-a/trial-c/reward-details.json").read_text())
+    assert details["original_rewards"] == rewards
+    assert RULE_COPY_CHECK in details["fired_rules"]
+    assert _snapshot(src) == before
+
+
 @pytest.mark.parametrize("rewards", [None, {}])
 def test_unscored_trials_get_no_dims(tmp_path: Path, rewards: dict | None) -> None:
     src = tmp_path / "src"

@@ -11,8 +11,8 @@ copying bytes: directories are recreated and files hard-linked (see
 :func:`_link`), so every path resolves inside the viewer root, which Harbor's
 viewer requires before it serves a trial or file.
 
-* trials whose ``verifier_result.rewards`` already carry ``integrity`` are
-  mirrored as-is (native RewardKit runs);
+* native RewardKit dimensions are mirrored as-is unless current integrity
+  evidence requires an exclusion overlay;
 * unscored trials (no numeric ``reward``) are mirrored with no dims invented;
 * every other scored trial gets an overlay trial directory: every original
   child mirrored, except a rewritten ``result.json`` whose
@@ -376,6 +376,11 @@ def _is_native(rewards: dict[str, Any]) -> bool:
         rewards.get("integrity"), bool
     )
 
+def _native_needs_overlay(trial_dir: Path, job_dir: Path) -> bool:
+    """Re-evaluate native successes against current deterministic evidence."""
+    return bool(trial_integrity(trial_dir, job_dir)["fired"])
+
+
 
 def _scored_reward(rewards: Any) -> float | int | None:
     if not isinstance(rewards, dict):
@@ -522,6 +527,10 @@ def overlay_trial(
         "hits": verdict["hits"],
         "problems": verdict["problems"],
     }
+    original_verifier = original.get("verifier_result") or {}
+    original_rewards = original_verifier.get("rewards") if isinstance(original_verifier, dict) else None
+    if isinstance(original_rewards, dict) and _is_native(original_rewards):
+        details["original_rewards"] = original_rewards
     if arm is not None:
         details["arm"] = arm
     if source_job is not None:
@@ -619,7 +628,7 @@ def _plan_overlays(
         reward = _scored_reward(rewards)
         if reward is None:
             continue
-        if isinstance(rewards, dict) and _is_native(rewards):
+        if isinstance(rewards, dict) and _is_native(rewards) and not _native_needs_overlay(trial_dir, trial_dir.parent):
             continue
         plan[trial_dir.name] = (reward, rewards or {})
     return plan
@@ -860,7 +869,10 @@ def write_merged_trial(
     verifier = original.get("verifier_result") or {}
     rewards = verifier.get("rewards") if isinstance(verifier, dict) else None
     reward = _scored_reward(rewards)
-    if reward is not None and not (isinstance(rewards, dict) and _is_native(rewards)):
+    if reward is not None and (
+        not (isinstance(rewards, dict) and _is_native(rewards))
+        or _native_needs_overlay(trial_dir, job_dir)
+    ):
         verdict = overlay_trial(
             trial_dir,
             job_dir,

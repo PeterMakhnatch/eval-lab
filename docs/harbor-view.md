@@ -611,8 +611,9 @@ only across filesystems). Symlinks would not do: the 0.24 viewer refuses a
 trial or file whose resolved path leaves its jobs root, so a symlinked trial
 answers "Invalid trial name" and a symlinked file "Access denied".
 
-- trials whose `verifier_result.rewards` already carry `integrity` are
-  mirrored byte-identical (native RewardKit runs);
+- trials whose `verifier_result.rewards` already carry `integrity` are mirrored
+  byte-identical unless current integrity evidence fires; then a separate
+  overlay excludes the trial and records the original rewards in its details;
 - unscored trials (no numeric `reward`) are mirrored with no dims invented;
 - every other scored trial gets an overlay trial dir: every original child
   mirrored, except a rewritten `result.json` whose rewards add

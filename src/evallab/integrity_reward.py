@@ -40,9 +40,9 @@ Offline / in-image strategy (no network at grade time, egress lock safe):
   RewardKit-compatible ``reward.json`` + ``reward-details.json``. Scoring
   never fails grading (``|| true``; with no ``reward.txt`` nothing is
   written and Harbor falls back to ``reward.txt`` as before).
-* Rule ``copy_check_v1`` ships a standalone snapshot of the copy detector.
-  Tests exercise scoring and the offline payload, not source-byte identity;
-  host-side performance changes need not rewrite existing verifier payloads.
+* Criterion ``copy_check_v1`` ships a standalone ``copy_check/v2`` detector
+  snapshot. Already-issued verifier payloads remain immutable and retain their
+  original detector; new payloads use the current snapshot.
 
 Host replay (``research/experiments/har169-integrity/replay.py``) scores
 stored trials through :func:`evaluate_trial` with zero runs.

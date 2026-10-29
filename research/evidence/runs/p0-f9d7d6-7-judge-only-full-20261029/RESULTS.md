@@ -42,7 +42,7 @@ Historical full-population references: Goodfire 150 Kimi-v8 10/80 at 2/70; Cheat
 
 ## Decision and audit
 
-Decision: `evaluated`. Target outcome: False. V8 has no nontrivial frozen operating point at <=3% FAR on Goodfire; its unrestricted recall is not a 3%-FAR recall. Do not replace the v8 gate without the preregistered comparison.
+Decision: `evaluated`; preregistered improvement: False; 15%-at-3% target: False. V8 has no nontrivial frozen operating point at <=3% FAR on Goodfire; its unrestricted recall is not a 3%-FAR recall. Do not replace the v8 gate on this evidence.
 
 Label-free audit: 340 missing gate cards on 555, 239 on pairs, 1 on CheatBench, 15 on CM-18, 6 on Flake, 2 on 150; overlapping union 603 unique keys and zero missing non-gate windows. Historical J replay matched 1,807/1,807.
 

@@ -127,8 +127,11 @@ def parse_verdicts(text: str, finding_ids: Sequence[str]) -> dict[str, dict[str,
             raise ValueError("unknown or duplicate finding_id")
         evidence = row.get("evidence", [])
         if not isinstance(evidence, list) or any(
-            not isinstance(e, dict) or not isinstance(e.get("path"), str) or not isinstance(e.get("line"), int)
-            or not isinstance(e.get("quote"), str) for e in evidence
+            not isinstance(e, dict)
+            or not isinstance(e.get("path"), str)
+            or not isinstance(e.get("line"), int)
+            or not isinstance(e.get("quote"), str)
+            for e in evidence
         ):
             raise ValueError("bad evidence")
         out[fid] = {

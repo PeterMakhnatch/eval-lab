@@ -59,7 +59,7 @@ inputs:
   - path: docs/docker-lock.md
     digest: sha256:643794b06ee82843f46f8360ff8b769e2b28ff9e6974fe9a6dc75b55889d331d
   - path: docs/engineering.md
-    digest: sha256:19563e1e801dc35aac29dc7f0e99858525be57935160fb1b365fe07e8befbbd5
+    digest: sha256:62c9cd24077c351d7e454195bcf3613995c54fbf4b8c8469b46b9e4279f1b7a6
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
@@ -81,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-supervisor.md
-    digest: sha256:cbf418864681534cfb1d1457bd4864a8cdb64f35a185437de5b42768bfa3039e
+    digest: sha256:0d868b483db449df4a0a787e19888e054f77d3c843fcecfe7b9958d7647f1955
   - path: docs/live-watch.md
     digest: sha256:715acdba0981feb39df990cf26495507fa93cd5c5c498f66fa8aba193cd866dc
   - path: docs/lora-sft-runbook.md
@@ -147,7 +147,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:b3820e7ca241a6c176b2bcfa20a89ca7224e77444f239fef2762900240b3821e
+    digest: sha256:bf01ca071b5819ebab5c6ddb52113043753f2494521946ec3a94e7724a0944ec
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -159,7 +159,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md
-    digest: sha256:9712529fd4b2714e7a26453c7ccd80ce37ca8b2f9b7c0fced4fdc66f01045d20
+    digest: sha256:48366de064152f909ba0dfa009805b7662d30466ac85141eb0b863c5d90159a7
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md

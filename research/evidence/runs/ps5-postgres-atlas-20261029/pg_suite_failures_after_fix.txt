@@ -1,0 +1,114 @@
+# pytest -p pg_atlas_plugin over 14 atlas test files: 95 failed, 936 passed, 8 skipped (before the fixes: 333 failed, 698 passed, 8 skipped)
+ 43  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+  9  psycopg.errors.SyntaxError: syntax error at or near "PRAGMA"
+  8  AssertionError: assert ['a-quiet', 'z-loud'] == ['z-loud', 'a-quiet']
+  8  AssertionError: assert 'a-trace' == 'z-trace'
+  6  psycopg.ProgrammingError: the query has 0 placeholders but 1 parameters were passed
+  4  FileNotFoundError: trace database not found: /private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/pytest-of-petermak
+  2  AssertionError: assert ('suspicion' in 'export requires a SQLite file store' or '--facet' in 'export requires a SQLite f
+  2  FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/pytest
+  2  AssertionError: assert ['ls'] == ['cat grader_tamperable.log']
+  2  psycopg.ProgrammingError: the query has 0 placeholders but 2 parameters were passed
+  2  AttributeError: 'Connection' object has no attribute 'set_trace_callback'
+  2  AssertionError: assert (('tier2_cons...r_verified',)) == (('tier2_cons...r_verified',))
+  1  Failed: DID NOT RAISE QaDataError
+  1  AssertionError: assert 'export requi...te file store' == 'not availabl...V task or run'
+  1  AssertionError: {'task': 41, 'history': 41, 'split': 41, 'runs': 41, ...}
+  1  sqlite3.OperationalError: no such table: agent_traces
+  1  AssertionError: assert None == ('tier3_provisional',)
+
+tests/test_run_atlas_store.py::test_empty_admission_never_accesses_facet_body_columns  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_run_atlas_store.py::test_empty_admission_reads_no_atlas_bodies[sqlite-fts]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_run_atlas_store.py::test_empty_admission_reads_no_atlas_bodies[sqlite-like]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_run_atlas_store.py::test_default_retrieval_does_not_consult_or_change_with_atlas_records[sqlite-fts-None]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_run_atlas_store.py::test_default_retrieval_does_not_consult_or_change_with_atlas_records[sqlite-fts-similarity]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_run_atlas_store.py::test_default_retrieval_does_not_consult_or_change_with_atlas_records[sqlite-fts-run_facets_matched]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_run_atlas_store.py::test_default_retrieval_does_not_consult_or_change_with_atlas_records[sqlite-like-None]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_run_atlas_store.py::test_default_retrieval_does_not_consult_or_change_with_atlas_records[sqlite-like-similarity]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_run_atlas_store.py::test_default_retrieval_does_not_consult_or_change_with_atlas_records[sqlite-like-run_facets_matched]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_run_atlas_store.py::test_admission_facets_clusters_and_evidence_share_one_snapshot[sqlite-fts]  |  psycopg.errors.SyntaxError: syntax error at or near "PRAGMA"
+tests/test_run_atlas_store.py::test_admission_facets_clusters_and_evidence_share_one_snapshot[sqlite-like]  |  psycopg.errors.SyntaxError: syntax error at or near "PRAGMA"
+tests/test_qa_data.py::test_invalid_numeric_facets_return_json_without_exporting[superscript-export]  |  AssertionError: assert ('suspicion' in 'export requires a SQLite file store' or '--facet' in 'export requires a SQLite f
+tests/test_qa_data.py::test_invalid_numeric_facets_return_json_without_exporting[repeated-sign-export]  |  AssertionError: assert ('suspicion' in 'export requires a SQLite file store' or '--facet' in 'export requires a SQLite f
+tests/test_qa_data.py::test_window_refuses_a_step_index_the_store_cannot_bind  |  Failed: DID NOT RAISE QaDataError
+tests/test_qa_data.py::test_admission_and_row_read_share_one_snapshot  |  psycopg.errors.SyntaxError: syntax error at or near "PRAGMA"
+tests/test_qa_data.py::test_read_only_open_never_writes_or_migrates  |  FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/pytest
+tests/test_qa_data_label_free.py::test_every_non_admitted_identity_gets_one_byte_identical_refusal[export-flags0]  |  AssertionError: assert 'export requi...te file store' == 'not availabl...V task or run'
+tests/test_qa_data_label_free.py::test_refusals_have_the_same_token_size_in_every_call_that_reads_the_store  |  AssertionError: {'task': 41, 'history': 41, 'split': 41, 'runs': 41, ...}
+tests/test_cloud_trace_retriever.py::test_matching_evidence_is_read_only_with_real_provenance[sqlite-fts-task_quality]  |  psycopg.errors.SyntaxError: syntax error at or near "PRAGMA"
+tests/test_cloud_trace_retriever.py::test_matching_evidence_is_read_only_with_real_provenance[sqlite-fts-reward_seeker]  |  psycopg.errors.SyntaxError: syntax error at or near "PRAGMA"
+tests/test_cloud_trace_retriever.py::test_matching_evidence_is_read_only_with_real_provenance[sqlite-fts-misalignment]  |  psycopg.errors.SyntaxError: syntax error at or near "PRAGMA"
+tests/test_cloud_trace_retriever.py::test_matching_evidence_is_read_only_with_real_provenance[sqlite-like-task_quality]  |  psycopg.errors.SyntaxError: syntax error at or near "PRAGMA"
+tests/test_cloud_trace_retriever.py::test_matching_evidence_is_read_only_with_real_provenance[sqlite-like-reward_seeker]  |  psycopg.errors.SyntaxError: syntax error at or near "PRAGMA"
+tests/test_cloud_trace_retriever.py::test_matching_evidence_is_read_only_with_real_provenance[sqlite-like-misalignment]  |  psycopg.errors.SyntaxError: syntax error at or near "PRAGMA"
+tests/test_cloud_trace_retriever.py::test_split_allowlist_and_all_identity_seals_are_fail_closed[sqlite-fts-task_quality]  |  psycopg.ProgrammingError: the query has 0 placeholders but 1 parameters were passed
+tests/test_cloud_trace_retriever.py::test_split_allowlist_and_all_identity_seals_are_fail_closed[sqlite-fts-reward_seeker]  |  psycopg.ProgrammingError: the query has 0 placeholders but 1 parameters were passed
+tests/test_cloud_trace_retriever.py::test_split_allowlist_and_all_identity_seals_are_fail_closed[sqlite-fts-misalignment]  |  psycopg.ProgrammingError: the query has 0 placeholders but 1 parameters were passed
+tests/test_cloud_trace_retriever.py::test_split_allowlist_and_all_identity_seals_are_fail_closed[sqlite-like-task_quality]  |  psycopg.ProgrammingError: the query has 0 placeholders but 1 parameters were passed
+tests/test_cloud_trace_retriever.py::test_split_allowlist_and_all_identity_seals_are_fail_closed[sqlite-like-reward_seeker]  |  psycopg.ProgrammingError: the query has 0 placeholders but 1 parameters were passed
+tests/test_cloud_trace_retriever.py::test_split_allowlist_and_all_identity_seals_are_fail_closed[sqlite-like-misalignment]  |  psycopg.ProgrammingError: the query has 0 placeholders but 1 parameters were passed
+tests/test_cloud_trace_retriever_compat.py::test_a_matching_real_step_is_chosen_before_an_unrelated_one[sqlite-fts]  |  AssertionError: assert ['ls'] == ['cat grader_tamperable.log']
+tests/test_cloud_trace_retriever_compat.py::test_a_matching_real_step_is_chosen_before_an_unrelated_one[sqlite-like]  |  AssertionError: assert ['ls'] == ['cat grader_tamperable.log']
+tests/test_cloud_trace_retriever_compat.py::test_trace_step_evidence_reranks_tasks_with_otherwise_equal_issues[sqlite-fts-None]  |  AssertionError: assert ['a-quiet', 'z-loud'] == ['z-loud', 'a-quiet']
+tests/test_cloud_trace_retriever_compat.py::test_trace_step_evidence_reranks_tasks_with_otherwise_equal_issues[sqlite-fts-task_quality]  |  AssertionError: assert ['a-quiet', 'z-loud'] == ['z-loud', 'a-quiet']
+tests/test_cloud_trace_retriever_compat.py::test_trace_step_evidence_reranks_tasks_with_otherwise_equal_issues[sqlite-fts-reward_seeker]  |  AssertionError: assert ['a-quiet', 'z-loud'] == ['z-loud', 'a-quiet']
+tests/test_cloud_trace_retriever_compat.py::test_trace_step_evidence_reranks_tasks_with_otherwise_equal_issues[sqlite-fts-misalignment]  |  AssertionError: assert ['a-quiet', 'z-loud'] == ['z-loud', 'a-quiet']
+tests/test_cloud_trace_retriever_compat.py::test_trace_step_evidence_reranks_tasks_with_otherwise_equal_issues[sqlite-like-None]  |  AssertionError: assert ['a-quiet', 'z-loud'] == ['z-loud', 'a-quiet']
+tests/test_cloud_trace_retriever_compat.py::test_trace_step_evidence_reranks_tasks_with_otherwise_equal_issues[sqlite-like-task_quality]  |  AssertionError: assert ['a-quiet', 'z-loud'] == ['z-loud', 'a-quiet']
+tests/test_cloud_trace_retriever_compat.py::test_trace_step_evidence_reranks_tasks_with_otherwise_equal_issues[sqlite-like-reward_seeker]  |  AssertionError: assert ['a-quiet', 'z-loud'] == ['z-loud', 'a-quiet']
+tests/test_cloud_trace_retriever_compat.py::test_trace_step_evidence_reranks_tasks_with_otherwise_equal_issues[sqlite-like-misalignment]  |  AssertionError: assert ['a-quiet', 'z-loud'] == ['z-loud', 'a-quiet']
+tests/test_cloud_trace_retriever_compat.py::test_the_most_relevant_trace_of_a_task_supplies_its_steps[sqlite-fts-None]  |  AssertionError: assert 'a-trace' == 'z-trace'
+tests/test_cloud_trace_retriever_compat.py::test_the_most_relevant_trace_of_a_task_supplies_its_steps[sqlite-fts-task_quality]  |  AssertionError: assert 'a-trace' == 'z-trace'
+tests/test_cloud_trace_retriever_compat.py::test_the_most_relevant_trace_of_a_task_supplies_its_steps[sqlite-fts-reward_seeker]  |  AssertionError: assert 'a-trace' == 'z-trace'
+tests/test_cloud_trace_retriever_compat.py::test_the_most_relevant_trace_of_a_task_supplies_its_steps[sqlite-fts-misalignment]  |  AssertionError: assert 'a-trace' == 'z-trace'
+tests/test_cloud_trace_retriever_compat.py::test_the_most_relevant_trace_of_a_task_supplies_its_steps[sqlite-like-None]  |  AssertionError: assert 'a-trace' == 'z-trace'
+tests/test_cloud_trace_retriever_compat.py::test_the_most_relevant_trace_of_a_task_supplies_its_steps[sqlite-like-task_quality]  |  AssertionError: assert 'a-trace' == 'z-trace'
+tests/test_cloud_trace_retriever_compat.py::test_the_most_relevant_trace_of_a_task_supplies_its_steps[sqlite-like-reward_seeker]  |  AssertionError: assert 'a-trace' == 'z-trace'
+tests/test_cloud_trace_retriever_compat.py::test_the_most_relevant_trace_of_a_task_supplies_its_steps[sqlite-like-misalignment]  |  AssertionError: assert 'a-trace' == 'z-trace'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-init-file-not-found]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-init-value-error]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-missing-index]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-corrupt-items]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-corrupt-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-corrupt-inventory]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-mismatched-inventory]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-incomplete-inventory]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-missing-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-empty-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-header-only-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-missing-field-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-fts-malformed-csv-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-init-file-not-found]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-init-value-error]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-missing-index]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-corrupt-items]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-corrupt-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-corrupt-inventory]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-mismatched-inventory]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-incomplete-inventory]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-missing-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-empty-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-header-only-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-missing-field-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_missing_or_invalid_authority_refuses_before_content_reads[sqlite-like-malformed-csv-assignments]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_normalized_test_identities_refuse_before_content_reads[sqlite-fts-False-False]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_normalized_test_identities_refuse_before_content_reads[sqlite-fts-False-True]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_normalized_test_identities_refuse_before_content_reads[sqlite-fts-True-False]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_normalized_test_identities_refuse_before_content_reads[sqlite-fts-True-True]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_normalized_test_identities_refuse_before_content_reads[sqlite-like-False-False]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_normalized_test_identities_refuse_before_content_reads[sqlite-like-False-True]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_normalized_test_identities_refuse_before_content_reads[sqlite-like-True-False]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_normalized_test_identities_refuse_before_content_reads[sqlite-like-True-True]  |  AttributeError: 'Connection' object has no attribute 'set_authorizer'
+tests/test_cloud_trace_retriever_optional_registry.py::test_public_admission_matches_class_on_readonly_sqlite_metadata_rows[sqlite-fts]  |  psycopg.ProgrammingError: the query has 0 placeholders but 2 parameters were passed
+tests/test_cloud_trace_retriever_optional_registry.py::test_public_admission_matches_class_on_readonly_sqlite_metadata_rows[sqlite-like]  |  psycopg.ProgrammingError: the query has 0 placeholders but 2 parameters were passed
+tests/test_cloud_trace_snapshot_retriever.py::test_path_snapshot_never_mutates_source_and_reports_receipt  |  FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/pytest
+tests/test_cloud_trace_snapshot_retriever.py::test_snapshot_digest_is_deterministic_and_content_bound  |  FileNotFoundError: trace database not found: /private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/pytest-of-petermak
+tests/test_cloud_trace_snapshot_retriever.py::test_path_snapshot_excludes_non_dev_bytes_from_its_content_digest  |  FileNotFoundError: trace database not found: /private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/pytest-of-petermak
+tests/test_cloud_trace_snapshot_retriever.py::test_path_snapshot_answers_like_the_whole_store_when_other_traces_exist  |  FileNotFoundError: trace database not found: /private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/pytest-of-petermak
+tests/test_cloud_trace_snapshot_retriever.py::test_path_snapshot_digest_ignores_traces_that_retrieval_cannot_return  |  FileNotFoundError: trace database not found: /private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/pytest-of-petermak
+tests/test_cloud_trace_snapshot_retriever.py::test_path_snapshot_holds_only_verified_dev_traces_and_survives_malformed_receipts  |  sqlite3.OperationalError: no such table: agent_traces
+tests/test_cloud_trace_trust_tiers.py::test_issue_card_and_pointer_expansion_fail_closed[sqlite-fts]  |  AttributeError: 'Connection' object has no attribute 'set_trace_callback'
+tests/test_cloud_trace_trust_tiers.py::test_issue_card_and_pointer_expansion_fail_closed[sqlite-like]  |  AttributeError: 'Connection' object has no attribute 'set_trace_callback'
+tests/test_cloud_trace_trust_tiers.py::test_trust_survives_reingestion_and_assignment_is_atomic[sqlite-fts]  |  AssertionError: assert (('tier2_cons...r_verified',)) == (('tier2_cons...r_verified',))
+tests/test_cloud_trace_trust_tiers.py::test_trust_survives_reingestion_and_assignment_is_atomic[sqlite-like]  |  AssertionError: assert (('tier2_cons...r_verified',)) == (('tier2_cons...r_verified',))
+tests/test_cloud_trace_trust_tiers.py::test_stores_created_before_trust_tiers_gain_provisional_columns  |  AssertionError: assert None == ('tier3_provisional',)

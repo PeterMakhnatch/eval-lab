@@ -43,7 +43,9 @@ CALLS (all JSON; examples use real flags)
        inventory --ids-out /private/tmp/me/ids.txt        also write every admitted trace id (file must not exist)
   traces [--task T] [--dataset D] [--model M] [--outcome pass|fail|unknown] [--alarmed-by DETECTOR] [--sort task|alarms]
          [--limit N] [--ids-only]
-       list admitted runs, faceted or not (task/dataset/model are shown; never hand these records to blind readers)
+       list admitted runs, faceted or not (task/dataset/model are shown; never hand these records to blind readers).
+       `faceted` is true only when `runs` would serve the run's facet record: one withheld for naming a sealed
+       identity counts as not faceted (here, in `task` run counts, and in `recount`)
        --model is the id as stored, with its prefix (`source-reported:moonshotai/Kimi-K3`; copy it from `inventory`
        models): a name that matches nothing is matched 0, not an error. --ids-only gives data.traces[] = ids: save
        them with `... | jq -r '.data.traces[]' > ids.txt` for `export --ids-file`.

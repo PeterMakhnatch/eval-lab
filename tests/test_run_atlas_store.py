@@ -261,6 +261,19 @@ def run_ids(rows: list[dict[str, Any]]) -> list[str]:
     return [row["run_id"] for row in rows]
 
 
+def test_admitted_facets_run_ids_only_narrow_screened_rows(faceted: CloudTraceDatabase) -> None:
+    registry = SyntheticRegistry()
+    faceted.upsert_run_facets([facet("dev-task/fail", approach="secret-name")], registry=registry)
+    retriever = CloudTraceRetriever(faceted, registry=registry, sealed_task_ids=["secret-name"])
+    selected = {"dev-task/pass", "dev-task/open", "dev-task/fail"}
+    with faceted._transaction():
+        full, _ = faceted._admitted_facets(retriever)
+        narrow, _ = faceted._admitted_facets(retriever, run_ids=selected)
+    assert narrow == [row for row in full if row["run_id"] in selected]
+    assert "dev-task/fail" not in run_ids(full)
+    assert set(run_ids(narrow)) == {"dev-task/pass", "dev-task/open"}
+
+
 def test_search_runs_filters_every_facet_and_ranks_by_suspicion(faceted: CloudTraceDatabase) -> None:
     search = partial(faceted.search_runs, registry=SyntheticRegistry())
     assert run_ids(search(allowed_task_ids=["dev-task"])) == ["dev-task/pass", "dev-task/fail", "dev-task/open"]

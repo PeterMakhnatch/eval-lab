@@ -30,8 +30,13 @@ class Recorder:
     ):
         self.disabled, self.project, self.reply, self.filters = disabled, project, reply, filters
         self.posts: list[bytes] = []
+        self.queries: list[dict[str, Any]] = []
+        self.tagged: list[dict[str, Any]] = []
 
     def __call__(self, request: Any, timeout: int):
+        if request.full_url.endswith("/v1/sql/query"):
+            self.queries.append(json.loads(request.data))
+            return io.BytesIO(json.dumps({"data": self.tagged}).encode())
         if request.get_method() == "GET":
             signal = {
                 "name": "preset", "projectId": self.project, "disabled": self.disabled,

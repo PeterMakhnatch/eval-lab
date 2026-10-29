@@ -54,6 +54,17 @@ Trace Tools operations (offline, read-only unless stated):
 - `python -m evallab.trace_store.owner_cleanup`: read-only check that exactly the 108
   owner-action Laminar copies are absent. Only a complete, project-bound inventory with
   108 `absent` returns exit 0; partial, failed, empty or wrong-project output is `unknown`.
+- **Laminar quarantine** (`trace_store/laminar_quarantine.py`): those 108 copies cannot be
+  deleted. The owner's UI/API delete answered HTTP 500 (`DELETE query is not allowed for
+  table default.spans because it has projections ...`, 2026-10-28; nothing deleted), so
+  `owner_cleanup` stays `cleanup_verified: false` and the ids are quarantined in code
+  instead. One predicate, `is_quarantined`, takes a Laminar trace id, a cloud-DB trace id
+  or a Harbor trial name. Uploads (`LaminarTarget.upload`) refuse; `traces sync --target
+  laminar` and the watch tick skip and report `quarantined`; `traces fetch --source laminar`,
+  the live exporter, `laminar_import`/`laminar_signals`/`laminar compare` and the `laminar`
+  and `laminar_copy` harness detectors skip and count. Signal filters have no trace-id
+  predicate, so they stay excluded by the required opt-in tag: `laminar signals` and the
+  opt-in upload guard refuse if a copy carries that tag. `owner_cleanup` still reads them.
 - `scout-watch` keeps a derived `coverage-v1.json` (ledger SHA-256 plus projection and
   scanner contract) and opens the transcript store only when a transcript exists.
   Admission is re-decided every sweep.
@@ -102,6 +113,13 @@ record per (run, detector):
   5% false-alarm budgets, localization and cost per detector and per OR/AND combination,
   after a reproduction gate of the published single-detector numbers; `--publish` writes
   the UI Harness tab's `trace-harness/scorecard-v1.json`.
+  Where admitted run lengths and both labels are available, each native detector
+  also has a same-run length AUROC and length-only recall at no more than its
+  observed FAR. The length threshold is chosen in-sample, so is diagnostic, not
+  held-out performance. Abstentions and missing lengths are excluded; detector
+  AUROC intervals are stratified run bootstraps, not task-clustered intervals.
+  Consult `length-control --matched` for the separate task-and-length-matched
+  analysis.
 - `coverage --corpus … [--corpus …]` lists findings per detector identity and corpus,
   and every registered detector that has no findings there.
 - `length-control [--corpus goodfire|cheatbench]` (`trace_harness_length.py`, NP30-TT-1) asks what each
@@ -126,7 +144,7 @@ record per (run, detector):
   no Family-A fusion beat cascade v8 by the preregistered 15%-at-3% criterion on Goodfire DEV
   (`RESULTS.md` there); the chosen rule's recall gain replicates on CheatBench and CM-18 at v8's own false-alarm rate.
 - The Phoenix shipper is `evallab trace otel <path>`.
-- `--detectors cascade_stream` is the only live path: it feeds a run's steps one
+- `--detectors cascade_stream` feeds a run's steps one
   `trace.step` event at a time to `MisalignmentLiveWorker`
   (`production/trace_harness_stream.py`), and it is the second adapter that may
   generate, gated the same way: Stage 2 serves only stored or injected verdicts, so a
@@ -145,6 +163,14 @@ record per (run, detector):
   `cascade*` adapters stay stored-result views. P0-F9D7D6-3
   (`research/evidence/runs/p0-f9d7d6-3-matched-cascade-20261029/`) ran it with Haiku 5.5 on the matched Goodfire pairs;
   NP34-TT-1 (`research/evidence/runs/np34-sonnet-matched-cascade-20261029/`) ran the same 246 runs with Sonnet 5.5.
+- `--detectors cascade_stream_judge_only:<provider>/<model>` selects the optional
+  `window-cascade/v8+judge-only` detector. It retains v8's ordinary judgment windows
+  and prompt but judges `grader_tamper` cards instead of raising them automatically;
+  extra gate-card judgments do not consume the existing family budget. A confirmed card
+  alarms; an unavailable judgment without a confirmed card abstains. Existing v8
+  findings and its pass-through gate are unchanged. Stored v8 judge-confirmed cards
+  reproduce the previously observed judge component, but unjudged gate cards need new
+  judgments before they can be included in the full variant.
 
 ## Gaps and duplicates
 

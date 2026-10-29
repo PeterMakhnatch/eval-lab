@@ -6,8 +6,11 @@ All S3 calls are injected; environment credentials are cleared for every test.
 
 from __future__ import annotations
 
+import atexit
+import fcntl
 import hashlib
 import io
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -25,7 +28,12 @@ import pytest
 from psycopg import sql
 
 from evallab.production import cloud_trace_db
-from evallab.production.cloud_trace_db import CloudTraceDatabase, S3CompatibleCAS
+from evallab.production.cloud_trace_db import (
+    CloudTraceDatabase,
+    CloudTraceRetriever,
+    S3CompatibleCAS,
+)
+from evallab.production.corpus_queue import CorpusRegistry
 
 _ENVIRONMENT = (
     "DATABASE_URL", "EVALLAB_CLOUD_DATABASE_URL", "EVALLAB_S3_BUCKET",
@@ -48,14 +56,112 @@ def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(subprocess, "run", without_docker)
 
 
+def _reap_postgres_directory(root: Path, pg_ctl: str, *, allow_missing_pid: bool = False) -> None:
+    """Reap only our unlocked, same-user fixture directories."""
+    try:
+        if root.is_symlink() or root.stat().st_uid != os.getuid():
+            return
+        lock_path = root / ".fixture-lock"
+        if not lock_path.exists():
+            # Legacy fixtures have no lock; never signal their processes.
+            pidfile = root / "data" / "postmaster.pid"
+            if pidfile.stat().st_uid != os.getuid():
+                return
+            lines = pidfile.read_text().splitlines()
+            if len(lines) < 2 or lines[1] != str(root / "data"):
+                return
+            try:
+                pid = abs(int(lines[0]))
+                if pid <= 1:
+                    return
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                shutil.rmtree(root)
+            except (ValueError, PermissionError):
+                pass
+            return
+        with lock_path.open("r+") as lock:
+            marker = lock.read().splitlines()
+            if lock_path.stat().st_uid != os.getuid() or not marker or marker[0] != "cloud-trace-fixture-v1":
+                return
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return
+            data = root / "data"
+            pidfile = data / "postmaster.pid"
+            if not pidfile.exists() and not allow_missing_pid:
+                return
+            if pidfile.exists():
+                if pidfile.stat().st_uid != os.getuid():
+                    return
+                lines = pidfile.read_text().splitlines()
+                if len(lines) < 2 or lines[1] != str(data):
+                    return
+                try:
+                    pid = int(lines[0])
+                    if abs(pid) <= 1:
+                        return
+                    os.kill(abs(pid), 0)
+                except ProcessLookupError:
+                    pass
+                except (ValueError, PermissionError):
+                    return
+                else:
+                    if pid < 0:
+                        return
+                    if len(lines) < 3 or marker[1:] != [lines[0], lines[2]]:
+                        return
+                    process = subprocess.run(
+                        ["ps", "-p", str(pid), "-o", "command="],
+                        capture_output=True, text=True, check=False,
+                    )
+                    if process.returncode or f"-D {data}" not in process.stdout:
+                        return
+                    stopped = subprocess.run(
+                        [pg_ctl, "-D", str(data), "-m", "fast", "-w", "stop"],
+                        capture_output=True, text=True, check=False,
+                    )
+                    if stopped.returncode:
+                        return
+            shutil.rmtree(root)
+    except (FileNotFoundError, PermissionError):
+        pass
+
+
 @pytest.fixture(scope="module")
 def postgres_server() -> Iterator[str]:
     initdb, pg_ctl = shutil.which("initdb"), shutil.which("pg_ctl")
     if initdb is None or pg_ctl is None:
+        candidates = list(Path("/usr/lib/postgresql").glob("*/bin"))
+        candidates += list(Path("/opt/homebrew/opt").glob("postgresql@*/bin"))
+        candidates.sort(
+            key=lambda path: tuple(int(part) for part in path.parent.name.removeprefix("postgresql@").split(".")
+                                   if part.isdigit()),
+            reverse=True,
+        )
+        for directory in candidates:
+            if (directory / "initdb").is_file() and (directory / "pg_ctl").is_file():
+                initdb, pg_ctl = str(directory / "initdb"), str(directory / "pg_ctl")
+                break
+    if initdb is None or pg_ctl is None:
         pytest.skip("native PostgreSQL server binaries are not installed")
-    with tempfile.TemporaryDirectory(prefix="cloud-trace-pg-") as directory:
-        root = Path(directory).resolve()
-        data = root / "data"
+    for stale in Path(tempfile.gettempdir()).resolve().glob("cloud-trace-pg-*"):
+        _reap_postgres_directory(stale, pg_ctl)
+    root = Path(tempfile.mkdtemp(prefix="cloud-trace-pg-")).resolve()
+    data = root / "data"
+    lock = (root / ".fixture-lock").open("w+")
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    lock.write("cloud-trace-fixture-v1\n")
+    lock.flush()
+
+    def cleanup() -> None:
+        if not lock.closed:
+            lock.close()
+            _reap_postgres_directory(root, pg_ctl, allow_missing_pid=True)
+
+    atexit.register(cleanup)
+    try:
         subprocess.run(
             [initdb, "-D", str(data), "-A", "trust", "-U", "postgres", "--no-locale", "--encoding=UTF8"],
             check=True, capture_output=True, text=True,
@@ -64,13 +170,13 @@ def postgres_server() -> Iterator[str]:
             [pg_ctl, "-D", str(data), "-l", str(root / "server.log"), "-o", f"-F -h '' -k {root} -p 5432", "-w", "start"],
             check=True, capture_output=True, text=True,
         )
-        try:
-            yield f"postgresql://postgres@/postgres?host={quote(str(root), safe='')}"
-        finally:
-            subprocess.run(
-                [pg_ctl, "-D", str(data), "-m", "fast", "-w", "stop"],
-                check=True, capture_output=True, text=True,
-            )
+        pid_lines = (data / "postmaster.pid").read_text().splitlines()
+        lock.write(f"{pid_lines[0]}\n{pid_lines[2]}\n")
+        lock.flush()
+        yield f"postgresql://postgres@/postgres?host={quote(str(root), safe='')}"
+    finally:
+        cleanup()
+        atexit.unregister(cleanup)
 
 
 @pytest.fixture(params=("sqlite-fts", "sqlite-like", "postgres"))
@@ -755,3 +861,62 @@ def test_task_scope_preserves_query_status_and_filter_semantics(db: CloudTraceDa
     assert {row["trace_id"] for row in db.search_traces("", allowed_task_ids=None)} == {
         "trace-1", "unverified", "other-trace",
     }
+
+
+class DevRegistry(CorpusRegistry):
+    """Valid split authority that admits the synthetic non-canonical DEV corpus."""
+
+    def __init__(self) -> None:
+        authority = b"key_id,item_id,split\nsynthetic-authority,source,dev\n"
+        self.split_assignments_digest = "sha256:" + hashlib.sha256(authority).hexdigest()
+        self._assignment_keys = frozenset({"synthetic-authority"})
+        self._assignments = {("synthetic-authority", "source"): "dev"}
+        self._assignment_names = {}
+        self._assigned_test_ids = set()
+        self._assigned_test_names = set()
+        self._sealed_names = set()
+        self._sealed_digests = set()
+        self._sealed_ids = set()
+
+
+def test_retrieval_and_pointer_expansion_return_stored_step_flags_on_every_backend(db: CloudTraceDatabase) -> None:
+    db.upsert_task(task("labeled", instruction_text="pytest grader"))
+    db.upsert_trace(trace(
+        "labeled/trace", task_id="labeled", trust_tier="tier2_consensus_labeled", flagged_passage_steps=[2],
+    ), steps=[{
+        "step_index": index, "role": "user" if index == 0 else "assistant", "content_text": f"pytest grader {index}",
+        "flags_json": ["named"] if index == 1 else {"native_node_index": index},
+    } for index in range(4)])
+    retriever = CloudTraceRetriever(db, registry=DevRegistry())
+    (example,) = retriever.retrieve_similar_examples("pytest grader", "reward_seeker", 3)
+    assert [(step["step_index"], step["flagged"]) for step in example.trace_steps] == [(1, True), (2, True), (3, False)]
+    assert example.trace_steps[0]["flags"] == '["named"]'
+    assert retriever.expand_pointer(example.pointer)["steps"] == example.trace_steps
+
+
+def test_read_only_open_reads_the_same_store_and_refuses_writes(target: tuple[str | Path, bool]) -> None:
+    # The PostgreSQL target scopes its schema through the URL's ``options``; a read-only session must keep it.
+    with CloudTraceDatabase(target[0], sqlite_fts=target[1]) as writer:
+        seed(writer)
+    with CloudTraceDatabase(target[0], read_only=True) as reader:
+        assert reader.get_trace("trace-1")["task_id"] == "synthetic-task"
+        with pytest.raises((sqlite3.OperationalError, psycopg.errors.ReadOnlySqlTransaction)):
+            reader.upsert_task(task("other-task"))
+
+
+def test_postgres_read_only_preserves_environment_options(
+    postgres_server: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = "cloud_trace_" + uuid4().hex
+    with psycopg.connect(postgres_server, autocommit=True) as connection:
+        connection.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
+        try:
+            monkeypatch.setenv("PGOPTIONS", f"-csearch_path={schema} -cdefault_transaction_read_only=off")
+            with CloudTraceDatabase(postgres_server) as writer:
+                seed(writer)
+            with CloudTraceDatabase(postgres_server, read_only=True) as reader:
+                assert reader.get_trace("trace-1")["task_id"] == "synthetic-task"
+                with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
+                    reader.upsert_task(task("other-task"))
+        finally:
+            connection.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))

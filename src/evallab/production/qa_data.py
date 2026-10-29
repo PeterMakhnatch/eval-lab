@@ -21,7 +21,7 @@ import os
 import sqlite3
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -166,6 +166,17 @@ class QaContext:
         if row is None or row[0] not in admitted:
             raise QaDataError(UNAVAILABLE)
         return row[0]
+
+    def served_facet_run_ids(self, task_ids: Collection[str]) -> set[str]:
+        """Runs of ``task_ids`` whose facet record ``runs`` would serve; caller owns the snapshot.
+
+        A record that names a sealed identity is withheld, so its run is not faceted as far as any
+        listing or count is concerned. ``task_ids`` only narrows admission, never grants it.
+        """
+        if not task_ids:
+            return set()
+        rows, _sealed = self.database._admitted_facets(self.retriever, allowed_task_ids=task_ids)
+        return {row["run_id"] for row in rows}
 
 
 def _parse_facets(items: Sequence[str]) -> dict[str, Any]:

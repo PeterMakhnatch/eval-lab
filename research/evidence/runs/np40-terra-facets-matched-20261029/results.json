@@ -1,0 +1,35 @@
+{
+  "item": "NP40-TT-1",
+  "status": "incomplete: call cap (600) cannot cover the design; no reader-family conclusion",
+  "preregistration": {"commit": "50d3bc33d274e75cced3e96ee2f6dbb3754846f6", "time_et": "2026-10-29T14:33:15"},
+  "transport_addendum": {"commit": "f0875b7ebc4d9624a9493d5e1c285425a1bfb633", "time_et": "2026-10-29T14:44:40"},
+  "attestation_amendment": {"commit": "612a379f7", "made_before_first_study_call": true, "label_joined_numbers_existing": 0},
+  "strict_gate": {"pairs": 123, "runs": 246, "admitted": 246},
+  "terra": {
+    "route": "openai-codex/gpt-6.1-terra",
+    "calls_dispatched": 289,
+    "calls_completed": 288,
+    "served_exact_model": 288,
+    "fallbacks": 0,
+    "tool_use": 0,
+    "refusals": 0,
+    "stages": {"map": 215, "form": 73},
+    "input_tokens": 8065416,
+    "output_tokens": 96518,
+    "facet_records": 72,
+    "runs_target": 246,
+    "parse_failures": 1,
+    "complete_pairs": 15,
+    "pairs_with_one_member": 57
+  },
+  "sol": {"route": "openai-codex/gpt-6.1-sol", "study_calls": 0, "canary_calls": 1, "canary_served_exact_model": true},
+  "projection": {"terra_calls_for_246_runs": 1000, "sol_calls_for_40_runs": 160, "cap": 600, "needed_cap": 1300},
+  "codex_7day_before": 0.60,
+  "codex_7day_after": 0.64,
+  "cost_usd": 0,
+  "scored": false,
+  "reference_rows": {
+    "stored_haiku_facets": {"enacted_only": 9, "clean_only": 13, "pair_auroc": 0.496, "ci95": [0.437, 0.556]},
+    "length": {"pair_auroc": 0.431, "ci95": [0.341, 0.520]}
+  }
+}

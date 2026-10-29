@@ -1,0 +1,28 @@
+{
+ "schema": "np38-sample-public/v1",
+ "seed": "20261029",
+ "group_counts": {
+  "S": 60,
+  "matched_non_S": 60
+ },
+ "S_task_keys": 41,
+ "all_task_keys": 78,
+ "group_list_sha256": {
+  "S": "dc2b27653ef69a2f290f0d61cdf268768e2c36f9cbb83a4f4223bd7fa54a8d00",
+  "non-S": "280b5c5013297d07c9a17ca9b0fcb849994d350f1d61c516d6f266fc7d301e31"
+ },
+ "pair_list_sha256": "59159c7277d8172aba0f337a3bae0cbd7b93592bdc89e0c2e86b429389b43d7d",
+ "np35_groups_sha256": "b8456f24343c57d8aaecaa9bdb7a3c6d1e3a796cc989cef7c91df1192a118e69",
+ "np29_tool_sha256": {
+  "test_edits": "c82f820453b464a984c19172f8e89bea803c8c89eb1a27fb59fabcc0b4a2b913",
+  "data": "a58a4595bd90df8b61b308c8b5782a809cf66c5c60cadfd685110712075c6da0",
+  "stats": "f153e4920ba84d1917d6b52bda51219a1878f22a70ea2172fb5dcda16164c255"
+ },
+ "cross_key": {
+  "assignments_sha256": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+  "literals_checked": 1256,
+  "test_or_sealed_hits": 0
+ },
+ "runs_manifest_sha256": "a8c9d342a098e7fdf8058bd17e742f1b31d8b39a0dae607f9935203ebb4a7ee1",
+ "sample_sha256": "b4f884ec26a1e38aac23fa883e7e3bb5ba32170821b22d26805cc731aeb8b60f"
+}

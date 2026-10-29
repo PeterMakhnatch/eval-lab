@@ -79,6 +79,7 @@ STATE_SUBDIR = "bank"
 CLOUD_DB_ENV = "EVALLAB_CLOUD_TRACE_DB"
 PROD_LIVE_ENV = "EVALLAB_PROD_LIVE_ROOT"
 CROSS_TEST_REGISTRY_ENV = "EVALLAB_CROSS_TEST_REGISTRY"
+TASK_PACKAGE_ROOTS_ENV = "EVALLAB_TASK_PACKAGE_ROOTS"
 
 
 def make_item_id(source: str, subject_id: str, kind: str, locator: str = "") -> str:
@@ -175,6 +176,11 @@ class BankContext:
                 Path.home()
                 / "Developer/research-context/bridge/2026-10-27-run-atlas/cross-test-registry.json",
             )
+        )
+    )
+    task_package_roots: tuple[Path, ...] = field(
+        default_factory=lambda: tuple(
+            Path(root) for root in os.environ.get(TASK_PACKAGE_ROOTS_ENV, "").split(os.pathsep) if root
         )
     )
 

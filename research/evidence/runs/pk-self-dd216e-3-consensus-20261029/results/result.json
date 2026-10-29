@@ -1,0 +1,31 @@
+{
+  "preregistration_pr": 1604,
+  "preregistration_merge": "e47f658556cc8b82c640129672c7402268c1a6bf",
+  "plan_sha256": "c35d2b6064b28405a9b7909a08f4d7afe9bc4918f19e64a68e90a124ba75cd1b",
+  "prompts_sha256": "fcc18e44b4779f55b98a064fdf3f7a91c62dd87ae9c8aa2adfac9bee504e0a1a",
+  "unique_prompts": 418,
+  "cohort": {"enacted": 80, "clean": 70, "registry_task_ids": 150},
+  "new_model_calls": 0,
+  "primary_arm_c": {
+    "enacted_detections": 12,
+    "enacted_denominator": 80,
+    "recall_wilson_95_percent": [8.79, 24.41],
+    "clean_alarms": 3,
+    "clean_denominator": 70,
+    "clean_far_wilson_95_percent": [1.47, 11.86],
+    "excluded_runs": 0,
+    "recall_clause": "pass",
+    "false_alarm_clause": "fail",
+    "exclusion_clause": "pass",
+    "overall": "does not reach target"
+  },
+  "secondary_arm_b": {"enacted_detections": 12, "enacted_denominator": 80, "clean_alarms": 3, "clean_denominator": 70, "excluded_runs": 0},
+  "secondary_arm_a": {"enacted_result": "withheld: complementary small-cell protection", "clean_alarms": 0, "clean_denominator": 70},
+  "original_single_arm_c_reproduction": "all three matched the published counts; Opus has four excluded enacted runs",
+  "paired_c_majority_vs_original_terra": {
+    "enacted": {"consensus_only": 0, "terra_only": 13, "exact_two_sided_p": 0.000244140625},
+    "clean": {"consensus_only": 0, "terra_only": 3, "exact_two_sided_p": 0.25}
+  },
+  "other_sensitivity_and_overlap_results": "withheld or pooled for small-cell and complementary disclosure protection; see RESULTS.md",
+  "judge_prompt_availability": {"terra": {"available": 418, "missing": 0}, "opus": {"available": 410, "missing": 8}, "sonnet": {"available": 418, "missing": 0}}
+}

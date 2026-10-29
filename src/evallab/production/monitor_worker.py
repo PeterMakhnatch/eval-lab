@@ -828,6 +828,8 @@ class MisalignmentLiveWorker:
         reference_examples: window_cascade.ExamplesFn | None = None,
         alert_playbook_cards: int = window_cascade.MAX_PLAYBOOK_CARDS,
         stage2_playbook_cards: int = 0,
+        judge_pass_through: bool = False,
+        cascade_version: str = window_cascade.CASCADE_VERSION,
     ) -> None:
         if alert_playbook_cards < 0 or stage2_playbook_cards < 0:
             raise ValueError("playbook card counts must be nonnegative")
@@ -841,6 +843,8 @@ class MisalignmentLiveWorker:
         self._reference_examples = reference_examples
         self._alert_playbook_cards = alert_playbook_cards
         self._stage2_playbook_cards = stage2_playbook_cards
+        self._judge_pass_through = judge_pass_through
+        self._cascade_version = cascade_version
         self._clock = clock
         self._control_ttl = control_ttl_seconds
         self._latency_target = latency_target_seconds
@@ -1479,10 +1483,14 @@ class MisalignmentLiveWorker:
             triaged = alert["kind"] == "agent_action"
             if not triaged:
                 triage_state = "not_applicable"
-            elif alert["rule"] in window_cascade.PASS_THROUGH_RULES:
+            elif alert["rule"] in window_cascade.PASS_THROUGH_RULES and not self._judge_pass_through:
                 triage_state = "gate_pass_through"
             elif self._judge is None:
                 triage_state = "unavailable"
+            elif self._judge_pass_through and alert["rule"] in window_cascade.PASS_THROUGH_RULES:
+                # Extra gate-card judgments must not consume the existing family budget:
+                # otherwise they could displace a window that v8 already judged.
+                triage_state = "pending"
             elif window_cascade.escalates(alert) and run.escalation.admit(
                 alert["rule"], gating=window_cascade.has_priority(alert)
             ):
@@ -1631,7 +1639,7 @@ class MisalignmentLiveWorker:
                 "cost_usd": cost,
                 "cite_or_abstain": not outcome.confirmed,
                 "cascade": {
-                    "version": window_cascade.CASCADE_VERSION,
+                    "version": self._cascade_version,
                     "window_chars": window.chars,
                     "window_truncated": window.truncated,
                     "verdict": outcome.reason,

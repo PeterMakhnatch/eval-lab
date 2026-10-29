@@ -1,0 +1,70 @@
+{
+ "base_reasons": {
+  "missing_input": 5,
+  "non_dev_input": 5,
+  "source_unavailable": 15
+ },
+ "by_store": {
+  "kev_terminal_bench_1dcda": {
+   "cases_with_digest_match": 0,
+   "digest_match": 0,
+   "name_present": 12
+  },
+  "kev_terminal_bench_tasks": {
+   "cases_with_digest_match": 0,
+   "digest_match": 0,
+   "name_present": 12
+  },
+  "kev_v4_0_0": {
+   "cases_with_digest_match": 25,
+   "digest_match": 12,
+   "name_present": 12
+  },
+  "open_qa_view": {
+   "cases_with_digest_match": 0,
+   "digest_match": 0,
+   "name_present": 12
+  },
+  "tb4_upstream_git_v4_0_0": {
+   "cases_with_digest_match": 25,
+   "digest_match": 12,
+   "name_present": 12
+  },
+  "tb4_upstream_hub_4_0_0": {
+   "cases_with_digest_match": 0,
+   "digest_match": 0,
+   "name_present": 12
+  }
+ },
+ "cases": 25,
+ "digest_function_matches_of_distinct_packages": {
+  "evallab.registry.harbor_task_digest": 0,
+  "evallab.registry.task_directory_digest": 12,
+  "evallab.task_import.package_digest": 0
+ },
+ "digest_is_bare_hex64": 25,
+ "distinct_packages": 12,
+ "label_type": {
+  "executed": 4,
+  "human": 21
+ },
+ "new_reasons": {
+  "admitted": 7,
+  "conflicting_subject_target": 6,
+  "duplicate_subject": 2,
+  "missing_input": 5,
+  "non_dev_input": 5
+ },
+ "new_status": {
+  "admitted": 7,
+  "excluded": 18
+ },
+ "polarity": {
+  "positive": 25
+ },
+ "ref_has_fragment": 0,
+ "ref_shape_ok": 25,
+ "refusals_unchanged_for_sealed_and_missing_input": true,
+ "sha256_of_cases_file": "630045a8fce775a0a9b66ce1402fa8a5440ac584c494e1592f5e3479db72dfc1",
+ "strict_dev_cases": 25
+}

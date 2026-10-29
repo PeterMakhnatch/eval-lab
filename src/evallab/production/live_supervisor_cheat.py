@@ -200,13 +200,24 @@ def gather_alarms(observation: Observation, records: Iterable[Mapping[str, Any]]
     """Cheat alarms for the subject: stored findings first, then live alarms they do not cover.
 
     ``records`` are ``trace-findings/v1`` lines; only ``alarm`` verdicts of kind ``cheat`` for
-    this subject count. ``metrics['trace_alarms']`` (Harbor source) adds detectors absent from
-    ``records``; ``metrics['alerts']`` adds every open live-watch alert.
+    this subject count, and only the newest record per (detector, version, reader) key, as the
+    findings store and the harness view read it: an older alarm that a newer record of the same
+    key replaced (by a repeat or by a ``clear``) is not shown. ``metrics['trace_alarms']`` (Harbor
+    source) adds detectors absent from ``records``; ``metrics['alerts']`` adds every open live-watch alert.
     """
     aliases = _run_aliases(observation.subject)
-    alarms: list[Alarm] = []
+    newest: dict[tuple[str, str, str], Mapping[str, Any]] = {}
     for record in records:
-        if _is_alarm(record) and record.get("kind") == "cheat" and record["run_id"] in aliases:
+        if record.get("kind") != "cheat" or record.get("run_id") not in aliases or record.get("detector") == DETECTOR:
+            continue
+        key = (str(record.get("detector") or "?"), str(record.get("detector_version") or "?"),
+               str(record.get("reader_model") or "deterministic"))
+        held = newest.get(key)
+        if held is None or str(record.get("produced_at") or "") >= str(held.get("produced_at") or ""):
+            newest[key] = record
+    alarms: list[Alarm] = []
+    for record in newest.values():
+        if _is_alarm(record):
             score = record.get("score")
             alarms.append(Alarm(str(record.get("detector") or "?"), str(record.get("detector_version") or "?"),
                                 str(record.get("reader_model") or "deterministic"),

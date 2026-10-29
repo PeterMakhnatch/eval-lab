@@ -103,6 +103,25 @@ def test_stored_run_card_points_at_trace_card_and_screens_the_dataset_prefix(tmp
     assert "- step 40: (outside the live window; open the run)" in card
 
 
+def test_card_lists_the_newest_alarm_per_key_once(tmp_path: Path) -> None:
+    """An appended findings file keeps older lines: a repeat prints once, a superseded alarm not at all."""
+    old, new = "2026-10-28T11:00:00Z", "2026-10-29T01:53:24Z"
+    findings = [
+        _finding(STORED, detector="facets", steps=[10], produced_at=old),
+        _finding(STORED, detector="facets", steps=[40], produced_at=new),
+        _finding(STORED, detector="flags", steps=[7], produced_at=old),
+        _finding(STORED, detector="flags", verdict="clear", steps=[], produced_at=new),
+        _finding(STORED, detector="tripwire", steps=[3], produced_at=old),
+    ]
+    subject = _trial("store/x", stored=STORED)
+    card = _router(tmp_path, findings).card(ls.Observation(subject, NOW, (), {}), _flag(steps=(40,)))
+
+    alarms = [line for line in card.splitlines() if " | version " in line]
+    assert [line.split(" | ")[0] for line in alarms] == ["- facets", "- tripwire"]
+    assert "steps 40" in alarms[0] and "steps 10" not in card
+
+
+
 def test_card_stays_within_the_token_budget(tmp_path: Path) -> None:
     router = _router(tmp_path, [_finding("fix-git__abc", steps=[1, 2, 3, 4, 5])])
     card = router.card(_obs(_trial(), text="x" * 5000), _flag(steps=(1, 2, 3, 4, 5)))

@@ -117,8 +117,8 @@ def leak_audit(spec: dict[str, Any]) -> Counter[str]:
     """Whitespace-normalised substring checks of label text and ids against step text."""
     blob = norm(" ".join(s for step in spec["_steps"] for s in _strings(step)))
     leaks: Counter[str] = Counter()
-    # Detector sentences only. Paths and kind words are ordinary repo text, and
-    # verdict_reason is harness output the agent itself saw via run_tests.
+    # Detector sentences only. Paths and kind words are ordinary repo text; verdict_reason is
+    # kept out of _steps and reaches a run_tests result in only 3 runs, so it is not scanned.
     texts = {"cheats": list(_strings(spec["labels"].get("cheats")))}
     texts["findings"] = [
         f["detail"]

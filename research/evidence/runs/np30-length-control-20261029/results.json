@@ -1,0 +1,5817 @@
+{
+  "corpora": {
+    "cheatbench": {
+      "exploratory_not_preregistered": {},
+      "length_auroc_population": {
+        "hi": 0.38746258415165746,
+        "lo": 0.21573454587314378,
+        "point": 0.29795555555555553,
+        "skipped": 0,
+        "valid": 2000
+      },
+      "length_auroc_population_sensitivity": {
+        "hi": 0.6842105263157895,
+        "lo": 0.2490086517664023,
+        "point": 0.29795555555555553,
+        "skipped": 0,
+        "valid": 2000
+      },
+      "length_rule": {
+        "far_0.03": {
+          "alarms": 2,
+          "far": {
+            "k": 2,
+            "n": 75,
+            "rate": 2.7,
+            "wilson": [
+              0.7,
+              9.2
+            ]
+          },
+          "fp": 2,
+          "max_false_alarms": 2,
+          "recall": {
+            "k": 0,
+            "n": 75,
+            "rate": 0.0,
+            "wilson": [
+              0.0,
+              4.9
+            ]
+          },
+          "reference_true_alarms": 19,
+          "reference_true_alarms_also_length_alarms": 0,
+          "reference_true_alarms_in_top_stratum": 9,
+          "threshold": 387.0,
+          "tp": 0
+        },
+        "far_0.05": {
+          "alarms": 3,
+          "far": {
+            "k": 3,
+            "n": 75,
+            "rate": 4.0,
+            "wilson": [
+              1.4,
+              11.1
+            ]
+          },
+          "fp": 3,
+          "max_false_alarms": 3,
+          "recall": {
+            "k": 0,
+            "n": 75,
+            "rate": 0.0,
+            "wilson": [
+              0.0,
+              4.9
+            ]
+          },
+          "reference_true_alarms": 19,
+          "reference_true_alarms_also_length_alarms": 0,
+          "reference_true_alarms_in_top_stratum": 9,
+          "threshold": 327.0,
+          "tp": 0
+        },
+        "matched_to_reference_far": {
+          "alarms": 0,
+          "far": {
+            "k": 0,
+            "n": 75,
+            "rate": 0.0,
+            "wilson": [
+              0.0,
+              4.9
+            ]
+          },
+          "fp": 0,
+          "max_false_alarms": 0,
+          "recall": {
+            "k": 0,
+            "n": 75,
+            "rate": 0.0,
+            "wilson": [
+              0.0,
+              4.9
+            ]
+          },
+          "reference_true_alarms": 19,
+          "reference_true_alarms_also_length_alarms": 0,
+          "reference_true_alarms_in_top_stratum": 9,
+          "threshold": null,
+          "tp": 0
+        }
+      },
+      "population": {
+        "clusters": 150,
+        "clusters_alt": 4,
+        "ids_sha256": "8a567d56414bfbd38c6a57bcbc7ce86c5bfd2478ed2fe8c1987d02e180da756c",
+        "n": 150,
+        "negatives": 75,
+        "positives": 75
+      },
+      "reference": {
+        "key": "cascade_v8",
+        "native": {
+          "far": {
+            "k": 0,
+            "n": 75,
+            "rate": 0.0,
+            "wilson": [
+              0.0,
+              4.9
+            ]
+          },
+          "fp": 0,
+          "n": 150,
+          "negatives": 75,
+          "positives": 75,
+          "recall": {
+            "k": 19,
+            "n": 75,
+            "rate": 25.3,
+            "wilson": [
+              16.9,
+              36.2
+            ]
+          },
+          "tp": 19
+        }
+      },
+      "strata": {
+        "cells": [
+          {
+            "max_length": 17,
+            "min_length": 2,
+            "negatives": 11,
+            "positives": 40,
+            "stratum": 1
+          },
+          {
+            "max_length": 46,
+            "min_length": 18,
+            "negatives": 34,
+            "positives": 16,
+            "stratum": 2
+          },
+          {
+            "max_length": 610,
+            "min_length": 47,
+            "negatives": 30,
+            "positives": 19,
+            "stratum": 3
+          }
+        ],
+        "cuts": [
+          17,
+          46
+        ],
+        "k": 3,
+        "tried": [
+          {
+            "cuts": [
+              13,
+              30,
+              58
+            ],
+            "k": 4,
+            "ok": false,
+            "smallest_cell": 9
+          },
+          {
+            "cuts": [
+              17,
+              46
+            ],
+            "k": 3,
+            "ok": true,
+            "smallest_cell": 11
+          }
+        ]
+      },
+      "tools": {
+        "cascade_v7": {
+          "auroc": {
+            "hi": 0.6516737454377732,
+            "lo": 0.5339281204906204,
+            "point": 0.5911111111111111,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": 0.382235162815126,
+            "lo": 0.20218310787722113,
+            "point": 0.2931555555555556,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 5,
+                "n": 75,
+                "rate": 6.7,
+                "wilson": [
+                  2.9,
+                  14.7
+                ]
+              },
+              "fp": 5,
+              "n": 150,
+              "negatives": 75,
+              "positives": 75,
+              "recall": {
+                "k": 20,
+                "n": 75,
+                "rate": 26.7,
+                "wilson": [
+                  18.0,
+                  37.6
+                ]
+              },
+              "tp": 20
+            },
+            "union": {
+              "far": {
+                "k": 5,
+                "n": 75,
+                "rate": 6.7,
+                "wilson": [
+                  2.9,
+                  14.7
+                ]
+              },
+              "fp": 5,
+              "n": 150,
+              "negatives": 75,
+              "positives": 75,
+              "recall": {
+                "k": 20,
+                "n": 75,
+                "rate": 26.7,
+                "wilson": [
+                  18.0,
+                  37.6
+                ]
+              },
+              "tp": 20
+            }
+          },
+          "decision": {
+            "adds_within_strata": true,
+            "beats_length": true,
+            "beats_length_overall": true,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 3
+          },
+          "key": "cascade_v7",
+          "length_auroc_same_runs": {
+            "hi": 0.38746258415165746,
+            "lo": 0.21573454587314378,
+            "point": 0.29795555555555553,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 150,
+          "native": {
+            "far": {
+              "k": 5,
+              "n": 75,
+              "rate": 6.7,
+              "wilson": [
+                2.9,
+                14.7
+              ]
+            },
+            "fp": 5,
+            "n": 150,
+            "negatives": 75,
+            "positives": 75,
+            "recall": {
+              "k": 20,
+              "n": 75,
+              "rate": 26.7,
+              "wilson": [
+                18.0,
+                37.6
+              ]
+            },
+            "tp": 20
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 1,
+                "n": 75,
+                "rate": 1.3,
+                "wilson": [
+                  0.2,
+                  7.2
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 0,
+                "n": 75,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.9
+                ]
+              },
+              "threshold": 10.0,
+              "tp": 0
+            },
+            "0.05": {
+              "far": {
+                "k": 1,
+                "n": 75,
+                "rate": 1.3,
+                "wilson": [
+                  0.2,
+                  7.2
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 0,
+                "n": 75,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.9
+                ]
+              },
+              "threshold": 10.0,
+              "tp": 0
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.7228041901692184,
+            "lo": 0.4473684210526316,
+            "point": 0.5911111111111111,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.6363920454545455,
+                "lo": 0.524390243902439,
+                "point": 0.575,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "fp": 0,
+                "n": 51,
+                "negatives": 11,
+                "positives": 40,
+                "recall": {
+                  "k": 6,
+                  "n": 40,
+                  "rate": 15.0,
+                  "wilson": [
+                    7.1,
+                    29.1
+                  ]
+                },
+                "tp": 6
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.761936090225564,
+                "lo": 0.5228192380536131,
+                "point": 0.6369485294117647,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 1,
+                  "n": 34,
+                  "rate": 2.9,
+                  "wilson": [
+                    0.5,
+                    14.9
+                  ]
+                },
+                "fp": 1,
+                "n": 50,
+                "negatives": 34,
+                "positives": 16,
+                "recall": {
+                  "k": 5,
+                  "n": 16,
+                  "rate": 31.2,
+                  "wilson": [
+                    14.2,
+                    55.6
+                  ]
+                },
+                "tp": 5
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.7700514705882355,
+                "lo": 0.5080582157258065,
+                "point": 0.6385964912280702,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 4,
+                  "n": 30,
+                  "rate": 13.3,
+                  "wilson": [
+                    5.3,
+                    29.7
+                  ]
+                },
+                "fp": 4,
+                "n": 49,
+                "negatives": 30,
+                "positives": 19,
+                "recall": {
+                  "k": 9,
+                  "n": 19,
+                  "rate": 47.4,
+                  "wilson": [
+                    27.3,
+                    68.3
+                  ]
+                },
+                "tp": 9
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "cascade_v8": {
+          "auroc": {
+            "hi": 0.679513888888889,
+            "lo": 0.5769097222222221,
+            "point": 0.6266666666666667,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": 0.41389582871847436,
+            "lo": 0.23682694327731094,
+            "point": 0.3287111111111112,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 0,
+                "n": 75,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.9
+                ]
+              },
+              "fp": 0,
+              "n": 150,
+              "negatives": 75,
+              "positives": 75,
+              "recall": {
+                "k": 19,
+                "n": 75,
+                "rate": 25.3,
+                "wilson": [
+                  16.9,
+                  36.2
+                ]
+              },
+              "tp": 19
+            },
+            "union": {
+              "far": {
+                "k": 0,
+                "n": 75,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.9
+                ]
+              },
+              "fp": 0,
+              "n": 150,
+              "negatives": 75,
+              "positives": 75,
+              "recall": {
+                "k": 19,
+                "n": 75,
+                "rate": 25.3,
+                "wilson": [
+                  16.9,
+                  36.2
+                ]
+              },
+              "tp": 19
+            }
+          },
+          "decision": {
+            "adds_within_strata": true,
+            "beats_length": true,
+            "beats_length_overall": true,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 3
+          },
+          "key": "cascade_v8",
+          "length_auroc_same_runs": {
+            "hi": 0.38746258415165746,
+            "lo": 0.21573454587314378,
+            "point": 0.29795555555555553,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 150,
+          "native": {
+            "far": {
+              "k": 0,
+              "n": 75,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                4.9
+              ]
+            },
+            "fp": 0,
+            "n": 150,
+            "negatives": 75,
+            "positives": 75,
+            "recall": {
+              "k": 19,
+              "n": 75,
+              "rate": 25.3,
+              "wilson": [
+                16.9,
+                36.2
+              ]
+            },
+            "tp": 19
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 75,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.9
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 19,
+                "n": 75,
+                "rate": 25.3,
+                "wilson": [
+                  16.9,
+                  36.2
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 19
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 75,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.9
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 19,
+                "n": 75,
+                "rate": 25.3,
+                "wilson": [
+                  16.9,
+                  36.2
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 19
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.75,
+            "lo": 0.5,
+            "point": 0.6266666666666667,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.6154069767441862,
+                "lo": 0.5135135135135135,
+                "point": 0.5625,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "fp": 0,
+                "n": 51,
+                "negatives": 11,
+                "positives": 40,
+                "recall": {
+                  "k": 5,
+                  "n": 40,
+                  "rate": 12.5,
+                  "wilson": [
+                    5.5,
+                    26.1
+                  ]
+                },
+                "tp": 5
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.7777777777777778,
+                "lo": 0.5453598484848484,
+                "point": 0.65625,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 34,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    10.2
+                  ]
+                },
+                "fp": 0,
+                "n": 50,
+                "negatives": 34,
+                "positives": 16,
+                "recall": {
+                  "k": 5,
+                  "n": 16,
+                  "rate": 31.2,
+                  "wilson": [
+                    14.2,
+                    55.6
+                  ]
+                },
+                "tp": 5
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.8529411764705882,
+                "lo": 0.6176470588235294,
+                "point": 0.7368421052631579,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 30,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    11.4
+                  ]
+                },
+                "fp": 0,
+                "n": 49,
+                "negatives": 30,
+                "positives": 19,
+                "recall": {
+                  "k": 9,
+                  "n": 19,
+                  "rate": 47.4,
+                  "wilson": [
+                    27.3,
+                    68.3
+                  ]
+                },
+                "tp": 9
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "docent_sonnet": {
+          "key": "docent_sonnet",
+          "n_evaluated": 0
+        },
+        "facets_haiku": {
+          "auroc": {
+            "hi": 0.774639196496183,
+            "lo": 0.6182144527511167,
+            "point": 0.6979555555555556,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": 0.5072128480629541,
+            "lo": 0.2900782361308677,
+            "point": 0.4,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 4,
+                "n": 75,
+                "rate": 5.3,
+                "wilson": [
+                  2.1,
+                  12.9
+                ]
+              },
+              "fp": 4,
+              "n": 150,
+              "negatives": 75,
+              "positives": 75,
+              "recall": {
+                "k": 30,
+                "n": 75,
+                "rate": 40.0,
+                "wilson": [
+                  29.7,
+                  51.3
+                ]
+              },
+              "tp": 30
+            },
+            "union": {
+              "far": {
+                "k": 4,
+                "n": 75,
+                "rate": 5.3,
+                "wilson": [
+                  2.1,
+                  12.9
+                ]
+              },
+              "fp": 4,
+              "n": 150,
+              "negatives": 75,
+              "positives": 75,
+              "recall": {
+                "k": 30,
+                "n": 75,
+                "rate": 40.0,
+                "wilson": [
+                  29.7,
+                  51.3
+                ]
+              },
+              "tp": 30
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": true,
+            "beats_length_overall": true,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 2
+          },
+          "key": "facets_haiku",
+          "length_auroc_same_runs": {
+            "hi": 0.38746258415165746,
+            "lo": 0.21573454587314378,
+            "point": 0.29795555555555553,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 150,
+          "native": {
+            "far": {
+              "k": 4,
+              "n": 75,
+              "rate": 5.3,
+              "wilson": [
+                2.1,
+                12.9
+              ]
+            },
+            "fp": 4,
+            "n": 150,
+            "negatives": 75,
+            "positives": 75,
+            "recall": {
+              "k": 30,
+              "n": 75,
+              "rate": 40.0,
+              "wilson": [
+                29.7,
+                51.3
+              ]
+            },
+            "tp": 30
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 1,
+                "n": 75,
+                "rate": 1.3,
+                "wilson": [
+                  0.2,
+                  7.2
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 16,
+                "n": 75,
+                "rate": 21.3,
+                "wilson": [
+                  13.6,
+                  31.9
+                ]
+              },
+              "threshold": 3.0,
+              "tp": 16
+            },
+            "0.05": {
+              "far": {
+                "k": 1,
+                "n": 75,
+                "rate": 1.3,
+                "wilson": [
+                  0.2,
+                  7.2
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 16,
+                "n": 75,
+                "rate": 21.3,
+                "wilson": [
+                  13.6,
+                  31.9
+                ]
+              },
+              "threshold": 3.0,
+              "tp": 16
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.9210526315789473,
+            "lo": 0.6671773612112473,
+            "point": 0.6979555555555556,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.8484848484848485,
+                "lo": 0.6249147022332506,
+                "point": 0.7454545454545455,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "fp": 0,
+                "n": 51,
+                "negatives": 11,
+                "positives": 40,
+                "recall": {
+                  "k": 16,
+                  "n": 40,
+                  "rate": 40.0,
+                  "wilson": [
+                    26.3,
+                    55.4
+                  ]
+                },
+                "tp": 16
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.9220819333282996,
+                "lo": 0.6351973684210526,
+                "point": 0.7895220588235294,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 1,
+                  "n": 34,
+                  "rate": 2.9,
+                  "wilson": [
+                    0.5,
+                    14.9
+                  ]
+                },
+                "fp": 1,
+                "n": 50,
+                "negatives": 34,
+                "positives": 16,
+                "recall": {
+                  "k": 8,
+                  "n": 16,
+                  "rate": 50.0,
+                  "wilson": [
+                    28.0,
+                    72.0
+                  ]
+                },
+                "tp": 8
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.7662355307735743,
+                "lo": 0.4590994454922016,
+                "point": 0.6131578947368421,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 3,
+                  "n": 30,
+                  "rate": 10.0,
+                  "wilson": [
+                    3.5,
+                    25.6
+                  ]
+                },
+                "fp": 3,
+                "n": 49,
+                "negatives": 30,
+                "positives": 19,
+                "recall": {
+                  "k": 6,
+                  "n": 19,
+                  "rate": 31.6,
+                  "wilson": [
+                    15.4,
+                    54.0
+                  ]
+                },
+                "tp": 6
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "hodoscope_top10": {
+          "key": "hodoscope_top10",
+          "n_evaluated": 0
+        },
+        "hodoscope_top25": {
+          "key": "hodoscope_top25",
+          "n_evaluated": 0
+        },
+        "hodoscope_top50": {
+          "key": "hodoscope_top50",
+          "n_evaluated": 0
+        },
+        "laminar": {
+          "key": "laminar",
+          "n_evaluated": 0
+        },
+        "metr_grok": {
+          "key": "metr_grok",
+          "n_evaluated": 0
+        },
+        "metr_kimi_native": {
+          "key": "metr_kimi_native",
+          "n_evaluated": 0
+        },
+        "metr_openrouter_kimi_k3": {
+          "key": "metr_openrouter_kimi_k3",
+          "n_evaluated": 0
+        },
+        "pxi_coverage_investigation_r1": {
+          "key": "pxi_coverage_investigation_r1",
+          "n_evaluated": 0
+        },
+        "pxi_generic_investigation_r1": {
+          "key": "pxi_generic_investigation_r1",
+          "n_evaluated": 0
+        },
+        "pxi_generic_investigation_r2": {
+          "key": "pxi_generic_investigation_r2",
+          "n_evaluated": 0
+        },
+        "pxi_generic_investigation_r3": {
+          "key": "pxi_generic_investigation_r3",
+          "n_evaluated": 0
+        },
+        "pxi_generic_union": {
+          "key": "pxi_generic_union",
+          "n_evaluated": 0
+        },
+        "scout_native": {
+          "auroc": {
+            "hi": 0.5136920626988093,
+            "lo": 0.3508293063630491,
+            "point": 0.43315555555555557,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": 0.21393953485584144,
+            "lo": 0.049637095543345555,
+            "point": 0.13520000000000004,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 34,
+                "n": 75,
+                "rate": 45.3,
+                "wilson": [
+                  34.6,
+                  56.6
+                ]
+              },
+              "fp": 34,
+              "n": 150,
+              "negatives": 75,
+              "positives": 75,
+              "recall": {
+                "k": 19,
+                "n": 75,
+                "rate": 25.3,
+                "wilson": [
+                  16.9,
+                  36.2
+                ]
+              },
+              "tp": 19
+            },
+            "union": {
+              "far": {
+                "k": 34,
+                "n": 75,
+                "rate": 45.3,
+                "wilson": [
+                  34.6,
+                  56.6
+                ]
+              },
+              "fp": 34,
+              "n": 150,
+              "negatives": 75,
+              "positives": 75,
+              "recall": {
+                "k": 19,
+                "n": 75,
+                "rate": 25.3,
+                "wilson": [
+                  16.9,
+                  36.2
+                ]
+              },
+              "tp": 19
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": true,
+            "beats_length_overall": true,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 0
+          },
+          "key": "scout_native",
+          "length_auroc_same_runs": {
+            "hi": 0.38746258415165746,
+            "lo": 0.21573454587314378,
+            "point": 0.29795555555555553,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 150,
+          "native": {
+            "far": {
+              "k": 34,
+              "n": 75,
+              "rate": 45.3,
+              "wilson": [
+                34.6,
+                56.6
+              ]
+            },
+            "fp": 34,
+            "n": 150,
+            "negatives": 75,
+            "positives": 75,
+            "recall": {
+              "k": 19,
+              "n": 75,
+              "rate": 25.3,
+              "wilson": [
+                16.9,
+                36.2
+              ]
+            },
+            "tp": 19
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 2,
+                "n": 75,
+                "rate": 2.7,
+                "wilson": [
+                  0.7,
+                  9.2
+                ]
+              },
+              "fp": 2,
+              "recall": {
+                "k": 7,
+                "n": 75,
+                "rate": 9.3,
+                "wilson": [
+                  4.6,
+                  18.0
+                ]
+              },
+              "threshold": 8.0,
+              "tp": 7
+            },
+            "0.05": {
+              "far": {
+                "k": 3,
+                "n": 75,
+                "rate": 4.0,
+                "wilson": [
+                  1.4,
+                  11.1
+                ]
+              },
+              "fp": 3,
+              "recall": {
+                "k": 8,
+                "n": 75,
+                "rate": 10.7,
+                "wilson": [
+                  5.5,
+                  19.7
+                ]
+              },
+              "threshold": 7.0,
+              "tp": 8
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.49736842105263157,
+            "lo": 0.3204633204633205,
+            "point": 0.43315555555555557,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.5833333333333334,
+                "lo": 0.5,
+                "point": 0.5375,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "fp": 0,
+                "n": 51,
+                "negatives": 11,
+                "positives": 40,
+                "recall": {
+                  "k": 3,
+                  "n": 40,
+                  "rate": 7.5,
+                  "wilson": [
+                    2.6,
+                    19.9
+                  ]
+                },
+                "tp": 3
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.5961538461538461,
+                "lo": 0.28332720588235294,
+                "point": 0.43106617647058826,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 15,
+                  "n": 34,
+                  "rate": 44.1,
+                  "wilson": [
+                    28.9,
+                    60.5
+                  ]
+                },
+                "fp": 15,
+                "n": 50,
+                "negatives": 34,
+                "positives": 16,
+                "recall": {
+                  "k": 4,
+                  "n": 16,
+                  "rate": 25.0,
+                  "wilson": [
+                    10.2,
+                    49.5
+                  ]
+                },
+                "tp": 4
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.7794140482279869,
+                "lo": 0.4422212164007282,
+                "point": 0.6166666666666667,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 19,
+                  "n": 30,
+                  "rate": 63.3,
+                  "wilson": [
+                    45.5,
+                    78.1
+                  ]
+                },
+                "fp": 19,
+                "n": 49,
+                "negatives": 30,
+                "positives": 19,
+                "recall": {
+                  "k": 12,
+                  "n": 19,
+                  "rate": 63.2,
+                  "wilson": [
+                    41.0,
+                    80.9
+                  ]
+                },
+                "tp": 12
+              },
+              "stratum": 3
+            }
+          ]
+        }
+      }
+    },
+    "goodfire": {
+      "exploratory_not_preregistered": {
+        "hodoscope_action_count": {
+          "auroc": {
+            "hi": 0.87357037348806,
+            "lo": 0.7387970233900466,
+            "point": 0.8127717391304348,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "evaluated": 149
+        },
+        "trace_rows_step_count": {
+          "auroc": {
+            "hi": 0.8610357601630556,
+            "lo": 0.7159119090079883,
+            "point": 0.7941123188405798,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "evaluated": 149
+        }
+      },
+      "length_auroc_population": {
+        "hi": 0.8442267708885356,
+        "lo": 0.6963267844103688,
+        "point": 0.7758152173913043,
+        "skipped": 0,
+        "valid": 2000
+      },
+      "length_auroc_population_sensitivity": {
+        "hi": 0.8488466812400636,
+        "lo": 0.6987062904519159,
+        "point": 0.7758152173913043,
+        "skipped": 0,
+        "valid": 2000
+      },
+      "length_rule": {
+        "far_0.03": {
+          "alarms": 31,
+          "far": {
+            "k": 2,
+            "n": 69,
+            "rate": 2.9,
+            "wilson": [
+              0.8,
+              10.0
+            ]
+          },
+          "fp": 2,
+          "max_false_alarms": 2,
+          "recall": {
+            "k": 29,
+            "n": 80,
+            "rate": 36.2,
+            "wilson": [
+              26.6,
+              47.2
+            ]
+          },
+          "reference_true_alarms": 10,
+          "reference_true_alarms_also_length_alarms": 7,
+          "reference_true_alarms_in_top_stratum": 7,
+          "threshold": 40.0,
+          "tp": 29
+        },
+        "far_0.05": {
+          "alarms": 31,
+          "far": {
+            "k": 2,
+            "n": 69,
+            "rate": 2.9,
+            "wilson": [
+              0.8,
+              10.0
+            ]
+          },
+          "fp": 2,
+          "max_false_alarms": 3,
+          "recall": {
+            "k": 29,
+            "n": 80,
+            "rate": 36.2,
+            "wilson": [
+              26.6,
+              47.2
+            ]
+          },
+          "reference_true_alarms": 10,
+          "reference_true_alarms_also_length_alarms": 7,
+          "reference_true_alarms_in_top_stratum": 7,
+          "threshold": 40.0,
+          "tp": 29
+        },
+        "matched_to_reference_far": {
+          "alarms": 29,
+          "far": {
+            "k": 1,
+            "n": 69,
+            "rate": 1.4,
+            "wilson": [
+              0.3,
+              7.8
+            ]
+          },
+          "fp": 1,
+          "max_false_alarms": 1,
+          "recall": {
+            "k": 28,
+            "n": 80,
+            "rate": 35.0,
+            "wilson": [
+              25.5,
+              45.9
+            ]
+          },
+          "reference_true_alarms": 10,
+          "reference_true_alarms_also_length_alarms": 7,
+          "reference_true_alarms_in_top_stratum": 7,
+          "threshold": 41.0,
+          "tp": 28
+        }
+      },
+      "population": {
+        "clusters": 149,
+        "clusters_alt": 130,
+        "ids_sha256": "460701379bc67a542b2eafcf40e113e576e8e4b82d32108f8c90a2d53a46f535",
+        "n": 149,
+        "negatives": 69,
+        "positives": 80
+      },
+      "reference": {
+        "key": "cascade_v8",
+        "native": {
+          "far": {
+            "k": 1,
+            "n": 69,
+            "rate": 1.4,
+            "wilson": [
+              0.3,
+              7.8
+            ]
+          },
+          "fp": 1,
+          "n": 149,
+          "negatives": 69,
+          "positives": 80,
+          "recall": {
+            "k": 10,
+            "n": 80,
+            "rate": 12.5,
+            "wilson": [
+              6.9,
+              21.5
+            ]
+          },
+          "tp": 10
+        }
+      },
+      "strata": {
+        "cells": [
+          {
+            "max_length": 20,
+            "min_length": 7,
+            "negatives": 39,
+            "positives": 11,
+            "stratum": 1
+          },
+          {
+            "max_length": 28,
+            "min_length": 21,
+            "negatives": 19,
+            "positives": 33,
+            "stratum": 2
+          },
+          {
+            "max_length": 132,
+            "min_length": 29,
+            "negatives": 11,
+            "positives": 36,
+            "stratum": 3
+          }
+        ],
+        "cuts": [
+          20,
+          28
+        ],
+        "k": 3,
+        "tried": [
+          {
+            "cuts": [
+              17,
+              26,
+              36
+            ],
+            "k": 4,
+            "ok": false,
+            "smallest_cell": 7
+          },
+          {
+            "cuts": [
+              20,
+              28
+            ],
+            "k": 3,
+            "ok": true,
+            "smallest_cell": 11
+          }
+        ]
+      },
+      "tools": {
+        "cascade_v7": {
+          "auroc": {
+            "hi": 0.6025641025641025,
+            "lo": 0.5213694183313748,
+            "point": 0.5617753623188406,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": -0.13139946148229284,
+            "lo": -0.2892331476652403,
+            "point": -0.2140398550724637,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 1,
+                "n": 68,
+                "rate": 1.5,
+                "wilson": [
+                  0.3,
+                  7.9
+                ]
+              },
+              "fp": 1,
+              "n": 120,
+              "negatives": 68,
+              "positives": 52,
+              "recall": {
+                "k": 4,
+                "n": 52,
+                "rate": 7.7,
+                "wilson": [
+                  3.0,
+                  18.2
+                ]
+              },
+              "tp": 4
+            },
+            "union": {
+              "far": {
+                "k": 2,
+                "n": 69,
+                "rate": 2.9,
+                "wilson": [
+                  0.8,
+                  10.0
+                ]
+              },
+              "fp": 2,
+              "n": 149,
+              "negatives": 69,
+              "positives": 80,
+              "recall": {
+                "k": 32,
+                "n": 80,
+                "rate": 40.0,
+                "wilson": [
+                  30.0,
+                  51.0
+                ]
+              },
+              "tp": 32
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 1
+          },
+          "key": "cascade_v7",
+          "length_auroc_same_runs": {
+            "hi": 0.8442267708885356,
+            "lo": 0.6963267844103688,
+            "point": 0.7758152173913043,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 149,
+          "native": {
+            "far": {
+              "k": 1,
+              "n": 69,
+              "rate": 1.4,
+              "wilson": [
+                0.3,
+                7.8
+              ]
+            },
+            "fp": 1,
+            "n": 149,
+            "negatives": 69,
+            "positives": 80,
+            "recall": {
+              "k": 11,
+              "n": 80,
+              "rate": 13.8,
+              "wilson": [
+                7.9,
+                23.0
+              ]
+            },
+            "tp": 11
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 1,
+                "n": 69,
+                "rate": 1.4,
+                "wilson": [
+                  0.3,
+                  7.8
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 11,
+                "n": 80,
+                "rate": 13.8,
+                "wilson": [
+                  7.9,
+                  23.0
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 11
+            },
+            "0.05": {
+              "far": {
+                "k": 1,
+                "n": 69,
+                "rate": 1.4,
+                "wilson": [
+                  0.3,
+                  7.8
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 11,
+                "n": 80,
+                "rate": 13.8,
+                "wilson": [
+                  7.9,
+                  23.0
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 11
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.6037201764285098,
+            "lo": 0.5227572524946487,
+            "point": 0.5617753623188406,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.5,
+                "lo": 0.5,
+                "point": 0.5,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 39,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    9.0
+                  ]
+                },
+                "fp": 0,
+                "n": 50,
+                "negatives": 39,
+                "positives": 11,
+                "recall": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.5859750445632799,
+                "lo": 0.44544563279857396,
+                "point": 0.5191387559808612,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 1,
+                  "n": 19,
+                  "rate": 5.3,
+                  "wilson": [
+                    0.9,
+                    24.6
+                  ]
+                },
+                "fp": 1,
+                "n": 52,
+                "negatives": 19,
+                "positives": 33,
+                "recall": {
+                  "k": 3,
+                  "n": 33,
+                  "rate": 9.1,
+                  "wilson": [
+                    3.1,
+                    23.6
+                  ]
+                },
+                "tp": 3
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.678607142857143,
+                "lo": 0.546875,
+                "point": 0.6111111111111112,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "fp": 0,
+                "n": 47,
+                "negatives": 11,
+                "positives": 36,
+                "recall": {
+                  "k": 8,
+                  "n": 36,
+                  "rate": 22.2,
+                  "wilson": [
+                    11.7,
+                    38.1
+                  ]
+                },
+                "tp": 8
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "cascade_v8": {
+          "auroc": {
+            "hi": 0.59375,
+            "lo": 0.516158315177923,
+            "point": 0.5554347826086956,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": -0.1372799605755715,
+            "lo": -0.2953620855825021,
+            "point": -0.22038043478260871,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 1,
+                "n": 68,
+                "rate": 1.5,
+                "wilson": [
+                  0.3,
+                  7.9
+                ]
+              },
+              "fp": 1,
+              "n": 120,
+              "negatives": 68,
+              "positives": 52,
+              "recall": {
+                "k": 3,
+                "n": 52,
+                "rate": 5.8,
+                "wilson": [
+                  2.0,
+                  15.6
+                ]
+              },
+              "tp": 3
+            },
+            "union": {
+              "far": {
+                "k": 2,
+                "n": 69,
+                "rate": 2.9,
+                "wilson": [
+                  0.8,
+                  10.0
+                ]
+              },
+              "fp": 2,
+              "n": 149,
+              "negatives": 69,
+              "positives": 80,
+              "recall": {
+                "k": 31,
+                "n": 80,
+                "rate": 38.8,
+                "wilson": [
+                  28.8,
+                  49.7
+                ]
+              },
+              "tp": 31
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 1
+          },
+          "key": "cascade_v8",
+          "length_auroc_same_runs": {
+            "hi": 0.8442267708885356,
+            "lo": 0.6963267844103688,
+            "point": 0.7758152173913043,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 149,
+          "native": {
+            "far": {
+              "k": 1,
+              "n": 69,
+              "rate": 1.4,
+              "wilson": [
+                0.3,
+                7.8
+              ]
+            },
+            "fp": 1,
+            "n": 149,
+            "negatives": 69,
+            "positives": 80,
+            "recall": {
+              "k": 10,
+              "n": 80,
+              "rate": 12.5,
+              "wilson": [
+                6.9,
+                21.5
+              ]
+            },
+            "tp": 10
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 1,
+                "n": 69,
+                "rate": 1.4,
+                "wilson": [
+                  0.3,
+                  7.8
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 10,
+                "n": 80,
+                "rate": 12.5,
+                "wilson": [
+                  6.9,
+                  21.5
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 10
+            },
+            "0.05": {
+              "far": {
+                "k": 1,
+                "n": 69,
+                "rate": 1.4,
+                "wilson": [
+                  0.3,
+                  7.8
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 10,
+                "n": 80,
+                "rate": 12.5,
+                "wilson": [
+                  6.9,
+                  21.5
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 10
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.5973841928420416,
+            "lo": 0.5174295427670478,
+            "point": 0.5554347826086956,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.5,
+                "lo": 0.5,
+                "point": 0.5,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 39,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    9.0
+                  ]
+                },
+                "fp": 0,
+                "n": 50,
+                "negatives": 39,
+                "positives": 11,
+                "recall": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.5859750445632799,
+                "lo": 0.44544563279857396,
+                "point": 0.5191387559808612,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 1,
+                  "n": 19,
+                  "rate": 5.3,
+                  "wilson": [
+                    0.9,
+                    24.6
+                  ]
+                },
+                "fp": 1,
+                "n": 52,
+                "negatives": 19,
+                "positives": 33,
+                "recall": {
+                  "k": 3,
+                  "n": 33,
+                  "rate": 9.1,
+                  "wilson": [
+                    3.1,
+                    23.6
+                  ]
+                },
+                "tp": 3
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.6621621621621622,
+                "lo": 0.5344540229885058,
+                "point": 0.5972222222222222,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "fp": 0,
+                "n": 47,
+                "negatives": 11,
+                "positives": 36,
+                "recall": {
+                  "k": 7,
+                  "n": 36,
+                  "rate": 19.4,
+                  "wilson": [
+                    9.8,
+                    35.0
+                  ]
+                },
+                "tp": 7
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "docent_sonnet": {
+          "auroc": {
+            "hi": 0.75,
+            "lo": 0.6097560975609756,
+            "point": 0.6785714285714286,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": -0.06091875021613582,
+            "lo": -0.28437841961279453,
+            "point": -0.18033509700176364,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 0,
+                "n": 27,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  12.5
+                ]
+              },
+              "fp": 0,
+              "n": 55,
+              "negatives": 27,
+              "positives": 28,
+              "recall": {
+                "k": 3,
+                "n": 28,
+                "rate": 10.7,
+                "wilson": [
+                  3.7,
+                  27.2
+                ]
+              },
+              "tp": 3
+            },
+            "union": {
+              "far": {
+                "k": 0,
+                "n": 27,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  12.5
+                ]
+              },
+              "fp": 0,
+              "n": 69,
+              "negatives": 27,
+              "positives": 42,
+              "recall": {
+                "k": 17,
+                "n": 42,
+                "rate": 40.5,
+                "wilson": [
+                  27.0,
+                  55.5
+                ]
+              },
+              "tp": 17
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 2,
+            "strata_with_lower_bound_above_half": 1
+          },
+          "key": "docent_sonnet",
+          "length_auroc_same_runs": {
+            "hi": 0.9408652042900326,
+            "lo": 0.762135374045281,
+            "point": 0.8589065255731922,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 69,
+          "native": {
+            "far": {
+              "k": 0,
+              "n": 27,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                12.5
+              ]
+            },
+            "fp": 0,
+            "n": 69,
+            "negatives": 27,
+            "positives": 42,
+            "recall": {
+              "k": 3,
+              "n": 42,
+              "rate": 7.1,
+              "wilson": [
+                2.5,
+                19.0
+              ]
+            },
+            "tp": 3
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 27,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  12.5
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 15,
+                "n": 42,
+                "rate": 35.7,
+                "wilson": [
+                  23.0,
+                  50.8
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 15
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 27,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  12.5
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 15,
+                "n": 42,
+                "rate": 35.7,
+                "wilson": [
+                  23.0,
+                  50.8
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 15
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.7636426767676768,
+            "lo": 0.6052631578947368,
+            "point": 0.6785714285714286,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.75,
+                "lo": 0.5,
+                "point": 0.5714285714285714,
+                "skipped": 2,
+                "valid": 1998
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 21,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    15.5
+                  ]
+                },
+                "fp": 0,
+                "n": 28,
+                "negatives": 21,
+                "positives": 7,
+                "recall": {
+                  "k": 0,
+                  "n": 7,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    35.4
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.7941176470588235,
+                "lo": 0.5666666666666667,
+                "point": 0.6764705882352942,
+                "skipped": 11,
+                "valid": 1989
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 5,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    43.4
+                  ]
+                },
+                "fp": 0,
+                "n": 22,
+                "negatives": 5,
+                "positives": 17,
+                "recall": {
+                  "k": 3,
+                  "n": 17,
+                  "rate": 17.6,
+                  "wilson": [
+                    6.2,
+                    41.0
+                  ]
+                },
+                "tp": 3
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 1,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    79.3
+                  ]
+                },
+                "fp": 0,
+                "n": 19,
+                "negatives": 1,
+                "positives": 18,
+                "recall": {
+                  "k": 0,
+                  "n": 18,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    17.6
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "facets_haiku": {
+          "auroc": {
+            "hi": 0.6707911237353673,
+            "lo": 0.5582319972826087,
+            "point": 0.6156702898550724,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": -0.07700242185707293,
+            "lo": -0.24189322341473124,
+            "point": -0.16014492753623188,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 1,
+                "n": 68,
+                "rate": 1.5,
+                "wilson": [
+                  0.3,
+                  7.9
+                ]
+              },
+              "fp": 1,
+              "n": 120,
+              "negatives": 68,
+              "positives": 52,
+              "recall": {
+                "k": 5,
+                "n": 52,
+                "rate": 9.6,
+                "wilson": [
+                  4.2,
+                  20.6
+                ]
+              },
+              "tp": 5
+            },
+            "union": {
+              "far": {
+                "k": 2,
+                "n": 69,
+                "rate": 2.9,
+                "wilson": [
+                  0.8,
+                  10.0
+                ]
+              },
+              "fp": 2,
+              "n": 149,
+              "negatives": 69,
+              "positives": 80,
+              "recall": {
+                "k": 33,
+                "n": 80,
+                "rate": 41.2,
+                "wilson": [
+                  31.1,
+                  52.2
+                ]
+              },
+              "tp": 33
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 1
+          },
+          "key": "facets_haiku",
+          "length_auroc_same_runs": {
+            "hi": 0.8442267708885356,
+            "lo": 0.6963267844103688,
+            "point": 0.7758152173913043,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 149,
+          "native": {
+            "far": {
+              "k": 1,
+              "n": 69,
+              "rate": 1.4,
+              "wilson": [
+                0.3,
+                7.8
+              ]
+            },
+            "fp": 1,
+            "n": 149,
+            "negatives": 69,
+            "positives": 80,
+            "recall": {
+              "k": 7,
+              "n": 80,
+              "rate": 8.8,
+              "wilson": [
+                4.3,
+                17.0
+              ]
+            },
+            "tp": 7
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 1,
+                "n": 69,
+                "rate": 1.4,
+                "wilson": [
+                  0.3,
+                  7.8
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 7,
+                "n": 80,
+                "rate": 8.8,
+                "wilson": [
+                  4.3,
+                  17.0
+                ]
+              },
+              "threshold": 2.0,
+              "tp": 7
+            },
+            "0.05": {
+              "far": {
+                "k": 3,
+                "n": 69,
+                "rate": 4.3,
+                "wilson": [
+                  1.5,
+                  12.0
+                ]
+              },
+              "fp": 3,
+              "recall": {
+                "k": 22,
+                "n": 80,
+                "rate": 27.5,
+                "wilson": [
+                  18.9,
+                  38.1
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 22
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.6740300660160735,
+            "lo": 0.5599878633168349,
+            "point": 0.6156702898550724,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.6428571428571429,
+                "lo": 0.4666477272727273,
+                "point": 0.5326340326340326,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 39,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    9.0
+                  ]
+                },
+                "fp": 0,
+                "n": 50,
+                "negatives": 39,
+                "positives": 11,
+                "recall": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.6285758928571429,
+                "lo": 0.43854039622228475,
+                "point": 0.5414673046251993,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 1,
+                  "n": 19,
+                  "rate": 5.3,
+                  "wilson": [
+                    0.9,
+                    24.6
+                  ]
+                },
+                "fp": 1,
+                "n": 52,
+                "negatives": 19,
+                "positives": 33,
+                "recall": {
+                  "k": 5,
+                  "n": 33,
+                  "rate": 15.2,
+                  "wilson": [
+                    6.7,
+                    30.9
+                  ]
+                },
+                "tp": 5
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.7857142857142857,
+                "lo": 0.6296296296296297,
+                "point": 0.7083333333333334,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "fp": 0,
+                "n": 47,
+                "negatives": 11,
+                "positives": 36,
+                "recall": {
+                  "k": 2,
+                  "n": 36,
+                  "rate": 5.6,
+                  "wilson": [
+                    1.5,
+                    18.1
+                  ]
+                },
+                "tp": 2
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "hodoscope_top10": {
+          "auroc": {
+            "hi": 0.7005474969381507,
+            "lo": 0.5553289754078771,
+            "point": 0.6298007246376811,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": -0.047713294496511356,
+            "lo": -0.24477331118027984,
+            "point": -0.14601449275362322,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 13,
+                "n": 68,
+                "rate": 19.1,
+                "wilson": [
+                  11.5,
+                  30.0
+                ]
+              },
+              "fp": 13,
+              "n": 120,
+              "negatives": 68,
+              "positives": 52,
+              "recall": {
+                "k": 21,
+                "n": 52,
+                "rate": 40.4,
+                "wilson": [
+                  28.2,
+                  53.9
+                ]
+              },
+              "tp": 21
+            },
+            "union": {
+              "far": {
+                "k": 14,
+                "n": 69,
+                "rate": 20.3,
+                "wilson": [
+                  12.5,
+                  31.2
+                ]
+              },
+              "fp": 14,
+              "n": 149,
+              "negatives": 69,
+              "positives": 80,
+              "recall": {
+                "k": 49,
+                "n": 80,
+                "rate": 61.2,
+                "wilson": [
+                  50.3,
+                  71.2
+                ]
+              },
+              "tp": 49
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 0
+          },
+          "key": "hodoscope_top10",
+          "length_auroc_same_runs": {
+            "hi": 0.8442267708885356,
+            "lo": 0.6963267844103688,
+            "point": 0.7758152173913043,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 149,
+          "native": {
+            "far": {
+              "k": 14,
+              "n": 69,
+              "rate": 20.3,
+              "wilson": [
+                12.5,
+                31.2
+              ]
+            },
+            "fp": 14,
+            "n": 149,
+            "negatives": 69,
+            "positives": 80,
+            "recall": {
+              "k": 37,
+              "n": 80,
+              "rate": 46.2,
+              "wilson": [
+                35.7,
+                57.1
+              ]
+            },
+            "tp": 37
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 69,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  5.3
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 80,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.6
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 69,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  5.3
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 80,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.6
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.7002514585997442,
+            "lo": 0.5571424531351002,
+            "point": 0.6298007246376811,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.7102746212121214,
+                "lo": 0.3937326388888889,
+                "point": 0.5466200466200466,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 7,
+                  "n": 39,
+                  "rate": 17.9,
+                  "wilson": [
+                    9.0,
+                    32.7
+                  ]
+                },
+                "fp": 7,
+                "n": 50,
+                "negatives": 39,
+                "positives": 11,
+                "recall": {
+                  "k": 3,
+                  "n": 11,
+                  "rate": 27.3,
+                  "wilson": [
+                    9.7,
+                    56.6
+                  ]
+                },
+                "tp": 3
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.7424372250733139,
+                "lo": 0.490453869047619,
+                "point": 0.6220095693779905,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 4,
+                  "n": 19,
+                  "rate": 21.1,
+                  "wilson": [
+                    8.5,
+                    43.3
+                  ]
+                },
+                "fp": 4,
+                "n": 52,
+                "negatives": 19,
+                "positives": 33,
+                "recall": {
+                  "k": 15,
+                  "n": 33,
+                  "rate": 45.5,
+                  "wilson": [
+                    29.8,
+                    62.0
+                  ]
+                },
+                "tp": 15
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.7763157894736842,
+                "lo": 0.45307698573827604,
+                "point": 0.6275252525252525,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 3,
+                  "n": 11,
+                  "rate": 27.3,
+                  "wilson": [
+                    9.7,
+                    56.6
+                  ]
+                },
+                "fp": 3,
+                "n": 47,
+                "negatives": 11,
+                "positives": 36,
+                "recall": {
+                  "k": 19,
+                  "n": 36,
+                  "rate": 52.8,
+                  "wilson": [
+                    37.0,
+                    68.0
+                  ]
+                },
+                "tp": 19
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "hodoscope_top25": {
+          "auroc": {
+            "hi": 0.7530458732846771,
+            "lo": 0.6012800693401682,
+            "point": 0.6773550724637681,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": 0.00137119581514809,
+            "lo": -0.19290528028028026,
+            "point": -0.09846014492753619,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 28,
+                "n": 68,
+                "rate": 41.2,
+                "wilson": [
+                  30.3,
+                  53.0
+                ]
+              },
+              "fp": 28,
+              "n": 120,
+              "negatives": 68,
+              "positives": 52,
+              "recall": {
+                "k": 39,
+                "n": 52,
+                "rate": 75.0,
+                "wilson": [
+                  61.8,
+                  84.8
+                ]
+              },
+              "tp": 39
+            },
+            "union": {
+              "far": {
+                "k": 29,
+                "n": 69,
+                "rate": 42.0,
+                "wilson": [
+                  31.1,
+                  53.8
+                ]
+              },
+              "fp": 29,
+              "n": 149,
+              "negatives": 69,
+              "positives": 80,
+              "recall": {
+                "k": 67,
+                "n": 80,
+                "rate": 83.8,
+                "wilson": [
+                  74.2,
+                  90.3
+                ]
+              },
+              "tp": 67
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 1
+          },
+          "key": "hodoscope_top25",
+          "length_auroc_same_runs": {
+            "hi": 0.8442267708885356,
+            "lo": 0.6963267844103688,
+            "point": 0.7758152173913043,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 149,
+          "native": {
+            "far": {
+              "k": 29,
+              "n": 69,
+              "rate": 42.0,
+              "wilson": [
+                31.1,
+                53.8
+              ]
+            },
+            "fp": 29,
+            "n": 149,
+            "negatives": 69,
+            "positives": 80,
+            "recall": {
+              "k": 62,
+              "n": 80,
+              "rate": 77.5,
+              "wilson": [
+                67.2,
+                85.3
+              ]
+            },
+            "tp": 62
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 69,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  5.3
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 80,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.6
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 69,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  5.3
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 80,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.6
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.7533404035274592,
+            "lo": 0.6007689385134816,
+            "point": 0.6773550724637681,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.8461538461538461,
+                "lo": 0.5258405172413793,
+                "point": 0.696969696969697,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 13,
+                  "n": 39,
+                  "rate": 33.3,
+                  "wilson": [
+                    20.6,
+                    49.0
+                  ]
+                },
+                "fp": 13,
+                "n": 50,
+                "negatives": 39,
+                "positives": 11,
+                "recall": {
+                  "k": 8,
+                  "n": 11,
+                  "rate": 72.7,
+                  "wilson": [
+                    43.4,
+                    90.3
+                  ]
+                },
+                "tp": 8
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.7679640085200747,
+                "lo": 0.49537037037037035,
+                "point": 0.6307814992025519,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 10,
+                  "n": 19,
+                  "rate": 52.6,
+                  "wilson": [
+                    31.7,
+                    72.7
+                  ]
+                },
+                "fp": 10,
+                "n": 52,
+                "negatives": 19,
+                "positives": 33,
+                "recall": {
+                  "k": 26,
+                  "n": 33,
+                  "rate": 78.8,
+                  "wilson": [
+                    62.2,
+                    89.3
+                  ]
+                },
+                "tp": 26
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.7825598528723529,
+                "lo": 0.450211038961039,
+                "point": 0.6161616161616161,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 6,
+                  "n": 11,
+                  "rate": 54.5,
+                  "wilson": [
+                    28.0,
+                    78.7
+                  ]
+                },
+                "fp": 6,
+                "n": 47,
+                "negatives": 11,
+                "positives": 36,
+                "recall": {
+                  "k": 28,
+                  "n": 36,
+                  "rate": 77.8,
+                  "wilson": [
+                    61.9,
+                    88.3
+                  ]
+                },
+                "tp": 28
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "hodoscope_top50": {
+          "auroc": {
+            "hi": 0.7138421677959722,
+            "lo": 0.5862972972972973,
+            "point": 0.6499094202898551,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": -0.03207721144824753,
+            "lo": -0.2120642701525054,
+            "point": -0.12590579710144922,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 43,
+                "n": 68,
+                "rate": 63.2,
+                "wilson": [
+                  51.4,
+                  73.7
+                ]
+              },
+              "fp": 43,
+              "n": 120,
+              "negatives": 68,
+              "positives": 52,
+              "recall": {
+                "k": 48,
+                "n": 52,
+                "rate": 92.3,
+                "wilson": [
+                  81.8,
+                  97.0
+                ]
+              },
+              "tp": 48
+            },
+            "union": {
+              "far": {
+                "k": 44,
+                "n": 69,
+                "rate": 63.8,
+                "wilson": [
+                  52.0,
+                  74.1
+                ]
+              },
+              "fp": 44,
+              "n": 149,
+              "negatives": 69,
+              "positives": 80,
+              "recall": {
+                "k": 76,
+                "n": 80,
+                "rate": 95.0,
+                "wilson": [
+                  87.8,
+                  98.0
+                ]
+              },
+              "tp": 76
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 1
+          },
+          "key": "hodoscope_top50",
+          "length_auroc_same_runs": {
+            "hi": 0.8442267708885356,
+            "lo": 0.6963267844103688,
+            "point": 0.7758152173913043,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 149,
+          "native": {
+            "far": {
+              "k": 44,
+              "n": 69,
+              "rate": 63.8,
+              "wilson": [
+                52.0,
+                74.1
+              ]
+            },
+            "fp": 44,
+            "n": 149,
+            "negatives": 69,
+            "positives": 80,
+            "recall": {
+              "k": 75,
+              "n": 80,
+              "rate": 93.8,
+              "wilson": [
+                86.2,
+                97.3
+              ]
+            },
+            "tp": 75
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 69,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  5.3
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 80,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.6
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 69,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  5.3
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 80,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.6
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.7145746607338964,
+            "lo": 0.5868263293781586,
+            "point": 0.6499094202898551,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.8000520833333336,
+                "lo": 0.5686688311688312,
+                "point": 0.6981351981351981,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 20,
+                  "n": 39,
+                  "rate": 51.3,
+                  "wilson": [
+                    36.2,
+                    66.1
+                  ]
+                },
+                "fp": 20,
+                "n": 50,
+                "negatives": 39,
+                "positives": 11,
+                "recall": {
+                  "k": 10,
+                  "n": 11,
+                  "rate": 90.9,
+                  "wilson": [
+                    62.3,
+                    98.4
+                  ]
+                },
+                "tp": 10
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.6321923890485314,
+                "lo": 0.4393847006651885,
+                "point": 0.5334928229665071,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 16,
+                  "n": 19,
+                  "rate": 84.2,
+                  "wilson": [
+                    62.4,
+                    94.5
+                  ]
+                },
+                "fp": 16,
+                "n": 52,
+                "negatives": 19,
+                "positives": 33,
+                "recall": {
+                  "k": 30,
+                  "n": 33,
+                  "rate": 90.9,
+                  "wilson": [
+                    76.4,
+                    96.9
+                  ]
+                },
+                "tp": 30
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.7599109224109224,
+                "lo": 0.4861111111111111,
+                "point": 0.6224747474747475,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 8,
+                  "n": 11,
+                  "rate": 72.7,
+                  "wilson": [
+                    43.4,
+                    90.3
+                  ]
+                },
+                "fp": 8,
+                "n": 47,
+                "negatives": 11,
+                "positives": 36,
+                "recall": {
+                  "k": 35,
+                  "n": 36,
+                  "rate": 97.2,
+                  "wilson": [
+                    85.8,
+                    99.5
+                  ]
+                },
+                "tp": 35
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "laminar": {
+          "key": "laminar",
+          "n_evaluated": 0
+        },
+        "metr_grok": {
+          "auroc": {
+            "hi": 1.0,
+            "lo": 0.5,
+            "point": 0.6666666666666666,
+            "skipped": 113,
+            "valid": 1887
+          },
+          "auroc_minus_length": {
+            "hi": 0.5714285714285714,
+            "lo": -0.5,
+            "point": -0.06666666666666665,
+            "skipped": 113,
+            "valid": 1887
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  43.4
+                ]
+              },
+              "fp": 0,
+              "n": 7,
+              "negatives": 5,
+              "positives": 2,
+              "recall": {
+                "k": 1,
+                "n": 2,
+                "rate": 50.0,
+                "wilson": [
+                  9.5,
+                  90.5
+                ]
+              },
+              "tp": 1
+            },
+            "union": {
+              "far": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  43.4
+                ]
+              },
+              "fp": 0,
+              "n": 8,
+              "negatives": 5,
+              "positives": 3,
+              "recall": {
+                "k": 2,
+                "n": 3,
+                "rate": 66.7,
+                "wilson": [
+                  20.8,
+                  93.9
+                ]
+              },
+              "tp": 2
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 0,
+            "strata_with_lower_bound_above_half": 0
+          },
+          "key": "metr_grok",
+          "length_auroc_same_runs": {
+            "hi": 1.0,
+            "lo": 0.25,
+            "point": 0.7333333333333333,
+            "skipped": 113,
+            "valid": 1887
+          },
+          "n_evaluated": 8,
+          "native": {
+            "far": {
+              "k": 0,
+              "n": 5,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                43.4
+              ]
+            },
+            "fp": 0,
+            "n": 8,
+            "negatives": 5,
+            "positives": 3,
+            "recall": {
+              "k": 1,
+              "n": 3,
+              "rate": 33.3,
+              "wilson": [
+                6.1,
+                79.2
+              ]
+            },
+            "tp": 1
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  43.4
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 1,
+                "n": 3,
+                "rate": 33.3,
+                "wilson": [
+                  6.1,
+                  79.2
+                ]
+              },
+              "threshold": 9.0,
+              "tp": 1
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  43.4
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 1,
+                "n": 3,
+                "rate": 33.3,
+                "wilson": [
+                  6.1,
+                  79.2
+                ]
+              },
+              "threshold": 9.0,
+              "tp": 1
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 1.0,
+            "lo": 0.5,
+            "point": 0.6666666666666666,
+            "skipped": 110,
+            "valid": 1890
+          },
+          "strata": [
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 3,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    56.2
+                  ]
+                },
+                "fp": 0,
+                "n": 3,
+                "negatives": 3,
+                "positives": 0,
+                "recall": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 2,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    65.8
+                  ]
+                },
+                "fp": 0,
+                "n": 4,
+                "negatives": 2,
+                "positives": 2,
+                "recall": {
+                  "k": 1,
+                  "n": 2,
+                  "rate": 50.0,
+                  "wilson": [
+                    9.5,
+                    90.5
+                  ]
+                },
+                "tp": 1
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "fp": 0,
+                "n": 1,
+                "negatives": 0,
+                "positives": 1,
+                "recall": {
+                  "k": 0,
+                  "n": 1,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    79.3
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "metr_kimi_native": {
+          "auroc": {
+            "hi": 0.8,
+            "lo": 0.53125,
+            "point": 0.6538461538461539,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": 0.08893274853801182,
+            "lo": -0.3418981481481482,
+            "point": -0.13461538461538458,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 0,
+                "n": 11,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  25.9
+                ]
+              },
+              "fp": 0,
+              "n": 18,
+              "negatives": 11,
+              "positives": 7,
+              "recall": {
+                "k": 1,
+                "n": 7,
+                "rate": 14.3,
+                "wilson": [
+                  2.6,
+                  51.3
+                ]
+              },
+              "tp": 1
+            },
+            "union": {
+              "far": {
+                "k": 1,
+                "n": 12,
+                "rate": 8.3,
+                "wilson": [
+                  1.5,
+                  35.4
+                ]
+              },
+              "fp": 1,
+              "n": 25,
+              "negatives": 12,
+              "positives": 13,
+              "recall": {
+                "k": 7,
+                "n": 13,
+                "rate": 53.8,
+                "wilson": [
+                  29.1,
+                  76.8
+                ]
+              },
+              "tp": 7
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 0,
+            "strata_with_lower_bound_above_half": 0
+          },
+          "key": "metr_kimi_native",
+          "length_auroc_same_runs": {
+            "hi": 0.9562753739316241,
+            "lo": 0.5793253968253969,
+            "point": 0.7884615384615384,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 25,
+          "native": {
+            "far": {
+              "k": 0,
+              "n": 12,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                24.3
+              ]
+            },
+            "fp": 0,
+            "n": 25,
+            "negatives": 12,
+            "positives": 13,
+            "recall": {
+              "k": 3,
+              "n": 13,
+              "rate": 23.1,
+              "wilson": [
+                8.2,
+                50.3
+              ]
+            },
+            "tp": 3
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 12,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  24.3
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 4,
+                "n": 13,
+                "rate": 30.8,
+                "wilson": [
+                  12.7,
+                  57.6
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 4
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 12,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  24.3
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 4,
+                "n": 13,
+                "rate": 30.8,
+                "wilson": [
+                  12.7,
+                  57.6
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 4
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.8,
+            "lo": 0.53328125,
+            "point": 0.6538461538461539,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 7,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    35.4
+                  ]
+                },
+                "fp": 0,
+                "n": 8,
+                "negatives": 7,
+                "positives": 1,
+                "recall": {
+                  "k": 0,
+                  "n": 1,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    79.3
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 2,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    65.8
+                  ]
+                },
+                "fp": 0,
+                "n": 8,
+                "negatives": 2,
+                "positives": 6,
+                "recall": {
+                  "k": 1,
+                  "n": 6,
+                  "rate": 16.7,
+                  "wilson": [
+                    3.0,
+                    56.4
+                  ]
+                },
+                "tp": 1
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 3,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    56.2
+                  ]
+                },
+                "fp": 0,
+                "n": 9,
+                "negatives": 3,
+                "positives": 6,
+                "recall": {
+                  "k": 2,
+                  "n": 6,
+                  "rate": 33.3,
+                  "wilson": [
+                    9.7,
+                    70.0
+                  ]
+                },
+                "tp": 2
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "metr_openrouter_kimi_k3": {
+          "auroc": {
+            "hi": 0.7836911083877995,
+            "lo": 0.6499977355072464,
+            "point": 0.7175724637681159,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": 0.042603236663629945,
+            "lo": -0.15000678119349006,
+            "point": -0.058242753623188426,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 0,
+                "n": 68,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  5.3
+                ]
+              },
+              "fp": 0,
+              "n": 120,
+              "negatives": 68,
+              "positives": 52,
+              "recall": {
+                "k": 3,
+                "n": 52,
+                "rate": 5.8,
+                "wilson": [
+                  2.0,
+                  15.6
+                ]
+              },
+              "tp": 3
+            },
+            "union": {
+              "far": {
+                "k": 1,
+                "n": 69,
+                "rate": 1.4,
+                "wilson": [
+                  0.3,
+                  7.8
+                ]
+              },
+              "fp": 1,
+              "n": 149,
+              "negatives": 69,
+              "positives": 80,
+              "recall": {
+                "k": 31,
+                "n": 80,
+                "rate": 38.8,
+                "wilson": [
+                  28.8,
+                  49.7
+                ]
+              },
+              "tp": 31
+            }
+          },
+          "decision": {
+            "adds_within_strata": true,
+            "beats_length": true,
+            "beats_length_overall": false,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 3
+          },
+          "key": "metr_openrouter_kimi_k3",
+          "length_auroc_same_runs": {
+            "hi": 0.8442267708885356,
+            "lo": 0.6963267844103688,
+            "point": 0.7758152173913043,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 149,
+          "native": {
+            "far": {
+              "k": 0,
+              "n": 69,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                5.3
+              ]
+            },
+            "fp": 0,
+            "n": 149,
+            "negatives": 69,
+            "positives": 80,
+            "recall": {
+              "k": 5,
+              "n": 80,
+              "rate": 6.2,
+              "wilson": [
+                2.7,
+                13.8
+              ]
+            },
+            "tp": 5
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 1,
+                "n": 69,
+                "rate": 1.4,
+                "wilson": [
+                  0.3,
+                  7.8
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 20,
+                "n": 80,
+                "rate": 25.0,
+                "wilson": [
+                  16.8,
+                  35.5
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 20
+            },
+            "0.05": {
+              "far": {
+                "k": 1,
+                "n": 69,
+                "rate": 1.4,
+                "wilson": [
+                  0.3,
+                  7.8
+                ]
+              },
+              "fp": 1,
+              "recall": {
+                "k": 20,
+                "n": 80,
+                "rate": 25.0,
+                "wilson": [
+                  16.8,
+                  35.5
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 20
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.7897096773766253,
+            "lo": 0.6430153716416144,
+            "point": 0.7175724637681159,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.8172287390029327,
+                "lo": 0.501846590909091,
+                "point": 0.6585081585081585,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 39,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    9.0
+                  ]
+                },
+                "fp": 0,
+                "n": 50,
+                "negatives": 39,
+                "positives": 11,
+                "recall": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.766672077922078,
+                "lo": 0.5037828947368421,
+                "point": 0.6443381180223285,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 19,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    16.8
+                  ]
+                },
+                "fp": 0,
+                "n": 52,
+                "negatives": 19,
+                "positives": 33,
+                "recall": {
+                  "k": 3,
+                  "n": 33,
+                  "rate": 9.1,
+                  "wilson": [
+                    3.1,
+                    23.6
+                  ]
+                },
+                "tp": 3
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.859375,
+                "lo": 0.6507331455309396,
+                "point": 0.76010101010101,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "fp": 0,
+                "n": 47,
+                "negatives": 11,
+                "positives": 36,
+                "recall": {
+                  "k": 2,
+                  "n": 36,
+                  "rate": 5.6,
+                  "wilson": [
+                    1.5,
+                    18.1
+                  ]
+                },
+                "tp": 2
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "pxi_coverage_investigation_r1": {
+          "auroc": {
+            "hi": 0.7142857142857143,
+            "lo": 0.5,
+            "point": 0.5625,
+            "skipped": 4,
+            "valid": 1996
+          },
+          "auroc_minus_length": {
+            "hi": -0.1537480376766091,
+            "lo": -0.5,
+            "point": -0.3928571428571429,
+            "skipped": 4,
+            "valid": 1996
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  35.4
+                ]
+              },
+              "fp": 0,
+              "n": 13,
+              "negatives": 7,
+              "positives": 6,
+              "recall": {
+                "k": 1,
+                "n": 6,
+                "rate": 16.7,
+                "wilson": [
+                  3.0,
+                  56.4
+                ]
+              },
+              "tp": 1
+            },
+            "union": {
+              "far": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  35.4
+                ]
+              },
+              "fp": 0,
+              "n": 15,
+              "negatives": 7,
+              "positives": 8,
+              "recall": {
+                "k": 3,
+                "n": 8,
+                "rate": 37.5,
+                "wilson": [
+                  13.7,
+                  69.4
+                ]
+              },
+              "tp": 3
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 0,
+            "strata_with_lower_bound_above_half": 0
+          },
+          "key": "pxi_coverage_investigation_r1",
+          "length_auroc_same_runs": {
+            "hi": 1.0,
+            "lo": 0.820487780448718,
+            "point": 0.9553571428571429,
+            "skipped": 4,
+            "valid": 1996
+          },
+          "n_evaluated": 15,
+          "native": {
+            "far": {
+              "k": 0,
+              "n": 7,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                35.4
+              ]
+            },
+            "fp": 0,
+            "n": 15,
+            "negatives": 7,
+            "positives": 8,
+            "recall": {
+              "k": 1,
+              "n": 8,
+              "rate": 12.5,
+              "wilson": [
+                2.2,
+                47.1
+              ]
+            },
+            "tp": 1
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  35.4
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 1,
+                "n": 8,
+                "rate": 12.5,
+                "wilson": [
+                  2.2,
+                  47.1
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 1
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  35.4
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 1,
+                "n": 8,
+                "rate": 12.5,
+                "wilson": [
+                  2.2,
+                  47.1
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 1
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.7142857142857143,
+            "lo": 0.5,
+            "point": 0.5625,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 4,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    49.0
+                  ]
+                },
+                "fp": 0,
+                "n": 4,
+                "negatives": 4,
+                "positives": 0,
+                "recall": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 3,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    56.2
+                  ]
+                },
+                "fp": 0,
+                "n": 8,
+                "negatives": 3,
+                "positives": 5,
+                "recall": {
+                  "k": 1,
+                  "n": 5,
+                  "rate": 20.0,
+                  "wilson": [
+                    3.6,
+                    62.4
+                  ]
+                },
+                "tp": 1
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "fp": 0,
+                "n": 3,
+                "negatives": 0,
+                "positives": 3,
+                "recall": {
+                  "k": 0,
+                  "n": 3,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    56.2
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "pxi_generic_investigation_r1": {
+          "auroc": {
+            "hi": null,
+            "lo": null,
+            "point": null,
+            "skipped": 2000,
+            "valid": 0
+          },
+          "auroc_minus_length": {
+            "hi": null,
+            "lo": null,
+            "point": null,
+            "skipped": 2000,
+            "valid": 0
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 0,
+                "n": 0,
+                "rate": null,
+                "wilson": [
+                  null,
+                  null
+                ]
+              },
+              "fp": 0,
+              "n": 2,
+              "negatives": 0,
+              "positives": 2,
+              "recall": {
+                "k": 2,
+                "n": 2,
+                "rate": 100.0,
+                "wilson": [
+                  34.2,
+                  100.0
+                ]
+              },
+              "tp": 2
+            },
+            "union": {
+              "far": {
+                "k": 0,
+                "n": 0,
+                "rate": null,
+                "wilson": [
+                  null,
+                  null
+                ]
+              },
+              "fp": 0,
+              "n": 5,
+              "negatives": 0,
+              "positives": 5,
+              "recall": {
+                "k": 5,
+                "n": 5,
+                "rate": 100.0,
+                "wilson": [
+                  56.6,
+                  100.0
+                ]
+              },
+              "tp": 5
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 0,
+            "strata_with_lower_bound_above_half": 0
+          },
+          "key": "pxi_generic_investigation_r1",
+          "length_auroc_same_runs": {
+            "hi": null,
+            "lo": null,
+            "point": null,
+            "skipped": 2000,
+            "valid": 0
+          },
+          "n_evaluated": 5,
+          "native": {
+            "far": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson": [
+                null,
+                null
+              ]
+            },
+            "fp": 0,
+            "n": 5,
+            "negatives": 0,
+            "positives": 5,
+            "recall": {
+              "k": 5,
+              "n": 5,
+              "rate": 100.0,
+              "wilson": [
+                56.6,
+                100.0
+              ]
+            },
+            "tp": 5
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 0,
+                "rate": null,
+                "wilson": [
+                  null,
+                  null
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 5,
+                "n": 5,
+                "rate": 100.0,
+                "wilson": [
+                  56.6,
+                  100.0
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 5
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 0,
+                "rate": null,
+                "wilson": [
+                  null,
+                  null
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 5,
+                "n": 5,
+                "rate": 100.0,
+                "wilson": [
+                  56.6,
+                  100.0
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 5
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": null,
+            "lo": null,
+            "point": null,
+            "skipped": 2000,
+            "valid": 0
+          },
+          "strata": [
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "fp": 0,
+                "n": 0,
+                "negatives": 0,
+                "positives": 0,
+                "recall": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "fp": 0,
+                "n": 2,
+                "negatives": 0,
+                "positives": 2,
+                "recall": {
+                  "k": 2,
+                  "n": 2,
+                  "rate": 100.0,
+                  "wilson": [
+                    34.2,
+                    100.0
+                  ]
+                },
+                "tp": 2
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "fp": 0,
+                "n": 3,
+                "negatives": 0,
+                "positives": 3,
+                "recall": {
+                  "k": 3,
+                  "n": 3,
+                  "rate": 100.0,
+                  "wilson": [
+                    43.8,
+                    100.0
+                  ]
+                },
+                "tp": 3
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "pxi_generic_investigation_r2": {
+          "auroc": {
+            "hi": 0.8333333333333334,
+            "lo": 0.2,
+            "point": 0.5416666666666666,
+            "skipped": 37,
+            "valid": 1963
+          },
+          "auroc_minus_length": {
+            "hi": 0.29958333333333365,
+            "lo": -0.5331972789115645,
+            "point": -0.16666666666666674,
+            "skipped": 37,
+            "valid": 1963
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 1,
+                "n": 4,
+                "rate": 25.0,
+                "wilson": [
+                  4.6,
+                  69.9
+                ]
+              },
+              "fp": 1,
+              "n": 10,
+              "negatives": 4,
+              "positives": 6,
+              "recall": {
+                "k": 2,
+                "n": 6,
+                "rate": 33.3,
+                "wilson": [
+                  9.7,
+                  70.0
+                ]
+              },
+              "tp": 2
+            },
+            "union": {
+              "far": {
+                "k": 1,
+                "n": 4,
+                "rate": 25.0,
+                "wilson": [
+                  4.6,
+                  69.9
+                ]
+              },
+              "fp": 1,
+              "n": 10,
+              "negatives": 4,
+              "positives": 6,
+              "recall": {
+                "k": 2,
+                "n": 6,
+                "rate": 33.3,
+                "wilson": [
+                  9.7,
+                  70.0
+                ]
+              },
+              "tp": 2
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 0,
+            "strata_with_lower_bound_above_half": 0
+          },
+          "key": "pxi_generic_investigation_r2",
+          "length_auroc_same_runs": {
+            "hi": 1.0,
+            "lo": 0.25,
+            "point": 0.7083333333333334,
+            "skipped": 37,
+            "valid": 1963
+          },
+          "n_evaluated": 10,
+          "native": {
+            "far": {
+              "k": 1,
+              "n": 4,
+              "rate": 25.0,
+              "wilson": [
+                4.6,
+                69.9
+              ]
+            },
+            "fp": 1,
+            "n": 10,
+            "negatives": 4,
+            "positives": 6,
+            "recall": {
+              "k": 2,
+              "n": 6,
+              "rate": 33.3,
+              "wilson": [
+                9.7,
+                70.0
+              ]
+            },
+            "tp": 2
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 4,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  49.0
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  39.0
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 4,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  49.0
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  39.0
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.8333333333333334,
+            "lo": 0.1875,
+            "point": 0.5416666666666666,
+            "skipped": 38,
+            "valid": 1962
+          },
+          "strata": [
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 2,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    65.8
+                  ]
+                },
+                "fp": 0,
+                "n": 4,
+                "negatives": 2,
+                "positives": 2,
+                "recall": {
+                  "k": 0,
+                  "n": 2,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    65.8
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 1,
+                  "n": 2,
+                  "rate": 50.0,
+                  "wilson": [
+                    9.5,
+                    90.5
+                  ]
+                },
+                "fp": 1,
+                "n": 4,
+                "negatives": 2,
+                "positives": 2,
+                "recall": {
+                  "k": 1,
+                  "n": 2,
+                  "rate": 50.0,
+                  "wilson": [
+                    9.5,
+                    90.5
+                  ]
+                },
+                "tp": 1
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "fp": 0,
+                "n": 2,
+                "negatives": 0,
+                "positives": 2,
+                "recall": {
+                  "k": 1,
+                  "n": 2,
+                  "rate": 50.0,
+                  "wilson": [
+                    9.5,
+                    90.5
+                  ]
+                },
+                "tp": 1
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "pxi_generic_investigation_r3": {
+          "auroc": {
+            "hi": 0.9090909090909091,
+            "lo": 0.5,
+            "point": 0.7142857142857143,
+            "skipped": 19,
+            "valid": 1981
+          },
+          "auroc_minus_length": {
+            "hi": 0.2142857142857143,
+            "lo": -0.375,
+            "point": -0.09999999999999998,
+            "skipped": 19,
+            "valid": 1981
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  43.4
+                ]
+              },
+              "fp": 0,
+              "n": 12,
+              "negatives": 5,
+              "positives": 7,
+              "recall": {
+                "k": 3,
+                "n": 7,
+                "rate": 42.9,
+                "wilson": [
+                  15.8,
+                  75.0
+                ]
+              },
+              "tp": 3
+            },
+            "union": {
+              "far": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  43.4
+                ]
+              },
+              "fp": 0,
+              "n": 12,
+              "negatives": 5,
+              "positives": 7,
+              "recall": {
+                "k": 3,
+                "n": 7,
+                "rate": 42.9,
+                "wilson": [
+                  15.8,
+                  75.0
+                ]
+              },
+              "tp": 3
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 0,
+            "strata_with_lower_bound_above_half": 0
+          },
+          "key": "pxi_generic_investigation_r3",
+          "length_auroc_same_runs": {
+            "hi": 1.0,
+            "lo": 0.4770833333333333,
+            "point": 0.8142857142857143,
+            "skipped": 19,
+            "valid": 1981
+          },
+          "n_evaluated": 12,
+          "native": {
+            "far": {
+              "k": 0,
+              "n": 5,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                43.4
+              ]
+            },
+            "fp": 0,
+            "n": 12,
+            "negatives": 5,
+            "positives": 7,
+            "recall": {
+              "k": 3,
+              "n": 7,
+              "rate": 42.9,
+              "wilson": [
+                15.8,
+                75.0
+              ]
+            },
+            "tp": 3
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  43.4
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 3,
+                "n": 7,
+                "rate": 42.9,
+                "wilson": [
+                  15.8,
+                  75.0
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 3
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  43.4
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 3,
+                "n": 7,
+                "rate": 42.9,
+                "wilson": [
+                  15.8,
+                  75.0
+                ]
+              },
+              "threshold": 1.0,
+              "tp": 3
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.9166666666666666,
+            "lo": 0.5,
+            "point": 0.7142857142857143,
+            "skipped": 18,
+            "valid": 1982
+          },
+          "strata": [
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 4,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    49.0
+                  ]
+                },
+                "fp": 0,
+                "n": 6,
+                "negatives": 4,
+                "positives": 2,
+                "recall": {
+                  "k": 0,
+                  "n": 2,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    65.8
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 1,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    79.3
+                  ]
+                },
+                "fp": 0,
+                "n": 4,
+                "negatives": 1,
+                "positives": 3,
+                "recall": {
+                  "k": 2,
+                  "n": 3,
+                  "rate": 66.7,
+                  "wilson": [
+                    20.8,
+                    93.9
+                  ]
+                },
+                "tp": 2
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "fp": 0,
+                "n": 2,
+                "negatives": 0,
+                "positives": 2,
+                "recall": {
+                  "k": 1,
+                  "n": 2,
+                  "rate": 50.0,
+                  "wilson": [
+                    9.5,
+                    90.5
+                  ]
+                },
+                "tp": 1
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "pxi_generic_union": {
+          "auroc": {
+            "hi": 0.8846153846153846,
+            "lo": 0.4498397435897436,
+            "point": 0.7023809523809523,
+            "skipped": 4,
+            "valid": 1996
+          },
+          "auroc_minus_length": {
+            "hi": 0.044570707070707025,
+            "lo": -0.33333333333333337,
+            "point": -0.14880952380952384,
+            "skipped": 4,
+            "valid": 1996
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 1,
+                "n": 6,
+                "rate": 16.7,
+                "wilson": [
+                  3.0,
+                  56.4
+                ]
+              },
+              "fp": 1,
+              "n": 17,
+              "negatives": 6,
+              "positives": 11,
+              "recall": {
+                "k": 5,
+                "n": 11,
+                "rate": 45.5,
+                "wilson": [
+                  21.3,
+                  72.0
+                ]
+              },
+              "tp": 5
+            },
+            "union": {
+              "far": {
+                "k": 1,
+                "n": 6,
+                "rate": 16.7,
+                "wilson": [
+                  3.0,
+                  56.4
+                ]
+              },
+              "fp": 1,
+              "n": 20,
+              "negatives": 6,
+              "positives": 14,
+              "recall": {
+                "k": 8,
+                "n": 14,
+                "rate": 57.1,
+                "wilson": [
+                  32.6,
+                  78.6
+                ]
+              },
+              "tp": 8
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 0,
+            "strata_with_lower_bound_above_half": 0
+          },
+          "key": "pxi_generic_union",
+          "length_auroc_same_runs": {
+            "hi": 1.0,
+            "lo": 0.6223370927318296,
+            "point": 0.8511904761904762,
+            "skipped": 4,
+            "valid": 1996
+          },
+          "n_evaluated": 20,
+          "native": {
+            "far": {
+              "k": 1,
+              "n": 6,
+              "rate": 16.7,
+              "wilson": [
+                3.0,
+                56.4
+              ]
+            },
+            "fp": 1,
+            "n": 20,
+            "negatives": 6,
+            "positives": 14,
+            "recall": {
+              "k": 8,
+              "n": 14,
+              "rate": 57.1,
+              "wilson": [
+                32.6,
+                78.6
+              ]
+            },
+            "tp": 8
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  39.0
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 14,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  21.5
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  39.0
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 14,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  21.5
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.90234375,
+            "lo": 0.45,
+            "point": 0.7023809523809523,
+            "skipped": 4,
+            "valid": 1996
+          },
+          "strata": [
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 4,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    49.0
+                  ]
+                },
+                "fp": 0,
+                "n": 7,
+                "negatives": 4,
+                "positives": 3,
+                "recall": {
+                  "k": 0,
+                  "n": 3,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    56.2
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 1,
+                  "n": 2,
+                  "rate": 50.0,
+                  "wilson": [
+                    9.5,
+                    90.5
+                  ]
+                },
+                "fp": 1,
+                "n": 8,
+                "negatives": 2,
+                "positives": 6,
+                "recall": {
+                  "k": 4,
+                  "n": 6,
+                  "rate": 66.7,
+                  "wilson": [
+                    30.0,
+                    90.3
+                  ]
+                },
+                "tp": 4
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": null,
+              "estimable": false,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 0,
+                  "rate": null,
+                  "wilson": [
+                    null,
+                    null
+                  ]
+                },
+                "fp": 0,
+                "n": 5,
+                "negatives": 0,
+                "positives": 5,
+                "recall": {
+                  "k": 4,
+                  "n": 5,
+                  "rate": 80.0,
+                  "wilson": [
+                    37.6,
+                    96.4
+                  ]
+                },
+                "tp": 4
+              },
+              "stratum": 3
+            }
+          ]
+        },
+        "scout_native": {
+          "auroc": {
+            "hi": 0.5,
+            "lo": 0.5,
+            "point": 0.5,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "auroc_minus_length": {
+            "hi": -0.19632678441036874,
+            "lo": -0.34422677088853554,
+            "point": -0.2758152173913043,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "combined_with_length_rule": {
+            "tool_on_length_rule_remainder": {
+              "far": {
+                "k": 0,
+                "n": 68,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  5.3
+                ]
+              },
+              "fp": 0,
+              "n": 120,
+              "negatives": 68,
+              "positives": 52,
+              "recall": {
+                "k": 0,
+                "n": 52,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  6.9
+                ]
+              },
+              "tp": 0
+            },
+            "union": {
+              "far": {
+                "k": 1,
+                "n": 69,
+                "rate": 1.4,
+                "wilson": [
+                  0.3,
+                  7.8
+                ]
+              },
+              "fp": 1,
+              "n": 149,
+              "negatives": 69,
+              "positives": 80,
+              "recall": {
+                "k": 28,
+                "n": 80,
+                "rate": 35.0,
+                "wilson": [
+                  25.5,
+                  45.9
+                ]
+              },
+              "tp": 28
+            }
+          },
+          "decision": {
+            "adds_within_strata": false,
+            "beats_length": false,
+            "beats_length_overall": false,
+            "strata_estimable": 3,
+            "strata_with_lower_bound_above_half": 0
+          },
+          "key": "scout_native",
+          "length_auroc_same_runs": {
+            "hi": 0.8442267708885356,
+            "lo": 0.6963267844103688,
+            "point": 0.7758152173913043,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "n_evaluated": 149,
+          "native": {
+            "far": {
+              "k": 0,
+              "n": 69,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                5.3
+              ]
+            },
+            "fp": 0,
+            "n": 149,
+            "negatives": 69,
+            "positives": 80,
+            "recall": {
+              "k": 0,
+              "n": 80,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                4.6
+              ]
+            },
+            "tp": 0
+          },
+          "recall_at_far": {
+            "0.03": {
+              "far": {
+                "k": 0,
+                "n": 69,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  5.3
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 80,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.6
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            },
+            "0.05": {
+              "far": {
+                "k": 0,
+                "n": 69,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  5.3
+                ]
+              },
+              "fp": 0,
+              "recall": {
+                "k": 0,
+                "n": 80,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  4.6
+                ]
+              },
+              "threshold": null,
+              "tp": 0
+            }
+          },
+          "sensitivity_auroc": {
+            "hi": 0.5,
+            "lo": 0.5,
+            "point": 0.5,
+            "skipped": 0,
+            "valid": 2000
+          },
+          "strata": [
+            {
+              "auroc": {
+                "hi": 0.5,
+                "lo": 0.5,
+                "point": 0.5,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 39,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    9.0
+                  ]
+                },
+                "fp": 0,
+                "n": 50,
+                "negatives": 39,
+                "positives": 11,
+                "recall": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 1
+            },
+            {
+              "auroc": {
+                "hi": 0.5,
+                "lo": 0.5,
+                "point": 0.5,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 19,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    16.8
+                  ]
+                },
+                "fp": 0,
+                "n": 52,
+                "negatives": 19,
+                "positives": 33,
+                "recall": {
+                  "k": 0,
+                  "n": 33,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    10.4
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 2
+            },
+            {
+              "auroc": {
+                "hi": 0.5,
+                "lo": 0.5,
+                "point": 0.5,
+                "skipped": 0,
+                "valid": 2000
+              },
+              "estimable": true,
+              "native": {
+                "far": {
+                  "k": 0,
+                  "n": 11,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    25.9
+                  ]
+                },
+                "fp": 0,
+                "n": 47,
+                "negatives": 11,
+                "positives": 36,
+                "recall": {
+                  "k": 0,
+                  "n": 36,
+                  "rate": 0.0,
+                  "wilson": [
+                    0.0,
+                    9.6
+                  ]
+                },
+                "tp": 0
+              },
+              "stratum": 3
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cutoff": "2026-10-29T04:15:00Z",
+  "resamples": 2000,
+  "schema": "np30-length-control/v1",
+  "seed": 20261029
+}

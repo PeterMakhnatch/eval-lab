@@ -71,7 +71,7 @@ Trace Tools operations (offline, read-only unless stated):
 
 ## The harness
 
-`evallab trace run|merge|card|score|coverage` (`src/evallab/production/trace_harness*.py`)
+`evallab trace run|merge|card|score|coverage|length-control` (`src/evallab/production/trace_harness*.py`)
 runs the detectors above on one shared input and writes one `trace-findings/v1`
 record per (run, detector):
 
@@ -104,6 +104,13 @@ record per (run, detector):
   the UI Harness tab's `trace-harness/scorecard-v1.json`.
 - `coverage --corpus … [--corpus …]` lists findings per detector identity and corpus,
   and every registered detector that has no findings there.
+- `length-control [--corpus goodfire|cheatbench]` (`trace_harness_length.py`, NP30-TT-1) asks what each
+  stored tool adds over run length (`len(HarnessRun.steps)`): per tool, AUROC overall and inside length
+  strata with 95% task-clustered bootstrap intervals, native recall/FAR per stratum, and a length-only
+  alarm rule matched to the cascade v8 false-alarm count. It reads only stored findings and
+  `trace-tools/results-v1.jsonl` rows up to a fixed cutoff, joins labels inside scoring, never changes a
+  threshold, and never calls a model. Definitions are fixed in
+  `research/evidence/runs/np30-length-control-20261029/PREREGISTRATION.md`.
 - The Phoenix shipper is `evallab trace otel <path>`.
 - `--detectors cascade_stream` is the only live path: it feeds a run's steps one
   `trace.step` event at a time to `MisalignmentLiveWorker`

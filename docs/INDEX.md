@@ -83,7 +83,7 @@ inputs:
   - path: docs/live-supervisor.md
     digest: sha256:33d1c97b7a890aa5ca7b9e6b918332ff26fa6e55a5df25353b1b4ec18747a67b
   - path: docs/live-watch.md
-    digest: sha256:d41341c8f930337d1a524ad0b75308ca1959b13e2558651aef69aca8ec34d141
+    digest: sha256:47aeab3c0bb8a7352ca116c2ee9936de5d9dba3975a51880cb3b5baad2f3d991
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
@@ -159,7 +159,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md
-    digest: sha256:777fc5dd576457ddd52b4a3730e53f733f2084d78c7853932ec56841a3cfb86f
+    digest: sha256:596a8f92fa01dce31492231cef7cdc6f6b59e750bcd79fb3802ba2cefe7e88ed
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md

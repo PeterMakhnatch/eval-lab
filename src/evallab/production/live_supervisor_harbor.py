@@ -77,6 +77,40 @@ def _step_index(step: Mapping[str, Any], position: int) -> int:
     return position + 1
 
 
+#: A Run Health ``infra`` class is a dead or failed environment, not a one-off, only when it matches
+#: this many consecutive tool outputs (the Run Health tail length). The post-hoc detector gets
+#: persistence for free because the failure ended the run; live, the last step is always "now", so
+#: a single output the agent provoked or printed (``strings``, an offline ``pip``, its own OOM
+#: experiment) fired a kill proposal and the run went on. A later clean tool output resets the run.
+INFRA_PERSIST_STEPS = run_health.INFRA_TAIL_STEPS
+
+
+def _infra_runs(steps: Sequence[Mapping[str, Any]], classes: Iterable[str]) -> dict[str, list[int]]:
+    """Per Run Health infra class, the newest ``INFRA_PERSIST_STEPS`` consecutive tool outputs
+    (step indices, oldest first) that carry it; stops at the first output that does not.
+
+    Blank outputs are skipped. Looked up through ``run_health`` so a replay's memoised
+    ``_output_text`` and signature patterns apply."""
+    wanted = set(classes)
+    patterns = {name: pattern for name, pattern in run_health.INFRA_SIGNATURES if name in wanted}
+    runs: dict[str, list[int]] = {name: [] for name in patterns}
+    live = set(patterns)
+    for position in range(len(steps) - 1, -1, -1):
+        if not live:
+            break
+        text = run_health._output_text(steps[position])
+        if not text.strip():
+            continue
+        for name in tuple(live):
+            if not patterns[name].search(text):
+                live.discard(name)
+                continue
+            runs[name].append(_step_index(steps[position], position))
+            if len(runs[name]) >= INFRA_PERSIST_STEPS:
+                live.discard(name)
+    return {name: ids[::-1] for name, ids in runs.items()}
+
+
 def _event_text(step: Mapping[str, Any]) -> str:
     message = step.get("message")
     parts = [" ".join(message.split())[:300]] if isinstance(message, str) and message.strip() else []
@@ -131,6 +165,8 @@ def trial_observation(run: HealthRun, *, subject: Subject, now: datetime, alerts
         if record["kind"] in ("loop", "infra") and record["verdict"] == "alarm":
             health[record["kind"]] = {"score": record["score"], "evidence_steps": record["evidence_steps"],
                                       "summary": record["summary"]}
+    if "infra" in health:
+        health["infra"]["runs"] = _infra_runs(steps, feats["infra_tail"])
 
     stamps = [t for s in steps if (t := _epoch(s.get("timestamp"))) is not None]
     written = mtime.timestamp() if mtime is not None and mtime.timestamp() <= cutoff else None
@@ -187,8 +223,12 @@ def triggers_for(observation: Observation) -> list[TriggerHit]:
 
     infra = m.get("health", {}).get("infra")
     if infra:
-        hits.append(TriggerHit("error_signature", "infra", max(1.0, infra["score"]),
-                               f"run_health infra: {infra['summary']}", tuple(infra["evidence_steps"])))
+        persistent = {name: ids for name, ids in infra["runs"].items() if len(ids) >= INFRA_PERSIST_STEPS}
+        if persistent:
+            classes = "; ".join(f"tail:{name}" for name in persistent)
+            steps = tuple(dict.fromkeys(step for ids in persistent.values() for step in ids))
+            hits.append(TriggerHit("error_signature", "infra", max(1.0, infra["score"]),
+                                   f"run_health infra: {classes} in the last {INFRA_PERSIST_STEPS} tool outputs", steps))
     loop = m.get("health", {}).get("loop")
     if loop:
         hits.append(TriggerHit("repetition", "loop", max(1.0, loop["score"]),

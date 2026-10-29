@@ -25,7 +25,7 @@
    "judge_windows_per_run_max": 3,
    "judge_prompt_chars": 952038,
    "pass_through_cards": 47,
-   "stage1_elapsed_s_max": 18.28,
+   "stage1_elapsed_s_max": 22.87,
    "chunks_per_read": {
     "1": 104,
     "2": 16,

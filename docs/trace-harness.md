@@ -113,6 +113,13 @@ record per (run, detector):
   5% false-alarm budgets, localization and cost per detector and per OR/AND combination,
   after a reproduction gate of the published single-detector numbers; `--publish` writes
   the UI Harness tab's `trace-harness/scorecard-v1.json`.
+  Where admitted run lengths and both labels are available, each native detector
+  also has a same-run length AUROC and length-only recall at no more than its
+  observed FAR. The length threshold is chosen in-sample, so is diagnostic, not
+  held-out performance. Abstentions and missing lengths are excluded; detector
+  AUROC intervals are stratified run bootstraps, not task-clustered intervals.
+  Consult `length-control --matched` for the separate task-and-length-matched
+  analysis.
 - `coverage --corpus … [--corpus …]` lists findings per detector identity and corpus,
   and every registered detector that has no findings there.
 - `length-control [--corpus goodfire|cheatbench]` (`trace_harness_length.py`, NP30-TT-1) asks what each

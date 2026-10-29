@@ -147,7 +147,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:3ab9329dfb02cf38b3716a3e47c9edc69b2f800686268399ae9ea424789467cb
+    digest: sha256:452096a8ca3e37a431dafb9f977c6dd75410c676d30c5042cc4f2929fcab560b
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -159,7 +159,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md
-    digest: sha256:b4cb35b69a07ca401d430eec5d52561364b43db4d177277158f169adcbd5059a
+    digest: sha256:337b4db1d23b4b70deded3e581bc37b6ec85494dc0124ac722b85f7d8d3b1162
   - path: docs/trial-treatment.md
     digest: sha256:bd117ce56b14300c3498eae3a115459cee816f90aecc7d9c938cdf3b1026b45c
   - path: docs/verdicts.md

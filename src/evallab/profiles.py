@@ -508,7 +508,8 @@ class GatewayStdioProbe:
     """
 
     argv: tuple[str, ...] = ("omp", "auth-gateway", "stdio")
-    timeout_seconds: float = 30.0
+    # Same bound the bridge applies to the child's ready line (READY_TIMEOUT_SECONDS).
+    timeout_seconds: float = 120.0
     runner: Callable[[Sequence[str], float], str | None] | None = None
 
     def __call__(self, profile: AgentProfile) -> ProbeResult:
@@ -516,9 +517,7 @@ class GatewayStdioProbe:
         try:
             first = read(self.argv, self.timeout_seconds)
         except (OSError, subprocess.SubprocessError) as exc:
-            return ProbeResult(
-                ok=False, reason=f"gateway probe failed: {exc.__class__.__name__}"
-            )
+            return ProbeResult(ok=False, reason=f"gateway probe failed: {exc.__class__.__name__}")
         if first is None:
             return ProbeResult(ok=False, reason="omp auth-gateway stdio did not start")
         try:
@@ -732,6 +731,21 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     "billing:subscription-no-api-charge",
                 ),
                 verified_facts=(),  # gateway lane; unproven until the first trial
+            ),
+            *(
+                AgentProfile(
+                    profile_id=f"claude-code-gateway-{model}",
+                    adapter="claude-code",
+                    model=f"claude-gateway/claude-{model}",
+                    auth_mode="subscription-gateway",
+                    secret_source="gateway:omp auth-gateway stdio",
+                    capabilities=(
+                        "credential-transport:host-loopback-proxy",
+                        "billing:subscription-no-api-charge",
+                    ),
+                    verified_facts=(),  # same gateway lane as Haiku; unproven until a trial
+                )
+                for model in ("sonnet-5-5", "opus-5-5")
             ),
             AgentProfile(
                 profile_id="gemini-cli-declared",

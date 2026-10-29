@@ -603,7 +603,9 @@ def parse_claude_headroom(payload: object, *, now: datetime) -> Headroom:
 def read_claude_headroom(
     *,
     now: datetime,
-    timeout_seconds: float = 10.0,
+    # `omp usage` start-up alone took 36-43s on a loaded host (2026-10-28); a
+    # shorter bound reports quota as unavailable and pauses every Claude dispatch.
+    timeout_seconds: float = 60.0,
     run: Callable[..., subprocess.CompletedProcess[str]] | None = None,
 ) -> Headroom:
     """Free, bounded metadata probe. Exceptions/output never enter persisted reasons."""

@@ -23,7 +23,7 @@ viewer requires before it serves a trial or file.
 
 Integrity rules are deterministic only (HAR-024 contract):
 
-* ``evallab.copy_check`` (copy check v1, ``copy_check.RULE``) -- this detector
+* ``evallab.copy_check`` (``copy_check.RULE``) -- this detector
   already subsumes the "build/lib / site-packages / out-of-base git read
   followed by matching lines" source rule via its outside-source matcher;
 * ``evallab.upstream_fetch`` (confirmed acquisitions only, via
@@ -34,10 +34,9 @@ Integrity rules are deterministic only (HAR-024 contract):
 No LLM judge. A ``guard_reject`` taint never fires integrity on its own: the
 guard held, so no contamination happened.
 
-Detector preference: the stored ``<job>/processed/trial-<name>.json`` taint
-verdict is used for copy_check / upstream_fetch when present and trustworthy
-(no analysis error recorded); grader tamper has no stored verdict anywhere
-and is always computed. Everything is best-effort: a detector error fails
+Trustworthy stored copy and upstream findings are reused; absent stored copy
+findings are recomputed because older empty records cannot attest to the current
+detector. Grader tamper is always computed. Everything is best-effort: a detector error fails
 open (integrity 1) and is recorded in ``reward-details.json``.
 """
 
@@ -307,6 +306,22 @@ def trial_integrity(
         tamper_hits, tamper_problems = compute_hits_grader_only(trial_dir)
         problems.extend(tamper_problems)
         seen = {hit["id"] for hit in hits}
+        # Older stored empty taint lists do not attest which copy detector ran.
+        # Recheck them so a detector improvement is not hidden by a stale record.
+        if RULE_COPY_CHECK not in seen:
+            from evallab.copy_check import copy_check
+
+            try:
+                flag = copy_check(trial_dir)
+            except Exception as exc:  # noqa: BLE001 -- retain explicit detector failure
+                problems.append(f"copy_check: {type(exc).__name__}: {exc}")
+            else:
+                hit = _copy_hit_from_flag(flag) if flag is not None else None
+                if hit is not None:
+                    hit["source"] = "computed"
+                    hits.append(hit)
+                    seen.add(hit["id"])
+                    provenance = "stored+computed"
         for hit in tamper_hits:
             if hit["id"] not in seen:
                 hits.append(hit)

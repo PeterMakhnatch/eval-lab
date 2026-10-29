@@ -31,7 +31,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
-RULE = "copy_check/v1"
+RULE = "copy_check/v2"
 MIN_MATCHED_LINES = 5
 MIN_LINE_CHARS = 16
 

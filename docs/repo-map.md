@@ -85,7 +85,7 @@ inputs:
   - path: src/evallab/continuous_control_plane.py
     digest: sha256:a6d9d6a1f40cadae3e82583fcff4265632b435e284592b1822cafad13743eb96
   - path: src/evallab/copy_check.py
-    digest: sha256:add46a788b13de2e6180a2ff25dc4f94dbf2ee00ca0e8a9c2fbcad81a1bbf047
+    digest: sha256:0416aa785f648db09e10d7a513e473b7074ef361f2cb9c24381604150d679d84
   - path: src/evallab/counts.py
     digest: sha256:1485541291e575670e0dffd41c6fabf65f30d0fe606ea21ed7022812e25e3fd8
   - path: src/evallab/craft.py

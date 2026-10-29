@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +33,7 @@ from evallab.readers.scout_clouddb import (
     StaleProjectionError,
     _check_transcripts,
     _insert,
+    admitted_refs,
     collect,
     read_keymap,
     require_current_results,
@@ -119,6 +122,44 @@ def test_incremental_sync_never_inserts_already_keyed_ids(
         set(row) == {"opaque_id", "run_id", "source", "projection_version"} for row in mappings
     )
     assert all(row["projection_version"] == ACTOR_PROJECTION_VERSION for row in mappings)
+
+
+def test_empty_insert_never_imports_or_opens_the_transcript_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened: list[str] = []
+    module = types.ModuleType("inspect_scout")
+    module.transcripts_db = lambda path: opened.append(str(path))
+    monkeypatch.setitem(sys.modules, "inspect_scout", module)
+    transcripts = tmp_path / "transcripts"
+
+    asyncio.run(_insert(transcripts, iter(())))
+
+    # An unchanged sweep yields no transcript; opening the Parquet cache would
+    # import Scout's Arrow stack and rewrite its index for nothing.
+    assert opened == []
+    assert json.loads((transcripts / PROJECTION_MARKER).read_text()) == {
+        "projection_version": ACTOR_PROJECTION_VERSION,
+    }
+
+
+def test_sync_honors_a_supplied_admission_snapshot(
+    corpus: tuple, tmp_path: Path, scout_runtime: Any,
+) -> None:
+    root, db_path, _ = corpus
+    refs = admitted_refs(db_path, repo_root=root)
+    assert {ref.trace_id for ref in refs} == {
+        "trace-goodfire", "trace-mimo", "trace-tb2", "trace-tb4",
+    }
+    selected = [ref for ref in refs if ref.trace_id == "trace-tb2"]
+    keymap, transcripts = tmp_path / "keymap.jsonl", tmp_path / "transcripts"
+
+    report = sync(db_path, transcripts, keymap, repo_root=root, refs=selected)
+
+    # The caller's one admission decision drives the import: no second query.
+    assert (report["eligible"], report["inserted"], report["unchanged"]) == (1, 1, 0)
+    assert set(read_keymap(keymap)) == {opaque_id("trace-tb2")}
+    assert _transcript_ids(scout_runtime, transcripts) == {opaque_id("trace-tb2")}
 
 
 def test_mixed_batch_quarantines_only_unavailable_actor_histories(

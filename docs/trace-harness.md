@@ -39,6 +39,23 @@ local-only, counts only here). "Reader" is the model that reads the trace.
 | Run health (`production/run_health.py`, `run_health.loop\|runaway\|latency\|infra`) | `evallab trace run --runs goodfire --detectors run_health.loop,run_health.runaway,run_health.latency,run_health.infra`; native `evallab run-health detect` | steps plus allowlisted times, stop reasons and exception facts | `trace-findings/v1`, version `run-health/4` | harness card and score, cloud DB importer | 4,492 overlapping retained records: 0 verdict/score/evidence mismatches; separate native CLI comparison: 160 records, 0 mismatches. GF-200 loop 1/80 at 0/70; CB-150 latency abstains 150/150 (no clocks) | none, deterministic |
 
 
+Trace Tools operations (offline, read-only unless stated):
+
+- `python -m evallab.readers.cost_inventory`: counts the exact actor bytes of admitted DEV
+  traces by safe, actor-history-unavailable, hydration-unavailable and secret-veto bucket.
+  Prices only an explicit versioned scenario; a missing rate, token count, generation,
+  retry or tariff stays `null`, never a full-corpus quote.
+- `python -m evallab.readers.scorecard_watch`: re-derives the existing whole-run scorecard
+  into identity-bound immutable snapshots, moving `current.json` atomically only after a
+  complete valid calculation. Incomplete, malformed or other-projection inputs keep the
+  last valid card; missing results remain abstentions.
+- `python -m evallab.trace_store.owner_cleanup`: read-only check that exactly the 108
+  owner-action Laminar copies are absent. Only a complete, project-bound inventory with
+  108 `absent` returns exit 0; partial, failed, empty or wrong-project output is `unknown`.
+- `scout-watch` keeps a derived `coverage-v1.json` (ledger SHA-256 plus projection and
+  scanner contract) and opens the transcript store only when a transcript exists.
+  Admission is re-decided every sweep.
+
 ## The harness
 
 `evallab trace run|merge|card|score|coverage` (`src/evallab/production/trace_harness*.py`)

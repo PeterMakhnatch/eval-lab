@@ -130,7 +130,7 @@
   "within5_hit": 84
  },
  "cohort200_cards": {
-  "cards": 8,
+  "cards": "<10",
   "reason": "too few to carry a number; the cohort-200 alarm rates above are the comparison",
   "split_reported": false
  },

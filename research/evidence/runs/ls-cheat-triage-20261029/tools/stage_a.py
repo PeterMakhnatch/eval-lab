@@ -52,6 +52,7 @@ IDENTITY_SQL = (
 ALARM = re.compile(r"^- (\S+) \| version (.+?) \| reader (\S+) \| score ([\d.]+) \| steps ([\d,]*) \| ", re.M)
 RUN_IN_OPEN_MORE = re.compile(r"`evallab trace card (\S+)`")
 FLOOR = 3
+COHORT_FLOOR = 10  # cards inside the 200-run cohort: reported as "<10" so the cohort's enacted alarm count cannot expose a complement
 
 
 def sha256(path: Path) -> str:
@@ -92,6 +93,7 @@ def parse_card(path: Path) -> dict[str, Any]:
         "radius": int(window.group(2)) if window else None,
         "card_bytes": len(text.encode()),
         "ends_leads_not_verdicts": text.rstrip().endswith("Leads, not verdicts: confirm in the trace before acting."),
+        "shortcut_none": bool(alarm_lines) and (alarm_lines[0].split(" | ", 5)[-1].split(":", 1)[0].strip().lower() == "none"),
     }
 
 
@@ -113,20 +115,21 @@ def store_alarms(run_ids: set[str]) -> dict[str, list[dict[str, Any]]]:
     return out
 
 
-def store_alarm_totals() -> dict[str, Any]:
-    """Whole-store alarm tallies (structural only): every cheat alarm record, by detector family and dataset."""
-    by_family: Counter[str] = Counter()
-    runs: dict[str, set[str]] = {}
-    with FINDINGS.open() as handle:
-        for line in handle:
-            if '"alarm"' not in line:
-                continue
-            rec = json.loads(line)
-            if rec.get("verdict") == "alarm" and rec.get("kind") == "cheat":
-                key = f'{rec["detector"]}|{rec.get("reader_model") or "deterministic"}'
-                by_family[key] += 1
-                runs.setdefault(key, set()).add(rec["run_id"])
-    return {"alarm_records": dict(by_family), "distinct_runs": {k: len(v) for k, v in runs.items()}}
+def sup_n(value: int) -> int | str:
+    return value if value >= FLOOR else f"<{FLOOR}"
+
+
+def bucket(counts: Counter[int]) -> dict[str, int | str]:
+    """Alarm-line counts: 1, 2 and 3 or more (a cell below 3 is suppressed)."""
+    merged = {"1": counts.get(1, 0), "2": counts.get(2, 0), "3+": sum(v for k, v in counts.items() if k >= 3)}
+    return {k: sup_n(v) for k, v in merged.items()}
+
+
+def bucket_steps(counts: Counter[int]) -> dict[str, int | str]:
+    merged = {"4_or_fewer": sum(v for k, v in counts.items() if k <= 4), "5": counts.get(5, 0),
+              "6_or_more": sum(v for k, v in counts.items() if k >= 6)}
+    return {k: sup_n(v) for k, v in merged.items()}
+
 
 
 def cross_key(run_ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -215,6 +218,15 @@ def batch_population(carded: set[str]) -> dict[str, Any]:
     finding_score = {r["run_id"]: r["score"] for r in batch}
     agree = sum(suspicion_of_haiku_last.get(r) == int(finding_score[r]) for r in strict if r in suspicion_of_haiku_last)
     carded_in_batch = carded & set(ids)
+    finding_verdict = {r["run_id"]: r["verdict"] for r in batch}
+    older: set[str] = set()
+    with FINDINGS.open() as handle:
+        for line in handle:
+            if '"alarm"' in line and haiku in line:
+                rec = json.loads(line)
+                if (rec["detector"] == "facets" and rec.get("reader_model") == haiku and rec["verdict"] == "alarm"
+                        and rec["kind"] == "cheat" and rec["produced_at"] != BATCH_STAMP and rec["run_id"] in finding_verdict):
+                    older.add(rec["run_id"])
     return {
         "batch_lines": len(batch), "batch_runs": len(ids), "crosskey": dict(Counter(v["class"] for v in ck.values())),
         "by_detector_reader_verdict_score": {f"{k[0]}|{k[1]}|{k[2]}|{k[3]}": v for k, v in sorted(by_score.items(), key=str)},
@@ -224,8 +236,11 @@ def batch_population(carded: set[str]) -> dict[str, Any]:
         "facet_store_runs_with_a_haiku_line": len(suspicion_of_haiku_last),
         "haiku_last_haiku_line_suspicion_equals_finding_score": agree,
         "haiku_suspicion_ge2_in_facet_store": sum(v >= 2 for v in suspicion_of_haiku_last.values()),
-        "carded_runs_whose_last_wins_reader": dict(Counter(last.get(r, "none") for r in carded_in_batch)),
+        "carded_runs_whose_last_wins_reader": sup(dict(Counter(last.get(r, "none") for r in carded_in_batch))),
         "batch_runs_in_goodfire_dev_sample_200": len(set(ids) & {row["trace_id"] for row in json.loads(SAMPLE.read_text())}),
+        "batch_runs_with_an_older_haiku_facets_alarm_record": len(older),
+        "of_which_current_batch_record_is_alarm": sum(finding_verdict[r] == "alarm" for r in older),
+        "of_which_current_batch_record_is_clear": sum(finding_verdict[r] == "clear" for r in older),
     }
 
 
@@ -271,12 +286,13 @@ def main() -> None:
             "ends_leads_not_verdicts": sum(c["ends_leads_not_verdicts"] for c in cards),
         },
         "dataset_prefix": sup(dict(Counter(c["dataset"] for c in cards))),
-        "alarm_lines_per_card": dict(Counter(c["alarm_lines"] for c in cards)),
+        "alarm_lines_per_card": bucket(Counter(c["alarm_lines"] for c in cards)),
+        "cards_whose_first_facets_alarm_names_no_shortcut": sup_n(sum(c["shortcut_none"] for c in cards)),
         "cards_with_repeated_identical_alarm_line": sum(c["alarm_lines"] != c["alarm_lines_distinct"] for c in cards),
         "alarm_lines_by_detector": sup(dict(fam)),
         "alarm_lines_by_detector_reader_score": sup(dict(fam_reader)),
         "cards_by_detector_set": sup(dict(runs_by_dets)),
-        "distinct_cited_steps_per_card": dict(sorted(steps_n.items())),
+        "distinct_cited_steps_per_card": bucket_steps(steps_n),
         "cited_steps_outside_live_window": {
             "cited_total": sum(c["cited_total"] for c in cards),
             "outside": sum(c["cited_outside_window"] for c in cards),
@@ -284,18 +300,18 @@ def main() -> None:
         "open_more_window_present": sum(c["around"] is not None for c in cards),
         "open_more_radius_values": dict(Counter(c["radius"] for c in cards)),
         "store": {
-            "cheat_alarm_lines_per_carded_run": dict(sorted(store_lines_per_card.items())),
-            "carded_runs_with_exact_duplicate_store_line": dup_exact,
+            "cheat_alarm_lines_per_carded_run": bucket(store_lines_per_card),
+            "carded_runs_with_exact_duplicate_store_line": sup_n(dup_exact),
             "carded_runs_with_same_key_twice_in_store": key_dup,
             "produced_at_range": [produced[0], produced[-1]] if produced else None,
             "produced_at_distinct": len(produced),
         },
-        "store_cheat_alarm_totals": store_alarm_totals(),
+        "store_scope": "no whole-store alarm tallies: they include runs outside the strict DEV cross-key; the store block above is the 154 carded runs",
         "crosskey": dict(Counter(v["class"] for v in ck.values())),
         "crosskey_detail": sup(dict(Counter(
             f'{v["class"]}|assigned_test={v.get("assigned_test")}|admitted={v.get("admitted_task")}' for v in ck.values()
         ))),
-        "in_goodfire_dev_sample_200": sum(c["in_goodfire_dev_sample"] for c in cards),
+        "cards_in_goodfire_dev_sample_200": f"<{COHORT_FLOOR}" if sum(c["in_goodfire_dev_sample"] for c in cards) < COHORT_FLOOR else sum(c["in_goodfire_dev_sample"] for c in cards),
         "sample_ids": len(sample_ids),
         "steps": step_geometry(cards),
         "batch": batch_population(set(run_ids)),

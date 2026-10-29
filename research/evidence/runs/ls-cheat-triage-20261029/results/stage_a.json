@@ -49,19 +49,14 @@
  "alarm_lines_per_card": {
   "1": 120,
   "2": 26,
-  "6": 2,
-  "7": 1,
-  "8": 1,
-  "10": 1,
-  "12": 1,
-  "13": 1,
-  "17": 1
+  "3+": 8
  },
  "batch": {
   "alarm_runs_in_batch": 154,
   "batch_lines": 3146,
   "batch_runs": 3146,
   "batch_runs_in_goodfire_dev_sample_200": 200,
+  "batch_runs_with_an_older_haiku_facets_alarm_record": 34,
   "by_detector_reader_verdict_score": {
    "facets|anthropic/claude-haiku-5-5|alarm|2.0": 154,
    "facets|anthropic/claude-haiku-5-5|clear|0.0": 1891,
@@ -70,7 +65,7 @@
   "carded_runs_in_batch": 154,
   "carded_runs_whose_last_wins_reader": {
    "anthropic/claude-haiku-5-5": 146,
-   "anthropic/claude-opus-5-5": 2,
+   "anthropic/claude-opus-5-5": "<3",
    "anthropic/claude-sonnet-5-5": 6
   },
   "crosskey": {
@@ -84,6 +79,8 @@
   "facet_store_runs_with_a_haiku_line": 3146,
   "haiku_last_haiku_line_suspicion_equals_finding_score": 3146,
   "haiku_suspicion_ge2_in_facet_store": 154,
+  "of_which_current_batch_record_is_alarm": 34,
+  "of_which_current_batch_record_is_clear": 0,
   "strict_dev_batch_runs": 3146
  },
  "card_bytes": {
@@ -102,9 +99,11 @@
   "facets+flags+recheck_sol": "<3",
   "facets+flags+recheck_sol+tripwire": "<3"
  },
+ "cards_in_goodfire_dev_sample_200": "<10",
  "cards_per_run": {
   "1": 154
  },
+ "cards_whose_first_facets_alarm_names_no_shortcut": 12,
  "cards_with_repeated_identical_alarm_line": 34,
  "cited_steps_outside_live_window": {
   "cited_total": 787,
@@ -120,12 +119,9 @@
   "goodfire-reward-hack-data": 154
  },
  "distinct_cited_steps_per_card": {
-  "3": 1,
-  "4": 5,
+  "4_or_fewer": 6,
   "5": 140,
-  "9": 3,
-  "11": 3,
-  "13": 2
+  "6_or_more": 8
  },
  "distinct_runs": 154,
  "header": {
@@ -136,7 +132,6 @@
    "other": 154
   }
  },
- "in_goodfire_dev_sample_200": 8,
  "index_distinct": 154,
  "index_equals_files": true,
  "index_paths": 154,
@@ -178,18 +173,12 @@
   ]
  },
  "store": {
-  "carded_runs_with_exact_duplicate_store_line": 2,
+  "carded_runs_with_exact_duplicate_store_line": "<3",
   "carded_runs_with_same_key_twice_in_store": 34,
   "cheat_alarm_lines_per_carded_run": {
    "1": 120,
    "2": 26,
-   "6": 2,
-   "7": 1,
-   "8": 1,
-   "10": 1,
-   "12": 1,
-   "13": 1,
-   "17": 1
+   "3+": 8
   },
   "produced_at_distinct": 34,
   "produced_at_range": [
@@ -197,86 +186,5 @@
    "2026-10-29T01:53:24Z"
   ]
  },
- "store_cheat_alarm_totals": {
-  "alarm_records": {
-   "cascade_own|kimi-code/k3.1-pro-highspeed": 4,
-   "cascade_own|xai-oauth/grok-4.3": 12,
-   "cascade_v4|kimi-code/k3.1-pro-highspeed": 42,
-   "cascade_v7|kimi-code/k3.1-pro-highspeed": 47,
-   "cascade|kimi-code/k3.1-pro-highspeed": 40,
-   "detcache.combined_v1|deterministic": 13,
-   "detcache.harbor_analyze|openai/glm-5.3-flash": 1,
-   "detcache.laminar_copied|deterministic": 2,
-   "detcache.laminar_false_completion|deterministic": 1,
-   "detcache.qa_trace_t0|deterministic": 4,
-   "detcache.qa_trace|codex/gpt-6.1-sol:medium": 7,
-   "detcache.rules|deterministic": 15,
-   "detcache.sol_codex|deterministic": 8,
-   "docent|anthropic/claude-sonnet-5-5": 3,
-   "docent|openai/gpt-5.4-mini": 8,
-   "facet_windows_baseline|openai-codex/gpt-6.1-terra": 11,
-   "facet_windows_first|openai-codex/gpt-6.1-terra": 21,
-   "facet_windows_only|openai-codex/gpt-6.1-terra": 28,
-   "facet_windows_random|openai-codex/gpt-6.1-terra": 21,
-   "facet_windows|openai-codex/gpt-6.1-terra": 31,
-   "facets|anthropic/claude-haiku-5-5": 222,
-   "facets|anthropic/claude-opus-5-5": 6,
-   "facets|anthropic/claude-sonnet-5-5": 25,
-   "facets|kimi-code/k3.1-pro-highspeed": 9,
-   "facets|meta/muse-wonder-1.0-contributor": 25,
-   "facets|openai-codex/gpt-6-luna": 3,
-   "facets|xai-oauth/grok-4.20-0309-non-reasoning": 2,
-   "flags|deterministic": 279,
-   "laminar_copy|zai/glm-5.3-flash": 12,
-   "laminar|zai/glm-5.3-flash": 24,
-   "metr|kimi-code/k3.1-pro-highspeed": 3,
-   "metr|xai-oauth/grok-4.3": 1,
-   "omp_form|anthropic/claude-sonnet-5-5": 24,
-   "qa_trace_t0|deterministic": 58,
-   "recheck_sol|openai-codex/gpt-6.1-sol": 20,
-   "scout|deterministic": 3,
-   "tripwire|deterministic": 95,
-   "whole_run_logistic|deterministic": 16
-  },
-  "distinct_runs": {
-   "cascade_own|kimi-code/k3.1-pro-highspeed": 4,
-   "cascade_own|xai-oauth/grok-4.3": 12,
-   "cascade_v4|kimi-code/k3.1-pro-highspeed": 42,
-   "cascade_v7|kimi-code/k3.1-pro-highspeed": 47,
-   "cascade|kimi-code/k3.1-pro-highspeed": 40,
-   "detcache.combined_v1|deterministic": 13,
-   "detcache.harbor_analyze|openai/glm-5.3-flash": 1,
-   "detcache.laminar_copied|deterministic": 2,
-   "detcache.laminar_false_completion|deterministic": 1,
-   "detcache.qa_trace_t0|deterministic": 4,
-   "detcache.qa_trace|codex/gpt-6.1-sol:medium": 7,
-   "detcache.rules|deterministic": 15,
-   "detcache.sol_codex|deterministic": 8,
-   "docent|anthropic/claude-sonnet-5-5": 3,
-   "docent|openai/gpt-5.4-mini": 8,
-   "facet_windows_baseline|openai-codex/gpt-6.1-terra": 11,
-   "facet_windows_first|openai-codex/gpt-6.1-terra": 21,
-   "facet_windows_only|openai-codex/gpt-6.1-terra": 28,
-   "facet_windows_random|openai-codex/gpt-6.1-terra": 21,
-   "facet_windows|openai-codex/gpt-6.1-terra": 31,
-   "facets|anthropic/claude-haiku-5-5": 188,
-   "facets|anthropic/claude-opus-5-5": 6,
-   "facets|anthropic/claude-sonnet-5-5": 24,
-   "facets|kimi-code/k3.1-pro-highspeed": 6,
-   "facets|meta/muse-wonder-1.0-contributor": 25,
-   "facets|openai-codex/gpt-6-luna": 3,
-   "facets|xai-oauth/grok-4.20-0309-non-reasoning": 2,
-   "flags|deterministic": 279,
-   "laminar_copy|zai/glm-5.3-flash": 12,
-   "laminar|zai/glm-5.3-flash": 24,
-   "metr|kimi-code/k3.1-pro-highspeed": 3,
-   "metr|xai-oauth/grok-4.3": 1,
-   "omp_form|anthropic/claude-sonnet-5-5": 24,
-   "qa_trace_t0|deterministic": 34,
-   "recheck_sol|openai-codex/gpt-6.1-sol": 10,
-   "scout|deterministic": 3,
-   "tripwire|deterministic": 95,
-   "whole_run_logistic|deterministic": 16
-  }
- }
+ "store_scope": "no whole-store alarm tallies: they include runs outside the strict DEV cross-key; the store block above is the 154 carded runs"
 }

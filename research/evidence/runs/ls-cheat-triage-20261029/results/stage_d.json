@@ -1,7 +1,7 @@
 {
  "cards": 154,
- "cards_whose_cited_steps_pass_the_trace_card_agent_step_count": 154,
- "cards_whose_cited_steps_pass_the_trace_card_step_count": 154,
+ "cards_citing_a_step_at_or_past_the_trace_card_agent_steps_header": 154,
+ "cards_citing_a_step_at_or_past_the_trace_card_steps_header": 154,
  "sample10_mechanical": {
   "trace_card_exit_0": 10,
   "window_contains_the_around_step": 10,
@@ -12,16 +12,16 @@
   "S2": 5
  },
  "seconds_trace_card": {
-  "max": 3.14,
-  "median": 1.86,
-  "min": 1.43,
-  "p90": 2.58
+  "max": 9.63,
+  "median": 0.9,
+  "min": 0.82,
+  "p90": 1.06
  },
  "seconds_window": {
-  "max": 1.18,
-  "median": 0.59,
-  "min": 0.47,
-  "p90": 0.85
+  "max": 0.45,
+  "median": 0.29,
+  "min": 0.28,
+  "p90": 0.32
  },
  "stage": "D (open-more commands; no label)",
  "trace_card_actor_inputs_available": {
@@ -30,6 +30,13 @@
  "trace_card_alarm_lines_median": 1.0,
  "trace_card_exit_0": 154,
  "trace_card_lists_alarm_steps": 154,
+ "trace_card_steps_header_equals_stored_step_count": 0,
+ "trace_card_steps_header_over_stored_step_count": {
+  "max": 0.51,
+  "median": 0.46,
+  "min": 0.23,
+  "p90": 0.5
+ },
  "window_contains_the_around_step": 154,
  "window_exit_0": 154,
  "window_ok_json": 154,

@@ -19,7 +19,7 @@ queue line `LS-CHEAT-2026-10-29-1` for the Trace Watcher. The queue line called 
 | Dataset prefix | `goodfire-reward-hack-data` for 154 |
 | Header: `actor_inputs_available=false`, `owner=other`, `killable=false` | 154, 154, 154 |
 | Strict DEV by identity (registry TEST check, DEV-admitted task, split `dev`, effective split not TEST) | 154 of 154; 0 TEST/sealed, 0 unknown |
-| Cards whose run is in the 200-run labelled Goodfire DEV sample (`goodfire-sample.json`) | 8 of 154 |
+| Cards whose run is in the 200-run labelled Goodfire DEV sample (`goodfire-sample.json`) | fewer than 10 of 154 (exact count withheld in the follow-up: with the cohort's enacted alarm count it exposed a single run) |
 | Cards with at least one repeated identical alarm line | 34 |
 | Cited steps shown as "outside the live window; open the run" | 787 of 787 |
 | Facets-only cards (no other detector alarm) | 146 of 154 |
@@ -83,4 +83,4 @@ facet records. Anthropic is at about 47% (7 days); stop at 85%; not started here
 ## 5. Not claimed
 
 No claim about live detection, recall over the whole 3,146, or any detector other than what the stored findings and labels support.
-The 8 (or fewer) labelled cards cannot carry a precision claim; this plan says so before the number exists.
+The cards inside the 200-run cohort (fewer than 10) cannot carry a precision claim; this plan says so before the number exists.

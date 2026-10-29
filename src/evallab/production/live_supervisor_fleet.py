@@ -82,6 +82,20 @@ WALL_TIME_S = 3 * 60 * 60
 #: A lane idle with queue items pending and a keeper that has not paged it for an hour.
 LANE_IDLE_S = 60 * 60
 KEEPER_SILENT_S = 60 * 60
+#: LS-FREEZE. A lane whose pane lost its agent (herdr ``agent_status`` ``unknown``) with an item in flight
+#: and a turn still open (no final assistant stop) is stalled after 60 min without a session event. The
+#: 30-min ``SILENCE_S`` is for a *working* lane herdr still sees; with the agent undetected the evidence is
+#: weaker, so the bar is the keeper's own idle bar. Replayed over 1.3 days of 11 lanes (4,558 in-flight
+#: lane-cycles, see research/evidence/runs/ls-freeze-20261029), the rule made 4/3/1 episodes at 30/45/60 min
+#: (a long ``eval`` or ``wait``, and one 6 h stall); open ``ask`` calls and ended turns are not counted.
+HEARTBEAT_STALE_S = 60 * 60
+#: A supervisor cycle this much later than the previous one means the host slept or the supervisor stalled:
+#: lane heartbeats and wall times that span the gap are suspect and are counted from the wake. The 94
+#: recorded cycles are 123-330 s apart (median 162 s) and a cycle takes up to 187 s.
+SUPERVISOR_GAP_S = 15 * 60
+#: ``ps`` columns the frozen-lane probe and the keeper lookup read (``parse_process_table``).
+PS_ARGV = ("ps", "-axo", "pid=,ppid=,pgid=,stat=,command=")
+
 
 EVENT_WINDOW = 20
 TAIL_START_BYTES = 256 * 1024
@@ -275,6 +289,90 @@ def _median_active_hour(recs: Sequence[_Rec], now: datetime) -> tuple[float | No
     return float(statistics.median(buckets.values())), len(buckets)
 
 
+# --------------------------------------------------------------------------- process table (frozen lanes)
+
+_HEADLESS_FLAGS = frozenset({"-p", "--print"})
+
+
+@dataclass(frozen=True)
+class Proc:
+    pid: int
+    ppid: int
+    pgid: int
+    state: str  # BSD ``ps`` stat: ``T`` is job-control stopped, a trailing ``+`` is the foreground group
+    argv: tuple[str, ...]
+
+
+def parse_process_table(text: str) -> dict[int, Proc]:
+    """Rows of ``ps -axo pid=,ppid=,pgid=,stat=,command=`` by pid; malformed rows are skipped."""
+    table: dict[int, Proc] = {}
+    for line in text.splitlines():
+        fields = line.split(None, 4)
+        if len(fields) == 5 and all(f.isdigit() for f in fields[:3]):
+            pid = int(fields[0])
+            table[pid] = Proc(pid, int(fields[1]), int(fields[2]), fields[3], tuple(fields[4].split()))
+    return table
+
+
+def _interactive_omp(proc: Proc) -> bool:
+    """An ``omp`` that owns a terminal; a headless ``omp -p`` worker is not a lane."""
+    return bool(proc.argv) and Path(proc.argv[0]).name == "omp" and not _HEADLESS_FLAGS.intersection(proc.argv[1:])
+
+
+@dataclass(frozen=True)
+class LaneProcess:
+    """What the process table and herdr's pane process info say about the ``omp`` of one pane."""
+
+    probed: bool = False
+    pids: tuple[int, ...] = ()
+    #: ``"<name> pid <pid> state <stat>"`` of every job-control stopped process in the omp's tree.
+    stopped: str | None = None
+    #: ``omp`` is alive but not in the pane's foreground process group; ``None`` when that group is unknown.
+    background: bool | None = None
+    foreground: str = ""
+    #: The session JSONL named by ``omp --resume``; a join key, never a metric.
+    resume: Path | None = None
+
+    def metrics(self) -> dict[str, Any]:
+        return {"omp_probe": "ok" if self.probed else "unavailable", "omp_pids": list(self.pids),
+                "omp_stopped": self.stopped, "omp_background": self.background, "pane_foreground": self.foreground}
+
+
+def lane_process(shell_pid: int, foreground_pgid: int | None, foreground: Sequence[str],
+                 table: Mapping[int, Proc]) -> LaneProcess:
+    """The pane's interactive ``omp`` processes (descendants of the shell) and whether they are frozen (pure)."""
+    children: dict[int, list[int]] = {}
+    for proc in table.values():
+        children.setdefault(proc.ppid, []).append(proc.pid)
+    omps: list[Proc] = []
+    seen: set[int] = set()
+    pending = list(children.get(shell_pid, ()))
+    while pending:
+        pid = pending.pop()
+        if pid in seen:
+            continue
+        seen.add(pid)
+        if _interactive_omp(table[pid]):
+            omps.append(table[pid])  # its own tree is searched below, not for more lanes
+        else:
+            pending.extend(children.get(pid, ()))
+    stopped: list[str] = []
+    for omp in sorted(omps, key=lambda p: p.pid):
+        tree, walk = {omp.pid}, [omp.pid]
+        while walk:
+            for child in children.get(walk.pop(), ()):
+                if child not in tree:
+                    tree.add(child)
+                    walk.append(child)
+        stopped += [f"{Path(table[p].argv[0]).name if table[p].argv else '?'} pid {p} state {table[p].state}"
+                    for p in sorted(tree) if table[p].state.startswith("T")]
+    background = None if foreground_pgid is None and omps else any(p.pgid != foreground_pgid for p in omps)
+    resume = next((Path(argv[i + 1]) for p in omps for argv in (p.argv,) for i, a in enumerate(argv[:-1])
+                   if a == "--resume" and argv[i + 1].endswith(".jsonl")), None)
+    return LaneProcess(True, tuple(sorted(p.pid for p in omps)), "; ".join(stopped) or None, background,
+                       ",".join(foreground), resume)
+
+
 # --------------------------------------------------------------------------- lane observation
 
 
@@ -290,7 +388,7 @@ class LaneQueue:
 def lane_observation(events: Sequence[Mapping[str, Any]], *, subject: Subject, now: datetime,
                      agent_status: str = "working", median_hourly_tokens: float | None = None,
                      queue: LaneQueue | None = None, activity_at: datetime | None = None,
-                     tail_truncated: bool = False) -> Observation:
+                     tail_truncated: bool = False, awake_since: datetime | None = None) -> Observation:
     """The lane as it looked at ``now``, from raw OMP session JSONL records (pure; no I/O).
 
     Records after ``now`` are ignored, so a historical session can be replayed at any simulated
@@ -299,10 +397,15 @@ def lane_observation(events: Sequence[Mapping[str, Any]], *, subject: Subject, n
     ``median_hourly_tokens`` is the lane's baseline; when omitted it is the median active hour
     of ``events`` themselves before the trailing hour (``None`` below MIN_BASELINE_HOURS hours).
     ``activity_at`` is later activity that is not in ``events`` (a subagent's session file).
+    ``awake_since`` is the last host wake or supervisor stall: a heartbeat or dispatch older than it is
+    counted from it, because nothing ran in between (``SUPERVISOR_GAP_S``).
     """
     recs = _records(events, now)
+    awake = awake_since if awake_since is not None and awake_since <= now else None
     last_at = recs[-1].at if recs else None
-    age = (now - last_at).total_seconds() if last_at else None
+    suspect = awake is not None and (last_at is None or last_at < awake)
+    counted_from = max(last_at, awake) if last_at and awake else last_at
+    age = (now - counted_from).total_seconds() if counted_from else None
     since = now - timedelta(seconds=ERROR_WINDOW_S)
     errors = [i for i, r in enumerate(recs) if r.at >= since and r.kind == "assistant" and r.stop == "error"]
     fallbacks = [i for i, r in enumerate(recs) if r.at >= since and r.kind == "model_change" and r.fallback]
@@ -336,9 +439,14 @@ def lane_observation(events: Sequence[Mapping[str, Any]], *, subject: Subject, n
         "median_hourly_tokens": baseline,
         "baseline_hours": baseline_hours,
         "tail_truncated": tail_truncated,
+        "turn_open": bool(recs) and (recs[-1].kind in ("call", "result", "user")
+                                     or (recs[-1].kind == "assistant" and recs[-1].stop == "toolUse")),
+        "awaiting_human": any(c.tool == "ask" for c in open_calls),
+        "heartbeat_suspect": suspect,
         "queue_pending": queue.pending if queue else 0,
         "queue_open_item": queue.open_item if queue else None,
-        "queue_open_item_age_s": (now - queue.open_item_dispatched_at).total_seconds()
+        "queue_open_item_age_s": (now - (max(queue.open_item_dispatched_at, awake) if awake
+                                         else queue.open_item_dispatched_at)).total_seconds()
         if queue and queue.open_item_dispatched_at else None,
     }
     window = recs[-EVENT_WINDOW:]
@@ -354,8 +462,38 @@ def lane_observation(events: Sequence[Mapping[str, Any]], *, subject: Subject, n
 # --------------------------------------------------------------------------- triggers
 
 
-def _lane_hits(m: Mapping[str, Any]) -> list[TriggerHit]:
+def _frozen_hits(m: Mapping[str, Any]) -> list[TriggerHit]:
+    """LS-FREEZE ``frozen`` hits (kind ``infra``): (a) omp or a process in its tree is job-control stopped,
+    (b) omp is alive outside its pane's foreground process group, (c) the session heartbeat of an item in
+    flight is stale, (d) the supervisor's own previous cycle is far older than its cadence."""
     hits: list[TriggerHit] = []
+    last = m.get("last_event_index")
+    last_steps = (last,) if isinstance(last, int) else ()
+    if m.get("omp_stopped") or m.get("omp_background"):
+        why = []
+        if m.get("omp_stopped"):
+            why.append(f"job-control stopped ({m['omp_stopped']})")
+        if m.get("omp_background"):
+            why.append(f"alive outside the pane foreground (foreground: {m.get('pane_foreground') or 'unknown'})")
+        pids = ",".join(str(p) for p in m.get("omp_pids") or ())
+        hits.append(TriggerHit("frozen", "infra", 1.0, f"omp pid {pids} " + " and ".join(why), last_steps))
+    activity = m.get("last_activity_age_s")
+    if (m.get("agent_status") == "unknown" and m.get("queue_open_item") and m.get("turn_open")
+            and not m.get("silence_excused") and not m.get("awaiting_human")
+            and activity is not None and activity >= HEARTBEAT_STALE_S):
+        hits.append(TriggerHit("frozen", "infra", activity / HEARTBEAT_STALE_S,
+                               f"pane agent status unknown, item {m['queue_open_item']} in flight and the turn "
+                               f"open, but no session event for {activity / 60:.0f} min", last_steps))
+    gap = m.get("supervisor_gap_s")
+    if gap is not None and gap >= SUPERVISOR_GAP_S and (m.get("queue_open_item") or m.get("agent_status") == "working"):
+        hits.append(TriggerHit("frozen", "infra", gap / SUPERVISOR_GAP_S,
+                               f"supervisor's previous cycle was {gap / 60:.0f} min ago (host sleep or stall): "
+                               f"this lane's heartbeat and wall time are suspect and counted from now", ()))
+    return hits
+
+
+def _lane_hits(m: Mapping[str, Any]) -> list[TriggerHit]:
+    hits: list[TriggerHit] = _frozen_hits(m)
     status = m.get("agent_status")
     age = m.get("last_event_age_s")
     activity = m.get("last_activity_age_s")
@@ -655,7 +793,8 @@ class FleetSource:
         fleet_panes = fleet_registry_panes(fleet_doc.read_text(encoding="utf-8")) if fleet_doc.is_file() \
             else frozenset()
 
-        keeper_process = self._keeper_run()
+        table = parse_process_table(self.runner(PS_ARGV))
+        keeper_process = self._keeper_run(table)
         run_name = keeper_process or self.run_name
         run_dir = self.home / "Developer/research-context/bridge" / run_name
         log = parse_queue_log((run_dir / "_queue.log").read_text(encoding="utf-8")) \
@@ -664,6 +803,7 @@ class FleetSource:
                                   self._config_json(run_dir / "queue-state.json"))
 
         state = self._state()
+        gap, awake_since = self._clock(state, now)
         baselines: dict[str, Any] = state.setdefault("baselines", {})
         authorized = authorized_lanes(pending, fleet_panes)
         seen: set[str] = set()
@@ -676,23 +816,27 @@ class FleetSource:
                               killable=False, label=label)
             status = str(pane.get("agent_status", "unknown"))
             queue = LaneQueue(pending.get(pane_id, 0), *(log.open_items.get(pane_id, (None, None))))
+            proc = self._pane_process(pane_id, table)
             meta = {"agent_status": status, "agent": pane.get("agent"), "queue_pending": queue.pending,
+                    "queue_open_item": queue.open_item, "supervisor_gap_s": gap, **proc.metrics(),
                     "authorized": pane_id in authorized, "session_read": False}
             may_read = may_read_session(pane_id, label, authorized=authorized)
             session = (pane.get("agent_session") or {}).get("value") if may_read else None
             session = session or (routed_session.get(pane_id) if may_read else None)
+            session = session or (proc.resume if may_read else None)
             path = Path(session) if session and str(session).endswith(".jsonl") else None
-            if not may_read or path is None or not path.is_file() or pane.get("agent") != "omp":
+            if not may_read or path is None or not path.is_file() or (pane.get("agent") != "omp" and not proc.pids):
                 out.append(Observation(subject, now, (), meta, actor_inputs_available=False))
                 continue
             records, truncated = read_session_tail(path, since=now - timedelta(seconds=BURN_WINDOW_S))
             median = self._baseline(baselines, path, now)
             observation = lane_observation(records, subject=subject, now=now, agent_status=status,
                                            median_hourly_tokens=median, queue=queue,
-                                           activity_at=latest_subagent_activity(path), tail_truncated=truncated)
+                                           activity_at=latest_subagent_activity(path), tail_truncated=truncated,
+                                           awake_since=awake_since)
             seen.add(str(path))
             out.append(_with_metrics(observation, session_path=str(path), agent=pane.get("agent"),
-                                     authorized=True, session_read=True))
+                                     authorized=True, session_read=True, supervisor_gap_s=gap, **proc.metrics()))
         state["baselines"] = {k: v for k, v in baselines.items() if k in seen}  # never keep a path we may not read
         out.append(self._keeper_observation(now, run_name, log, pending, running=keeper_process is not None))
         if self.fetch_quota:
@@ -712,15 +856,38 @@ class FleetSource:
         baselines[str(path)] = {"at": now.isoformat(), "median": median, "hours": hours}
         return median
 
-    def _keeper_run(self) -> str | None:
-        """The ``--run`` of a running ``queue_keeper.py`` (from ``ps``), else ``None``."""
-        for line in self.runner(["ps", "-axo", "pid=,command="]).splitlines():
-            parts = line.split()
-            runs = [parts[i + 1] for i, p in enumerate(parts[:-1]) if p == "--run"]
-            if len(parts) > 2 and "python" in parts[1].lower() and runs \
-                    and any(p.endswith("queue_keeper.py") for p in parts[2:]):
+    def _keeper_run(self, table: Mapping[int, Proc]) -> str | None:
+        """The ``--run`` of a running ``queue_keeper.py`` (from the process table), else ``None``."""
+        for proc in table.values():
+            runs = [proc.argv[i + 1] for i, a in enumerate(proc.argv[:-1]) if a == "--run"]
+            if len(proc.argv) > 1 and "python" in proc.argv[0].lower() and runs \
+                    and any(a.endswith("queue_keeper.py") for a in proc.argv[1:]):
                 return runs[0]
         return None
+
+    def _clock(self, state: dict[str, Any], now: datetime) -> tuple[float | None, datetime | None]:
+        """(gap, awake_since): the seconds since this source's previous observation when that is at least
+        SUPERVISOR_GAP_S (the host slept or the supervisor stalled), else ``None``; and the persisted time
+        of the last such gap. Heartbeats older than ``awake_since`` are counted from it."""
+        previous = _ts(state.get("last_observed_at"))
+        elapsed = (now - previous).total_seconds() if previous else 0.0
+        gap = elapsed if elapsed >= SUPERVISOR_GAP_S else None
+        if gap is not None:
+            state["awake_since"] = now.isoformat()
+        state["last_observed_at"] = now.isoformat()
+        return gap, _ts(state.get("awake_since"))
+
+    def _pane_process(self, pane_id: str, table: Mapping[int, Proc]) -> LaneProcess:
+        """The pane's ``omp`` process state from herdr's process info plus the process table; a pane whose
+        info cannot be read is unprobed (no frozen verdict), not an error."""
+        try:
+            info = self._json(["herdr", "pane", "process-info", "--pane", pane_id])["result"]["process_info"]
+            shell = int(info["shell_pid"])
+            group = info.get("foreground_process_group_id")
+            names = [str(p.get("name", "?")) for p in info.get("foreground_processes") or ()]
+            return lane_process(shell, int(group) if group is not None else None, names, table)
+        except (subprocess.SubprocessError, OSError, ValueError, LookupError, TypeError):
+            return LaneProcess()
 
     def _keeper_observation(self, now: datetime, run_name: str, log: KeeperLog, pending: Mapping[str, int],
                             *, running: bool) -> Observation:

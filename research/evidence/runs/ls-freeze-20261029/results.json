@@ -1,0 +1,45 @@
+{
+  "item": "LS-FREEZE",
+  "measured_by": "LS-FREEZE worker, 2026-10-29 (ET evening); every number below was computed by the scripts in this directory or read from the named recorded file",
+  "code": {"trigger": "frozen", "kind": "infra", "action": "alert_research",
+           "thresholds": {"HEARTBEAT_STALE_S": 3600, "SUPERVISOR_GAP_S": 900}},
+  "why_neither_incident_alarmed": {
+    "incident_1": "a frozen pane loses herdr's agent (agent absent, agent_status unknown): silence needs status working, no session joined (pane.agent != omp), wall_time needs an item 3 h old",
+    "incident_2": "supervisor and lanes slept together; the first cycle after the wake counted the sleep as 7 h of wall time and silence",
+    "lane_decisions_after_freeze_21_54_55Z": 0,
+    "cycles_after_freeze_through_22_55_15Z": 25
+  },
+  "incident_1_5_54_55_PM_ET": {
+    "before_detection": "none (0 lane decisions in 25 cycles; the brief reports none through 6:48 PM)",
+    "after_ab_latency_s": 110,
+    "after_ab_latency_basis": "first recorded cycle after the freeze (21:56:45Z) minus 21:54:55Z; recorded cycle spacing is 123-330 s, so the bound is one cycle; historical process tables were not recorded, so this is the recorded cadence applied to the process state observed live",
+    "live_probe_passes": 4,
+    "live_probe_frozen_panes_flagged_per_pass": 12,
+    "live_probe_frozen_panes_actual": 12,
+    "live_probe_process_state": "12 of 12 omp in state T at 23:12-23:20Z (the brief saw 4 T + 8 S at 6:38 PM; one omp seen in S earlier this session was T by 7:12 PM)",
+    "heartbeat_rule_alone_first_hit_after_freeze_s": {"wK:p1J": 3005, "w1C:pS": 2405, "w1C:pJ": 3155},
+    "heartbeat_rule_alone_lanes_detected": "3 of 11 replayed lanes (the others had no item in flight, an ended turn or an open ask)"
+  },
+  "incident_2_host_sleep_1_36_to_8_45_AM_ET": {
+    "sleep": "2026-10-29T05:36:29Z", "wake": "2026-10-29T12:45:43Z",
+    "first_supervisor_cycle_after_wake": "2026-10-29T12:46:54Z",
+    "detection_latency_after_wake_s_upper_bound": 71,
+    "during_sleep": "not detectable by anything on the host: supervisor and lanes were both frozen",
+    "recorded_decisions_that_cycle": {"lane_decisions": 9, "wall_time_hits": 9, "silence_hits": 3, "actions": {"continue": 7, "alert_research": 2}},
+    "replayed_with_clock_rule": {"lanes_with_hit": 9, "wall_time_or_silence_hits": 0, "frozen_hits": 9, "all_alert_research": true}
+  },
+  "false_alarms": {
+    "ab_live": {"healthy_interactive_omp_panes": 8, "passes": 4, "pane_observations": 32, "flagged": 0,
+                "panes_without_omp": 6, "probe_unavailable": 0},
+    "c_replay": {"window": "2026-10-28T12:00Z to 2026-10-29T21:54:55Z, host sleep excluded", "cadence_s": 150,
+                 "lane_cycles": 7062, "in_flight_lane_cycles": 4558, "no_item_in_flight_lane_cycles": 2504,
+                 "episodes_by_threshold_s": {"600": 183, "900": 136, "1200": 121, "1800": 4, "2700": 3, "3600": 1},
+                 "alarm_lane_cycles_by_threshold_s": {"600": 1196, "900": 855, "1200": 594, "1800": 162, "2700": 143, "3600": 133},
+                 "quiet_hour_not_alarmed": {"declared_tool_timeout": 0, "open_ask": 88, "turn_ended": 426},
+                 "shipped_alarm_episodes": 1},
+    "d_gap": {"recorded_cycles": 94, "inter_cycle_gaps": 93, "gap_min_s": 123, "gap_median_s": 162, "gap_max_s": 330,
+              "cycle_duration_max_s": 186.9, "gaps_at_or_above_900s": 0}
+  },
+  "files": {"quiet_period_replay": "replay_frozen.py", "live_probe": "live_probe.py",
+            "raw_outputs": "~/.local/state/evallab-fleet/2026-10-29/LS-FREEZE/ (not committed)"}
+}

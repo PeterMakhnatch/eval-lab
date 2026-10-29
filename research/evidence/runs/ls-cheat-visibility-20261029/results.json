@@ -1,0 +1,120 @@
+{
+  "baseline": {
+    "admitted_goodfire_traces": 3674,
+    "by_tool_type": {
+      "bash command": {
+        "absent": 6886,
+        "full": 591,
+        "partial": 787
+      },
+      "file edit/write": {
+        "absent": 17,
+        "full": 1,
+        "partial": 2
+      },
+      "message": {
+        "absent": 387,
+        "full": 8,
+        "partial": 44
+      },
+      "other tool": {
+        "absent": 22,
+        "full": 3,
+        "partial": 1
+      }
+    },
+    "ledger_sha256": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "missing_cas": 0,
+    "model_calls": 0,
+    "off_path_or_missing": 1932,
+    "positive_passage_channels_scored": {
+      "content": 1457,
+      "reasoning": 7378,
+      "tool_calls": 804
+    },
+    "positive_steps": 10681,
+    "positive_traces": 2483,
+    "processed_runs": 3674,
+    "reader_prompt_characters": {
+      "max": 12174,
+      "median": 8433,
+      "n": 8749,
+      "p90": 10213
+    },
+    "reader_prompt_estimated_tokens": {
+      "max": 7000,
+      "median": 4849,
+      "n": 8749,
+      "p90": 5872
+    },
+    "schema": "ls-cheat-visibility/1",
+    "token_estimator": "0.575 tokens per character, prior Goodfire B3 empirical ratio; not tokenizer counts",
+    "traces_without_passage_cas": 9
+  },
+  "definitions": {
+    "absent": "neither full nor partial; no semantic key-token recovery attempted",
+    "excluded": "off-final-parent-path steps excluded from visibility denominator; no passage CAS/no quote and unrenderable tracked separately",
+    "frame": "counterfactual immediate-after-labelled-step prefixes, without watch alerts; no model calls",
+    "full": "all whitespace-normalized quotes occur in labelled event reader line",
+    "partial": "not full and at least 20 contiguous normalized characters from a quote occur in that event line",
+    "unit": "distinct positive publisher passage-labelled step; quote group is all nonempty carrier_quotes for positive passages at that step"
+  },
+  "expanded_tool_text": {
+    "admitted_goodfire_traces": 3674,
+    "by_tool_type": {
+      "bash command": {
+        "absent": 6858,
+        "full": 641,
+        "partial": 765
+      },
+      "file edit/write": {
+        "absent": 17,
+        "full": 1,
+        "partial": 2
+      },
+      "message": {
+        "absent": 387,
+        "full": 8,
+        "partial": 44
+      },
+      "other tool": {
+        "absent": 22,
+        "full": 3,
+        "partial": 1
+      }
+    },
+    "ledger_sha256": "sha256:7f4703f623952545f75a89d7ec223280b043fb8b8ca45a6660f3b2beda5f880f",
+    "missing_cas": 0,
+    "model_calls": 0,
+    "off_path_or_missing": 1932,
+    "positive_passage_channels_scored": {
+      "content": 1457,
+      "reasoning": 7378,
+      "tool_calls": 804
+    },
+    "positive_steps": 10681,
+    "positive_traces": 2483,
+    "processed_runs": 3674,
+    "reader_prompt_characters": {
+      "max": 12711,
+      "median": 8979,
+      "n": 8749,
+      "p90": 10893
+    },
+    "reader_prompt_estimated_tokens": {
+      "max": 7309,
+      "median": 5163,
+      "n": 8749,
+      "p90": 6263
+    },
+    "schema": "ls-cheat-visibility/1",
+    "token_estimator": "0.575 tokens per character, prior Goodfire B3 empirical ratio; not tokenizer counts",
+    "traces_without_passage_cas": 9
+  },
+  "preregistration_sha256": "8d396102dcf069bdcbb197a1c818b4027b822857bbaa9a790be3f72262e6c7d7",
+  "preregistration_timestamp_utc": "2026-10-29T23:18:48Z",
+  "step_counts_independently_verified": {
+    "final_parent_path": 8749,
+    "off_final_parent_path": 1932
+  }
+}

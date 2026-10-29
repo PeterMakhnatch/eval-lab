@@ -126,10 +126,11 @@ def _infra_runs(steps: Sequence[Mapping[str, Any]], classes: Iterable[str]) -> d
     return {name: ids[::-1] for name, ids in runs.items()}
 
 
-def _event_text(step: Mapping[str, Any]) -> str:
+def _event_text(step: Mapping[str, Any], *, expanded_tool_text: bool = False) -> str:
     message = step.get("message")
     parts = [" ".join(message.split())[:300]] if isinstance(message, str) and message.strip() else []
-    parts += [f"$ {' '.join(text.split())[:200]}" for _, text in _step_calls(dict(step)) if text.strip()]
+    tool_chars = EVENT_TEXT_CHARS if expanded_tool_text else 200
+    parts += [f"$ {' '.join(text.split())[:tool_chars]}" for _, text in _step_calls(dict(step)) if text.strip()]
     output = " ".join(_observation_text(step).split())
     if output:
         parts.append(f"-> {output[-200:]}")
@@ -169,7 +170,8 @@ def _wall_p99(source: str) -> float:
 
 def trial_observation(run: HealthRun, *, subject: Subject, now: datetime, alerts: Sequence[Mapping[str, Any]] = (),
                       mtime: datetime | None = None,
-                      trace_alarms: Sequence[Mapping[str, Any]] = ()) -> Observation:
+                      trace_alarms: Sequence[Mapping[str, Any]] = (),
+                      expanded_tool_text: bool = False) -> Observation:
     """What the supervisor sees of ``run`` at ``now``; steps stamped after ``now`` are ignored.
 
     ``alerts`` are ``live_watch`` alert rows for this trial (a row with ``acknowledged_by`` or a
@@ -178,6 +180,8 @@ def trial_observation(run: HealthRun, *, subject: Subject, now: datetime, alerts
     write, used with the last step time for ``silence_seconds``; without it silence is measured from
     the last timestamped step only and is None when there is none. ``run.source`` selects the
     wall-time p99; ``run.meta['started_at']`` (epoch seconds) is the trial start, else the first step.
+    ``expanded_tool_text`` is an opt-in replay/experiment setting that allows tool arguments to use
+    the existing 600-character event budget; the default and the reader's overall bounds are unchanged.
     """
     cutoff = now.timestamp()
     steps = [s for s in run.steps if (t := _epoch(s.get("timestamp"))) is None or t <= cutoff]
@@ -216,7 +220,7 @@ def trial_observation(run: HealthRun, *, subject: Subject, now: datetime, alerts
         "features": feats,
     }
     events = tuple(Event(index=_step_index(s, position), at=_iso(_epoch(s.get("timestamp"))),
-                         source=str(s.get("source") or ""), text=_event_text(s))
+                         source=str(s.get("source") or ""), text=_event_text(s, expanded_tool_text=expanded_tool_text))
                    for position, s in list(enumerate(steps))[-EVENT_WINDOW:])
     return Observation(subject=subject, observed_at=now, events=events, metrics=metrics,
                        actor_inputs_available=bool(feats["actor_inputs_available"]))

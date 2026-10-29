@@ -14,6 +14,8 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
+import subprocess
 import sys
 from collections import Counter
 from contextlib import closing
@@ -21,7 +23,12 @@ from pathlib import Path
 from typing import Any
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[4]
+REPO = Path(
+    os.environ.get("EVALLAB_REPO")
+    or subprocess.run(
+        ["git", "-C", str(HERE), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+)
 sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "research/evidence/runs/corpus-expansion-lb6-20261027/tools"))
 sys.path.insert(0, str(REPO / "research/evidence/runs/cm11-hackbench-crosstest-20261028/tools"))
@@ -184,8 +191,8 @@ def unseen() -> dict[str, Any]:
                 "join_missing": len(miss),
                 "facet_record_present": sum(k in facets for k in keys),
                 "by_class": dict(sorted(cls_n.items())),
-                "by_class_and_staged_value": {f"{c}|{v}": n for (c, v), n in sorted(sub_n.items())},
-                "by_technique": dict(sorted(tech_n.items())),
+                "by_class_and_staged_value": sup({f"{c}|{v}": n for (c, v), n in sorted(sub_n.items())}),
+                "by_technique": sup(dict(sorted(tech_n.items()))),
             }
         out[tag] = {
             "sample_sha256": file_sha(state / "sample.json"),
@@ -198,11 +205,15 @@ def unseen() -> dict[str, Any]:
     b6 = json.loads((STATE / "evallab-cm18-b6/subsample.json").read_text())
     b6f = {r["key"]: r for r in jsonl(STATE / "evallab-cm18-b6/facets.jsonl") if r.get("record")}
     cm18_sample = {r["key"]: r for r in json.loads((CM18 / "sample.json").read_text())["runs"]}
+    cm18_facets = {r["key"] for r in jsonl(CM18 / "facets.jsonl") if r.get("record")}
     out["b6"] = {
         "subsample_runs": len(b6["keys"]),
         "positives": sum(cm18_sample[k]["label"] for k in b6["keys"]),
         "sonnet_records": len(b6f),
         "sonnet_records_on_positives": sum(cm18_sample[k]["label"] for k in b6f),
+        "paired_positives_haiku_and_sonnet": sum(
+            cm18_sample[k]["label"] and k in cm18_facets for k in b6f
+        ),
         "subsample_sha256": file_sha(STATE / "evallab-cm18-b6/subsample.json"),
     }
     return out
@@ -245,17 +256,40 @@ def osf_rows() -> dict[str, dict[str, Any]]:
 
 # ---------------------------------------------------------------- Goodfire DEV cohort
 
+RUN_ID = re.compile(r'"run_id"\s*:\s*"([^"]+)"')
+V2 = "run-atlas-prompt/v2"
+RECORD_FIELDS = (
+    "answer_material_accessed", "approach", "eval_awareness", "evidence_steps", "facet_model",
+    "facet_version", "goal", "grader_or_harness_touched", "input_tokens", "outcome", "output_tokens",
+    "run_id", "shortcut", "source", "split", "success_claim_without_evidence", "suspicion", "tests",
+)  # fmt: skip
+COMPARED = ("facet_model", "goal", "approach", "shortcut", "suspicion", "evidence_steps")  # atlas_coverage
+
+
+def sup(counts: dict[str, int], floor: int = 3) -> dict[str, Any]:
+    """Cells below ``floor`` are suppressed: a one- or two-run cell can reveal a single run."""
+    return {k: (v if v >= floor else f"<{floor}") for k, v in counts.items()}
+
+
+def read_admitted(path: Path, ids: set[str]) -> list[dict[str, Any]]:
+    """Stream ``path``; parse only lines whose run id is an admitted identity (read-time filter)."""
+    out: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            match = RUN_ID.search(line)
+            if match and match.group(1) in ids:
+                out.append(json.loads(line))
+    return out
+
 
 def goodfire() -> dict[str, Any]:
     ids = sorted({row["trace_id"] for row in json.loads(SAMPLE.read_text())})
     registry = CorpusRegistry(REPO)
     store = ra.DEFAULT_FACETS.parent
-    lines = jsonl(ra.DEFAULT_FACETS)
-    calls = jsonl(store / "facet-calls-v1.jsonl")
-    reblinded = {r["run_id"] for r in jsonl(store / "reblinded-facets-v1.jsonl")}
-    refresh_listed = set(json.loads((store / "blinding-refresh-v1.json").read_text())["run_ids"])
     with closing(ra.connect_readonly(ra.DEFAULT_DATABASE)) as connection:
+        # strict assignments cross-key FIRST: nothing below is parsed for a non-admitted run
         labels, checked = sc._read_labels(connection, registry, required=set(ids), wanted=set(ids))
+        admitted = set(labels)
         strata = Counter(label.stratum for label in labels.values())
         by_stratum: dict[str, list[str]] = {}
         for run_id, label in labels.items():
@@ -268,77 +302,113 @@ def goodfire() -> dict[str, Any]:
             ).fetchone()
             receipts[run_id] = json.loads(row[0] or "{}")
             steps[run_id] = int(row[1] or 0)
+    lines = read_admitted(ra.DEFAULT_FACETS, admitted)
+    calls = read_admitted(store / "facet-calls-v1.jsonl", admitted)
+    rebl = read_admitted(store / "reblinded-facets-v1.jsonl", admitted)
+    refresh_listed = set(json.loads((store / "blinding-refresh-v1.json").read_text())["run_ids"]) & admitted
+    valid = [r for r in lines if all(f in r for f in RECORD_FIELDS)]
     readers: dict[str, set[str]] = {}
+    per_reader_lines: dict[str, Counter[str]] = {}
     last_any: dict[str, str] = {}
-    for rec in lines:
-        if rec["run_id"] in labels:
-            readers.setdefault(rec["facet_model"], set()).add(rec["run_id"])
-            last_any[rec["run_id"]] = rec["facet_model"]
-    mode: dict[str, set[str]] = {}  # (run, model) -> purposes of successful calls
+    last_by: dict[tuple[str, str], dict[str, Any]] = {}
+    for rec in valid:
+        readers.setdefault(rec["facet_model"], set()).add(rec["run_id"])
+        per_reader_lines.setdefault(rec["facet_model"], Counter())[rec["run_id"]] += 1
+        last_any[rec["run_id"]] = rec["facet_model"]
+        last_by[(rec["facet_model"], rec["run_id"])] = rec
+    # attestation: a successful call served by the reader, by call purpose and prompt version
+    attested: dict[tuple[str, str], set[str]] = {}
     for call in calls:
-        if call.get("run_id") in labels and call.get("status") == "ok":
-            kind = "legacy_single_call" if call["purpose"] == "run" else "v2_form_or_map"
-            mode.setdefault(f"{call['run_id']}|{call.get('served_model')}", set()).add(kind)
+        if call.get("status") == "ok":
+            kind = "legacy_run" if call["purpose"] == "run" else (
+                "v2_form" if call["purpose"] == "form" and call.get("prompt_version") == V2 else "v2_map_or_other"
+            )
+            attested.setdefault((call["run_id"], str(call.get("served_model"))), set()).add(kind)
+    rebl_last = {}
+    for rec in rebl:
+        rebl_last[rec["run_id"]] = rec
+
+    def v2_attested(run: str, reader: str) -> bool:
+        return "v2_form" in attested.get((run, reader), set())
+
+    def equals_reblinded(run: str, reader: str) -> bool:
+        a, b = last_by.get((reader, run)), rebl_last.get(run)
+        return bool(a and b and all(a[f] == b[f] for f in COMPARED))
+
+    def per_stratum(fn: Any) -> dict[str, Any]:
+        return {st: sum(bool(fn(r)) for r in rids) for st, rids in sorted(by_stratum.items())}
+
     out: dict[str, Any] = {
         "ids_in_sample": len(ids),
         "ids_admitted_by_strict_cross_key": len(checked),
+        "read_order": "cross-key first; facets, calls and reblinded files streamed with a run-id filter",
         "strata": dict(sorted(strata.items())),
         "sample_file_sha256": file_sha(SAMPLE),
         "facet_store_sha256": file_sha(ra.DEFAULT_FACETS),
-        "facet_lines_total": len(lines),
-        "facet_lines_in_cohort": sum(r["run_id"] in labels for r in lines),
+        "facet_lines_in_cohort": len(lines),
+        "facet_lines_in_cohort_valid_fields": len(valid),
+        "facet_version_values_in_cohort": dict(Counter(r["facet_version"] for r in valid)),
     }
     out["reader_coverage_by_stratum"] = {
         reader: {st: len(set(rids) & members) for st, rids in sorted(by_stratum.items())}
         for reader, members in sorted(readers.items())
     }
+    out["lines_per_run_by_reader_and_stratum"] = {
+        reader: {
+            st: dict(sorted(Counter(per_reader_lines[reader][r] for r in rids if r in readers[reader]).items()))
+            for st, rids in sorted(by_stratum.items())
+        }
+        for reader in sorted(readers)
+    }
     out["last_wins_reader_by_stratum"] = {
         st: dict(Counter(last_any.get(r, "none") for r in rids)) for st, rids in sorted(by_stratum.items())
     }
-    out["reblinded_file_coverage_by_stratum"] = {
-        st: sum(r in reblinded for r in rids) for st, rids in sorted(by_stratum.items())
+    out["reblinded_file_rows_in_cohort"] = len(rebl)
+    out["reblinded_file_reader_spread_cohort"] = dict(Counter(r["facet_model"] for r in rebl))
+    out["reblinded_file_coverage_by_stratum"] = per_stratum(lambda r: r in rebl_last)
+    out["blinding_refresh_listed_by_stratum"] = per_stratum(lambda r: r in refresh_listed)
+    for reader, tag in ((HAIKU, "haiku"), ("anthropic/claude-sonnet-5-5", "sonnet"), ("anthropic/claude-opus-5-5", "opus")):
+        out[f"{tag}_ok_call_modes_by_stratum"] = {
+            st: dict(Counter("+".join(sorted(attested.get((r, reader), {"none_logged"}))) for r in rids))
+            for st, rids in sorted(by_stratum.items())
+        }
+        out[f"{tag}_attested_v2_form_by_stratum"] = per_stratum(lambda r, rd=reader: v2_attested(r, rd))
+    out["haiku_primary_candidates_by_stratum"] = {
+        "has_valid_haiku_line": per_stratum(lambda r: (HAIKU, r) in last_by),
+        "valid_line_and_attested_v2_form": per_stratum(lambda r: (HAIKU, r) in last_by and v2_attested(r, HAIKU)),
+        "attested_v2_and_equals_reblinded_record": per_stratum(
+            lambda r: (HAIKU, r) in last_by and v2_attested(r, HAIKU) and equals_reblinded(r, HAIKU)
+        ),
+        "attested_v2_and_reblinded_file_row_is_haiku": per_stratum(
+            lambda r: (HAIKU, r) in last_by and v2_attested(r, HAIKU)
+            and rebl_last.get(r, {}).get("facet_model") == HAIKU
+        ),
     }
-    out["blinding_refresh_listed_by_stratum"] = {
-        st: sum(r in refresh_listed for r in rids) for st, rids in sorted(by_stratum.items())
-    }
-    out["haiku_extractor_mode_by_stratum"] = {
-        st: dict(
-            Counter(
-                "+".join(sorted(mode.get(f"{r}|{HAIKU}", {"no_ok_call_logged"}))) for r in rids
-            )
-        )
-        for st, rids in sorted(by_stratum.items())
-    }
-    out["source_protocol_by_stratum"] = {
-        st: dict(Counter(
-            "has_reward_field" if "reward" in (receipts[r].get("source_label") or {}) else "has_shortcut_signal_split"
-            for r in rids
-        ))
-        for st, rids in sorted(by_stratum.items())
-    }
-    out["categories_nonempty_by_stratum"] = {
-        st: sum(bool((receipts[r].get("source_label") or {}).get("categories")) for r in rids)
-        for st, rids in sorted(by_stratum.items())
-    }
-    out["category_values_by_stratum"] = {
-        st: dict(sorted(Counter(
-            str(c) for r in rids for c in ((receipts[r].get("source_label") or {}).get("categories") or [])
-        ).items()))
-        for st, rids in sorted(by_stratum.items())
-    }
+    out["sonnet_and_haiku_both_attested_v2_by_stratum"] = per_stratum(
+        lambda r: v2_attested(r, HAIKU) and v2_attested(r, "anthropic/claude-sonnet-5-5")
+    )
+    out["opus_covered_and_haiku_attested_v2_by_stratum"] = per_stratum(
+        lambda r: (("anthropic/claude-opus-5-5", r) in last_by) and v2_attested(r, HAIKU)
+    )
     out["source_protocol_values_by_stratum"] = {
         st: dict(sorted(Counter(
             str((receipts[r].get("source_label") or {}).get("source_protocol")) for r in rids
         ).items()))
         for st, rids in sorted(by_stratum.items())
     }
-    out["labelled_positive_step_count_quartiles_enacted"] = [
-        sorted(len(labels[r].positive_steps) for r in by_stratum["enacted_yes"])[int(q * 79)]
-        for q in (0, 0.25, 0.5, 0.75, 1)
-    ]
-    out["enacted_with_labelled_positive_steps"] = sum(
-        bool(labels[r].positive_steps) for r in by_stratum.get("enacted_yes", [])
+    out["categories_nonempty_by_stratum"] = per_stratum(
+        lambda r: (receipts[r].get("source_label") or {}).get("categories")
     )
+    out["category_values_by_stratum_cells_below_3_suppressed"] = {
+        st: sup(dict(sorted(Counter(
+            str(c) for r in rids for c in ((receipts[r].get("source_label") or {}).get("categories") or [])
+        ).items())))
+        for st, rids in sorted(by_stratum.items())
+    }
+    enacted = by_stratum["enacted_yes"]
+    n_l = sorted(len(labels[r].positive_steps) for r in enacted)
+    out["labelled_positive_step_count_quartiles_enacted"] = [n_l[int(q * (len(n_l) - 1))] for q in (0, 0.25, 0.5, 0.75, 1)]
+    out["enacted_with_labelled_positive_steps"] = sum(bool(labels[r].positive_steps) for r in enacted)
     out["step_count_quartiles_by_stratum"] = {
         st: [sorted(steps[r] for r in rids)[int(q * (len(rids) - 1))] for q in (0, 0.25, 0.5, 0.75, 1)]
         for st, rids in sorted(by_stratum.items())
@@ -346,7 +416,7 @@ def goodfire() -> dict[str, Any]:
     out["receipt_fields_used"] = [
         "source_label.verdict", "source_label.verdict_enacted", "source_label.judged",
         "source_label.categories", "source_label.source_protocol",
-        "passage_step_labels.positive_step_indices", "native_metrics.*",
+        "passage_step_labels.positive_step_indices",
     ]
     return out
 

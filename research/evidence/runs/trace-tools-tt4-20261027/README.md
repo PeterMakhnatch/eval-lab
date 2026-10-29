@@ -315,7 +315,8 @@ The pinned standard endpoint advertises **1,048,576 context tokens** and
 
 Every HTTP attempt must first reserve **$0.11** durably under the shared
 `openrouter-budget-20261028/state.lock`, across a fresh cash read and atomic
-state write. Immutable disjoint caps are TT4=$14.85 and TT7=$35.00; TT7 is
+state write. Immutable disjoint caps are TT4=$14.85 and TT7=$33.50 (lowered from $35.00 on
+2026-10-28: TT-7 parked; owner Trace Harness w1C:p0); TT7 is
 reserved, **not dispatch-approved**. Pending/unknown/error costs retain the full
 bound; only verified billed actual cost releases the remainder. Budget accounting
 rounds actual cost upward to 12 decimal places; receipts retain the source value.
@@ -375,7 +376,7 @@ usage=100%, monthly total/code=67.13%/66.4%. It made no inference and reported
 the next reset as **8:23:00 AM ET**, not permission to resume. The original
 zero-attempt receipts were not rewritten; see `kimi-quota-preflight-20261028.json`.
 
-## TT-4b: Kimi K3 on OpenRouter, no tools, 182/200 scored
+## TT-4b: Kimi K3 on OpenRouter, no tools, 199/200 scored
 
 The Gemini arm stayed blocked (Google BYOK billing unproven), so the same frozen
 200, seed, native METR 0.1.11 prompts, 150,000-character chunking and ≥5/≥7
@@ -400,38 +401,39 @@ call, refusal, reasoning or non-`InferenceNet`/non-K3 response, so every sent re
 those checks.
 
 **Run** (private state under `…/tt4-metr-20261027/openrouter-kimi-k3-inference-net-20261028-native-actor-v2/`;
-aggregate numbers in `kimi-openrouter-k3-summary-20261029.json`): 467 HTTP attempts, **359
+aggregate numbers in `kimi-openrouter-k3-summary-20261029.json`): 512 HTTP attempts, **404
 attested** (exact model `moonshotai/kimi-k3`, provider `InferenceNet`, `is_byok=false` on every
-response; key-level `byok_usage` 0 before and after), 11.62M input and 76,283 output tokens,
-billed **$3.5937**. 108
+response; key-level `byok_usage` 0 before and after), 13.30M input and 84,498 output tokens,
+billed **$4.0819**. 108
 attempts were HTTP 429 rejections: their holds are bounded by body bytes × input price
 (**$2.9616** upper bound, never zero; OpenRouter's documented zero-completion insurance means
 the true charge is likely nil, but this key is shared fleet-wide so it cannot be reconciled).
-Budget-basis spend is **$6.5553** (+$0.0012 in two probes) against the $15 stop; four `ReadError`
-attempts and one abandoned pending attempt still hold $1.10 unknown. Cost per scored run is
-**$0.0198** billed ($19.75 per 1k) or $0.0360 on the budget basis ($36.02 per 1k).
+Budget-basis spend is **$7.0435** settled (+$0.0012 in two probes) against the $15 stop; four
+`ReadError` attempts and one abandoned pending attempt still hold $1.10 unknown, so $8.14
+worst case. Cost per scored run is **$0.0205** billed ($20.51 per 1k) or $0.0354 on the
+budget basis ($35.39 per 1k). Median call 5.5 s, p95 13.0 s.
 
 | Frozen stratum | Total | Scored | ≥5 hits | ≥7 hits |
 | --- | ---: | ---: | ---: | ---: |
-| Enacted yes/yes | 80 | 70 | 5 | 3 |
-| Clean no/no | 70 | 64 | 0 | 0 |
-| Considered yes/no | 50 | 48 | 0 | 0 |
+| Enacted yes/yes | 80 | 80 | 5 | 3 |
+| Clean no/no | 70 | 69 | 0 | 0 |
+| Considered yes/no | 50 | 50 | 0 | 0 |
 
-At **≥5**: recall **5/70 = 7.1%** (Wilson 95% 3.1–15.7%), false-alarm **0/64** (0–5.7%); at
-≥7: 3/70 (1.5–11.9%), 0/64. AUROC on the 134 scored primary runs is 0.730. Versus the frozen
+At **≥5**: recall **5/80 = 6.3%** (Wilson 95% 2.7–13.8%), false-alarm **0/69** (0–5.3%); at
+≥7: 3/80 (1.3–10.5%), 0/69. AUROC on the 149 scored primary runs is 0.718. Versus the frozen
 final cascade at ≥5, K3 finds 4 positives the cascade missed and misses 7 it found (1 both);
-versus Stage-1-any it finds 1 new positive and misses 49. Recall is far below the native Kimi
+versus Stage-1-any it finds 1 new positive and misses 56. Recall is far below the native Kimi
 partial (3/13, a different 37-trace prefix), so this K3 reading is not a stand-in for the
 native arm; it is not a model recommendation.
 
-**Coverage is not full.** Eight enacted-yes traces were never attempted and 10 attempted
-traces abstained (1 canonical privacy no-send, 9 with failed scans: 429 retries exhausted or
-`ReadError`); 182/200 scored.
-The shared budget guard stopped dispatch with `cash_low` after three resumes: it requires
-bound + all holds + all settled spend + the other arm's unused earmark ($35, TT7) to fit in
-live credits, and credits already include settled spend, so every settled dollar counts twice.
-The remaining 16 need roughly $0.4 of real spend. Finishing them needs either TT7's earmark
-lowered by about $1 or a credit top-up; nothing else is blocking.
+**Coverage: 199/200 scored.** The 200th is the canonical privacy no-send (the same one the
+other arms abstain on). A first pass scored 182 and was stopped by the shared budget guard
+(`cash_low`): it requires bound + all holds + all settled spend + the other arm's unused
+earmark to fit in live credits, and credits already include settled spend, so every settled
+dollar counts twice. TT-7 is parked, so its earmark was lowered from $35.00 to $33.50
+(`lower_tt7_earmark.py`, `CAPS`; reason "TT-7 parked; owner Trace Harness w1C:p0,
+2026-10-28"), after which the remaining 17 traces ran and the TT4 arm closed. Two requests
+at a time; no tools, exact model/provider and `is_byok=false` on every response.
 
 Changes this arm needed, beyond arm selection: InferenceNet returned HTTP 429 on 14% of the
 first 230 attempts at four parallel requests, each failure retaining its full $0.22 hold.
@@ -439,8 +441,10 @@ The Kimi arm now runs two requests at once, treats a 429 as a provider rejection
 as above, no terminal marker, the scanner's own retry re-enters the gate under a numbered
 attempt id, at most 6 per request), and `paid.py recover` bounded the 33 earlier 429 holds
 (originals kept in `receipts/original-429-calls/`) and let the 18 traces that had only failed
-on 429s run again (new attempt-id epoch, prior traces kept in `superseded/`). `Budget.bound_failed`
-is the only new budget transition; it needs a smaller proven bound and never settles to zero.
+on 429s run again (new attempt-id epoch, prior traces kept in `superseded/`); `recover
+--retry-failed` did the same for 9 traces that had ended unscored without a 429.
+`Budget.bound_failed` is the only new budget transition; it needs a smaller proven bound and
+never settles to zero.
 
 **METR export step** (`metr_campaign_plan prepare|export` on the real ledger, 4,497 runs):
 prepare took **167-190 s** and export **166-168 s** wall across the three real runs (the first,

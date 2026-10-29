@@ -43,7 +43,8 @@ from pathlib import Path
 from types import MappingProxyType
 
 SCHEMA = "openrouter-budget-v1"
-CAPS = MappingProxyType({"tt4": "14.85", "tt7": "35.00"})
+# TT7 earmark lowered 35.00 -> 33.50: TT-7 parked; owner Trace Harness w1C:p0, 2026-10-28.
+CAPS = MappingProxyType({"tt4": "14.85", "tt7": "33.50"})
 DISPATCH_APPROVED = MappingProxyType({"tt4": True, "tt7": False})
 DEFAULT_STATE_DIR = Path.home() / ".local/state/evallab-failure-library/openrouter-budget-20261028"
 CASH_MAX_AGE = timedelta(seconds=15)

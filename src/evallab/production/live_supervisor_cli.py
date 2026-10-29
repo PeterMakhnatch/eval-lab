@@ -1,4 +1,4 @@
-"""Live Supervisor CLI: ``evallab live-supervisor`` scan, serve, rows, replay and adjudicate.
+"""Live Supervisor CLI: ``evallab live-supervisor`` scan, serve, rows, replay, adjudicate and fleet-report.
 
 Design: ``docs/live-supervisor.md``. This is the operator-facing layer: it selects sources
 by name with lazy imports (so registration opens nothing), builds the rules decider or the
@@ -599,6 +599,31 @@ def _route_alarms_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         return 0
 
 
+def _fleet_report_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
+    del root, harbor
+    report = _import("live_supervisor_fleet_report", "the fleet report")
+    bridge = args.bridge if args.bridge is not None else _attr(report, "DEFAULT_BRIDGE", "the fleet report")
+    if args.out is not None and not args.write:
+        print("live-supervisor fleet-report: --out names the file --write updates; add --write", file=sys.stderr)
+        return 2
+    if not (math.isfinite(args.window_hours) and args.window_hours > 0):
+        print("live-supervisor fleet-report: --window-hours must be finite and positive", file=sys.stderr)
+        return 2
+    updated: Path | None = None
+    try:
+        data, text = report.run_fleet_report(bridge, window_hours=args.window_hours)
+        if args.write:
+            updated = (args.out if args.out is not None else bridge / report.TARGET_FILE).expanduser()
+            report.write_section(updated, text)
+    except (OSError, TypeError, ValueError) as exc:
+        print(f"live-supervisor fleet-report: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(data, indent=2, sort_keys=True) if args.json else text)
+    if updated is not None:
+        print(f"live-supervisor fleet-report: updated {updated}", file=sys.stderr)
+    return 0
+
+
 def _add_cycle_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--source", action="append", choices=SOURCE_NAMES,
                         help="source to observe; repeatable (default: every source)")
@@ -683,3 +708,18 @@ def register_parser(commands: Any) -> None:
     pacing.add_argument("--interval", type=float, help="seconds between passes; loops until interrupted")
     alarms.add_argument("--json", action="store_true", help="print one JSON object per pass")
     alarms.set_defaults(func=_route_alarms_command)
+    fleet = actions.add_parser(
+        "fleet-report",
+        help="deterministic $0 fleet-health report (idle lane-hours, item durations, blocked loops) from the keeper log",
+    )
+    fleet.add_argument("--bridge", type=Path,
+                       help="bridge run directory holding _queue.log, queue.json and queue-state.json "
+                            "(default: ~/Developer/research-context/bridge/2026-10-27-run-atlas)")
+    fleet.add_argument("--window-hours", type=float, default=24.0,
+                       help="hours before now that the report covers (default: 24)")
+    fleet.add_argument("--out", type=Path,
+                       help="document whose fleet-health region --write updates (default: <bridge>/live-supervisor.md)")
+    fleet.add_argument("--write", action="store_true",
+                       help="update the marked fleet-health region of the document; otherwise only print")
+    fleet.add_argument("--json", action="store_true", help="print the numbers as JSON instead of the markdown section")
+    fleet.set_defaults(func=_fleet_report_command)

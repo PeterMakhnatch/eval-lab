@@ -258,6 +258,53 @@ release), `__HOME__` (for `omp` on `PATH`) and `__LOG_DIR__` before installing, 
 an unrendered file. Installation is explicit and out of scope for this document; neither job is
 loaded by merging this change.
 
+### Fleet-health report
+
+`evallab live-supervisor fleet-report` is the repeatable form of the one-off RH-3 / RH-p11c fleet
+numbers ("which of our own lanes sat idle or looped"). It is deterministic and $0: it reads only the
+queue keeper's files in the bridge run directory (`_queue.log`, `queue.json`, `queue-state.json`),
+never a lane's session, and calls no model.
+
+```bash
+# print the markdown section for the last 24 h (read-only)
+evallab live-supervisor fleet-report
+
+# the same numbers as JSON, over 28 h, from another bridge directory
+evallab live-supervisor fleet-report --bridge /tmp/bridge --window-hours 28 --json
+
+# refresh the region of <bridge>/live-supervisor.md between the fleet-health markers
+evallab live-supervisor fleet-report --write
+evallab live-supervisor fleet-report --write --out /tmp/copy-of-live-supervisor.md
+```
+
+- Window: `--window-hours` ending now (default 24). An item counts in the window by the time its
+  outcome landed; an idle gap is clipped to the window. The keeper log starts 2026-10-27 4:58 PM ET,
+  so a longer window is covered only from there, and the report says how many hours it covers.
+- Items: `dispatch` → `outcome` pairs, `done` vs `blocked`: n, median, p90, total hours and the
+  blocked share of hours. A dispatch superseded by a later dispatch on the same pane (a keeper
+  restart) has no outcome and is counted separately; an outcome whose dispatch is not in the log
+  (an orphan) gives no duration and is counted and dropped.
+- Idle lane-hours: per pane, outcome → next dispatch (a gap still running ends now). Gaps over
+  60 minutes are reported as holds: RH-3 found those were lanes starved of work. The report names
+  the panes idle now with queue items pending, from `queue.json` and `queue-state.json`.
+- Blocked loops (STORM): per pane, 3 or more items each `blocked` within 300 s of dispatch, all inside
+  one 30-minute window; overlapping episodes merge; wasted lane-minutes run from the first dispatch
+  to the last outcome. The thresholds are named constants in
+  `production/live_supervisor_fleet_report.py`, fixed in RH-p11c before scoring.
+- Open items: dispatches with no outcome, flagged past 3 h (the supervisor's wall-time rule).
+- Every number carries its n, and a quantity with no data is `null` (JSON) or `n/a`, never 0.
+- Measured limits: STORM had one episode in the validation log (precision 1/1) and SILENT was 2/5
+  precise, so the report claims nothing about lane health beyond the keeper log.
+
+`--write` replaces only the bytes between `<!-- fleet-health:start -->` and `<!-- fleet-health:end -->`
+in the target (or appends that marked region when it is absent), atomically, under an exclusive
+flock on `<target>.lock`. A half-written or repeated marker pair is refused. Another editor that
+writes the file without that lock can still race the replace.
+
+`scripts/ops/launchd/com.petermakhnatch.evallab.live-supervisor-fleet-report.plist` runs
+`fleet-report --write` at load and every 4 h (`StartInterval` 14400). It is a template with the same
+placeholders as the plists above, and merging it loads nothing.
+
 ## Safety
 
 - Never kill, restart or message Peter's chats or any persistent tab. Fleet problems become

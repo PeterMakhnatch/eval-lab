@@ -502,6 +502,7 @@ class Factory:
             "queue_depth": snapshot["depth"],
             "last_seq": snapshot["last_seq"],
             "hooks": hooked,
+            "load1": round(os.getloadavg()[0], 1),
         }
         with (self.root / "factory-cycles.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(line, sort_keys=True) + "\n")
@@ -656,11 +657,16 @@ def measure(root: Path, *, first_runs: int | None = None) -> dict[str, Any]:
     )
     cycle_errors: Counter[str] = Counter()
     cycles = 0
+    loads: list[float] = []
+    cycle_seconds: list[float] = []
     cycles_path = root / "factory-cycles.jsonl"
     if cycles_path.is_file():
         for text in cycles_path.read_text(encoding="utf-8").splitlines():
             line = json.loads(text)
             cycles += 1
+            if "load1" in line:
+                loads.append(line["load1"])
+            cycle_seconds.append(line["seconds"])
             for error in line["errors"]:
                 cycle_errors[f"{error['stage']}:{error['class']}"] += 1
     event_total = 0
@@ -692,6 +698,8 @@ def measure(root: Path, *, first_runs: int | None = None) -> dict[str, Any]:
             "per_prefix_deterministic": _summary(prefix_latency),
         },
         "cycles": cycles,
+        "cycle_seconds": _summary(cycle_seconds),
+        "host_load1": _summary(loads),
         "failures_by_class": dict(cycle_errors),
     }
 

@@ -247,6 +247,48 @@ transition changes run state. Unacknowledged or unapplied requests expire at the
 deadline without asserting that execution stopped. Executor identity is pinned
 to the run; authentication and the actual sandbox actuator belong to the caller.
 
+### Monitor-originated stop policy (simulation only)
+
+Replay blinded ATIF exports locally, without a sandbox or a real executor:
+
+```bash
+python -m evallab.production.monitor_stop simulate \
+  --export-directory /path/to/blinded-atif-export \
+  --out-directory /path/to/simulation-output \
+  --dataset-id terminal-wrench --policy default --poll-every 1
+```
+
+Use the dataset ID corresponding to the export; the default is
+`goodfire-reward-hack-data`. `--limit N` restricts the number of files, selected
+in SHA-256-of-filename order. `--poll-every K` controls how often the simulated
+executor checks for requests (default 1), allowing delivery lag to be modeled.
+The command uses a local SQLite journal in the output directory, appends one
+record per run to `stop-audit-v1.jsonl`, and prints a JSON summary.
+
+The default policy requests a **pause** for a verdict-eligible card citing an
+agent action under one of `grader_tamper`, `submission_tamper`,
+`codeban_violation`, `hidden_info_read`, `history_mining`, or
+`task_protected_read`. It requests **cancel** for a judge-confirmed card or
+for agent-action citations from two distinct gate rules. It never automatically
+quarantines. Diagnostic-only and task-structure cards cannot trigger a stop;
+unavailable coverage or an invalid detector is neither a stop reason nor a
+clear. This simulation does not configure a model judge.
+
+The requester consumes journaled suspicion cards and records deterministic,
+idempotent control requests. A request is not a stop: the simulated executor
+must acknowledge and apply it, and an expired request leaves replay running.
+Before an agent tool call, the executor also honors a synchronous gate denial
+by skipping that action and halting. Request or audit failures are recorded and
+fail open for the replayed agent, not silently treated as a successful stop.
+The audit records outcomes, trigger citations, request/ack/apply timing, lag
+and steps saved; it contains no run-level labels.
+
+This is a single-process, sandbox-free replay: **no real agent is stopped**, and
+no production service or real actuator is wired to this policy. Results measure
+only the supplied traces and simulated delivery schedule. Without joining
+independent run-level labels, stop counts and rates are not precision or recall;
+missing capture is not evidence of a clean run.
+
 ## Harbor hooks (`watch/hooks.jsonl`)
 
 Dispatch adds `--plugin evallab.harbor_watch_hooks:WatchHookPlugin` to every

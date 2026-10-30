@@ -67,6 +67,26 @@ all unchanged (mtime and size); a reused status still ages `minutes_since_update
 and a late `result.json` flips the trial to finished. `--limits-from-config` reads token limits from the trial/job
 `config.json` or the job `experiment-spec.json` instead of the defaults.
 
+## Exporting monitor findings
+
+`MonitorFindingsConsumer` in `evallab.production.monitor_findings` folds journal
+`monitor.suspicion` cards into an append-only, fsync'd `trace-findings/v1`
+JSONL file. Construct it with the queue, `out_path`, a caller-provided
+`run_ids` mapping from queue IDs to stored trace IDs, an injected `clock`, and
+`step_map(queue_run_id)`, whose list maps blinded step 1 to its first stored
+step index, and so on. Call `flush()` to process and acknowledge available
+events; `summary()` reports counts and the last cursor sequence. Missing
+run mappings or step maps are skipped, never guessed. The consumer does not
+read manifests or import into a database; use the normal admitted-DEV findings
+import separately. Keep the journal, output file, and consumer ID together and
+use one writer per consumer ID; recovery replays the journal and uses the
+output's journal sequence to avoid duplicate writes after an interrupted ack.
+
+Cards do not prove reward causality. Provisional and deterministic-only cards
+produce `unknown`, not `clear`; only a confirmed judge assessment of a gate
+rule can produce `alarm`. No card produces no finding. Rule-to-kind and
+severity-to-score mappings are documented in the module.
+
 ## Production stream monitor
 
 `evallab.production.monitor_worker.MisalignmentLiveWorker` consumes the shared

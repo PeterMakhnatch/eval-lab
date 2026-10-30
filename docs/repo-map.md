@@ -469,7 +469,7 @@ inputs:
   - path: src/evallab/integrity_reward.py
     digest: sha256:5cc159e5dc984f9121dc861c41c132c03c4b96c51068dda157fae5face089f3d
   - path: src/evallab/integrity_reward_core.py
-    digest: sha256:7461f4759fa983ca99d4f2ef0f6d7c4f9ce6996fec29562fe50609f7ead7bdd1
+    digest: sha256:ec19fe4641c366e0a5acd84c9e847ab9ed436ebe9377b162e56d225b6c55711f
   - path: src/evallab/integrity_reward_files/integrity/copy_check_v1.py
     digest: sha256:1c714cb20f930a28f7f0791981e94a453696243bb1c27189ab7d84895735a382
   - path: src/evallab/integrity_reward_files/integrity/grader_tamper.py
@@ -485,7 +485,7 @@ inputs:
   - path: src/evallab/integrity_reward_files/vendor/copy_check_vendored.py
     digest: sha256:86c0bb39ac89ebcde2287492c6f075a31c310c9b43addd43b2a1453de5ea186e
   - path: src/evallab/integrity_reward_files/vendor/integrity_core.py
-    digest: sha256:063b4a7b542e096588ee983358cfba44fc614e8ac6817782675b0f3695072019
+    digest: sha256:57d8edecd3714d63486ec355b147ee37e5a5838171a01174c07ae70fd3115258
   - path: src/evallab/integrity_reward_files/vendor/run_integrity.py
     digest: sha256:c66fb3fa1d3f25152bb5958810bb70e263976ec4add582e7dcd1342714acecfd
   - path: src/evallab/interop.py

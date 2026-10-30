@@ -1,4 +1,8 @@
-"""Read-only HAR-206 replay; write JSON to stdout, never to source trials."""
+"""Read-only HAR-206 replay; write JSON to stdout, never to source trials.
+
+Arguments: published-results root, repository root, copied GEPA trial directory.
+The GEPA source worktree is provenance only and is never accessed by this script.
+"""
 from __future__ import annotations
 
 import collections
@@ -24,6 +28,10 @@ from evallab.process_job import _process_trial
 
 root = Path(sys.argv[1]).resolve()
 repo = Path(sys.argv[2]).resolve()
+gepa_copy = Path(sys.argv[3]).resolve()
+gepa_source = ('/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/'
+               'gepa-terminus-2-format-code-task-000-9089903b46c8c3c7410657ba/'
+               'gepa-terminus-2-format-code-task__cNYdqfo')
 BASELINE = '5ae3bfb42825815ed610276cea5e5461b159d844'
 
 
@@ -54,6 +62,7 @@ examples = [
     ('usability', '2026-10-01/HAR-120-har120-001269-a2/har120-001269-a2__sA8cq7s'),
     ('usability', '2026-10-01/HAR-120-har120-001269-a2-r2/har120-001269-a2-r2__93WpuaE'),
 ]
+examples.append(('gepa_cited', str(gepa_copy)))
 for job in sorted((root / '2026-10-09').glob('unknown-*')):
     if not (job.name.startswith('unknown-tamper-') or job.name in ('unknown-git-002552-git2', 'unknown-calib-2402-skip')):
         continue
@@ -73,6 +82,8 @@ for cohort, rel in examples:
     old_path = job / 'processed' / ('trial-' + trial.name + '.json')
     inputs = [trial / 'result.json', trial / 'agent/trajectory.json', trial / 'agent/terminus_2.pane',
               trial / 'verifier/agent.diff', trial / 'agent/cheat/attempts.json', old_path]
+    if cohort == 'gepa_cited':
+        inputs = sorted(p for p in trial.rglob('*') if p.is_file()) + [old_path]
     hashes_before = {str(p): sha(p) for p in inputs}
     old = json.loads(old_path.read_text()) if old_path.is_file() else {}
     before = (old.get('counts') or {}).get('verdict', 'unprocessed')
@@ -97,7 +108,9 @@ for cohort, rel in examples:
     if hashes_before != {str(p): sha(p) for p in inputs}:
         raise RuntimeError(f'replay changed an input: {trial}')
     rows.append({
-        'cohort': cohort, 'trial': rel, 'raw_reward': record.get('reward'),
+        'cohort': cohort, 'trial': gepa_source if cohort == 'gepa_cited' else rel,
+        'evidence_location': 'read-only scratch copy' if cohort == 'gepa_cited' else 'published results',
+        'raw_reward': record.get('reward'),
         'count_before': before, 'count_after': after['verdict'], 'reasons_after': after['reasons'],
         'copy_before_stored': old_copy_stored, 'copy_after': flag is not None,
         'copy_before_replayed': replayed_copy_before is not None,
@@ -111,6 +124,19 @@ for cohort, rel in examples:
         'processed_sha256': hashes_before[str(old_path)],
         'input_hashes_unchanged': True,
     })
+    if cohort == 'gepa_cited':
+        if not result.get('exception_info') or rewards.get('reward') != 1.0:
+            raise ValueError('GEPA copy does not have the cited scored-exception outcome')
+        view = _trial_view(job.name, trial, job.parent)
+        worker_reason = eligible_trials([SimpleNamespace(trials=[SimpleNamespace(path=trial)])])[0][2]
+        rows[-1]['scored_exception_consumers'] = {
+            'explorer_before': 'infra-exception',
+            'explorer_after': view.outcome_class.value,
+            'worker_before': 'defer:harness_exception_not_agent_failure',
+            'worker_after': worker_reason or 'eligible',
+            'mimo_before_reward': float(rewards['reward']),
+            'mimo_after_reward': trial_reward(trial),
+        }
 
 # A bounded, explicitly defined scan of published trials through Oct 9.
 masked = []
@@ -168,7 +194,7 @@ out = {
     'scope': 'Published results dated through 2026-10-09 with exception and finite numeric primary reward; not the original 3,879-record cohort.',
     'baseline_revision': BASELINE,
     'baseline': 'Stored processed records for counts/copy; baseline source modules at baseline_revision for features and viewer (with baseline copy detector); pre-change explorer and worker branches for numeric scored exceptions; mimo_exploit baseline already retained numeric exception scores.',
-    'limitations': ['The cited GEPA trial gepa-terminus-2-format-code-task__cNYdqfo is not present in the published results; the retained historical record names a different worktree, which this replay does not access. The HAR104 000226 trial is a separate unprocessed control.', 'Counts after use current committed usability and audit labels, so changes in those labels are distinct from detector changes.', 'Features copy_verdict does not include fetch taint or usability.'],
+    'limitations': ['The cited GEPA trial was replayed from a scratch copy of the source trial, not in its source worktree. The HAR104 000226 trial is a separate unprocessed control.', 'The original 3,879-record cohort and its exact 41/190 scored-exception subset were not reconstructed; the bounded published-results scan is a different cohort.', 'Counts after use current committed usability and audit labels, so changes in those labels are distinct from detector changes.', 'Features copy_verdict does not include fetch taint or usability.'],
     'examples': rows,
     'cohort_counts': cohort_counts,
     'scored_exception_trials': masked_rows,

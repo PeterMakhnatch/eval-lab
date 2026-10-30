@@ -1,0 +1,16 @@
+{
+ "item": "DQ-3",
+ "builder": "research/experiments/ds-dq3-adjudication-packet-20261030/dq3_adjudication.py",
+ "model_calls": 0,
+ "grader_executions": 0,
+ "network": 0,
+ "inputs_read": [
+  "/tmp/dt9/alerts.json",
+  "/tmp/dt17/cases/*/steps/*.txt",
+  "/tmp/da4/tasks/*.txt",
+  "raw/DT-17/receipts/verdicts.jsonl"
+ ],
+ "answer_keys_opened": 0,
+ "verdicts_filled": 0,
+ "adjudication_sha256": "cc654767f9e37b0597a72540aaaf8b5c47917fa85d25f3792f7d754b7899b46b"
+}

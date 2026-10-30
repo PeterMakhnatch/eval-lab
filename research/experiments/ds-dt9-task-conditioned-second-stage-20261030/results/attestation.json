@@ -1,0 +1,38 @@
+{
+ "A": {
+  "n": 207,
+  "n_ok": 206,
+  "n_unknown": 1,
+  "attested_all": true,
+  "input": 709694,
+  "output": 138901,
+  "cache_read": 1692409,
+  "usd": 0.38974385399999995,
+  "usd_per_packet": 0.0056484616521739126,
+  "agreement": {
+   "unanimous": 48,
+   "two_one": 18,
+   "split": 3,
+   "unknown": 0
+  }
+ },
+ "B": {
+  "n": 207,
+  "n_ok": 207,
+  "n_unknown": 0,
+  "attested_all": true,
+  "input": 673811,
+  "output": 139336,
+  "cache_read": 1688434,
+  "usd": 0.37947710399999995,
+  "usd_per_packet": 0.005499668173913043,
+  "agreement": {
+   "unanimous": 52,
+   "two_one": 15,
+   "split": 2,
+   "unknown": 0
+  }
+ },
+ "model": "deepseek/deepseek-flash",
+ "all_served_deepseek_flash": true
+}

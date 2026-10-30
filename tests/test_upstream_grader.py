@@ -2029,21 +2029,24 @@ def test_harbor_runtime_problem_detects_a_namespace_only_install(
 ) -> None:
     """A leftover namespace directory with no submodules is not a runtime."""
     import importlib.util
+    import sys
 
+    from evallab.harbor_view import harbor_runtime_problem
+
+    for name in [key for key in sys.modules if key == "harbor" or key.startswith("harbor.")]:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    monkeypatch.setitem(sys.modules, "harbor", ModuleType("harbor"))
     real = importlib.util.find_spec
 
     def fake_find_spec(name: str, package: Any = None) -> Any:
-        if name.startswith("harbor"):
-            return None if name != "harbor" else SimpleNamespace(loader=None)
+        if name == "harbor" or name.startswith("harbor."):
+            return None
         return real(name, package)
 
     monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
-    from evallab.harbor_view import harbor_runtime_problem
-
     problem = harbor_runtime_problem()
     assert problem is not None
     assert "harbor.trial.trial" in problem
-
 
 def test_pinned_harbor_path_comes_first_for_child_launches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

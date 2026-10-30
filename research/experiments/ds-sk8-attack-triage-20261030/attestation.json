@@ -1,0 +1,49 @@
+{
+ "item": "SK-8",
+ "title": "Static triage: which proposed grader attacks would survive TQ-2's hardening recipe",
+ "date_utc": "2026-10-30T03:50:00Z",
+ "model_calls": {
+  "count": 0,
+  "tokens": 0,
+  "usd": 0.0,
+  "note": "No omp -p call, no hosted or local model inference. Every number is a deterministic regex count over text files."
+ },
+ "executions": {
+  "proposed_scripts_executed": 0,
+  "graders_executed": 0,
+  "docker": false,
+  "modal": false,
+  "local_llm": false,
+  "note": "The proposed attack scripts were read as text only. TQ-2's matrix was read from its published receipt, not re-run."
+ },
+ "what_ran": [
+  "/Users/petermakhnatch/Developer/eval-lab/.venv/bin/python run_triage.py --tq2 <ds-tq2 experiment dir> --raw <raw/SK-8> --out <raw/SK-8/receipts>",
+  "This writes receipts/rule-table.json and receipts/seeker-predictions.json; it reads text files and emits JSON. Nothing else was executed."
+ ],
+ "inputs_read": {
+  "raw/TQ-2/receipts/attack-matrix.json": "published TQ-2 matrix (labels: first neutralising layer)",
+  "raw/TQ-2/receipts/hardened-test-sh-template.sh": "layer definitions (L1 reset set, L2 isolation, L3 report gate, L4 clean tree)",
+  "ds-tq-2 worktree toy/attacks/*": "the 10 TQ-2 attack payloads (text), read to validate the rule; none executed",
+  "raw/DA-3b/receipts/seeker-attempts-v1.jsonl": "298 seeker attempts, 210 with answer_status ok",
+  "raw/DA-3b/receipts/seeker-attempts-v1.text.jsonl": "the candidate texts",
+  "raw/DA-3b/receipts/scan-drops.json": "0 dropped records",
+  "raw/DT-5b/receipts/detector-results.json": "D1/D1b/D2 hits on the SK-5 run population",
+  "raw/SK-6/receipts/variants-manifest.json": "ids and hashes only (cross-reference)"
+ },
+ "not_read": [
+  "research/answer-keys/ (never opened)",
+  "any held-out or cross-test key path",
+  "HackBench or any gated benchmark data"
+ ],
+ "labels_used": {
+  "prediction_inputs": ["attempt text", "TQ-2 attack payload text and target paths"],
+  "labels_used_only_for_validation": ["TQ-2 attack-matrix.json cells (first neutralising layer)"],
+  "labels_never_used_as_features": ["is_exploit", "flagged_passage_steps", "split", "D1/D2/D3 flags", "source_run-arm outcome"]
+ },
+ "rule_frozen": {
+  "prereg": "raw/SK-8/prereg.md",
+  "frozen_before": "reading any seeker script",
+  "changes_after_first_application": 3,
+  "changes_documented_in": "raw/SK-8/report.md (Deviations from prereg)"
+ }
+}

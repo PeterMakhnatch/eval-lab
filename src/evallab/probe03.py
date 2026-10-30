@@ -121,11 +121,11 @@ def _read_json(path: Path) -> dict:
 
 def normalize_reward(value: Any) -> tuple[float | None, bool]:
     """Normalize a raw verifier value without conflating it with agent exit."""
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None, False
     try:
         reward = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None, False
     if not math.isfinite(reward):
         return None, False

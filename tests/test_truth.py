@@ -628,7 +628,7 @@ def test_ungraded_budget_stop_excluded_by_default_and_imputed_on_opt_in(
     ) == (0, 0, 1)
 
 
-def test_graded_unrelated_error_stays_excluded_under_both_policies(
+def test_graded_unrelated_error_keeps_verifier_outcome_under_both_policies(
     tmp_path: Path,
 ) -> None:
     _write_job(
@@ -652,7 +652,7 @@ def test_graded_unrelated_error_stays_excluded_under_both_policies(
             repo_root=tmp_path,
         )
         candidate = report["cohorts"][1]
-        assert candidate["capability_denominator"] == 0
-        assert candidate["exception_count"] == 1
-        assert candidate["trial_pass_count"] == 0
-        assert report["paired"][0]["n_pairs"] == 0
+        assert candidate["capability_denominator"] == 1
+        assert candidate["exception_count"] == 0  # excluded, unscored exceptions only
+        assert candidate["trial_pass_count"] == 1
+        assert report["paired"][0]["n_pairs"] == 1

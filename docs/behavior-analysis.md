@@ -28,6 +28,10 @@ denominator. Their exception count is an independent exit signal and can
 overlap scored trials; only unscored trials are excluded. Trajectory cards and
 interpretation IR also retain the verifier outcome while reporting missing
 trajectory evidence or agent exceptions separately.
+The cohort and curve calculations likewise retain any usable verifier score.
+Their opt-in budget-exhaustion policy may impute an unscored timeout as zero;
+that analytical assumption is not a recorded raw score. `exception_count` in
+the cohort summary counts excluded, unscored exceptions, not all agent exits.
 
 ### `v_behavior_effort_by_outcome`
 Aggregates execution effort by `task_name`, `agent_name`, and `outcome`:

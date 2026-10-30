@@ -77,7 +77,7 @@ inputs:
   - path: src/evallab/codeban.py
     digest: sha256:a0f9ad6678295b0e2776f303d4c20dcbf48950cb613580693013a2bdfaf17a09
   - path: src/evallab/cohort.py
-    digest: sha256:16512819741471bba44cb2cba6525990319912db3ffd0e896b37ba9c50d6caac
+    digest: sha256:c153180cfcde035c925cb5bf001c437badcaa964ccbdfa43e8eec0099e476492
   - path: src/evallab/contamination.py
     digest: sha256:fb21b7b45bbaec5d1094e6dcd8d7b53e5f43a567b10558ce86089d869b3a781b
   - path: src/evallab/contextpack.py
@@ -1137,7 +1137,7 @@ inputs:
   - path: src/evallab/task_candidate.py
     digest: sha256:27b423f0f0c931428b89f13e86150b61c8428f60f91abef25493c6849e84d566
   - path: src/evallab/task_catalog.py
-    digest: sha256:16bd432233c93646d26afa7276d7dbc4d24977bf677041ab4421bd24668cae74
+    digest: sha256:361e6ab3c24ee04dde4c1b6572b3b8a51b7820240b917f917aab92c68e4302b4
   - path: src/evallab/task_dossier.py
     digest: sha256:cac6673fe28c3ab4da760bf9ca6b4a5f549fb4d98a27edfce9a0b8b98235f780
   - path: src/evallab/task_dossier_trials.py

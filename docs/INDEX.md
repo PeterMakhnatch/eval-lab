@@ -27,7 +27,7 @@ inputs:
   - path: docs/analysis-loop.md
     digest: sha256:f10a4240346c2971f4c44cb72d5add5cd353d9a348935b0512d847cc0a90d64a
   - path: docs/analysis-worker.md
-    digest: sha256:e371abf23361ab2a2f75408801e57c57c7332267ad787bfd3996dddb5f48e966
+    digest: sha256:817b230e678b215bcccb20e1c1a1ab3a51ef055f3a52b00160f7efdd16674a01
   - path: docs/architecture.md
     digest: sha256:285c78941de752b714802eea1374e24bdb864eafafd80f8fa414e53ea853e41f
   - path: docs/attach-surface.md
@@ -35,7 +35,7 @@ inputs:
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
-    digest: sha256:77034e839d86e4b1fb55f43a24c4d4014a448afa1e2f67823f10bf62a71cbd15
+    digest: sha256:4478889690ee4478f92175b3d3c547dc2dda0a10417a5d80b99fd2a7e3f008d3
   - path: docs/blind-review.md
     digest: sha256:7f133de2910eec169b03e21af24d239aa02c87bc74aed5db6c66f82731312d79
   - path: docs/canaries.md
@@ -87,7 +87,7 @@ inputs:
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
-    digest: sha256:1da171277153ff6fbcafcd2a6835ee6c3b0d79eb3ef7d448d344b72d841332b1
+    digest: sha256:fcd053f4618b79a446bf1d102f2697ae6b1e5d5760ef4cac06c46c5fdefba4bc
   - path: docs/model-capture.md
     digest: sha256:820a697afa3ffbf99e7b262f38cf26895f94f1df147167405fc944d7fc4484e6
   - path: docs/model-defaults.md

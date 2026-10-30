@@ -61,7 +61,7 @@ def test_evidence_sql_executes_in_clean_duckdb() -> None:
 
 
 def test_exception_vs_scored_failure_split() -> None:
-    """Test v_failure_classification separates harness vs scored failures."""
+    """Scored exits remain outcomes; only unscored exits get their own category."""
     sql = Path("sql/evidence_queries.sql").read_text()
     with duckdb.connect(":memory:") as con:
         con.execute(sql)
@@ -78,16 +78,22 @@ def test_exception_vs_scored_failure_split() -> None:
             ('exp1','j1','t2','job1','trial2','terminal-bench/html-js-filter','d1',
              NULL,NULL,NULL,'codex','v1','gpt',NULL,'NonZeroAgentExitCodeError','unknown',5.0,0.05),
             ('exp2','j2','t3','job2','trial3','event-summary','d2',
-             NULL,NULL,NULL,'oracle','v1','gpt',1.0,NULL,NULL,2.0,0.01);
+             NULL,NULL,NULL,'oracle','v1','gpt',1.0,NULL,NULL,2.0,0.01),
+            ('exp2','j2','t4','job2','trial4','event-summary','d2',
+             NULL,NULL,NULL,'oracle','v1','gpt',1.0,'AgentTimeoutError','agent',2.0,0.01),
+            ('exp2','j2','t5','job2','trial5','event-summary','d2',
+             NULL,NULL,NULL,'oracle','v1','gpt',0.0,'AgentTimeoutError','agent',2.0,0.01);
             """
         )
         rows = con.execute(
             "SELECT failure_type, n FROM v_failure_classification ORDER BY failure_type"
         ).fetchall()
         result = {row[0]: row[1] for row in rows}
-        assert result.get("harness_exception") == 1
-        assert result.get("scored_failure") == 1
-        assert result.get("passed") == 1
+        assert result == {"unscored_exception": 1, "scored_failure": 2, "passed": 2}
+        exceptions = dict(con.execute(
+            "SELECT exception_class, n FROM v_exception_taxonomy"
+        ).fetchall())
+        assert exceptions == {"AgentTimeoutError": 2, "NonZeroAgentExitCodeError": 1}
 
 
 def test_wilson_interval_matches_cohort() -> None:

@@ -1,0 +1,335 @@
+{
+ "admitted_runs": 4544,
+ "admitted_tasks": 3474,
+ "class_c_reclassified": {
+  "distinct_tasks": 2,
+  "field": "task.instruction",
+  "hits": 2,
+  "replies": 2,
+  "seal_equals_an_admitted_task_name": false,
+  "seal_is_dictionary_word": true,
+  "seal_length": 7,
+  "verdict": "incidental: a sealed task name that is an ordinary English word appears as a word in the instruction prose of two admitted tasks; not a sealed identity (class d)",
+  "whole_word": true
+ },
+ "cluster_records": 68,
+ "collision_tasks": 1,
+ "commands": {
+  "clusters": {
+   "b": 0,
+   "b_distinct_tasks": 0,
+   "c": 0,
+   "cpu_seconds": 8.011354000000003,
+   "cpu_seconds_per_1000": 112.83597183098594,
+   "fields": {},
+   "invocations": 71,
+   "refusals": 0,
+   "replies": 71,
+   "wall_seconds": 9.177531627356075
+  },
+  "export": {
+   "b": 0,
+   "b_distinct_tasks": 0,
+   "c": 0,
+   "cpu_seconds": 532.7402579999997,
+   "cpu_seconds_per_1000": 3350.5676603773563,
+   "fields": {},
+   "invocations": 159,
+   "refusals": 0,
+   "replies": 159,
+   "wall_seconds": 645.5328164641396
+  },
+  "export-cluster-scope": {
+   "b": 9,
+   "b_distinct_tasks": 1,
+   "b_replies": 3,
+   "c": 0,
+   "cpu_seconds": 8.142430000000006,
+   "cpu_seconds_per_1000": 119.74161764705892,
+   "fields": {
+    "b:canonical_task_id": {
+     "distinct_tasks": 1,
+     "occurrences": 3,
+     "replies": 3
+    },
+    "b:task_id": {
+     "distinct_tasks": 1,
+     "occurrences": 6,
+     "replies": 3
+    }
+   },
+   "invocations": 68,
+   "refusals": 0,
+   "replies": 68,
+   "wall_seconds": 9.159612708084751
+  },
+  "findings": {
+   "b": 0,
+   "b_distinct_tasks": 0,
+   "c": 0,
+   "cpu_seconds": 833.6899929999986,
+   "cpu_seconds_per_1000": 103.96433383214847,
+   "fields": {},
+   "invocations": 8019,
+   "refusals": 0,
+   "replies": 8019,
+   "wall_seconds": 846.3731485147146
+  },
+  "history": {
+   "b": 3,
+   "b_distinct_tasks": 1,
+   "b_replies": 1,
+   "c": 0,
+   "cpu_seconds": 278.0425360000003,
+   "cpu_seconds_per_1000": 80.0352723085781,
+   "fields": {
+    "b:citation": {
+     "distinct_tasks": 1,
+     "occurrences": 1,
+     "replies": 1
+    },
+    "b:task_id": {
+     "distinct_tasks": 1,
+     "occurrences": 2,
+     "replies": 1
+    }
+   },
+   "invocations": 3474,
+   "refusals": 0,
+   "replies": 3474,
+   "wall_seconds": 381.31681099551497
+  },
+  "inventory": {
+   "b": 0,
+   "b_distinct_tasks": 0,
+   "c": 0,
+   "cpu_seconds": 0.11653399999999997,
+   "cpu_seconds_per_1000": 116.53399999999998,
+   "fields": {},
+   "invocations": 1,
+   "refusals": 0,
+   "replies": 1,
+   "wall_seconds": 2.541577792027965
+  },
+  "recount": {
+   "b": 0,
+   "b_distinct_tasks": 0,
+   "c": 0,
+   "cpu_seconds": 0.39106399999999986,
+   "cpu_seconds_per_1000": 391.06399999999985,
+   "fields": {},
+   "invocations": 1,
+   "refusals": 0,
+   "replies": 1,
+   "wall_seconds": 0.5816639580298215
+  },
+  "runs": {
+   "b": 0,
+   "b_distinct_tasks": 0,
+   "c": 0,
+   "cpu_seconds": 677.214407000005,
+   "cpu_seconds_per_1000": 83.43161352716582,
+   "fields": {},
+   "invocations": 8117,
+   "refusals": 3311,
+   "replies": 4806,
+   "wall_seconds": 689.6684915966471
+  },
+  "scan": {
+   "b": 0,
+   "b_distinct_tasks": 0,
+   "c": 0,
+   "cpu_seconds": 0.29089300000000007,
+   "cpu_seconds_per_1000": 290.8930000000001,
+   "fields": {},
+   "invocations": 1,
+   "refusals": 0,
+   "replies": 1,
+   "wall_seconds": 10.399794208002277
+  },
+  "split": {
+   "b": 0,
+   "b_distinct_tasks": 0,
+   "c": 0,
+   "cpu_seconds": 58.73822899999975,
+   "cpu_seconds_per_1000": 16.907953080022956,
+   "fields": {},
+   "invocations": 3474,
+   "refusals": 0,
+   "replies": 3474,
+   "wall_seconds": 60.80274440231733
+  },
+  "steps": {
+   "b": 0,
+   "b_distinct_tasks": 0,
+   "c": 0,
+   "cpu_seconds": 105.51543100000025,
+   "cpu_seconds_per_1000": 23.220825484154982,
+   "fields": {},
+   "invocations": 4544,
+   "refusals": 3544,
+   "replies": 1000,
+   "wall_seconds": 108.97805089043686
+  },
+  "task": {
+   "b": 4,
+   "b_distinct_tasks": 1,
+   "b_replies": 1,
+   "c": 2,
+   "cpu_seconds": 185.64117899999965,
+   "cpu_seconds_per_1000": 53.437299654576755,
+   "fields": {
+    "b:how_to_read_a_file": {
+     "distinct_tasks": 1,
+     "occurrences": 2,
+     "replies": 1
+    },
+    "b:task_id": {
+     "distinct_tasks": 1,
+     "occurrences": 2,
+     "replies": 1
+    },
+    "c:instruction": {
+     "distinct_tasks": 0,
+     "occurrences": 2,
+     "replies": 2
+    }
+   },
+   "invocations": 3474,
+   "refusals": 0,
+   "replies": 3474,
+   "wall_seconds": 223.12572834087769
+  },
+  "trace-card": {
+   "b": 2,
+   "b_distinct_tasks": 1,
+   "b_replies": 1,
+   "c": 0,
+   "cpu_seconds": 248.5711360000009,
+   "cpu_seconds_per_1000": 54.703154929577664,
+   "fields": {
+    "b:task_id": {
+     "distinct_tasks": 1,
+     "occurrences": 2,
+     "replies": 1
+    }
+   },
+   "invocations": 4544,
+   "refusals": 0,
+   "replies": 4544,
+   "wall_seconds": 334.7816898121964
+  },
+  "traces": {
+   "b": 4,
+   "b_distinct_tasks": 1,
+   "b_replies": 1,
+   "c": 0,
+   "cpu_seconds": 293.3340569999998,
+   "cpu_seconds_per_1000": 84.41267827338123,
+   "fields": {
+    "b:task_id": {
+     "distinct_tasks": 1,
+     "occurrences": 4,
+     "replies": 1
+    }
+   },
+   "invocations": 3475,
+   "refusals": 0,
+   "replies": 3475,
+   "wall_seconds": 615.9700283622951
+  },
+  "window": {
+   "b": 0,
+   "b_distinct_tasks": 0,
+   "c": 0,
+   "cpu_seconds": 192.97531100000063,
+   "cpu_seconds_per_1000": 42.46815823063394,
+   "fields": {},
+   "invocations": 4544,
+   "refusals": 1,
+   "replies": 4543,
+   "wall_seconds": 262.96935571712675
+  }
+ },
+ "encoding": {
+  "delimiter_seals": 0,
+  "escaped_seals": 0,
+  "literal_fragment_seals": 0,
+  "numeric_fragment_seals": 0
+ },
+ "facet_values": 22,
+ "parity": {
+  "cli_vs_in_process": {
+   "clusters": {
+    "invocations": 6,
+    "matches": 6
+   },
+   "findings": {
+    "invocations": 6,
+    "matches": 6
+   },
+   "history": {
+    "invocations": 6,
+    "matches": 6
+   },
+   "inventory": {
+    "invocations": 6,
+    "matches": 6
+   },
+   "recount": {
+    "invocations": 6,
+    "matches": 0
+   },
+   "runs": {
+    "invocations": 6,
+    "matches": 6
+   },
+   "split": {
+    "invocations": 6,
+    "matches": 6
+   },
+   "task": {
+    "invocations": 6,
+    "matches": 6
+   },
+   "trace-card": {
+    "invocations": 6,
+    "matches": 6
+   },
+   "traces": {
+    "invocations": 6,
+    "matches": 6
+   },
+   "window": {
+    "invocations": 6,
+    "matches": 6
+   }
+  },
+  "note": "recount shows 0 of 6 only because in-process dicts have int keys where the CLI JSON has string keys; equal after a JSON round trip (checked separately). Exact match: 60 of 60 for the other ten command types."
+ },
+ "planned": {
+  "clusters": 71,
+  "export": 69,
+  "export-cluster-scope": 68,
+  "findings": 8019,
+  "history": 3474,
+  "inventory": 1,
+  "recount": 1,
+  "runs": 8109,
+  "scan": 1,
+  "split": 3474,
+  "steps": 4544,
+  "task": 3474,
+  "trace-card": 4544,
+  "traces": 3475,
+  "window": 4544
+ },
+ "seals": 1425,
+ "totals": {
+  "b": 22,
+  "c": 2,
+  "invocations": 43966,
+  "refusals": 6856,
+  "replies": 37110
+ }
+}

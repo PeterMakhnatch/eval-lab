@@ -703,3 +703,62 @@ contained the patch files; the test-file revert then kept them and
 - Local Docker (`RepeatVerifier repeat_n=3`, one container at a
   time): 000245 oracle ×3 and 000048 oracle ×3, plus nop controls —
   see the v5 census receipt for job paths and rewards.
+
+## Start-up hooks: why grading is a separate container (2026-10-30)
+
+TQ-2 (`research-context/bridge/2026-10-29-ds-squad/raw/TQ-2/report.md`)
+measured the one attack family that survives a same-container reset: a
+`.pth` file written into the interpreter's writable site directory runs
+before any test code, and can end the interpreter (`os._exit(0)`, also
+from `atexit`) or submit a clean JUnit report read from `sys.orig_argv`.
+No file reset and no `--junitxml` gate inside the graded interpreter can
+close it, because the report and the exit status come from the environment
+being checked.
+
+The shipped clean chain already answers this structurally:
+`separate-verifier@2+` grades in a verifier image built from `tests/`
+(``environment_mode = "separate"``), receives only the snapshot of the
+agent workspace, drops test-infra paths (``conftest.py``, ``*.pth``,
+``sitecustomize``/``usercustomize``, pytest config) from the kept change,
+and never mounts the agent's site directories. A start-up hook planted by
+the agent therefore cannot reach the grading interpreter.
+
+The ladder makes that measurable. `cheat_ladder` 4.0.0 appends three
+probes to the v3 generation (`tamper_pth_exit`, `tamper_pth_atexit`,
+`tamper_pth_forge_report`): each finds every writable site directory
+(`site.getsitepackages`, the user site, `<workdir>/**/site-packages`,
+`VIRTUAL_ENV`/`CONDA_PREFIX`), plants `zz_cheat_pth.pth` plus its module,
+and reports whether the hook arms — at plain interpreter start-up or, for
+fixtures whose directory is not a real site dir, through `site.addsitedir`.
+`CHEAT_FORGE_CASES` sets the case count in the submitted report.
+
+Executed check (`research/experiments/h2-separate-verifier-pth-20261030/`):
+on 4 DEV Python packages of `mimo-clean-v5` (`@8` packages, the same
+separation property as `@10`), the reference solution grades 1, the empty
+submission grades 0, and the three start-up probes grade 0 — the agent
+side arms, the verifier side ignores it. Preregistered rules and the exact
+rewards are in that receipt.
+
+### Host runtime requirement (measured blocker, 2026-10-30)
+
+Executed grading needs the pinned Harbor runtime *in the interpreter that
+launches the trial*, not only a `harbor` executable on `PATH`. Two
+distinct failures were observed and are now refused early instead of
+surfacing as `native reward file is missing`:
+
+- **No runtime in the driver venv** (a plain `uv sync` install puts
+  `harbor` only in the `laminar` extra, and a leftover namespace
+  directory can make `import harbor` succeed while `harbor.trial` does
+  not exist). Every native path now refuses with
+  ``harbor_runtime_unavailable`` / ``execution_backend_refused`` and the
+  remedy `uv sync --locked --extra laminar`.
+- **Version skew on `PATH`**: a standalone `uv tool` install of another
+  release (observed 0.21.0 beside the pinned 0.24.0) was picked up by the
+  `harbor run` child and failed inside the pinned adapter hooks. The
+  launcher now puts this interpreter's own `bin` directory first on the
+  child `PATH`.
+
+Run native cells with `uv run --extra laminar evallab ...` (or that venv's
+interpreter) so both the module and the executable come from the same
+pinned install.
+

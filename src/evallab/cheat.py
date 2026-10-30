@@ -28,8 +28,10 @@ from evallab.cheat_ladder import (
     ATTACKS,  # noqa: F401  (re-exported for sibling lanes)
     ATTACKS_V2,  # noqa: F401  (re-exported for sibling lanes)
     ATTACKS_V3,  # noqa: F401  (re-exported for sibling lanes)
+    ATTACKS_V4,  # noqa: F401  (re-exported for sibling lanes)
     CHEAT_LADDER_V2,  # noqa: F401  (re-exported for sibling lanes)
     CHEAT_LADDER_V3,  # noqa: F401  (re-exported for sibling lanes)
+    CHEAT_LADDER_V4,  # noqa: F401  (re-exported for sibling lanes)
     DEFAULT_LADDER_VERSION,
     LADDERS,
     parse_attack_selection,
@@ -392,9 +394,20 @@ def run_cheat_trial(
 
 
 def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
-    from evallab.harbor_view import installed_harbor_version
+    from evallab.harbor_view import (
+        installed_harbor_version,
+        require_harbor_runtime,
+    )
 
     version = installed_harbor_version()
+    if version is not None and version >= (0, 24):
+        # Version alone is not enough: a standalone tool install can report
+        # 0.24 while this interpreter cannot import the modules the trial uses.
+        try:
+            require_harbor_runtime("harbor")
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     if version is None or version < (0, 24):
         print(
             "error: evallab cheat run needs Harbor >= 0.24 on PATH "

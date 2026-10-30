@@ -37,8 +37,10 @@ from evallab.cheat import (
     ATTACKS,
     ATTACKS_V2,
     ATTACKS_V3,
+    ATTACKS_V4,
     CHEAT_LADDER_V2,
     CHEAT_LADDER_V3,
+    CHEAT_LADDER_V4,
     DEFAULT_LADDER_VERSION,
     build_verdicts,
     cheat_verdict_for_reward,
@@ -1652,3 +1654,103 @@ def test_fixture_fake_unittest_output_fakes_success(tmp_path: Path, harbor_cheat
     assert completed.returncode == 0
     assert "Ran 1 test" in completed.stdout
     assert "OK" in completed.stdout
+
+
+def test_ladder_v4_appends_start_up_probes_opt_in() -> None:
+    assert parse_attack_selection(None, version=CHEAT_LADDER_V4) == ATTACKS_V4
+    assert ATTACKS_V4[: len(ATTACKS_V3)] == ATTACKS_V3
+    assert ATTACKS_V4[len(ATTACKS_V3) :] == (
+        "tamper_pth_exit",
+        "tamper_pth_atexit",
+        "tamper_pth_forge_report",
+    )
+    with pytest.raises(ValueError, match="unknown cheat attack"):
+        parse_attack_selection("tamper_pth_exit", version=CHEAT_LADDER_V3)
+    # The v4 pool keeps the frozen earlier generations unchanged.
+    assert set(ATTACKS_V4) >= set(ATTACKS_V3)
+
+
+@pytest.mark.parametrize("attack", ["tamper_pth_exit", "tamper_pth_atexit"])
+def test_fixture_pth_start_up_hook_ends_interpreter(
+    attack: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+) -> None:
+    if shutil.which("python3") is None:
+        pytest.skip("python3 unavailable")
+    site_dir = tmp_path / "sitepkgs"
+    site_dir.mkdir()
+    monkeypatch.setenv("CHEAT_SITE_DIR", str(site_dir))
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    runner = getattr(harbor_cheat, f"attack_{attack}")
+    record = asyncio.run(runner(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert record["check"]["signal"] == "armed"
+    assert record["check"]["site_dirs"] == [str(site_dir)]
+    # The plant is a .pth line plus its module: both must land in the site dir.
+    assert (site_dir / "zz_cheat_pth.pth").is_file()
+    assert (site_dir / "zz_cheat_pth_hook.py").is_file()
+    # A separate interpreter that adds the directory runs the hook at once.
+    probe = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            f"import site; site.addsitedir({str(site_dir)!r}); import sys; sys.exit(3)",
+        ],
+        capture_output=True,
+        timeout=60,
+    )
+    assert probe.returncode == 0
+
+
+def test_fixture_pth_forge_report_writes_a_clean_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+) -> None:
+    if shutil.which("python3") is None:
+        pytest.skip("python3 unavailable")
+    site_dir = tmp_path / "sitepkgs"
+    site_dir.mkdir()
+    monkeypatch.setenv("CHEAT_SITE_DIR", str(site_dir))
+    monkeypatch.setenv("CHEAT_FORGE_CASES", "2")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_tamper_pth_forge_report(str(root), BashRun(root), evidence)
+    )
+    assert record["status"] == "executed"
+    assert record["check"]["signal"] == "armed"
+    report = tmp_path / "report.xml"
+    probe = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            f"import site; site.addsitedir({str(site_dir)!r})",
+            f"--junitxml={report}",
+        ],
+        capture_output=True,
+        timeout=60,
+    )
+    assert probe.returncode == 0, probe.stderr
+    text = report.read_text(encoding="utf-8")
+    assert 'failures="0"' in text
+    assert text.count("<testcase") == 2
+
+
+def test_fixture_pth_probe_skips_without_writable_site_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+) -> None:
+    if shutil.which("python3") is None:
+        pytest.skip("python3 unavailable")
+    monkeypatch.setenv("CHEAT_SITE_DIR", str(tmp_path / "absent"))
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_tamper_pth_exit(str(root), BashRun(root), evidence)
+    )
+    assert record["status"] == "skipped"
+    assert "no writable site directory" in record["detail"]

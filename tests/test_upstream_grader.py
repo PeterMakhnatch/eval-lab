@@ -1987,3 +1987,66 @@ def test_native_docker_stop_remains_available_after_started_environment_is_disab
     finally:
         grader._ACTIVE_EXECUTION.reset(token)
         grader._runtime_type.cache_clear()
+
+
+def test_missing_harbor_runtime_refuses_before_any_allocation(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An absent in-process Harbor runtime is a refusal, not a missing reward file.
+
+    The campaign that hit this reserved Modal budget, ran a sandbox, and only
+    then reported ``No module named 'harbor'; native reward file is missing``,
+    which reads like a grader defect. The refusal must happen before the
+    output directory is created or any backend admitted.
+    """
+    monkeypatch.setattr(
+        "evallab.harbor_view.harbor_runtime_problem",
+        lambda: "harbor.trial.trial is not importable",
+    )
+    output = tmp_path / "evidence"
+    result = grader.run_upstream_grader(
+        task,
+        oracle=True,
+        backend="modal",
+        modal_app_name="guard-fixture",
+        approval="fixture",
+        max_usd=0.0,
+        output_dir=output,
+    )
+    assert result["status"] == "refused"
+    assert result["executed"] is False
+    assert result["reward"] is None
+    assert result["reason_code"] == "execution_backend_refused"
+    assert "harbor.trial.trial is not importable" in result["error"]
+    assert "uv sync --locked --extra laminar" in result["error"]
+    assert not output.exists()
+
+
+def test_harbor_runtime_problem_names_the_exact_import() -> None:
+    from evallab.harbor_view import harbor_runtime_problem
+
+    problem = harbor_runtime_problem()
+    # Either the pinned runtime is present in this interpreter or the message
+    # names the module the native paths import; never a bare truthy string.
+    assert problem is None or "harbor." in problem
+
+
+def test_harbor_runtime_problem_detects_a_namespace_only_install(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A leftover namespace directory with no submodules is not a runtime."""
+    import importlib.util
+
+    real = importlib.util.find_spec
+
+    def fake_find_spec(name: str, package: Any = None) -> Any:
+        if name.startswith("harbor"):
+            return None if name != "harbor" else SimpleNamespace(loader=None)
+        return real(name, package)
+
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
+    from evallab.harbor_view import harbor_runtime_problem
+
+    problem = harbor_runtime_problem()
+    assert problem is not None
+    assert "harbor.trial.trial" in problem

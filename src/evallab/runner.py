@@ -1494,6 +1494,18 @@ def run_harbor_process(
         include_modal_credentials=include_modal_credentials,
         docker_platform=docker_platform,
     )
+    if command and Path(command[0]).name == "harbor":
+        from evallab.harbor_view import pinned_harbor_bin_dir
+
+        pinned_bin = pinned_harbor_bin_dir()
+        if pinned_bin is not None:
+            # The child resolves a bare `harbor` through PATH. Put this
+            # interpreter's pinned release first so a standalone `uv tool`
+            # install of another version cannot be picked up.
+            current_path = runtime_environment.get("PATH") or os.environ.get("PATH", "")
+            runtime_environment["PATH"] = (
+                f"{pinned_bin}{os.pathsep}{current_path}" if current_path else str(pinned_bin)
+            )
     if MIMO_AGENT_IMPORT_PATH in command and laminar_metadata is not None:
         runtime_environment["EVALLAB_LAMINAR_METADATA"] = json.dumps(laminar_metadata)
     if local_terminus:
@@ -2906,6 +2918,19 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             repo_root=repo_root,
         )
         command = subscription_command(staged_request, harbor_command, repo_root=_RUNTIME_ROOT)
+        if command and Path(command[0]).name == "harbor":
+            from evallab.harbor_view import HARBOR_RUNTIME_REMEDY, harbor_runtime_problem
+
+            problem = harbor_runtime_problem()
+            if problem is not None:
+                # Fail before a job directory, reservation or sandbox exists:
+                # the trial imports these modules in-process and used to report
+                # the absence as a missing native reward file.
+                raise ExecutionFailure(
+                    "harbor_runtime_unavailable",
+                    f"native execution needs the in-process Harbor runtime "
+                    f"({problem}): {HARBOR_RUNTIME_REMEDY}",
+                )
         containers_before = (
             frozenset()
             if staged_request.environment in _DAYTONA_ENVIRONMENT_SELECTORS

@@ -2053,6 +2053,26 @@ def run_upstream_grader(
         raise GraderRefusal(
             "output directory already exists; choose a fresh immutable evidence directory"
         )
+    from evallab.harbor_view import HARBOR_RUNTIME_REMEDY, harbor_runtime_problem
+
+    runtime_problem = harbor_runtime_problem()
+    if runtime_problem is not None:
+        # Refuse before any reservation or sandbox: an absent runtime used to
+        # surface later as a missing native reward file, which reads like a
+        # grader failure and has burned campaign reservations.
+        return {
+            "schema": prepared.get("schema"),
+            "status": "refused",
+            "executed": False,
+            "reward": None,
+            "backend": backend,
+            "reason_code": "execution_backend_refused",
+            "error": (
+                f"the {backend} backend needs the in-process Harbor runtime "
+                f"({runtime_problem}): {HARBOR_RUNTIME_REMEDY}"
+            ),
+            "output_dir": str(output),
+        }
     output.mkdir(parents=True)
     (output / "plan.json").write_text(
         json.dumps(prepared, indent=2, sort_keys=True) + "\n", encoding="utf-8"

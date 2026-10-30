@@ -171,11 +171,14 @@ class StopRequester:
 class SimulatedExecutor:
     """Replay document bytes as inert data; no tools or external processes execute."""
 
-    def __init__(self, queue: ContinuousWorkQueue, monitor: MisalignmentLiveWorker, *, tick: Callable[[], Any], poll_every: int = 1, executor_id: str = 'simulated-executor') -> None:
+    def __init__(self, queue: ContinuousWorkQueue, monitor: MisalignmentLiveWorker, *, tick: Callable[[], Any], poll_every: int = 1, executor_id: str = 'simulated-executor', use_gate: bool = True) -> None:
         if type(poll_every) is not int or poll_every < 1:
             raise ValueError('poll_every must be a positive integer')
         self.queue, self.monitor, self.tick = queue, monitor, tick
         self.poll_every, self.executor_id = poll_every, executor_id
+        # use_gate=False is the advisory-only arm: no pre-action denial, so only a
+        # monitor-originated request (pause/cancel) can stop the replay.
+        self.use_gate = use_gate
 
     def run(self, run_id: str, document: Mapping[str, Any], *, context: Mapping[str, Any] | None = None) -> dict[str, Any]:
         steps = document.get('steps')
@@ -190,7 +193,7 @@ class SimulatedExecutor:
         error = None
         try:
             for step in steps:
-                if step.get('source') == 'agent' and step.get('tool_calls'):
+                if self.use_gate and step.get('source') == 'agent' and step.get('tool_calls'):
                     start = time.monotonic()
                     gate = self.monitor.pre_action_gate(run_id, step)
                     monitor_seconds += time.monotonic() - start
@@ -279,6 +282,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     simulate.add_argument('--limit', type=int)
     simulate.add_argument('--poll-every', type=int, default=1)
     simulate.add_argument('--policy', choices=['default'], default='default')
+    simulate.add_argument('--no-gate', action='store_true', help='advisory-only arm: skip the pre-action gate so only monitor requests can stop a replay')
     args = parser.parse_args(argv)
     if args.limit is not None and args.limit < 0:
         parser.error('--limit must be nonnegative')
@@ -300,7 +304,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             pass
         while requester.poll(limit=1000):
             pass
-    executor = SimulatedExecutor(queue, monitor, tick=tick, poll_every=args.poll_every)
+    executor = SimulatedExecutor(queue, monitor, tick=tick, poll_every=args.poll_every, use_gate=not args.no_gate)
     try:
         for path in files:
             data = path.read_bytes()

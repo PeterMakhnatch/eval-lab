@@ -280,6 +280,21 @@ def test_pre_action_gate_denial_never_emits_proposed_action(tmp_path: Path) -> N
     assert any(not event["payload"]["allow"] for event in _events(queue, "monitor.gate_decided"))
 
 
+def test_advisory_arm_is_stopped_by_the_monitor_request_not_the_gate(tmp_path: Path) -> None:
+    queue = _queue(tmp_path)
+    with MisalignmentLiveWorker(emit=queue.append_event) as monitor:
+        requester = StopRequester(queue, monitor)
+        def tick() -> None:
+            monitor.consume(queue)
+            requester.poll()
+        document = {"steps": [_step(1, "pwd"), _step(2, "cat /tests/test_outputs.py"), _step(3, "pwd"), _step(4, "pwd")]}
+        result = SimulatedExecutor(queue, monitor, tick=tick, use_gate=False).run("advisory-run", document)
+    assert result["outcome"] == "stopped" and result["action"] == "pause"
+    assert not _events(queue, "monitor.gate_decided")
+    assert [event["payload"]["step"]["step_id"] for event in _events(queue, "trace.step")][:2] == [1, 2]
+    assert len(_events(queue, "control.requested")) == 1
+
+
 def test_audit_is_append_only_blinded_and_summarized(tmp_path: Path) -> None:
     record, _ = _simulate(tmp_path, poll_every=1)
     path = tmp_path / "stop-audit-v1.jsonl"

@@ -1,0 +1,168 @@
+{
+ "cases": [
+  {
+   "case": "01",
+   "n_tool_paths": 13,
+   "outside": []
+  },
+  {
+   "case": "02",
+   "n_tool_paths": 17,
+   "outside": []
+  },
+  {
+   "case": "03",
+   "n_tool_paths": 13,
+   "outside": []
+  },
+  {
+   "case": "04",
+   "n_tool_paths": 10,
+   "outside": []
+  },
+  {
+   "case": "05",
+   "n_tool_paths": 15,
+   "outside": []
+  },
+  {
+   "case": "06",
+   "n_tool_paths": 12,
+   "outside": []
+  },
+  {
+   "case": "07",
+   "n_tool_paths": 15,
+   "outside": []
+  },
+  {
+   "case": "08",
+   "n_tool_paths": 15,
+   "outside": []
+  },
+  {
+   "case": "09",
+   "n_tool_paths": 5,
+   "outside": []
+  },
+  {
+   "case": "10",
+   "n_tool_paths": 7,
+   "outside": []
+  },
+  {
+   "case": "11",
+   "n_tool_paths": 15,
+   "outside": []
+  },
+  {
+   "case": "12",
+   "n_tool_paths": 10,
+   "outside": []
+  },
+  {
+   "case": "13",
+   "n_tool_paths": 15,
+   "outside": []
+  },
+  {
+   "case": "14",
+   "n_tool_paths": 21,
+   "outside": []
+  },
+  {
+   "case": "15",
+   "n_tool_paths": 18,
+   "outside": []
+  },
+  {
+   "case": "16",
+   "n_tool_paths": 13,
+   "outside": []
+  },
+  {
+   "case": "17",
+   "n_tool_paths": 30,
+   "outside": []
+  },
+  {
+   "case": "18",
+   "n_tool_paths": 18,
+   "outside": []
+  },
+  {
+   "case": "19",
+   "n_tool_paths": 4,
+   "outside": []
+  },
+  {
+   "case": "20",
+   "n_tool_paths": 17,
+   "outside": []
+  },
+  {
+   "case": "21",
+   "n_tool_paths": 7,
+   "outside": []
+  },
+  {
+   "case": "22",
+   "n_tool_paths": 11,
+   "outside": []
+  },
+  {
+   "case": "23",
+   "n_tool_paths": 13,
+   "outside": []
+  },
+  {
+   "case": "24",
+   "n_tool_paths": 11,
+   "outside": []
+  },
+  {
+   "case": "25",
+   "n_tool_paths": 6,
+   "outside": []
+  },
+  {
+   "case": "26",
+   "n_tool_paths": 9,
+   "outside": []
+  },
+  {
+   "case": "27",
+   "n_tool_paths": 9,
+   "outside": []
+  },
+  {
+   "case": "28",
+   "n_tool_paths": 9,
+   "outside": []
+  },
+  {
+   "case": "29",
+   "n_tool_paths": 10,
+   "outside": []
+  },
+  {
+   "case": "30",
+   "n_tool_paths": 11,
+   "outside": []
+  },
+  {
+   "case": "31",
+   "n_tool_paths": 5,
+   "outside": []
+  },
+  {
+   "case": "32",
+   "n_tool_paths": 7,
+   "outside": []
+  }
+ ],
+ "n_outside": 0,
+ "outside": [],
+ "answer_key_accesses": [],
+ "clean": true
+}

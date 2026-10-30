@@ -1,0 +1,10 @@
+{
+ "model": "deepseek/deepseek-flash",
+ "n_cases": 32,
+ "attested": 32,
+ "not_attested": [],
+ "served_models": [
+  "deepseek/deepseek-flash"
+ ],
+ "fallbacks": 0
+}

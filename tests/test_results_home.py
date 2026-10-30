@@ -809,3 +809,226 @@ def test_corrupt_retained_card_cannot_escape_results_home(tmp_path: Path) -> Non
     with pytest.raises(ValueError, match="Invalid existing source-bound publication card"):
         publish_job(job, root=home, pr_lookup=lambda _: None)
     assert provenance_path.read_bytes() == before
+
+
+# --- HAR-237: publishing one job updates the INDEX in place ------------------
+
+_AGENT = "evallab.harbor_terminus:SecretSafeTerminus2"
+
+
+def _index_bytes(home: Path) -> dict[str, bytes]:
+    return {name: (home / name).read_bytes() for name in ("INDEX.md", "INDEX-all.md")}
+
+
+def _rebuild(home: Path, checkout: Path) -> dict[str, bytes]:
+    write_index(home, primary_checkout=checkout)
+    return _index_bytes(home)
+
+
+def test_publish_splices_the_index_and_equals_a_full_rebuild(tmp_path: Path) -> None:
+    """One publish per job yields the bytes a rebuild of the same home writes."""
+    home = tmp_path / "results"
+    checkout = tmp_path / "checkout"
+    agent = _job(tmp_path / "a", "har117-agent", agent=_AGENT, model="selfhosted/example")
+    newer = _job(tmp_path / "b", "har116-new", agent=_AGENT, model="selfhosted/example")
+    meta = json.loads((newer / "lab-metadata.json").read_text())
+    meta["started_at"] = "2026-10-01T00:00:00+00:00"
+    (newer / "lab-metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+    control = _job(tmp_path / "c", "har116-nop-1", agent="nop")
+    partial = _job(tmp_path / "d", "har090-partial")
+    # Counts missing a field: the row must stay "counts unknown", not fabricated.
+    _write_report(partial, {"n_pass": 1, "n_fail": 0, "n_unscored": 0})
+    unprocessed = _job(tmp_path / "e", "har090-unprocessed")
+    for job in (agent, control, newer, partial, unprocessed):
+        publish_job(job, root=home, pr_lookup=lambda _commit: None, primary_checkout=checkout)
+        assert _index_bytes(home) == _rebuild(home, checkout)
+    index = (home / "INDEX.md").read_text()
+    assert "## Agent runs (2)" in index
+    assert "## Routine control jobs (3 jobs, 2 cards)" in index
+    assert "| HAR-090 | 2 |" in index
+    # The partial report renders as an unknown verdict, never a fabricated pass.
+    assert "counts unknown" in index
+
+
+def test_publish_never_rescans_every_published_job(tmp_path: Path, monkeypatch) -> None:
+    """The splice reads the job it publishes, not the whole results home."""
+    from evallab import results_home
+
+    home = tmp_path / "results"
+    checkout = tmp_path / "checkout"
+    publish_job(
+        _job(tmp_path / "a", "har117-one", agent=_AGENT, model="selfhosted/example"),
+        root=home,
+        pr_lookup=lambda _commit: None,
+        primary_checkout=checkout,
+    )
+    scans: list[int] = []
+    original = results_home._published_jobs
+
+    def _counted_scan(home_path: Path):
+        scans.append(1)
+        return original(home_path)
+
+    monkeypatch.setattr(results_home, "_published_jobs", _counted_scan)
+    publish_job(
+        _job(tmp_path / "b", "har117-two", agent=_AGENT, model="selfhosted/example"),
+        root=home,
+        pr_lookup=lambda _commit: None,
+        primary_checkout=checkout,
+    )
+    assert scans == []
+    write_index(home, primary_checkout=checkout)
+    assert scans == [1]
+
+
+def test_concurrent_publishes_leave_a_rebuild_identical_index(tmp_path: Path) -> None:
+    """Two publishes at once serialize on the INDEX; neither loses a row."""
+    import threading
+
+    home = tmp_path / "results"
+    checkout = tmp_path / "checkout"
+    jobs = [
+        _job(
+            tmp_path / f"src{index}",
+            f"har117-race-{index}",
+            agent=_AGENT if index % 2 else "nop",
+            model="selfhosted/example",
+        )
+        for index in range(6)
+    ]
+    publish_job(jobs[0], root=home, pr_lookup=lambda _commit: None, primary_checkout=checkout)
+    failures: list[BaseException] = []
+    barrier = threading.Barrier(len(jobs) - 1)
+
+    def _publish(job: Path) -> None:
+        try:
+            barrier.wait(timeout=30)
+            publish_job(job, root=home, pr_lookup=lambda _commit: None, primary_checkout=checkout)
+        except BaseException as exc:  # a raised publish must fail the test, not hang it
+            failures.append(exc)
+
+    threads = [threading.Thread(target=_publish, args=(job,)) for job in jobs[1:]]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=120)
+    assert failures == []
+    assert _index_bytes(home) == _rebuild(home, checkout)
+    index = (home / "INDEX.md").read_text()
+    full = (home / "INDEX-all.md").read_text()
+    assert sum("har117-race-" in line for line in full.splitlines()) == 6
+    # The three control jobs collapse to one routine row in INDEX.md.
+    assert "## Agent runs (3)" in index
+    assert "## Routine control jobs (3 jobs, 1 cards)" in index
+
+
+def test_republishing_a_job_replaces_its_row_in_place(tmp_path: Path) -> None:
+    home = tmp_path / "results"
+    checkout = tmp_path / "checkout"
+    job = _job(tmp_path, "har117-twice")
+    publish_job(job, root=home, pr_lookup=lambda _commit: None, primary_checkout=checkout)
+    assert "unprocessed" in (home / "INDEX-all.md").read_text()
+    _write_report(
+        job,
+        {
+            "n_pass": 1,
+            "n_fail": 0,
+            "n_unscored": 0,
+            "n_counted_pass": 1,
+            "n_counted_fail": 0,
+            "n_excluded": 0,
+            "excluded_reasons": {},
+        },
+    )
+    publish_job(job, root=home, pr_lookup=lambda _commit: None, primary_checkout=checkout)
+    full = (home / "INDEX-all.md").read_text()
+    assert "unprocessed" not in full
+    assert sum("har117-twice" in line for line in full.splitlines()) == 1
+    # The control job stays a single routine row, never a second one.
+    index = (home / "INDEX.md").read_text()
+    assert "## Routine control jobs (1 jobs, 1 cards)" in index
+    assert "| HAR-117 | 1 |" in index
+    assert _index_bytes(home) == _rebuild(home, checkout)
+
+
+def test_rehomed_control_job_moves_its_routine_count(tmp_path: Path) -> None:
+    """A card rehome drops the old routine row and count, not just the link."""
+    home = tmp_path / "results"
+    checkout = tmp_path / "checkout"
+    job = _job(tmp_path, "mystery-nop", agent="nop")
+    (job / "experiment-spec.json").write_text(
+        json.dumps({"question_ref": "mystery"}), encoding="utf-8"
+    )
+    publish_job(job, root=home, pr_lookup=lambda _commit: None, primary_checkout=checkout)
+    index = (home / "INDEX.md").read_text()
+    assert "## Routine control jobs (1 jobs, 1 cards)" in index
+    assert "| unknown | 1 |" in index
+    publish_job(
+        job,
+        root=home,
+        pr_lookup=lambda _commit: None,
+        primary_checkout=checkout,
+        publication_card="HAR-126",
+    )
+    index = (home / "INDEX.md").read_text()
+    assert "| unknown |" not in index
+    assert "| HAR-126 | 1 |" in index
+    assert "## Routine control jobs (1 jobs, 1 cards)" in index
+    assert _index_bytes(home) == _rebuild(home, checkout)
+
+
+def test_foreign_or_drifted_index_falls_back_to_a_full_rebuild(tmp_path: Path) -> None:
+    home = tmp_path / "results"
+    checkout = tmp_path / "checkout"
+    publish_job(
+        _job(tmp_path / "a", "har117-one", agent=_AGENT, model="selfhosted/example"),
+        root=home,
+        pr_lookup=lambda _commit: None,
+        primary_checkout=checkout,
+    )
+    drifted = (home / "INDEX.md").read_text().replace("## Agent runs (1)", "## Agent runs (7)")
+    (home / "INDEX.md").write_text(drifted, encoding="utf-8")
+    publish_job(
+        _job(tmp_path / "b", "har117-two", agent=_AGENT, model="selfhosted/example"),
+        root=home,
+        pr_lookup=lambda _commit: None,
+        primary_checkout=checkout,
+    )
+    assert _index_bytes(home) == _rebuild(home, checkout)
+    (home / "INDEX-all.md").write_text("# hand written\n", encoding="utf-8")
+    publish_job(
+        _job(tmp_path / "c", "har117-three", agent=_AGENT, model="selfhosted/example"),
+        root=home,
+        pr_lookup=lambda _commit: None,
+        primary_checkout=checkout,
+    )
+    assert _index_bytes(home) == _rebuild(home, checkout)
+    assert "hand written" not in (home / "INDEX-all.md").read_text()
+
+
+def test_new_research_doc_reaches_every_row_of_its_card(tmp_path: Path) -> None:
+    """A doc published between two jobs rewrites the earlier rows too, not just the new one."""
+    home = tmp_path / "results"
+    checkout = tmp_path / "checkout"
+    publish_job(
+        _job(tmp_path / "a", "har117-one", agent=_AGENT, model="selfhosted/example"),
+        root=home,
+        pr_lookup=lambda _commit: None,
+        primary_checkout=checkout,
+    )
+    assert "RESULTS.md" not in (home / "INDEX.md").read_text()
+    experiment = checkout / "research" / "experiments" / "har117-results-home"
+    experiment.mkdir(parents=True)
+    (experiment / "RESULTS.md").write_text("results", encoding="utf-8")
+    publish_job(
+        _job(tmp_path / "b", "har117-two", agent=_AGENT, model="selfhosted/example"),
+        root=home,
+        pr_lookup=lambda _commit: None,
+        primary_checkout=checkout,
+    )
+    rows = [
+        line for line in (home / "INDEX.md").read_text().splitlines() if "har117-" in line
+    ]
+    assert len(rows) == 2
+    assert all("RESULTS.md" in row for row in rows)
+    assert _index_bytes(home) == _rebuild(home, checkout)

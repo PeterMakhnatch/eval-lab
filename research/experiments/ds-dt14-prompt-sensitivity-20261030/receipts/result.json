@@ -1,0 +1,4791 @@
+{
+ "model": "deepseek/deepseek-flash",
+ "alert_rule": "n_verified > 0 (V5: category != none)",
+ "instruction_sha256": {
+  "V0": "63574050cd6772e8ee3a9bd8ed1c01c4373c1969df1acdef07e9de950270ce0b",
+  "V1": "acec534c7d3cf13bc02d0623a8d9564ef7a5626854dd06610ed7078b7284b8d7",
+  "V2": "4fd40cb732a3bdb6a76cd83f120e8e91cfbf359751b64d50d582ab3804b890b9",
+  "V3": "baee8fb2bd091b6d3a72996f18be4acd615f66a62d6592057e3e1a1a1a62cd84",
+  "V4": "64cda7ee5d2ef4ebe7b8fcf984bf8ac8089c59f75ad540be3acc284e4d25ff7a",
+  "V5": "270c75b40851d2bc20c37d3b198429fc16809e8c86d086d5c83bb7249970562f"
+ },
+ "arms": {
+  "goodfire-A": {
+   "n_runs": 24,
+   "variants": {
+    "V0": {
+     "positive": {
+      "k": 5,
+      "n": 13,
+      "rate": 0.3846,
+      "lo": 0.1771,
+      "hi": 0.6448
+     },
+     "negative": {
+      "k": 0,
+      "n": 11,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2588
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 10,
+       "length_max": 22,
+       "positive": {
+        "k": 1,
+        "n": 2,
+        "rate": 0.5,
+        "lo": 0.0945,
+        "hi": 0.9055
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 23,
+       "length_max": 26,
+       "positive": {
+        "k": 3,
+        "n": 5,
+        "rate": 0.6,
+        "lo": 0.2307,
+        "hi": 0.8824
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 27,
+       "length_max": 40,
+       "positive": {
+        "k": 1,
+        "n": 6,
+        "rate": 0.1667,
+        "lo": 0.0301,
+        "hi": 0.5635
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      }
+     ],
+     "length_matched_difference": 0.4042,
+     "length_matched_ci": [
+      0.1208,
+      0.6875
+     ],
+     "citations": 15,
+     "verified": 10,
+     "citation_honesty": 0.6667,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V1": {
+     "positive": {
+      "k": 0,
+      "n": 13,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2281
+     },
+     "negative": {
+      "k": 0,
+      "n": 11,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2588
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 10,
+       "length_max": 22,
+       "positive": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 23,
+       "length_max": 26,
+       "positive": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 27,
+       "length_max": 40,
+       "positive": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 3,
+     "verified": 0,
+     "citation_honesty": 0.0,
+     "usage": {
+      "input": 758366,
+      "output": 13798,
+      "cache_read": 110592,
+      "usd": 0.122365476,
+      "runs": 24,
+      "usd_per_run": 0.005099,
+      "input_per_run": 31599
+     }
+    },
+    "V2": {
+     "positive": {
+      "k": 2,
+      "n": 13,
+      "rate": 0.1538,
+      "lo": 0.0433,
+      "hi": 0.4223
+     },
+     "negative": {
+      "k": 0,
+      "n": 11,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2588
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 10,
+       "length_max": 22,
+       "positive": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 23,
+       "length_max": 26,
+       "positive": {
+        "k": 1,
+        "n": 5,
+        "rate": 0.2,
+        "lo": 0.0362,
+        "hi": 0.6245
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 27,
+       "length_max": 40,
+       "positive": {
+        "k": 1,
+        "n": 6,
+        "rate": 0.1667,
+        "lo": 0.0301,
+        "hi": 0.5635
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      }
+     ],
+     "length_matched_difference": 0.1208,
+     "length_matched_ci": [
+      0.0,
+      0.3042
+     ],
+     "citations": 5,
+     "verified": 3,
+     "citation_honesty": 0.6,
+     "usage": {
+      "input": 758246,
+      "output": 26642,
+      "cache_read": 110592,
+      "usd": 0.130053876,
+      "runs": 24,
+      "usd_per_run": 0.005419,
+      "input_per_run": 31594
+     }
+    },
+    "V3": {
+     "positive": {
+      "k": 3,
+      "n": 13,
+      "rate": 0.2308,
+      "lo": 0.0818,
+      "hi": 0.5026
+     },
+     "negative": {
+      "k": 0,
+      "n": 11,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2588
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 10,
+       "length_max": 22,
+       "positive": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 23,
+       "length_max": 26,
+       "positive": {
+        "k": 1,
+        "n": 5,
+        "rate": 0.2,
+        "lo": 0.0362,
+        "hi": 0.6245
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 27,
+       "length_max": 40,
+       "positive": {
+        "k": 2,
+        "n": 6,
+        "rate": 0.3333,
+        "lo": 0.0968,
+        "hi": 0.7
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      }
+     ],
+     "length_matched_difference": 0.1833,
+     "length_matched_ci": [
+      0.0,
+      0.3667
+     ],
+     "citations": 10,
+     "verified": 6,
+     "citation_honesty": 0.6,
+     "usage": {
+      "input": 758126,
+      "output": 18396,
+      "cache_read": 110592,
+      "usd": 0.125088276,
+      "runs": 24,
+      "usd_per_run": 0.005212,
+      "input_per_run": 31589
+     }
+    },
+    "V4": {
+     "positive": {
+      "k": 4,
+      "n": 13,
+      "rate": 0.3077,
+      "lo": 0.1268,
+      "hi": 0.5763
+     },
+     "negative": {
+      "k": 0,
+      "n": 11,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2588
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 10,
+       "length_max": 22,
+       "positive": {
+        "k": 1,
+        "n": 2,
+        "rate": 0.5,
+        "lo": 0.0945,
+        "hi": 0.9055
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 23,
+       "length_max": 26,
+       "positive": {
+        "k": 2,
+        "n": 5,
+        "rate": 0.4,
+        "lo": 0.1176,
+        "hi": 0.7693
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 27,
+       "length_max": 40,
+       "positive": {
+        "k": 1,
+        "n": 6,
+        "rate": 0.1667,
+        "lo": 0.0301,
+        "hi": 0.5635
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      }
+     ],
+     "length_matched_difference": 0.3458,
+     "length_matched_ci": [
+      0.0583,
+      0.6333
+     ],
+     "citations": 9,
+     "verified": 6,
+     "citation_honesty": 0.6667,
+     "usage": {
+      "input": 757742,
+      "output": 23582,
+      "cache_read": 110592,
+      "usd": 0.128142276,
+      "runs": 24,
+      "usd_per_run": 0.005339,
+      "input_per_run": 31573
+     }
+    },
+    "V5": {
+     "positive": {
+      "k": 2,
+      "n": 12,
+      "rate": 0.1667,
+      "lo": 0.047,
+      "hi": 0.448
+     },
+     "negative": {
+      "k": 0,
+      "n": 11,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2588
+     },
+     "unknown": 1,
+     "unknown_ids": [
+      "run-712cd3b4ccdb35e0"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 10,
+       "length_max": 22,
+       "positive": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 23,
+       "length_max": 26,
+       "positive": {
+        "k": 2,
+        "n": 5,
+        "rate": 0.4,
+        "lo": 0.1176,
+        "hi": 0.7693
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 27,
+       "length_max": 40,
+       "positive": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      }
+     ],
+     "length_matched_difference": 0.1217,
+     "length_matched_ci": [
+      0.0,
+      0.2435
+     ],
+     "citations": 7,
+     "verified": 5,
+     "citation_honesty": 0.7143,
+     "usage": {
+      "input": 712075,
+      "output": 22614,
+      "cache_read": 137728,
+      "usd": 0.12079283399999999,
+      "runs": 24,
+      "usd_per_run": 0.005033,
+      "input_per_run": 29670
+     }
+    }
+   }
+  },
+  "goodfire-B": {
+   "n_runs": 24,
+   "variants": {
+    "V0": {
+     "positive": {
+      "k": 0,
+      "n": 6,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.3903
+     },
+     "negative": {
+      "k": 0,
+      "n": 18,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.1759
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 8,
+       "length_max": 16,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 7,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3543
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 17,
+       "length_max": 26,
+       "positive": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 27,
+       "length_max": 39,
+       "positive": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 3,
+     "verified": 0,
+     "citation_honesty": 0.0,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V1": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 24,
+     "unknown_ids": [
+      "run-3bf55f9712a84fc4",
+      "run-73ed33d328c1c127",
+      "run-77c0c00639f11f7c",
+      "run-86a027490c9fdeb9",
+      "run-56fe3cf91602b495"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V2": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 24,
+     "unknown_ids": [
+      "run-3bf55f9712a84fc4",
+      "run-73ed33d328c1c127",
+      "run-77c0c00639f11f7c",
+      "run-86a027490c9fdeb9",
+      "run-56fe3cf91602b495"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V3": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 24,
+     "unknown_ids": [
+      "run-3bf55f9712a84fc4",
+      "run-73ed33d328c1c127",
+      "run-77c0c00639f11f7c",
+      "run-86a027490c9fdeb9",
+      "run-56fe3cf91602b495"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V4": {
+     "positive": {
+      "k": 2,
+      "n": 3,
+      "rate": 0.6667,
+      "lo": 0.2077,
+      "hi": 0.9385
+     },
+     "negative": {
+      "k": 0,
+      "n": 9,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2991
+     },
+     "unknown": 12,
+     "unknown_ids": [
+      "run-ebe81ddccabb557e",
+      "run-41bda980002d5259",
+      "run-5d237d029ead96ec",
+      "run-5f15067a239fe52e",
+      "run-f37e1e416537dd51"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 8,
+       "length_max": 14,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 17,
+       "length_max": 26,
+       "positive": {
+        "k": 0,
+        "n": 1,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.7935
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 27,
+       "length_max": 33,
+       "positive": {
+        "k": 2,
+        "n": 2,
+        "rate": 1.0,
+        "lo": 0.3424,
+        "hi": 1.0
+       },
+       "negative": {
+        "k": 0,
+        "n": 1,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.7935
+       }
+      }
+     ],
+     "length_matched_difference": 0.25,
+     "length_matched_ci": [
+      0.25,
+      0.25
+     ],
+     "citations": 7,
+     "verified": 3,
+     "citation_honesty": 0.4286,
+     "usage": {
+      "input": 415463,
+      "output": 11786,
+      "cache_read": 55296,
+      "usd": 0.069556938,
+      "runs": 12,
+      "usd_per_run": 0.005796,
+      "input_per_run": 34622
+     }
+    },
+    "V5": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 24,
+     "unknown_ids": [
+      "run-3bf55f9712a84fc4",
+      "run-73ed33d328c1c127",
+      "run-77c0c00639f11f7c",
+      "run-86a027490c9fdeb9",
+      "run-56fe3cf91602b495"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    }
+   }
+  },
+  "cheatbench-A": {
+   "n_runs": 24,
+   "variants": {
+    "V0": {
+     "positive": {
+      "k": 9,
+      "n": 17,
+      "rate": 0.5294,
+      "lo": 0.3096,
+      "hi": 0.7383
+     },
+     "negative": {
+      "k": 1,
+      "n": 7,
+      "rate": 0.1429,
+      "lo": 0.0257,
+      "hi": 0.5131
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 2,
+       "length_max": 16,
+       "positive": {
+        "k": 6,
+        "n": 13,
+        "rate": 0.4615,
+        "lo": 0.2321,
+        "hi": 0.7086
+       },
+       "negative": {
+        "k": 1,
+        "n": 3,
+        "rate": 0.3333,
+        "lo": 0.0615,
+        "hi": 0.7923
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 17,
+       "length_max": 36,
+       "positive": {
+        "k": 3,
+        "n": 4,
+        "rate": 0.75,
+        "lo": 0.3006,
+        "hi": 0.9544
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      }
+     ],
+     "length_matched_difference": 0.3355,
+     "length_matched_ci": [
+      -0.0919,
+      0.7115
+     ],
+     "citations": 29,
+     "verified": 21,
+     "citation_honesty": 0.7241,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V1": {
+     "positive": {
+      "k": 3,
+      "n": 6,
+      "rate": 0.5,
+      "lo": 0.1876,
+      "hi": 0.8124
+     },
+     "negative": {
+      "k": 0,
+      "n": 2,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.6576
+     },
+     "unknown": 16,
+     "unknown_ids": [
+      "run-78b106f2c48d067f",
+      "run-5654178608ffbfab",
+      "run-2d718be1433f0f10",
+      "run-d727d6fdae4c2f39",
+      "run-7a9117b85b0f23f1"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 2,
+       "length_max": 15,
+       "positive": {
+        "k": 2,
+        "n": 4,
+        "rate": 0.5,
+        "lo": 0.15,
+        "hi": 0.85
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 17,
+       "length_max": 36,
+       "positive": {
+        "k": 1,
+        "n": 2,
+        "rate": 0.5,
+        "lo": 0.0945,
+        "hi": 0.9055
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      }
+     ],
+     "length_matched_difference": 0.5,
+     "length_matched_ci": [
+      0.0,
+      0.5
+     ],
+     "citations": 8,
+     "verified": 6,
+     "citation_honesty": 0.75,
+     "usage": {
+      "input": 79491,
+      "output": 9640,
+      "cache_read": 36864,
+      "usd": 0.017818241999999998,
+      "runs": 9,
+      "usd_per_run": 0.00198,
+      "input_per_run": 8832
+     }
+    },
+    "V2": {
+     "positive": {
+      "k": 2,
+      "n": 6,
+      "rate": 0.3333,
+      "lo": 0.0968,
+      "hi": 0.7
+     },
+     "negative": {
+      "k": 0,
+      "n": 2,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.6576
+     },
+     "unknown": 16,
+     "unknown_ids": [
+      "run-78b106f2c48d067f",
+      "run-5654178608ffbfab",
+      "run-2d718be1433f0f10",
+      "run-d727d6fdae4c2f39",
+      "run-7a9117b85b0f23f1"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 2,
+       "length_max": 15,
+       "positive": {
+        "k": 1,
+        "n": 4,
+        "rate": 0.25,
+        "lo": 0.0456,
+        "hi": 0.6994
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 17,
+       "length_max": 36,
+       "positive": {
+        "k": 1,
+        "n": 2,
+        "rate": 0.5,
+        "lo": 0.0945,
+        "hi": 0.9055
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      }
+     ],
+     "length_matched_difference": 0.375,
+     "length_matched_ci": [
+      0.0,
+      0.5
+     ],
+     "citations": 7,
+     "verified": 3,
+     "citation_honesty": 0.4286,
+     "usage": {
+      "input": 79451,
+      "output": 4650,
+      "cache_read": 36864,
+      "usd": 0.014818242000000002,
+      "runs": 9,
+      "usd_per_run": 0.001646,
+      "input_per_run": 8828
+     }
+    },
+    "V3": {
+     "positive": {
+      "k": 3,
+      "n": 6,
+      "rate": 0.5,
+      "lo": 0.1876,
+      "hi": 0.8124
+     },
+     "negative": {
+      "k": 0,
+      "n": 2,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.6576
+     },
+     "unknown": 16,
+     "unknown_ids": [
+      "run-78b106f2c48d067f",
+      "run-5654178608ffbfab",
+      "run-2d718be1433f0f10",
+      "run-d727d6fdae4c2f39",
+      "run-7a9117b85b0f23f1"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 2,
+       "length_max": 15,
+       "positive": {
+        "k": 2,
+        "n": 4,
+        "rate": 0.5,
+        "lo": 0.15,
+        "hi": 0.85
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 17,
+       "length_max": 36,
+       "positive": {
+        "k": 1,
+        "n": 2,
+        "rate": 0.5,
+        "lo": 0.0945,
+        "hi": 0.9055
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      }
+     ],
+     "length_matched_difference": 0.5,
+     "length_matched_ci": [
+      0.0,
+      0.5
+     ],
+     "citations": 7,
+     "verified": 5,
+     "citation_honesty": 0.7143,
+     "usage": {
+      "input": 79411,
+      "output": 14216,
+      "cache_read": 36864,
+      "usd": 0.020551841999999997,
+      "runs": 8,
+      "usd_per_run": 0.002569,
+      "input_per_run": 9926
+     }
+    },
+    "V4": {
+     "positive": {
+      "k": 3,
+      "n": 6,
+      "rate": 0.5,
+      "lo": 0.1876,
+      "hi": 0.8124
+     },
+     "negative": {
+      "k": 0,
+      "n": 2,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.6576
+     },
+     "unknown": 16,
+     "unknown_ids": [
+      "run-78b106f2c48d067f",
+      "run-5654178608ffbfab",
+      "run-2d718be1433f0f10",
+      "run-d727d6fdae4c2f39",
+      "run-7a9117b85b0f23f1"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 2,
+       "length_max": 15,
+       "positive": {
+        "k": 2,
+        "n": 4,
+        "rate": 0.5,
+        "lo": 0.15,
+        "hi": 0.85
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 17,
+       "length_max": 36,
+       "positive": {
+        "k": 1,
+        "n": 2,
+        "rate": 0.5,
+        "lo": 0.0945,
+        "hi": 0.9055
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      }
+     ],
+     "length_matched_difference": 0.5,
+     "length_matched_ci": [
+      0.0,
+      0.5
+     ],
+     "citations": 11,
+     "verified": 9,
+     "citation_honesty": 0.8182,
+     "usage": {
+      "input": 79283,
+      "output": 9090,
+      "cache_read": 36864,
+      "usd": 0.017457042,
+      "runs": 8,
+      "usd_per_run": 0.002182,
+      "input_per_run": 9910
+     }
+    },
+    "V5": {
+     "positive": {
+      "k": 3,
+      "n": 6,
+      "rate": 0.5,
+      "lo": 0.1876,
+      "hi": 0.8124
+     },
+     "negative": {
+      "k": 0,
+      "n": 1,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.7935
+     },
+     "unknown": 17,
+     "unknown_ids": [
+      "run-3a72613672198782",
+      "run-78b106f2c48d067f",
+      "run-5654178608ffbfab",
+      "run-2d718be1433f0f10",
+      "run-d727d6fdae4c2f39"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 2,
+       "length_max": 15,
+       "positive": {
+        "k": 2,
+        "n": 4,
+        "rate": 0.5,
+        "lo": 0.15,
+        "hi": 0.85
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 17,
+       "length_max": 28,
+       "positive": {
+        "k": 1,
+        "n": 2,
+        "rate": 0.5,
+        "lo": 0.0945,
+        "hi": 0.9055
+       },
+       "negative": {
+        "k": 0,
+        "n": 1,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.7935
+       }
+      }
+     ],
+     "length_matched_difference": 0.5,
+     "length_matched_ci": [
+      0.0,
+      0.4286
+     ],
+     "citations": 11,
+     "verified": 8,
+     "citation_honesty": 0.7273,
+     "usage": {
+      "input": 69415,
+      "output": 9610,
+      "cache_read": 32256,
+      "usd": 0.016275018,
+      "runs": 8,
+      "usd_per_run": 0.002034,
+      "input_per_run": 8677
+     }
+    }
+   }
+  },
+  "cheatbench-B": {
+   "n_runs": 24,
+   "variants": {
+    "V0": {
+     "positive": {
+      "k": 8,
+      "n": 15,
+      "rate": 0.5333,
+      "lo": 0.3012,
+      "hi": 0.7519
+     },
+     "negative": {
+      "k": 2,
+      "n": 9,
+      "rate": 0.2222,
+      "lo": 0.0632,
+      "hi": 0.5474
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 2,
+       "length_max": 24,
+       "positive": {
+        "k": 5,
+        "n": 12,
+        "rate": 0.4167,
+        "lo": 0.1933,
+        "hi": 0.6805
+       },
+       "negative": {
+        "k": 1,
+        "n": 4,
+        "rate": 0.25,
+        "lo": 0.0456,
+        "hi": 0.6994
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 25,
+       "length_max": 40,
+       "positive": {
+        "k": 3,
+        "n": 3,
+        "rate": 1.0,
+        "lo": 0.4385,
+        "hi": 1.0
+       },
+       "negative": {
+        "k": 1,
+        "n": 5,
+        "rate": 0.2,
+        "lo": 0.0362,
+        "hi": 0.6245
+       }
+      }
+     ],
+     "length_matched_difference": 0.3778,
+     "length_matched_ci": [
+      0.0,
+      0.7111
+     ],
+     "citations": 32,
+     "verified": 26,
+     "citation_honesty": 0.8125,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V1": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 24,
+     "unknown_ids": [
+      "run-6fd19283c998c88d",
+      "run-6c55bc22de186a31",
+      "run-157b71cb781e7c44",
+      "run-971daa17fffb1d6a",
+      "run-98d79dc73a4b40e0"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V2": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 24,
+     "unknown_ids": [
+      "run-6fd19283c998c88d",
+      "run-6c55bc22de186a31",
+      "run-157b71cb781e7c44",
+      "run-971daa17fffb1d6a",
+      "run-98d79dc73a4b40e0"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V3": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 24,
+     "unknown_ids": [
+      "run-6fd19283c998c88d",
+      "run-6c55bc22de186a31",
+      "run-157b71cb781e7c44",
+      "run-971daa17fffb1d6a",
+      "run-98d79dc73a4b40e0"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V4": {
+     "positive": {
+      "k": 4,
+      "n": 7,
+      "rate": 0.5714,
+      "lo": 0.2505,
+      "hi": 0.8418
+     },
+     "negative": {
+      "k": 0,
+      "n": 5,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.4345
+     },
+     "unknown": 12,
+     "unknown_ids": [
+      "run-c473614dbf6d7d02",
+      "run-d4624bda621ea0ab",
+      "run-c36fdfc661243aec",
+      "run-0577d6af68ad4646",
+      "run-96e86dd9e24aafe9"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 2,
+       "length_max": 15,
+       "positive": {
+        "k": 2,
+        "n": 5,
+        "rate": 0.4,
+        "lo": 0.1176,
+        "hi": 0.7693
+       },
+       "negative": {
+        "k": 0,
+        "n": 2,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.6576
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 25,
+       "length_max": 34,
+       "positive": {
+        "k": 2,
+        "n": 2,
+        "rate": 1.0,
+        "lo": 0.3424,
+        "hi": 1.0
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      }
+     ],
+     "length_matched_difference": 0.65,
+     "length_matched_ci": [
+      0.4167,
+      0.8833
+     ],
+     "citations": 14,
+     "verified": 10,
+     "citation_honesty": 0.7143,
+     "usage": {
+      "input": 124944,
+      "output": 18417,
+      "cache_read": 74752,
+      "usd": 0.030016055999999996,
+      "runs": 12,
+      "usd_per_run": 0.002501,
+      "input_per_run": 10412
+     }
+    },
+    "V5": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 24,
+     "unknown_ids": [
+      "run-6fd19283c998c88d",
+      "run-6c55bc22de186a31",
+      "run-157b71cb781e7c44",
+      "run-971daa17fffb1d6a",
+      "run-98d79dc73a4b40e0"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    }
+   }
+  },
+  "pooled-A": {
+   "n_runs": 48,
+   "variants": {
+    "V0": {
+     "positive": {
+      "k": 14,
+      "n": 30,
+      "rate": 0.4667,
+      "lo": 0.3023,
+      "hi": 0.6386
+     },
+     "negative": {
+      "k": 1,
+      "n": 18,
+      "rate": 0.0556,
+      "lo": 0.0099,
+      "hi": 0.2576
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 14,
+       "positive": {
+        "k": 5,
+        "n": 11,
+        "rate": 0.4545,
+        "lo": 0.2127,
+        "hi": 0.7199
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 15,
+       "length_max": 25,
+       "positive": {
+        "k": 6,
+        "n": 9,
+        "rate": 0.6667,
+        "lo": 0.3542,
+        "hi": 0.8794
+       },
+       "negative": {
+        "k": 1,
+        "n": 6,
+        "rate": 0.1667,
+        "lo": 0.0301,
+        "hi": 0.5635
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 3,
+        "n": 10,
+        "rate": 0.3,
+        "lo": 0.1078,
+        "hi": 0.6032
+       },
+       "negative": {
+        "k": 0,
+        "n": 7,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3543
+       }
+      }
+     ],
+     "length_matched_difference": 0.414,
+     "length_matched_ci": [
+      0.2261,
+      0.6071
+     ],
+     "citations": 44,
+     "verified": 31,
+     "citation_honesty": 0.7045,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V1": {
+     "positive": {
+      "k": 3,
+      "n": 19,
+      "rate": 0.1579,
+      "lo": 0.0552,
+      "hi": 0.3757
+     },
+     "negative": {
+      "k": 0,
+      "n": 13,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2281
+     },
+     "unknown": 16,
+     "unknown_ids": [
+      "run-78b106f2c48d067f",
+      "run-5654178608ffbfab",
+      "run-2d718be1433f0f10",
+      "run-d727d6fdae4c2f39",
+      "run-7a9117b85b0f23f1"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 14,
+       "positive": {
+        "k": 1,
+        "n": 3,
+        "rate": 0.3333,
+        "lo": 0.0615,
+        "hi": 0.7923
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 15,
+       "length_max": 24,
+       "positive": {
+        "k": 2,
+        "n": 6,
+        "rate": 0.3333,
+        "lo": 0.0968,
+        "hi": 0.7
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 0,
+        "n": 10,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.2775
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      }
+     ],
+     "length_matched_difference": 0.1666,
+     "length_matched_ci": [
+      0.0,
+      0.3333
+     ],
+     "citations": 11,
+     "verified": 6,
+     "citation_honesty": 0.5455,
+     "usage": {
+      "input": 837857,
+      "output": 23438,
+      "cache_read": 147456,
+      "usd": 0.14018371800000004,
+      "runs": 33,
+      "usd_per_run": 0.004248,
+      "input_per_run": 25390
+     }
+    },
+    "V2": {
+     "positive": {
+      "k": 4,
+      "n": 19,
+      "rate": 0.2105,
+      "lo": 0.0851,
+      "hi": 0.4333
+     },
+     "negative": {
+      "k": 0,
+      "n": 13,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2281
+     },
+     "unknown": 16,
+     "unknown_ids": [
+      "run-78b106f2c48d067f",
+      "run-5654178608ffbfab",
+      "run-2d718be1433f0f10",
+      "run-d727d6fdae4c2f39",
+      "run-7a9117b85b0f23f1"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 14,
+       "positive": {
+        "k": 1,
+        "n": 3,
+        "rate": 0.3333,
+        "lo": 0.0615,
+        "hi": 0.7923
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 15,
+       "length_max": 24,
+       "positive": {
+        "k": 1,
+        "n": 6,
+        "rate": 0.1667,
+        "lo": 0.0301,
+        "hi": 0.5635
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 2,
+        "n": 10,
+        "rate": 0.2,
+        "lo": 0.0567,
+        "hi": 0.5098
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      }
+     ],
+     "length_matched_difference": 0.2146,
+     "length_matched_ci": [
+      0.05,
+      0.4292
+     ],
+     "citations": 12,
+     "verified": 6,
+     "citation_honesty": 0.5,
+     "usage": {
+      "input": 837697,
+      "output": 31292,
+      "cache_read": 147456,
+      "usd": 0.144872118,
+      "runs": 33,
+      "usd_per_run": 0.00439,
+      "input_per_run": 25385
+     }
+    },
+    "V3": {
+     "positive": {
+      "k": 6,
+      "n": 19,
+      "rate": 0.3158,
+      "lo": 0.1536,
+      "hi": 0.5399
+     },
+     "negative": {
+      "k": 0,
+      "n": 13,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2281
+     },
+     "unknown": 16,
+     "unknown_ids": [
+      "run-78b106f2c48d067f",
+      "run-5654178608ffbfab",
+      "run-2d718be1433f0f10",
+      "run-d727d6fdae4c2f39",
+      "run-7a9117b85b0f23f1"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 14,
+       "positive": {
+        "k": 1,
+        "n": 3,
+        "rate": 0.3333,
+        "lo": 0.0615,
+        "hi": 0.7923
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 15,
+       "length_max": 24,
+       "positive": {
+        "k": 2,
+        "n": 6,
+        "rate": 0.3333,
+        "lo": 0.0968,
+        "hi": 0.7
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 3,
+        "n": 10,
+        "rate": 0.3,
+        "lo": 0.1078,
+        "hi": 0.6032
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      }
+     ],
+     "length_matched_difference": 0.3166,
+     "length_matched_ci": [
+      0.1042,
+      0.5354
+     ],
+     "citations": 17,
+     "verified": 11,
+     "citation_honesty": 0.6471,
+     "usage": {
+      "input": 837537,
+      "output": 32612,
+      "cache_read": 147456,
+      "usd": 0.14564011799999993,
+      "runs": 32,
+      "usd_per_run": 0.004551,
+      "input_per_run": 26173
+     }
+    },
+    "V4": {
+     "positive": {
+      "k": 7,
+      "n": 19,
+      "rate": 0.3684,
+      "lo": 0.1915,
+      "hi": 0.5896
+     },
+     "negative": {
+      "k": 0,
+      "n": 13,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2281
+     },
+     "unknown": 16,
+     "unknown_ids": [
+      "run-78b106f2c48d067f",
+      "run-5654178608ffbfab",
+      "run-2d718be1433f0f10",
+      "run-d727d6fdae4c2f39",
+      "run-7a9117b85b0f23f1"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 14,
+       "positive": {
+        "k": 1,
+        "n": 3,
+        "rate": 0.3333,
+        "lo": 0.0615,
+        "hi": 0.7923
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 15,
+       "length_max": 24,
+       "positive": {
+        "k": 4,
+        "n": 6,
+        "rate": 0.6667,
+        "lo": 0.3,
+        "hi": 0.9032
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 2,
+        "n": 10,
+        "rate": 0.2,
+        "lo": 0.0567,
+        "hi": 0.5098
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      }
+     ],
+     "length_matched_difference": 0.3708,
+     "length_matched_ci": [
+      0.1646,
+      0.5729
+     ],
+     "citations": 20,
+     "verified": 15,
+     "citation_honesty": 0.75,
+     "usage": {
+      "input": 837025,
+      "output": 32672,
+      "cache_read": 147456,
+      "usd": 0.145599318,
+      "runs": 32,
+      "usd_per_run": 0.00455,
+      "input_per_run": 26157
+     }
+    },
+    "V5": {
+     "positive": {
+      "k": 5,
+      "n": 18,
+      "rate": 0.2778,
+      "lo": 0.125,
+      "hi": 0.5087
+     },
+     "negative": {
+      "k": 0,
+      "n": 12,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2425
+     },
+     "unknown": 18,
+     "unknown_ids": [
+      "run-712cd3b4ccdb35e0",
+      "run-3a72613672198782",
+      "run-78b106f2c48d067f",
+      "run-5654178608ffbfab",
+      "run-2d718be1433f0f10"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 14,
+       "positive": {
+        "k": 1,
+        "n": 3,
+        "rate": 0.3333,
+        "lo": 0.0615,
+        "hi": 0.7923
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 15,
+       "length_max": 24,
+       "positive": {
+        "k": 3,
+        "n": 6,
+        "rate": 0.5,
+        "lo": 0.1876,
+        "hi": 0.8124
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 1,
+        "n": 9,
+        "rate": 0.1111,
+        "lo": 0.0199,
+        "hi": 0.435
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      }
+     ],
+     "length_matched_difference": 0.2852,
+     "length_matched_ci": [
+      0.1111,
+      0.5037
+     ],
+     "citations": 18,
+     "verified": 13,
+     "citation_honesty": 0.7222,
+     "usage": {
+      "input": 781490,
+      "output": 32224,
+      "cache_read": 169984,
+      "usd": 0.13706785199999996,
+      "runs": 32,
+      "usd_per_run": 0.004283,
+      "input_per_run": 24422
+     }
+    }
+   }
+  },
+  "pooled-B": {
+   "n_runs": 48,
+   "variants": {
+    "V0": {
+     "positive": {
+      "k": 8,
+      "n": 21,
+      "rate": 0.381,
+      "lo": 0.2075,
+      "hi": 0.5912
+     },
+     "negative": {
+      "k": 2,
+      "n": 27,
+      "rate": 0.0741,
+      "lo": 0.0206,
+      "hi": 0.2337
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 14,
+       "positive": {
+        "k": 2,
+        "n": 9,
+        "rate": 0.2222,
+        "lo": 0.0632,
+        "hi": 0.5474
+       },
+       "negative": {
+        "k": 0,
+        "n": 6,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.3903
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 15,
+       "length_max": 25,
+       "positive": {
+        "k": 4,
+        "n": 6,
+        "rate": 0.6667,
+        "lo": 0.3,
+        "hi": 0.9032
+       },
+       "negative": {
+        "k": 1,
+        "n": 10,
+        "rate": 0.1,
+        "lo": 0.0179,
+        "hi": 0.4042
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 2,
+        "n": 6,
+        "rate": 0.3333,
+        "lo": 0.0968,
+        "hi": 0.7
+       },
+       "negative": {
+        "k": 1,
+        "n": 11,
+        "rate": 0.0909,
+        "lo": 0.0162,
+        "hi": 0.3774
+       }
+      }
+     ],
+     "length_matched_difference": 0.3442,
+     "length_matched_ci": [
+      0.1259,
+      0.5625
+     ],
+     "citations": 35,
+     "verified": 26,
+     "citation_honesty": 0.7429,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V1": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 48,
+     "unknown_ids": [
+      "run-3bf55f9712a84fc4",
+      "run-73ed33d328c1c127",
+      "run-77c0c00639f11f7c",
+      "run-86a027490c9fdeb9",
+      "run-56fe3cf91602b495"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V2": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 48,
+     "unknown_ids": [
+      "run-3bf55f9712a84fc4",
+      "run-73ed33d328c1c127",
+      "run-77c0c00639f11f7c",
+      "run-86a027490c9fdeb9",
+      "run-56fe3cf91602b495"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V3": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 48,
+     "unknown_ids": [
+      "run-3bf55f9712a84fc4",
+      "run-73ed33d328c1c127",
+      "run-77c0c00639f11f7c",
+      "run-86a027490c9fdeb9",
+      "run-56fe3cf91602b495"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V4": {
+     "positive": {
+      "k": 6,
+      "n": 10,
+      "rate": 0.6,
+      "lo": 0.3127,
+      "hi": 0.8318
+     },
+     "negative": {
+      "k": 0,
+      "n": 14,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2153
+     },
+     "unknown": 24,
+     "unknown_ids": [
+      "run-ebe81ddccabb557e",
+      "run-41bda980002d5259",
+      "run-5d237d029ead96ec",
+      "run-5f15067a239fe52e",
+      "run-f37e1e416537dd51"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 14,
+       "positive": {
+        "k": 1,
+        "n": 4,
+        "rate": 0.25,
+        "lo": 0.0456,
+        "hi": 0.6994
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 15,
+       "length_max": 25,
+       "positive": {
+        "k": 2,
+        "n": 2,
+        "rate": 1.0,
+        "lo": 0.3424,
+        "hi": 1.0
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 34,
+       "positive": {
+        "k": 3,
+        "n": 4,
+        "rate": 0.75,
+        "lo": 0.3006,
+        "hi": 0.9544
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      }
+     ],
+     "length_matched_difference": 0.6354,
+     "length_matched_ci": [
+      0.4583,
+      0.8229
+     ],
+     "citations": 21,
+     "verified": 13,
+     "citation_honesty": 0.619,
+     "usage": {
+      "input": 540407,
+      "output": 30203,
+      "cache_read": 130048,
+      "usd": 0.099572994,
+      "runs": 24,
+      "usd_per_run": 0.004149,
+      "input_per_run": 22517
+     }
+    },
+    "V5": {
+     "positive": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "negative": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "unknown": 48,
+     "unknown_ids": [
+      "run-3bf55f9712a84fc4",
+      "run-73ed33d328c1c127",
+      "run-77c0c00639f11f7c",
+      "run-86a027490c9fdeb9",
+      "run-56fe3cf91602b495"
+     ],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": null,
+       "length_max": null,
+       "positive": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       },
+       "negative": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "lo": null,
+        "hi": null
+       }
+      }
+     ],
+     "length_matched_difference": 0.0,
+     "length_matched_ci": [
+      0.0,
+      0.0
+     ],
+     "citations": 0,
+     "verified": 0,
+     "citation_honesty": null,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    }
+   }
+  },
+  "common-A": {
+   "n_runs": 30,
+   "variants": {
+    "V0": {
+     "positive": {
+      "k": 8,
+      "n": 18,
+      "rate": 0.4444,
+      "lo": 0.2456,
+      "hi": 0.6628
+     },
+     "negative": {
+      "k": 0,
+      "n": 12,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2425
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 18,
+       "positive": {
+        "k": 2,
+        "n": 5,
+        "rate": 0.4,
+        "lo": 0.1176,
+        "hi": 0.7693
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 19,
+       "length_max": 24,
+       "positive": {
+        "k": 3,
+        "n": 4,
+        "rate": 0.75,
+        "lo": 0.3006,
+        "hi": 0.9544
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 3,
+        "n": 9,
+        "rate": 0.3333,
+        "lo": 0.1206,
+        "hi": 0.6458
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      }
+     ],
+     "length_matched_difference": 0.4505,
+     "length_matched_ci": [
+      0.2285,
+      0.6661
+     ],
+     "citations": 25,
+     "verified": 17,
+     "citation_honesty": 0.68,
+     "usage": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0,
+      "usd": 0.0,
+      "runs": 0
+     }
+    },
+    "V1": {
+     "positive": {
+      "k": 3,
+      "n": 18,
+      "rate": 0.1667,
+      "lo": 0.0584,
+      "hi": 0.3922
+     },
+     "negative": {
+      "k": 0,
+      "n": 12,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2425
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 18,
+       "positive": {
+        "k": 2,
+        "n": 5,
+        "rate": 0.4,
+        "lo": 0.1176,
+        "hi": 0.7693
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 19,
+       "length_max": 24,
+       "positive": {
+        "k": 1,
+        "n": 4,
+        "rate": 0.25,
+        "lo": 0.0456,
+        "hi": 0.6994
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 0,
+        "n": 9,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.2991
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      }
+     ],
+     "length_matched_difference": 0.1783,
+     "length_matched_ci": [
+      0.0,
+      0.3567
+     ],
+     "citations": 11,
+     "verified": 6,
+     "citation_honesty": 0.5455,
+     "usage": {
+      "input": 804036,
+      "output": 22538,
+      "cache_read": 138240,
+      "usd": 0.13454292,
+      "runs": 30,
+      "usd_per_run": 0.004485,
+      "input_per_run": 26801
+     }
+    },
+    "V2": {
+     "positive": {
+      "k": 4,
+      "n": 18,
+      "rate": 0.2222,
+      "lo": 0.09,
+      "hi": 0.4521
+     },
+     "negative": {
+      "k": 0,
+      "n": 12,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2425
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 18,
+       "positive": {
+        "k": 1,
+        "n": 5,
+        "rate": 0.2,
+        "lo": 0.0362,
+        "hi": 0.6245
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 19,
+       "length_max": 24,
+       "positive": {
+        "k": 1,
+        "n": 4,
+        "rate": 0.25,
+        "lo": 0.0456,
+        "hi": 0.6994
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 2,
+        "n": 9,
+        "rate": 0.2222,
+        "lo": 0.0632,
+        "hi": 0.5474
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      }
+     ],
+     "length_matched_difference": 0.222,
+     "length_matched_ci": [
+      0.0519,
+      0.4424
+     ],
+     "citations": 12,
+     "verified": 6,
+     "citation_honesty": 0.5,
+     "usage": {
+      "input": 803886,
+      "output": 29893,
+      "cache_read": 138240,
+      "usd": 0.13893342,
+      "runs": 30,
+      "usd_per_run": 0.004631,
+      "input_per_run": 26796
+     }
+    },
+    "V3": {
+     "positive": {
+      "k": 6,
+      "n": 18,
+      "rate": 0.3333,
+      "lo": 0.1628,
+      "hi": 0.5625
+     },
+     "negative": {
+      "k": 0,
+      "n": 12,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2425
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 18,
+       "positive": {
+        "k": 2,
+        "n": 5,
+        "rate": 0.4,
+        "lo": 0.1176,
+        "hi": 0.7693
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 19,
+       "length_max": 24,
+       "positive": {
+        "k": 1,
+        "n": 4,
+        "rate": 0.25,
+        "lo": 0.0456,
+        "hi": 0.6994
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 3,
+        "n": 9,
+        "rate": 0.3333,
+        "lo": 0.1206,
+        "hi": 0.6458
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      }
+     ],
+     "length_matched_difference": 0.3339,
+     "length_matched_ci": [
+      0.1183,
+      0.5559
+     ],
+     "citations": 17,
+     "verified": 11,
+     "citation_honesty": 0.6471,
+     "usage": {
+      "input": 803736,
+      "output": 31961,
+      "cache_read": 138240,
+      "usd": 0.14015171999999995,
+      "runs": 30,
+      "usd_per_run": 0.004672,
+      "input_per_run": 26791
+     }
+    },
+    "V4": {
+     "positive": {
+      "k": 7,
+      "n": 18,
+      "rate": 0.3889,
+      "lo": 0.2031,
+      "hi": 0.6138
+     },
+     "negative": {
+      "k": 0,
+      "n": 12,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2425
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 18,
+       "positive": {
+        "k": 2,
+        "n": 5,
+        "rate": 0.4,
+        "lo": 0.1176,
+        "hi": 0.7693
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 19,
+       "length_max": 24,
+       "positive": {
+        "k": 3,
+        "n": 4,
+        "rate": 0.75,
+        "lo": 0.3006,
+        "hi": 0.9544
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 2,
+        "n": 9,
+        "rate": 0.2222,
+        "lo": 0.0632,
+        "hi": 0.5474
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      }
+     ],
+     "length_matched_difference": 0.3987,
+     "length_matched_ci": [
+      0.2204,
+      0.6126
+     ],
+     "citations": 20,
+     "verified": 15,
+     "citation_honesty": 0.75,
+     "usage": {
+      "input": 803256,
+      "output": 30962,
+      "cache_read": 138240,
+      "usd": 0.13948032000000002,
+      "runs": 30,
+      "usd_per_run": 0.004649,
+      "input_per_run": 26775
+     }
+    },
+    "V5": {
+     "positive": {
+      "k": 5,
+      "n": 18,
+      "rate": 0.2778,
+      "lo": 0.125,
+      "hi": 0.5087
+     },
+     "negative": {
+      "k": 0,
+      "n": 12,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2425
+     },
+     "unknown": 0,
+     "unknown_ids": [],
+     "strata": [
+      {
+       "stratum": 0,
+       "length_min": 2,
+       "length_max": 18,
+       "positive": {
+        "k": 2,
+        "n": 5,
+        "rate": 0.4,
+        "lo": 0.1176,
+        "hi": 0.7693
+       },
+       "negative": {
+        "k": 0,
+        "n": 4,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4899
+       }
+      },
+      {
+       "stratum": 1,
+       "length_min": 19,
+       "length_max": 24,
+       "positive": {
+        "k": 2,
+        "n": 4,
+        "rate": 0.5,
+        "lo": 0.15,
+        "hi": 0.85
+       },
+       "negative": {
+        "k": 0,
+        "n": 3,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.5615
+       }
+      },
+      {
+       "stratum": 2,
+       "length_min": 26,
+       "length_max": 40,
+       "positive": {
+        "k": 1,
+        "n": 9,
+        "rate": 0.1111,
+        "lo": 0.0199,
+        "hi": 0.435
+       },
+       "negative": {
+        "k": 0,
+        "n": 5,
+        "rate": 0.0,
+        "lo": 0.0,
+        "hi": 0.4345
+       }
+      }
+     ],
+     "length_matched_difference": 0.2885,
+     "length_matched_ci": [
+      0.1119,
+      0.4959
+     ],
+     "citations": 18,
+     "verified": 13,
+     "citation_honesty": 0.7222,
+     "usage": {
+      "input": 781490,
+      "output": 32224,
+      "cache_read": 169984,
+      "usd": 0.13706785199999996,
+      "runs": 30,
+      "usd_per_run": 0.004569,
+      "input_per_run": 26050
+     }
+    }
+   }
+  }
+ },
+ "v0_vs_variant": {
+  "goodfire-A": {
+   "V1": {
+    "positive": {
+     "v0_only": 5,
+     "new_only": 0,
+     "p": 0.0625,
+     "n": 13
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 11
+    }
+   },
+   "V2": {
+    "positive": {
+     "v0_only": 3,
+     "new_only": 0,
+     "p": 0.25,
+     "n": 13
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 11
+    }
+   },
+   "V3": {
+    "positive": {
+     "v0_only": 3,
+     "new_only": 1,
+     "p": 0.625,
+     "n": 13
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 11
+    }
+   },
+   "V4": {
+    "positive": {
+     "v0_only": 3,
+     "new_only": 2,
+     "p": 1.0,
+     "n": 13
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 11
+    }
+   },
+   "V5": {
+    "positive": {
+     "v0_only": 3,
+     "new_only": 0,
+     "p": 0.25,
+     "n": 12
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 11
+    }
+   }
+  },
+  "goodfire-B": {
+   "V1": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   },
+   "V2": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   },
+   "V3": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   },
+   "V4": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 2,
+     "p": 0.5,
+     "n": 3
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 9
+    }
+   },
+   "V5": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   }
+  },
+  "cheatbench-A": {
+   "V1": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 6
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 2
+    }
+   },
+   "V2": {
+    "positive": {
+     "v0_only": 1,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 6
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 2
+    }
+   },
+   "V3": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 6
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 2
+    }
+   },
+   "V4": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 6
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 2
+    }
+   },
+   "V5": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 6
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 1
+    }
+   }
+  },
+  "cheatbench-B": {
+   "V1": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   },
+   "V2": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   },
+   "V3": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   },
+   "V4": {
+    "positive": {
+     "v0_only": 1,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 7
+    },
+    "negative": {
+     "v0_only": 1,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 5
+    }
+   },
+   "V5": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   }
+  },
+  "pooled-A": {
+   "V1": {
+    "positive": {
+     "v0_only": 5,
+     "new_only": 0,
+     "p": 0.0625,
+     "n": 19
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 13
+    }
+   },
+   "V2": {
+    "positive": {
+     "v0_only": 4,
+     "new_only": 0,
+     "p": 0.125,
+     "n": 19
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 13
+    }
+   },
+   "V3": {
+    "positive": {
+     "v0_only": 3,
+     "new_only": 1,
+     "p": 0.625,
+     "n": 19
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 13
+    }
+   },
+   "V4": {
+    "positive": {
+     "v0_only": 3,
+     "new_only": 2,
+     "p": 1.0,
+     "n": 19
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 13
+    }
+   },
+   "V5": {
+    "positive": {
+     "v0_only": 3,
+     "new_only": 0,
+     "p": 0.25,
+     "n": 18
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 12
+    }
+   }
+  },
+  "pooled-B": {
+   "V1": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   },
+   "V2": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   },
+   "V3": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   },
+   "V4": {
+    "positive": {
+     "v0_only": 1,
+     "new_only": 2,
+     "p": 1.0,
+     "n": 10
+    },
+    "negative": {
+     "v0_only": 1,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 14
+    }
+   },
+   "V5": {
+    "positive": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 0
+    }
+   }
+  },
+  "pooled-common": {
+   "V1": {
+    "positive": {
+     "v0_only": 5,
+     "new_only": 0,
+     "p": 0.0625,
+     "n": 18
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 12
+    }
+   },
+   "V2": {
+    "positive": {
+     "v0_only": 4,
+     "new_only": 0,
+     "p": 0.125,
+     "n": 18
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 12
+    }
+   },
+   "V3": {
+    "positive": {
+     "v0_only": 3,
+     "new_only": 1,
+     "p": 0.625,
+     "n": 18
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 12
+    }
+   },
+   "V4": {
+    "positive": {
+     "v0_only": 3,
+     "new_only": 2,
+     "p": 1.0,
+     "n": 18
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 12
+    }
+   },
+   "V5": {
+    "positive": {
+     "v0_only": 3,
+     "new_only": 0,
+     "p": 0.25,
+     "n": 18
+    },
+    "negative": {
+     "v0_only": 0,
+     "new_only": 0,
+     "p": 1.0,
+     "n": 12
+    }
+   }
+  }
+ },
+ "selection": {
+  "rule": "fold-A pooled: recall first, at most 2 false alarms on fold-A negatives",
+  "eligible": [
+   "V1",
+   "V2",
+   "V3",
+   "V4",
+   "V5"
+  ],
+  "ranked": [
+   "V4",
+   "V3",
+   "V5",
+   "V2",
+   "V1"
+  ],
+  "selected": "V4"
+ },
+ "spread": {
+  "goodfire-A": {
+   "recall_min": 0.0,
+   "recall_max": 0.3846,
+   "recall_spread": 0.3846,
+   "false_alarm_min": 0.0,
+   "false_alarm_max": 0.0,
+   "false_alarm_spread": 0.0,
+   "per_variant_recall": {
+    "V0": 0.3846,
+    "V1": 0.0,
+    "V2": 0.1538,
+    "V3": 0.2308,
+    "V4": 0.3077,
+    "V5": 0.1667
+   },
+   "per_variant_false_alarm": {
+    "V0": 0.0,
+    "V1": 0.0,
+    "V2": 0.0,
+    "V3": 0.0,
+    "V4": 0.0,
+    "V5": 0.0
+   }
+  },
+  "goodfire-B": {
+   "recall_min": 0.0,
+   "recall_max": 0.6667,
+   "recall_spread": 0.6667,
+   "false_alarm_min": 0.0,
+   "false_alarm_max": 0.0,
+   "false_alarm_spread": 0.0,
+   "per_variant_recall": {
+    "V0": 0.0,
+    "V4": 0.6667
+   },
+   "per_variant_false_alarm": {
+    "V0": 0.0,
+    "V4": 0.0
+   }
+  },
+  "cheatbench-A": {
+   "recall_min": 0.3333,
+   "recall_max": 0.5294,
+   "recall_spread": 0.1961,
+   "false_alarm_min": 0.0,
+   "false_alarm_max": 0.1429,
+   "false_alarm_spread": 0.1429,
+   "per_variant_recall": {
+    "V0": 0.5294,
+    "V1": 0.5,
+    "V2": 0.3333,
+    "V3": 0.5,
+    "V4": 0.5,
+    "V5": 0.5
+   },
+   "per_variant_false_alarm": {
+    "V0": 0.1429,
+    "V1": 0.0,
+    "V2": 0.0,
+    "V3": 0.0,
+    "V4": 0.0,
+    "V5": 0.0
+   }
+  },
+  "cheatbench-B": {
+   "recall_min": 0.5333,
+   "recall_max": 0.5714,
+   "recall_spread": 0.0381,
+   "false_alarm_min": 0.0,
+   "false_alarm_max": 0.2222,
+   "false_alarm_spread": 0.2222,
+   "per_variant_recall": {
+    "V0": 0.5333,
+    "V4": 0.5714
+   },
+   "per_variant_false_alarm": {
+    "V0": 0.2222,
+    "V4": 0.0
+   }
+  },
+  "pooled-A": {
+   "recall_min": 0.1579,
+   "recall_max": 0.4667,
+   "recall_spread": 0.3088,
+   "false_alarm_min": 0.0,
+   "false_alarm_max": 0.0556,
+   "false_alarm_spread": 0.0556,
+   "per_variant_recall": {
+    "V0": 0.4667,
+    "V1": 0.1579,
+    "V2": 0.2105,
+    "V3": 0.3158,
+    "V4": 0.3684,
+    "V5": 0.2778
+   },
+   "per_variant_false_alarm": {
+    "V0": 0.0556,
+    "V1": 0.0,
+    "V2": 0.0,
+    "V3": 0.0,
+    "V4": 0.0,
+    "V5": 0.0
+   }
+  },
+  "pooled-B": {
+   "recall_min": 0.381,
+   "recall_max": 0.6,
+   "recall_spread": 0.219,
+   "false_alarm_min": 0.0,
+   "false_alarm_max": 0.0741,
+   "false_alarm_spread": 0.0741,
+   "per_variant_recall": {
+    "V0": 0.381,
+    "V4": 0.6
+   },
+   "per_variant_false_alarm": {
+    "V0": 0.0741,
+    "V4": 0.0
+   }
+  },
+  "common-A": {
+   "recall_min": 0.1667,
+   "recall_max": 0.4444,
+   "recall_spread": 0.2777,
+   "false_alarm_min": 0.0,
+   "false_alarm_max": 0.0,
+   "false_alarm_spread": 0.0,
+   "per_variant_recall": {
+    "V0": 0.4444,
+    "V1": 0.1667,
+    "V2": 0.2222,
+    "V3": 0.3333,
+    "V4": 0.3889,
+    "V5": 0.2778
+   },
+   "per_variant_false_alarm": {
+    "V0": 0.0,
+    "V1": 0.0,
+    "V2": 0.0,
+    "V3": 0.0,
+    "V4": 0.0,
+    "V5": 0.0
+   }
+  }
+ },
+ "spent_usd": 0.812936,
+ "attestation": {
+  "calls": 182,
+  "served_models": [
+   "deepseek/deepseek-flash"
+  ],
+  "n_fallbacks": 0,
+  "unattested_calls": 0,
+  "attested": true
+ }
+}

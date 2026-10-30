@@ -1,0 +1,210 @@
+{
+ "model": "deepseek/deepseek-flash",
+ "corpus": "cheatbench",
+ "cut_steps": [
+  17,
+  46
+ ],
+ "n_rows": 17,
+ "n_usable": 17,
+ "n_unknown": 0,
+ "unknown_ids": [],
+ "instructions_sha256": "d5b421a13f766de2157ed41b240e616808809c48bc789eed1adf7537ee2388e1",
+ "already_strict_reused": "run-8a405f225777a079",
+ "by_label": {
+  "positive": {
+   "n": 7,
+   "action_substantiated": {
+    "k": 2,
+    "n": 7,
+    "rate": 0.2857142857142857,
+    "wilson95": [
+     0.08221892324928332,
+     0.6410655504689458
+    ]
+   },
+   "action_visible_same_replies": {
+    "k": 2,
+    "n": 7,
+    "rate": 0.2857142857142857,
+    "wilson95": [
+     0.08221892324928332,
+     0.6410655504689458
+    ]
+   },
+   "action_substantiated_dq5_rule": {
+    "k": 2,
+    "n": 7,
+    "rate": 0.2857142857142857,
+    "wilson95": [
+     0.08221892324928332,
+     0.6410655504689458
+    ]
+   },
+   "narration_valid": {
+    "k": 4,
+    "n": 7,
+    "rate": 0.5714285714285714,
+    "wilson95": [
+     0.25045836275303557,
+     0.8417801460075546
+    ]
+   },
+   "nothing_found": {
+    "k": 2,
+    "n": 7,
+    "rate": 0.2857142857142857,
+    "wilson95": [
+     0.08221892324928332,
+     0.6410655504689458
+    ]
+   },
+   "d2_loose_action_visible": {
+    "k": 5,
+    "n": 7,
+    "rate": 0.7142857142857143,
+    "wilson95": [
+     0.3589344495310541,
+     0.9177810767507166
+    ]
+   },
+   "generic_fields_removed": 0
+  },
+  "negative": {
+   "n": 10,
+   "action_substantiated": {
+    "k": 1,
+    "n": 10,
+    "rate": 0.1,
+    "wilson95": [
+     0.017876212896073995,
+     0.4041500295247722
+    ]
+   },
+   "action_visible_same_replies": {
+    "k": 1,
+    "n": 10,
+    "rate": 0.1,
+    "wilson95": [
+     0.017876212896073995,
+     0.4041500295247722
+    ]
+   },
+   "action_substantiated_dq5_rule": {
+    "k": 1,
+    "n": 10,
+    "rate": 0.1,
+    "wilson95": [
+     0.017876212896073995,
+     0.4041500295247722
+    ]
+   },
+   "narration_valid": {
+    "k": 0,
+    "n": 10,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.2775328030260577
+    ]
+   },
+   "nothing_found": {
+    "k": 9,
+    "n": 10,
+    "rate": 0.9,
+    "wilson95": [
+     0.5958499704752279,
+     0.982123787103926
+    ]
+   },
+   "d2_loose_action_visible": {
+    "k": 3,
+    "n": 10,
+    "rate": 0.3,
+    "wilson95": [
+     0.10779126655639398,
+     0.6032218546540291
+    ]
+   },
+   "generic_fields_removed": 0
+  }
+ },
+ "gap_substantiated_positive_minus_negative": {
+  "diff": 0.1857142857142857,
+  "ci95": [
+   -0.18023325561463557,
+   0.5504317623602883
+  ],
+  "excludes_zero": false
+ },
+ "fisher_two_sided_p": 0.5367647058823529,
+ "paired_loose_vs_strict": {
+  "n": 17,
+  "loose_only": 6,
+  "strict_only": 1,
+  "both": 2,
+  "neither": 8,
+  "mcnemar_exact_p": 0.125
+ },
+ "by_stratum": {
+  "0": {
+   "n": 3,
+   "by_label": {
+    "positive": {
+     "n": 2,
+     "action_visible": 1,
+     "action_substantiated": 1
+    },
+    "negative": {
+     "n": 1,
+     "action_visible": 0,
+     "action_substantiated": 0
+    }
+   }
+  },
+  "1": {
+   "n": 7,
+   "by_label": {
+    "positive": {
+     "n": 3,
+     "action_visible": 1,
+     "action_substantiated": 1
+    },
+    "negative": {
+     "n": 4,
+     "action_visible": 0,
+     "action_substantiated": 0
+    }
+   }
+  },
+  "2": {
+   "n": 7,
+   "by_label": {
+    "positive": {
+     "n": 2,
+     "action_visible": 0,
+     "action_substantiated": 0
+    },
+    "negative": {
+     "n": 5,
+     "action_visible": 1,
+     "action_substantiated": 1
+    }
+   }
+  }
+ },
+ "usage_new_calls": {
+  "input": 972964,
+  "output": 71974,
+  "cacheRead": 115712,
+  "cost": 0.378952272
+ },
+ "flags": [
+  "action_substantiated",
+  "action_visible",
+  "action_substantiated_dq5_rule",
+  "narration_valid",
+  "nothing_found",
+  "asked_visible"
+ ]
+}

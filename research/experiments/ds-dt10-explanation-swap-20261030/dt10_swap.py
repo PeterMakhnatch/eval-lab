@@ -45,9 +45,12 @@ from typing import Any
 DT8_DIR = Path(__file__).resolve().parents[1] / "ds-dt8-verified-reader-fullscale-20261029"
 sys.path.insert(0, str(DT8_DIR))
 import dt8_reader as d8  # noqa: E402
+
+from evallab.production.run_atlas import (  # noqa: E402
+    SOURCE_PLACEHOLDER,
+    render_step,
+)
 from evallab.production.run_atlas import _text as render_text  # noqa: E402
-from evallab.production.run_atlas import SOURCE_PLACEHOLDER  # noqa: E402
-from evallab.production.run_atlas import render_step  # noqa: E402
 
 SQUAD = d8.SQUAD
 RAW = SQUAD / "raw/DT-10"
@@ -204,7 +207,7 @@ def normalize_with_classes(parts: list[tuple[str, str]]) -> tuple[str, list[str]
     out: list[str] = []
     out_cls: list[str] = []
     previous_space = True
-    for char, cls in zip(chars, classes):
+    for char, cls in zip(chars, classes, strict=False):
         if char.isspace():
             if not previous_space:
                 out.append(" ")
@@ -235,7 +238,6 @@ def step_parts(step: dict[str, Any], blocks: list[dict[str, Any]]) -> list[tuple
 
 def classify_quote(step: dict[str, Any], blocks: list[dict[str, Any]], quote: str,
                    rendered: str | None = None, raw: dict[str, str] | None = None) -> str:
-    source = str(step.get("source") or "unknown")
     parts = step_parts(step, blocks)
     text, classes = normalize_with_classes(parts)
     if rendered is not None and text != d8.normalize(rendered):
@@ -358,7 +360,7 @@ def plan() -> None:
     used = {row["blind_id"] for corpus in d8.CORPORA
             for row in plan_out["part2"][corpus]["selected"]}
     total = len(used)
-    for _short, chosen, pool_rows in spare2:
+    for _short, _chosen, pool_rows in spare2:
         for row in pool_rows:
             if total >= PART2_PER_CORPUS * 2:
                 break
@@ -796,8 +798,6 @@ def score() -> None:
         cites = [c for c in citation["citations"] if c["corpus"] == corpus]
         alerted = [entry for (corp, _), entry in part1_runs.items()
                    if corp == corpus and entry["alert"]]
-        narration_only = [entry for entry in alerted
-                          if entry["part1_class"] == "narration_dependent"]
         block: dict[str, Any] = {
             "n_citations": len(cites),
             "classes": {cls: sum(1 for c in cites if c["cls"] == cls)
@@ -809,7 +809,7 @@ def score() -> None:
             "citations_by_stratum": {},
         }
         for stratum in (0, 1, 2):
-            def in_stratum(entry: dict[str, Any]) -> bool:
+            def in_stratum(entry: dict[str, Any], corpus: str = corpus, stratum: int = stratum) -> bool:
                 length = entry["length"]
                 return (0 if length < cuts[corpus][0] else
                         1 if length < cuts[corpus][1] else 2) == stratum

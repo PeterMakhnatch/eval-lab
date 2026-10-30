@@ -189,13 +189,15 @@ def test_measure_reports_runs_latency_and_failure_classes(tmp_path: Path, export
         handle.write(
             json.dumps(
                 {
+                    "seconds": 0.1,
+                    "load1": 3.0,
                     "errors": [
                         {
                             "stage": "misalignment",
                             "error": "ValueError: boom",
                             "class": "ValueError",
                         }
-                    ]
+                    ],
                 }
             )
             + "\n"

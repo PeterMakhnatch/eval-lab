@@ -74,6 +74,8 @@ inputs:
     digest: sha256:cba8fe1c0e3885ac2bbaf365529c79c9e0370ca76cea90e66245e1601fb70f07
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
+  - path: docs/judge-guide.md
+    digest: sha256:de255c6e4d581af3de7ee0f6afae7e469d99e78d7c5ea827901412e92b2b3d6d
   - path: docs/ladder.md
     digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md
@@ -386,6 +388,7 @@ an operator can see what is archived.
 | `docs/flight-recorder.md` | Flight recorder prototype | `living` | `builder, analyst, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/harbor-view.md` | Harbor viewer as the results surface (HAR-170) | `living` | `operator, analyst` |
+| `docs/judge-guide.md` | How to judge a run | `living` | `operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/live-supervisor.md` | Live Supervisor | `living` | `operator, builder` |

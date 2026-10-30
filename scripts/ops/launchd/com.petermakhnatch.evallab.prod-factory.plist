@@ -25,10 +25,16 @@
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
+	<!-- Not "Background": launchd throttles Background processes to a trickle when the
+	     host is loaded (the 2026-10-30 factory got 0.6% CPU at load 30 to 100 and scored
+	     about 3 runs a minute). Standard priority, slightly niced, so it yields to
+	     interactive work without being starved. -->
+	<key>ProcessType</key>
+	<string>Standard</string>
+	<key>Nice</key>
+	<integer>5</integer>
 	<key>ThrottleInterval</key>
 	<integer>30</integer>
-	<key>ProcessType</key>
-	<string>Background</string>
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>

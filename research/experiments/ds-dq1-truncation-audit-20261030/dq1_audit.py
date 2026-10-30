@@ -24,7 +24,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-29-ds-squad")
-from stats import mcnemar_exact, tertile_of, tertiles, wilson  # noqa: E402
+from stats import tertile_of, tertiles, wilson  # noqa: E402
 
 BRIDGE = Path("/Users/petermakhnatch/Developer/research-context/bridge/2026-10-29-ds-squad/raw")
 PROMPTS = Path("/tmp/dt8/prompts")
@@ -184,7 +184,7 @@ def fisher_exact(table: list[list[int]]) -> float:
 
 
 def auroc(scores: list[float], labels: list[int]) -> float:
-    pairs = sorted(zip(scores, labels))
+    pairs = sorted(zip(scores, labels, strict=False))
     rank_sum = 0.0
     pos = sum(labels)
     neg = len(labels) - pos
@@ -208,7 +208,7 @@ def fit_logit(x: list[list[float]], y: list[int], lam: float = 1.0, iters: int =
     for _ in range(iters):
         grad = [0.0] * (p + 1)
         hess = [[0.0] * (p + 1) for _ in range(p + 1)]
-        for row, label in zip(x, y):
+        for row, label in zip(x, y, strict=False):
             z = beta[0] + sum(beta[k + 1] * row[k] for k in range(p))
             mu = 1 / (1 + math.exp(-max(-30.0, min(30.0, z))))
             diff = mu - label
@@ -230,7 +230,7 @@ def fit_logit(x: list[list[float]], y: list[int], lam: float = 1.0, iters: int =
         step = _solve(hess, grad)
         if step is None:
             break
-        beta = [b - s for b, s in zip(beta, step)]
+        beta = [b - s for b, s in zip(beta, step, strict=False)]
         if max(abs(s) for s in step) < 1e-8:
             break
     return beta
@@ -261,7 +261,8 @@ def standardize(train: list[list[float]], test: list[list[float]]) -> tuple[list
     for k in range(p):
         var = sum((row[k] - means[k]) ** 2 for row in train) / max(1, len(train) - 1)
         stds.append(math.sqrt(var) or 1.0)
-    norm = lambda rows: [[(row[k] - means[k]) / stds[k] for k in range(p)] for row in rows]
+    def norm(rows: list[list[float]]) -> list[list[float]]:
+        return [[(row[k] - means[k]) / stds[k] for k in range(p)] for row in rows]
     return norm(train), norm(test)
 
 
@@ -284,7 +285,7 @@ def cv_oof(x: list[list[float]], y: list[int], repeats: int = 10, folds: int = 5
             te = [i for i in range(len(y)) if assign[i] == fold]
             xtr, xte = standardize([x[i] for i in tr], [x[i] for i in te])
             beta = fit_logit(xtr, [y[i] for i in tr])
-            for row, i in zip(xte, te):
+            for row, i in zip(xte, te, strict=False):
                 scores[i] = beta[0] + sum(beta[k + 1] * row[k] for k in range(len(row)))
         out.append(scores)
     return out
@@ -417,7 +418,7 @@ def main() -> None:
         oof = {}
         for name, x in (("length_only", length), ("markers_only", markers), ("length_plus_markers", both)):
             scores = cv_oof(x, y)
-            oof[name] = [sum(s) / len(s) for s in zip(*scores)]
+            oof[name] = [sum(s) / len(s) for s in zip(*scores, strict=False)]
             a = [auroc(s, y) for s in scores]
             res[name] = {"auroc_mean_over_repeats": sum(a) / len(a),
                          "auroc_per_repeat_sd": _sd(a)}
@@ -656,7 +657,7 @@ def _spearman(a: list[float], b: list[float]) -> float:
     ra, rb = ranks(a), ranks(b)
     n = len(a)
     ma, mb = sum(ra) / n, sum(rb) / n
-    num = sum((x - ma) * (y - mb) for x, y in zip(ra, rb))
+    num = sum((x - ma) * (y - mb) for x, y in zip(ra, rb, strict=False))
     den = math.sqrt(sum((x - ma) ** 2 for x in ra) * sum((y - mb) ** 2 for y in rb))
     return num / den if den else float("nan")
 

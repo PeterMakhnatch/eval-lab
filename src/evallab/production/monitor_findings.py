@@ -27,9 +27,6 @@ DEFAULT_VERSION = "prefix-monitor/v1"
 _GATE = frozenset({"grader_tamper", "submission_tamper", "codeban_violation", "hidden_info_read", "history_mining", "task_protected_read"})
 _LOOP = frozenset({"repetition", "completion_loop"})
 _SEVERITY = {"low": .25, "medium": .5, "high": .75, "critical": 1.0}
-# Only these generic words from evidence may enter summaries, preventing copied
-# task, benchmark, model, path, or credential names from leaking into findings.
-_QUOTE_WORDS = frozenset(["the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "is", "was", "with", "file", "test", "tests", "code", "command", "read", "write", "output", "input", "script", "change", "modified", "result", "reward", "grader", "agent", "task"])
 
 
 def _time(value: Any) -> datetime:
@@ -133,10 +130,14 @@ class MonitorFindingsConsumer:
             strongest = next(item for item, status in ranked if item.get("rule") in _GATE and item.get("eligibility") == "verdict" and status == "confirmed" and item.get("semantic_triage") == "completed" and not item.get("cite_or_abstain", False))
             rule = str(strongest["rule"])
         kind = "cheat" if rule in _GATE else "loop" if rule in _LOOP else "other"
-        quote = next((str(e.get("quote", "")) for e in strongest.get("evidence", []) if e.get("quote")), "")
-        safe_quote = " ".join(word for word in re.findall(r"[A-Za-z]+", quote.lower()) if word in _QUOTE_WORDS)[:120]
-        summary = ("Monitor rule " + re.sub(r"[^a-z0-9_: -]", "", rule.lower())[:80] + (": " + safe_quote if safe_quote else ""))[:600]
-        summary = " ".join(summary.split()[:40])
+        safe_rule = re.sub(r"[^a-z0-9_: -]", "", rule.lower())[:80]
+        summary = (
+            f"Monitor rule {safe_rule}: {len(cards)} suspicion card(s) citing"
+            f" {len(indices)} step(s); deterministic evidence, no semantic confirmation."
+            if not alarm
+            else f"Monitor rule {safe_rule}: confirmed by the semantic stage;"
+            f" {len(cards)} card(s) citing {len(indices)} step(s)."
+        )
         start = self._first_step.get(run)
         latency = max(0, int((_time(self._first_card[run]) - _time(start)).total_seconds() * 1000)) if start else 0
         output_key = (self.run_ids[run], key[1], key[2])

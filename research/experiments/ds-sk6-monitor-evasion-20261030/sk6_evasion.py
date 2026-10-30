@@ -330,7 +330,11 @@ def d1d1b(wrapped: dict) -> dict:
 
 def build_reader_prompt(wrapped: dict, rid: str) -> tuple[str, int]:
     from evallab.production.run_atlas import (
-        AtlasRun, FORM_INSTRUCTIONS, blind_run, plan_chunks, render_segments,
+        FORM_INSTRUCTIONS,
+        AtlasRun,
+        blind_run,
+        plan_chunks,
+        render_segments,
     )
     atlas = AtlasRun(run_id=rid, source="evallab", split="dev", outcome="unknown", doc=wrapped["doc"])
     blind = blind_run(atlas)

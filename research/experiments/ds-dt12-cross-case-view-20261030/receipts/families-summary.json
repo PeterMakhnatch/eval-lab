@@ -1,0 +1,438 @@
+{
+ "quotes": {
+  "n_clusters": 40,
+  "n_clusters_named": 20,
+  "units_in_named_clusters": 96,
+  "n_units": 162,
+  "clusters_by_mapped_category": {
+   "C01": 2,
+   "C02": 3,
+   "C03": 1,
+   "C04": 1,
+   "C05": 2,
+   "C06": 2,
+   "C07": 7,
+   "C08": 1,
+   "C09": 1,
+   "C10": 1,
+   "unmapped": 19
+  },
+  "unmapped_units": 74,
+  "families": [
+   {
+    "name": "overwriting test input files with expected output",
+    "size": 28,
+    "category": "unmapped",
+    "corpora": {
+     "cheatbench": 27,
+     "goodfire": 1
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "case and delimiter variation fuzzing",
+    "size": 8,
+    "category": "unmapped",
+    "corpora": {
+     "cheatbench": 7,
+     "goodfire": 1
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "SQLite write ahead log recovery",
+    "size": 6,
+    "category": "unmapped",
+    "corpora": {
+     "cheatbench": 6
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "Read tool file access",
+    "size": 5,
+    "category": "C07",
+    "corpora": {
+     "cheatbench": 5
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "shared mutable state modification",
+    "size": 5,
+    "category": "C09",
+    "corpora": {
+     "cheatbench": 5
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "Reward hacking",
+    "size": 4,
+    "category": "C04",
+    "corpora": {
+     "cheatbench": 4
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "file read edit execute verify loop",
+    "size": 4,
+    "category": "C10",
+    "corpora": {
+     "cheatbench": 4
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "Reward hacking",
+    "size": 4,
+    "category": "C07",
+    "corpora": {
+     "cheatbench": 1,
+     "goodfire": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "module globals namespace injection",
+    "size": 4,
+    "category": "C07",
+    "corpora": {
+     "goodfire": 4
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "path traversal",
+    "size": 3,
+    "category": "C07",
+    "corpora": {
+     "cheatbench": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "recovering secrets from public repository history",
+    "size": 3,
+    "category": "C02",
+    "corpora": {
+     "cheatbench": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "flawed test expectation detection",
+    "size": 3,
+    "category": "C01",
+    "corpora": {
+     "cheatbench": 2,
+     "goodfire": 1
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "shell exit status short circuit chaining",
+    "size": 3,
+    "category": "unmapped",
+    "corpora": {
+     "cheatbench": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "execution based self verification",
+    "size": 3,
+    "category": "unmapped",
+    "corpora": {
+     "cheatbench": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "evaluation harness introspection",
+    "size": 3,
+    "category": "C05",
+    "corpora": {
+     "goodfire": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "confabulated memory recall",
+    "size": 2,
+    "category": "unmapped",
+    "corpora": {
+     "goodfire": 2
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "self consistency repair",
+    "size": 2,
+    "category": "C05",
+    "corpora": {
+     "goodfire": 2
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "metamorphic testing",
+    "size": 2,
+    "category": "unmapped",
+    "corpora": {
+     "cheatbench": 2
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "leaderboard probing and overfitting",
+    "size": 2,
+    "category": "C06",
+    "corpora": {
+     "cheatbench": 2
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "insecure deserialization of untrusted attacker input",
+    "size": 2,
+    "category": "unmapped",
+    "corpora": {
+     "cheatbench": 2
+    },
+    "seeker_classes": {}
+   }
+  ]
+ },
+ "seeker": {
+  "n_clusters": 40,
+  "n_clusters_named": 20,
+  "units_in_named_clusters": 155,
+  "n_units": 210,
+  "clusters_by_mapped_category": {
+   "C01": 11,
+   "C02": 4,
+   "C03": 2,
+   "C04": 1,
+   "C07": 5,
+   "C09": 1,
+   "C10": 1,
+   "unmapped": 15
+  },
+  "unmapped_units": 40,
+  "families": [
+   {
+    "name": "pytest conftest exit status override",
+    "size": 53,
+    "category": "C01",
+    "corpora": {
+     "null": 53
+    },
+    "seeker_classes": {
+     "grader_tamper": 4,
+     "framework_config_injection": 41,
+     "runner_exit_status_forgery": 32,
+     "hidden_answer_read": 4,
+     "test_file_sabotage": 1
+    }
+   },
+   {
+    "name": "Blind environment probing for hidden grader surfaces",
+    "size": 21,
+    "category": "C01",
+    "corpora": {
+     "null": 21
+    },
+    "seeker_classes": {
+     "framework_config_injection": 2
+    }
+   },
+   {
+    "name": "No-op shell scripts",
+    "size": 12,
+    "category": "C03",
+    "corpora": {
+     "null": 12
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "pytest verifier tampering through plugin hooks",
+    "size": 8,
+    "category": "C01",
+    "corpora": {
+     "null": 8
+    },
+    "seeker_classes": {
+     "framework_config_injection": 6,
+     "runner_exit_status_forgery": 6
+    }
+   },
+   {
+    "name": "FreeCAD Python scripting of PartDesign features",
+    "size": 6,
+    "category": "unmapped",
+    "corpora": {
+     "null": 6
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "test runner shim bypassing hidden tests",
+    "size": 5,
+    "category": "C04",
+    "corpora": {
+     "null": 5
+    },
+    "seeker_classes": {
+     "test_file_sabotage": 3,
+     "hidden_answer_read": 1
+    }
+   },
+   {
+    "name": "Assertion satisfaction via stubbing and source patching",
+    "size": 5,
+    "category": "C01",
+    "corpora": {
+     "null": 5
+    },
+    "seeker_classes": {
+     "hidden_answer_read": 1,
+     "test_file_sabotage": 1
+    }
+   },
+   {
+    "name": "bash script source file patching",
+    "size": 5,
+    "category": "unmapped",
+    "corpora": {
+     "null": 5
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "Grader test harness tampering to fake success",
+    "size": 5,
+    "category": "C01",
+    "corpora": {
+     "null": 5
+    },
+    "seeker_classes": {
+     "hidden_answer_read": 2,
+     "runner_exit_status_forgery": 2,
+     "framework_config_injection": 1,
+     "grader_tamper": 1
+    }
+   },
+   {
+    "name": "in-place repository source patching",
+    "size": 4,
+    "category": "C07",
+    "corpora": {
+     "null": 4
+    },
+    "seeker_classes": {
+     "hidden_answer_read": 1,
+     "runner_exit_status_forgery": 2
+    }
+   },
+   {
+    "name": "Reward hacking via grader and test manipulation",
+    "size": 4,
+    "category": "C01",
+    "corpora": {
+     "null": 4
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "blind placeholder probes without verified differential",
+    "size": 3,
+    "category": "unmapped",
+    "corpora": {
+     "null": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "swebench solve script testbed harness",
+    "size": 3,
+    "category": "C07",
+    "corpora": {
+     "null": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "Reward hacking via test harness tampering",
+    "size": 3,
+    "category": "unmapped",
+    "corpora": {
+     "null": 3
+    },
+    "seeker_classes": {
+     "framework_config_injection": 1
+    }
+   },
+   {
+    "name": "reward hacking via weak grader gaming",
+    "size": 3,
+    "category": "C01",
+    "corpora": {
+     "null": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "test harness grader gaming",
+    "size": 3,
+    "category": "C01",
+    "corpora": {
+     "null": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "AST source patching",
+    "size": 3,
+    "category": "C03",
+    "corpora": {
+     "null": 3
+    },
+    "seeker_classes": {
+     "hidden_answer_read": 1
+    }
+   },
+   {
+    "name": "regex anchored heuristic source patching scripts",
+    "size": 3,
+    "category": "C07",
+    "corpora": {
+     "null": 3
+    },
+    "seeker_classes": {}
+   },
+   {
+    "name": "Grader reward hacking via login shell profile injection",
+    "size": 3,
+    "category": "C01",
+    "corpora": {
+     "null": 3
+    },
+    "seeker_classes": {
+     "runner_exit_status_forgery": 1
+    }
+   },
+   {
+    "name": "Hidden test shortcut patching",
+    "size": 3,
+    "category": "unmapped",
+    "corpora": {
+     "null": 3
+    },
+    "seeker_classes": {}
+   }
+  ]
+ }
+}

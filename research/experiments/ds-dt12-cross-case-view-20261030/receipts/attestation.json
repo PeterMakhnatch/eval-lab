@@ -1,0 +1,16 @@
+{
+ "item": "DT-12",
+ "naming_calls": 40,
+ "served_models": [
+  "deepseek/deepseek-flash"
+ ],
+ "all_attested": true,
+ "n_fallbacks": 0,
+ "tokens_total": 18101,
+ "usd_total": 0.005759,
+ "labels_in_prompt": false,
+ "prompt_leak_scan": "0 hits for benchmark names, label words and secret patterns over all 40 prompts",
+ "no_answer_key_path_opened": true,
+ "no_grader_executed": true,
+ "no_local_docker": true
+}

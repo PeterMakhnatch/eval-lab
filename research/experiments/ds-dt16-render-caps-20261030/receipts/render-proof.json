@@ -1,0 +1,1273 @@
+{
+ "instruction_sha256": "63574050cd6772e8ee3a9bd8ed1c01c4373c1969df1acdef07e9de950270ce0b",
+ "runs": {
+  "run-046e36f375457a8f": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-kimi-k3/129bb4153c90449ea0e1392f8d5290a2",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 16,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 122817,
+   "chars_wide": 123497,
+   "markers_original": {
+    "elide": 3,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-04923aba7ebd88ac": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-kimi-k3-nohack/254aee55-553e-53a3-a7fd-aabf9f3317ed",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 123,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 391221,
+   "chars_wide": 429476,
+   "markers_original": {
+    "elide": 15,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 1,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-1b0accb660f75bc2": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-glm-5.2-nohack/31298131-1e0a-5207-b765-0893bf8311cc",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 71,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 247984,
+   "chars_wide": 290392,
+   "markers_original": {
+    "elide": 10,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-2373ff2bad1bd0fc": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-glm-5.2-fp8/30ee4604fce14b96997b50327239a00c",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 26,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 305834,
+   "chars_wide": 317269,
+   "markers_original": {
+    "elide": 5,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-27f2d2faaa2e90e6": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-glm-5.2-nohack/e5e8b60e-f71f-5a93-a3af-c93d14794de2",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 37,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 70802,
+   "chars_wide": 89533,
+   "markers_original": {
+    "elide": 5,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-3bf55f9712a84fc4": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-qwen3.8-2.4t-a95b-fp8-nohack/6017ea26-0746-5539-9914-835deb78d406",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 33,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 100449,
+   "chars_wide": 112010,
+   "markers_original": {
+    "elide": 4,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-3c8a9cbd9400a7bb": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-kimi-k3/bb61231de81c41ba8e7a01cde0ef4a31",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 26,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 134431,
+   "chars_wide": 145647,
+   "markers_original": {
+    "elide": 4,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 1,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-3d8996f174e5a6a6": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-glm-5.2-fp8/64c4cbed6dc54a50862eb7877b64ef39",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 14,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 143147,
+   "chars_wide": 144486,
+   "markers_original": {
+    "elide": 2,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-400cb5429d7f4bc9": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-qwen3.8-2.4t-a95b-fp8/a439b6d2136a4a8e9953cb5ef563f874",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 25,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 187971,
+   "chars_wide": 206413,
+   "markers_original": {
+    "elide": 9,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-41bda980002d5259": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-qwen3.8-2.4t-a95b-fp8/d2134507bb5c458090560d1a451f42d5",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 17,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 132626,
+   "chars_wide": 135494,
+   "markers_original": {
+    "elide": 3,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-535cc88206c64c2f": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-glm-5.2-fp8/c8cafb2455ac486780e1208ac94c0e62",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 11,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 57265,
+   "chars_wide": 66851,
+   "markers_original": {
+    "elide": 4,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-56fe3cf91602b495": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-qwen3.8-2.4t-a95b-fp8/75d42ec3219942f384eae6f14dd0e406",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 17,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 92106,
+   "chars_wide": 101949,
+   "markers_original": {
+    "elide": 4,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-5bdb69a3d266d741": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-kimi-k3-nohack/91ad851f-5f7a-5884-a19b-ad0b53169ca3",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 23,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 63244,
+   "chars_wide": 75826,
+   "markers_original": {
+    "elide": 4,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 1,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-5d237d029ead96ec": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-glm-5.2-nohack/eaf0cb0f-bf15-52d4-9ac5-2b470c8cee19",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 32,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 117534,
+   "chars_wide": 138686,
+   "markers_original": {
+    "elide": 6,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-5f15067a239fe52e": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-kimi-k3-nohack/954662a1-a66f-5940-8ea0-8cc95f421fdc",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 39,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 101892,
+   "chars_wide": 127365,
+   "markers_original": {
+    "elide": 5,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-705cff07ea2141e5": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-glm-5.2-nohack/ed980d14-0f0b-51f1-990d-842442096b3e",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 24,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 67431,
+   "chars_wide": 68049,
+   "markers_original": {
+    "elide": 2,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-70b21117cc5ac639": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-kimi-k3-nohack/9a8fc375-976a-5c74-a475-38444aa0a1f9",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 34,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 120103,
+   "chars_wide": 128647,
+   "markers_original": {
+    "elide": 2,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-73ed33d328c1c127": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-glm-5.2-nohack/47673d3f-28f2-5830-a4b5-b05be5ac655c",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 20,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 50078,
+   "chars_wide": 58251,
+   "markers_original": {
+    "elide": 1,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-75681af6823b6521": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-qwen3.8-2.4t-a95b-fp8/48896526cd8b43dbb359bfeaa087915b",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 17,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 151825,
+   "chars_wide": 151825,
+   "markers_original": {
+    "elide": 0,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": false
+  },
+  "run-77c0c00639f11f7c": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-glm-5.2-fp8/3be4da225ece43a680a35eafecbce1e1",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 27,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 170549,
+   "chars_wide": 183565,
+   "markers_original": {
+    "elide": 4,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-7ae1f55348d66737": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-glm-5.2-nohack/6f5fba2d-8766-56a2-ac27-44712df90543",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 40,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 73824,
+   "chars_wide": 78310,
+   "markers_original": {
+    "elide": 5,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-868ebe2fca6fae96": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-qwen3.8-2.4t-a95b-fp8-nohack/63eefc05-e28c-59e1-94c4-b190d8dd4f01",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 19,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 49080,
+   "chars_wide": 51778,
+   "markers_original": {
+    "elide": 3,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-86a027490c9fdeb9": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-qwen3.8-2.4t-a95b-fp8/03d5b19e91af474288d4b685eac5d5eb",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 12,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 62524,
+   "chars_wide": 70186,
+   "markers_original": {
+    "elide": 3,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-9794e4afe2d46d03": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-glm-5.2-fp8/047482311f1c4d638d09f5acc9e090d9",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 27,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 144478,
+   "chars_wide": 144770,
+   "markers_original": {
+    "elide": 1,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-a1f939db3c92aca6": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-qwen3.8-2.4t-a95b-fp8-nohack/8b17bc0b-3063-5d55-906a-3ce1efcf23e3",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 27,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 89970,
+   "chars_wide": 94187,
+   "markers_original": {
+    "elide": 4,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-a757bff6f48b70fe": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-kimi-k3-nohack/5a072f7c-d66d-5bda-b565-517955357d6c",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 36,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 96116,
+   "chars_wide": 102244,
+   "markers_original": {
+    "elide": 5,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-ac5cb7b322356811": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-qwen3.8-2.4t-a95b-fp8-nohack/63df1cf5-09f2-5987-b6f8-c0b2c9275be1",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 21,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 73996,
+   "chars_wide": 78956,
+   "markers_original": {
+    "elide": 2,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-b0f8a74ae8239b0a": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-glm-5.2-fp8/ca1f492e50414c948c5a7aca0c813293",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 26,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 210420,
+   "chars_wide": 227550,
+   "markers_original": {
+    "elide": 4,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-c3ba3109129fd4c3": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/impossiblebench-kimi-k3/a05a9a31a3af423ea3dec39d70ffd6e0",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 10,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 21076,
+   "chars_wide": 21439,
+   "markers_original": {
+    "elide": 1,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-f0bf1db92f9ae59e": {
+   "corpus": "goodfire",
+   "run_id": "goodfire-reward-hack-data/swebench-verified-qwen3.8-2.4t-a95b-fp8-nohack/9087979f-7f12-553a-8f39-0ef26fd76c25",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 36,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 120157,
+   "chars_wide": 145172,
+   "markers_original": {
+    "elide": 7,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 1,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-03598f6d8b0bc394": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:f36d86e625aa07e81dd69974",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 28,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 43881,
+   "chars_wide": 59856,
+   "markers_original": {
+    "elide": 5,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-0584799e9ba5bb87": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:f39758671d5eea45f3ffc2d7",
+   "positive": false,
+   "marked_cut_fields": 1,
+   "unmarked_cut_fields": 0,
+   "length": 2,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 16100,
+   "chars_wide": 39842,
+   "markers_original": {
+    "elide": 2,
+    "cap": 1
+   },
+   "markers_wide": {
+    "elide": 1,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-082896f31be31bd1": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:afae44d02ae912e4d89edc1c",
+   "positive": false,
+   "marked_cut_fields": 1,
+   "unmarked_cut_fields": 0,
+   "length": 2,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 13454,
+   "chars_wide": 43644,
+   "markers_original": {
+    "elide": 1,
+    "cap": 1
+   },
+   "markers_wide": {
+    "elide": 1,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-157b71cb781e7c44": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:b12cd21ebd567a6e26d4bba1",
+   "positive": false,
+   "marked_cut_fields": 4,
+   "unmarked_cut_fields": 3,
+   "length": 30,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 132716,
+   "chars_wide": 203454,
+   "markers_original": {
+    "elide": 9,
+    "cap": 4
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-3275b399113fc1a3": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:a6f8428a9f44f03c0229661c",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 2,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 13277,
+   "chars_wide": 18818,
+   "markers_original": {
+    "elide": 1,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-3a72613672198782": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:80a35b9243369087cb0b454d",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 36,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 43876,
+   "chars_wide": 54341,
+   "markers_original": {
+    "elide": 2,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 1,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-5654178608ffbfab": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:4827ad059c5a0a330c4c8eef",
+   "positive": true,
+   "marked_cut_fields": 1,
+   "unmarked_cut_fields": 0,
+   "length": 23,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 68902,
+   "chars_wide": 102838,
+   "markers_original": {
+    "elide": 10,
+    "cap": 1
+   },
+   "markers_wide": {
+    "elide": 2,
+    "cap": 1
+   },
+   "widened": true
+  },
+  "run-565735614351cdad": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:201ec61d5020170dc5cf9b7b",
+   "positive": false,
+   "marked_cut_fields": 21,
+   "unmarked_cut_fields": 3,
+   "length": 191,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 662559,
+   "chars_wide": 870159,
+   "markers_original": {
+    "elide": 38,
+    "cap": 21
+   },
+   "markers_wide": {
+    "elide": 2,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-5acce890bb07db06": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:4bfabd218bfae4e4e682d116",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 105,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 145420,
+   "chars_wide": 214923,
+   "markers_original": {
+    "elide": 12,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 4,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-62ac6649cd414f23": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:6155fffadfa8d1526aa313fe",
+   "positive": true,
+   "marked_cut_fields": 2,
+   "unmarked_cut_fields": 0,
+   "length": 2,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 15702,
+   "chars_wide": 49202,
+   "markers_original": {
+    "elide": 1,
+    "cap": 2
+   },
+   "markers_wide": {
+    "elide": 1,
+    "cap": 1
+   },
+   "widened": true
+  },
+  "run-68dc03aaea502f59": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:7ca79db4122578756ef85847",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 16,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 39370,
+   "chars_wide": 43999,
+   "markers_original": {
+    "elide": 1,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-6c55bc22de186a31": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:12756f524d727c58289bea39",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 25,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 10421,
+   "chars_wide": 10421,
+   "markers_original": {
+    "elide": 0,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": false
+  },
+  "run-6fd19283c998c88d": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:69505a6a8789d81f37c58037",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 34,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 25736,
+   "chars_wide": 28803,
+   "markers_original": {
+    "elide": 3,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-79ea76aa41e1d861": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:4f0f5590fba06e1ba0128be5",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 50,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 59725,
+   "chars_wide": 59725,
+   "markers_original": {
+    "elide": 0,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": false
+  },
+  "run-8a2810c54a6514ea": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:b08bd2f72f629ba4be870a98",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 46,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 55510,
+   "chars_wide": 55510,
+   "markers_original": {
+    "elide": 0,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": false
+  },
+  "run-8a405f225777a079": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:eae7c2d6b9dadb7064c4b3f4",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 8,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 8363,
+   "chars_wide": 8363,
+   "markers_original": {
+    "elide": 0,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": false
+  },
+  "run-96bbed0d2b8eae69": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:e919c7bc0bdf6446714af4dc",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 92,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 99699,
+   "chars_wide": 122970,
+   "markers_original": {
+    "elide": 9,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-971daa17fffb1d6a": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:5f2aec4a69fb61535f9f972b",
+   "positive": false,
+   "marked_cut_fields": 1,
+   "unmarked_cut_fields": 0,
+   "length": 2,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 13069,
+   "chars_wide": 22090,
+   "markers_original": {
+    "elide": 1,
+    "cap": 1
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-98d79dc73a4b40e0": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:8c8ef7bfb0fd3753d506cc1a",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 30,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 41165,
+   "chars_wide": 64934,
+   "markers_original": {
+    "elide": 6,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-9b1b2c350d57ef7b": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:a730d49b6aca738076c955d8",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 90,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 88270,
+   "chars_wide": 110446,
+   "markers_original": {
+    "elide": 9,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-a7082555691e0e45": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:b661c8581add6242dc719571",
+   "positive": false,
+   "marked_cut_fields": 39,
+   "unmarked_cut_fields": 8,
+   "length": 610,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 1551198,
+   "chars_wide": 2316185,
+   "markers_original": {
+    "elide": 95,
+    "cap": 39
+   },
+   "markers_wide": {
+    "elide": 15,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-b22b09d0f4fcf8bb": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:2c60fcbb5651d08578eb8d50",
+   "positive": true,
+   "marked_cut_fields": 1,
+   "unmarked_cut_fields": 0,
+   "length": 20,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 80460,
+   "chars_wide": 98577,
+   "markers_original": {
+    "elide": 4,
+    "cap": 1
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-c0d8e84e1006307a": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:9a4809f3cf4ddd1ae7590b0b",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 100,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 96136,
+   "chars_wide": 149974,
+   "markers_original": {
+    "elide": 12,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 4,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-c1c914bfafd60904": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:a4200a55caf5c72d065de587",
+   "positive": false,
+   "marked_cut_fields": 13,
+   "unmarked_cut_fields": 2,
+   "length": 95,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 359868,
+   "chars_wide": 610014,
+   "markers_original": {
+    "elide": 31,
+    "cap": 13
+   },
+   "markers_wide": {
+    "elide": 3,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-c3d6b5312f175c86": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:3cb412785a0c231cd96d4549",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 17,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 12207,
+   "chars_wide": 20458,
+   "markers_original": {
+    "elide": 1,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-e16a797530621f1e": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:02aef3bdf4c57ff66159800a",
+   "positive": true,
+   "marked_cut_fields": 1,
+   "unmarked_cut_fields": 0,
+   "length": 15,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 38090,
+   "chars_wide": 66588,
+   "markers_original": {
+    "elide": 3,
+    "cap": 1
+   },
+   "markers_wide": {
+    "elide": 3,
+    "cap": 1
+   },
+   "widened": true
+  },
+  "run-ea396024dc6a95b9": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:5a70068fdc69afdacac3ba92",
+   "positive": false,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 43,
+   "stratum": 1,
+   "join_byte_identical": true,
+   "chars_original": 59066,
+   "chars_wide": 68008,
+   "markers_original": {
+    "elide": 5,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-ecab09fe0aff0cb9": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:ea4c2a3f5d6c4e7869e3e4bc",
+   "positive": true,
+   "marked_cut_fields": 0,
+   "unmarked_cut_fields": 0,
+   "length": 55,
+   "stratum": 2,
+   "join_byte_identical": true,
+   "chars_original": 112582,
+   "chars_wide": 165364,
+   "markers_original": {
+    "elide": 13,
+    "cap": 0
+   },
+   "markers_wide": {
+    "elide": 5,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-eefed3e2d21afbca": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:27ad2ee03bffdc944ca6c782",
+   "positive": true,
+   "marked_cut_fields": 1,
+   "unmarked_cut_fields": 0,
+   "length": 2,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 13515,
+   "chars_wide": 26546,
+   "markers_original": {
+    "elide": 1,
+    "cap": 1
+   },
+   "markers_wide": {
+    "elide": 0,
+    "cap": 0
+   },
+   "widened": true
+  },
+  "run-f08e7ebae6b40f8f": {
+   "corpus": "cheatbench",
+   "run_id": "cheatbench-actions-v1:6b795ad4daaebf7f2dee8bca",
+   "positive": true,
+   "marked_cut_fields": 2,
+   "unmarked_cut_fields": 0,
+   "length": 2,
+   "stratum": 0,
+   "join_byte_identical": true,
+   "chars_original": 14046,
+   "chars_wide": 47546,
+   "markers_original": {
+    "elide": 1,
+    "cap": 2
+   },
+   "markers_wide": {
+    "elide": 1,
+    "cap": 1
+   },
+   "widened": true
+  }
+ },
+ "join_mismatches": [],
+ "not_widened": [
+  "run-75681af6823b6521",
+  "run-6c55bc22de186a31",
+  "run-79ea76aa41e1d861",
+  "run-8a2810c54a6514ea",
+  "run-8a405f225777a079"
+ ]
+}

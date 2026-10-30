@@ -1,0 +1,26 @@
+{
+ "model": "deepseek/deepseek-flash",
+ "instruction_sha256": "63574050cd6772e8ee3a9bd8ed1c01c4373c1969df1acdef07e9de950270ce0b",
+ "calls": {
+  "goodfire": {
+   "n": 30,
+   "n_attested": 30,
+   "served_model_sets": [
+    "['deepseek/deepseek-flash']"
+   ],
+   "n_with_fallbacks": 0,
+   "n_unknown": 0,
+   "n_unparsed": 0
+  },
+  "cheatbench": {
+   "n": 30,
+   "n_attested": 30,
+   "served_model_sets": [
+    "['deepseek/deepseek-flash']"
+   ],
+   "n_with_fallbacks": 0,
+   "n_unknown": 0,
+   "n_unparsed": 0
+  }
+ }
+}

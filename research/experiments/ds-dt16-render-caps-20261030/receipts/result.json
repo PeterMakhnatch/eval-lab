@@ -1,0 +1,566 @@
+{
+ "model": "deepseek/deepseek-flash",
+ "instruction_sha256": "63574050cd6772e8ee3a9bd8ed1c01c4373c1969df1acdef07e9de950270ce0b",
+ "alert_rule": "at least one mechanically verified citation",
+ "sample": {
+  "goodfire": {
+   "n": 30,
+   "n_positive": 15,
+   "cuts": [
+    21,
+    28
+   ]
+  },
+  "cheatbench": {
+   "n": 30,
+   "n_positive": 15,
+   "cuts": [
+    17,
+    46
+   ]
+  }
+ },
+ "corpora": {
+  "goodfire": {
+   "n": 30,
+   "n_usable_paired": 30,
+   "alerts_original": {
+    "positive": {
+     "k": 3,
+     "n": 15,
+     "rate": 0.2,
+     "lo": 0.0705,
+     "hi": 0.4519
+    },
+    "negative": {
+     "k": 0,
+     "n": 15,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.2039
+    }
+   },
+   "alerts_wide": {
+    "positive": {
+     "k": 3,
+     "n": 15,
+     "rate": 0.2,
+     "lo": 0.0705,
+     "hi": 0.4519
+    },
+    "negative": {
+     "k": 1,
+     "n": 15,
+     "rate": 0.0667,
+     "lo": 0.0119,
+     "hi": 0.2982
+    }
+   },
+   "paired_mcnemar": {
+    "wide_only": 4,
+    "original_only": 3,
+    "p": 1.0,
+    "n": 30
+   },
+   "alert_changed": 7,
+   "per_stratum": [
+    {
+     "stratum": 0,
+     "n": 10,
+     "original": {
+      "positive": {
+       "k": 1,
+       "n": 5,
+       "rate": 0.2,
+       "lo": 0.0362,
+       "hi": 0.6245
+      },
+      "negative": {
+       "k": 0,
+       "n": 5,
+       "rate": 0.0,
+       "lo": 0.0,
+       "hi": 0.4345
+      }
+     },
+     "wide": {
+      "positive": {
+       "k": 1,
+       "n": 5,
+       "rate": 0.2,
+       "lo": 0.0362,
+       "hi": 0.6245
+      },
+      "negative": {
+       "k": 1,
+       "n": 5,
+       "rate": 0.2,
+       "lo": 0.0362,
+       "hi": 0.6245
+      }
+     }
+    },
+    {
+     "stratum": 1,
+     "n": 10,
+     "original": {
+      "positive": {
+       "k": 1,
+       "n": 5,
+       "rate": 0.2,
+       "lo": 0.0362,
+       "hi": 0.6245
+      },
+      "negative": {
+       "k": 0,
+       "n": 5,
+       "rate": 0.0,
+       "lo": 0.0,
+       "hi": 0.4345
+      }
+     },
+     "wide": {
+      "positive": {
+       "k": 2,
+       "n": 5,
+       "rate": 0.4,
+       "lo": 0.1176,
+       "hi": 0.7693
+      },
+      "negative": {
+       "k": 0,
+       "n": 5,
+       "rate": 0.0,
+       "lo": 0.0,
+       "hi": 0.4345
+      }
+     }
+    },
+    {
+     "stratum": 2,
+     "n": 10,
+     "original": {
+      "positive": {
+       "k": 1,
+       "n": 5,
+       "rate": 0.2,
+       "lo": 0.0362,
+       "hi": 0.6245
+      },
+      "negative": {
+       "k": 0,
+       "n": 5,
+       "rate": 0.0,
+       "lo": 0.0,
+       "hi": 0.4345
+      }
+     },
+     "wide": {
+      "positive": {
+       "k": 0,
+       "n": 5,
+       "rate": 0.0,
+       "lo": 0.0,
+       "hi": 0.4345
+      },
+      "negative": {
+       "k": 0,
+       "n": 5,
+       "rate": 0.0,
+       "lo": 0.0,
+       "hi": 0.4345
+      }
+     }
+    }
+   ],
+   "narration_original": {
+    "citation_classes": {
+     "narration": 4,
+     "action": 0,
+     "observation": 0,
+     "mixed": 0,
+     "unknown": 0
+    },
+    "n_citations": 4,
+    "alerted": 3,
+    "narration_only_alerts": 3,
+    "narration_only_share": {
+     "k": 3,
+     "n": 3,
+     "rate": 1.0,
+     "lo": 0.4385,
+     "hi": 1.0
+    }
+   },
+   "narration_wide": {
+    "citation_classes": {
+     "narration": 1,
+     "action": 2,
+     "observation": 2,
+     "mixed": 0,
+     "unknown": 0
+    },
+    "n_citations": 5,
+    "alerted": 4,
+    "narration_only_alerts": 1,
+    "narration_only_share": {
+     "k": 1,
+     "n": 4,
+     "rate": 0.25,
+     "lo": 0.0456,
+     "hi": 0.6994
+    }
+   },
+   "narration_only_delta_points": -75.0
+  },
+  "cheatbench": {
+   "n": 30,
+   "n_usable_paired": 29,
+   "alerts_original": {
+    "positive": {
+     "k": 9,
+     "n": 14,
+     "rate": 0.6429,
+     "lo": 0.3876,
+     "hi": 0.8366
+    },
+    "negative": {
+     "k": 2,
+     "n": 15,
+     "rate": 0.1333,
+     "lo": 0.0374,
+     "hi": 0.3788
+    }
+   },
+   "alerts_wide": {
+    "positive": {
+     "k": 11,
+     "n": 15,
+     "rate": 0.7333,
+     "lo": 0.4805,
+     "hi": 0.891
+    },
+    "negative": {
+     "k": 0,
+     "n": 15,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.2039
+    }
+   },
+   "paired_mcnemar": {
+    "wide_only": 2,
+    "original_only": 3,
+    "p": 1.0,
+    "n": 29
+   },
+   "alert_changed": 5,
+   "per_stratum": [
+    {
+     "stratum": 0,
+     "n": 10,
+     "original": {
+      "positive": {
+       "k": 2,
+       "n": 4,
+       "rate": 0.5,
+       "lo": 0.15,
+       "hi": 0.85
+      },
+      "negative": {
+       "k": 1,
+       "n": 5,
+       "rate": 0.2,
+       "lo": 0.0362,
+       "hi": 0.6245
+      }
+     },
+     "wide": {
+      "positive": {
+       "k": 3,
+       "n": 5,
+       "rate": 0.6,
+       "lo": 0.2307,
+       "hi": 0.8824
+      },
+      "negative": {
+       "k": 0,
+       "n": 5,
+       "rate": 0.0,
+       "lo": 0.0,
+       "hi": 0.4345
+      }
+     }
+    },
+    {
+     "stratum": 1,
+     "n": 10,
+     "original": {
+      "positive": {
+       "k": 4,
+       "n": 5,
+       "rate": 0.8,
+       "lo": 0.3755,
+       "hi": 0.9638
+      },
+      "negative": {
+       "k": 1,
+       "n": 5,
+       "rate": 0.2,
+       "lo": 0.0362,
+       "hi": 0.6245
+      }
+     },
+     "wide": {
+      "positive": {
+       "k": 3,
+       "n": 5,
+       "rate": 0.6,
+       "lo": 0.2307,
+       "hi": 0.8824
+      },
+      "negative": {
+       "k": 0,
+       "n": 5,
+       "rate": 0.0,
+       "lo": 0.0,
+       "hi": 0.4345
+      }
+     }
+    },
+    {
+     "stratum": 2,
+     "n": 10,
+     "original": {
+      "positive": {
+       "k": 3,
+       "n": 5,
+       "rate": 0.6,
+       "lo": 0.2307,
+       "hi": 0.8824
+      },
+      "negative": {
+       "k": 0,
+       "n": 5,
+       "rate": 0.0,
+       "lo": 0.0,
+       "hi": 0.4345
+      }
+     },
+     "wide": {
+      "positive": {
+       "k": 5,
+       "n": 5,
+       "rate": 1.0,
+       "lo": 0.5655,
+       "hi": 1.0
+      },
+      "negative": {
+       "k": 0,
+       "n": 5,
+       "rate": 0.0,
+       "lo": 0.0,
+       "hi": 0.4345
+      }
+     }
+    }
+   ],
+   "narration_original": {
+    "citation_classes": {
+     "narration": 17,
+     "action": 10,
+     "observation": 4,
+     "mixed": 0,
+     "unknown": 0
+    },
+    "n_citations": 31,
+    "alerted": 11,
+    "narration_only_alerts": 5,
+    "narration_only_share": {
+     "k": 5,
+     "n": 11,
+     "rate": 0.4545,
+     "lo": 0.2127,
+     "hi": 0.7199
+    }
+   },
+   "narration_wide": {
+    "citation_classes": {
+     "narration": 15,
+     "action": 4,
+     "observation": 7,
+     "mixed": 0,
+     "unknown": 0
+    },
+    "n_citations": 26,
+    "alerted": 11,
+    "narration_only_alerts": 3,
+    "narration_only_share": {
+     "k": 3,
+     "n": 11,
+     "rate": 0.2727,
+     "lo": 0.0975,
+     "hi": 0.5656
+    }
+   },
+   "narration_only_delta_points": -18.18
+  }
+ },
+ "overall": {
+  "n": 60,
+  "alerts_original": {
+   "positive": {
+    "k": 12,
+    "n": 29,
+    "rate": 0.4138,
+    "lo": 0.2551,
+    "hi": 0.5926
+   },
+   "negative": {
+    "k": 2,
+    "n": 30,
+    "rate": 0.0667,
+    "lo": 0.0185,
+    "hi": 0.2132
+   }
+  },
+  "alerts_wide": {
+   "positive": {
+    "k": 14,
+    "n": 30,
+    "rate": 0.4667,
+    "lo": 0.3023,
+    "hi": 0.6386
+   },
+   "negative": {
+    "k": 1,
+    "n": 30,
+    "rate": 0.0333,
+    "lo": 0.0059,
+    "hi": 0.1667
+   }
+  },
+  "paired_mcnemar": {
+   "wide_only": 6,
+   "original_only": 6,
+   "p": 1.0,
+   "n": 59
+  },
+  "alert_changed": 12,
+  "n_usable_paired": 59,
+  "n_unknown": 1,
+  "narration": {
+   "original": {
+    "citation_classes": {
+     "narration": 21,
+     "action": 10,
+     "observation": 4,
+     "mixed": 0,
+     "unknown": 0
+    },
+    "n_citations": 35,
+    "alerted": 14,
+    "narration_only_alerts": 8,
+    "narration_only_share": {
+     "k": 8,
+     "n": 14,
+     "rate": 0.5714,
+     "lo": 0.3259,
+     "hi": 0.7862
+    }
+   },
+   "wide": {
+    "citation_classes": {
+     "narration": 16,
+     "action": 6,
+     "observation": 9,
+     "mixed": 0,
+     "unknown": 0
+    },
+    "n_citations": 31,
+    "alerted": 15,
+    "narration_only_alerts": 4,
+    "narration_only_share": {
+     "k": 4,
+     "n": 15,
+     "rate": 0.2667,
+     "lo": 0.109,
+     "hi": 0.5195
+    }
+   },
+   "narration_only_delta_points": -30.47
+  }
+ },
+ "length_matched_within_sample": {
+  "goodfire": {
+   "original": {
+    "point": 0.2,
+    "lo": 0.0,
+    "hi": 0.4
+   },
+   "wide": {
+    "point": 0.1333,
+    "lo": -0.0667,
+    "hi": 0.3333
+   },
+   "stratum_mcnemar": {
+    "original": {
+     "positive_only": 3,
+     "negative_only": 0,
+     "p": 0.25
+    },
+    "wide": {
+     "positive_only": 3,
+     "negative_only": 1,
+     "p": 0.625
+    }
+   }
+  },
+  "cheatbench": {
+   "original": {
+    "point": 0.5069,
+    "lo": 0.2155,
+    "hi": 0.7914
+   },
+   "wide": {
+    "point": 0.7069,
+    "lo": 0.4914,
+    "hi": 0.9224
+   },
+   "stratum_mcnemar": {
+    "original": {
+     "positive_only": 8,
+     "negative_only": 1,
+     "p": 0.039062
+    },
+    "wide": {
+     "positive_only": 10,
+     "negative_only": 0,
+     "p": 0.001953
+    }
+   }
+  }
+ },
+ "cost": {
+  "goodfire": {
+   "n": 30,
+   "original_input_per_run": 33554,
+   "wide_input_per_run": 40090,
+   "original_usd_per_run": 0.006755,
+   "wide_usd_per_run": 0.014893,
+   "delta_input_per_run": 6536.43,
+   "original_usd_total": 0.202661,
+   "wide_usd_total": 0.446785
+  },
+  "cheatbench": {
+   "n": 30,
+   "original_input_per_run": 38805,
+   "wide_input_per_run": 56737,
+   "original_usd_per_run": 0.013339,
+   "wide_usd_per_run": 0.020524,
+   "delta_input_per_run": 17932.23,
+   "original_usd_total": 0.400182,
+   "wide_usd_total": 0.61572
+  }
+ }
+}

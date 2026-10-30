@@ -1,0 +1,61 @@
+{
+ "per_corpus": {
+  "goodfire": {
+   "n": 150,
+   "reader_alerts": 15,
+   "reader_alert_retained": 14,
+   "reader_alert_retention": 0.9333333333333333,
+   "threshold": 0.3253934411626179,
+   "pass_rate": 0.6466666666666666,
+   "pass_k": 97,
+   "l0_negatives": 53,
+   "positives_among_l0_negatives": 9,
+   "negatives_per_1000": 353.3333333333333,
+   "reader_calls_saved_per_1000": 335.6666666666667,
+   "usd_saved_per_1000": 5.035671333333333,
+   "usd_saved_per_1000_at_brief_0p015": 5.035,
+   "tokens_saved_per_1000_est_chars_over_4": 5213981.583333333,
+   "tokens_saved_per_1000_at_dt8_measured": 14998258.0,
+   "audit_runs_per_1000": 17.666666666666668,
+   "expected_misses_per_1000_via_5pct_audit": 3.0
+  },
+  "cheatbench": {
+   "n": 149,
+   "reader_alerts": 54,
+   "reader_alert_retained": 49,
+   "reader_alert_retention": 0.9074074074074074,
+   "threshold": 0.09052932982462547,
+   "pass_rate": 0.8120805369127517,
+   "pass_k": 121,
+   "l0_negatives": 28,
+   "positives_among_l0_negatives": 4,
+   "negatives_per_1000": 187.91946308724832,
+   "reader_calls_saved_per_1000": 178.52348993288592,
+   "usd_saved_per_1000": 2.3698993288590606,
+   "usd_saved_per_1000_at_brief_0p015": 2.6778523489932886,
+   "tokens_saved_per_1000_est_chars_over_4": 13929559.89932886,
+   "tokens_saved_per_1000_at_dt8_measured": 6756935.570469799,
+   "audit_runs_per_1000": 9.395973154362416,
+   "expected_misses_per_1000_via_5pct_audit": 1.342281879194631
+  }
+ },
+ "pooled": {
+  "n": 299,
+  "reader_alerts": 69,
+  "reader_alert_retained": 63,
+  "reader_alert_retention": 0.9130434782608695,
+  "threshold": -1.1602693507124822,
+  "pass_rate": 0.822742474916388,
+  "pass_k": 246,
+  "l0_negatives": 53,
+  "positives_among_l0_negatives": 6,
+  "negatives_per_1000": 177.25752508361202,
+  "reader_calls_saved_per_1000": 168.39464882943142,
+  "usd_saved_per_1000": 2.35752508361204,
+  "usd_saved_per_1000_at_brief_0p015": 2.525919732441471,
+  "tokens_saved_per_1000_est_chars_over_4": 7886879.347826087,
+  "tokens_saved_per_1000_at_dt8_measured": 6735785.9531772565,
+  "audit_runs_per_1000": 8.862876254180602,
+  "expected_misses_per_1000_via_5pct_audit": 1.0033444816053512
+ }
+}

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.petermakhnatch.evallab.prod-factory-watchdog</string>
+	<!-- Render __WORKDIR__, __HOME__ and __LOG_DIR__ like prod-factory. Every minute it
+	     reads the factory journal read-only, writes factory/factory-watchdog.json and
+	     exits 0 when the newest collector heartbeat is fresh, 2 when it is stalled or the
+	     journal is missing. The live supervisor's launchd source reads that file and the
+	     last exit status, so a stopped factory becomes an alert, not silence. -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>__WORKDIR__/.venv/bin/python</string>
+		<string>-m</string>
+		<string>evallab.production.factory</string>
+		<string>watchdog</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__WORKDIR__</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StartInterval</key>
+	<integer>60</integer>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>EVALLAB_DISABLE_LOCAL_DOCKER</key>
+		<string>1</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>__LOG_DIR__/prod-factory-watchdog.out</string>
+	<key>StandardErrorPath</key>
+	<string>__LOG_DIR__/prod-factory-watchdog.err</string>
+</dict>
+</plist>

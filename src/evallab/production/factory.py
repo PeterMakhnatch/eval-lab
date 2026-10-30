@@ -27,7 +27,8 @@ Guarantees, all inherited from the existing contracts and checked here again:
   because the supervisor needs all three; they use the Modal backend with no approval,
   so any job they could claim stays provisional and unexecuted.
 - **Fail loud, never clear.** A stage error is journaled by the supervisor and counted
-  per class in ``factory-cycles.jsonl``; the watchdog reports stale and down states.
+  per class in ``factory-cycles.jsonl``; the watchdog reports ``stalled`` and ``failed``
+  (the live supervisor's launchd source already reads that vocabulary).
 
 External dataset items are not persisted by the registry, so ``run`` re-registers
 every seeded item from the journal at start and after each step.
@@ -421,7 +422,7 @@ def watchdog(
         "max_age_seconds": max_age,
     }
     if not journal.is_file():
-        return {**result, "status": "down", "reason": "no journal"}
+        return {**result, "status": "failed", "reason": "no journal"}
     try:
         with closing(
             sqlite3.connect(f"file:{journal}?mode=ro", uri=True, timeout=10)
@@ -432,11 +433,11 @@ def watchdog(
             ).fetchone()
             last_seq = connection.execute("SELECT MAX(seq) FROM events").fetchone()[0]
     except sqlite3.Error as exc:
-        return {**result, "status": "down", "reason": f"journal unreadable: {type(exc).__name__}"}
+        return {**result, "status": "failed", "reason": f"journal unreadable: {type(exc).__name__}"}
     if row is None:
-        return {**result, "status": "down", "reason": "no heartbeat yet", "last_seq": last_seq}
+        return {**result, "status": "failed", "reason": "no heartbeat yet", "last_seq": last_seq}
     age = moment - datetime.fromisoformat(row[1]).timestamp()
-    status = "ok" if age <= max_age else "stale"
+    status = "ok" if age <= max_age else "stalled"
     return {
         **result,
         "status": status,

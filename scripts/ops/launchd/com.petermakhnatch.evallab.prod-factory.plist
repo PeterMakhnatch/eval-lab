@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.petermakhnatch.evallab.prod-factory</string>
+	<!-- Render absolute paths before installation, like live-supervisor:
+	     __WORKDIR__ is the installed immutable release (its .venv runs the module),
+	     __HOME__ supplies PATH; __LOG_DIR__ must already exist. Do not load this
+	     unrendered template. The service is DEV only, no model, no Docker: it seeds
+	     nothing by itself, it scores what `factory seed` queued, heartbeats into its own
+	     journal (~/.local/state/evallab-prod-live/factory/prod-factory.sqlite) and serves
+	     the read-only control plane on 127.0.0.1:8095. KeepAlive restarts it after a crash
+	     or a reboot; the sibling prod-factory-watchdog job reports a stalled heartbeat. -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>__WORKDIR__/.venv/bin/python</string>
+		<string>-m</string>
+		<string>evallab.production.factory</string>
+		<string>run</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__WORKDIR__</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>EVALLAB_DISABLE_LOCAL_DOCKER</key>
+		<string>1</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>__LOG_DIR__/prod-factory.out</string>
+	<key>StandardErrorPath</key>
+	<string>__LOG_DIR__/prod-factory.err</string>
+</dict>
+</plist>

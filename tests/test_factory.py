@@ -163,7 +163,7 @@ def test_a_second_instance_cannot_start(tmp_path: Path, export) -> None:
 
 
 def test_watchdog_reports_ok_stale_and_down(tmp_path: Path, export) -> None:
-    assert factory.watchdog(tmp_path)["status"] == "down"
+    assert factory.watchdog(tmp_path)["status"] == "failed"
     _seed(tmp_path, export)
     assert factory.watchdog(tmp_path)["reason"] == "no heartbeat yet"
     with factory.Factory(tmp_path, REPO, port=None) as service:
@@ -171,7 +171,7 @@ def test_watchdog_reports_ok_stale_and_down(tmp_path: Path, export) -> None:
     fresh = factory.watchdog(tmp_path, max_age=60)
     assert fresh["status"] == "ok" and fresh["age_seconds"] < 60
     late = factory.watchdog(tmp_path, max_age=60, now=time.time() + 3600)
-    assert late["status"] == "stale" and late["age_seconds"] > 3500
+    assert late["status"] == "stalled" and late["age_seconds"] > 3500
 
 
 def test_measure_reports_runs_latency_and_failure_classes(tmp_path: Path, export) -> None:

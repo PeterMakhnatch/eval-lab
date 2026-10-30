@@ -12,7 +12,9 @@ Static scanner for grader-weakness surfaces in DEV task packages (TQ-1).
   `heldout-eval.json`, `split.json`, `recorded-defects.json`, `ambiguous-calls.jsonl` (empty:
   no model calls were made).
 
-Frozen scanner sha256 `33f27c2d79f1ca2eff558b1299273f488f598badad1f383dd95a879923a1ba46`.
+Frozen-run scanner sha256 `33f27c2d79f1ca2eff558b1299273f488f598badad1f383dd95a879923a1ba46`; the
+published file is `0bbec47d390d78b6475db5e413d4e63fd63dc39db3222275ead2f12dfc951067` (two lint-only
+renames, outputs byte-identical).
 Preregistration, full numbers and limits: the TQ-1 report under
 `research-context/bridge/2026-10-29-ds-squad/raw/TQ-1/`.
 

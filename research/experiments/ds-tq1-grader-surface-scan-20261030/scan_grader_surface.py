@@ -142,7 +142,6 @@ def scan(pkg: str) -> dict:
     setup_sh = _find(root, "environment/setup.sh", "environment/setup/setup.sh")
     blocklist = _find(root, "environment/setup/files/blocklist", "environment/blocklist")
     task_toml = _find(root, "task.toml")
-    instruction = _find(root, "instruction.md")
 
     sh_lines = _lines(test_sh) if test_sh else []
     cmd_lines = _lines(test_cmd) if test_cmd else []
@@ -343,8 +342,8 @@ def scan(pkg: str) -> dict:
     if structural and artifact_writable:
         e = Evidence()
         src = (verifier_helpers or test_files or [test_sh])[0]
-        ln = next((i for i, l in enumerate(_lines(src), 1)
-                   if re.search(r"non.?zero|formula cell|sheetnames|workbook|>= *\d+", l)), 1)
+        ln = next((i for i, line in enumerate(_lines(src), 1)
+                   if re.search(r"non.?zero|formula cell|sheetnames|workbook|>= *\d+", line)), 1)
         e.add(root, src, ln, "structural count/schema threshold on the agent-written artifact")
         flag("synthetic_artifact_shape_fill", "structural_threshold_on_writable_artifact", e)
 

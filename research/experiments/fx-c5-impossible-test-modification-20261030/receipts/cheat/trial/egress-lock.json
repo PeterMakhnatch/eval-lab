@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "requested": true,
+  "applied": false,
+  "locked_at": null,
+  "recorded_at": "2026-10-30T23:47:34.480560+00:00",
+  "sandbox_id": "sb-01M67KCAYFFVDXE2SDA86NRQEE",
+  "session_id": "qa-2241f8cfb48fa8f7ff86279bb601f5ce035fd2493bf7f90b",
+  "network_block_all": false,
+  "network_mode": "public",
+  "allowed_hosts": [],
+  "mechanism": null,
+  "applications": [
+    {
+      "source": "creation",
+      "network_mode": "public",
+      "allowed_hosts": [],
+      "applied": false,
+      "sandbox_id": "sb-01M67KCAYFFVDXE2SDA86NRQEE",
+      "recorded_at": "2026-10-30T23:47:34.480367+00:00"
+    }
+  ],
+  "error": null
+}

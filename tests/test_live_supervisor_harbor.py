@@ -143,6 +143,23 @@ def test_events_are_the_last_twenty_steps_with_original_indexes() -> None:
     assert events[0].at == NOW + timedelta(seconds=-200 + 12)
 
 
+def test_opt_in_expanded_tool_text_reaches_reader_without_changing_default() -> None:
+    from evallab.production.live_supervisor import Decision
+    from evallab.production.live_supervisor_triage import build_prompt
+
+    command = "echo " + "x" * 230 + " visible-marker " + "y" * 500
+    run = _run([_step(1, command)])
+    default = trial_observation(run, subject=SUBJECT, now=NOW)
+    expanded = trial_observation(run, subject=SUBJECT, now=NOW, expanded_tool_text=True)
+    proposal = Decision("continue", "other", "no trigger")
+    default_prompt, _ = build_prompt(default, (), proposal)
+    expanded_prompt, _ = build_prompt(expanded, (), proposal)
+    assert "visible-marker" not in default_prompt
+    assert "visible-marker" in expanded_prompt
+    assert len(default.events[0].text) <= 600
+    assert len(expanded.events[0].text) <= 600
+
+
 # --------------------------------------------------------------------------- repetition
 
 

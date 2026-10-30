@@ -86,7 +86,7 @@ def test_seed_is_idempotent_and_gives_every_run_its_own_run_id(tmp_path: Path, e
         run_ids = [
             row[0]
             for row in connection.execute(
-                "SELECT run_id FROM events WHERE event_type = ?", (factory.PREFIX_AUDIT_JOB,)
+                "SELECT run_id FROM events WHERE event_type = ?", (factory.REPLAY_JOB,)
             )
         ]
     assert sorted(run_ids) == ["factory-run-aaa", "factory-run-bbb", "factory-run-ccc"]
@@ -101,7 +101,7 @@ def test_seed_limit_and_offset_walk_the_same_sha256_order(tmp_path: Path, export
             row[0].removeprefix("factory-")
             for row in connection.execute(
                 "SELECT run_id FROM events WHERE event_type = ? ORDER BY seq",
-                (factory.PREFIX_AUDIT_JOB,),
+                (factory.REPLAY_JOB,),
             )
         ]
     assert seeded == ordered[:2]
@@ -229,3 +229,59 @@ def test_queue_journal_can_be_reopened_after_the_service_stops(tmp_path: Path, e
         service.step()
     with ContinuousWorkQueue(tmp_path / factory.JOURNAL, registry=CorpusRegistry(REPO)) as queue:
         assert queue.queue_snapshot()["last_seq"] > 3
+
+
+def _count(root: Path, event_type: str) -> int:
+    with sqlite3.connect(root / factory.JOURNAL) as connection:
+        return connection.execute(
+            "SELECT COUNT(*) FROM events WHERE event_type = ?", (event_type,)
+        ).fetchone()[0]
+
+
+def test_replay_appends_each_step_once_and_completes_the_run(tmp_path: Path, export) -> None:
+    _seed(tmp_path, export)
+    with factory.Factory(tmp_path, REPO, port=None) as service:
+        first = service.step()
+    assert first["replayed_steps"] > 0 and first["replayed_run"].startswith("factory-run-")
+    with factory.Factory(tmp_path, REPO, port=None) as service:
+        for _ in range(5):
+            service.step()
+    assert _count(tmp_path, "trace.step") == 5 + 4 + 3
+    assert _count(tmp_path, "misalignment.replay_completed") == 3
+    assert _count(tmp_path, factory.REPLAY_JOB) == 3
+
+
+def test_a_changed_export_file_is_refused_and_counted(tmp_path: Path, export) -> None:
+    _seed(tmp_path, export)
+    ordered = sorted(["run-aaa", "run-bbb", "run-ccc"], key=factory._blind_order)
+    (export[0] / f"{ordered[0]}.json").write_text(json.dumps(_document(["rm -rf x"])))
+    with factory.Factory(tmp_path, REPO, port=None) as service:
+        line = service.step()
+        assert line["errors"][0]["stage"] == "replay"
+        assert line["errors"][0]["class"] == "ValueError"
+        assert line["idle"] is False
+        for _ in range(4):
+            service.step()
+    replayed = {run for run in ("run-aaa", "run-bbb", "run-ccc") if run != ordered[0]}
+    with sqlite3.connect(tmp_path / factory.JOURNAL) as connection:
+        done = {
+            row[0].removeprefix("factory-")
+            for row in connection.execute(
+                "SELECT run_id FROM events WHERE event_type = 'misalignment.replay_completed'"
+            )
+        }
+    assert done == replayed
+
+
+def test_a_restarted_service_does_not_score_a_prefix_twice(tmp_path: Path, export) -> None:
+    _seed(tmp_path, export)
+    with factory.Factory(tmp_path, REPO, port=None) as service:
+        service.step()
+        service.step()
+    scored = _count(tmp_path, "monitor.prefix_scored")
+    assert scored > 0
+    with factory.Factory(tmp_path, REPO, port=None) as service:
+        for _ in range(6):
+            service.step()
+    assert _count(tmp_path, "monitor.prefix_scored") == 12
+    assert _count(tmp_path, "monitor.prefix_scored") > scored

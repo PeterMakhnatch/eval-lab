@@ -19,10 +19,16 @@ Guarantees, all inherited from the existing contracts and checked here again:
   admitted trace ids from the store snapshot with the shared gate and refuses a join
   entry outside it, then enqueues through :func:`ingest_public_corpus`, which resolves
   every identity against :class:`CorpusRegistry` (canonical TEST seals apply).
-- **Once.** Idempotency keys come from the blind id, so a repeated seed appends
-  nothing and no finished run is replayed (the 2026-10-24 service re-queued 33 items
-  twelve times). Every run gets its own ``run_id``: sharing one run id merges step
-  numbers across runs and forces a rescan per step.
+- **Once, step by step.** ``seed`` queues one small ``misalignment.replay_task`` per run
+  (a sha256-pinned pointer into the export, idempotent on the blind id, so a repeated
+  seed appends nothing and no finished run is replayed; the 2026-10-24 service re-queued
+  33 items twelve times). The service's replayer appends one ``trace.step`` event per
+  step and the monitor scores each causal prefix as it arrives. Every run has its own
+  ``run_id``: sharing one run id merges step numbers across runs and forces a rescan per
+  step. Whole-trace snapshot jobs (``misalignment.prefix_audit_task``) are not used:
+  every prefix checkpoint then cites the same multi-hundred-KB source event, and the
+  monitor's start-up ``recover`` re-reads it once per prefix, which made recovery
+  quadratic (a 200-run journal took minutes to rehydrate; measured in the P1 report).
 - **No model, no Docker, no spend.** Task Quality and Reward Seeker workers exist only
   because the supervisor needs all three; they use the Modal backend with no approval,
   so any job they could claim stays provisional and unexecuted.
@@ -52,18 +58,20 @@ from contextlib import ExitStack, closing, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import NAMESPACE_URL, uuid5
 
 SCHEMA = "evallab.factory/v1"
 DEFAULT_ROOT = Path.home() / ".local/state/evallab-prod-live/factory"
 JOURNAL = "prod-factory.sqlite"
 SUPERVISOR_ID = "local-factory"
-PREFIX_AUDIT_JOB = "misalignment.prefix_audit_task"
+REPLAY_JOB = "misalignment.replay_task"
 #: A seeded run's own heartbeat can be this old before the watchdog calls it stale.
 STALE_AFTER_SECONDS = 180.0
 IDLE_SLEEP_SECONDS = 15.0
-#: Events the monitor consumes per supervisor step. A seeded run's whole prefix history
-#: is one event, so this bounds a step to about this many runs.
-MONITOR_BATCH_LIMIT = 50
+#: Events the monitor consumes per supervisor step. One replayed run emits a few
+#: hundred ``trace.step`` events and the monitor's own output flows back through the
+#: same cursor, so the batch must exceed one run's events or the cursor falls behind.
+MONITOR_BATCH_LIMIT = 2000
 CONTROL_PLANE_PORT = 8095
 
 
@@ -110,7 +118,7 @@ def sync_external_items(journal: Path, registry: Any, after_seq: int = 0) -> int
     )
     with closing(sqlite3.connect(f"file:{journal}?mode=ro", uri=True, timeout=30)) as connection:
         for seq, dataset, item, split, task, digest, license_text in connection.execute(
-            query, (after_seq, PREFIX_AUDIT_JOB)
+            query, (after_seq, REPLAY_JOB)
         ):
             last = seq
             if not dataset or not item or dataset in DATASETS:
@@ -158,7 +166,7 @@ def seed(
     limit: int | None = None,
     offset: int = 0,
 ) -> dict[str, Any]:
-    """Enqueue blinded runs as ``misalignment.prefix_audit_task`` jobs, one run id each."""
+    """Queue blinded runs as sha256-pinned ``misalignment.replay_task`` jobs, one run id each."""
     from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
     from evallab.production.public_corpus_loader import PublicCorpusJob, ingest_public_corpus
 
@@ -210,20 +218,20 @@ def seed(
                 "item_id": blind,
                 "source_kind": "public_rollout",
                 "source_id": blind,
-                "steps": document["steps"],
+                "source_path": str(path.resolve()),
+                "source_sha256": hashlib.sha256(raw).hexdigest(),
+                "steps_total": len(document["steps"]),
                 "license": license_text,
                 "provenance": {
                     "loader": "factory_seed",
                     "source_id": blind,
                     "license": license_text,
                     "declared_split": "dev",
-                    "source_path": str(path),
-                    "source_sha256": hashlib.sha256(raw).hexdigest(),
                 },
             }
             result = ingest_public_corpus(
                 queue,
-                [PublicCorpusJob(PREFIX_AUDIT_JOB, payload, blind)],
+                [PublicCorpusJob(REPLAY_JOB, payload, blind)],
                 run_id=f"factory-{blind}",
             )
             enqueued += len(result["enqueued"])
@@ -273,6 +281,89 @@ def _error_class(error: str) -> str:
     return error.partition(":")[0].strip() or "unknown"
 
 
+class _Replayer:
+    """Claims one replay job and appends its steps to the journal, one ``trace.step`` each.
+
+    The same event shape as ``ProductionRuntime._replay_once``, for runs that are not
+    registry-resolvable public trajectories: the pinned export file is re-hashed before
+    use, every event is idempotent on (job, step), a failed job is released (it goes to
+    the back of the claim order) and the exception propagates to the cycle log.
+    """
+
+    def __init__(self, queue: Any, registry: Any, worker_id: str) -> None:
+        self._queue = queue
+        self._registry = registry
+        self._worker_id = worker_id
+
+    def _append(
+        self,
+        job: dict[str, Any],
+        suffix: str,
+        kind: str,
+        payload: dict[str, Any],
+        prefix_step: int | None = None,
+    ) -> None:
+        key = f"factory-replay:{job['event_id']}:{suffix}"
+        self._queue.append_event(
+            {
+                "event_id": str(uuid5(NAMESPACE_URL, key)),
+                "run_id": job["run_id"],
+                "system": "misalignment",
+                "event_type": kind,
+                "ts": _now(),
+                "prefix_step": prefix_step,
+                "status": "applied",
+                "payload": payload,
+            },
+            idempotency_key=key,
+        )
+
+    def run_once(self) -> dict[str, Any] | None:
+        from evallab.production.corpus_queue import LeaseLostError
+
+        job = self._queue.claim(self._worker_id, job_types=(REPLAY_JOB,), lease_seconds=300)
+        if job is None:
+            return None
+        started = time.monotonic()
+        try:
+            payload = job["payload"]
+            item = self._registry.admit(payload["dataset_id"], payload["item_id"])
+            raw = Path(payload["source_path"]).read_bytes()
+            if hashlib.sha256(raw).hexdigest() != payload["source_sha256"]:
+                raise ValueError("replay source changed since it was seeded")
+            steps = json.loads(raw)["steps"]
+            if not steps:
+                raise ValueError("replay source has no steps")
+            context = {
+                "dataset_id": item.dataset_id,
+                "item_id": item.item_id,
+                "source_kind": "public_rollout",
+                "replay_job_id": job["event_id"],
+            }
+            for number, step in enumerate(steps):
+                if number % 100 == 0:
+                    self._queue.renew(
+                        job["event_id"], lease_token=job["lease_token"], lease_seconds=300
+                    )
+                self._append(job, f"step:{number}", "trace.step", {**context, "step": step}, number)
+            self._append(
+                job,
+                "completed",
+                "misalignment.replay_completed",
+                {**context, "step_count": len(steps)},
+            )
+            self._queue.ack(job["event_id"], lease_token=job["lease_token"])
+        except BaseException:
+            with suppress(LeaseLostError):
+                self._queue.release(job["event_id"], lease_token=job["lease_token"])
+            raise
+        return {
+            "run_id": job["run_id"],
+            "steps": len(steps),
+            "seconds": round(time.monotonic() - started, 3),
+        }
+
+
 class Factory:
     """The supervisor loop over a local journal; ``step()`` is one prioritized pass."""
 
@@ -320,6 +411,7 @@ class Factory:
         monitor = MisalignmentLiveWorker(emit=self.queue.append_event, registry=self.registry)
         self._stack.callback(monitor.close)
         self.monitor = monitor
+        self.replayer = _Replayer(self.queue, self.registry, f"{SUPERVISOR_ID}:replay")
         quality = TaskQualityLiveWorker(
             self.queue, repo_root=self.repo_root, execution_config=config
         )
@@ -382,9 +474,15 @@ class Factory:
         self._registered_seq = sync_external_items(
             self.journal, self.registry, self._registered_seq
         )
+        replay_errors: list[dict[str, str]] = []
+        replayed: dict[str, Any] | None = None
+        try:
+            replayed = self.replayer.run_once()
+        except Exception as exc:  # noqa: BLE001 - journaled in the cycle log; the job is released
+            replay_errors.append({"stage": "replay", "error": f"{type(exc).__name__}: {exc}"})
         report = self.supervisor.run_step()
         hooked, hook_errors = self.hooks.run()
-        errors = [*report["errors"], *hook_errors]
+        errors = [*replay_errors, *report["errors"], *hook_errors]
         snapshot = self.queue.queue_snapshot()
         misalignment = report.get("misalignment") or {}
         self._cycle += 1
@@ -396,7 +494,10 @@ class Factory:
             "emitted": misalignment.get("emitted", 0),
             "consumed": misalignment.get("consumed", 0),
             "consumed_meaningful": misalignment.get("consumed_meaningful", 0),
-            "idle": bool(report["idle"]),
+            "idle": bool(report["idle"]) and replayed is None and not replay_errors,
+            "replayed_run": None if replayed is None else replayed["run_id"],
+            "replayed_steps": 0 if replayed is None else replayed["steps"],
+            "replay_seconds": 0.0 if replayed is None else replayed["seconds"],
             "errors": [{**e, "class": _error_class(e["error"])} for e in errors],
             "queue_depth": snapshot["depth"],
             "last_seq": snapshot["last_seq"],
@@ -515,6 +616,7 @@ def measure(root: Path, *, first_runs: int | None = None) -> dict[str, Any]:
     """
     journal = root / JOURNAL
     admitted: dict[str, float] = {}
+    replayed: dict[str, float] = {}
     first_score: dict[str, float] = {}
     last_score: dict[str, tuple[int, float]] = {}
     first_card: dict[str, float] = {}
@@ -522,11 +624,14 @@ def measure(root: Path, *, first_runs: int | None = None) -> dict[str, Any]:
     steps: Counter[str] = Counter()
     cards: Counter[str] = Counter()
     for seq, run_id, kind, ts, latency in _events(
-        journal, (PREFIX_AUDIT_JOB, "monitor.prefix_scored", "monitor.suspicion")
+        journal,
+        (REPLAY_JOB, "misalignment.replay_completed", "monitor.prefix_scored", "monitor.suspicion"),
     ):
         moment = datetime.fromisoformat(ts).timestamp()
-        if kind == PREFIX_AUDIT_JOB:
+        if kind == REPLAY_JOB:
             admitted[run_id] = moment
+        elif kind == "misalignment.replay_completed":
+            replayed[run_id] = moment
         elif kind == "monitor.prefix_scored":
             first_score.setdefault(run_id, moment)
             last_score[run_id] = (seq, moment)
@@ -543,6 +648,7 @@ def measure(root: Path, *, first_runs: int | None = None) -> dict[str, Any]:
     wait = [first_score[r] - admitted[r] for r in runs]
     scoring = [last_score[r][1] - first_score[r] for r in runs]
     card_latency = [first_card[r] - admitted[r] for r in runs if r in first_card]
+    lag = [last_score[r][1] - replayed[r] for r in runs if r in replayed]
     total_steps = sum(steps[r] for r in runs)
     window = max(last_score[r][1] for r in runs) - min(admitted[r] for r in runs) if runs else 0.0
     scored_window = (
@@ -582,6 +688,7 @@ def measure(root: Path, *, first_runs: int | None = None) -> dict[str, Any]:
             "queue_wait_admitted_to_first_score": _summary(wait),
             "scoring_first_to_last_prefix": _summary(scoring),
             "admitted_to_first_card": _summary(card_latency),
+            "replay_complete_to_last_score": _summary(lag),
             "per_prefix_deterministic": _summary(prefix_latency),
         },
         "cycles": cycles,
@@ -600,9 +707,7 @@ def _parser() -> argparse.ArgumentParser:
         "--root", type=Path, default=DEFAULT_ROOT, help=f"state root (default {DEFAULT_ROOT})"
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    seed_cmd = commands.add_parser(
-        "seed", help="enqueue a blinded export as prefix-audit jobs, once"
-    )
+    seed_cmd = commands.add_parser("seed", help="queue a blinded export as replay jobs, once")
     seed_cmd.add_argument("--export-directory", type=Path, required=True)
     seed_cmd.add_argument(
         "--manifest", type=Path, required=True, help="private join manifest of the export"

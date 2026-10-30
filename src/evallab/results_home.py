@@ -10,18 +10,28 @@ Provenance is captured when the job runs, not when it is published: the
 runner writes ``repository`` and ``repository-provenance/`` into the job
 directory, and publish copies them. A backfilled job that predates that
 snapshot says so, with the reason, instead of guessing.
+
+``INDEX.md`` and ``INDEX-all.md`` are derived views of the home.
+``write_index`` renders both from every published job (the repair path);
+``update_index``, which publishing uses, splices one job's rows into the
+published files, so publish time does not grow with the number of published
+jobs (HAR-237).
 """
 
 from __future__ import annotations
 
 import datetime as _datetime
+import fcntl
 import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
-from collections.abc import Callable, Iterator
+import threading
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
+from dataclasses import dataclass
 from glob import escape as glob_escape
 from pathlib import Path
 from typing import Any
@@ -510,6 +520,10 @@ def publish_job(
     ``publication_card`` explicitly annotates an otherwise unattributed job;
     it never rewrites the frozen spec or overrides a recorded card. The
     source-bound annotation survives republication without the argument.
+
+    The published INDEX is updated in place for this one job (``update_index``):
+    a publish costs the same whether the home holds ten jobs or ten thousand,
+    and the files it writes are byte-identical to a full ``write_index``.
     """
     source = Path(job_dir).resolve()
     if not source.is_dir():
@@ -598,7 +612,15 @@ def publish_job(
         if previous_path != dest and previous_path.exists():
             shutil.rmtree(previous_path)
     index = (
-        write_index(home, primary_checkout=primary_checkout) if rewrite_index else home / "INDEX.md"
+        update_index(
+            home,
+            dest,
+            provenance=provenance,
+            previous=[path for path, _ in previous if path != dest],
+            primary_checkout=primary_checkout,
+        )
+        if rewrite_index
+        else home / "INDEX.md"
     )
     return {
         "published": str(dest),
@@ -755,6 +777,12 @@ def _research_docs(checkout: Path) -> dict[str, str]:
     return docs
 
 
+def _doc_cell(docs: dict[str, str], card: str) -> str:
+    """The INDEX Research cell for a card: one link, or ``no research doc``."""
+    doc = docs.get(card)
+    return f"[research]({doc})" if doc else "no research doc"
+
+
 def _command_agent(command: Any) -> str | None:
     """The ``--agent`` value of a recorded harbor command, else None."""
     if not isinstance(command, list):
@@ -846,7 +874,6 @@ def _entry(published: Path, provenance: dict[str, Any], docs: dict[str, str]) ->
         card = "unknown"
     commit = repository.get("commit") or "unknown"
     agent, model = _agent_model(published, provenance)
-    doc = docs.get(card)
     return {
         "sort": f"{day}-{published.name}",
         "day": day,
@@ -864,7 +891,7 @@ def _entry(published: Path, provenance: dict[str, Any], docs: dict[str, str]) ->
         "short_commit": commit[:12] if isinstance(commit, str) else "unknown",
         "run": str(published),
         "report": str(published / "processed" / "job.md"),
-        "doc": f"[research]({doc})" if doc else "no research doc",
+        "doc": _doc_cell(docs, card),
     }
 
 
@@ -885,6 +912,161 @@ def _routine_row(entry: dict[str, Any]) -> str:
     )
 
 
+# --- INDEX model -----------------------------------------------------------
+#
+# Both files are rendered from one model: a ``_Group`` per card holding
+# already-rendered row lines, newest row first. ``write_index`` builds that
+# model from every published job; ``update_index`` parses it back out of the
+# published files, splices one job's rows in, and re-renders. Publishing a job
+# therefore reads that job's records and writes two files, instead of
+# re-reading the provenance and report of every published job (HAR-237).
+#
+# The parser accepts only what these renderers emit and checks every count in
+# the files against the rows it counts. Anything else -- a hand-edited file, a
+# format change, a research doc that appeared since the last publish -- makes
+# ``update_index`` fall back to the full rebuild, so a splice never publishes a
+# file a rebuild would not have written.
+
+_AGENT_PREAMBLE = (
+    "# Eval Lab results",
+    "",
+    "Published by `evallab process-job`. Agent runs first, grouped by card,",
+    "newest first. Control jobs (`nop`/`oracle`/`probe` agents, or no",
+    "recorded agent) collapse to one line per card below; the full list is",
+    "[INDEX-all.md](INDEX-all.md). A job marked **uncommitted code** ran",
+    "from a dirty checkout; its `uncommitted.diff` is the change.",
+    "Reward (raw) is the verifier pass/fail; Counted is the `evallab.counts`",
+    "verdict (`counts unknown` when the report predates counts).",
+    "",
+)
+_AGENT_HEADER = (
+    "| Date | Job | Tasks | Agent | Model | Reward (raw) | Counted | Spend "
+    "| Run | Report | Research | Commit |"
+)
+_AGENT_SEPARATOR = "|---|---|---|---|---|---|---|---|---|---|---|---|"
+_ALL_TITLE = "# Eval Lab results: all jobs"
+_ALL_SUBTITLE = " jobs, newest first. Agent runs are listed up front in"
+_ALL_LINK = "[INDEX.md](INDEX.md); this file is the complete per-job list."
+_ALL_HEADER = (
+    "| Card | Date | Tasks | Reward (raw) | Counted | Spend | Run | Report "
+    "| Research | Commit |"
+)
+_ALL_SEPARATOR = "|---|---|---|---|---|---|---|---|---|---|"
+_ROUTINE_HEADER = ("| Card | Jobs | List |", "|---|---|---|")
+_ROUTINE_TITLE = re.compile(r"## Routine control jobs \((?P<rows>\d+) jobs, (?P<cards>\d+) cards\)")
+_ROUTINE_ROW = re.compile(
+    r"\| (?P<shown>[^|]+) \| (?P<count>\d+) \| \[all (?P<label>[^|]+) routine jobs\]"
+    r"\(INDEX-all\.md#(?P<anchor>[^)]*)\) \|"
+)
+_SECTION_HEADER = re.compile(r"(?P<card>.+) \((?P<count>\d+)\)")
+_RUN_LINK = "[run]("
+_INDEX_LOCK_NAME = ".index.lock"
+_INDEX_THREAD_LOCK = threading.Lock()
+
+
+@dataclass
+class _Group:
+    """One card's rows in one INDEX file, already rendered, newest first."""
+
+    card: str
+    rows: list[str]
+
+
+class _IndexFormatError(ValueError):
+    """A published INDEX file is not what ``write_index`` renders."""
+
+
+def _path_sort(path: Path | str) -> str:
+    """``<day>-<job>`` for a published directory: the row's ``sort`` key."""
+    parts = str(path).rsplit("/", 2)
+    if len(parts) < 3:
+        raise _IndexFormatError(f"INDEX run link is not a published job path: {path}")
+    return f"{parts[1]}-{parts[2]}"
+
+
+def _row_sort(row: str) -> str:
+    """``<day>-<job>`` from a rendered row's run link: its ``sort`` key.
+
+    String slicing, not a regex and not ``pathlib``: one publish keys every
+    published row, so this is the hot loop of the splice (HAR-237).
+    """
+    start = row.find(_RUN_LINK)
+    if start < 0:
+        raise _IndexFormatError(f"INDEX row without a run link: {row[:80]}")
+    start += len(_RUN_LINK)
+    end = row.find(")", start)
+    if end < 0:
+        raise _IndexFormatError(f"INDEX row with an unterminated run link: {row[:80]}")
+    return _path_sort(row[start:end])
+
+
+def _models_from_entries(
+    entries: list[dict[str, Any]],
+) -> tuple[list[_Group], list[_Group], dict[str, int]]:
+    """The INDEX model for every entry: agent groups, all groups, routine counts."""
+    agent_rows: dict[str, list[str]] = {}
+    every_rows: dict[str, list[str]] = {}
+    routine: dict[str, int] = {}
+    for entry in sorted(entries, key=lambda item: item["sort"], reverse=True):
+        every_rows.setdefault(entry["card"], []).append(_routine_row(entry))
+        if entry["is_agent_run"]:
+            agent_rows.setdefault(entry["card"], []).append(_agent_row(entry))
+        else:
+            routine[entry["card"]] = routine.get(entry["card"], 0) + 1
+    return (
+        [_Group(card, rows) for card, rows in agent_rows.items()],
+        [_Group(card, rows) for card, rows in every_rows.items()],
+        routine,
+    )
+
+
+def _agent_index(agent: list[_Group], every: list[_Group], routine: dict[str, int]) -> str:
+    """Render ``INDEX.md``: agent runs by card, then the routine control table.
+
+    The routine table lists cards in ``INDEX-all.md`` order (each card's newest
+    entry) rather than by its newest control job: that order is then readable
+    back out of the published files, which is what lets one publish update one
+    card without re-reading every published job (HAR-237).
+    """
+    lines = [
+        *_AGENT_PREAMBLE,
+        f"## Agent runs ({sum(len(group.rows) for group in agent)})",
+        "",
+    ]
+    if agent:
+        for group in agent:
+            lines.append(f"### {group.card} ({len(group.rows)})")
+            lines.extend(("", _AGENT_HEADER, _AGENT_SEPARATOR, *group.rows, ""))
+    else:
+        lines.extend(("No agent runs published yet.", ""))
+    table = [(group.card, routine[group.card]) for group in every if routine.get(group.card)]
+    lines.append(
+        f"## Routine control jobs ({sum(count for _, count in table)} jobs, {len(table)} cards)"
+    )
+    lines.append("")
+    lines.extend(_ROUTINE_HEADER)
+    for card, count in table:
+        anchor = card.lower().replace(" ", "-")
+        lines.append(f"| {card} | {count} | [all {card} routine jobs](INDEX-all.md#{anchor}) |")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _all_index(every: list[_Group]) -> str:
+    """Render ``INDEX-all.md``: every job, grouped by card, newest first."""
+    lines = [
+        _ALL_TITLE,
+        "",
+        f"{sum(len(group.rows) for group in every)}{_ALL_SUBTITLE}",
+        _ALL_LINK,
+        "",
+    ]
+    for group in every:
+        lines.append(f"## {group.card} ({len(group.rows)})")
+        lines.extend(("", _ALL_HEADER, _ALL_SEPARATOR, *group.rows, ""))
+    return "\n".join(lines)
+
+
 def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
     """Regenerate ``INDEX.md`` (agent runs first) and ``INDEX-all.md`` (every job).
 
@@ -894,98 +1076,328 @@ def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
     count and a link to the full per-card list. Provenance columns are
     unchanged. The research-doc lookup is built once per call and never
     descends outside ``research/experiments`` and ``research/explorations``.
+
+    This is the repair path: publishing one job goes through ``update_index``,
+    which splices the same model into the published files, and ``backfill``
+    rebuilds once after publishing many. A rebuild is the authority those two
+    are measured against, so its scan and its write run under the results-home
+    lock: a publish that lands between them would otherwise be erased.
     """
+    home = Path(home).resolve()
+    checkout = primary_checkout if primary_checkout is not None else PRIMARY_CHECKOUT
+    with _index_lock(home):
+        docs = _research_docs(checkout)
+        entries = [
+            _entry(published, provenance, docs) for published, provenance in _published_jobs(home)
+        ]
+        agent, every, routine = _models_from_entries(entries)
+        _write_index_files(home, _agent_index(agent, every, routine), _all_index(every))
+    return home / "INDEX.md"
+
+
+def _split_index(text: str) -> list[str]:
+    """Lines of an INDEX file, including the empty string after its final newline."""
+    lines = text.split("\n")
+    if lines[-1] != "":
+        raise _IndexFormatError("INDEX file does not end with a newline")
+    return lines
+
+
+def _counted(line: str, prefix: str, suffix: str) -> int:
+    """The decimal count between ``prefix`` and ``suffix``."""
+    if not line.startswith(prefix) or not line.endswith(suffix):
+        raise _IndexFormatError(f"unexpected INDEX line: {line[:80]}")
+    digits = line[len(prefix) : len(line) - len(suffix)]
+    if not digits.isdigit():
+        raise _IndexFormatError(f"unexpected INDEX count: {line[:80]}")
+    return int(digits)
+
+
+def _sections(
+    lines: list[str], start: int, *, level: int, header: str, separator: str
+) -> tuple[list[_Group], int]:
+    """Parse ``level``-headed card sections starting at ``lines[start]``."""
+    mark = "#" * level + " "
+    groups: list[_Group] = []
+    index = start
+    while index < len(lines) and lines[index].startswith(mark):
+        match = _SECTION_HEADER.fullmatch(lines[index][len(mark) :])
+        if match is None:
+            raise _IndexFormatError(f"unexpected INDEX section: {lines[index][:80]}")
+        card = match.group("card")
+        count = int(match.group("count"))
+        if lines[index + 1 : index + 4] != ["", header, separator]:
+            raise _IndexFormatError(f"unexpected INDEX section body for {card}")
+        index += 4
+        try:
+            end = lines.index("", index)
+        except ValueError:
+            end = len(lines)
+        rows = lines[index:end]
+        if len(rows) != count:
+            raise _IndexFormatError(f"INDEX {card} says {count} rows, holds {len(rows)}")
+        if not rows:
+            raise _IndexFormatError(f"INDEX {card} section is empty")
+        groups.append(_Group(card, rows))
+        index = end + 1 if end < len(lines) else end
+    _check_order(groups)
+    return groups, index
+
+
+def _trailing_ok(lines: list[str], index: int) -> bool:
+    """A document may end after its last section, with at most that blank line left."""
+    return lines[index:] in ([], [""])
+
+
+def _check_order(groups: list[_Group]) -> None:
+    """Cards are newest-first and never repeated, with at least one row each."""
+    if len({group.card for group in groups}) != len(groups):
+        raise _IndexFormatError("INDEX repeats a card")
+    keys = [_row_sort(group.rows[0]) for group in groups]
+    if any(earlier <= later for earlier, later in zip(keys, keys[1:], strict=False)):
+        raise _IndexFormatError("INDEX cards are not newest-first")
+
+
+def _parse_agent_index(text: str) -> tuple[list[_Group], list[tuple[str, int]]]:
+    """Parse ``INDEX.md`` into agent groups and its routine ``(card, count)`` table."""
+    lines = _split_index(text)
+    head = len(_AGENT_PREAMBLE)
+    if lines[:head] != list(_AGENT_PREAMBLE):
+        raise _IndexFormatError("unexpected INDEX.md preamble")
+    total = _counted(lines[head], "## Agent runs (", ")")
+    if lines[head + 1 : head + 2] != [""]:
+        raise _IndexFormatError("unexpected INDEX.md agent heading")
+    index = head + 2
+    agent: list[_Group] = []
+    if lines[index : index + 1] == ["No agent runs published yet."]:
+        index += 1
+        if lines[index : index + 1] != [""]:
+            raise _IndexFormatError("unexpected INDEX.md empty-agent line")
+        index += 1
+    else:
+        agent, index = _sections(
+            lines, index, level=3, header=_AGENT_HEADER, separator=_AGENT_SEPARATOR
+        )
+    if sum(len(group.rows) for group in agent) != total:
+        raise _IndexFormatError("INDEX.md agent count does not match its rows")
+    title = _ROUTINE_TITLE.fullmatch(lines[index]) if index < len(lines) else None
+    if title is None or lines[index + 1 : index + 2] != [""]:
+        raise _IndexFormatError("unexpected INDEX.md routine heading")
+    index += 2
+    if lines[index : index + 2] != list(_ROUTINE_HEADER):
+        raise _IndexFormatError("unexpected INDEX.md routine table head")
+    index += 2
+    table: list[tuple[str, int]] = []
+    while index < len(lines) and lines[index].startswith("| "):
+        row = _ROUTINE_ROW.fullmatch(lines[index])
+        if row is None:
+            raise _IndexFormatError(f"unexpected INDEX.md routine row: {lines[index][:80]}")
+        card = row.group("shown")
+        if row.group("label") != card or row.group("anchor") != card.lower().replace(" ", "-"):
+            raise _IndexFormatError(f"INDEX.md routine row for {card} does not link itself")
+        table.append((card, int(row.group("count"))))
+        index += 1
+    if not _trailing_ok(lines, index):
+        raise _IndexFormatError("unexpected trailing content in INDEX.md")
+    if sum(count for _, count in table) != int(title.group("rows")):
+        raise _IndexFormatError("INDEX.md routine count does not match its table")
+    if len(table) != int(title.group("cards")):
+        raise _IndexFormatError("INDEX.md routine card count does not match its table")
+    return agent, table
+
+
+def _parse_all_index(text: str) -> list[_Group]:
+    """Parse ``INDEX-all.md`` into card groups, newest card first."""
+    lines = _split_index(text)
+    if lines[:2] != [_ALL_TITLE, ""]:
+        raise _IndexFormatError("unexpected INDEX-all.md preamble")
+    total = _counted(lines[2], "", _ALL_SUBTITLE)
+    if lines[3:5] != [_ALL_LINK, ""]:
+        raise _IndexFormatError("unexpected INDEX-all.md preamble")
+    groups, index = _sections(lines, 5, level=2, header=_ALL_HEADER, separator=_ALL_SEPARATOR)
+    if not _trailing_ok(lines, index):
+        raise _IndexFormatError("unexpected trailing content in INDEX-all.md")
+    if sum(len(group.rows) for group in groups) != total:
+        raise _IndexFormatError("INDEX-all.md count does not match its rows")
+    return groups
+
+
+def _read_index_model(home: Path) -> tuple[list[_Group], list[_Group], dict[str, int]]:
+    """Parse the published pair back into the model ``write_index`` renders from."""
+    agent, table = _parse_agent_index((home / "INDEX.md").read_text(encoding="utf-8"))
+    every = _parse_all_index((home / "INDEX-all.md").read_text(encoding="utf-8"))
+    routine = dict(table)
+    if sum(len(group.rows) for group in agent) + sum(routine.values()) != sum(
+        len(group.rows) for group in every
+    ):
+        raise _IndexFormatError("INDEX.md and INDEX-all.md disagree about the job count")
+    if not set(routine) <= {group.card for group in every}:
+        raise _IndexFormatError("INDEX.md names a routine card INDEX-all.md does not have")
+    if [group.card for group in every if group.card in routine] != [card for card, _ in table]:
+        raise _IndexFormatError("INDEX.md routine table is not in INDEX-all.md card order")
+    return agent, every, routine
+
+
+def _doc_cells_current(groups: list[_Group], docs: dict[str, str]) -> bool:
+    """Every existing row still shows the research doc its card resolves to today.
+
+    Counted, not inspected row by row: the cell is the column before the commit
+    cell, so it has to appear exactly once per row in the card's joined text.
+    """
+    for group in groups:
+        cell = f"{_doc_cell(docs, group.card)} | `"
+        if "\n".join(group.rows).count(cell) != len(group.rows):
+            return False
+    return True
+
+
+def _locate(rows: list[str], key: str) -> int:
+    """Index of the first row whose key is ``key`` or older: rows are newest-first."""
+    low, high = 0, len(rows)
+    while low < high:
+        middle = (low + high) // 2
+        if _row_sort(rows[middle]) > key:
+            low = middle + 1
+        else:
+            high = middle
+    return low
+
+
+def _insert_row(groups: list[_Group], card: str, row: str) -> None:
+    """Insert one rendered row, keeping cards and rows newest-first."""
+    key = _row_sort(row)
+    group = next((existing for existing in groups if existing.card == card), None)
+    if group is None:
+        group = _Group(card, [])
+        groups.append(group)
+    position = _locate(group.rows, key)
+    if position < len(group.rows) and _row_sort(group.rows[position]) == key:
+        del group.rows[position]  # this job's previous row, replaced in place
+    group.rows.insert(position, row)
+    groups.remove(group)
+    newest = _row_sort(group.rows[0])
+    groups.insert(_locate([other.rows[0] for other in groups], newest), group)
+
+
+def _remove_row(groups: list[_Group], key: str) -> tuple[bool, str | None]:
+    """Drop the row with ``key``: ``(removed, the card it was filed under)``.
+
+    Rows are matched by sort key, not by the run link's absolute path, so a
+    home reached through a symlink (``/tmp`` and ``/private/tmp``) is the same
+    home on both sides of a splice.
+    """
+    for group in list(groups):
+        if _row_sort(group.rows[0]) < key or _row_sort(group.rows[-1]) > key:
+            continue
+        position = _locate(group.rows, key)
+        if position == len(group.rows) or _row_sort(group.rows[position]) != key:
+            continue
+        del group.rows[position]
+        if not group.rows:
+            groups.remove(group)
+        return True, group.card
+    return False, None
+
+
+def _update_models(
+    agent: list[_Group],
+    every: list[_Group],
+    routine: dict[str, int],
+    entry: dict[str, Any],
+    previous: Sequence[Path] = (),
+) -> None:
+    """Splice one entry into the model, replacing its previous rows in place.
+
+    ``previous`` names the directories a rehome moved the job out of: their
+    rows still link the old path and must be dropped, not left beside the new
+    one.
+    """
+    for key in (entry["sort"], *(_path_sort(path) for path in previous)):
+        was_agent, _ = _remove_row(agent, key)
+        was_routine, routine_card = _remove_row(every, key)
+        if was_routine and not was_agent and routine_card is not None:
+            remaining = routine.get(routine_card, 0) - 1
+            if remaining > 0:
+                routine[routine_card] = remaining
+            else:
+                routine.pop(routine_card, None)
+    _insert_row(every, entry["card"], _routine_row(entry))
+    if entry["is_agent_run"]:
+        _insert_row(agent, entry["card"], _agent_row(entry))
+    else:
+        routine[entry["card"]] = routine.get(entry["card"], 0) + 1
+
+
+@contextmanager
+def _index_lock(home: Path) -> Iterator[None]:
+    """Serialize the INDEX read-modify-write across threads and processes."""
+    home.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(home / _INDEX_LOCK_NAME, os.O_RDWR | os.O_CREAT, 0o600)
+    with _INDEX_THREAD_LOCK, os.fdopen(descriptor, "a+b") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _write_index_files(home: Path, agent: str, every: str) -> None:
+    """Replace both files; a reader never sees a half-written INDEX."""
+    home.mkdir(parents=True, exist_ok=True)
+    for name, text in (("INDEX.md", agent), ("INDEX-all.md", every)):
+        staging = home / f".{name}.tmp"
+        staging.write_text(text, encoding="utf-8")
+        os.replace(staging, home / name)
+
+
+def update_index(
+    home: Path,
+    published: Path,
+    *,
+    provenance: dict[str, Any] | None = None,
+    previous: Sequence[Path] = (),
+    primary_checkout: Path | None = None,
+) -> Path:
+    """Splice one published job's rows into ``INDEX.md`` and ``INDEX-all.md``.
+
+    Publish time stops growing with the number of published jobs (HAR-237): the
+    files already hold every rendered row, so one publish reads that job's
+    records and writes the two files it must write anyway. The result is
+    byte-identical to ``write_index`` on the same home. Anything the splice
+    cannot prove equivalent -- a missing or foreign INDEX file, a count that
+    disagrees with its rows, a research doc that appeared since the last
+    publish -- falls back to a full rebuild, which is also how a hand-edited
+    INDEX is repaired.
+
+    ``previous`` names publications of the same job that this publish replaced
+    or moved (a card rehome); their rows are retired with it.
+    """
+    home = Path(home).resolve()
+    published = Path(published).resolve()
     checkout = primary_checkout if primary_checkout is not None else PRIMARY_CHECKOUT
     docs = _research_docs(checkout)
-    entries = [
-        _entry(published, provenance, docs) for published, provenance in _published_jobs(home)
-    ]
-    agent_runs = sorted(
-        (entry for entry in entries if entry["is_agent_run"]),
-        key=lambda entry: entry["sort"],
-        reverse=True,
-    )
-    routine = sorted(
-        (entry for entry in entries if not entry["is_agent_run"]),
-        key=lambda entry: entry["sort"],
-        reverse=True,
-    )
-    by_card: dict[str, list[dict[str, Any]]] = {}
-    for entry in agent_runs:
-        by_card.setdefault(entry["card"], []).append(entry)
-    cards = sorted(by_card, key=lambda card: by_card[card][0]["sort"], reverse=True)
-    routine_by_card: dict[str, list[dict[str, Any]]] = {}
-    for entry in routine:
-        routine_by_card.setdefault(entry["card"], []).append(entry)
-    routine_cards = sorted(
-        routine_by_card, key=lambda card: routine_by_card[card][0]["sort"], reverse=True
-    )
-    lines = [
-        "# Eval Lab results",
-        "",
-        "Published by `evallab process-job`. Agent runs first, grouped by card,",
-        "newest first. Control jobs (`nop`/`oracle`/`probe` agents, or no",
-        "recorded agent) collapse to one line per card below; the full list is",
-        "[INDEX-all.md](INDEX-all.md). A job marked **uncommitted code** ran",
-        "from a dirty checkout; its `uncommitted.diff` is the change.",
-        "Reward (raw) is the verifier pass/fail; Counted is the `evallab.counts`",
-        "verdict (`counts unknown` when the report predates counts).",
-        "",
-        f"## Agent runs ({len(agent_runs)})",
-        "",
-    ]
-    if agent_runs:
-        for card in cards:
-            group = by_card[card]
-            lines.append(f"### {card} ({len(group)})")
-            lines.append("")
-            lines.append(
-                "| Date | Job | Tasks | Agent | Model | Reward (raw) | Counted | Spend | Run | Report | Research | Commit |"
-            )
-            lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|")
-            lines.extend(_agent_row(entry) for entry in group)
-            lines.append("")
-    else:
-        lines.append("No agent runs published yet.")
-        lines.append("")
-    lines.append(f"## Routine control jobs ({len(routine)} jobs, {len(routine_cards)} cards)")
-    lines.append("")
-    lines.append("| Card | Jobs | List |")
-    lines.append("|---|---|---|")
-    for card in routine_cards:
-        group = routine_by_card[card]
-        anchor = card.lower().replace(" ", "-")
-        lines.append(
-            f"| {card} | {len(group)} | [all {card} routine jobs](INDEX-all.md#{anchor}) |"
-        )
-    lines.append("")
-    target = home / "INDEX.md"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("\n".join(lines), encoding="utf-8")
-    all_by_card: dict[str, list[dict[str, Any]]] = {}
-    for entry in entries:
-        all_by_card.setdefault(entry["card"], []).append(entry)
-    for group in all_by_card.values():
-        group.sort(key=lambda entry: entry["sort"], reverse=True)
-    all_lines = [
-        "# Eval Lab results: all jobs",
-        "",
-        f"{len(entries)} jobs, newest first. Agent runs are listed up front in",
-        "[INDEX.md](INDEX.md); this file is the complete per-job list.",
-        "",
-    ]
-    for card in sorted(all_by_card, key=lambda card: all_by_card[card][0]["sort"], reverse=True):
-        group = all_by_card[card]
-        all_lines.append(f"## {card} ({len(group)})")
-        all_lines.append("")
-        all_lines.append(
-            "| Card | Date | Tasks | Reward (raw) | Counted | Spend | Run | Report | Research | Commit |"
-        )
-        all_lines.append("|---|---|---|---|---|---|---|---|---|---|")
-        all_lines.extend(_routine_row(entry) for entry in group)
-        all_lines.append("")
-    (home / "INDEX-all.md").write_text("\n".join(all_lines), encoding="utf-8")
-    return target
+    spliced = False
+    with _index_lock(home):
+        model: tuple[list[_Group], list[_Group], dict[str, int]] | None
+        try:
+            model = _read_index_model(home)
+        except (OSError, _IndexFormatError):
+            model = None
+        if model is not None:
+            agent, every, routine = model
+            if _doc_cells_current(agent, docs) and _doc_cells_current(every, docs):
+                record = (
+                    provenance
+                    if provenance is not None
+                    else _read_json(published / "provenance.json") or {}
+                )
+                entry = _entry(published, record, docs)
+                _update_models(agent, every, routine, entry, previous)
+                _write_index_files(home, _agent_index(agent, every, routine), _all_index(every))
+                spliced = True
+    if not spliced:
+        return write_index(home, primary_checkout=checkout)
+    return home / "INDEX.md"
 
 
 def _is_job_dir(path: Path) -> bool:

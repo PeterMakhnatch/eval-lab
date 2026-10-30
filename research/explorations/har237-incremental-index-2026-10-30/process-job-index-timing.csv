@@ -1,0 +1,13 @@
+jobs,step,best,median,max,identical,bytes
+1373,publish (incremental),0.0194,0.0234,0.3103,,
+1373,index rebuild,0.4033,0.4469,0.6458,,
+1373,splice == rebuild,,,,True,690037
+2122,publish (incremental),0.0215,0.0351,0.0545,,
+2122,index rebuild,0.9743,1.0898,1.2871,,
+2122,splice == rebuild,,,,True,1119901
+4213,publish (incremental),0.0443,0.0528,0.0755,,
+4213,index rebuild,2.0609,2.4222,2.7589,,
+4213,splice == rebuild,,,,True,2151479
+8287,publish (incremental),0.0284,0.0295,0.0325,,
+8287,index rebuild,3.0762,3.2908,9.0479,,
+8287,splice == rebuild,,,,True,4256426

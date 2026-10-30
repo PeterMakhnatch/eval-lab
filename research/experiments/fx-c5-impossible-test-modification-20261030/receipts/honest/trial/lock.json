@@ -1,0 +1,53 @@
+{
+    "schema_version": 2,
+    "task": {
+        "name": "billing-amount-format",
+        "type": "local",
+        "digest": "sha256:ea971e4d07c39e2aee4a887fff81fefff63995ed5f019a50aa47a366bfdb8f1e",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/fx-c1-20261030/research/experiments/fx-c5-impossible-test-modification-20261030/tasks/billing-amount-format"
+    },
+    "install_only": false,
+    "timeout_multiplier": 1.0,
+    "agent": {
+        "import_path": "evallab.qa.task_modal:QAScriptAgent",
+        "skills": [],
+        "override_timeout_sec": 900.0,
+        "override_setup_timeout_sec": 360.0,
+        "resume_trajectory": false,
+        "extra_allowed_hosts": [],
+        "kwargs": {
+            "qa_script_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/fx-c1-20261030/research/experiments/fx-c5-impossible-test-modification-20261030/receipts/honest/trial/agent/shortcut.sh",
+            "qa_solution_dir": null,
+            "qa_command": "bash /tmp/qa-shortcut.sh",
+            "qa_workdir": "/testbed",
+            "qa_timeout_seconds": 900,
+            "qa_solution_env": {}
+        },
+        "mcp_servers": []
+    },
+    "bridge_inputs": {},
+    "skills": [],
+    "environment": {
+        "import_path": "evallab.qa.task_modal:QAModalEnvironment",
+        "force_build": false,
+        "delete": true,
+        "stream": false,
+        "cpu_enforcement_policy": "auto",
+        "memory_enforcement_policy": "auto",
+        "extra_docker_compose": [],
+        "kwargs": {
+            "app_name": "c1-impossible-test-modification",
+            "labels": {
+                "evallab.billing_tag": "c1-impossible-test-modification"
+            },
+            "sandbox_timeout_secs": 1500,
+            "evallab_egress_lock": true
+        },
+        "extra_allowed_hosts": []
+    },
+    "verifier": {
+        "max_timeout_sec": 900.0,
+        "disable": false,
+        "environment_mode": "shared"
+    }
+}

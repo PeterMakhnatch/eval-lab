@@ -69,7 +69,7 @@ inputs:
   - path: src/evallab/cheat_ladder.py
     digest: sha256:c357400e78279e8eaabab88968ad19aeceddf398b0a16a39fa8a01acc1634722
   - path: src/evallab/cheatbench.py
-    digest: sha256:50f8fa9dc910d675bd09a4e5526c08c0bfb35ad24575612f0cb92cbd430f25ab
+    digest: sha256:eda5b6a66536fd2cb84c834520c01e18555de94eadf80fe5bff912604e459af5
   - path: src/evallab/cheatbench_fidelity.py
     digest: sha256:bdcd29dbaa70698b0bca0e3b2239788ac72f5f93b8b59dc9bfbb0d1639422c4e
   - path: src/evallab/cli.py
@@ -803,7 +803,7 @@ inputs:
   - path: src/evallab/production/retrieval_leak_check.py
     digest: sha256:0dfad45a182b74c67f4f29fa6af5bab00d0e5116299d3abdf16a9d11b6dba46b
   - path: src/evallab/production/run_atlas.py
-    digest: sha256:5678c6175df80991441c823144f17ca134ff00d3e94f741449b61c25ccbae1ce
+    digest: sha256:f6d82a863ffc34f7a10a1a66bc3487bca112763eb3e6aba49fe6d89bf09da1cf
   - path: src/evallab/production/run_atlas_clusters.py
     digest: sha256:db02384a6fe8f53d264fecd692ff5fe07c86e541905d27fc4ad455a57581bafc
   - path: src/evallab/production/run_atlas_score.py

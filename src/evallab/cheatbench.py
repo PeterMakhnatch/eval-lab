@@ -1694,7 +1694,11 @@ def convert_row(row: Mapping[str, Any]) -> tuple[dict, dict, list[str]]:
         if start:
             steps[0].setdefault(
                 "extra",
-                {"cheatbench": {"source_ref": {"field": None, "line_start": None, "line_end": None}}},
+                {
+                    "cheatbench": {
+                        "source_ref": {"field": None, "line_start": None, "line_end": None}
+                    }
+                },
             )
         _decorate(steps[start:], regions)
     for position, step in enumerate(steps, start=1):

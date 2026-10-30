@@ -74,14 +74,14 @@ def _seed(root: Path, export: tuple[Path, Path], **overrides) -> dict:
 
 def test_seed_is_idempotent_and_gives_every_run_its_own_run_id(tmp_path: Path, export) -> None:
     first = _seed(tmp_path, export)
-    assert (first["selected"], first["new_events"], first["already_queued"], first["excluded"]) == (
+    assert (first["selected"], first["new_jobs"], first["already_queued"], first["excluded"]) == (
         3,
         3,
         0,
         0,
     )
     second = _seed(tmp_path, export)
-    assert (second["new_events"], second["already_queued"]) == (0, 3)
+    assert (second["new_jobs"], second["already_queued"]) == (0, 3)
     with sqlite3.connect(tmp_path / factory.JOURNAL) as connection:
         run_ids = [
             row[0]

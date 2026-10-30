@@ -153,6 +153,15 @@ def _admitted_trace_ids(snapshot: Path, repo_root: Path, store_dataset: str) -> 
         )
 
 
+def _replay_job_count(database: Path) -> int:
+    with closing(sqlite3.connect(f"file:{database}?mode=ro", uri=True, timeout=30)) as connection:
+        return int(
+            connection.execute(
+                "SELECT COUNT(*) FROM events WHERE event_type = ?", (REPLAY_JOB,)
+            ).fetchone()[0]
+        )
+
+
 def seed(
     *,
     database: Path,
@@ -208,7 +217,7 @@ def seed(
     steps = payload_bytes = 0
     started = time.monotonic()
     with ContinuousWorkQueue(database, registry=registry) as queue:
-        seq_before = queue.queue_snapshot()["last_seq"]
+        jobs_before = _replay_job_count(database)
         for path in selected:
             blind = path.stem
             raw = path.read_bytes()
@@ -240,10 +249,10 @@ def seed(
                 reasons[item["reason"]] += 1
             steps += len(document["steps"])
             payload_bytes += len(raw)
-        appended = queue.queue_snapshot()["last_seq"] - seq_before
+        appended = _replay_job_count(database) - jobs_before
     receipt.update(
         resolved=enqueued,
-        new_events=appended,
+        new_jobs=appended,
         already_queued=enqueued - appended,
         excluded=excluded,
         excluded_reasons=dict(reasons),

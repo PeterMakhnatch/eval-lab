@@ -168,7 +168,7 @@ out = {
     'scope': 'Published results dated through 2026-10-09 with exception and finite numeric primary reward; not the original 3,879-record cohort.',
     'baseline_revision': BASELINE,
     'baseline': 'Stored processed records for counts/copy; baseline source modules at baseline_revision for features and viewer (with baseline copy detector); pre-change explorer and worker branches for numeric scored exceptions; mimo_exploit baseline already retained numeric exception scores.',
-    'limitations': ['The cited GEPA 000226 source trial is not present in the published results; the retained historical record names a different worktree, which this replay does not access.', 'Counts after use current committed usability and audit labels, so changes in those labels are distinct from detector changes.', 'Features copy_verdict does not include fetch taint or usability.'],
+    'limitations': ['The cited GEPA trial gepa-terminus-2-format-code-task__cNYdqfo is not present in the published results; the retained historical record names a different worktree, which this replay does not access. The HAR104 000226 trial is a separate unprocessed control.', 'Counts after use current committed usability and audit labels, so changes in those labels are distinct from detector changes.', 'Features copy_verdict does not include fetch taint or usability.'],
     'examples': rows,
     'cohort_counts': cohort_counts,
     'scored_exception_trials': masked_rows,

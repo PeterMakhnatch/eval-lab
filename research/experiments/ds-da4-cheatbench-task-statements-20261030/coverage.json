@@ -1,0 +1,121 @@
+{
+ "alerts_dt9": {
+  "by_benchmark": {
+   "bountybench": {
+    "identifier": 8,
+    "n": 8,
+    "recovered": 0
+   },
+   "mle-bench": {
+    "identifier": 3,
+    "n": 3,
+    "recovered": 0
+   },
+   "swe-smith": {
+    "identifier": 5,
+    "n": 5,
+    "recovered": 5
+   },
+   "terminal-bench-2": {
+    "identifier": 38,
+    "n": 38,
+    "recovered": 15
+   }
+  },
+  "by_source": {
+   "command_txt": 10,
+   "episode_prompt": 1,
+   "user_event": 9
+  },
+  "label_wording_by_label": {
+   "negative": 0,
+   "positive": 0
+  },
+  "n": 54,
+  "negative": {
+   "n": 12,
+   "recovered": 3
+  },
+  "positive": {
+   "n": 42,
+   "recovered": 17
+  },
+  "recovered": 20,
+  "with_label_wording": 0
+ },
+ "dev": {
+  "by_benchmark": {
+   "bountybench": {
+    "identifier": 21,
+    "n": 21,
+    "recovered": 0
+   },
+   "mle-bench": {
+    "identifier": 22,
+    "n": 22,
+    "recovered": 0
+   },
+   "swe-smith": {
+    "identifier": 23,
+    "n": 23,
+    "recovered": 23
+   },
+   "terminal-bench-2": {
+    "identifier": 84,
+    "n": 84,
+    "recovered": 55
+   }
+  },
+  "by_source": {
+   "command_txt": 44,
+   "episode_prompt": 7,
+   "user_event": 27
+  },
+  "label_wording_by_label": {
+   "negative": 0,
+   "positive": 0
+  },
+  "n": 150,
+  "negative": {
+   "n": 75,
+   "recovered": 34
+  },
+  "positive": {
+   "n": 75,
+   "recovered": 44
+  },
+  "recovered": 78,
+  "rows_missing_from_parquet": [],
+  "with_label_wording": 0
+ },
+ "flagged_negatives": {
+  "by_source": {
+   "command_txt": 1,
+   "user_event": 2
+  },
+  "n": 12,
+  "with_statement": [
+   "run-660f7f5c8b96c2a7",
+   "run-74c5a3ed02705d0a",
+   "run-f25d9c59a8d332a8"
+  ]
+ },
+ "placeholder_census": {
+  "rows_identifier_only": 150,
+  "rows_with_refs": 14,
+  "rows_with_resolvable_refs": 0
+ },
+ "spec": {
+  "dataset": "steinad/CheatBench",
+  "file": "data/processed/parquet/full.parquet",
+  "min_statement_chars": 40,
+  "parquet_sha256": "b4d2a1496e5f8de7b4c0e4791bd9f8fcbd0a3567f95d2e759b5da20ebb160e63",
+  "redaction": "benchmark/vendor pattern (run_atlas.source_pattern + vendor terms)",
+  "revision": "461360b34e93644955563dcc9243c6cc1a53bd0f",
+  "sources": [
+   "files:agent/command-0/command.txt -p payload",
+   "files:agent/episode-N/prompt.txt",
+   "events: user message >= 40 chars, not a bare $NN ref"
+  ]
+ }
+}

@@ -31,7 +31,7 @@ import dt17_investigator as d17  # noqa: E402
 SQUAD = d17.SQUAD
 RAW = SQUAD / "raw/DQ-3"
 RECEIPTS = RAW / "receipts"
-OVERNIGHT = SQUAD / "2026-10-30-overnight/adjudication.md"
+OVERNIGHT = SQUAD.parent / "2026-10-30-overnight/adjudication.md"
 ALERTS = Path("/tmp/dt9/alerts.json")
 CASES = Path("/tmp/dt17/cases")
 VERDICTS = SQUAD / "raw/DT-17/receipts/verdicts.jsonl"

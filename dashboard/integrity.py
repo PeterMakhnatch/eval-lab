@@ -649,7 +649,7 @@ def is_cheat_pass(row: Row) -> bool:
 
 
 #: Agents that run controls, not model capability.
-CONTROL_AGENTS = frozenset({"nop", "oracle", "probe"})
+CONTROL_AGENTS = frozenset({"nop", "oracle", "probe", "cheat"})
 
 
 def reason_histogram(processed: list[Row], *, only_passed: bool) -> list[Row]:
@@ -673,7 +673,7 @@ def task_key(name: Any) -> str:
 
 
 def control_rows(trials: list[Row]) -> list[Row]:
-    """Nop/oracle/probe control runs from census-style trial rows."""
+    """Nop/oracle/probe/cheat control runs from census-style trial rows."""
     return [
         row
         for row in trials
@@ -698,7 +698,7 @@ CONTROL_MARKERS: tuple[tuple[str, str], ...] = (
 
 
 def is_control_agent(name: Any) -> bool:
-    """Whether an agent name is a control (nop/oracle/probe), short or pathed."""
+    """Whether an agent name is a control, short or pathed."""
     return str(name or "").split(":")[-1] in CONTROL_AGENTS
 
 

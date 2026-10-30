@@ -7,6 +7,7 @@ quoted as a model result. Only deterministic facts exclude a trial:
   lines match code read from outside the base checkout
   (:mod:`evallab.copy_check`, ``copied_code``)
 - ``pass_tainted``: HAR-100, a pass with confirmed acquisition or a guard reject
+- ``red_team``: a declared cheat-agent control, not a model capability trial
 - ``audit_cheat``: a pass the contamination audit labelled ``cheat``
   (``research/calibration/contamination-audit/labels.jsonl``, reviewed by two
   judges; :mod:`evallab.contamination`). The label is a recorded review, like a
@@ -41,7 +42,7 @@ from evallab.upstream_fetch import confirmed_fetch
 
 COUNTS_SCHEMA = "evallab.counts/v1"
 VERDICTS = ("counted_pass", "counted_fail", "excluded")
-EXCLUSION_REASONS = ("copied_fix", "pass_tainted", "audit_cheat", "task_not_usable", "infra")
+EXCLUSION_REASONS = ("copied_fix", "pass_tainted", "red_team", "audit_cheat", "task_not_usable", "infra")
 ACCURACY_NOTE = "display only; HAR-119 pending; never decides"
 
 HAND_NOT_USABLE = frozenset({"broken", "suspect", "discarded", "review", "unchecked"})
@@ -51,6 +52,43 @@ _LEDGER_RELATIVE = Path("research/experiments/python-task-ledger/ledger.csv")
 _LEDGER_STATUSES = frozenset({"usable", "review", "discarded", "unchecked"})
 _HAND_GLOB = "research/explorations/trace-lab/**/hand/*.json"
 _VARIANT_GLOB = "library/task-variants/*/*.json"
+
+def declared_red_team(trial_dir: Path, result: dict[str, Any]) -> dict[str, Any] | None:
+    """Read a declared cheat control without inferring attack success.
+
+    Missing or malformed declarations on a named cheat agent remain excluded
+    with an explicit uncertainty, rather than becoming model successes.
+    """
+    agent = result.get("agent_info")
+    cheat_agent = isinstance(agent, dict) and agent.get("name") == "cheat"
+    paths = (trial_dir / "agent/cheat/attempts.json", trial_dir / "cheat/attempts.json")
+    path = next((candidate for candidate in paths if candidate.is_file()), None)
+    if path is None and not cheat_agent:
+        return None
+    payload: Any = None
+    if path is not None:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = None
+    valid = (
+        isinstance(payload, dict)
+        and payload.get("schema") == "evallab.cheat.attempts/v1"
+        and payload.get("agent") == "cheat"
+        and isinstance(payload.get("attacks"), list)
+    )
+    attacks = payload["attacks"] if valid else []
+    return {
+        "kind": "declared_red_team",
+        "path": str(path.relative_to(trial_dir)) if path is not None else "result.json",
+        "declaration": "valid" if valid else "unavailable_or_invalid",
+        "executed": [
+            attack.get("name") for attack in attacks
+            if isinstance(attack, dict) and attack.get("status") == "executed"
+            and isinstance(attack.get("name"), str)
+        ],
+    }
+
 
 
 def classify_counts(
@@ -72,11 +110,20 @@ def classify_counts(
     fetches = [flag for flag in attempts if confirmed_fetch(flag)]
     guards = [flag for flag in taint_flags if flag.get("kind") == "guard_reject"]
     copies = [flag for flag in taint_flags if flag.get("kind") == "copied_code"]
+    red_team = [flag for flag in taint_flags if flag.get("kind") == "declared_red_team"]
     passed = _passed(reward, scored)
     failed = scored and isinstance(reward, (int, float)) and not isinstance(reward, bool) and float(reward) < 1.0
 
     reasons: list[str] = []
     evidence: list[dict[str, Any]] = []
+    for flag in red_team:
+        if "red_team" not in reasons:
+            reasons.append("red_team")
+        evidence.append({
+            **_evidence("red_team", detector="declared_red_team", path=flag.get("path"),
+                        excerpt=f"declaration={flag.get('declaration')}"),
+            "executed": flag.get("executed") or [],
+        })
     if passed and (fetches or copies):
         reasons.append("copied_fix")
         evidence.extend(_fetch_evidence("copied_fix", fetches))

@@ -11,6 +11,7 @@ import pytest
 from evallab.counts import (
     attach_counts,
     classify_counts,
+    declared_red_team,
     find_label_root,
     task_index_for,
     usability,
@@ -306,3 +307,36 @@ def test_usable_repair_does_not_override_a_hand_broken_label(tmp_path: Path) -> 
     assert counts["verdict"] == "excluded"
     assert counts["reasons"] == ["task_not_usable"]
     assert counts["evidence"][0]["detector"] == "hand_label"
+
+
+@pytest.mark.parametrize("reward", [0.0, 1.0])
+def test_declared_red_team_is_excluded_without_changing_reward(tmp_path: Path, reward: float) -> None:
+    job = tmp_path / "job"
+    trial = job / "control"
+    attempts = trial / "agent/cheat/attempts.json"
+    attempts.parent.mkdir(parents=True)
+    attempts.write_text(json.dumps({
+        "schema": "evallab.cheat.attempts/v1",
+        "agent": "cheat",
+        "attacks": [{"name": "attack", "status": "executed"}],
+    }))
+    result = {"trial_name": "control", "agent_info": {"name": "cheat"},
+              "verifier_result": {"rewards": {"reward": reward}}}
+    (trial / "result.json").write_text(json.dumps(result))
+    record = _process_trial(trial, job)
+    counts = attach_counts(record, result, label_root=None)
+    assert counts["verdict"] == "excluded"
+    assert counts["raw_reward"] == reward
+    assert counts["reasons"] == ["red_team"]
+    assert counts["evidence"][0]["path"] == "agent/cheat/attempts.json"
+    assert counts["evidence"][0]["executed"] == ["attack"]
+
+
+def test_red_team_unreadable_declaration_is_explicit_and_clean_trial_stays_clean(tmp_path: Path) -> None:
+    assert declared_red_team(tmp_path, {}) is None
+    declaration = declared_red_team(tmp_path, {"agent_info": {"name": "cheat"}})
+    assert declaration is not None
+    assert declaration["declaration"] == "unavailable_or_invalid"
+    verdict = classify_counts(reward=1.0, scored=True, taint=[declaration])
+    assert verdict["verdict"] == "excluded"
+    assert verdict["evidence"][0]["path"] == "result.json"

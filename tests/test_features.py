@@ -115,3 +115,11 @@ def test_reward_file_is_shared_with_counts(tmp_path: Path) -> None:
     row = trial_features(job, trial)
     assert row["reward"] == 1.0
     assert row["copy_verdict"] == "counted_pass"
+
+
+def test_declared_red_team_does_not_become_a_counted_pass(tmp_path: Path) -> None:
+    result = {"agent_info": {"name": "cheat"}, "verifier_result": {"rewards": {"reward": 1.0}}}
+    job, trial = _write_trial(tmp_path, "job", "trial", [], result=result)
+    row = trial_features(job, trial)
+    assert row["copy_verdict"] == "excluded"
+    assert row["reward"] == 1.0

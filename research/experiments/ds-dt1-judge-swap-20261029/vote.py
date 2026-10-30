@@ -28,6 +28,7 @@ spec.loader.exec_module(mod)
 fw = mod.fw
 wc = fw.wc
 
+
 def thresholds_for(passes: int) -> list[int]:
     """Reachable vote thresholds: the preregistered 5/3/2 where k=5 passes exist, else what is reachable."""
     return [t for t in (5, 4, 3, 2) if t <= passes]
@@ -38,7 +39,11 @@ def suffix(replicate: int) -> str:
 
 
 def vote_window(
-    window: dict[str, Any], prompts: dict[str, Any], cache: dict[str, Any], passes: int, threshold: int
+    window: dict[str, Any],
+    prompts: dict[str, Any],
+    cache: dict[str, Any],
+    passes: int,
+    threshold: int,
 ) -> dict[str, Any]:
     rows = [cache.get(window["key"] + suffix(r)) for r in range(1, passes + 1)]
     rows = [r for r in rows if r and r.get("ok")]

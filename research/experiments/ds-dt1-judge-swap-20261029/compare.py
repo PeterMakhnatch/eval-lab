@@ -67,7 +67,7 @@ def vote(caches: list[dict], prompts: dict, key: str, threshold: int) -> bool | 
 
 def main() -> int:
     prompts = json.loads((mod.STATE / "prompts.json").read_text())
-    mine = cache(mod.STATE / "judge-cache.jsonl")
+    cache(mod.STATE / "judge-cache.jsonl")
     mine_passes = []
     for r in range(1, 6):
         path = mod.STATE / "judge-cache.jsonl"
@@ -76,11 +76,12 @@ def main() -> int:
             if not line.strip():
                 continue
             row = json.loads(line)
-            if row["key"].endswith(f"#r{r}" if r > 1 else "") and (
-                "#" not in row["key"] if r == 1 else True
+            if (
+                row["key"].endswith(f"#r{r}" if r > 1 else "")
+                and ("#" not in row["key"] if r == 1 else True)
+                and (row["ok"] or row["key"] not in rows)
             ):
-                if row["ok"] or row["key"] not in rows:
-                    rows[row["key"].removesuffix(f"#r{r}" if r > 1 else "")] = row
+                rows[row["key"].removesuffix(f"#r{r}" if r > 1 else "")] = row
         mine_passes.append(rows)
     opus_cache = cache(STATES / "cm19/judge-cache.jsonl")
     terra_cache = cache(STATES / "cm13/judge-cache.jsonl")
@@ -166,8 +167,10 @@ def main() -> int:
                     else:
                         bucket["neither"] += 1
                 runs[f"{mine_name}_vs_{other_name}_{arm}"] = {
-                    "positives": dict(pos) | {"sign_test_p": sign_p(pos["deepseek_only"], pos["other_only"])},
-                    "negatives": dict(neg) | {"sign_test_p": sign_p(neg["deepseek_only"], neg["other_only"])},
+                    "positives": dict(pos)
+                    | {"sign_test_p": sign_p(pos["deepseek_only"], pos["other_only"])},
+                    "negatives": dict(neg)
+                    | {"sign_test_p": sign_p(neg["deepseek_only"], neg["other_only"])},
                 }
     out = {"windows": window, "window_pairs": pairs, "paired_run_alarms": runs}
     fw.write_json(mod.RESULTS / "compare.json", out)

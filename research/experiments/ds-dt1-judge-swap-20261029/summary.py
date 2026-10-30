@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DT-1: render the numbers from the result files as markdown, so the report quotes files rather than memory.
 
-    summary.py
+summary.py
 """
 
 from __future__ import annotations
@@ -80,7 +80,9 @@ def main() -> int:
         compare = json.loads((mod.RESULTS / "compare.json").read_text())
         out.append("**Window-level (complete cases):**")
         out.append("")
-        out.append("| Pair | Judged both | Confirmed both | deepseek only | other only | sign test p |")
+        out.append(
+            "| Pair | Judged both | Confirmed both | deepseek only | other only | sign test p |"
+        )
         out.append("|---|---|---|---|---|---|")
         for name, block in compare["window_pairs"].items():
             out.append(

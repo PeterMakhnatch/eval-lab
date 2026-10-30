@@ -62,7 +62,7 @@ def table(per_run: dict[str, dict], lengths: dict[str, int], arm: str) -> dict:
         }
     allpos = [v[arm]["alarm"] for v in per_run.values() if v["positive"]]
     allneg = [v[arm]["alarm"] for v in per_run.values() if not v["positive"]]
-    out["baseline_ge_%d_steps" % BASELINE_STEPS] = {
+    out[f"baseline_ge_{BASELINE_STEPS}_steps"] = {
         "recall": {
             "k": sum(lengths[r] >= BASELINE_STEPS for r, v in per_run.items() if v["positive"]),
             "n": len(allpos),
@@ -81,7 +81,9 @@ def table(per_run: dict[str, dict], lengths: dict[str, int], arm: str) -> dict:
 
 def main() -> int:
     document = json.loads((mod.STATE / "plan.json").read_text())
-    lengths = {fw.opaque(r): int(v["n_steps"]) for r, v in document["runs"].items()}  # per-run rows are hashed
+    lengths = {
+        fw.opaque(r): int(v["n_steps"]) for r, v in document["runs"].items()
+    }  # per-run rows are hashed
     single = json.loads((mod.RESULTS / "result-single.json").read_text())
     vote = (
         json.loads((mod.RESULTS / "result-vote.json").read_text())
@@ -105,7 +107,15 @@ def main() -> int:
     for name, per_run in sources:
         out["judges"][name] = {arm: table(per_run, lengths, arm) for arm in ("A", "B", "C")}
     fw.write_json(mod.RESULTS / "length-control.json", out)
-    print(json.dumps({k: {a: v["detector_whole_sample"] for a, v in arms.items()} for k, arms in out["judges"].items()}, indent=1))
+    print(
+        json.dumps(
+            {
+                k: {a: v["detector_whole_sample"] for a, v in arms.items()}
+                for k, arms in out["judges"].items()
+            },
+            indent=1,
+        )
+    )
     return 0
 
 

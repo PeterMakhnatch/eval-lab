@@ -1,0 +1,1105 @@
+{
+ "flagged_before": 32,
+ "packages": [
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "ce69a7b6e5ee5715e34ba15f9f398ad19df6064f1968fc786739f828da9f930c",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000079",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "impedance/tests/test_multiletter_elements.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "impedance/tests/test_multiletter_elements.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000079"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "69dc31f456b44fcc385b0aa0fa430245b1775387aa2bf421fa9198c009f50597",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000081",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "testing/test_runner.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "testing/test_runner.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000081"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "63d3cc886a5ee4aff3b481ada102228e4a199fdba5ded8f02cc88eee9d872ef8",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000085",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "test_commands.json",
+    "tests/envs/test_env_implementation.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "test_commands.json",
+    "tests/envs/test_env_implementation.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000085"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "8e52ae20fda38f4f78026eac670b952d058eb420097b85042c8fee8c1c137c50",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000212",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "tests/agent/test_docker_agent.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "tests/agent/test_docker_agent.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000212"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "d106708ebe78884b339182714009ad3a4e9ff3c63f1c48cfb3fc2c9a6f25ff8e",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000232",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "quantecon/tests/test_gridtools.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "quantecon/tests/test_gridtools.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000232"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "1491e2fc94c88343c0c3021f9cf702c58715b3823cb8a9fe2d0f92c7e026c2f6",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000256",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "theano/sandbox/test_rng_mrg.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "theano/sandbox/test_rng_mrg.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000256"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "ca23ce99bf9428abd414c91a38e26d0763aedf043c138d70702e2eb761d22d16",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000322",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "tests/test_web_sendfile_functional.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "tests/test_web_sendfile_functional.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000322"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "599b2aae805bc036d6a984891b685dd83aeb7233ffc61bb8a003acd5db191b98",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000682",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "tests/data/placebo/test_sns_kms_related_filter_test/kms.DescribeKey_1.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/kms.ListAliases_1.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/kms.ListAliases_2.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/kms.ListKeys_1.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/sns.GetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/sns.ListTopics_1.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/tagging.GetResources_1.json",
+    "tests/data/placebo/test_sns_set_encryption/sns.GetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_set_encryption/sns.GetTopicAttributes_2.json",
+    "tests/data/placebo/test_sns_set_encryption/sns.ListTopics_1.json",
+    "tests/data/placebo/test_sns_set_encryption/sns.SetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_set_encryption_custom_key/sns.GetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_set_encryption_custom_key/sns.GetTopicAttributes_2.json",
+    "tests/data/placebo/test_sns_set_encryption_custom_key/sns.ListTopics_1.json",
+    "tests/data/placebo/test_sns_set_encryption_custom_key/sns.SetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_unset_encryption/sns.GetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_unset_encryption/sns.GetTopicAttributes_2.json",
+    "tests/data/placebo/test_sns_unset_encryption/sns.ListTopics_1.json",
+    "tests/data/placebo/test_sns_unset_encryption/sns.SetTopicAttributes_1.json",
+    "tests/test_sns.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "tests/data/placebo/test_sns_kms_related_filter_test/kms.DescribeKey_1.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/kms.ListAliases_1.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/kms.ListAliases_2.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/kms.ListKeys_1.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/sns.GetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/sns.ListTopics_1.json",
+    "tests/data/placebo/test_sns_kms_related_filter_test/tagging.GetResources_1.json",
+    "tests/data/placebo/test_sns_set_encryption/sns.GetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_set_encryption/sns.GetTopicAttributes_2.json",
+    "tests/data/placebo/test_sns_set_encryption/sns.ListTopics_1.json",
+    "tests/data/placebo/test_sns_set_encryption/sns.SetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_set_encryption_custom_key/sns.GetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_set_encryption_custom_key/sns.GetTopicAttributes_2.json",
+    "tests/data/placebo/test_sns_set_encryption_custom_key/sns.ListTopics_1.json",
+    "tests/data/placebo/test_sns_set_encryption_custom_key/sns.SetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_unset_encryption/sns.GetTopicAttributes_1.json",
+    "tests/data/placebo/test_sns_unset_encryption/sns.GetTopicAttributes_2.json",
+    "tests/data/placebo/test_sns_unset_encryption/sns.ListTopics_1.json",
+    "tests/data/placebo/test_sns_unset_encryption/sns.SetTopicAttributes_1.json",
+    "tests/test_sns.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000682"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "7cdc4ec7e44da753d11d84e427c68370a3539780905db13df3f71ef3021a6308",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000812",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "test_commands.json",
+    "tests/test_oidc_views.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "test_commands.json",
+    "tests/test_oidc_views.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000812"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "d0aab97485eddedfa771e5a825e3e90cfade1cce9bbd729869410b95802cd97c",
+   "has_layer_markers": true,
+   "junit_required": 0,
+   "original": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000838",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "test_commands.json",
+    "tests/test_cli.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "test_commands.json",
+    "tests/test_cli.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000838"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "3fa96a021ca78fc0b3865e4ee0fff41bcaec887bd55af36225527a35910c41db",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000847",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "tests/test_env_loader.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "tests/test_env_loader.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000847"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "022b18c18326583a26197fb580eefc67c8e70671b81b410413d4a8ee7a05a31b",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000931",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "tests/test_schema_evolution.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "tests/test_schema_evolution.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000931"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "911123d9e4a2d3457e220fa7c8f5e244da8c87dbca34da16bcc5be3ccbb7bb28",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000945",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "usaspending_api/etl/tests/test_load_submission.py",
+    "usaspending_api/submissions/tests/test_submission_attributes_serializer.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "usaspending_api/etl/tests/test_load_submission.py",
+    "usaspending_api/submissions/tests/test_submission_attributes_serializer.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-000945"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "0b44bf53eae8dc7c084ab3d6f7d13886c9fb7021377957fbbde339862e500c31",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001205",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "tests/notifier/notifiers/slack_webhook_test.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "tests/notifier/notifiers/slack_webhook_test.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-001205"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "9bfb0da567f40123e230ca7817f5a135ecff096df77a142f631b4dab7fbc1c70",
+   "has_layer_markers": true,
+   "junit_required": 0,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001267",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "tests/test_models.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "tests/test_models.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-001267"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "5d32e20c5bad44ce8bbe33a45324284eec49283d5c8995d1d7f9b56c7adf941c",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001338",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "python/ct/crypto/asn1/types_test.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "python/ct/crypto/asn1/types_test.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-001338"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {
+    "synthetic_artifact_shape_fill": 1
+   },
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1,
+    "synthetic_artifact_shape_fill": 1
+   },
+   "generated_sha256": "ee6e31384407f49d5ddad6cf8a533bb3584314cec93873740b063b62398d9dd9",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001426",
+   "other_class_flags_after": [
+    "synthetic_artifact_shape_fill"
+   ],
+   "other_class_flags_before": [
+    "synthetic_artifact_shape_fill"
+   ],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "batch/test/test_dag.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "batch/test/test_dag.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-001426"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "12b54a55cd93223db318b31a315edab80cd536152082bb2d05cc7c067aaf62c1",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001431",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "test/logformats_test.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "test/logformats_test.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-001431"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "235f5898e9595f6d43971f7606df550ef9ade590e4fc7426301f5d7b322db8f8",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001804",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "test_commands.json",
+    "tests/unit/distribution/test_library_client_auto_init.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "test_commands.json",
+    "tests/unit/distribution/test_library_client_auto_init.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-001804"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "8359c0dd5464b89b755b64c65b02e3869829a088df472e4a6b743745d40f3b46",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001809",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "test_commands.json",
+    "tests/unit/test_sqs.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "test_commands.json",
+    "tests/unit/test_sqs.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-001809"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "3e1fa827b01afee01ae756053e7b91adffd8882dfe7f3b121f76ee5ba3997945",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001850",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "tests/_ast/test_sql_visitor.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "tests/_ast/test_sql_visitor.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-001850"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "704958f62a57ff68c58091ee6ef411f6dc8466cce25b9699aa6f21558427f3e8",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001985",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "tests/test_repository.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "tests/test_repository.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-001985"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "eb96c2736e45e4a1cdf5232d92972013860d5151b28c4674f3eb60c0db3245b7",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002139",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "usercase-test-coderl/test_gcp_fetch.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "usercase-test-coderl/test_gcp_fetch.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-002139"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "f3d6328460e2327fa063b8e79e1a8f60fb66654c50fac88261fd6b57086ac415",
+   "has_layer_markers": true,
+   "junit_required": 0,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002160",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "openwisp_radius/tests/test_commands.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "openwisp_radius/tests/test_commands.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-002160"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "214a033b99f244c78acdd5eae211490779034884d47a9e8258ee2ab36e96bf12",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-002391"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "0556403b7a75b2fd1c407c4c107e7dd0228b8a3aea627a7bf9cff3bf1c3048b2",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002535",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "rotkehlchen/tests/fixtures/blockchain.py",
+    "rotkehlchen/tests/fixtures/greenlets.py",
+    "rotkehlchen/tests/unit/test_substrate_manager.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "rotkehlchen/tests/fixtures/blockchain.py",
+    "rotkehlchen/tests/fixtures/greenlets.py",
+    "rotkehlchen/tests/unit/test_substrate_manager.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-002535"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "eba3c00e969fc8e7ed1283e84ff4f77494c5b4ece06dc95211f00aee7ac5dac0",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002545",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "lib/rucio/tests/test_reaper.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "lib/rucio/tests/test_reaper.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-002545"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "f54492f10ea33cb8ffd3d1e1f880fa08def7b228de19552dbbf015f329a4ec90",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002552",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "miio/tests/test_miot_models.py",
+    "test_commands.json",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "miio/tests/test_miot_models.py",
+    "test_commands.json",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-002552"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "2b91b58c4ee4d61f69f8998a5f475e9420a2a14c023d4adb7cd5d0b46e6c7913",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002609",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "usercase-test-coderl/test_natural_earth_downloader.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "usercase-test-coderl/test_natural_earth_downloader.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-002609"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "1d7998dcc4b3a744471c7877fc9653d9e5593e78aeaf3e4490ce6d606a98b06d",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002680",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "usercase-test-coderl/test_ppar_event_stream.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "usercase-test-coderl/test_ppar_event_stream.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-002680"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "f573aa1460df4d6bac75316491a35aa712133d2bb221365d284832a2de54d220",
+   "has_layer_markers": true,
+   "junit_required": 0,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002976",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "test_commands.json",
+    "wagtail/admin/tests/test_button_searcharea_comparison.py",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "test_commands.json",
+    "wagtail/admin/tests/test_button_searcharea_comparison.py",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-002976"
+  },
+  {
+   "fci_clear": true,
+   "flags_after": {},
+   "flags_before": {
+    "framework_config_injection": 2,
+    "runner_exit_status_forgery": 1
+   },
+   "generated_sha256": "171f3b4c0a0c55e40f421f9ab98a979a89f46e27480a94d96ccdc7b8ece8ae5a",
+   "has_layer_markers": true,
+   "junit_required": 1,
+   "original": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-003007",
+   "other_class_flags_after": [],
+   "other_class_flags_before": [],
+   "other_class_flags_changed": false,
+   "res_clear": true,
+   "reset_list_after": [
+    "tests/test_vacbot.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "conftest.py",
+    "sitecustomize.py",
+    "usercustomize.py",
+    "pytest.ini",
+    "tox.ini",
+    "setup.cfg"
+   ],
+   "reset_list_before": [
+    "tests/test_vacbot.py",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh"
+   ],
+   "task_id": "format-code-task-003007"
+  }
+ ],
+ "scanner": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ds-tq-2-20261029/research/experiments/ds-tq1-grader-surface-scan-20261030/scan_grader_surface.py",
+ "scanner_sha256": "0bbec47d390d78b6475db5e413d4e63fd63dc39db3222275ead2f12dfc951067",
+ "summary": {
+  "both_cleared": 32,
+  "fci_cleared": 32,
+  "layer_markers_present": 32,
+  "packages": 32,
+  "res_cleared": 32,
+  "still_flagged": []
+ },
+ "template_sha256": "b073eb5c9e2c3a4864676c47007966f75b0ad281850def889b73af5bd6944152"
+}

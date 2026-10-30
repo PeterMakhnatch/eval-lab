@@ -1004,7 +1004,10 @@ def build_trajectory_ir(
         unpaired_count = ledger_unpaired_count
         linkage_coverage = "degraded" if unpaired_count > 0 else "complete"
 
-        primary_reward = baseline.primary_reward if baseline.primary_reward is not None else inventory_record.get("reward")
+        from evallab.probe03 import normalize_reward
+
+        raw_reward = baseline.primary_reward if baseline.primary_reward is not None else inventory_record.get("reward")
+        primary_reward, scored = normalize_reward(raw_reward)
         exception_class = baseline.exception_class or inventory_record.get("exception_type")
         exception_message: str | None = None
         if isinstance(result_data.get("exception_info"), dict):
@@ -1012,7 +1015,9 @@ def build_trajectory_ir(
         elif isinstance(result_data.get("exception"), dict):
             exception_message = result_data["exception"].get("message")
 
-        if outline.status == "accounted_unavailable" or quality_status == "no_atif":
+        if scored and primary_reward is not None:
+            final_verdict = "PASS" if primary_reward >= 1.0 else ("FAIL" if primary_reward == 0.0 else f"PARTIAL ({primary_reward:.2f})")
+        elif outline.status == "accounted_unavailable" or quality_status == "no_atif":
             unavail = outline.unavailable_reason or quality_status or "missing_trajectory_file"
             final_verdict = f"EVIDENCE_UNAVAILABLE ({unavail})"
         elif exception_class:
@@ -1020,8 +1025,6 @@ def build_trajectory_ir(
                 final_verdict = f"VERIFIER_ERROR ({exception_class})"
             else:
                 final_verdict = f"EXCEPTION ({exception_class})"
-        elif primary_reward is not None:
-            final_verdict = "PASS" if primary_reward >= 1.0 else ("FAIL" if primary_reward == 0.0 else f"PARTIAL ({primary_reward:.2f})")
         else:
             final_verdict = "UNKNOWN"
 

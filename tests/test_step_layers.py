@@ -347,6 +347,9 @@ def test_verifier_outcome_never_zero_for_missing() -> None:
     assert verifier_outcome({"reward": 0.0}) == "fail"
     assert verifier_outcome({}) == "none"
     assert verifier_outcome({"reward": "nan"}) == "none"
+    assert verifier_outcome({"reward": 1.0, "integrity": 0.0, "reward_gated": 0.0}) == "pass"
+    assert verifier_outcome({"integrity": 1.0}) == "none"
+    assert verifier_outcome({"reward": -1.0}) == "none"
 
 
 def test_scored_timeout_stops_as_timeout_not_infra() -> None:

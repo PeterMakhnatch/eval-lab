@@ -802,7 +802,8 @@ def apply_statistical_gating(
             never_measured = int(row.get("never_measured_n", 0))
             finding = (
                 f"pass_rate={pass_rate:.1%} [95% CI: {low:.1%}-{high:.1%}, n={n}], "
-                f"excluded_exceptions={exceptions}, excluded_never_measured={never_measured}"
+                f"exceptions={exceptions}, unscored_without_exception={never_measured}, "
+                f"excluded_unscored={int(row.get('excluded_n', 0))}"
             )
         else:
             finding = "insufficient n"
@@ -1066,13 +1067,13 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             "",
             (
                 "Cross-tabulation of task verifier architecture against measured trial pass "
-                "rates. Exception and never-measured trials are reported but excluded from "
-                "the capability denominator."
+                "rates. Exceptions are reported separately; a usable verifier score is "
+                "included regardless of agent exit. Unscored trials are excluded."
             ),
             "",
             (
                 "| Source Repo | Verifier Type | Total Trials | Eligible n | Passed | Pass Rate | "
-                "Wilson 95% CI | Excluded Exceptions | Excluded Never Measured | "
+                "Wilson 95% CI | Exceptions | Unscored Without Exception | "
                 "Ledger Pass | Ledger Warn | Ledger Fail | Ledger Quarantine | Status | Finding |"
             ),
             "|---|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---|---|",

@@ -140,6 +140,9 @@ train-eligibility reason codes). `backend` is
 Harbor config (`$.environment.type`, with Eval Lab Daytona wrapper import
 paths mapped to `daytona`); old trial_facts partitions without the column
 read as `'unknown'`, so local and cloud trials never pool into one row.
+The legacy `n_infra` count means no usable primary reward (missing, nonfinite,
+or -1), not that an exception proves an infrastructure failure. A verifier
+score remains in the denominator even if the agent stopped with an exception.
 Verdicts: `learnable` (some pass, some fail), `always_pass`,
 `always_fail`, `infra_only` (no scored trial), `untested`. Outcomes are
 grained by (task_version × backend × agent/model), so nop/control trials join as

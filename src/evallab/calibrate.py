@@ -1664,6 +1664,8 @@ def evaluate_verifier_agreement(
     corpus_digest: str | None = None,
 ) -> VerifierAgreementReport:
     """Evaluate verifier agreement against execution reward, excluding never-measured trials."""
+    from evallab.probe03 import normalize_reward
+
     ground_truths: list[int] = []
     predictions: list[int] = []
     never_measured: list[dict[str, Any]] = []
@@ -1678,7 +1680,7 @@ def evaluate_verifier_agreement(
         if isinstance(trial, (tuple, list)):
             trial_id = str(trial[0])
             raw_reward = trial[1] if len(trial) > 1 else None
-            reward = float(raw_reward) if raw_reward is not None else None
+            reward = raw_reward
             raw_exc = trial[2] if len(trial) > 2 else None
             exception_class = str(raw_exc) if raw_exc is not None else None
             task_name = str(trial[3]) if len(trial) > 3 and trial[3] is not None else "unknown-task"
@@ -1712,8 +1714,9 @@ def evaluate_verifier_agreement(
             task_name = getattr(trial, "task_name", "unknown-task")
             candidate_text = f"trial-{trial_id}"
 
-        # Never-measured trials (non-null exception_class or missing reward) are NOT failures
-        if exception_class is not None or reward is None:
+        # A recorded verifier score remains measured after an agent exception.
+        reward, scored = normalize_reward(reward)
+        if not scored or reward is None:
             never_measured.append(
                 {
                     "trial_id": trial_id,
@@ -1854,8 +1857,8 @@ def build_verifier_calibration_card(
         )
     if agreement_report.metrics.class_balance.never_measured > 0:
         threats.append(
-            f"{agreement_report.metrics.class_balance.never_measured} trial(s) had "
-            "execution/harness exceptions and were excluded from agreement measurement."
+            f"{agreement_report.metrics.class_balance.never_measured} trial(s) had no measured "
+            "verifier reward and were excluded from agreement measurement."
         )
     prev = agreement_report.metrics.class_balance.pass_prevalence
     if prev and prev > 0.8:

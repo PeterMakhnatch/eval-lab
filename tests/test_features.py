@@ -105,3 +105,13 @@ def test_limit_hit_names_binding_ceiling(tmp_path: Path) -> None:
     assert row["task_id"] == "format-code-task-000169"
     assert row["stop_reason"] == "trial_budget_exhausted"
     assert row["limit_hit"] == "input_tokens"
+
+
+def test_reward_file_is_shared_with_counts(tmp_path: Path) -> None:
+    job, trial = _write_trial(tmp_path, "job", "trial", [], result={"verifier_result": {}})
+    verifier = trial / "verifier"
+    verifier.mkdir()
+    (verifier / "reward.txt").write_text("1.0")
+    row = trial_features(job, trial)
+    assert row["reward"] == 1.0
+    assert row["copy_verdict"] == "counted_pass"

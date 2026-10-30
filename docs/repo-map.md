@@ -19,7 +19,7 @@ inputs:
   - path: src/evallab/analysis_statistics.py
     digest: sha256:8383487abae3e5c62104b785320bfda2df378a3fc877355a34cea47a2258830e
   - path: src/evallab/analysis_worker.py
-    digest: sha256:bbb58d4c102892307b6ab916aa52393ffab93910b477a46814a9dc240f971281
+    digest: sha256:5025179ea3f9e721aaf5421c8ef23086b2e0ce2822eb322355c6e2f5ef6bbd49
   - path: src/evallab/analyst.py
     digest: sha256:e06b6a73713bd9ccf6fd595896e11bc07add35b3aaf8388135b7b345d4c60310
   - path: src/evallab/antigravity.py
@@ -35,7 +35,7 @@ inputs:
   - path: src/evallab/backups.py
     digest: sha256:1a73b6b9a65c10724a0ce5c1bf45539a347ae5a5366ac5eba129d0407b2895a9
   - path: src/evallab/behavior.py
-    digest: sha256:722dc12cfdaf94e60623c8a5e901d9a8e21cc3e7a1435a2bc404826a048479d1
+    digest: sha256:a452ab7ce86d4402998aedb65873162bfbb69438d66cbeb92629c319c424385d
   - path: src/evallab/behavior_calibration.py
     digest: sha256:b3ffca51b53eb9c2bcb94195d2ac75ee8046faaec10fe67e9e4958a7eee833ec
   - path: src/evallab/behavior_catalog.py
@@ -77,7 +77,7 @@ inputs:
   - path: src/evallab/codeban.py
     digest: sha256:a0f9ad6678295b0e2776f303d4c20dcbf48950cb613580693013a2bdfaf17a09
   - path: src/evallab/cohort.py
-    digest: sha256:16512819741471bba44cb2cba6525990319912db3ffd0e896b37ba9c50d6caac
+    digest: sha256:c153180cfcde035c925cb5bf001c437badcaa964ccbdfa43e8eec0099e476492
   - path: src/evallab/contamination.py
     digest: sha256:fb21b7b45bbaec5d1094e6dcd8d7b53e5f43a567b10558ce86089d869b3a781b
   - path: src/evallab/contextpack.py
@@ -521,7 +521,7 @@ inputs:
   - path: src/evallab/interpretation/feature_registry.py
     digest: sha256:e335d79f3fe90ccb3ee301237adcbeb623c9cc8a920d6ac15d5d4d536bee06de
   - path: src/evallab/interpretation/features.py
-    digest: sha256:72f7c7ffe60e5f740ad4b0eb4f6a41b0e14b92c80919e01c2884d1585fd06d13
+    digest: sha256:92d0171794e06f9026a73c35ebfdcc09c940330fdba18855775649c5fdb3d529
   - path: src/evallab/interpretation/monitor_agent.py
     digest: sha256:cfef7bc85ff4481f95b26235d96aa3ea742060e5a26d248baf814781f7641ef7
   - path: src/evallab/interpretation/monitor_calibration.py
@@ -669,7 +669,7 @@ inputs:
   - path: src/evallab/price_bench.py
     digest: sha256:76bf5bb7387418e0369a598741c7b917bbff83300ddf8fc153210dfb3504f615
   - path: src/evallab/probe03.py
-    digest: sha256:2a979e4860e14e6cf4a63bd21b5e51d37cdf739b7b617d651122d87ca948bd51
+    digest: sha256:1f16993b9c7303731496d599b62602193b0626235003b8e88e61f10e7dcde992
   - path: src/evallab/process_job.py
     digest: sha256:f1239e1826783c32776f7de2c1b9b69af25bd14e13d804e065e18baf366d5ac1
   - path: src/evallab/production/__init__.py
@@ -1105,7 +1105,7 @@ inputs:
   - path: src/evallab/status_generator.py
     digest: sha256:c61016ce6fce4c3f1a977a702590f5b89a1d63e0f906708c9fd563e09138e185
   - path: src/evallab/step_layers.py
-    digest: sha256:08176f7e66594694f4897718e8d6cb72a0575bd217e21ce1676a39b06cd9fd12
+    digest: sha256:dcb17505db9dec0cc0c720f427e0f4a93b91c7e4762ec839739dad602ba8437e
   - path: src/evallab/storage/__init__.py
     digest: sha256:7276bb505f87769117c2c3e16f7e2c83dbd33806fc791adbdfc6353dd6fc0b11
   - path: src/evallab/storage/attach.py
@@ -1137,7 +1137,7 @@ inputs:
   - path: src/evallab/task_candidate.py
     digest: sha256:27b423f0f0c931428b89f13e86150b61c8428f60f91abef25493c6849e84d566
   - path: src/evallab/task_catalog.py
-    digest: sha256:16bd432233c93646d26afa7276d7dbc4d24977bf677041ab4421bd24668cae74
+    digest: sha256:361e6ab3c24ee04dde4c1b6572b3b8a51b7820240b917f917aab92c68e4302b4
   - path: src/evallab/task_dossier.py
     digest: sha256:cac6673fe28c3ab4da760bf9ca6b4a5f549fb4d98a27edfce9a0b8b98235f780
   - path: src/evallab/task_dossier_trials.py
@@ -2251,6 +2251,7 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `v_craft_human_anchor` | `sql/craft_views.sql` | `craft` |
 | `v_craft_unresolved` | `sql/craft_views.sql` | `craft` |
 | `v_craft_corpus` | `sql/craft_views.sql` | `craft` |
+| `v_trial_raw_scores` | `sql/evidence_queries.sql` | — |
 | `v_outcome_by_task_agent` | `sql/evidence_queries.sql` | — |
 | `v_task_summary` | `sql/evidence_queries.sql` | — |
 | `v_failure_classification` | `sql/evidence_queries.sql` | — |

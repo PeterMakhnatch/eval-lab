@@ -48,8 +48,9 @@ EVALLAB_EXPLORER_ROOT=tests/fixtures/explorer \
   this exist", content answers "can a human read it", and collapsing the two
   is the defect this page was fixed for
   (`test_withheld_step_never_renders_like_a_verbatim_one`).
-- **Infrastructure exceptions ≠ reward failures.** Exception trials render in
-  their own section; their reward is `unavailable`, never 0.
+- **Verifier score and agent exit are independent.** A recorded score remains
+  a pass or reward failure even if the agent timed out; the exit reason and
+  exception remain visible. An unscored exit is `no-verdict`, not a zero.
 - **Citations are verified, not trusted.** Each analysis citation resolves
   against the trial: file exists inside the jail, step exists in the
   trajectory, and the tool call belongs to that exact step — or it renders ⛔
@@ -91,7 +92,7 @@ reads like a verbatim one" a tested guarantee rather than a claim about a page.
 
 Task → oracle/nop control commands. Trial → `harbor view <jobs-root> --jobs`
 (the folder shape Harbor actually accepts) and
-`evallab analyze plan <trial-dir>`; infra exceptions add a status re-check at
-the repository/scratch root. Queue → `evallab submit` / `evallab approve`
+`evallab analyze plan <trial-dir>`; recorded exceptions also suggest a status
+re-check. Queue → `evallab submit` / `evallab approve`
 (policy ceilings still apply). Every path is shell-quoted, placeholders are
 non-executable literals, and the explorer holds no executor.

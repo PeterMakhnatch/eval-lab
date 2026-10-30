@@ -540,6 +540,30 @@ def test_capability_denominator_reports_exception_and_never_measured_exclusions(
     assert pytest_row["pass_rate_pct"] == pytest.approx(80.0)
 
 
+def test_scored_exceptions_remain_in_lessons_denominators() -> None:
+    facts = _make_mock_trial_facts()
+    timeout = next(row for row in facts if row["exception_class"] is not None)
+    facts.extend([
+        {**timeout, "trial_id": "timeout-pass", "primary_reward": 1.0},
+        {**timeout, "trial_id": "timeout-fail", "primary_reward": 0.0},
+    ])
+    with duckdb.connect(":memory:") as con:
+        populate_duckdb(
+            con, craft_records=_make_mock_craft_records(), trial_facts=facts,
+            analysis_sidecars=[], observation_records=[],
+        )
+        views = execute_lessons_views(con)
+    row = next(r for r in views["v_outcome_by_verifier_type"] if r["verifier_type"] == "pytest")
+    assert (row["total_trials_n"], row["n"], row["passed_n"], row["exceptions_n"],
+            row["excluded_n"]) == (8, 7, 5, 3, 1)
+    exception_facet = next(
+        r for r in views["v_failure_by_facet"]
+        if r["facet_name"] == "verifier_type" and r["facet_value"] == "pytest"
+        and r["mechanical_failure_category"] == "exception"
+    )
+    assert (exception_facet["n"], exception_facet["failures_n"], exception_facet["excluded_n"]) == (2, 1, 1)
+
+
 def test_views_join_tasks_only_by_exact_digest() -> None:
     mismatched = {
         **_make_mock_trial_facts()[0],

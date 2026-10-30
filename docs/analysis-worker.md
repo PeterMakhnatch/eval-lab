@@ -51,9 +51,10 @@ Every eligible completed trial gets exactly one `AnalysisRequest`:
    detected rather than invoked, so the run defers `adapter_not_wired`
    without arming the invocation journal and without raising.
 
-Harness exceptions are staged as deferred
-`harness_exception_not_agent_failure` — they are evidence about the harness
-and are never sent to a model as agent behavior.
+Exceptions with no usable verifier score are staged as deferred
+`harness_exception_not_agent_failure`. If the verifier did record a score,
+the trial is eligible for analysis and the exception remains separate evidence
+about the agent exit; it does not erase the measured outcome.
 
 ## Crash and concurrency safety (tested)
 

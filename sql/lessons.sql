@@ -198,8 +198,8 @@ trial_joined AS (
         END AS dependency_pinning,
         t.trial_id,
         CASE
-            WHEN t.exception_class IS NOT NULL THEN NULL
-            WHEN t.primary_reward IS NULL THEN NULL
+            WHEN t.primary_reward IS NULL OR NOT isfinite(t.primary_reward)
+                OR t.primary_reward = -1 THEN NULL
             WHEN t.primary_reward < 1.0 THEN 1
             ELSE 0
         END AS is_failure,
@@ -279,7 +279,7 @@ SELECT
     ) AS never_measured_n,
     count(*) FILTER (
         WHERE quality_status IS DISTINCT FROM 'quarantine'
-          AND mechanical_failure_category IN ('exception', 'unmeasured')
+          AND is_failure IS NULL
     ) AS excluded_n,
     count(*) FILTER (
         WHERE quality_status IS DISTINCT FROM 'quarantine' AND is_failure = 1
@@ -378,20 +378,20 @@ SELECT
     coalesce(c.verifier_type, 'unclassified') AS verifier_type,
     count(*) FILTER (WHERE q.status IS DISTINCT FROM 'quarantine') AS total_trials_n,
     count(*) FILTER (
-        WHERE t.primary_reward IS NOT NULL AND t.exception_class IS NULL
+        WHERE t.primary_reward IS NOT NULL AND isfinite(t.primary_reward) AND t.primary_reward <> -1
           AND q.status IS DISTINCT FROM 'quarantine'
     ) AS n,
     count(*) FILTER (
-        WHERE t.primary_reward >= 1.0 AND t.exception_class IS NULL
+        WHERE t.primary_reward IS NOT NULL AND isfinite(t.primary_reward) AND t.primary_reward >= 1.0
           AND q.status IS DISTINCT FROM 'quarantine'
     ) AS passed_n,
     round(
         100.0 * count(*) FILTER (
-            WHERE t.primary_reward >= 1.0 AND t.exception_class IS NULL
+            WHERE t.primary_reward IS NOT NULL AND isfinite(t.primary_reward) AND t.primary_reward >= 1.0
               AND q.status IS DISTINCT FROM 'quarantine'
         ) / nullif(
             count(*) FILTER (
-                WHERE t.primary_reward IS NOT NULL AND t.exception_class IS NULL
+                WHERE t.primary_reward IS NOT NULL AND isfinite(t.primary_reward) AND t.primary_reward <> -1
                   AND q.status IS DISTINCT FROM 'quarantine'
             ),
             0
@@ -402,28 +402,29 @@ SELECT
         WHERE t.exception_class IS NOT NULL AND q.status IS DISTINCT FROM 'quarantine'
     ) AS exceptions_n,
     count(*) FILTER (
-        WHERE t.primary_reward IS NULL AND t.exception_class IS NULL
+        WHERE (t.primary_reward IS NULL OR NOT isfinite(t.primary_reward) OR t.primary_reward = -1)
+          AND t.exception_class IS NULL
           AND q.status IS DISTINCT FROM 'quarantine'
     ) AS never_measured_n,
     count(*) FILTER (
-        WHERE (t.exception_class IS NOT NULL
-               OR (t.primary_reward IS NULL AND t.exception_class IS NULL))
+        WHERE (t.primary_reward IS NULL OR NOT isfinite(t.primary_reward) OR t.primary_reward = -1)
           AND q.status IS DISTINCT FROM 'quarantine'
     ) AS excluded_n,
     count(*) FILTER (
-        WHERE t.primary_reward < 1.0 AND t.exception_class IS NULL
+        WHERE t.primary_reward IS NOT NULL AND isfinite(t.primary_reward)
+          AND t.primary_reward <> -1 AND t.primary_reward < 1.0 AND t.exception_class IS NULL
           AND q.status IS DISTINCT FROM 'quarantine'
     ) AS failed_unexcepted_n,
     round(
         avg(t.duration_seconds) FILTER (
-            WHERE t.primary_reward IS NOT NULL AND t.exception_class IS NULL
+            WHERE t.primary_reward IS NOT NULL AND isfinite(t.primary_reward) AND t.primary_reward <> -1
               AND q.status IS DISTINCT FROM 'quarantine'
         ),
         2
     ) AS avg_duration_seconds,
     round(
         avg(t.cost_usd) FILTER (
-            WHERE t.primary_reward IS NOT NULL AND t.exception_class IS NULL
+            WHERE t.primary_reward IS NOT NULL AND isfinite(t.primary_reward) AND t.primary_reward <> -1
               AND q.status IS DISTINCT FROM 'quarantine'
         ),
         4

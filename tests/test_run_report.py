@@ -439,9 +439,11 @@ def test_job_rollup_and_cli_outputs(tmp_path: Path, capsys: Any) -> None:
 
     rollup, reports = build_job_report(job)
     assert len(reports) == 3
-    # Several metrics without a primary `reward` still score the trial (here: partial).
-    assert (rollup["passed"], rollup["scored"]) == (1, 3)
-    assert rollup["verdicts"] == {"passed": 1, "failed": 1, "partial": 1}
+    # Metrics remain visible, but do not invent a primary reward from them.
+    assert (rollup["passed"], rollup["scored"]) == (1, 2)
+    assert rollup["verdicts"] == {"passed": 1, "failed": 1, "not_scored": 1}
+    multi_report = next(report for report in reports if report["identity"]["trial_name"] == "multi-metric-trial")
+    assert multi_report["outcome"]["rewards"] == {"tests": 1.0, "style": 0.0}
     assert rollup["total_cost_usd"] == 0.5
     assert rollup["trials_without_cost"] == 2
     assert rollup["cost_per_pass_usd"] == 0.5

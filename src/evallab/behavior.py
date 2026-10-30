@@ -136,12 +136,15 @@ class BehaviorReport:
     findings: list[str]
 
 
-def _classify_outcome(primary_reward: float | None, exception_class: str | None) -> str:
-    if exception_class is not None or primary_reward is None:
+def _classify_outcome(primary_reward: float | None) -> str:
+    from evallab.probe03 import normalize_reward
+
+    reward, scored = normalize_reward(primary_reward)
+    if not scored or reward is None:
         return "never_measured"
-    if primary_reward >= 1.0:
+    if reward >= 1.0:
         return "passed"
-    if primary_reward == 0.0:
+    if reward == 0.0:
         return "scored_zero"
     return "partial"
 
@@ -198,7 +201,7 @@ def generate_behavior_report(
             continue
         if agent_filter and a_name != agent_filter:
             continue
-        outcome = _classify_outcome(r[3], r[4])
+        outcome = _classify_outcome(r[3])
         trials.append(
             {
                 "trial_id": r[0],
@@ -595,7 +598,7 @@ def render_behavior_report(report: BehaviorReport) -> str:
     lines.append(
         f"**Corpus scope:** {report.total_trials} total trials ({report.total_measured} measured: "
         f"{report.total_passed} passed, {report.total_scored_zero} scored zero; "
-        f"{report.total_never_measured} never-measured harness exceptions)."
+        f"{report.total_never_measured} never-measured trials)."
     )
     lines.append(
         f"**Token / Cost coverage:** {report.token_coverage_summary} (sparse column coverage)."

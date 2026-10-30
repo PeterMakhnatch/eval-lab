@@ -27,7 +27,7 @@ inputs:
   - path: docs/analysis-loop.md
     digest: sha256:f10a4240346c2971f4c44cb72d5add5cd353d9a348935b0512d847cc0a90d64a
   - path: docs/analysis-worker.md
-    digest: sha256:e371abf23361ab2a2f75408801e57c57c7332267ad787bfd3996dddb5f48e966
+    digest: sha256:817b230e678b215bcccb20e1c1a1ab3a51ef055f3a52b00160f7efdd16674a01
   - path: docs/architecture.md
     digest: sha256:285c78941de752b714802eea1374e24bdb864eafafd80f8fa414e53ea853e41f
   - path: docs/attach-surface.md
@@ -35,7 +35,7 @@ inputs:
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
-    digest: sha256:9c7476d169ae4df601c52ba273e438cd6cf8b8f4e9d9be16b5149127af71cf0b
+    digest: sha256:4478889690ee4478f92175b3d3c547dc2dda0a10417a5d80b99fd2a7e3f008d3
   - path: docs/blind-review.md
     digest: sha256:7f133de2910eec169b03e21af24d239aa02c87bc74aed5db6c66f82731312d79
   - path: docs/canaries.md
@@ -87,7 +87,7 @@ inputs:
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
-    digest: sha256:1da171277153ff6fbcafcd2a6835ee6c3b0d79eb3ef7d448d344b72d841332b1
+    digest: sha256:fcd053f4618b79a446bf1d102f2697ae6b1e5d5760ef4cac06c46c5fdefba4bc
   - path: docs/model-capture.md
     digest: sha256:820a697afa3ffbf99e7b262f38cf26895f94f1df147167405fc944d7fc4484e6
   - path: docs/model-defaults.md
@@ -133,7 +133,7 @@ inputs:
   - path: docs/run-atlas.md
     digest: sha256:4a139e65b2adede59609ae5310538a930dc4cad77a96ff384bd2fd73b17653e9
   - path: docs/run-explorer.md
-    digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
+    digest: sha256:6c38610c14c7c3173cd90739767e733c8d33c212f4ae1d4ddd3ff6e0e5ea9daf
   - path: docs/run-health.md
     digest: sha256:8bab1d17040209d7dca7b6cd88e90b8c2c43e439f1376fa7f9125ef37c0f74b6
   - path: docs/scaling.md
@@ -165,7 +165,7 @@ inputs:
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
-    digest: sha256:22f01a0f9b9ad3ea437dcaa3c253de41dafb9039dbbde201def191f280e9088a
+    digest: sha256:a9ac946943ac70d4f00d80e033dbb83864301a5bb9c2593d4a302e6ccff68bac
   - path: docs/verifier-check.md
     digest: sha256:85aa6dfcf11a3d7895f885fb81827bec244ab9a7fa806772cd40e52204b82b01
 ---

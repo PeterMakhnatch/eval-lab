@@ -134,7 +134,7 @@ def test_cli_traj_card_command(
 
 
 def test_unavailable_trajectory_shape_contract(repo_root: Path) -> None:
-    """When trajectory is missing, card explicitly classifies it as EVIDENCE_UNAVAILABLE limitation."""
+    """Missing trajectory is a limitation, not a reason to erase the verifier score."""
     with tempfile.TemporaryDirectory() as tmpdir:
         trial_dir = Path(tmpdir)
         # result.json exists with reward 1.0, but no trajectory.json
@@ -153,11 +153,30 @@ def test_unavailable_trajectory_shape_contract(repo_root: Path) -> None:
         rendered, card = generate_traj_card(trial_dir, repo_root=repo_root)
 
         assert card.status == "accounted_unavailable"
-        assert "EVIDENCE_UNAVAILABLE" in card.final_verdict
+        assert card.final_verdict == "PASS"
         assert card.evidence_limitation is not None
         assert "missing_trajectory_file" in card.evidence_limitation
         assert "- **Evidence Limitation:**" in rendered
         assert "EVIDENCE_UNAVAILABLE" in rendered
+
+
+@pytest.mark.parametrize(("score", "expected"), [(1.0, "PASS"), (0.0, "FAIL")])
+def test_scored_exit_keeps_outcome_in_card_and_ir(
+    tmp_path: Path, repo_root: Path, score: float, expected: str,
+) -> None:
+    from evallab.interpretation.trajectory_ir import build_trajectory_ir
+
+    (tmp_path / "result.json").write_text(json.dumps({
+        "trial_name": "score-exit",
+        "verifier_result": {"rewards": {"reward": score}},
+        "exception_info": {"exception_type": "AgentTimeoutError"},
+    }))
+    _, card = generate_traj_card(tmp_path, repo_root=repo_root)
+    ir = build_trajectory_ir(tmp_path, repo_root=tmp_path)
+    assert card.final_verdict == expected
+    assert card.evidence_limitation is not None
+    assert ir.final_verdict == expected
+    assert ir.exception_class == "AgentTimeoutError"
 
 
 def test_verifier_missing_reward_shape_contract(repo_root: Path) -> None:

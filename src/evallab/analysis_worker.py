@@ -498,20 +498,22 @@ def freeze_request(
 
 
 def eligible_trials(jobs: Iterable[JobRecord]) -> list[tuple[JobRecord, TrialRecord, str | None]]:
-    """(job, trial, ineligibility_reason). Harness exceptions are ineligible
-    for *agent* analysis and the reason says so explicitly."""
+    """(job, trial, ineligibility_reason). A verifier score remains eligible
+    independently of the agent's exit; unscored exceptions remain deferred."""
     out: list[tuple[JobRecord, TrialRecord, str | None]] = []
+    from evallab.probe03 import read_reward
+
     for job in jobs:
         for trial in job.trials:
             result = _trial_result(trial)
             if not result:
                 out.append((job, trial, "quarantine:result_unreadable"))
+            elif read_reward(trial.path)[1]:
+                out.append((job, trial, None))
             elif result.get("exception_info"):
                 out.append((job, trial, "defer:harness_exception_not_agent_failure"))
-            elif ((result.get("verifier_result") or {}).get("rewards") or {}).get("reward") is None:
-                out.append((job, trial, "defer:no_verdict_recorded"))
             else:
-                out.append((job, trial, None))
+                out.append((job, trial, "defer:no_verdict_recorded"))
     return out
 
 

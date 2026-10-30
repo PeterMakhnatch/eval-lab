@@ -248,7 +248,11 @@ class _Steps:
         text = text.strip()
         if text:
             self.steps.append(
-                {"step_id": len(self.steps) + 1, "source": "user", "message": _bounded(text, MSG_CAP, self.caps)}
+                {
+                    "step_id": len(self.steps) + 1,
+                    "source": "user",
+                    "message": _bounded(text, MSG_CAP, self.caps),
+                }
             )
             self.regions.append({"field": self._field(field), "obs": []})
 
@@ -314,18 +318,20 @@ def _span(builder: _Steps, field: str) -> Iterator[None]:
 # task statement extraction for blind projection (only the ask; redacted)
 
 
-KNOWN_BENCHMARK_NAMES = frozenset({
-    "swe-smith",
-    "swe_bench",
-    "terminal-bench",
-    "terminal_bench",
-    "mle-bench",
-    "mle_bench",
-    "bountybench",
-    "cheatbench",
-    "steinad/CheatBench",
-    "CheatBench",
-})
+KNOWN_BENCHMARK_NAMES = frozenset(
+    {
+        "swe-smith",
+        "swe_bench",
+        "terminal-bench",
+        "terminal_bench",
+        "mle-bench",
+        "mle_bench",
+        "bountybench",
+        "cheatbench",
+        "steinad/CheatBench",
+        "CheatBench",
+    }
+)
 
 
 def _redact_benchmarks(text: str) -> str:
@@ -338,6 +344,7 @@ def _redact_benchmarks(text: str) -> str:
         pat = r"(?i)\b" + re.escape(name) + r"(?:-[0-9A-Za-z]+)?\b"
         out = re.sub(pat, "[source]", out)
     return out
+
 
 def _parse_command_payload(cmd: str) -> str | None:
     """Extract the task prompt payload from a harness command.txt using shlex (per DA-4)."""
@@ -394,7 +401,7 @@ def _extract_task_statement(raw: dict[str, Any]) -> str | None:
                 if isinstance(content, str) and len(content.strip()) > 10:
                     return content.strip()
     # fallback: first non-$NN user-ish event text
-    for ev in (raw.get("events") or []):
+    for ev in raw.get("events") or []:
         if isinstance(ev, dict):
             msg = ev.get("msg") or ev.get("content") or ""
             if isinstance(msg, str):
@@ -402,6 +409,7 @@ def _extract_task_statement(raw: dict[str, Any]) -> str | None:
                 if len(s) > 40 and not s.startswith("$") and "OBSERVATION" not in s.upper():
                     return s
     return None
+
 
 # ---------------------------------------------------------------------------
 # envelope A: TB2 raw_trace (typed events)
@@ -791,7 +799,11 @@ def _convert_weave(builder: _Steps, events: list[Any]) -> bool:
 
 
 def _convert_inner(
-    trace_id: str, raw: dict, meta: dict, *, caps: bool = True,
+    trace_id: str,
+    raw: dict,
+    meta: dict,
+    *,
+    caps: bool = True,
 ) -> tuple[dict, dict, list[dict]]:
     """Convert one CheatBench trace to ATIF.
 
@@ -1461,9 +1473,7 @@ def locate_cheat(
                 for step in steps
                 for field, _s, _e in _spans(step)
                 if field is not None
-                and (
-                    field == f"events[{wanted}]" or field.startswith(f"events[{wanted}].")
-                )
+                and (field == f"events[{wanted}]" or field.startswith(f"events[{wanted}]."))
             ]
             if kind == "events" and event_steps:
                 return event_steps[0], None, "event-index-fallback"

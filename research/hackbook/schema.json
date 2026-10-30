@@ -510,7 +510,8 @@
     "RS04": "misreport",
     "RS05": "accepted_partial_fix",
     "RS06": "defect_caused_fail",
-    "RS07": "infra_fail"
+    "RS07": "infra_fail",
+    "RS08": "answer_substitution"
   },
   "x-task-classes": {
     "TS01": "weak_check",

@@ -488,6 +488,7 @@ def test_content_event_without_machine_calls_stages_prose():
     assert meta["cheat_step_id"] == 2
     assert meta["cheat_message_no"] == 2
 
+
 def test_untyped_rendered_transcript_is_excluded_but_stages_annotation():
     # Rendered-transcript shapes with no typed envelope carry no agent steps
     # for the detectors; staging keeps an annotation-only transcript so the
@@ -796,7 +797,9 @@ def test_materialized_trials_are_blind_and_labels_stay_in_manifest(tmp_path):
     }
     rows = [
         _row(trace_id="cb-cheat", label="cheating", trace=json.dumps(trace)),
-        _row(trace_id="cb-benign", label="benign", cheating_mechanism=None, trace=json.dumps(trace)),
+        _row(
+            trace_id="cb-benign", label="benign", cheating_mechanism=None, trace=json.dumps(trace)
+        ),
     ]
     parquet = tmp_path / "rows.parquet"
     pq.write_table(pa.Table.from_pylist(rows), parquet)
@@ -818,9 +821,10 @@ def test_materialized_trials_are_blind_and_labels_stay_in_manifest(tmp_path):
     assert by_id["cb-cheat"]["labels"]["reward_hacking"] is True
     assert by_id["cb-benign"]["labels"]["reward_hacking"] is False
     written = (tmp_path / "root/cb/cb-cheat/agent/trajectory.json").read_text(encoding="utf-8")
-    assert by_id["cb-cheat"]["trajectory_sha256"] == hashlib.sha256(
-        written.rstrip("\n").encode("utf-8")
-    ).hexdigest()
+    assert (
+        by_id["cb-cheat"]["trajectory_sha256"]
+        == hashlib.sha256(written.rstrip("\n").encode("utf-8")).hexdigest()
+    )
 
 
 CAP_TRACE = {
@@ -839,6 +843,7 @@ CAP_TRACE = {
 # sha256 of ``json.dumps(convert(...), sort_keys=True)`` for CAP_TRACE under the
 # pre-parameter converter (origin/main before the uncapped option existed).
 CAP_DEFAULT_DIGEST = "d27c34ea87cf504fbc24e4c9532bf94321e4b1d5c1d5378d0ace23d7a78724b3"
+
 
 def test_default_conversion_is_byte_identical_to_the_capped_importer():
     import hashlib
@@ -949,7 +954,9 @@ def test_pilot_thinking_and_tool_arguments_are_marked_when_cut():
     assert "THINK-TAIL" not in agent["message"] and CUT_MARK in agent["message"]
     args = agent["tool_calls"][0]["arguments"]
     assert args["file_path"].endswith(CUT_MARK) and len(args["file_path"]) == 4_000 + len(CUT_MARK)
-    assert args["description"].endswith(CUT_MARK) and len(args["description"]) == 500 + len(CUT_MARK)
+    assert args["description"].endswith(CUT_MARK) and len(args["description"]) == 500 + len(
+        CUT_MARK
+    )
     observation = agent["observation"]["results"][0]["content"]
     assert observation.endswith(CUT_MARK)
 
@@ -999,8 +1006,7 @@ def test_mle_and_codex_text_is_marked_when_cut():
         "events": [
             {
                 "role": "trace",
-                "content": "LLM_OUTPUT:\n"
-                + json.dumps({"tool": "write", "body": "B" * 5_000}),
+                "content": "LLM_OUTPUT:\n" + json.dumps({"tool": "write", "body": "B" * 5_000}),
             }
         ],
     }
@@ -1049,7 +1055,9 @@ def test_convert_injects_redacted_task_statement_from_command_file():
     assert "terminal-bench-2" not in msg
     assert "CheatBench" not in msg
     # after blind_atif inside convert, still present
-    assert any("Process the csv file from [source]" in s.get("message", "") for s in doc.get("steps", []))
+    assert any(
+        "Process the csv file from [source]" in s.get("message", "") for s in doc.get("steps", [])
+    )
 
 
 def test_convert_redacts_bench_in_statement_and_no_leak_of_bench_name():

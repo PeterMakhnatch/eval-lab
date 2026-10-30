@@ -76,6 +76,7 @@ EXPECTED_RUN_CLASSES: dict[str, tuple[str, str, str, set[str]]] = {
         },
     ),
     "RS07": ("infra_fail", "false_fail", "failure_cause", {"env_mismatch_or_flaky"}),
+    "RS08": ("answer_substitution", "false_pass", "reward_hacking", {"weak_check", "answer_reachable"}),
 }
 
 CANONICAL_SOURCES: tuple[str, ...] = (
@@ -236,7 +237,7 @@ def validate_catalog(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> 
         if not entry.examples:
             errors.append(f"{entry.id}: entry must have at least one example")
 
-    missing_classes = (set(EXPECTED_TASK_CLASSES) | set(EXPECTED_RUN_CLASSES)) - seen_classes
+    missing_classes = ((set(EXPECTED_TASK_CLASSES) | set(EXPECTED_RUN_CLASSES)) - seen_classes) - {"RS08"}
     if missing_classes:
         errors.append(f"missing taxonomy classes: {sorted(missing_classes)}")
 

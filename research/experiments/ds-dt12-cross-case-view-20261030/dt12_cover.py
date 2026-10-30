@@ -57,7 +57,6 @@ OPENAI = {
 
 def classify(text: str) -> str | None:
     toks = re.findall(r"[a-z_]+|\d+", text.lower())
-    word = re.compile(r"[a-z_]{3,}")
     for cat, rx in COMPILED:
         for t in toks:
             if rx.search(t):

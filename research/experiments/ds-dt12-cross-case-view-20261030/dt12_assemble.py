@@ -5,16 +5,16 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from collections import Counter
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from dt12_cover import COMPILED  # noqa: E402  (needs the sys.path insert above)
 
 RAW = Path("/Users/petermakhnatch/Developer/research-context/bridge/2026-10-29-ds-squad/raw")
 OUT = RAW / "DT-12" / "receipts"
 WORK = Path("/tmp/dt12/names")
-
-import sys
-sys.path.insert(0, str(Path(__file__).parent))
-from dt12_cover import COMPILED  # same fixed keyword table
 
 
 def map_category(name: str, terms: list[str]) -> str:

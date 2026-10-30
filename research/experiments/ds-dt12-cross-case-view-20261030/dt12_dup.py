@@ -11,7 +11,6 @@ import hashlib
 import json
 import math
 import re
-import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -169,8 +168,8 @@ def components(ids: list[str], sim: dict[tuple[str, str], float], thr: float) ->
 
 
 def load_units():
-    d8 = [json.loads(l) for l in (RAW / "DT-8/receipts/readings-new.jsonl").open()]
-    d2 = [json.loads(l) for l in (RAW / "DT-2/receipts/readings.jsonl").open()]
+    d8 = [json.loads(line) for line in (RAW / "DT-8/receipts/readings-new.jsonl").open()]
+    d2 = [json.loads(line) for line in (RAW / "DT-2/receipts/readings.jsonl").open()]
     units = {}
     for r in d8:
         units[r["blind_id"]] = {
@@ -211,7 +210,7 @@ def run():
     ids = [r["blind_id"] for r in rows]
     by_tok = {r["blind_id"]: r["tokens"] for r in rows}
     docs = [by_tok[i] for i in ids]
-    vecs = {i: v for i, v in zip(ids, tfidf(docs))}
+    vecs = {i: v for i, v in zip(ids, tfidf(docs), strict=True)}
     sim = {}
     for a in range(len(ids)):
         for b in range(a + 1, len(ids)):

@@ -10,7 +10,6 @@ import hashlib
 import json
 import math
 import re
-import subprocess
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -22,12 +21,18 @@ WORK = Path("/tmp/dt12")
 MODEL = "deepseek/deepseek-flash"
 WORKER_YML = "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-29-ds-squad/worker.yml"
 
-STOP = set("""a an the this that these those to of in on at for from with and or but if then
-than is are was were be been being it its as by not no do does did has have had can could
-would should may might will shall we you i he she they them their our your my me so such
-there here what which who whom when where why how all any both each few more most other
-some only own same very s t just now also into over under again further once about after
-before above below up down out off then once""".split())
+STOP = frozenset({
+    "a", "about", "above", "after", "again", "all", "also", "an", "and", "any", "are",
+    "as", "at", "be", "been", "before", "being", "below", "both", "but", "by", "can",
+    "could", "did", "do", "does", "down", "each", "few", "for", "from", "further", "had",
+    "has", "have", "he", "here", "how", "i", "if", "in", "into", "is", "it", "its", "just",
+    "may", "me", "might", "more", "most", "my", "no", "not", "now", "of", "off", "on",
+    "once", "only", "or", "other", "our", "out", "over", "own", "s", "same", "shall",
+    "she", "should", "so", "some", "such", "t", "than", "that", "the", "their", "them",
+    "then", "there", "these", "they", "this", "those", "to", "under", "up", "very", "was",
+    "we", "were", "what", "when", "where", "which", "who", "whom", "why", "will", "with",
+    "would", "you", "your",
+})
 
 TOKEN = re.compile(r"[a-z_]{2,}|\d+")
 

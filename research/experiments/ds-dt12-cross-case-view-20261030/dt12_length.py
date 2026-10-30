@@ -8,8 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-29-ds-squad")
 sys.path.insert(0, str(Path(__file__).parent))
-from stats import tertiles, wilson
-from dt12_dup import components, cosine, fingerprint, load_units, tfidf
+from dt12_dup import components, cosine, fingerprint, load_units, tfidf  # noqa: E402,I001
+from stats import tertiles, wilson  # noqa: E402,I001
 
 RAW = Path("/Users/petermakhnatch/Developer/research-context/bridge/2026-10-29-ds-squad/raw")
 PROMPTS = Path("/tmp/dt8/prompts")
@@ -35,7 +35,7 @@ def main():
         rows.append({**u, "fp": fp, "toks": toks, "length": length.get(b)})
     ids = [r["blind_id"] for r in rows]
     by = {r["blind_id"]: r for r in rows}
-    vecs = dict(zip(ids, tfidf([by[i]["toks"] for i in ids])))
+    vecs = dict(zip(ids, tfidf([by[i]["toks"] for i in ids]), strict=True))
     sim = {(a, b): cosine(vecs[a], vecs[b]) for x, a in enumerate(ids) for b in ids[x + 1:]}
 
     print("corpus stratum len_lo len_hi | run-level pos | run-level neg | cluster0.80 pos | cluster0.80 neg")
@@ -44,13 +44,12 @@ def main():
         cut = tertiles([by[i]["length"] for i in sub])
         groups = components(sub, {k: v for k, v in sim.items() if k[0] in sub and k[1] in sub}, 0.80)
         for s in (0, 1, 2):
-            def inside(i):
-                if s == 0:
-                    return by[i]["length"] < cut[0]
-                if s == 1:
-                    return cut[0] <= by[i]["length"] < cut[1]
-                return by[i]["length"] >= cut[1]
-            mem = [i for i in sub if inside(i)]
+            if s == 0:
+                mem = [i for i in sub if by[i]["length"] < cut[0]]
+            elif s == 1:
+                mem = [i for i in sub if cut[0] <= by[i]["length"] < cut[1]]
+            else:
+                mem = [i for i in sub if by[i]["length"] >= cut[1]]
             lo = min(by[i]["length"] for i in mem)
             hi = max(by[i]["length"] for i in mem)
             pr = sum(1 for i in mem if by[i]["positive"] and by[i]["alert"])

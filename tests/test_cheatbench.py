@@ -863,3 +863,164 @@ def test_uncapped_conversion_keeps_the_oversized_tails():
     assert len(json.dumps(full)) > len(json.dumps(capped))
     # Only the bounded text differs: same steps, same ids, no evaluator fields added.
     assert [s["step_id"] for s in full["steps"]] == [s["step_id"] for s in capped["steps"]]
+
+
+# ---------------------------------------------------------------------------
+# truncation markers: every field the importer cuts says so
+# ---------------------------------------------------------------------------
+
+CUT_MARK = "\n…[truncated]"
+
+
+def test_cap_marks_only_above_the_limit():
+    assert mod._cap("x" * mod.MSG_CAP, mod.MSG_CAP) == "x" * mod.MSG_CAP
+    assert mod._cap("x" * (mod.MSG_CAP + 1), mod.MSG_CAP) == "x" * mod.MSG_CAP + CUT_MARK
+
+
+def test_every_cut_message_and_observation_carries_the_marker():
+    at_limit = "A" * mod.MSG_CAP
+    raw = {
+        "task_name": "t",
+        "benchmark": "terminal-bench-2",
+        "events": [
+            {"step": "1", "src": "agent", "msg": at_limit, "obs": "O" * (mod.OBS_CAP + 1)},
+            {"step": "2", "src": "agent", "msg": "M" * 9_000 + "MSG-TAIL"},
+        ],
+    }
+    doc, _ = convert("cb-cut", raw, _meta())
+    agent = [s for s in doc["steps"] if s["source"] == "agent"]
+    # A field at exactly the limit is complete: no false marker.
+    assert agent[0]["message"] == at_limit
+    observation = agent[0]["observation"]["results"][0]["content"]
+    assert observation.endswith(CUT_MARK) and len(observation) == mod.OBS_CAP + len(CUT_MARK)
+    message = agent[1]["message"]
+    assert message.endswith(CUT_MARK) and "MSG-TAIL" not in message
+    assert len(message) == mod.MSG_CAP + len(CUT_MARK)
+
+
+def test_text_of_marks_the_json_fragments_it_cuts():
+    block = {"type": "image", "data": "z" * 5_000}
+    text = text_of([block])
+    assert text.endswith(CUT_MARK) and len(text) == 2_000 + len(CUT_MARK)
+    assert text_of({"data": "z" * 5_000}).endswith(CUT_MARK)
+
+
+def test_pilot_thinking_and_tool_arguments_are_marked_when_cut():
+    stdout = "\n".join(
+        [
+            json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [
+                            {"type": "thinking", "thinking": "T" * 3_000 + "THINK-TAIL"},
+                            {
+                                "type": "tool_use",
+                                "id": "t1",
+                                "name": "Read",
+                                "input": {"file_path": "/x" * 3_000, "description": "D" * 900},
+                            },
+                        ]
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "t1",
+                                "content": [{"type": "image", "data": "i" * 5_000}],
+                            }
+                        ]
+                    },
+                }
+            ),
+        ]
+    )
+    raw = {
+        "task_name": "t",
+        "benchmark": "terminal-bench-2",
+        "events": [{"type": "agent_command", "command": "pilot", "stdout": stdout}],
+    }
+    doc, _ = convert("cb-cut-pilot", raw, _meta())
+    agent = [s for s in doc["steps"] if s["source"] == "agent"][0]
+    assert "THINK-TAIL" not in agent["message"] and CUT_MARK in agent["message"]
+    args = agent["tool_calls"][0]["arguments"]
+    assert args["file_path"].endswith(CUT_MARK) and len(args["file_path"]) == 4_000 + len(CUT_MARK)
+    assert args["description"].endswith(CUT_MARK) and len(args["description"]) == 500 + len(CUT_MARK)
+    observation = agent["observation"]["results"][0]["content"]
+    assert observation.endswith(CUT_MARK)
+
+
+def test_step_tools_and_iquest_arguments_are_marked_when_cut():
+    raw = {
+        "task_name": "t",
+        "benchmark": "terminal-bench-2",
+        "events": [
+            {"step": "1", "src": "user", "msg": "go"},
+            {
+                "step": "2",
+                "src": "agent",
+                "msg": "writing",
+                "tools": json.dumps([{"fn": "write", "cmd": "/app/" + "F" * 5_000}]),
+            },
+        ],
+    }
+    doc, _ = convert("cb-cut-step", raw, _meta())
+    agent = [s for s in doc["steps"] if s["source"] == "agent"][0]
+    args = agent["tool_calls"][0]["arguments"]
+    assert args["input"].endswith(CUT_MARK) and len(args["input"]) == 4_000 + len(CUT_MARK)
+    assert args["path"].endswith(CUT_MARK) and len(args["path"]) == 2_000 + len(CUT_MARK)
+
+    iquest = {
+        "id": "cb-cut-iq",
+        "messages": [
+            {"role": "system", "content": "sys"},
+            {
+                "role": "assistant",
+                "content": "<function=write><parameter=code>"
+                + "C" * 5_000
+                + "</parameter></function>",
+            },
+        ],
+    }
+    doc, _ = convert("cb-cut-iq", iquest, _meta())
+    agent = [s for s in doc["steps"] if s["source"] == "agent"][0]
+    code = agent["tool_calls"][0]["arguments"]["code"]
+    assert code.endswith(CUT_MARK) and len(code) == 4_000 + len(CUT_MARK)
+
+
+def test_mle_and_codex_text_is_marked_when_cut():
+    mle = {
+        "task_name": "t",
+        "benchmark": "mle-bench",
+        "events": [
+            {
+                "role": "trace",
+                "content": "LLM_OUTPUT:\n"
+                + json.dumps({"tool": "write", "body": "B" * 5_000}),
+            }
+        ],
+    }
+    doc, _ = convert("cb-cut-mle", mle, _meta())
+    agent = [s for s in doc["steps"] if s["source"] == "agent"][0]
+    body = agent["tool_calls"][0]["arguments"]["body"]
+    assert body.endswith(CUT_MARK) and len(body) == 4_000 + len(CUT_MARK)
+
+    codex = {
+        "task_name": "t",
+        "benchmark": "swe-bench-verified",
+        "events": [
+            {
+                "role": "trace",
+                "content": "[action]\n" + json.dumps({"summary": "S" * 3_000}),
+            }
+        ],
+    }
+    doc, _ = convert("cb-cut-codex", codex, _meta())
+    agent = [s for s in doc["steps"] if s["source"] == "agent"][0]
+    assert "S" * 3_000 not in agent["message"]
+    assert CUT_MARK in agent["message"]

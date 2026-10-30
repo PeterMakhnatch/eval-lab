@@ -93,9 +93,9 @@ def text_of(content: Any) -> str:
             elif isinstance(block.get("content"), str):
                 parts.append(block["content"])
             else:
-                parts.append(json.dumps(block)[:2000])
+                parts.append(_cap(json.dumps(block), 2000))
         return "\n".join(parts)
-    return json.dumps(content)[:4000] if content is not None else ""
+    return _cap(json.dumps(content), 4000) if content is not None else ""
 
 
 def _balanced_json(text: str, start: int) -> tuple[Any, int] | None:
@@ -118,7 +118,7 @@ def _pilot_text_of(blocks: Any) -> str:
         if block.get("type") == "text" and isinstance(block.get("text"), str):
             out.append(block["text"])
         elif block.get("type") == "thinking" and isinstance(block.get("thinking"), str):
-            out.append("[thinking] " + block["thinking"][:2000])
+            out.append("[thinking] " + _cap(block["thinking"], 2000))
     return "\n".join(out)
 
 
@@ -133,9 +133,9 @@ def _pilot_result_text(content: Any) -> str:
             elif isinstance(block.get("content"), str):
                 parts.append(block["content"])
             else:
-                parts.append(json.dumps(block)[:2000])
+                parts.append(_cap(json.dumps(block), 2000))
         return "\n".join(parts)
-    return json.dumps(content)[:4000] if content is not None else ""
+    return _cap(json.dumps(content), 4000) if content is not None else ""
 
 
 def _pilot_steps(stdout: str, *, caps: bool = True) -> list[tuple[str, list[dict], list[dict]]]:
@@ -198,25 +198,25 @@ def _pilot_tool_args(name: str, raw: dict) -> dict:
         if isinstance(cmd, str) and cmd:
             args = {"keystrokes": cmd, "command": cmd}
         else:
-            args = {"input": json.dumps(raw)[:4000]}
+            args = {"input": _cap(json.dumps(raw), 4000)}
     else:
         for field in ("file_path", "path", "filename", "file", "command", "cmd", "input"):
             value = raw.get(field)
             if isinstance(value, str) and value:
-                args[field] = value[:4000]
+                args[field] = _cap(value, 4000)
                 if field in ("command", "cmd"):
-                    args.setdefault("keystrokes", value[:4000])
+                    args.setdefault("keystrokes", _cap(value, 4000))
         for field in ("old_str", "new_str", "old_string", "new_string"):
             value = raw.get(field)
             if isinstance(value, str) and value:
-                args[field] = value[:4000]
+                args[field] = _cap(value, 4000)
         if not args:
-            args = {"input": json.dumps(raw)[:4000]}
+            args = {"input": _cap(json.dumps(raw), 4000)}
         elif "keystrokes" not in args and lname in ("bash",):
             pass
     for key in ("description",):
         if isinstance(raw.get(key), str):
-            args[key] = raw[key][:500]
+            args[key] = _cap(raw[key], 500)
     return args
 
 
@@ -402,7 +402,7 @@ def _episode_calls(response: Any) -> tuple[str, list[dict]]:
                     "function_name": name,
                     "arguments": {"keystrokes": str(keys), "command": str(keys)}
                     if isinstance(keys, str)
-                    else {"input": json.dumps(args)[:4000]},
+                    else {"input": _cap(json.dumps(args), 4000)},
                 }
             )
     return head.strip(), calls
@@ -429,10 +429,10 @@ def _msg_tool_calls(tools_raw: Any) -> list[dict]:
         if lname in ("bash", "bash_command", "shell", "exec", "execute_bash"):
             args = {"keystrokes": str(cmd), "command": str(cmd)}
         else:
-            args = {"input": str(cmd)[:4000]} if cmd else {}
+            args = {"input": _cap(str(cmd), 4000)} if cmd else {}
             maybe_path = str(cmd) if cmd and ("/" in str(cmd) or "." in str(cmd)) else ""
             if maybe_path:
-                args.setdefault("path", maybe_path[:2000])
+                args.setdefault("path", _cap(maybe_path, 2000))
         calls.append({"tool_call_id": f"t-{len(calls)}", "function_name": name, "arguments": args})
     return calls
 
@@ -461,18 +461,18 @@ def _iquest_calls(text: str) -> tuple[str, list[dict]]:
         args: dict[str, Any] = {}
         for field in ("path", "file_path", "filename", "file", "command", "cmd", "code"):
             if params.get(field):
-                args[field] = params[field][:4000]
+                args[field] = _cap(params[field], 4000)
         for field in ("old_str", "new_str", "old_text", "new_text"):
             if params.get(field):
-                args[field] = params[field][:4000]
+                args[field] = _cap(params[field], 4000)
         command = params.get("command") or params.get("cmd") or params.get("code") or ""
         is_shell = name.lower() in ("bash", "exec", "shell") or (
             name == "str_replace_editor" and params.get("command") not in ("view",)
         )
         if command and is_shell:
-            args.setdefault("keystrokes", command[:4000])
+            args.setdefault("keystrokes", _cap(command, 4000))
         if not args:
-            args = {"input": json.dumps(params)[:4000]}
+            args = {"input": _cap(json.dumps(params), 4000)}
         calls.append(
             {
                 "tool_call_id": f"iq-{len(calls)}",
@@ -564,9 +564,9 @@ def _convert_codex(builder: _Steps, text: str) -> None:
                 if isinstance(summary, list):
                     summary = "\n".join(str(s) for s in summary)
                 if str(summary).strip():
-                    pending_prose.append(str(summary).strip()[:2000])
+                    pending_prose.append(_cap(str(summary).strip(), 2000))
                 if rest:
-                    pending_prose.append(rest[:2000])
+                    pending_prose.append(_cap(rest, 2000))
         elif stripped:
             builder.observe(stripped)
         if rest and parsed and "command" in (parsed[0] or {}):
@@ -633,13 +633,13 @@ def _convert_mle(builder: _Steps, text: str) -> None:
             obj = parsed[0]
             name = str(obj.get("tool") or "unknown_tool")
             args = {
-                k: (str(v)[:4000] if isinstance(v, str) else v)
+                k: (_cap(str(v), 4000) if isinstance(v, str) else v)
                 for k, v in obj.items()
                 if k != "tool"
             }
             path = obj.get("filepath") or obj.get("file_path") or obj.get("path")
             if isinstance(path, str) and path:
-                args.setdefault("file_path", path[:2000])
+                args.setdefault("file_path", _cap(path, 2000))
             builder.agent(
                 _bounded(body, MSG_CAP, builder.caps),
                 [
@@ -1477,7 +1477,7 @@ def build_annotation(
     n_steps: int,
 ) -> str:
     """Clearly-marked locator card appended after the original trace."""
-    snippet = (row.get("loc_snippet") or "")[:1000]
+    snippet = _cap(str(row.get("loc_snippet") or ""), 1000)
     lines = [
         "[CheatBench annotation — not part of the original trace]",
         f"trace {row.get('trace_id')} · benchmark {row.get('benchmark')} · "

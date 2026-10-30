@@ -83,7 +83,13 @@ def test_extract_channels_splits_narration_call_output_and_caps() -> None:
         "command_or_action": "",
         "flags_json": "{}",
     }
-    long_asst = {**asst_row, "step_index": 2, "content_text": "x" * 5000, "command_or_action": "", "flags_json": "{}"}
+    long_asst = {
+        **asst_row,
+        "step_index": 2,
+        "content_text": "x" * 5000,
+        "command_or_action": "",
+        "flags_json": "{}",
+    }
 
     chans0 = goodfire._extract_channels(asst_row)
     chans1 = goodfire._extract_channels(tool_row)

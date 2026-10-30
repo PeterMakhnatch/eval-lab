@@ -266,13 +266,9 @@ def _doctor(root: Path, *, home: Path | None = None) -> int:
     checks.append(("task", task_toml.is_file(), "event-summary"))
     launch_agents = audit_launch_agents(home or Path.home())
     if launch_agents.broken:
-        checks.extend(
-            ("launchagent", False, issue.describe()) for issue in launch_agents.broken
-        )
+        checks.extend(("launchagent", False, issue.describe()) for issue in launch_agents.broken)
     else:
-        checks.append(
-            ("launchagent", True, f"{launch_agents.checked} evallab LaunchAgents intact")
-        )
+        checks.append(("launchagent", True, f"{launch_agents.checked} evallab LaunchAgents intact"))
     for name, ok, detail in checks:
         print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
     print(doctor_disk_line(root))
@@ -6898,6 +6894,15 @@ def parser() -> argparse.ArgumentParser:
 
     register_trace_harness(trace_actions)
 
+    goodfire = commands.add_parser(
+        "goodfire",
+        help="Fast Goodfire DEV run cards (run id, task stmt if present, steps split narration/call/output with lengths); DEV admission gate, zero labels in cards",
+    )
+    goodfire_commands = goodfire.add_subparsers(dest="goodfire_command", required=True)
+    from evallab.production import goodfire as goodfire_mod
+
+    goodfire_mod.register_subcommands(goodfire_commands)
+
     fetch = commands.add_parser(
         "fetch",
         help="Acquire a pinned Harbor Hub dataset into library/benchmarks/",
@@ -6927,7 +6932,6 @@ def parser() -> argparse.ArgumentParser:
         help="Run free oracle/nop on N tasks (Harbor -n <= 2) and record rewards",
     )
     fetch.set_defaults(func=_fetch_command)
-
     probe_exploit = commands.add_parser(
         "probe-exploit",
         help="HAR-161 exploit probe: write a task's exploit/image-check specs, or judge jobs",

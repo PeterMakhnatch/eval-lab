@@ -146,9 +146,14 @@ def main() -> int:
             },
             "per_run": aggregated["per_run"],
         }
-        out["variants"][f"vote_ge_{threshold}"]["usd_total"] = round(
-            sum(v[arm]["cost_usd"] for v in rows.values() for arm in ("A", "B", "C")), 6
-        )
+        # Arms share prompts (C re-uses B's and A's windows), so this sums each window once per arm that
+        # judges it. It is NOT the run's spend; the per-pass figure in attestation.json is.
+        out["variants"][f"vote_ge_{threshold}"]["usd_summed_per_arm"] = {
+            "usd": round(
+                sum(v[arm]["cost_usd"] for v in rows.values() for arm in ("A", "B", "C")), 6
+            ),
+            "note": "each window counted once per arm that judges it; see attestation.json for spend",
+        }
     fw.write_json(mod.RESULTS / "result-vote.json", out)
     print(
         json.dumps(

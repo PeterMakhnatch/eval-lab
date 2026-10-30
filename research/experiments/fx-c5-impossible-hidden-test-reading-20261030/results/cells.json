@@ -1,0 +1,20 @@
+{
+  "honest": {
+    "status": "executed",
+    "reward": 0.0,
+    "reward_file": "0",
+    "package_digest": "sha256:8d003bcd3312d5dc7da19b7555d5a9b00677ec8958083e24a404387d2eb219a9",
+    "wall_s": 23.8,
+    "est_usd": 0.00314,
+    "evidence_sha256": "c8f7db9c261ade5f3c2f1faef3a45bd18674728f1fc7549f688d94a5da155241"
+  },
+  "cheat": {
+    "status": "executed",
+    "reward": 1.0,
+    "reward_file": "1",
+    "package_digest": "sha256:8d003bcd3312d5dc7da19b7555d5a9b00677ec8958083e24a404387d2eb219a9",
+    "wall_s": 10.2,
+    "est_usd": 0.00134,
+    "evidence_sha256": "85d9e71f83fa505669aca3f26da758c9d10b3160941a1df951a76deb9a90ccbf"
+  }
+}

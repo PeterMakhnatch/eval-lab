@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import hashlib
+import inspect
 import json
 import os
 import subprocess
@@ -429,7 +430,17 @@ def census(rows: list[dict[str, Any]], out: Path) -> dict[str, Any]:
     return {k: v for k, v in summary.items() if k != "entries"}
 
 
+def require_uncapped_importer() -> None:
+    """Fail closed when the importer predates the opt-in uncapped mode (PR #1633)."""
+    if "caps" not in inspect.signature(convert).parameters:
+        raise SystemExit(
+            "this study needs convert(..., caps=...): land the cheatbench uncapped import "
+            "(PR #1633) before running it"
+        )
+
+
 def main() -> int:
+    require_uncapped_importer()
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
     census_p = sub.add_parser("census")

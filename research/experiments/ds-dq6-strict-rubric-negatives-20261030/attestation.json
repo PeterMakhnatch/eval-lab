@@ -1,0 +1,13 @@
+{
+ "served_models": [
+  "deepseek/deepseek-flash"
+ ],
+ "n_fallbacks": 0,
+ "n_calls": 16,
+ "n_reused_from_dq5": 1,
+ "all_served_requested_model": true,
+ "instructions_sha256": {
+  "strict": "d5b421a13f766de2157ed41b240e616808809c48bc789eed1adf7537ee2388e1",
+  "matches_dq5": true
+ }
+}

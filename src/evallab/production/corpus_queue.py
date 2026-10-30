@@ -611,9 +611,13 @@ class ContinuousWorkQueue:
                 self._execute(statement)
             # Databases created before claim fairness lack the column.
             if self._postgres:
-                self._execute(
-                    "ALTER TABLE outbox ADD COLUMN IF NOT EXISTS released_at DOUBLE PRECISION"
-                )
+                self._execute("""DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'outbox' AND column_name = 'released_at'
+                        AND table_schema = current_schema()) THEN
+                        ALTER TABLE outbox ADD COLUMN released_at DOUBLE PRECISION;
+                    END IF;
+                END $$""")
             elif "released_at" not in {
                 row[1] for row in self._execute("PRAGMA table_info(outbox)").fetchall()
             }:

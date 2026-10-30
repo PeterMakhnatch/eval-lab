@@ -1,0 +1,132 @@
+{
+ "format-code-task-000079": [
+  "grader_tamperable",
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-000081": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-000085": [
+  "grader_tamperable",
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-000212": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-000232": [
+  "reference_validated_weak_test",
+  "weak_check"
+ ],
+ "format-code-task-000256": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-000322": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-000603": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-000682": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-000792": [],
+ "format-code-task-000812": [
+  "reference_validated_weak_test",
+  "weak_check"
+ ],
+ "format-code-task-000838": [
+  "answer_reachable"
+ ],
+ "format-code-task-000847": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-000872": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-000931": [
+  "reference_validated_weak_test",
+  "weak_check"
+ ],
+ "format-code-task-000945": [
+  "grader_tamperable",
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-001205": [
+  "grader_tamperable",
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-001267": [
+  "grader_tamperable",
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-001338": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-001426": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-001431": [
+  "reference_validated_weak_test",
+  "weak_check"
+ ],
+ "format-code-task-001514": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-001804": [
+  "grader_tamperable",
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-001809": [
+  "grader_tamperable",
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-001850": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-001985": [
+  "grader_tamperable",
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-002139": [
+  "grader_tamperable"
+ ],
+ "format-code-task-002160": [
+  "reference_validated_weak_test",
+  "weak_check"
+ ],
+ "format-code-task-002391": [
+  "grader_tamperable"
+ ],
+ "format-code-task-002535": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-002545": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-002552": [
+  "grader_tamperable"
+ ],
+ "format-code-task-002609": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-002680": [
+  "grader_tamperable"
+ ],
+ "format-code-task-002976": [
+  "reference_validated_weak_test"
+ ],
+ "format-code-task-003007": [
+  "reference_validated_weak_test"
+ ],
+ "cad-model": [],
+ "fin-saccr-rwa": [
+  "grader_wrong_pass",
+  "weak_check"
+ ],
+ "freecad-platform-drawing": [],
+ "freecad-spring-clip": [],
+ "gsea-proteomics": [],
+ "heat-pump-warranty": [],
+ "photonic-waveguide-routing": [],
+ "satb-audio-transcription": []
+}

@@ -22,16 +22,16 @@ import sys
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
     os.environ.setdefault(_v, "1")
 
-from collections import Counter
+from collections import Counter  # noqa: E402
 
-import numpy as np
-from scipy.stats import fisher_exact
-from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
+import numpy as np  # noqa: E402
+from scipy.stats import fisher_exact  # noqa: E402
+from sklearn.ensemble import HistGradientBoostingClassifier  # noqa: E402
+from sklearn.linear_model import LogisticRegression  # noqa: E402
+from sklearn.metrics import roc_auc_score  # noqa: E402
+from sklearn.model_selection import RepeatedStratifiedKFold  # noqa: E402
+from sklearn.pipeline import make_pipeline  # noqa: E402
+from sklearn.preprocessing import StandardScaler  # noqa: E402
 
 sys.path.insert(0, "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-29-ds-squad")
 from stats import tertile_of, tertiles, wilson  # noqa: E402
@@ -180,13 +180,15 @@ def features(text: str) -> dict[str, float]:
     for name, pat in SHELL_PATTERNS.items():
         feats[name] = float(len(re.findall(pat, call_text, flags=re.I)))
     for i, probe in enumerate(PROBES):
-        feats["probe_%02d" % i] = float(lower.count(probe))
+        feats[f"probe_{i:02d}"] = float(lower.count(probe))
     return feats
 
 
 def load_cohorts():
-    d2 = [json.loads(l) for l in open(os.path.join(BRIDGE, "DT-2/receipts/readings.jsonl"))]
-    d8 = [json.loads(l) for l in open(os.path.join(BRIDGE, "DT-8/receipts/readings-new.jsonl"))]
+    with open(os.path.join(BRIDGE, "DT-2/receipts/readings.jsonl")) as fh:
+        d2 = [json.loads(line) for line in fh]
+    with open(os.path.join(BRIDGE, "DT-8/receipts/readings-new.jsonl")) as fh:
+        d8 = [json.loads(line) for line in fh]
     goodfire = []
     for r in d2:
         goodfire.append({"corpus": "goodfire", "blind_id": r["blind_id"], "run_id": r["run_id"],
@@ -211,7 +213,8 @@ def baseline_maps():
     out = {}
     for corpus in ("goodfire", "cheatbench"):
         path = os.path.join(BASELINES, corpus + "-per-run.jsonl")
-        rows = [json.loads(l) for l in open(path)]
+        with open(path) as fh:
+            rows = [json.loads(line) for line in fh]
         out[corpus] = {r["run_id"]: r["tools"] for r in rows}
     return out
 
@@ -388,7 +391,7 @@ def probes_report(rows):
     y = np.array([1 if r["positive"] else 0 for r in rows])
     rng = np.random.default_rng(SEED)
     for i, probe in enumerate(PROBES):
-        key = "probe_%02d" % i
+        key = f"probe_{i:02d}"
         vals = np.array([r["f"][key] for r in rows])
         pos, neg = vals[y == 1], vals[y == 0]
         pos_hit, neg_hit = (pos > 0), (neg > 0)
@@ -470,7 +473,7 @@ def main():
     os.makedirs(args.out, exist_ok=True)
 
     cohorts = load_cohorts()
-    for corpus, rows in cohorts.items():
+    for rows in cohorts.values():
         for r in rows:
             r["f"] = features(run_text(r["blind_id"]))
     feature_names = sorted({k for rows in cohorts.values() for r in rows for k in r["f"]})

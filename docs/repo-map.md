@@ -435,7 +435,7 @@ inputs:
   - path: src/evallab/harbor_terminus.py
     digest: sha256:7567699fb4da47f9e42a56d3a03fb35fd4b78f239fb23ce7785b2b0072053543
   - path: src/evallab/harbor_view.py
-    digest: sha256:a8e3b09fe911c01276dc7cb2546fe96381a7b9e06698fd3ee818887234addce7
+    digest: sha256:c2262c5906f8726681b20eae1dcab92454069c4ee2e193a73f989487e3b8cbc4
   - path: src/evallab/harbor_watch_hooks.py
     digest: sha256:30c260dd4498a2ebd7a505ce1738f2a67072e0c0924ee7f1bc0909fdeff280a5
   - path: src/evallab/harbor_zai_miniswe.py

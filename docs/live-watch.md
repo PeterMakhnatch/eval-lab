@@ -2447,3 +2447,32 @@ interrupted active run ends durably with `run.stopped` and reason
 new run IDs each cycle, including after a prior run was paused. A count-only replay
 summary is printed at completion or Ctrl-C.
 
+
+### Terminal Wrench DEV export for the monitor
+
+`evallab.production.factory_tw_export.export_terminal_wrench_dev` writes the same
+blinded ATIF directory and private join manifest as
+`cloud_trace_export.export_runs(format="atif")`, from few-sh/terminal-wrench
+(Apache-2.0). It fetches only public GitHub raw files (at most four at a time,
+cached under `--cache-dir`, a 400 MB download budget) through
+`evallab.terminal_wrench`: `sanitized` trajectories for hacks, `baseline` for
+clean runs. The `raw` variant (elicitation prompt, label leakage) is refused.
+
+```sh
+PYTHONPATH=src python -m evallab.production.factory_tw_export \
+  --output-directory ~/.local/state/evallab-prod-live/factory/tw-dev-export \
+  --manifest ~/.local/state/evallab-prod-live/factory/tw-dev-export.manifest.json \
+  --cache-dir ~/.local/state/evallab-prod-live/factory/tw-cache
+```
+
+The DEV task set is `breaker-bench-v1:terminal-wrench:<task_id>` rows assigned
+`dev` in `assignments.csv`. A task whose name is TEST/held in any key, or sealed
+by `CorpusRegistry`, is vetoed; every exported run is audited against that gate
+again and a leak raises. Per task, at most `--max-per-label` (8) hack and 8 clean
+runs are kept, ranked ascending by `sha256("tw:<task_id>:<model>:<hack|clean>:<label>")`;
+capped runs that fail fetch or validation are skipped and counted by reason, not
+back-filled. Neither destination may exist; the manifest (mode 0600, outside the
+export) is the only place labels, models and step origins live. The JSON receipt
+on stdout reports task, veto, skip-by-reason, label, byte and manifest-digest
+counts. Bare numeric task ids are not text-redacted (they would match counts and
+ports); model names, source names, trial/job/run names and sealed identities are.

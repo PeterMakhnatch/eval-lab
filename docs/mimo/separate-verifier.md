@@ -756,7 +756,12 @@ surfacing as `native reward file is missing`:
   release (observed 0.21.0 beside the pinned 0.24.0) was picked up by the
   `harbor run` child and failed inside the pinned adapter hooks. The
   launcher now puts this interpreter's own `bin` directory first on the
-  child `PATH`.
+  child `PATH` (`harbor_view.prepend_pinned_harbor_path`), so the child
+  uses the same pinned release as the adapters it imports.
+
+Only the in-process grading path refuses on a missing runtime: a queue
+launch runs Harbor as a child, which may legitimately come from another
+install, so that path pins the binary instead of refusing.
 
 Run native cells with `uv run --extra laminar evallab ...` (or that venv's
 interpreter) so both the module and the executable come from the same

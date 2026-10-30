@@ -1,0 +1,366 @@
+{
+ "by_corpus": {
+  "goodfire": {
+   "n_sampled": 60,
+   "n_usable": 32,
+   "n_unknown": 28,
+   "unknown_ids": [
+    "run-75681af6823b6521",
+    "run-046e36f375457a8f",
+    "run-535cc88206c64c2f",
+    "run-ede2017ebfa332fc",
+    "run-80846c697c8e348e",
+    "run-afafc0291e3acdde",
+    "run-51b13355936c322e",
+    "run-e4b21b27c1437f06",
+    "run-a1f939db3c92aca6",
+    "run-5f15067a239fe52e",
+    "run-5bdb69a3d266d741",
+    "run-f37e1e416537dd51",
+    "run-605bc4bdf3a350f4",
+    "run-010629d25990c320",
+    "run-027ac1f55a6b6944",
+    "run-f68ecc2d5526dfe6",
+    "run-27f2d2faaa2e90e6",
+    "run-d95915f372e836d4",
+    "run-8a6d238f11478411",
+    "run-d4c97accf308b717",
+    "run-a757bff6f48b70fe",
+    "run-62fd0ab9c8d6da01",
+    "run-ffb1e5655f9ff63b",
+    "run-2d283e85040410bb",
+    "run-658af8ae6bb5efee",
+    "run-8686209958f20921",
+    "run-9520480af04ddfb7",
+    "run-ba939eca37328f90"
+   ],
+   "by_label": {
+    "positive": {
+     "n": 32,
+     "action_visible": {
+      "k": 6,
+      "n": 32,
+      "rate": 0.1875,
+      "wilson95": [
+       0.0888954463773112,
+       0.35309155347561394
+      ]
+     },
+     "narration_only": {
+      "k": 11,
+      "n": 32,
+      "rate": 0.34375,
+      "wilson95": [
+       0.20410437836619277,
+       0.5168891215602698
+      ]
+     },
+     "nothing_found": {
+      "k": 19,
+      "n": 32,
+      "rate": 0.59375,
+      "wilson95": [
+       0.42260024747333746,
+       0.7448036525707851
+      ]
+     },
+     "both": {
+      "k": 4,
+      "n": 32,
+      "rate": 0.125,
+      "wilson95": [
+       0.04970134352905961,
+       0.2806830562944507
+      ]
+     },
+     "asked_visible": {
+      "k": 32,
+      "n": 32,
+      "rate": 1.0,
+      "wilson95": [
+       0.8928208002353198,
+       1.0
+      ]
+     }
+    },
+    "negative": {
+     "n": 0,
+     "action_visible": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+     },
+     "narration_only": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+     },
+     "nothing_found": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+     },
+     "both": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+     },
+     "asked_visible": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+     }
+    }
+   },
+   "by_stratum": {
+    "0": {
+     "n": 1,
+     "by_label": {
+      "positive": {
+       "n": 1,
+       "action": 0,
+       "narration_only": 1,
+       "nothing": 0
+      },
+      "negative": {
+       "n": 0,
+       "action": 0,
+       "narration_only": 0,
+       "nothing": 0
+      }
+     }
+    },
+    "1": {
+     "n": 13,
+     "by_label": {
+      "positive": {
+       "n": 13,
+       "action": 3,
+       "narration_only": 5,
+       "nothing": 8
+      },
+      "negative": {
+       "n": 0,
+       "action": 0,
+       "narration_only": 0,
+       "nothing": 0
+      }
+     }
+    },
+    "2": {
+     "n": 18,
+     "by_label": {
+      "positive": {
+       "n": 18,
+       "action": 3,
+       "narration_only": 5,
+       "nothing": 11
+      },
+      "negative": {
+       "n": 0,
+       "action": 0,
+       "narration_only": 0,
+       "nothing": 0
+      }
+     }
+    }
+   }
+  },
+  "cheatbench": {
+   "n_sampled": 10,
+   "n_usable": 2,
+   "n_unknown": 8,
+   "unknown_ids": [
+    "run-eefed3e2d21afbca",
+    "run-45df53e1b0b614db",
+    "run-ec9d3994d267a5fe",
+    "run-78b106f2c48d067f",
+    "run-4620678788d09c33",
+    "run-5654178608ffbfab",
+    "run-abc5fdb854e354bd",
+    "run-79ea76aa41e1d861"
+   ],
+   "by_label": {
+    "positive": {
+     "n": 2,
+     "action_visible": {
+      "k": 2,
+      "n": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3423802239546494,
+       1.0
+      ]
+     },
+     "narration_only": {
+      "k": 2,
+      "n": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3423802239546494,
+       1.0
+      ]
+     },
+     "nothing_found": {
+      "k": 0,
+      "n": 2,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.6576197760453506
+      ]
+     },
+     "both": {
+      "k": 2,
+      "n": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3423802239546494,
+       1.0
+      ]
+     },
+     "asked_visible": {
+      "k": 2,
+      "n": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3423802239546494,
+       1.0
+      ]
+     }
+    },
+    "negative": {
+     "n": 0,
+     "action_visible": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+     },
+     "narration_only": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+     },
+     "nothing_found": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+     },
+     "both": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+     },
+     "asked_visible": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+     }
+    }
+   },
+   "by_stratum": {
+    "0": {
+     "n": 0,
+     "by_label": {
+      "positive": {
+       "n": 0,
+       "action": 0,
+       "narration_only": 0,
+       "nothing": 0
+      },
+      "negative": {
+       "n": 0,
+       "action": 0,
+       "narration_only": 0,
+       "nothing": 0
+      }
+     }
+    },
+    "1": {
+     "n": 0,
+     "by_label": {
+      "positive": {
+       "n": 0,
+       "action": 0,
+       "narration_only": 0,
+       "nothing": 0
+      },
+      "negative": {
+       "n": 0,
+       "action": 0,
+       "narration_only": 0,
+       "nothing": 0
+      }
+     }
+    },
+    "2": {
+     "n": 2,
+     "by_label": {
+      "positive": {
+       "n": 2,
+       "action": 2,
+       "narration_only": 2,
+       "nothing": 0
+      },
+      "negative": {
+       "n": 0,
+       "action": 0,
+       "narration_only": 0,
+       "nothing": 0
+      }
+     }
+    }
+   }
+  }
+ },
+ "goodfire_positive_action": {
+  "k": 6,
+  "n": 32,
+  "rate": 0.1875,
+  "wilson95": [
+   0.0888954463773112,
+   0.35309155347561394
+  ]
+ },
+ "cheatbench_positive_action": {
+  "k": 2,
+  "n": 2,
+  "rate": 1.0,
+  "wilson95": [
+   0.3423802239546494,
+   1.0
+  ]
+ },
+ "fisher_two_sided_p": 0.049910873440285206,
+ "pooled_goodfire_positive_action": {
+  "k": 6,
+  "n": 47,
+  "rate": 0.1276595744680851,
+  "wilson95": [
+   0.059846041631937644,
+   0.25173940909799597
+  ]
+ },
+ "pooled_cheatbench_positive_action": {
+  "k": 7,
+  "n": 12,
+  "rate": 0.5833333333333334,
+  "wilson95": [
+   0.31951131084242423,
+   0.8067396875653928
+  ]
+ },
+ "pooled_fisher_two_sided_p": 0.002298719051979457,
+ "d2_goodfire_positive_n": 15,
+ "d2_cheatbench_positive_n": 10
+}

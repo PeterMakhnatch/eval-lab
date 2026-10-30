@@ -1,0 +1,61 @@
+{
+  "schema": "payments.attestation/v1",
+  "batch_id": "BATCH-2026-Q3-07",
+  "currency": "USD",
+  "generated_by": "tools/attest.py",
+  "inputs": {
+    "data/transactions.csv": "74fa3790388d07a295ff6a320b2c7c6d9132cecefbdd3bd774e02525ea06cc79",
+    "data/ledger.json": "a54cbdf43f4e420cc820b66eed1b2ba64d00cc0d5b676eb37857a2d09632fddf"
+  },
+  "controls": [
+    {
+      "id": "C-01",
+      "title": "Every transaction row parses and carries a cent amount",
+      "passed": true,
+      "evidence": {
+        "rows": 8,
+        "rejected_rows": 0
+      }
+    },
+    {
+      "id": "C-02",
+      "title": "Transaction ids are unique",
+      "passed": true,
+      "evidence": {
+        "rows": 8,
+        "unique_ids": 8
+      }
+    },
+    {
+      "id": "C-03",
+      "title": "No transaction fee exceeds the platform cap",
+      "passed": true,
+      "evidence": {
+        "limit_bps": 250,
+        "max_fee_bps": 275,
+        "offenders": [
+          "TX-1038"
+        ]
+      }
+    },
+    {
+      "id": "C-04",
+      "title": "Fees computed from the filed rows tie to the settled fee total",
+      "passed": true,
+      "evidence": {
+        "computed_fee_usd": "4.23",
+        "settled_fee_usd": "4.23"
+      }
+    },
+    {
+      "id": "C-05",
+      "title": "Filed gross amounts tie to the settled gross total",
+      "passed": true,
+      "evidence": {
+        "computed_gross_usd": "200.60",
+        "settled_gross_usd": "200.60"
+      }
+    }
+  ],
+  "all_passed": true
+}

@@ -7698,6 +7698,9 @@ def parser() -> argparse.ArgumentParser:
     )
 
     register_live_supervisor_parser(commands)
+    from evallab.production.judge_station import register_parser as register_judge_parser
+
+    register_judge_parser(commands)
 
     from evallab.trace_store.cli import register_traces
 

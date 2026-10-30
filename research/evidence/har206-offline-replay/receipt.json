@@ -93,6 +93,35 @@
         "1": 4
       }
     },
+    "gepa_cited": {
+      "copy_after": {
+        "True": 1
+      },
+      "copy_before_replayed": {
+        "True": 1
+      },
+      "copy_before_stored": {
+        "False": 1
+      },
+      "count_after": {
+        "excluded": 1
+      },
+      "count_before": {
+        "unprocessed": 1
+      },
+      "feature_verdict_after": {
+        "excluded": 1
+      },
+      "feature_verdict_before": {
+        "excluded": 1
+      },
+      "viewer_integrity_after": {
+        "0": 1
+      },
+      "viewer_integrity_before": {
+        "0": 1
+      }
+    },
     "red_team": {
       "copy_after": {
         "False": 24
@@ -231,6 +260,7 @@
       "copy_source_artifact": "agent/terminus_2.pane",
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -262,6 +292,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "excluded",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -293,6 +324,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "excluded",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -324,6 +356,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "excluded",
       "input_hashes_unchanged": true,
@@ -356,6 +389,7 @@
       "copy_source_artifact": null,
       "count_after": "counted_pass",
       "count_before": "excluded",
+      "evidence_location": "published results",
       "feature_verdict_after": "counted_pass",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -382,6 +416,7 @@
       "copy_source_artifact": null,
       "count_after": "counted_pass",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "counted_pass",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -408,6 +443,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "unprocessed",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "excluded",
       "input_hashes_unchanged": true,
@@ -437,6 +473,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "unprocessed",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "excluded",
       "input_hashes_unchanged": true,
@@ -470,6 +507,7 @@
       "copy_source_artifact": null,
       "count_after": "counted_fail",
       "count_before": "excluded",
+      "evidence_location": "published results",
       "feature_verdict_after": "counted_fail",
       "feature_verdict_before": "counted_fail",
       "input_hashes_unchanged": true,
@@ -496,6 +534,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "excluded",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "excluded",
       "input_hashes_unchanged": true,
@@ -523,6 +562,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "excluded",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "excluded",
       "input_hashes_unchanged": true,
@@ -546,6 +586,59 @@
       ]
     },
     {
+      "cohort": "gepa_cited",
+      "copy_after": true,
+      "copy_before_replayed": true,
+      "copy_before_stored": false,
+      "copy_method": "folded_lines",
+      "copy_source_artifact": null,
+      "count_after": "excluded",
+      "count_before": "unprocessed",
+      "evidence_location": "read-only scratch copy",
+      "feature_verdict_after": "excluded",
+      "feature_verdict_before": "excluded",
+      "input_hashes_unchanged": true,
+      "input_sha256": {
+        "agent/recording.cast": "88cae8483ee6b0bc47abb1a8887c92ce07ff8573b917bb7fc5759b3b3e47565f",
+        "agent/terminus_2.pane": "45ff612af3789349345bfb8fbd88652be89f44aedc42a5444193df61bbfd8570",
+        "agent/trajectory.json": "e6726bd3c6fb8fc7e8fcd28940b6287531b48a8bbaa4c5070a204fd63997420e",
+        "artifacts/manifest.json": "8d0a02e9c17d62af6176024f463c041ed30ff29d3a7b66dadbeab1d762b0cbd9",
+        "config.json": "bbea288c7272c87dea07f435822761a935ce105d36b4e17331b099ef29a8c6b8",
+        "exception.txt": "55f08ac0b1ad7e3afe0fae7dc9d30d03ad9243057e93140eea27b98d1908002e",
+        "lock.json": "19e8a3337f9d3c628b0596153099f3b589b159173068edffbf189469cfc1472e",
+        "result.json": "e857f58f5992d703fa441f96d05a8ef721e406c26a0bdb708c7f3bc174a66274",
+        "state-journal/status.json": "e270d3166f973a62513073a29382e72ae0d67d1d9d464f98f717b00909318c6b",
+        "trial.log": "6b886a616f71d16bfcdd99dd136db56d38793615676aebd95276587ca14dd8b8",
+        "verifier/agent.diff": "b5a0e5c95085d6fbd7f15d5526a5742f4084f5fba08589e0ff40b4ff2b4c7586",
+        "verifier/apply.log": "cdd4839f753bafde8acd022748a360cf02b1ee3bc8ec89ca3f3864687b063545",
+        "verifier/reward.txt": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "verifier/test-stdout.txt": "b4748fe4b40aca0d7f7b5a07296c7fe5c2b8bc3b37f325743c69ba68e62c0b88",
+        "verifier/test_output.log": "38a9e8442214e2a47046772dc81f23165ae77a17b95cb4027615d93177c86e30"
+      },
+      "processed_sha256": null,
+      "raw_reward": 1.0,
+      "reasons_after": [
+        "copied_fix",
+        "pass_tainted",
+        "audit_cheat"
+      ],
+      "scored_exception_consumers": {
+        "explorer_after": "pass",
+        "explorer_before": "infra-exception",
+        "mimo_after_reward": 1.0,
+        "mimo_before_reward": 1.0,
+        "worker_after": "eligible",
+        "worker_before": "defer:harness_exception_not_agent_failure"
+      },
+      "trial": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/gepa-terminus-2-format-code-task-000-9089903b46c8c3c7410657ba/gepa-terminus-2-format-code-task__cNYdqfo",
+      "viewer_integrity_after": 0,
+      "viewer_integrity_before": 0,
+      "viewer_rules_after": [
+        "evallab.copy_check",
+        "evallab.upstream_fetch"
+      ]
+    },
+    {
       "cohort": "red_team",
       "copy_after": false,
       "copy_before_replayed": false,
@@ -554,6 +647,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -583,6 +677,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -612,6 +707,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -641,6 +737,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -670,6 +767,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_fail",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_fail",
       "input_hashes_unchanged": true,
@@ -699,6 +797,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -728,6 +827,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_fail",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_fail",
       "input_hashes_unchanged": true,
@@ -757,6 +857,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -786,6 +887,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -815,6 +917,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -844,6 +947,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "excluded",
       "input_hashes_unchanged": true,
@@ -873,6 +977,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -902,6 +1007,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -931,6 +1037,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -960,6 +1067,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -989,6 +1097,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_fail",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_fail",
       "input_hashes_unchanged": true,
@@ -1018,6 +1127,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -1047,6 +1157,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_fail",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_fail",
       "input_hashes_unchanged": true,
@@ -1076,6 +1187,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -1105,6 +1217,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -1134,6 +1247,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -1163,6 +1277,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -1192,6 +1307,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "excluded",
       "input_hashes_unchanged": true,
@@ -1221,6 +1337,7 @@
       "copy_source_artifact": null,
       "count_after": "excluded",
       "count_before": "counted_pass",
+      "evidence_location": "published results",
       "feature_verdict_after": "excluded",
       "feature_verdict_before": "counted_pass",
       "input_hashes_unchanged": true,
@@ -1243,7 +1360,8 @@
     }
   ],
   "limitations": [
-    "The cited GEPA trial gepa-terminus-2-format-code-task__cNYdqfo is not present in the published results; the retained historical record names a different worktree, which this replay does not access. The HAR104 000226 trial is a separate unprocessed control.",
+    "The cited GEPA trial was replayed from a scratch copy of the source trial, not in its source worktree. The HAR104 000226 trial is a separate unprocessed control.",
+    "The original 3,879-record cohort and its exact 41/190 scored-exception subset were not reconstructed; the bounded published-results scan is a different cohort.",
     "Counts after use current committed usability and audit labels, so changes in those labels are distinct from detector changes.",
     "Features copy_verdict does not include fetch taint or usability."
   ],

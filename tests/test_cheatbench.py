@@ -838,8 +838,7 @@ CAP_TRACE = {
 }
 # sha256 of ``json.dumps(convert(...), sort_keys=True)`` for CAP_TRACE under the
 # pre-parameter converter (origin/main before the uncapped option existed).
-CAP_DEFAULT_DIGEST = "be205f65873708632f1159bb529a8fe81ea741a4cf1238dcd53f6a4b68e27fdb"
-
+CAP_DEFAULT_DIGEST = "d27c34ea87cf504fbc24e4c9532bf94321e4b1d5c1d5378d0ace23d7a78724b3"
 
 def test_default_conversion_is_byte_identical_to_the_capped_importer():
     import hashlib
@@ -1024,3 +1023,43 @@ def test_mle_and_codex_text_is_marked_when_cut():
     agent = [s for s in doc["steps"] if s["source"] == "agent"][0]
     assert "S" * 3_000 not in agent["message"]
     assert CUT_MARK in agent["message"]
+
+
+def test_convert_injects_redacted_task_statement_from_command_file():
+    """Statement from files/command.txt is the first user step, bench names stripped.
+
+    Guard: no benchmark names, and the projection (convert already calls blind) keeps it.
+    """
+    raw = {
+        "messages": [
+            {"role": "user", "content": "start"},
+            {"role": "assistant", "content": "ok"},
+        ],
+        "task_name": "csv-task",
+        "benchmark": "terminal-bench-2",
+        "files": {
+            "agent/command-0/command.txt": "-p 'Process the csv file from terminal-bench-2 and count rows.' --verbose"
+        },
+    }
+    doc, _ = convert("cb-stmt-1", raw, _meta())
+    first = doc["steps"][0]
+    assert first["source"] == "user"
+    msg = first["message"]
+    assert "Process the csv file from [source] and count rows." in msg
+    assert "terminal-bench-2" not in msg
+    assert "CheatBench" not in msg
+    # after blind_atif inside convert, still present
+    assert any("Process the csv file from [source]" in s.get("message", "") for s in doc.get("steps", []))
+
+
+def test_convert_redacts_bench_in_statement_and_no_leak_of_bench_name():
+    raw = {
+        "messages": [{"role": "user", "content": "x"}, {"role": "assistant", "content": "y"}],
+        "task_name": "t",
+        "benchmark": "mle-bench",
+        "files": {"agent/episode-0/prompt.txt": "Solve mle-bench task about data."},
+    }
+    doc, _ = convert("cb-stmt-2", raw, _meta())
+    first_msg = doc["steps"][0]["message"]
+    assert "Solve [source] task about data." in first_msg or "Solve mle" not in first_msg
+    assert "mle-bench" not in first_msg

@@ -50,6 +50,7 @@ import contextlib
 import hashlib
 import json
 import re
+import shlex
 import sys
 import urllib.request
 from collections.abc import Callable, Iterator, Mapping
@@ -308,6 +309,99 @@ def _span(builder: _Steps, field: str) -> Iterator[None]:
     finally:
         builder._scope.pop()
 
+
+# ---------------------------------------------------------------------------
+# task statement extraction for blind projection (only the ask; redacted)
+
+
+KNOWN_BENCHMARK_NAMES = frozenset({
+    "swe-smith",
+    "swe_bench",
+    "terminal-bench",
+    "terminal_bench",
+    "mle-bench",
+    "mle_bench",
+    "bountybench",
+    "cheatbench",
+    "steinad/CheatBench",
+    "CheatBench",
+})
+
+
+def _redact_benchmarks(text: str) -> str:
+    """Strip known benchmark names from text so they cannot leak into projection."""
+    if not text:
+        return text
+    out = text
+    for name in KNOWN_BENCHMARK_NAMES:
+        # word-ish, case-insensitive; absorb trailing -version
+        pat = r"(?i)\b" + re.escape(name) + r"(?:-[0-9A-Za-z]+)?\b"
+        out = re.sub(pat, "[source]", out)
+    return out
+
+def _parse_command_payload(cmd: str) -> str | None:
+    """Extract the task prompt payload from a harness command.txt using shlex (per DA-4)."""
+    if not cmd or not isinstance(cmd, str):
+        return None
+    try:
+        parts = shlex.split(cmd)
+    except ValueError:
+        parts = cmd.split()
+    for i, tok in enumerate(parts):
+        if tok in ("-p", "--prompt") and i + 1 < len(parts):
+            return parts[i + 1]
+        if tok == "pilot" and i + 2 < len(parts) and parts[i + 1] == "task":
+            j = i + 2
+            payload = []
+            while j < len(parts) and not parts[j].startswith("--"):
+                payload.append(parts[j])
+                j += 1
+            if payload:
+                return " ".join(payload)
+    # fallback quoted long string
+    m = re.search(r"['\"]([^'\"]{15,})['\"]", cmd)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _extract_task_statement(raw: dict[str, Any]) -> str | None:
+    """Return only the task statement (the ask) from raw files or first user event.
+
+    Guard: never returns labels, splits, verdicts or benchmark names (redact happens
+    at call site). Returns None when no usable statement is present in the row.
+    """
+    if not isinstance(raw, dict):
+        return None
+    files = raw.get("files") or {}
+    if isinstance(files, dict):
+        # prefer command.txt (harness -p or pilot task payload)
+        for k in sorted(files.keys()):
+            if isinstance(k, str) and ("command" in k.lower() or k.lower().endswith("command.txt")):
+                content = files[k]
+                if isinstance(content, (bytes, bytearray)):
+                    content = content.decode("utf-8", "replace")
+                if isinstance(content, str):
+                    stmt = _parse_command_payload(content)
+                    if stmt and len(stmt.strip()) > 10:
+                        return stmt.strip()
+        # episode prompt.txt
+        for k in sorted(files.keys()):
+            if isinstance(k, str) and "prompt" in k.lower() and k.lower().endswith(".txt"):
+                content = files[k]
+                if isinstance(content, (bytes, bytearray)):
+                    content = content.decode("utf-8", "replace")
+                if isinstance(content, str) and len(content.strip()) > 10:
+                    return content.strip()
+    # fallback: first non-$NN user-ish event text
+    for ev in (raw.get("events") or []):
+        if isinstance(ev, dict):
+            msg = ev.get("msg") or ev.get("content") or ""
+            if isinstance(msg, str):
+                s = msg.strip()
+                if len(s) > 40 and not s.startswith("$") and "OBSERVATION" not in s.upper():
+                    return s
+    return None
 
 # ---------------------------------------------------------------------------
 # envelope A: TB2 raw_trace (typed events)
@@ -782,13 +876,17 @@ def _convert_inner(
     agent_steps = [s for s in builder.steps if s.get("source") == "agent"]
     if not agent_steps:
         raise ValueError("no_agent_content")
-    bench = str(raw.get("benchmark") or meta.get("benchmark") or "")
-    task = str(raw.get("task_name") or (raw.get("task") or "") or trace_id)
-    if isinstance(raw.get("task"), dict):
-        task = str(raw["task"].get("id") or raw["task"].get("name") or trace_id)
+    statement = _extract_task_statement(raw)
+    if statement:
+        user_message = _redact_benchmarks(statement)
+    else:
+        task = str(raw.get("task_name") or (raw.get("task") or "") or trace_id)
+        if isinstance(raw.get("task"), dict):
+            task = str(raw["task"].get("id") or raw["task"].get("name") or trace_id)
+        user_message = f"Task: {task} (model: {model})"
     builder.steps.insert(
         0,
-        {"step_id": 0, "source": "user", "message": f"[{bench}] {task} (model: {model})"},
+        {"step_id": 0, "source": "user", "message": user_message},
     )
     for idx, step in enumerate(builder.steps):
         step["step_id"] = idx
@@ -796,7 +894,7 @@ def _convert_inner(
     # the converted document carries evidence only.
     doc = {
         "schema_version": "ATIF-v1.6",
-        "agent": {"name": f"cheatbench/{bench}", "version": "raw_trace.v1-import"},
+        "agent": {"name": "cheatbench/[source]", "version": "raw_trace.v1-import"},
         "steps": builder.steps,
     }
     stats = {

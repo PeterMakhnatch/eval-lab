@@ -1408,6 +1408,17 @@ def _trial_config(
 
 
 async def _execute_native(config: dict[str, Any], active: _Execution) -> dict[str, Any]:
+    from evallab.harbor_view import HARBOR_RUNTIME_REMEDY, harbor_runtime_problem
+
+    runtime_problem = harbor_runtime_problem()
+    if runtime_problem is not None:
+        # The trial imports these modules in this process, so the refusal is
+        # raised before any sandbox or reservation exists. Reported as a
+        # backend refusal, never as a missing native reward file.
+        raise GraderRefusal(
+            f"native execution needs the in-process Harbor runtime "
+            f"({runtime_problem}): {HARBOR_RUNTIME_REMEDY}"
+        )
     environment = config.get("environment") or {}
     if environment.get("import_path") == "evallab.upstream_grader:UpstreamDockerEnvironment":
         require_local_docker(allow_local_docker=active.allow_local_docker)
@@ -2053,26 +2064,6 @@ def run_upstream_grader(
         raise GraderRefusal(
             "output directory already exists; choose a fresh immutable evidence directory"
         )
-    from evallab.harbor_view import HARBOR_RUNTIME_REMEDY, harbor_runtime_problem
-
-    runtime_problem = harbor_runtime_problem()
-    if runtime_problem is not None:
-        # Refuse before any reservation or sandbox: an absent runtime used to
-        # surface later as a missing native reward file, which reads like a
-        # grader failure and has burned campaign reservations.
-        return {
-            "schema": prepared.get("schema"),
-            "status": "refused",
-            "executed": False,
-            "reward": None,
-            "backend": backend,
-            "reason_code": "execution_backend_refused",
-            "error": (
-                f"the {backend} backend needs the in-process Harbor runtime "
-                f"({runtime_problem}): {HARBOR_RUNTIME_REMEDY}"
-            ),
-            "output_dir": str(output),
-        }
     output.mkdir(parents=True)
     (output / "plan.json").write_text(
         json.dumps(prepared, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -2198,7 +2189,10 @@ def run_upstream_grader(
         spend=spend,
         admission=admission,
     )
-    if result["status"] == "refused" and local_docker_refusal is not None:
+    if result["status"] == "refused" and (
+        local_docker_refusal is not None
+        or "in-process Harbor runtime" in str(result.get("error") or "")
+    ):
         result["reason_code"] = "execution_backend_refused"
         if active is not None and not active.claimed:
             result["executed"] = False

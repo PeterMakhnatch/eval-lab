@@ -1136,8 +1136,11 @@ def harbor_runtime_problem() -> str | None:
     reward file. Never imports Harbor itself (no side effects at plan time).
     """
     import importlib.util
+    import sys
 
     for module in ("harbor.trial.trial", "harbor.models.trial.config"):
+        if module in sys.modules:  # already imported here: usable in this process
+            continue
         try:
             if importlib.util.find_spec(module) is None:
                 return f"{module} is not importable"

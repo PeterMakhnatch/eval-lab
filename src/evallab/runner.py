@@ -1447,6 +1447,18 @@ def run_harbor_process(
     include_modal_credentials: bool = False,
 ) -> HarborProcessResult:
     """Run Harbor while redacting provider credentials before log persistence."""
+    if command and Path(command[0]).name == "harbor":
+        from evallab.harbor_view import HARBOR_RUNTIME_REMEDY, harbor_runtime_problem
+
+        problem = harbor_runtime_problem()
+        if problem is not None:
+            # The trial imports Harbor in this process; fail before spawning a
+            # child that would report the absence as a missing reward file.
+            raise ExecutionFailure(
+                "harbor_runtime_unavailable",
+                f"native execution needs the in-process Harbor runtime "
+                f"({problem}): {HARBOR_RUNTIME_REMEDY}",
+            )
     if lease_path is not None and lease_generation is None:
         raise ValueError("lease_generation is required when lease_path is set")
     if _lease_cancelled_or_lost(lease_path, lease_generation):
@@ -2918,19 +2930,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             repo_root=repo_root,
         )
         command = subscription_command(staged_request, harbor_command, repo_root=_RUNTIME_ROOT)
-        if command and Path(command[0]).name == "harbor":
-            from evallab.harbor_view import HARBOR_RUNTIME_REMEDY, harbor_runtime_problem
-
-            problem = harbor_runtime_problem()
-            if problem is not None:
-                # Fail before a job directory, reservation or sandbox exists:
-                # the trial imports these modules in-process and used to report
-                # the absence as a missing native reward file.
-                raise ExecutionFailure(
-                    "harbor_runtime_unavailable",
-                    f"native execution needs the in-process Harbor runtime "
-                    f"({problem}): {HARBOR_RUNTIME_REMEDY}",
-                )
         containers_before = (
             frozenset()
             if staged_request.environment in _DAYTONA_ENVIRONMENT_SELECTORS

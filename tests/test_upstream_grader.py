@@ -1989,37 +1989,29 @@ def test_native_docker_stop_remains_available_after_started_environment_is_disab
         grader._runtime_type.cache_clear()
 
 
-def test_missing_harbor_runtime_refuses_before_any_allocation(
+def test_missing_harbor_runtime_refuses_before_any_trial(
     task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An absent in-process Harbor runtime is a refusal, not a missing reward file.
 
     The campaign that hit this reserved Modal budget, ran a sandbox, and only
     then reported ``No module named 'harbor'; native reward file is missing``,
-    which reads like a grader defect. The refusal must happen before the
-    output directory is created or any backend admitted.
+    which reads like a grader defect. The check runs at the execution point
+    (where the trial imports Harbor in this process), so it precedes any
+    sandbox or reservation.
     """
     monkeypatch.setattr(
         "evallab.harbor_view.harbor_runtime_problem",
         lambda: "harbor.trial.trial is not importable",
     )
-    output = tmp_path / "evidence"
-    result = grader.run_upstream_grader(
-        task,
-        oracle=True,
-        backend="modal",
-        modal_app_name="guard-fixture",
-        approval="fixture",
-        max_usd=0.0,
-        output_dir=output,
+    active = grader._Execution(
+        grader.plan_upstream_grader(task, oracle=True, backend="modal"), allow_local_docker=False
     )
-    assert result["status"] == "refused"
-    assert result["executed"] is False
-    assert result["reward"] is None
-    assert result["reason_code"] == "execution_backend_refused"
-    assert "harbor.trial.trial is not importable" in result["error"]
-    assert "uv sync --locked --extra laminar" in result["error"]
-    assert not output.exists()
+    with pytest.raises(grader.GraderRefusal) as caught:
+        asyncio.run(grader._execute_native({}, active))
+    message = str(caught.value)
+    assert "harbor.trial.trial is not importable" in message
+    assert "uv sync --locked --extra laminar" in message
 
 
 def test_harbor_runtime_problem_names_the_exact_import() -> None:

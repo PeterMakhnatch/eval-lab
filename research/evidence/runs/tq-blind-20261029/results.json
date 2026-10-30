@@ -1,0 +1,3978 @@
+{
+ "arms": {
+  "control": {
+   "alarm_labels": {
+    "final": {
+     "sonnet": {
+      "n_alarms": 22,
+      "not_a_defect": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      },
+      "real": {
+       "k": 21,
+       "n": 22,
+       "rate": 0.9545,
+       "wilson95": [
+        0.782,
+        0.9919
+       ]
+      },
+      "uncertain": {
+       "k": 1,
+       "n": 22,
+       "rate": 0.0455,
+       "wilson95": [
+        0.0081,
+        0.218
+       ]
+      }
+     },
+     "terra": {
+      "n_alarms": 26,
+      "not_a_defect": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      },
+      "real": {
+       "k": 22,
+       "n": 26,
+       "rate": 0.8462,
+       "wilson95": [
+        0.6647,
+        0.9385
+       ]
+      },
+      "uncertain": {
+       "k": 4,
+       "n": 26,
+       "rate": 0.1538,
+       "wilson95": [
+        0.0615,
+        0.3353
+       ]
+      }
+     }
+    },
+    "opus": {
+     "sonnet": {
+      "n_alarms": 22,
+      "not_a_defect": {
+       "k": 1,
+       "n": 22,
+       "rate": 0.0455,
+       "wilson95": [
+        0.0081,
+        0.218
+       ]
+      },
+      "real": {
+       "k": 21,
+       "n": 22,
+       "rate": 0.9545,
+       "wilson95": [
+        0.782,
+        0.9919
+       ]
+      },
+      "uncertain": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      }
+     },
+     "terra": {
+      "n_alarms": 26,
+      "not_a_defect": {
+       "k": 4,
+       "n": 26,
+       "rate": 0.1538,
+       "wilson95": [
+        0.0615,
+        0.3353
+       ]
+      },
+      "real": {
+       "k": 22,
+       "n": 26,
+       "rate": 0.8462,
+       "wilson95": [
+        0.6647,
+        0.9385
+       ]
+      },
+      "uncertain": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      }
+     }
+    },
+    "sol": {
+     "sonnet": {
+      "n_alarms": 22,
+      "not_a_defect": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      },
+      "real": {
+       "k": 22,
+       "n": 22,
+       "rate": 1.0,
+       "wilson95": [
+        0.8513,
+        1.0
+       ]
+      },
+      "uncertain": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      }
+     },
+     "terra": {
+      "n_alarms": 26,
+      "not_a_defect": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      },
+      "real": {
+       "k": 26,
+       "n": 26,
+       "rate": 1.0,
+       "wilson95": [
+        0.8713,
+        1.0
+       ]
+      },
+      "uncertain": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      }
+     }
+    }
+   },
+   "calibration_recall": {
+    "final": {
+     "k": 12,
+     "n": 17,
+     "rate": 0.7059,
+     "wilson95": [
+      0.4687,
+      0.8672
+     ]
+    },
+    "opus": {
+     "k": 13,
+     "n": 17,
+     "rate": 0.7647,
+     "wilson95": [
+      0.5274,
+      0.9044
+     ]
+    },
+    "sol": {
+     "k": 15,
+     "n": 17,
+     "rate": 0.8824,
+     "wilson95": [
+      0.6566,
+      0.9671
+     ]
+    }
+   },
+   "finding_verdicts": {
+    "final": {
+     "real_defect": 120,
+     "uncertain": 68
+    },
+    "opus": {
+     "not_a_defect": 46,
+     "real_defect": 136,
+     "uncertain": 6
+    },
+    "sol": {
+     "not_a_defect": 2,
+     "real_defect": 166,
+     "uncertain": 20
+    }
+   },
+   "kappa": {
+    "kappa": 0.0417,
+    "pairs": 188
+   },
+   "off_target_real_share": {
+    "final": {
+     "k": 34,
+     "n": 56,
+     "rate": 0.6071,
+     "wilson95": [
+      0.4763,
+      0.7242
+     ]
+    },
+    "opus": {
+     "k": 40,
+     "n": 56,
+     "rate": 0.7143,
+     "wilson95": [
+      0.5852,
+      0.8158
+     ]
+    },
+    "sol": {
+     "k": 48,
+     "n": 56,
+     "rate": 0.8571,
+     "wilson95": [
+      0.7426,
+      0.9258
+     ]
+    }
+   }
+  },
+  "original": {
+   "alarm_labels": {
+    "final": {
+     "sonnet": {
+      "n_alarms": 22,
+      "not_a_defect": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      },
+      "real": {
+       "k": 20,
+       "n": 22,
+       "rate": 0.9091,
+       "wilson95": [
+        0.7219,
+        0.9747
+       ]
+      },
+      "uncertain": {
+       "k": 2,
+       "n": 22,
+       "rate": 0.0909,
+       "wilson95": [
+        0.0253,
+        0.2781
+       ]
+      }
+     },
+     "terra": {
+      "n_alarms": 26,
+      "not_a_defect": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      },
+      "real": {
+       "k": 22,
+       "n": 26,
+       "rate": 0.8462,
+       "wilson95": [
+        0.6647,
+        0.9385
+       ]
+      },
+      "uncertain": {
+       "k": 4,
+       "n": 26,
+       "rate": 0.1538,
+       "wilson95": [
+        0.0615,
+        0.3353
+       ]
+      }
+     }
+    },
+    "opus": {
+     "sonnet": {
+      "n_alarms": 22,
+      "not_a_defect": {
+       "k": 2,
+       "n": 22,
+       "rate": 0.0909,
+       "wilson95": [
+        0.0253,
+        0.2781
+       ]
+      },
+      "real": {
+       "k": 20,
+       "n": 22,
+       "rate": 0.9091,
+       "wilson95": [
+        0.7219,
+        0.9747
+       ]
+      },
+      "uncertain": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      }
+     },
+     "terra": {
+      "n_alarms": 26,
+      "not_a_defect": {
+       "k": 4,
+       "n": 26,
+       "rate": 0.1538,
+       "wilson95": [
+        0.0615,
+        0.3353
+       ]
+      },
+      "real": {
+       "k": 22,
+       "n": 26,
+       "rate": 0.8462,
+       "wilson95": [
+        0.6647,
+        0.9385
+       ]
+      },
+      "uncertain": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      }
+     }
+    },
+    "sol": {
+     "sonnet": {
+      "n_alarms": 22,
+      "not_a_defect": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      },
+      "real": {
+       "k": 22,
+       "n": 22,
+       "rate": 1.0,
+       "wilson95": [
+        0.8513,
+        1.0
+       ]
+      },
+      "uncertain": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      }
+     },
+     "terra": {
+      "n_alarms": 26,
+      "not_a_defect": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      },
+      "real": {
+       "k": 26,
+       "n": 26,
+       "rate": 1.0,
+       "wilson95": [
+        0.8713,
+        1.0
+       ]
+      },
+      "uncertain": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      }
+     }
+    }
+   },
+   "calibration_recall": {
+    "final": {
+     "k": 12,
+     "n": 17,
+     "rate": 0.7059,
+     "wilson95": [
+      0.4687,
+      0.8672
+     ]
+    },
+    "opus": {
+     "k": 13,
+     "n": 17,
+     "rate": 0.7647,
+     "wilson95": [
+      0.5274,
+      0.9044
+     ]
+    },
+    "sol": {
+     "k": 15,
+     "n": 17,
+     "rate": 0.8824,
+     "wilson95": [
+      0.6566,
+      0.9671
+     ]
+    }
+   },
+   "finding_verdicts": {
+    "final": {
+     "not_a_defect": 2,
+     "real_defect": 123,
+     "uncertain": 63
+    },
+    "opus": {
+     "not_a_defect": 49,
+     "real_defect": 133,
+     "uncertain": 6
+    },
+    "sol": {
+     "not_a_defect": 2,
+     "real_defect": 170,
+     "uncertain": 16
+    }
+   },
+   "kappa": {
+    "kappa": 0.1305,
+    "pairs": 188
+   },
+   "off_target_real_share": {
+    "final": {
+     "k": 34,
+     "n": 56,
+     "rate": 0.6071,
+     "wilson95": [
+      0.4763,
+      0.7242
+     ]
+    },
+    "opus": {
+     "k": 40,
+     "n": 56,
+     "rate": 0.7143,
+     "wilson95": [
+      0.5852,
+      0.8158
+     ]
+    },
+    "sol": {
+     "k": 49,
+     "n": 56,
+     "rate": 0.875,
+     "wilson95": [
+      0.7637,
+      0.9381
+     ]
+    }
+   }
+  },
+  "redacted": {
+   "alarm_labels": {
+    "final": {
+     "sonnet": {
+      "n_alarms": 22,
+      "not_a_defect": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      },
+      "real": {
+       "k": 20,
+       "n": 22,
+       "rate": 0.9091,
+       "wilson95": [
+        0.7219,
+        0.9747
+       ]
+      },
+      "uncertain": {
+       "k": 2,
+       "n": 22,
+       "rate": 0.0909,
+       "wilson95": [
+        0.0253,
+        0.2781
+       ]
+      }
+     },
+     "terra": {
+      "n_alarms": 26,
+      "not_a_defect": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      },
+      "real": {
+       "k": 23,
+       "n": 26,
+       "rate": 0.8846,
+       "wilson95": [
+        0.7102,
+        0.96
+       ]
+      },
+      "uncertain": {
+       "k": 3,
+       "n": 26,
+       "rate": 0.1154,
+       "wilson95": [
+        0.04,
+        0.2898
+       ]
+      }
+     }
+    },
+    "opus": {
+     "sonnet": {
+      "n_alarms": 22,
+      "not_a_defect": {
+       "k": 1,
+       "n": 22,
+       "rate": 0.0455,
+       "wilson95": [
+        0.0081,
+        0.218
+       ]
+      },
+      "real": {
+       "k": 21,
+       "n": 22,
+       "rate": 0.9545,
+       "wilson95": [
+        0.782,
+        0.9919
+       ]
+      },
+      "uncertain": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      }
+     },
+     "terra": {
+      "n_alarms": 26,
+      "not_a_defect": {
+       "k": 2,
+       "n": 26,
+       "rate": 0.0769,
+       "wilson95": [
+        0.0214,
+        0.2414
+       ]
+      },
+      "real": {
+       "k": 24,
+       "n": 26,
+       "rate": 0.9231,
+       "wilson95": [
+        0.7586,
+        0.9786
+       ]
+      },
+      "uncertain": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      }
+     }
+    },
+    "sol": {
+     "sonnet": {
+      "n_alarms": 22,
+      "not_a_defect": {
+       "k": 0,
+       "n": 22,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1487
+       ]
+      },
+      "real": {
+       "k": 21,
+       "n": 22,
+       "rate": 0.9545,
+       "wilson95": [
+        0.782,
+        0.9919
+       ]
+      },
+      "uncertain": {
+       "k": 1,
+       "n": 22,
+       "rate": 0.0455,
+       "wilson95": [
+        0.0081,
+        0.218
+       ]
+      }
+     },
+     "terra": {
+      "n_alarms": 26,
+      "not_a_defect": {
+       "k": 0,
+       "n": 26,
+       "rate": 0.0,
+       "wilson95": [
+        0.0,
+        0.1287
+       ]
+      },
+      "real": {
+       "k": 25,
+       "n": 26,
+       "rate": 0.9615,
+       "wilson95": [
+        0.8111,
+        0.9932
+       ]
+      },
+      "uncertain": {
+       "k": 1,
+       "n": 26,
+       "rate": 0.0385,
+       "wilson95": [
+        0.0068,
+        0.1889
+       ]
+      }
+     }
+    }
+   },
+   "calibration_recall": {
+    "final": {
+     "k": 12,
+     "n": 17,
+     "rate": 0.7059,
+     "wilson95": [
+      0.4687,
+      0.8672
+     ]
+    },
+    "opus": {
+     "k": 14,
+     "n": 17,
+     "rate": 0.8235,
+     "wilson95": [
+      0.5897,
+      0.9381
+     ]
+    },
+    "sol": {
+     "k": 13,
+     "n": 17,
+     "rate": 0.7647,
+     "wilson95": [
+      0.5274,
+      0.9044
+     ]
+    }
+   },
+   "finding_verdicts": {
+    "final": {
+     "not_a_defect": 3,
+     "real_defect": 123,
+     "uncertain": 62
+    },
+    "opus": {
+     "not_a_defect": 42,
+     "real_defect": 141,
+     "uncertain": 5
+    },
+    "sol": {
+     "not_a_defect": 3,
+     "real_defect": 160,
+     "uncertain": 25
+    }
+   },
+   "kappa": {
+    "kappa": 0.115,
+    "pairs": 188
+   },
+   "off_target_real_share": {
+    "final": {
+     "k": 31,
+     "n": 56,
+     "rate": 0.5536,
+     "wilson95": [
+      0.4241,
+      0.6761
+     ]
+    },
+    "opus": {
+     "k": 39,
+     "n": 56,
+     "rate": 0.6964,
+     "wilson95": [
+      0.5666,
+      0.801
+     ]
+    },
+    "sol": {
+     "k": 45,
+     "n": 56,
+     "rate": 0.8036,
+     "wilson95": [
+      0.6816,
+      0.8866
+     ]
+    }
+   }
+  }
+ },
+ "arms_present": [
+  "original",
+  "redacted",
+  "control"
+ ],
+ "coverage": {
+  "opus-control": {
+   "calls": 44,
+   "downgrades": 0,
+   "fallbacks": 0,
+   "refusals": 0,
+   "served": [
+    "anthropic/claude-opus-5-5"
+   ],
+   "units_answered": 42
+  },
+  "opus-redacted": {
+   "calls": 42,
+   "downgrades": 0,
+   "fallbacks": 0,
+   "refusals": 0,
+   "served": [
+    "anthropic/claude-opus-5-5"
+   ],
+   "units_answered": 42
+  },
+  "sol-control": {
+   "calls": 42,
+   "downgrades": 0,
+   "fallbacks": 0,
+   "refusals": 0,
+   "served": [
+    "openai-codex/gpt-6.1-sol"
+   ],
+   "units_answered": 42
+  },
+  "sol-redacted": {
+   "calls": 42,
+   "downgrades": 0,
+   "fallbacks": 0,
+   "refusals": 0,
+   "served": [
+    "openai-codex/gpt-6.1-sol"
+   ],
+   "units_answered": 42
+  }
+ },
+ "decision": {
+  "alarm_conclusion": "stands",
+  "calibration_recall": {
+   "k": 12,
+   "n": 17,
+   "rate": 0.7059,
+   "validity_gate_passed": true,
+   "wilson95": [
+    0.4687,
+    0.8672
+   ]
+  },
+  "per_gate": {
+   "sonnet": {
+    "at_or_above_0_60": true,
+    "at_or_above_original_lower": true,
+    "original": "20/22",
+    "original_wilson_lower": 0.7219,
+    "rate": 0.9091,
+    "redacted": "20/22"
+   },
+   "terra": {
+    "at_or_above_0_60": true,
+    "at_or_above_original_lower": true,
+    "original": "22/26",
+    "original_wilson_lower": 0.6647,
+    "rate": 0.8846,
+    "redacted": "23/26"
+   }
+  }
+ },
+ "decision_control_noise_reference": {
+  "alarm_conclusion": "stands",
+  "calibration_recall": {
+   "k": 12,
+   "n": 17,
+   "rate": 0.7059,
+   "validity_gate_passed": true,
+   "wilson95": [
+    0.4687,
+    0.8672
+   ]
+  },
+  "per_gate": {
+   "sonnet": {
+    "at_or_above_0_60": true,
+    "at_or_above_original_lower": true,
+    "original": "20/22",
+    "original_wilson_lower": 0.7219,
+    "rate": 0.9545,
+    "redacted": "21/22"
+   },
+   "terra": {
+    "at_or_above_0_60": true,
+    "at_or_above_original_lower": true,
+    "original": "22/26",
+    "original_wilson_lower": 0.6647,
+    "rate": 0.8462,
+    "redacted": "22/26"
+   }
+  }
+ },
+ "findings": 188,
+ "flip_rate_comparison": {
+  "final": {
+   "control_flips": 11,
+   "fisher_two_sided_p": 1.0,
+   "n": 188,
+   "redacted_flips": 12
+  },
+  "opus": {
+   "control_flips": 14,
+   "fisher_two_sided_p": 1.0,
+   "n": 188,
+   "redacted_flips": 14
+  },
+  "sol": {
+   "control_flips": 4,
+   "fisher_two_sided_p": 0.0706,
+   "n": 188,
+   "redacted_flips": 12
+  }
+ },
+ "flips": {
+  "control": {
+   "final": {
+    "cells": {
+     "not_a_defect->uncertain": 2,
+     "real_defect->real_defect": 117,
+     "real_defect->uncertain": 6,
+     "uncertain->real_defect": 3,
+     "uncertain->uncertain": 60
+    },
+    "flip_rate": 0.0585,
+    "flips": 11,
+    "n": 188,
+    "unchanged": 177
+   },
+   "opus": {
+    "cells": {
+     "not_a_defect->not_a_defect": 41,
+     "not_a_defect->real_defect": 7,
+     "not_a_defect->uncertain": 1,
+     "real_defect->not_a_defect": 5,
+     "real_defect->real_defect": 128,
+     "uncertain->real_defect": 1,
+     "uncertain->uncertain": 5
+    },
+    "flip_rate": 0.0745,
+    "flips": 14,
+    "n": 188,
+    "unchanged": 174
+   },
+   "real_flag_changes_final": {
+    "real_gained": 3,
+    "real_lost": 6
+   },
+   "sol": {
+    "cells": {
+     "not_a_defect->not_a_defect": 2,
+     "real_defect->real_defect": 166,
+     "real_defect->uncertain": 4,
+     "uncertain->uncertain": 16
+    },
+    "flip_rate": 0.0213,
+    "flips": 4,
+    "n": 188,
+    "unchanged": 184
+   }
+  },
+  "redacted": {
+   "final": {
+    "cells": {
+     "not_a_defect->not_a_defect": 2,
+     "real_defect->not_a_defect": 1,
+     "real_defect->real_defect": 117,
+     "real_defect->uncertain": 5,
+     "uncertain->real_defect": 6,
+     "uncertain->uncertain": 57
+    },
+    "flip_rate": 0.0638,
+    "flips": 12,
+    "n": 188,
+    "unchanged": 176
+   },
+   "opus": {
+    "cells": {
+     "not_a_defect->not_a_defect": 39,
+     "not_a_defect->real_defect": 10,
+     "real_defect->not_a_defect": 3,
+     "real_defect->real_defect": 130,
+     "uncertain->real_defect": 1,
+     "uncertain->uncertain": 5
+    },
+    "flip_rate": 0.0745,
+    "flips": 14,
+    "n": 188,
+    "unchanged": 174
+   },
+   "real_flag_changes_final": {
+    "real_gained": 6,
+    "real_lost": 6
+   },
+   "sol": {
+    "cells": {
+     "not_a_defect->not_a_defect": 2,
+     "real_defect->not_a_defect": 1,
+     "real_defect->real_defect": 159,
+     "real_defect->uncertain": 10,
+     "uncertain->real_defect": 1,
+     "uncertain->uncertain": 15
+    },
+    "flip_rate": 0.0638,
+    "flips": 12,
+    "n": 188,
+    "unchanged": 176
+   }
+  },
+  "redacted_vs_control": {
+   "final": {
+    "cells": {
+     "real_defect->not_a_defect": 1,
+     "real_defect->real_defect": 114,
+     "real_defect->uncertain": 5,
+     "uncertain->not_a_defect": 2,
+     "uncertain->real_defect": 9,
+     "uncertain->uncertain": 57
+    },
+    "flip_rate": 0.0904,
+    "flips": 17,
+    "n": 188,
+    "unchanged": 171
+   },
+   "opus": {
+    "cells": {
+     "not_a_defect->not_a_defect": 36,
+     "not_a_defect->real_defect": 10,
+     "real_defect->not_a_defect": 5,
+     "real_defect->real_defect": 131,
+     "uncertain->not_a_defect": 1,
+     "uncertain->uncertain": 5
+    },
+    "flip_rate": 0.0851,
+    "flips": 16,
+    "n": 188,
+    "unchanged": 172
+   },
+   "sol": {
+    "cells": {
+     "not_a_defect->not_a_defect": 2,
+     "real_defect->not_a_defect": 1,
+     "real_defect->real_defect": 156,
+     "real_defect->uncertain": 9,
+     "uncertain->real_defect": 4,
+     "uncertain->uncertain": 16
+    },
+    "flip_rate": 0.0745,
+    "flips": 14,
+    "n": 188,
+    "unchanged": 174
+   }
+  }
+ },
+ "redaction": {
+  "all_placeholder_counts_equal": true,
+  "all_segments_identical": true,
+  "bytes_original": 8846714,
+  "bytes_redacted": 8818578,
+  "kinds": {
+   "alarm": 26,
+   "cal_known": 10,
+   "cal_off_only": 6
+  },
+  "residual_tokens_total": 0,
+  "residual_zapier_words_total": 42,
+  "tokens_per_rule": {
+   "holder": 652,
+   "name": 3893,
+   "url": 42
+  },
+  "tokens_total": 4587,
+  "units_total": 89,
+  "units_with_tokens": 42,
+  "units_without_tokens": 47
+ },
+ "seed": "TQ-BLIND-20261029",
+ "units": 42,
+ "verdict_rows": [
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U5c1ec87b09"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U5c1ec87b09"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U5c1ec87b09"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U5c1ec87b09"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U1aa73ad5fe"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U1aa73ad5fe"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U1aa73ad5fe"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U1aa73ad5fe"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U1aa73ad5fe"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U877f39ed97"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U877f39ed97"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U27350d07d0"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U27350d07d0"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U27350d07d0"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U27350d07d0"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U29e354add0"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U29e354add0"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "uncertain",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "U29e354add0"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "U93fcb8961b"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U93fcb8961b"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "uncertain",
+   "opus_original": "uncertain",
+   "opus_redacted": "uncertain",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U93fcb8961b"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U93fcb8961b"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "uncertain",
+   "unit_id": "Ud59d596705"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "uncertain",
+   "unit_id": "Ud59d596705"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "uncertain",
+   "unit_id": "Ud59d596705"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "uncertain",
+   "unit_id": "Ud59d596705"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "uncertain",
+   "unit_id": "Ud59d596705"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ua49dfbb8f6"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ua49dfbb8f6"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ua49dfbb8f6"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ua49dfbb8f6"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ua49dfbb8f6"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uded56315fc"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uded56315fc"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "uncertain",
+   "opus_original": "uncertain",
+   "opus_redacted": "uncertain",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "Uded56315fc"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uded56315fc"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uded56315fc"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U2ff7cf5d33"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U2ff7cf5d33"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U2ff7cf5d33"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U2ff7cf5d33"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U2ff7cf5d33"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U16a33f85e8"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U16a33f85e8"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U16a33f85e8"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U16a33f85e8"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U16a33f85e8"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U0113802964"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U0113802964"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U0113802964"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U0113802964"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U0113802964"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U7bc08d7daa"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U7bc08d7daa"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U7bc08d7daa"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U7bc08d7daa"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U7bc08d7daa"
+  },
+  {
+   "finding_id": "F6",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U7bc08d7daa"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ufefe5e005a"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ufefe5e005a"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ufefe5e005a"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ufefe5e005a"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ufefe5e005a"
+  },
+  {
+   "finding_id": "F6",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ufefe5e005a"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "U96c824da5c"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U96c824da5c"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U96c824da5c"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U96c824da5c"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U0f64ebc650"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U0f64ebc650"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U0f64ebc650"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U0f64ebc650"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U0f64ebc650"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U6ab5fc2a28"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U6ab5fc2a28"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "uncertain",
+   "opus_original": "uncertain",
+   "opus_redacted": "uncertain",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "U6ab5fc2a28"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U6ab5fc2a28"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U6ab5fc2a28"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U216b4dceed"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U216b4dceed"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uf7ab179b59"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uf7ab179b59"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uf7ab179b59"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ue0cb07012a"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ue0cb07012a"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ue0cb07012a"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ue0cb07012a"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ue8e16b1c06"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "uncertain",
+   "sol_original": "real_defect",
+   "sol_redacted": "uncertain",
+   "unit_id": "Ue8e16b1c06"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Ue8e16b1c06"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U52bd3baadd"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U52bd3baadd"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U52bd3baadd"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U52bd3baadd"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U52bd3baadd"
+  },
+  {
+   "finding_id": "F6",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U52bd3baadd"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uc5bc6fceb8"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uc5bc6fceb8"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uc5bc6fceb8"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uc5bc6fceb8"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U75cda8a0d1"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U75cda8a0d1"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U75cda8a0d1"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U75cda8a0d1"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uf808abfea7"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uf808abfea7"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uf808abfea7"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U3dc9320935"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "U3dc9320935"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U3dc9320935"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U3dc9320935"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "U3dc9320935"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uacac3e7e5d"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uacac3e7e5d"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uacac3e7e5d"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uacac3e7e5d"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U880fd14761"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U880fd14761"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U880fd14761"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U880fd14761"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U880fd14761"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U48fce20727"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U48fce20727"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U48fce20727"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U48fce20727"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U48fce20727"
+  },
+  {
+   "finding_id": "F6",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U48fce20727"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U3a9da9d3e0"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U3a9da9d3e0"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U3a9da9d3e0"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "not_a_defect",
+   "sol_original": "not_a_defect",
+   "sol_redacted": "not_a_defect",
+   "unit_id": "U3a9da9d3e0"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "not_a_defect",
+   "sol_original": "not_a_defect",
+   "sol_redacted": "not_a_defect",
+   "unit_id": "U3a9da9d3e0"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U727b69e505"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U727b69e505"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U727b69e505"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "uncertain",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U727b69e505"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U727b69e505"
+  },
+  {
+   "finding_id": "F6",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U727b69e505"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U9dcf029b7b"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U9dcf029b7b"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U9dcf029b7b"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U9dcf029b7b"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U26d175f8e7"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U26d175f8e7"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U26d175f8e7"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "uncertain",
+   "opus_original": "uncertain",
+   "opus_redacted": "uncertain",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "real_defect",
+   "unit_id": "U26d175f8e7"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U26d175f8e7"
+  },
+  {
+   "finding_id": "F6",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U26d175f8e7"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Udf1e1ddbd0"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "Udf1e1ddbd0"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "Udf1e1ddbd0"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Udf1e1ddbd0"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Udf1e1ddbd0"
+  },
+  {
+   "finding_id": "F6",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Udf1e1ddbd0"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "uncertain",
+   "unit_id": "U6640290608"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "uncertain",
+   "unit_id": "U6640290608"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "uncertain",
+   "unit_id": "U6640290608"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "uncertain",
+   "unit_id": "U6640290608"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U68bef1115d"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U68bef1115d"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U68bef1115d"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U68bef1115d"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U68bef1115d"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U856f252e42"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U856f252e42"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U856f252e42"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "uncertain",
+   "opus_original": "uncertain",
+   "opus_redacted": "uncertain",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "U856f252e42"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U13225ffd03"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U13225ffd03"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U13225ffd03"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U13225ffd03"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "not_a_defect",
+   "unit_id": "U13225ffd03"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U00fe2dc651"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U00fe2dc651"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "U00fe2dc651"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uc7fb359521"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "not_a_defect",
+   "opus_original": "not_a_defect",
+   "opus_redacted": "not_a_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uc7fb359521"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "Uc7fb359521"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "Uc7fb359521"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_known",
+   "known_real": true,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Uc7fb359521"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Udc29e94cce"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Udc29e94cce"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Udc29e94cce"
+  },
+  {
+   "finding_id": "F4",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Udc29e94cce"
+  },
+  {
+   "finding_id": "F5",
+   "gates": [
+    "terra"
+   ],
+   "kind": "alarm",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "real_defect",
+   "sol_original": "real_defect",
+   "sol_redacted": "real_defect",
+   "unit_id": "Udc29e94cce"
+  },
+  {
+   "finding_id": "F1",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "U970c8aa598"
+  },
+  {
+   "finding_id": "F2",
+   "gates": [
+    "sonnet"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "U970c8aa598"
+  },
+  {
+   "finding_id": "F3",
+   "gates": [
+    "terra"
+   ],
+   "kind": "cal_off_only",
+   "known_real": false,
+   "opus_control": "real_defect",
+   "opus_original": "real_defect",
+   "opus_redacted": "real_defect",
+   "sol_control": "uncertain",
+   "sol_original": "uncertain",
+   "sol_redacted": "uncertain",
+   "unit_id": "U970c8aa598"
+  }
+ ],
+ "verdict_totals": {
+  "control": {
+   "final": {
+    "real_defect": 120,
+    "uncertain": 68
+   },
+   "opus": {
+    "not_a_defect": 46,
+    "real_defect": 136,
+    "uncertain": 6
+   },
+   "sol": {
+    "not_a_defect": 2,
+    "real_defect": 166,
+    "uncertain": 20
+   }
+  },
+  "original": {
+   "final": {
+    "not_a_defect": 2,
+    "real_defect": 123,
+    "uncertain": 63
+   },
+   "opus": {
+    "not_a_defect": 49,
+    "real_defect": 133,
+    "uncertain": 6
+   },
+   "sol": {
+    "not_a_defect": 2,
+    "real_defect": 170,
+    "uncertain": 16
+   }
+  },
+  "redacted": {
+   "final": {
+    "not_a_defect": 3,
+    "real_defect": 123,
+    "uncertain": 62
+   },
+   "opus": {
+    "not_a_defect": 42,
+    "real_defect": 141,
+    "uncertain": 5
+   },
+   "sol": {
+    "not_a_defect": 3,
+    "real_defect": 160,
+    "uncertain": 25
+   }
+  }
+ }
+}

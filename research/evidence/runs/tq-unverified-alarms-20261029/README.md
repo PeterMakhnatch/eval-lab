@@ -106,3 +106,24 @@ pattern is not settled by two adjudicators that are split on 29 of its 71 alarms
 If the lane wants a gate that is scored on AutomationBench, the unchanged tasks need a certification pass (execute a
 control against the confirmed alarms, or re-verify the 42 confirmed ones) before any false-positive rate is
 quoted from them. Raw prompts, responses and sessions: `~/.local/state/evallab-fleet/2026-10-29/TQ-UNVERIFIED/`.
+
+## Corrections after independent verification (added by TQ-BLIND, 2026-10-29; the numbers above are unchanged)
+
+The independent audit (`VERIFY`, TQ section) reproduced every count in this README and made three corrections:
+
+1. **Source blinding did not hold.** 42 of the 89 main prompts to each adjudicator (all AutomationBench: 26 alarm, 10
+   calibration with matched findings, 6 calibration with none) contained the benchmark identity: `AutomationBench`
+   in import paths, directories and env-var names, the source URL `https://github.com/zapier/AutomationBench`, the
+   `tests/original-grader/automationbench/` paths and the `Zapier, Inc.` copyright line. The preregistration and the
+   statement above that no benchmark name was shown are wrong for those 42 units. The 47 PAIChecker prompts contain none
+   of these tokens. The result of re-running the 42 with the identity redacted is in
+   `research/evidence/runs/tq-blind-20261029/`: the AutomationBench conclusion stands (Sonnet gate 20/22, Terra gate
+   23/26 both-real; calibration recall 12/17; final-label flips 12/188 against 11/188 for an unredacted re-run).
+2. **The "35 uncertain" breakdown.** The 35 uncertain alarms are not all Sol-real / Opus-not-a-defect: 30 are Sol real
+   and Opus not a defect, 3 are Sol uncertain and Opus not a defect, 1 is uncertain for both, and 1 is Sol not a defect
+   and Opus real. ("Almost all one split" in the text above holds; the receipt's "all" did not.)
+3. **"Corrected balanced accuracy" is a conditional scenario, not a bound.** The 0.82-0.92 (Sonnet) and 0.69-0.95
+   (Terra) figures relabel agreed-real alarms as positives, assume every unflagged unchanged task is clean, treat the
+   known-defective labels as correct and toggle only the uncertain alarms. Unseen defects among unflagged tasks,
+   adjudication errors and imperfect original positives can move the true value outside them. "Confirmed" in this
+   README means two LLMs agree after reading source (kappa 0.12, 17 calibration findings, no executed differential).

@@ -1,0 +1,1394 @@
+{
+ "model": "deepseek/deepseek-flash",
+ "repeats": 3,
+ "window": 6,
+ "step_chars": 1200,
+ "task_chars": 2500,
+ "max_citations": 4,
+ "arms": [
+  "A",
+  "B"
+ ],
+ "packets": [
+  {
+   "blind_id": "run-868ebe2fca6fae96",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 13013,
+    "chars": 12985,
+    "sha256": "2cd70732f0adda41dc453891b1cd0b58c19d9365473c49e371f5073440958064",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 9
+   },
+   "B": {
+    "bytes": 10520,
+    "chars": 10502,
+    "sha256": "446a66ea1366f4822d762c54accb9e19ef341dd6ba9cf446e48f434e9ebb80e4",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 9
+   }
+  },
+  {
+   "blind_id": "run-c54272dd71e4c0c9",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 33378,
+    "chars": 33332,
+    "sha256": "ce94c50760b59fe3e0bee3ca26e42bcdae1ff54ea4a89c3568fa13285956f020",
+    "task_source": "user_steps",
+    "n_citations_used": 2,
+    "window_steps": 26
+   },
+   "B": {
+    "bytes": 30889,
+    "chars": 30849,
+    "sha256": "1a6597f6e9060b016ac9cc18e7cdd33470291243e6757d2d364092383c0444eb",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 26
+   }
+  },
+  {
+   "blind_id": "run-eadfde85f91b69dd",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 17655,
+    "chars": 17643,
+    "sha256": "473858e2d1e78c25500cab8863acd386592950d7183c9d27dd9548cbb7189db4",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 13
+   },
+   "B": {
+    "bytes": 15172,
+    "chars": 15160,
+    "sha256": "a043b0865110a2d5409dfccc14d5a714d5607e055813834b4bea64b8493c1b87",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 13
+   }
+  },
+  {
+   "blind_id": "run-ede2017ebfa332fc",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 41966,
+    "chars": 41586,
+    "sha256": "a5e7dd83080fef4d9f314a02df596bbd8814d30f1172451b1c307e85ac3c7fe8",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 32
+   },
+   "B": {
+    "bytes": 40157,
+    "chars": 39777,
+    "sha256": "8435cffad8950d6804b00c1b4c8e2043613162d61faf308b8c126674f6b43155",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 32
+   }
+  },
+  {
+   "blind_id": "run-0214fca99632b673",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 4122,
+    "chars": 4116,
+    "sha256": "ac1c78323fd1632ebac8b0cb5a5e91d00e4ed36c6049a199caa213979d2a1175",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 8
+   },
+   "B": {
+    "bytes": 3854,
+    "chars": 3848,
+    "sha256": "5925c375bf49c86cad3296678db5a68e1ef5f79154d04572ee3ad945a4ec1d3d",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 8
+   }
+  },
+  {
+   "blind_id": "run-0577d6af68ad4646",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 4196,
+    "chars": 4196,
+    "sha256": "200eb97a94da58cd97465c00f7301ced53fe0725c9c91c31623ab4e8a1c6d1e8",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 13
+   },
+   "B": {
+    "bytes": 4089,
+    "chars": 4089,
+    "sha256": "2d0290940581a1b7509c14edf14027fe122d16ad2a75335c1edaf493bb74ec73",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 13
+   }
+  },
+  {
+   "blind_id": "run-2310794f976c321a",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 28670,
+    "chars": 28596,
+    "sha256": "7d6308e9f729345a9db7f7c462fc861b32d629e3214fa8ba2425e98afab6c345",
+    "task_source": "user_steps",
+    "n_citations_used": 2,
+    "window_steps": 25
+   },
+   "B": {
+    "bytes": 28370,
+    "chars": 28296,
+    "sha256": "a976927fc941c2b8e22c871aa7ff525fd230631fc46c0b1fbabf83fa4576bb74",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 25
+   }
+  },
+  {
+   "blind_id": "run-2a84976aac74dbe5",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 43160,
+    "chars": 43120,
+    "sha256": "729bd47f44c5e8b836a91cdb398672192348690b006517abe5ce18d5d09d6f2b",
+    "task_source": "none",
+    "n_citations_used": 4,
+    "window_steps": 52
+   },
+   "B": {
+    "bytes": 43160,
+    "chars": 43120,
+    "sha256": "729bd47f44c5e8b836a91cdb398672192348690b006517abe5ce18d5d09d6f2b",
+    "task_source": "ablation",
+    "n_citations_used": 4,
+    "window_steps": 52
+   }
+  },
+  {
+   "blind_id": "run-2caf6d622fa33a2e",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 9600,
+    "chars": 9576,
+    "sha256": "716f1f3603a212790f19bee246f746502bb320cf72db292a66f715cd5e8afe0c",
+    "task_source": "none",
+    "n_citations_used": 1,
+    "window_steps": 9
+   },
+   "B": {
+    "bytes": 9600,
+    "chars": 9576,
+    "sha256": "716f1f3603a212790f19bee246f746502bb320cf72db292a66f715cd5e8afe0c",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 9
+   }
+  },
+  {
+   "blind_id": "run-31676a33aa70923d",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 36635,
+    "chars": 36507,
+    "sha256": "73979adadecf130d8746c8ef00f54b53613734afd6187b5dc80ac783abc0f199",
+    "task_source": "none",
+    "n_citations_used": 4,
+    "window_steps": 46
+   },
+   "B": {
+    "bytes": 36635,
+    "chars": 36507,
+    "sha256": "73979adadecf130d8746c8ef00f54b53613734afd6187b5dc80ac783abc0f199",
+    "task_source": "ablation",
+    "n_citations_used": 4,
+    "window_steps": 46
+   }
+  },
+  {
+   "blind_id": "run-3689e1ff5c916a56",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 3657,
+    "chars": 3651,
+    "sha256": "7e1546a963a7d3825ee5a834824db266454d57f110d9f77acd20ce240cfbc63d",
+    "task_source": "none",
+    "n_citations_used": 1,
+    "window_steps": 2
+   },
+   "B": {
+    "bytes": 3657,
+    "chars": 3651,
+    "sha256": "7e1546a963a7d3825ee5a834824db266454d57f110d9f77acd20ce240cfbc63d",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 2
+   }
+  },
+  {
+   "blind_id": "run-3ce34a36b24a79d1",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 14346,
+    "chars": 14224,
+    "sha256": "94404b5c33ce97f9ed632013ebfae5f88865354c4c675f441746190597446779",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 37
+   },
+   "B": {
+    "bytes": 14346,
+    "chars": 14224,
+    "sha256": "94404b5c33ce97f9ed632013ebfae5f88865354c4c675f441746190597446779",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 37
+   }
+  },
+  {
+   "blind_id": "run-41222d0203fa9536",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 22863,
+    "chars": 22809,
+    "sha256": "33d377a6d74580e2b83f9e8f685537bc7371709c462ea0294a22ab16269f0323",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 20
+   },
+   "B": {
+    "bytes": 22863,
+    "chars": 22809,
+    "sha256": "33d377a6d74580e2b83f9e8f685537bc7371709c462ea0294a22ab16269f0323",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 20
+   }
+  },
+  {
+   "blind_id": "run-45df53e1b0b614db",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 31889,
+    "chars": 31809,
+    "sha256": "dc4c6b1df343750ca1646e9bc26103082875499d8ffc52ff2c1aa1abe2aedb65",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 27
+   },
+   "B": {
+    "bytes": 31889,
+    "chars": 31809,
+    "sha256": "dc4c6b1df343750ca1646e9bc26103082875499d8ffc52ff2c1aa1abe2aedb65",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 27
+   }
+  },
+  {
+   "blind_id": "run-50a4cfe9b67a8ae0",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 22246,
+    "chars": 21892,
+    "sha256": "973937d7f0313e9d99377f9c0f98a387ea39d73ac5314621664deb4e12e76969",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 26
+   },
+   "B": {
+    "bytes": 22246,
+    "chars": 21892,
+    "sha256": "973937d7f0313e9d99377f9c0f98a387ea39d73ac5314621664deb4e12e76969",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 26
+   }
+  },
+  {
+   "blind_id": "run-51e75d4a58bcbdd3",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 6314,
+    "chars": 6294,
+    "sha256": "ed4dc622fced3b8cf5087bf2c42b00ece370b244868eb4508d52582f2003ca73",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 4
+   },
+   "B": {
+    "bytes": 6314,
+    "chars": 6294,
+    "sha256": "ed4dc622fced3b8cf5087bf2c42b00ece370b244868eb4508d52582f2003ca73",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 4
+   }
+  },
+  {
+   "blind_id": "run-5654178608ffbfab",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 35187,
+    "chars": 35051,
+    "sha256": "082a967ea5b5e354645f39bbff0bca98e7a39e8c5cc4c4ab71e277b1223693a9",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 39
+   },
+   "B": {
+    "bytes": 35187,
+    "chars": 35051,
+    "sha256": "082a967ea5b5e354645f39bbff0bca98e7a39e8c5cc4c4ab71e277b1223693a9",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 39
+   }
+  },
+  {
+   "blind_id": "run-5a603e7dadb2d5d7",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 24507,
+    "chars": 24487,
+    "sha256": "66c3a45a8d1d5f6fb6365901081ddbe7455b3309d3b973679c634649189b8f46",
+    "task_source": "user_steps",
+    "n_citations_used": 4,
+    "window_steps": 46
+   },
+   "B": {
+    "bytes": 22024,
+    "chars": 22004,
+    "sha256": "6caf4cc723626791be144592ecd26061e8eb6cf10bbd01078c5c4a5bae032a62",
+    "task_source": "ablation",
+    "n_citations_used": 4,
+    "window_steps": 46
+   }
+  },
+  {
+   "blind_id": "run-660f7f5c8b96c2a7",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 8668,
+    "chars": 8638,
+    "sha256": "7b4363261801364d934c9ae070c4b8281cafaa1202b2fabc87f59bea2a0ea41f",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 6
+   },
+   "B": {
+    "bytes": 8668,
+    "chars": 8638,
+    "sha256": "7b4363261801364d934c9ae070c4b8281cafaa1202b2fabc87f59bea2a0ea41f",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 6
+   }
+  },
+  {
+   "blind_id": "run-66254033e91779f5",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 34481,
+    "chars": 34271,
+    "sha256": "c1cc6d239e2ad00f57bf3c7a7246151040013df703e18f346fea9643fdf58e2f",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 27
+   },
+   "B": {
+    "bytes": 31998,
+    "chars": 31788,
+    "sha256": "54e80d662d9f6f1639fd023b4378fd255137067679e7c184ffc0fea50f7576fe",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 27
+   }
+  },
+  {
+   "blind_id": "run-68dc03aaea502f59",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 16073,
+    "chars": 16013,
+    "sha256": "ead8f02627219093e6c49c9dd934a284594ced7fd2085be468c5c8a3a7f9c357",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 13
+   },
+   "B": {
+    "bytes": 15721,
+    "chars": 15661,
+    "sha256": "6a681b809b49b7872762c79e8eea957d2a43d6ab30cbdbe5611a7f69562921ab",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 13
+   }
+  },
+  {
+   "blind_id": "run-6c55bc22de186a31",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 16827,
+    "chars": 16827,
+    "sha256": "a41b94a3ad100d0125657c5797a8973ca7c14ac1ec0d836526d8ed7f2e36fc4e",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 38
+   },
+   "B": {
+    "bytes": 16655,
+    "chars": 16655,
+    "sha256": "460741084b2745ad4d604ac72113193161b2e4d571a094e9a3f848af48a73e5c",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 38
+   }
+  },
+  {
+   "blind_id": "run-6fd19283c998c88d",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 17072,
+    "chars": 16760,
+    "sha256": "b48a194ab4be29d4d0f6d1b9bbfccf576b70f3c5366f9028183b224f6f1a2230",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 26
+   },
+   "B": {
+    "bytes": 17072,
+    "chars": 16760,
+    "sha256": "b48a194ab4be29d4d0f6d1b9bbfccf576b70f3c5366f9028183b224f6f1a2230",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 26
+   }
+  },
+  {
+   "blind_id": "run-74c5a3ed02705d0a",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 21741,
+    "chars": 21741,
+    "sha256": "926765b5c1118c48191e83d005feec1b0502c7e22df148e20ae8efd030643f21",
+    "task_source": "user_steps",
+    "n_citations_used": 4,
+    "window_steps": 46
+   },
+   "B": {
+    "bytes": 19258,
+    "chars": 19258,
+    "sha256": "10ce5443f376ad816d2cbc565df8fbdae4d02acd01ccb8c1544dd661ae87eed6",
+    "task_source": "ablation",
+    "n_citations_used": 4,
+    "window_steps": 46
+   }
+  },
+  {
+   "blind_id": "run-789ed135eada5bab",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 27099,
+    "chars": 27099,
+    "sha256": "d14e36203b552e6e6aa17f6f5d7835a58c35c273341e8c9ec5ee9d49e22ca182",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 34
+   },
+   "B": {
+    "bytes": 24616,
+    "chars": 24616,
+    "sha256": "6edaeb6cf1ce43a9a72464a61866d362a7a45b5d88a334fb8a13867209284f1c",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 34
+   }
+  },
+  {
+   "blind_id": "run-78b106f2c48d067f",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 27940,
+    "chars": 27862,
+    "sha256": "4c765f72815a6a837bcb18feef1d29795603e116f812c041f3445abda886c84e",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 24
+   },
+   "B": {
+    "bytes": 27940,
+    "chars": 27862,
+    "sha256": "4c765f72815a6a837bcb18feef1d29795603e116f812c041f3445abda886c84e",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 24
+   }
+  },
+  {
+   "blind_id": "run-79ea76aa41e1d861",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 43141,
+    "chars": 43103,
+    "sha256": "953120f4e8b80bdffc29cc46c225dd29660f70de5fe1e49eb766f20eaa154c61",
+    "task_source": "user_steps",
+    "n_citations_used": 4,
+    "window_steps": 46
+   },
+   "B": {
+    "bytes": 42557,
+    "chars": 42519,
+    "sha256": "fea2e5c1e456b98963f96e8eac6f795dc596d01511f2f9fe8e03a4a94e030f65",
+    "task_source": "ablation",
+    "n_citations_used": 4,
+    "window_steps": 46
+   }
+  },
+  {
+   "blind_id": "run-7a8f30cdd33d0819",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 27609,
+    "chars": 27609,
+    "sha256": "f113b8e02fcd7e217ad4b24135d4a95189f5af0710aca53e3fad665f12c0cb07",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 34
+   },
+   "B": {
+    "bytes": 27609,
+    "chars": 27609,
+    "sha256": "f113b8e02fcd7e217ad4b24135d4a95189f5af0710aca53e3fad665f12c0cb07",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 34
+   }
+  },
+  {
+   "blind_id": "run-7a9117b85b0f23f1",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 10139,
+    "chars": 10107,
+    "sha256": "f68d8764713291bd628a5737eb4e108bc228dab1b308c36f129aa07b0ef195a0",
+    "task_source": "none",
+    "n_citations_used": 1,
+    "window_steps": 10
+   },
+   "B": {
+    "bytes": 10139,
+    "chars": 10107,
+    "sha256": "f68d8764713291bd628a5737eb4e108bc228dab1b308c36f129aa07b0ef195a0",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 10
+   }
+  },
+  {
+   "blind_id": "run-92cebb42cd0b0e74",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 18345,
+    "chars": 18227,
+    "sha256": "a0b80109fedef21321d49160b70ab3e27fe6f4c9d6e25b88aa3beadedfefd3dd",
+    "task_source": "user_steps",
+    "n_citations_used": 2,
+    "window_steps": 15
+   },
+   "B": {
+    "bytes": 17761,
+    "chars": 17643,
+    "sha256": "603b4a28ae6950d67456b722072654af768f1eb82056274a936726225eb4bcc0",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 15
+   }
+  },
+  {
+   "blind_id": "run-9326bf84887a2e5d",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 8866,
+    "chars": 8786,
+    "sha256": "169dcf70fa608dad4a547f1a17b1cc9c24c7c1bf17bae9e29646e7089b7602d4",
+    "task_source": "none",
+    "n_citations_used": 1,
+    "window_steps": 13
+   },
+   "B": {
+    "bytes": 8866,
+    "chars": 8786,
+    "sha256": "169dcf70fa608dad4a547f1a17b1cc9c24c7c1bf17bae9e29646e7089b7602d4",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 13
+   }
+  },
+  {
+   "blind_id": "run-96e86dd9e24aafe9",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 27588,
+    "chars": 27576,
+    "sha256": "cb0c77a758e34216a3bc3a4f37b78ffe5876d1a1a67a30d079cb8c57d7c5873b",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 33
+   },
+   "B": {
+    "bytes": 25105,
+    "chars": 25093,
+    "sha256": "631ec8e740b9d882b8b89faf4a3b597a9326786c7fae630216eac924d3628c7b",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 33
+   }
+  },
+  {
+   "blind_id": "run-98d79dc73a4b40e0",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 18529,
+    "chars": 18529,
+    "sha256": "5dacbb072d6eddcaa59e0b6de3d6f4f6046fc84db0e49b72ad12ac704b8a8901",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 21
+   },
+   "B": {
+    "bytes": 18529,
+    "chars": 18529,
+    "sha256": "5dacbb072d6eddcaa59e0b6de3d6f4f6046fc84db0e49b72ad12ac704b8a8901",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 21
+   }
+  },
+  {
+   "blind_id": "run-9e863cd158acb2ce",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 11081,
+    "chars": 11081,
+    "sha256": "9f117b7e1a9cb9d59c4fe7eba8440d9cd2d4fe50b05e04b7d42405d48f71a489",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 10
+   },
+   "B": {
+    "bytes": 8598,
+    "chars": 8598,
+    "sha256": "49e4d118ecd98c3ab624835c673f4f577a0179bc5fbc4486f4b14ca3097061a1",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 10
+   }
+  },
+  {
+   "blind_id": "run-9fe7a4c15da7e918",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 33637,
+    "chars": 33637,
+    "sha256": "d6f0926a8a088b29c4a11b1575e4f9635e14f945971c5e8910cd5a2f2db598dd",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 34
+   },
+   "B": {
+    "bytes": 33637,
+    "chars": 33637,
+    "sha256": "d6f0926a8a088b29c4a11b1575e4f9635e14f945971c5e8910cd5a2f2db598dd",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 34
+   }
+  },
+  {
+   "blind_id": "run-a382de5ca6f3f5de",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 31880,
+    "chars": 31880,
+    "sha256": "d140c5d3eb098672640a18fae80b961b77af144e95ae81e8716528a925ccbee9",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 26
+   },
+   "B": {
+    "bytes": 31880,
+    "chars": 31880,
+    "sha256": "d140c5d3eb098672640a18fae80b961b77af144e95ae81e8716528a925ccbee9",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 26
+   }
+  },
+  {
+   "blind_id": "run-a6b2b66dd3566047",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 11559,
+    "chars": 11559,
+    "sha256": "b8b630bddaafb70fc726d6bb2903b313de09f5e05a990cbadfdc73d668a484d1",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 16
+   },
+   "B": {
+    "bytes": 11559,
+    "chars": 11559,
+    "sha256": "b8b630bddaafb70fc726d6bb2903b313de09f5e05a990cbadfdc73d668a484d1",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 16
+   }
+  },
+  {
+   "blind_id": "run-adff56b977c19e3a",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 26441,
+    "chars": 26357,
+    "sha256": "bd642ad38da1255ab461a0241fdeb34143a8cd5f3aa6f77749d5f8f1c8c1537e",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 33
+   },
+   "B": {
+    "bytes": 26441,
+    "chars": 26357,
+    "sha256": "bd642ad38da1255ab461a0241fdeb34143a8cd5f3aa6f77749d5f8f1c8c1537e",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 33
+   }
+  },
+  {
+   "blind_id": "run-b11737b0b5381ae1",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 8902,
+    "chars": 8902,
+    "sha256": "2cb707ea923ea58c73659872e8235414e5f565b2f0f1711d8056fec11dc03d68",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 12
+   },
+   "B": {
+    "bytes": 8902,
+    "chars": 8902,
+    "sha256": "2cb707ea923ea58c73659872e8235414e5f565b2f0f1711d8056fec11dc03d68",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 12
+   }
+  },
+  {
+   "blind_id": "run-b22b09d0f4fcf8bb",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 19729,
+    "chars": 19677,
+    "sha256": "628853215f63eb0bc767c2172e6c8e1df6ff66123458feb17e10d651cf9483f8",
+    "task_source": "user_steps",
+    "n_citations_used": 2,
+    "window_steps": 15
+   },
+   "B": {
+    "bytes": 19417,
+    "chars": 19365,
+    "sha256": "48aaf01588a37edb5f663f7765d4cd45ef359a8df51eef4252468fca76c4e483",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 15
+   }
+  },
+  {
+   "blind_id": "run-b4e86ad6318b3178",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 38421,
+    "chars": 38353,
+    "sha256": "d4bf10c71b39386a55cf39f001f062732a4d45d4ee1f4d153e96c2d96229f7d0",
+    "task_source": "none",
+    "n_citations_used": 4,
+    "window_steps": 43
+   },
+   "B": {
+    "bytes": 38421,
+    "chars": 38353,
+    "sha256": "d4bf10c71b39386a55cf39f001f062732a4d45d4ee1f4d153e96c2d96229f7d0",
+    "task_source": "ablation",
+    "n_citations_used": 4,
+    "window_steps": 43
+   }
+  },
+  {
+   "blind_id": "run-bb3c8294e72f335f",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 12465,
+    "chars": 12465,
+    "sha256": "998ad44b404c1c31d4f8a156f710e87568a8e15c5ac055cbe54ffa0bfa350fcd",
+    "task_source": "user_steps",
+    "n_citations_used": 2,
+    "window_steps": 17
+   },
+   "B": {
+    "bytes": 12197,
+    "chars": 12197,
+    "sha256": "f8a060996f211233bcc5b4c3b1f85b3583066d8fd41eb7c46f85ecbad9d5830b",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 17
+   }
+  },
+  {
+   "blind_id": "run-c07a1c6275369973",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 9797,
+    "chars": 9771,
+    "sha256": "33caa0462ac2d537911866f20e1d9b9015ed18707b219f421f6b00cd86a7c7c6",
+    "task_source": "none",
+    "n_citations_used": 1,
+    "window_steps": 11
+   },
+   "B": {
+    "bytes": 9797,
+    "chars": 9771,
+    "sha256": "33caa0462ac2d537911866f20e1d9b9015ed18707b219f421f6b00cd86a7c7c6",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 11
+   }
+  },
+  {
+   "blind_id": "run-c0d8e84e1006307a",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 41565,
+    "chars": 41339,
+    "sha256": "3ead073d307ccc396805fbeb97c8b7c43f45be837488eb5be07dfc543f084f8e",
+    "task_source": "none",
+    "n_citations_used": 4,
+    "window_steps": 52
+   },
+   "B": {
+    "bytes": 41565,
+    "chars": 41339,
+    "sha256": "3ead073d307ccc396805fbeb97c8b7c43f45be837488eb5be07dfc543f084f8e",
+    "task_source": "ablation",
+    "n_citations_used": 4,
+    "window_steps": 52
+   }
+  },
+  {
+   "blind_id": "run-d6d869b35e8e6a4d",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 13012,
+    "chars": 13012,
+    "sha256": "557397130803a64f1bcbd3a32b61c9394eaa18a21cf1e5c91b79888515590b60",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 12
+   },
+   "B": {
+    "bytes": 10529,
+    "chars": 10529,
+    "sha256": "21ae83cff357593cc9836c928b66b49481c6aed59551051e0ba5226a0fcebb7a",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 12
+   }
+  },
+  {
+   "blind_id": "run-da565e774e37e913",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 8393,
+    "chars": 8389,
+    "sha256": "4e07928025e30a1a1d44d0f5fdba4aece1f7ee9ffadacbb2d90268c10e5fc489",
+    "task_source": "none",
+    "n_citations_used": 1,
+    "window_steps": 12
+   },
+   "B": {
+    "bytes": 8393,
+    "chars": 8389,
+    "sha256": "4e07928025e30a1a1d44d0f5fdba4aece1f7ee9ffadacbb2d90268c10e5fc489",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 12
+   }
+  },
+  {
+   "blind_id": "run-e072c4d24b706af5",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 19243,
+    "chars": 19243,
+    "sha256": "f2b48395ddec66112c763f820878d0b71f654e3ead793b360db90da5c3262c6b",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 15
+   },
+   "B": {
+    "bytes": 19243,
+    "chars": 19243,
+    "sha256": "f2b48395ddec66112c763f820878d0b71f654e3ead793b360db90da5c3262c6b",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 15
+   }
+  },
+  {
+   "blind_id": "run-e16a797530621f1e",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 44489,
+    "chars": 44359,
+    "sha256": "499589f9e745366533182277ebc62a96fd394da4952c3d9d5f90097518bbcb10",
+    "task_source": "none",
+    "n_citations_used": 4,
+    "window_steps": 40
+   },
+   "B": {
+    "bytes": 44489,
+    "chars": 44359,
+    "sha256": "499589f9e745366533182277ebc62a96fd394da4952c3d9d5f90097518bbcb10",
+    "task_source": "ablation",
+    "n_citations_used": 4,
+    "window_steps": 40
+   }
+  },
+  {
+   "blind_id": "run-e2d6c909ac5ae5ca",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 42959,
+    "chars": 42949,
+    "sha256": "4b1ac5eff5467b139edee3036accc1311c7acc22d24227cb8bacec2d1d1afe0f",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 36
+   },
+   "B": {
+    "bytes": 40476,
+    "chars": 40466,
+    "sha256": "40122d58b148929267cac945dd0f9b1a050d23ca03a55814121a787d1f5b54d5",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 36
+   }
+  },
+  {
+   "blind_id": "run-e2f9dc9f1b35a940",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 26592,
+    "chars": 26580,
+    "sha256": "a60dcd923fa3e5c8f3b84ffbd481460094261880973fe781715cb65a4a84b20b",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 29
+   },
+   "B": {
+    "bytes": 26008,
+    "chars": 25996,
+    "sha256": "3416ad24ff213ad521d1aac0964bc3370aa15ce5a79288ce263da4742c381528",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 29
+   }
+  },
+  {
+   "blind_id": "run-e99b52d27a48de85",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 20343,
+    "chars": 20273,
+    "sha256": "a04bd770d159ca35d334338926a974e261f4aaad8833d6daa46428edf9f04280",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 18
+   },
+   "B": {
+    "bytes": 20343,
+    "chars": 20273,
+    "sha256": "a04bd770d159ca35d334338926a974e261f4aaad8833d6daa46428edf9f04280",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 18
+   }
+  },
+  {
+   "blind_id": "run-ea92b40d8f36578d",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 19614,
+    "chars": 19556,
+    "sha256": "51b572faaba451026cce1a6232d4385c4b82f13d841d6399f5498c0969915266",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 19
+   },
+   "B": {
+    "bytes": 19614,
+    "chars": 19556,
+    "sha256": "51b572faaba451026cce1a6232d4385c4b82f13d841d6399f5498c0969915266",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 19
+   }
+  },
+  {
+   "blind_id": "run-ec7cf2ffc82a60ea",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 7295,
+    "chars": 7295,
+    "sha256": "2db39852cf3f10e71625b5e9e2e76f1f99c95f49cf34bef1483c52e0ecc3582f",
+    "task_source": "none",
+    "n_citations_used": 1,
+    "window_steps": 10
+   },
+   "B": {
+    "bytes": 7295,
+    "chars": 7295,
+    "sha256": "2db39852cf3f10e71625b5e9e2e76f1f99c95f49cf34bef1483c52e0ecc3582f",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 10
+   }
+  },
+  {
+   "blind_id": "run-ec9d3994d267a5fe",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 6157,
+    "chars": 6145,
+    "sha256": "60e79c5c8693ddcbda85ed6434bc4c73b34646ea8b9d9b22ebe2f23cbdc3758c",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 4
+   },
+   "B": {
+    "bytes": 6157,
+    "chars": 6145,
+    "sha256": "60e79c5c8693ddcbda85ed6434bc4c73b34646ea8b9d9b22ebe2f23cbdc3758c",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 4
+   }
+  },
+  {
+   "blind_id": "run-ecab09fe0aff0cb9",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 45205,
+    "chars": 45205,
+    "sha256": "b0e71a890b1275be70a9314f7f85309d95ddd9364eb1087bfe7b3fa53c99f514",
+    "task_source": "none",
+    "n_citations_used": 3,
+    "window_steps": 39
+   },
+   "B": {
+    "bytes": 45205,
+    "chars": 45205,
+    "sha256": "b0e71a890b1275be70a9314f7f85309d95ddd9364eb1087bfe7b3fa53c99f514",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 39
+   }
+  },
+  {
+   "blind_id": "run-eefed3e2d21afbca",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 3575,
+    "chars": 3559,
+    "sha256": "c9a3402e250b522787b36fce6214f7d3688a1f0c3d6f3b6634530adf57a3f73d",
+    "task_source": "none",
+    "n_citations_used": 1,
+    "window_steps": 2
+   },
+   "B": {
+    "bytes": 3575,
+    "chars": 3559,
+    "sha256": "c9a3402e250b522787b36fce6214f7d3688a1f0c3d6f3b6634530adf57a3f73d",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 2
+   }
+  },
+  {
+   "blind_id": "run-f25d9c59a8d332a8",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 30989,
+    "chars": 30989,
+    "sha256": "80483548682d5c391012ab2603ddba46e55c21d0b9a47e75141679c1dba40ecb",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 36
+   },
+   "B": {
+    "bytes": 28506,
+    "chars": 28506,
+    "sha256": "d18ec0299c31a5358395f9c4a7579215e36bb8cad17e7a4d04bb7cbdfe6c514d",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 36
+   }
+  },
+  {
+   "blind_id": "run-f9bbb5563039bbdf",
+   "corpus": "cheatbench",
+   "A": {
+    "bytes": 13745,
+    "chars": 13721,
+    "sha256": "8c04c79b61d2927c61acfd2c0da0d8e3c68c4918d58f046e9e7885918a64b5ec",
+    "task_source": "none",
+    "n_citations_used": 2,
+    "window_steps": 22
+   },
+   "B": {
+    "bytes": 13745,
+    "chars": 13721,
+    "sha256": "8c04c79b61d2927c61acfd2c0da0d8e3c68c4918d58f046e9e7885918a64b5ec",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 22
+   }
+  },
+  {
+   "blind_id": "run-04923aba7ebd88ac",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 26942,
+    "chars": 26815,
+    "sha256": "f5ecfd8cbf43963016443cd8428c7fa5e03eb7cbcc3815de9c40a50178222370",
+    "task_source": "user_steps",
+    "n_citations_used": 2,
+    "window_steps": 20
+   },
+   "B": {
+    "bytes": 24459,
+    "chars": 24332,
+    "sha256": "53e664cc263ea0ac880f2c16a16f9158a4b482cbc5f3833ce0c966b5c4827f69",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 20
+   }
+  },
+  {
+   "blind_id": "run-12013e9f26c1ae5b",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 15350,
+    "chars": 15253,
+    "sha256": "6c9d667413dc787be57fd694046bbef99a3de799863f6787a8156fcde802252d",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 11
+   },
+   "B": {
+    "bytes": 13486,
+    "chars": 13389,
+    "sha256": "78559b4d9af6ccab8290b62ba403207df8ae74a11188ad8b6edfddb609b34ec2",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 11
+   }
+  },
+  {
+   "blind_id": "run-1708cdfb6fd33b6a",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 18327,
+    "chars": 18293,
+    "sha256": "39aec29625038146d9cbd9a0449e79997e9644de479873dcc0e6b549fb829d1c",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 13
+   },
+   "B": {
+    "bytes": 15844,
+    "chars": 15810,
+    "sha256": "d4bac2b23a5af19fa4eb7dc1cf5b8ebbb999dc758fa4460a299769d1a721e881",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 13
+   }
+  },
+  {
+   "blind_id": "run-22c2640846647183",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 24417,
+    "chars": 24405,
+    "sha256": "8c7afa0a5cdea7a5f6c542eedf29cc0874941dc335523b13d65ce8ce20c8ab44",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 21
+   },
+   "B": {
+    "bytes": 23665,
+    "chars": 23653,
+    "sha256": "45cb5b1c4d67ce5691db89ddfb90f4e315c732cc49d847f653f7db74154f8fa7",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 21
+   }
+  },
+  {
+   "blind_id": "run-32da5be839da8f50",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 11554,
+    "chars": 11510,
+    "sha256": "6131cc9c967bd316d26ffdfe969804d2612f1d38796265302e223f3626cbbea5",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 7
+   },
+   "B": {
+    "bytes": 9071,
+    "chars": 9027,
+    "sha256": "2cfa4197236f0433c84075ed5ef28c493e2f4bdf06db4a4c71ea742065e93a6d",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 7
+   }
+  },
+  {
+   "blind_id": "run-4ce54d46adf55b20",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 41010,
+    "chars": 40886,
+    "sha256": "3a9070af939be6257c641e2aa9026188b12e3431b83007e45309529acb7b3c91",
+    "task_source": "user_steps",
+    "n_citations_used": 4,
+    "window_steps": 31
+   },
+   "B": {
+    "bytes": 38527,
+    "chars": 38403,
+    "sha256": "008ae2c5f189e3b0ce4795ff46c76d3313074edd2d2af730c28abaccdb13e216",
+    "task_source": "ablation",
+    "n_citations_used": 4,
+    "window_steps": 31
+   }
+  },
+  {
+   "blind_id": "run-4e1dada6eb0e37d8",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 31681,
+    "chars": 31546,
+    "sha256": "488fe65937f2846babcb44487d654697266d469f83758fd4d393f7f735b9a688",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 24
+   },
+   "B": {
+    "bytes": 29928,
+    "chars": 29793,
+    "sha256": "dd8e85f01314ca2ddbe7544a037ba04bf39e40c48623299f6f9d8f77eac9c6af",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 24
+   }
+  },
+  {
+   "blind_id": "run-705cff07ea2141e5",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 18172,
+    "chars": 18149,
+    "sha256": "8c95cdc3ef89ff9ec88d2369f780b99e0194d3fd40af388b3acf9415024224b3",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 13
+   },
+   "B": {
+    "bytes": 15689,
+    "chars": 15666,
+    "sha256": "282d114f9ca3f138b1fd9b7861f19870dae31828590a14e5d1a0c729d4bd213f",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 13
+   }
+  },
+  {
+   "blind_id": "run-863b74432c688e05",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 18323,
+    "chars": 18235,
+    "sha256": "5dec5d85e919ad740e91eca9b2e7b34f3f441c44c690217b1452201d0195759a",
+    "task_source": "user_steps",
+    "n_citations_used": 1,
+    "window_steps": 13
+   },
+   "B": {
+    "bytes": 15836,
+    "chars": 15752,
+    "sha256": "815f7776ec358ac6fc18ad57a3bee301c3645e5ff0599bf7b9fc13442dc90482",
+    "task_source": "ablation",
+    "n_citations_used": 1,
+    "window_steps": 13
+   }
+  },
+  {
+   "blind_id": "run-addf71a8719e2f65",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 23499,
+    "chars": 23451,
+    "sha256": "aa599140729d689bf95a08b3506a3e0405420d6c6efaefedcd91932627230fbf",
+    "task_source": "user_steps",
+    "n_citations_used": 2,
+    "window_steps": 17
+   },
+   "B": {
+    "bytes": 21698,
+    "chars": 21650,
+    "sha256": "707c5ef3fb0793172e6b67e310b906a69d63c27e1a363f4a45f9e31d9f5ff1a9",
+    "task_source": "ablation",
+    "n_citations_used": 2,
+    "window_steps": 17
+   }
+  },
+  {
+   "blind_id": "run-d2bde1a1d1610501",
+   "corpus": "goodfire",
+   "A": {
+    "bytes": 44062,
+    "chars": 44004,
+    "sha256": "a1ebfd26e1f915cf9d579bcdd058a176e6d50a3d01fefb5e6d4485a4c059b227",
+    "task_source": "user_steps",
+    "n_citations_used": 3,
+    "window_steps": 38
+   },
+   "B": {
+    "bytes": 42331,
+    "chars": 42273,
+    "sha256": "d1e9d1b026d25895597dc6d07f0944cf2f3d64c087af54bd65e0b24bf8fb747c",
+    "task_source": "ablation",
+    "n_citations_used": 3,
+    "window_steps": 38
+   }
+  }
+ ]
+}

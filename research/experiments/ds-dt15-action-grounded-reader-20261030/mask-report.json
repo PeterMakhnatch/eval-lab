@@ -1,0 +1,1834 @@
+{
+ "instruction_sha256": "63574050cd67",
+ "placeholder": "(tool calls only)",
+ "corpora": {
+  "goodfire": {
+   "totals": {
+    "runs": 150,
+    "steps": 4585,
+    "steps_changed": 3922,
+    "blocks_changed": 6177,
+    "excluded": 0,
+    "orig_chars": 21856276,
+    "masked_chars": 8217257,
+    "share_chars": 0.376
+   },
+   "runs": [
+    {
+     "blind_id": "run-327b10d19096c172",
+     "status": "ok",
+     "blocks_changed": 6,
+     "n_agent_blocks": 6
+    },
+    {
+     "blind_id": "run-9794e4afe2d46d03",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-a1a2320cdddeb6b5",
+     "status": "ok",
+     "blocks_changed": 20,
+     "n_agent_blocks": 20
+    },
+    {
+     "blind_id": "run-605bc4bdf3a350f4",
+     "status": "ok",
+     "blocks_changed": 23,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-d2bde1a1d1610501",
+     "status": "ok",
+     "blocks_changed": 22,
+     "n_agent_blocks": 22
+    },
+    {
+     "blind_id": "run-2946c5a05617df17",
+     "status": "ok",
+     "blocks_changed": 23,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-f6537818ad38dd35",
+     "status": "ok",
+     "blocks_changed": 19,
+     "n_agent_blocks": 19
+    },
+    {
+     "blind_id": "run-2373ff2bad1bd0fc",
+     "status": "ok",
+     "blocks_changed": 25,
+     "n_agent_blocks": 25
+    },
+    {
+     "blind_id": "run-85a2fe3bb6039aee",
+     "status": "ok",
+     "blocks_changed": 13,
+     "n_agent_blocks": 13
+    },
+    {
+     "blind_id": "run-77c0c00639f11f7c",
+     "status": "ok",
+     "blocks_changed": 19,
+     "n_agent_blocks": 19
+    },
+    {
+     "blind_id": "run-8686209958f20921",
+     "status": "ok",
+     "blocks_changed": 8,
+     "n_agent_blocks": 8
+    },
+    {
+     "blind_id": "run-e4b21b27c1437f06",
+     "status": "ok",
+     "blocks_changed": 20,
+     "n_agent_blocks": 20
+    },
+    {
+     "blind_id": "run-3d8996f174e5a6a6",
+     "status": "ok",
+     "blocks_changed": 11,
+     "n_agent_blocks": 11
+    },
+    {
+     "blind_id": "run-21d67df7b66c8967",
+     "status": "ok",
+     "blocks_changed": 11,
+     "n_agent_blocks": 11
+    },
+    {
+     "blind_id": "run-8d005502b6af51cc",
+     "status": "ok",
+     "blocks_changed": 9,
+     "n_agent_blocks": 9
+    },
+    {
+     "blind_id": "run-d95915f372e836d4",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-ae494a325fb5834d",
+     "status": "ok",
+     "blocks_changed": 11,
+     "n_agent_blocks": 11
+    },
+    {
+     "blind_id": "run-51b13355936c322e",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-88e79e36ab5878c8",
+     "status": "ok",
+     "blocks_changed": 11,
+     "n_agent_blocks": 11
+    },
+    {
+     "blind_id": "run-a4f60b6c9be4a35b",
+     "status": "ok",
+     "blocks_changed": 24,
+     "n_agent_blocks": 24
+    },
+    {
+     "blind_id": "run-535cc88206c64c2f",
+     "status": "ok",
+     "blocks_changed": 8,
+     "n_agent_blocks": 8
+    },
+    {
+     "blind_id": "run-b0f8a74ae8239b0a",
+     "status": "ok",
+     "blocks_changed": 22,
+     "n_agent_blocks": 22
+    },
+    {
+     "blind_id": "run-d7090f011b3f798d",
+     "status": "ok",
+     "blocks_changed": 20,
+     "n_agent_blocks": 20
+    },
+    {
+     "blind_id": "run-658af8ae6bb5efee",
+     "status": "ok",
+     "blocks_changed": 13,
+     "n_agent_blocks": 13
+    },
+    {
+     "blind_id": "run-17eeab1aa5bfcc62",
+     "status": "ok",
+     "blocks_changed": 10,
+     "n_agent_blocks": 10
+    },
+    {
+     "blind_id": "run-8d627fd686ef449a",
+     "status": "ok",
+     "blocks_changed": 8,
+     "n_agent_blocks": 8
+    },
+    {
+     "blind_id": "run-addf71a8719e2f65",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-14c51bc32c4ae243",
+     "status": "ok",
+     "blocks_changed": 12,
+     "n_agent_blocks": 12
+    },
+    {
+     "blind_id": "run-046e36f375457a8f",
+     "status": "ok",
+     "blocks_changed": 10,
+     "n_agent_blocks": 10
+    },
+    {
+     "blind_id": "run-25d91dcea0c41d87",
+     "status": "ok",
+     "blocks_changed": 20,
+     "n_agent_blocks": 20
+    },
+    {
+     "blind_id": "run-027ac1f55a6b6944",
+     "status": "ok",
+     "blocks_changed": 9,
+     "n_agent_blocks": 9
+    },
+    {
+     "blind_id": "run-73fff29ed4d32914",
+     "status": "ok",
+     "blocks_changed": 5,
+     "n_agent_blocks": 5
+    },
+    {
+     "blind_id": "run-328c48723d37e03a",
+     "status": "ok",
+     "blocks_changed": 19,
+     "n_agent_blocks": 19
+    },
+    {
+     "blind_id": "run-2be68e26bcd7b137",
+     "status": "ok",
+     "blocks_changed": 7,
+     "n_agent_blocks": 7
+    },
+    {
+     "blind_id": "run-83b803341762f3fe",
+     "status": "ok",
+     "blocks_changed": 16,
+     "n_agent_blocks": 16
+    },
+    {
+     "blind_id": "run-47b2adab21ccc53a",
+     "status": "ok",
+     "blocks_changed": 6,
+     "n_agent_blocks": 6
+    },
+    {
+     "blind_id": "run-be6814c7da996b28",
+     "status": "ok",
+     "blocks_changed": 20,
+     "n_agent_blocks": 20
+    },
+    {
+     "blind_id": "run-8c9cc4d44335fde5",
+     "status": "ok",
+     "blocks_changed": 14,
+     "n_agent_blocks": 14
+    },
+    {
+     "blind_id": "run-c3ba3109129fd4c3",
+     "status": "ok",
+     "blocks_changed": 8,
+     "n_agent_blocks": 8
+    },
+    {
+     "blind_id": "run-32da5be839da8f50",
+     "status": "ok",
+     "blocks_changed": 19,
+     "n_agent_blocks": 19
+    },
+    {
+     "blind_id": "run-ebe81ddccabb557e",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-76067b6f63a72213",
+     "status": "ok",
+     "blocks_changed": 20,
+     "n_agent_blocks": 20
+    },
+    {
+     "blind_id": "run-3c8a9cbd9400a7bb",
+     "status": "ok",
+     "blocks_changed": 19,
+     "n_agent_blocks": 19
+    },
+    {
+     "blind_id": "run-dd54b69025fb57fd",
+     "status": "ok",
+     "blocks_changed": 5,
+     "n_agent_blocks": 5
+    },
+    {
+     "blind_id": "run-e16d0bb006e221ea",
+     "status": "ok",
+     "blocks_changed": 17,
+     "n_agent_blocks": 17
+    },
+    {
+     "blind_id": "run-22c2640846647183",
+     "status": "ok",
+     "blocks_changed": 6,
+     "n_agent_blocks": 6
+    },
+    {
+     "blind_id": "run-f9d15b41e3d78920",
+     "status": "ok",
+     "blocks_changed": 5,
+     "n_agent_blocks": 5
+    },
+    {
+     "blind_id": "run-1708cdfb6fd33b6a",
+     "status": "ok",
+     "blocks_changed": 16,
+     "n_agent_blocks": 16
+    },
+    {
+     "blind_id": "run-14ec5a4d07b4ef30",
+     "status": "ok",
+     "blocks_changed": 10,
+     "n_agent_blocks": 10
+    },
+    {
+     "blind_id": "run-cc40529add394fdb",
+     "status": "ok",
+     "blocks_changed": 5,
+     "n_agent_blocks": 5
+    },
+    {
+     "blind_id": "run-d05435f120d1ec7f",
+     "status": "ok",
+     "blocks_changed": 8,
+     "n_agent_blocks": 8
+    },
+    {
+     "blind_id": "run-44f259dc8731c683",
+     "status": "ok",
+     "blocks_changed": 23,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-5658480cfe32db65",
+     "status": "ok",
+     "blocks_changed": 25,
+     "n_agent_blocks": 25
+    },
+    {
+     "blind_id": "run-86a027490c9fdeb9",
+     "status": "ok",
+     "blocks_changed": 10,
+     "n_agent_blocks": 10
+    },
+    {
+     "blind_id": "run-12013e9f26c1ae5b",
+     "status": "ok",
+     "blocks_changed": 22,
+     "n_agent_blocks": 22
+    },
+    {
+     "blind_id": "run-e6de8452bc79bd30",
+     "status": "ok",
+     "blocks_changed": 17,
+     "n_agent_blocks": 17
+    },
+    {
+     "blind_id": "run-75681af6823b6521",
+     "status": "ok",
+     "blocks_changed": 16,
+     "n_agent_blocks": 16
+    },
+    {
+     "blind_id": "run-d4c97accf308b717",
+     "status": "ok",
+     "blocks_changed": 23,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-4e1dada6eb0e37d8",
+     "status": "ok",
+     "blocks_changed": 23,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-4ce54d46adf55b20",
+     "status": "ok",
+     "blocks_changed": 22,
+     "n_agent_blocks": 22
+    },
+    {
+     "blind_id": "run-5479a3ac0f41e2ee",
+     "status": "ok",
+     "blocks_changed": 10,
+     "n_agent_blocks": 10
+    },
+    {
+     "blind_id": "run-7918dd62a116de2e",
+     "status": "ok",
+     "blocks_changed": 11,
+     "n_agent_blocks": 11
+    },
+    {
+     "blind_id": "run-56fe3cf91602b495",
+     "status": "ok",
+     "blocks_changed": 15,
+     "n_agent_blocks": 15
+    },
+    {
+     "blind_id": "run-0dd666dcaf1f21fb",
+     "status": "ok",
+     "blocks_changed": 20,
+     "n_agent_blocks": 20
+    },
+    {
+     "blind_id": "run-ea24b406a4c7e045",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-e2a2528f90e82c2e",
+     "status": "ok",
+     "blocks_changed": 24,
+     "n_agent_blocks": 24
+    },
+    {
+     "blind_id": "run-9d6e9aebdbb698ea",
+     "status": "ok",
+     "blocks_changed": 22,
+     "n_agent_blocks": 22
+    },
+    {
+     "blind_id": "run-400cb5429d7f4bc9",
+     "status": "ok",
+     "blocks_changed": 23,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-f68ecc2d5526dfe6",
+     "status": "ok",
+     "blocks_changed": 18,
+     "n_agent_blocks": 18
+    },
+    {
+     "blind_id": "run-e4b26a32d3a87df7",
+     "status": "ok",
+     "blocks_changed": 18,
+     "n_agent_blocks": 18
+    },
+    {
+     "blind_id": "run-41bda980002d5259",
+     "status": "ok",
+     "blocks_changed": 15,
+     "n_agent_blocks": 15
+    },
+    {
+     "blind_id": "run-a58bb1229fadd579",
+     "status": "ok",
+     "blocks_changed": 10,
+     "n_agent_blocks": 10
+    },
+    {
+     "blind_id": "run-d664fc4f12114beb",
+     "status": "ok",
+     "blocks_changed": 13,
+     "n_agent_blocks": 13
+    },
+    {
+     "blind_id": "run-ede2017ebfa332fc",
+     "status": "ok",
+     "blocks_changed": 22,
+     "n_agent_blocks": 22
+    },
+    {
+     "blind_id": "run-908c95da9ca14982",
+     "status": "ok",
+     "blocks_changed": 89,
+     "n_agent_blocks": 89
+    },
+    {
+     "blind_id": "run-2c218d606e65fd4a",
+     "status": "ok",
+     "blocks_changed": 119,
+     "n_agent_blocks": 119
+    },
+    {
+     "blind_id": "run-afafc0291e3acdde",
+     "status": "ok",
+     "blocks_changed": 122,
+     "n_agent_blocks": 122
+    },
+    {
+     "blind_id": "run-1b0accb660f75bc2",
+     "status": "ok",
+     "blocks_changed": 104,
+     "n_agent_blocks": 104
+    },
+    {
+     "blind_id": "run-7bbf47ddac0396de",
+     "status": "ok",
+     "blocks_changed": 23,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-73ed33d328c1c127",
+     "status": "ok",
+     "blocks_changed": 29,
+     "n_agent_blocks": 29
+    },
+    {
+     "blind_id": "run-8aa4f3d7aeea247e",
+     "status": "ok",
+     "blocks_changed": 97,
+     "n_agent_blocks": 97
+    },
+    {
+     "blind_id": "run-53bf78949a5265e8",
+     "status": "ok",
+     "blocks_changed": 34,
+     "n_agent_blocks": 34
+    },
+    {
+     "blind_id": "run-6ed7eefeb0d03949",
+     "status": "ok",
+     "blocks_changed": 64,
+     "n_agent_blocks": 64
+    },
+    {
+     "blind_id": "run-5fab0e672a87a4b0",
+     "status": "ok",
+     "blocks_changed": 47,
+     "n_agent_blocks": 47
+    },
+    {
+     "blind_id": "run-6d1d1ed8b7789b6b",
+     "status": "ok",
+     "blocks_changed": 55,
+     "n_agent_blocks": 55
+    },
+    {
+     "blind_id": "run-7ae1f55348d66737",
+     "status": "ok",
+     "blocks_changed": 47,
+     "n_agent_blocks": 47
+    },
+    {
+     "blind_id": "run-f7233e9d610ddb51",
+     "status": "ok",
+     "blocks_changed": 34,
+     "n_agent_blocks": 34
+    },
+    {
+     "blind_id": "run-2b9f0508cc5bf1c1",
+     "status": "ok",
+     "blocks_changed": 91,
+     "n_agent_blocks": 91
+    },
+    {
+     "blind_id": "run-2a855757fb8aa2c2",
+     "status": "ok",
+     "blocks_changed": 39,
+     "n_agent_blocks": 39
+    },
+    {
+     "blind_id": "run-87c39ca094e1d3ef",
+     "status": "ok",
+     "blocks_changed": 82,
+     "n_agent_blocks": 82
+    },
+    {
+     "blind_id": "run-bc429aa7a88646f9",
+     "status": "ok",
+     "blocks_changed": 56,
+     "n_agent_blocks": 56
+    },
+    {
+     "blind_id": "run-712cd3b4ccdb35e0",
+     "status": "ok",
+     "blocks_changed": 42,
+     "n_agent_blocks": 42
+    },
+    {
+     "blind_id": "run-f16b688e082cc188",
+     "status": "ok",
+     "blocks_changed": 74,
+     "n_agent_blocks": 74
+    },
+    {
+     "blind_id": "run-eadfde85f91b69dd",
+     "status": "ok",
+     "blocks_changed": 72,
+     "n_agent_blocks": 72
+    },
+    {
+     "blind_id": "run-12623232771f8363",
+     "status": "ok",
+     "blocks_changed": 52,
+     "n_agent_blocks": 52
+    },
+    {
+     "blind_id": "run-27f2d2faaa2e90e6",
+     "status": "ok",
+     "blocks_changed": 50,
+     "n_agent_blocks": 50
+    },
+    {
+     "blind_id": "run-5d237d029ead96ec",
+     "status": "ok",
+     "blocks_changed": 40,
+     "n_agent_blocks": 40
+    },
+    {
+     "blind_id": "run-9cdead75b21f4482",
+     "status": "ok",
+     "blocks_changed": 73,
+     "n_agent_blocks": 73
+    },
+    {
+     "blind_id": "run-705cff07ea2141e5",
+     "status": "ok",
+     "blocks_changed": 36,
+     "n_agent_blocks": 36
+    },
+    {
+     "blind_id": "run-cfb31f85e6d9685a",
+     "status": "ok",
+     "blocks_changed": 52,
+     "n_agent_blocks": 52
+    },
+    {
+     "blind_id": "run-ffb1e5655f9ff63b",
+     "status": "ok",
+     "blocks_changed": 24,
+     "n_agent_blocks": 24
+    },
+    {
+     "blind_id": "run-b95146c680d6d4e9",
+     "status": "ok",
+     "blocks_changed": 84,
+     "n_agent_blocks": 84
+    },
+    {
+     "blind_id": "run-49109d0ce178a8ff",
+     "status": "ok",
+     "blocks_changed": 81,
+     "n_agent_blocks": 81
+    },
+    {
+     "blind_id": "run-04923aba7ebd88ac",
+     "status": "ok",
+     "blocks_changed": 193,
+     "n_agent_blocks": 193
+    },
+    {
+     "blind_id": "run-c54b132d0bbaa8b7",
+     "status": "ok",
+     "blocks_changed": 31,
+     "n_agent_blocks": 31
+    },
+    {
+     "blind_id": "run-a757bff6f48b70fe",
+     "status": "ok",
+     "blocks_changed": 50,
+     "n_agent_blocks": 50
+    },
+    {
+     "blind_id": "run-83b0f7e39b5e3784",
+     "status": "ok",
+     "blocks_changed": 94,
+     "n_agent_blocks": 94
+    },
+    {
+     "blind_id": "run-3748a4bfb32e3ae6",
+     "status": "ok",
+     "blocks_changed": 66,
+     "n_agent_blocks": 66
+    },
+    {
+     "blind_id": "run-3bcfb02bef42556d",
+     "status": "ok",
+     "blocks_changed": 24,
+     "n_agent_blocks": 24
+    },
+    {
+     "blind_id": "run-654bb0300abf0436",
+     "status": "ok",
+     "blocks_changed": 107,
+     "n_agent_blocks": 107
+    },
+    {
+     "blind_id": "run-23246a26b714a727",
+     "status": "ok",
+     "blocks_changed": 52,
+     "n_agent_blocks": 52
+    },
+    {
+     "blind_id": "run-9739f0961293c8c0",
+     "status": "ok",
+     "blocks_changed": 37,
+     "n_agent_blocks": 37
+    },
+    {
+     "blind_id": "run-a27dfa40dbd412a1",
+     "status": "ok",
+     "blocks_changed": 22,
+     "n_agent_blocks": 22
+    },
+    {
+     "blind_id": "run-de3f8e793c2ad2a7",
+     "status": "ok",
+     "blocks_changed": 105,
+     "n_agent_blocks": 105
+    },
+    {
+     "blind_id": "run-5bdb69a3d266d741",
+     "status": "ok",
+     "blocks_changed": 32,
+     "n_agent_blocks": 32
+    },
+    {
+     "blind_id": "run-5f15067a239fe52e",
+     "status": "ok",
+     "blocks_changed": 71,
+     "n_agent_blocks": 71
+    },
+    {
+     "blind_id": "run-70b21117cc5ac639",
+     "status": "ok",
+     "blocks_changed": 53,
+     "n_agent_blocks": 53
+    },
+    {
+     "blind_id": "run-8a6d238f11478411",
+     "status": "ok",
+     "blocks_changed": 29,
+     "n_agent_blocks": 29
+    },
+    {
+     "blind_id": "run-2a43ee030c7df23c",
+     "status": "ok",
+     "blocks_changed": 27,
+     "n_agent_blocks": 27
+    },
+    {
+     "blind_id": "run-c54272dd71e4c0c9",
+     "status": "ok",
+     "blocks_changed": 61,
+     "n_agent_blocks": 61
+    },
+    {
+     "blind_id": "run-6a570a349e7a0c23",
+     "status": "ok",
+     "blocks_changed": 59,
+     "n_agent_blocks": 59
+    },
+    {
+     "blind_id": "run-543dd32a1cd12d73",
+     "status": "ok",
+     "blocks_changed": 55,
+     "n_agent_blocks": 55
+    },
+    {
+     "blind_id": "run-cdabcb4970d58189",
+     "status": "ok",
+     "blocks_changed": 26,
+     "n_agent_blocks": 26
+    },
+    {
+     "blind_id": "run-264dd19b616d6e4a",
+     "status": "ok",
+     "blocks_changed": 72,
+     "n_agent_blocks": 72
+    },
+    {
+     "blind_id": "run-b7ca0f6fdb03e87a",
+     "status": "ok",
+     "blocks_changed": 37,
+     "n_agent_blocks": 37
+    },
+    {
+     "blind_id": "run-b7b10f6a84814abd",
+     "status": "ok",
+     "blocks_changed": 77,
+     "n_agent_blocks": 77
+    },
+    {
+     "blind_id": "run-4af588c785f85577",
+     "status": "ok",
+     "blocks_changed": 82,
+     "n_agent_blocks": 82
+    },
+    {
+     "blind_id": "run-f37e1e416537dd51",
+     "status": "ok",
+     "blocks_changed": 28,
+     "n_agent_blocks": 28
+    },
+    {
+     "blind_id": "run-f344bac339a734c1",
+     "status": "ok",
+     "blocks_changed": 31,
+     "n_agent_blocks": 31
+    },
+    {
+     "blind_id": "run-e740521229523d90",
+     "status": "ok",
+     "blocks_changed": 40,
+     "n_agent_blocks": 40
+    },
+    {
+     "blind_id": "run-62fd0ab9c8d6da01",
+     "status": "ok",
+     "blocks_changed": 26,
+     "n_agent_blocks": 26
+    },
+    {
+     "blind_id": "run-2d283e85040410bb",
+     "status": "ok",
+     "blocks_changed": 35,
+     "n_agent_blocks": 35
+    },
+    {
+     "blind_id": "run-c53ec820a6872a10",
+     "status": "ok",
+     "blocks_changed": 162,
+     "n_agent_blocks": 162
+    },
+    {
+     "blind_id": "run-9520480af04ddfb7",
+     "status": "ok",
+     "blocks_changed": 35,
+     "n_agent_blocks": 35
+    },
+    {
+     "blind_id": "run-3bf55f9712a84fc4",
+     "status": "ok",
+     "blocks_changed": 62,
+     "n_agent_blocks": 62
+    },
+    {
+     "blind_id": "run-ac5cb7b322356811",
+     "status": "ok",
+     "blocks_changed": 38,
+     "n_agent_blocks": 38
+    },
+    {
+     "blind_id": "run-868ebe2fca6fae96",
+     "status": "ok",
+     "blocks_changed": 34,
+     "n_agent_blocks": 34
+    },
+    {
+     "blind_id": "run-ec30c63cf196f94a",
+     "status": "ok",
+     "blocks_changed": 60,
+     "n_agent_blocks": 60
+    },
+    {
+     "blind_id": "run-5c8b5acad674de64",
+     "status": "ok",
+     "blocks_changed": 173,
+     "n_agent_blocks": 173
+    },
+    {
+     "blind_id": "run-a1f939db3c92aca6",
+     "status": "ok",
+     "blocks_changed": 49,
+     "n_agent_blocks": 49
+    },
+    {
+     "blind_id": "run-dce32cebdf643e4c",
+     "status": "ok",
+     "blocks_changed": 49,
+     "n_agent_blocks": 49
+    },
+    {
+     "blind_id": "run-f0bf1db92f9ae59e",
+     "status": "ok",
+     "blocks_changed": 67,
+     "n_agent_blocks": 67
+    },
+    {
+     "blind_id": "run-010629d25990c320",
+     "status": "ok",
+     "blocks_changed": 22,
+     "n_agent_blocks": 22
+    },
+    {
+     "blind_id": "run-80846c697c8e348e",
+     "status": "ok",
+     "blocks_changed": 141,
+     "n_agent_blocks": 141
+    },
+    {
+     "blind_id": "run-2abda6e145e13320",
+     "status": "ok",
+     "blocks_changed": 65,
+     "n_agent_blocks": 65
+    },
+    {
+     "blind_id": "run-863b74432c688e05",
+     "status": "ok",
+     "blocks_changed": 141,
+     "n_agent_blocks": 141
+    },
+    {
+     "blind_id": "run-8aa6d91720f44d24",
+     "status": "ok",
+     "blocks_changed": 120,
+     "n_agent_blocks": 120
+    },
+    {
+     "blind_id": "run-b20abc8e5bda57f8",
+     "status": "ok",
+     "blocks_changed": 31,
+     "n_agent_blocks": 31
+    },
+    {
+     "blind_id": "run-262df4506583a80e",
+     "status": "ok",
+     "blocks_changed": 258,
+     "n_agent_blocks": 258
+    },
+    {
+     "blind_id": "run-ba939eca37328f90",
+     "status": "ok",
+     "blocks_changed": 76,
+     "n_agent_blocks": 76
+    }
+   ]
+  },
+  "cheatbench": {
+   "totals": {
+    "runs": 150,
+    "steps": 8110,
+    "steps_changed": 7307,
+    "blocks_changed": 7307,
+    "excluded": 0,
+    "orig_chars": 18419264,
+    "masked_chars": 10020874,
+    "share_chars": 0.544
+   },
+   "runs": [
+    {
+     "blind_id": "run-e16a797530621f1e",
+     "status": "ok",
+     "blocks_changed": 15,
+     "n_agent_blocks": 15
+    },
+    {
+     "blind_id": "run-660f7f5c8b96c2a7",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-0214fca99632b673",
+     "status": "ok",
+     "blocks_changed": 7,
+     "n_agent_blocks": 7
+    },
+    {
+     "blind_id": "run-d727d6fdae4c2f39",
+     "status": "ok",
+     "blocks_changed": 7,
+     "n_agent_blocks": 16
+    },
+    {
+     "blind_id": "run-5e6820dc2d363970",
+     "status": "ok",
+     "blocks_changed": 17,
+     "n_agent_blocks": 47
+    },
+    {
+     "blind_id": "run-0577d6af68ad4646",
+     "status": "ok",
+     "blocks_changed": 18,
+     "n_agent_blocks": 18
+    },
+    {
+     "blind_id": "run-6c55bc22de186a31",
+     "status": "ok",
+     "blocks_changed": 18,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-da565e774e37e913",
+     "status": "ok",
+     "blocks_changed": 59,
+     "n_agent_blocks": 59
+    },
+    {
+     "blind_id": "run-663da268d6397fb4",
+     "status": "ok",
+     "blocks_changed": 45,
+     "n_agent_blocks": 45
+    },
+    {
+     "blind_id": "run-17eee9d855b27107",
+     "status": "ok",
+     "blocks_changed": 9,
+     "n_agent_blocks": 9
+    },
+    {
+     "blind_id": "run-578127e884510665",
+     "status": "ok",
+     "blocks_changed": 25,
+     "n_agent_blocks": 25
+    },
+    {
+     "blind_id": "run-255168c12ef4b57f",
+     "status": "ok",
+     "blocks_changed": 52,
+     "n_agent_blocks": 52
+    },
+    {
+     "blind_id": "run-a928b9853259cded",
+     "status": "ok",
+     "blocks_changed": 33,
+     "n_agent_blocks": 33
+    },
+    {
+     "blind_id": "run-05c1a7116469a068",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-9b57d2e0de617429",
+     "status": "ok",
+     "blocks_changed": 20,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-565735614351cdad",
+     "status": "ok",
+     "blocks_changed": 190,
+     "n_agent_blocks": 190
+    },
+    {
+     "blind_id": "run-f25d9c59a8d332a8",
+     "status": "ok",
+     "blocks_changed": 14,
+     "n_agent_blocks": 17
+    },
+    {
+     "blind_id": "run-eefed3e2d21afbca",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-f3402bd7446fc08b",
+     "status": "ok",
+     "blocks_changed": 128,
+     "n_agent_blocks": 128
+    },
+    {
+     "blind_id": "run-86fe4a977a3e49b7",
+     "status": "ok",
+     "blocks_changed": 15,
+     "n_agent_blocks": 15
+    },
+    {
+     "blind_id": "run-abf280af17e45fe8",
+     "status": "ok",
+     "blocks_changed": 18,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-d888805439a95363",
+     "status": "ok",
+     "blocks_changed": 42,
+     "n_agent_blocks": 42
+    },
+    {
+     "blind_id": "run-3e1fae5da8356b38",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-b22b09d0f4fcf8bb",
+     "status": "ok",
+     "blocks_changed": 19,
+     "n_agent_blocks": 19
+    },
+    {
+     "blind_id": "run-e3bcb095466ed396",
+     "status": "ok",
+     "blocks_changed": 263,
+     "n_agent_blocks": 263
+    },
+    {
+     "blind_id": "run-da1bc0c248173c5f",
+     "status": "ok",
+     "blocks_changed": 25,
+     "n_agent_blocks": 30
+    },
+    {
+     "blind_id": "run-64c8eae949db8023",
+     "status": "ok",
+     "blocks_changed": 29,
+     "n_agent_blocks": 29
+    },
+    {
+     "blind_id": "run-c36fdfc661243aec",
+     "status": "ok",
+     "blocks_changed": 14,
+     "n_agent_blocks": 14
+    },
+    {
+     "blind_id": "run-7a9117b85b0f23f1",
+     "status": "ok",
+     "blocks_changed": 10,
+     "n_agent_blocks": 10
+    },
+    {
+     "blind_id": "run-9038fba982eada75",
+     "status": "ok",
+     "blocks_changed": 133,
+     "n_agent_blocks": 133
+    },
+    {
+     "blind_id": "run-ec7cf2ffc82a60ea",
+     "status": "ok",
+     "blocks_changed": 9,
+     "n_agent_blocks": 19
+    },
+    {
+     "blind_id": "run-cb650af6ab0b41cd",
+     "status": "ok",
+     "blocks_changed": 40,
+     "n_agent_blocks": 40
+    },
+    {
+     "blind_id": "run-a19a183ff5c12c1a",
+     "status": "ok",
+     "blocks_changed": 55,
+     "n_agent_blocks": 55
+    },
+    {
+     "blind_id": "run-4edfdf2c1196a42e",
+     "status": "ok",
+     "blocks_changed": 11,
+     "n_agent_blocks": 28
+    },
+    {
+     "blind_id": "run-cc48178dc783088b",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-7bb8ea29892a6db8",
+     "status": "ok",
+     "blocks_changed": 95,
+     "n_agent_blocks": 95
+    },
+    {
+     "blind_id": "run-f1d682602f3d089c",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 28
+    },
+    {
+     "blind_id": "run-c07a1c6275369973",
+     "status": "ok",
+     "blocks_changed": 61,
+     "n_agent_blocks": 61
+    },
+    {
+     "blind_id": "run-ca0605354316cd48",
+     "status": "ok",
+     "blocks_changed": 19,
+     "n_agent_blocks": 64
+    },
+    {
+     "blind_id": "run-a4590ee2540e2e6b",
+     "status": "ok",
+     "blocks_changed": 163,
+     "n_agent_blocks": 163
+    },
+    {
+     "blind_id": "run-41222d0203fa9536",
+     "status": "ok",
+     "blocks_changed": 16,
+     "n_agent_blocks": 16
+    },
+    {
+     "blind_id": "run-c3d6b5312f175c86",
+     "status": "ok",
+     "blocks_changed": 7,
+     "n_agent_blocks": 17
+    },
+    {
+     "blind_id": "run-1f29f504a9ddb5c5",
+     "status": "ok",
+     "blocks_changed": 115,
+     "n_agent_blocks": 115
+    },
+    {
+     "blind_id": "run-2d7afe9d2899e9ea",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-c6ca9f165fa2cff3",
+     "status": "ok",
+     "blocks_changed": 24,
+     "n_agent_blocks": 25
+    },
+    {
+     "blind_id": "run-abc5fdb854e354bd",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-5654178608ffbfab",
+     "status": "ok",
+     "blocks_changed": 23,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-e2f9dc9f1b35a940",
+     "status": "ok",
+     "blocks_changed": 28,
+     "n_agent_blocks": 28
+    },
+    {
+     "blind_id": "run-5acce890bb07db06",
+     "status": "ok",
+     "blocks_changed": 32,
+     "n_agent_blocks": 105
+    },
+    {
+     "blind_id": "run-3ce34a36b24a79d1",
+     "status": "ok",
+     "blocks_changed": 7,
+     "n_agent_blocks": 17
+    },
+    {
+     "blind_id": "run-79ea76aa41e1d861",
+     "status": "ok",
+     "blocks_changed": 48,
+     "n_agent_blocks": 48
+    },
+    {
+     "blind_id": "run-90e4c1158506b6ee",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-827977d6cd6d6bea",
+     "status": "ok",
+     "blocks_changed": 46,
+     "n_agent_blocks": 46
+    },
+    {
+     "blind_id": "run-51e75d4a58bcbdd3",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-d4624bda621ea0ab",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-4d632fc56a412373",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-902def6e0c1f9d0a",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-5a603e7dadb2d5d7",
+     "status": "ok",
+     "blocks_changed": 256,
+     "n_agent_blocks": 276
+    },
+    {
+     "blind_id": "run-592ecb114f6151ff",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-2d718be1433f0f10",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-ea396024dc6a95b9",
+     "status": "ok",
+     "blocks_changed": 36,
+     "n_agent_blocks": 39
+    },
+    {
+     "blind_id": "run-adff56b977c19e3a",
+     "status": "ok",
+     "blocks_changed": 13,
+     "n_agent_blocks": 13
+    },
+    {
+     "blind_id": "run-971daa17fffb1d6a",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-92cebb42cd0b0e74",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-62ac6649cd414f23",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-b4e86ad6318b3178",
+     "status": "ok",
+     "blocks_changed": 33,
+     "n_agent_blocks": 33
+    },
+    {
+     "blind_id": "run-e2d6c909ac5ae5ca",
+     "status": "ok",
+     "blocks_changed": 34,
+     "n_agent_blocks": 36
+    },
+    {
+     "blind_id": "run-c0066b8b046d0582",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-2467fa7ef1fbef16",
+     "status": "ok",
+     "blocks_changed": 137,
+     "n_agent_blocks": 137
+    },
+    {
+     "blind_id": "run-de17c6ae8a8842dc",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 22
+    },
+    {
+     "blind_id": "run-6fd19283c998c88d",
+     "status": "ok",
+     "blocks_changed": 11,
+     "n_agent_blocks": 34
+    },
+    {
+     "blind_id": "run-d6d869b35e8e6a4d",
+     "status": "ok",
+     "blocks_changed": 43,
+     "n_agent_blocks": 44
+    },
+    {
+     "blind_id": "run-f08e7ebae6b40f8f",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-96e86dd9e24aafe9",
+     "status": "ok",
+     "blocks_changed": 32,
+     "n_agent_blocks": 32
+    },
+    {
+     "blind_id": "run-9acc3218b74570c2",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-74c5a3ed02705d0a",
+     "status": "ok",
+     "blocks_changed": 287,
+     "n_agent_blocks": 319
+    },
+    {
+     "blind_id": "run-314c734d47096296",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-9e863cd158acb2ce",
+     "status": "ok",
+     "blocks_changed": 29,
+     "n_agent_blocks": 40
+    },
+    {
+     "blind_id": "run-a6b2b66dd3566047",
+     "status": "ok",
+     "blocks_changed": 6,
+     "n_agent_blocks": 6
+    },
+    {
+     "blind_id": "run-50a4cfe9b67a8ae0",
+     "status": "ok",
+     "blocks_changed": 125,
+     "n_agent_blocks": 125
+    },
+    {
+     "blind_id": "run-29e71aad511d4486",
+     "status": "ok",
+     "blocks_changed": 42,
+     "n_agent_blocks": 42
+    },
+    {
+     "blind_id": "run-68dc03aaea502f59",
+     "status": "ok",
+     "blocks_changed": 15,
+     "n_agent_blocks": 15
+    },
+    {
+     "blind_id": "run-5fe030c26b75849e",
+     "status": "ok",
+     "blocks_changed": 45,
+     "n_agent_blocks": 45
+    },
+    {
+     "blind_id": "run-c473614dbf6d7d02",
+     "status": "ok",
+     "blocks_changed": 7,
+     "n_agent_blocks": 7
+    },
+    {
+     "blind_id": "run-3a72613672198782",
+     "status": "ok",
+     "blocks_changed": 29,
+     "n_agent_blocks": 31
+    },
+    {
+     "blind_id": "run-15847034e6bd9afb",
+     "status": "ok",
+     "blocks_changed": 19,
+     "n_agent_blocks": 20
+    },
+    {
+     "blind_id": "run-8e1bd9c8c32c6e1f",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-b7b6d0b9eca033d6",
+     "status": "ok",
+     "blocks_changed": 14,
+     "n_agent_blocks": 47
+    },
+    {
+     "blind_id": "run-ea92b40d8f36578d",
+     "status": "ok",
+     "blocks_changed": 18,
+     "n_agent_blocks": 18
+    },
+    {
+     "blind_id": "run-5a3e36edabe2c117",
+     "status": "ok",
+     "blocks_changed": 24,
+     "n_agent_blocks": 70
+    },
+    {
+     "blind_id": "run-98d79dc73a4b40e0",
+     "status": "ok",
+     "blocks_changed": 29,
+     "n_agent_blocks": 29
+    },
+    {
+     "blind_id": "run-bd841e48d9d8715b",
+     "status": "ok",
+     "blocks_changed": 79,
+     "n_agent_blocks": 79
+    },
+    {
+     "blind_id": "run-3c958aa9796e7ddc",
+     "status": "ok",
+     "blocks_changed": 18,
+     "n_agent_blocks": 18
+    },
+    {
+     "blind_id": "run-1b2064f34d5341df",
+     "status": "ok",
+     "blocks_changed": 16,
+     "n_agent_blocks": 18
+    },
+    {
+     "blind_id": "run-46f6ba1aafe3eacf",
+     "status": "ok",
+     "blocks_changed": 83,
+     "n_agent_blocks": 84
+    },
+    {
+     "blind_id": "run-a98ef5ac2fb27f3d",
+     "status": "ok",
+     "blocks_changed": 78,
+     "n_agent_blocks": 78
+    },
+    {
+     "blind_id": "run-c0d8e84e1006307a",
+     "status": "ok",
+     "blocks_changed": 30,
+     "n_agent_blocks": 100
+    },
+    {
+     "blind_id": "run-07f13fb19b1a41c7",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 21
+    },
+    {
+     "blind_id": "run-3689e1ff5c916a56",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-c4f9374568107a7b",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-c1c914bfafd60904",
+     "status": "ok",
+     "blocks_changed": 94,
+     "n_agent_blocks": 94
+    },
+    {
+     "blind_id": "run-31e4cccdddb7933d",
+     "status": "ok",
+     "blocks_changed": 113,
+     "n_agent_blocks": 113
+    },
+    {
+     "blind_id": "run-e99b52d27a48de85",
+     "status": "ok",
+     "blocks_changed": 14,
+     "n_agent_blocks": 14
+    },
+    {
+     "blind_id": "run-3275b399113fc1a3",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-9b1b2c350d57ef7b",
+     "status": "ok",
+     "blocks_changed": 89,
+     "n_agent_blocks": 89
+    },
+    {
+     "blind_id": "run-1ef14ddf575abd35",
+     "status": "ok",
+     "blocks_changed": 44,
+     "n_agent_blocks": 44
+    },
+    {
+     "blind_id": "run-0b012881631a3c95",
+     "status": "ok",
+     "blocks_changed": 36,
+     "n_agent_blocks": 43
+    },
+    {
+     "blind_id": "run-3aa27723c411fcd1",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-c2b7d3bd71017feb",
+     "status": "ok",
+     "blocks_changed": 23,
+     "n_agent_blocks": 31
+    },
+    {
+     "blind_id": "run-082896f31be31bd1",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-8a2810c54a6514ea",
+     "status": "ok",
+     "blocks_changed": 46,
+     "n_agent_blocks": 46
+    },
+    {
+     "blind_id": "run-157b71cb781e7c44",
+     "status": "ok",
+     "blocks_changed": 29,
+     "n_agent_blocks": 29
+    },
+    {
+     "blind_id": "run-45df53e1b0b614db",
+     "status": "ok",
+     "blocks_changed": 15,
+     "n_agent_blocks": 15
+    },
+    {
+     "blind_id": "run-a7082555691e0e45",
+     "status": "ok",
+     "blocks_changed": 609,
+     "n_agent_blocks": 609
+    },
+    {
+     "blind_id": "run-9fe7a4c15da7e918",
+     "status": "ok",
+     "blocks_changed": 93,
+     "n_agent_blocks": 93
+    },
+    {
+     "blind_id": "run-0cb1f3f1ece4a6a4",
+     "status": "ok",
+     "blocks_changed": 57,
+     "n_agent_blocks": 57
+    },
+    {
+     "blind_id": "run-4678161caa3f43e1",
+     "status": "ok",
+     "blocks_changed": 17,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-b11737b0b5381ae1",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-3e2a6d6e2d1c6cfc",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-f734bbe44f5de62c",
+     "status": "ok",
+     "blocks_changed": 20,
+     "n_agent_blocks": 69
+    },
+    {
+     "blind_id": "run-7a8f30cdd33d0819",
+     "status": "ok",
+     "blocks_changed": 35,
+     "n_agent_blocks": 35
+    },
+    {
+     "blind_id": "run-9326bf84887a2e5d",
+     "status": "ok",
+     "blocks_changed": 21,
+     "n_agent_blocks": 70
+    },
+    {
+     "blind_id": "run-85d78d524fb8bb19",
+     "status": "ok",
+     "blocks_changed": 28,
+     "n_agent_blocks": 28
+    },
+    {
+     "blind_id": "run-4620678788d09c33",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-e072c4d24b706af5",
+     "status": "ok",
+     "blocks_changed": 11,
+     "n_agent_blocks": 11
+    },
+    {
+     "blind_id": "run-d07504991b79bed9",
+     "status": "ok",
+     "blocks_changed": 386,
+     "n_agent_blocks": 386
+    },
+    {
+     "blind_id": "run-b628a55cb8e33ffd",
+     "status": "ok",
+     "blocks_changed": 188,
+     "n_agent_blocks": 188
+    },
+    {
+     "blind_id": "run-a382de5ca6f3f5de",
+     "status": "ok",
+     "blocks_changed": 47,
+     "n_agent_blocks": 47
+    },
+    {
+     "blind_id": "run-70b7e7414b15c5cb",
+     "status": "ok",
+     "blocks_changed": 326,
+     "n_agent_blocks": 326
+    },
+    {
+     "blind_id": "run-b3e258c2e6f3a140",
+     "status": "ok",
+     "blocks_changed": 302,
+     "n_agent_blocks": 302
+    },
+    {
+     "blind_id": "run-bb3c8294e72f335f",
+     "status": "ok",
+     "blocks_changed": 41,
+     "n_agent_blocks": 41
+    },
+    {
+     "blind_id": "run-2caf6d622fa33a2e",
+     "status": "ok",
+     "blocks_changed": 15,
+     "n_agent_blocks": 15
+    },
+    {
+     "blind_id": "run-b91cbf4341ea31e8",
+     "status": "ok",
+     "blocks_changed": 57,
+     "n_agent_blocks": 57
+    },
+    {
+     "blind_id": "run-2a84976aac74dbe5",
+     "status": "ok",
+     "blocks_changed": 23,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-66254033e91779f5",
+     "status": "ok",
+     "blocks_changed": 15,
+     "n_agent_blocks": 15
+    },
+    {
+     "blind_id": "run-31676a33aa70923d",
+     "status": "ok",
+     "blocks_changed": 113,
+     "n_agent_blocks": 113
+    },
+    {
+     "blind_id": "run-127732c0f1884271",
+     "status": "ok",
+     "blocks_changed": 121,
+     "n_agent_blocks": 121
+    },
+    {
+     "blind_id": "run-ec9d3994d267a5fe",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-96bbed0d2b8eae69",
+     "status": "ok",
+     "blocks_changed": 91,
+     "n_agent_blocks": 91
+    },
+    {
+     "blind_id": "run-ecab09fe0aff0cb9",
+     "status": "ok",
+     "blocks_changed": 55,
+     "n_agent_blocks": 55
+    },
+    {
+     "blind_id": "run-789ed135eada5bab",
+     "status": "ok",
+     "blocks_changed": 45,
+     "n_agent_blocks": 47
+    },
+    {
+     "blind_id": "run-8a405f225777a079",
+     "status": "ok",
+     "blocks_changed": 6,
+     "n_agent_blocks": 6
+    },
+    {
+     "blind_id": "run-86b2a1a1ac7c1010",
+     "status": "ok",
+     "blocks_changed": 41,
+     "n_agent_blocks": 41
+    },
+    {
+     "blind_id": "run-2310794f976c321a",
+     "status": "ok",
+     "blocks_changed": 97,
+     "n_agent_blocks": 97
+    },
+    {
+     "blind_id": "run-03598f6d8b0bc394",
+     "status": "ok",
+     "blocks_changed": 28,
+     "n_agent_blocks": 28
+    },
+    {
+     "blind_id": "run-0584799e9ba5bb87",
+     "status": "ok",
+     "blocks_changed": 2,
+     "n_agent_blocks": 2
+    },
+    {
+     "blind_id": "run-c713b5c127835339",
+     "status": "ok",
+     "blocks_changed": 19,
+     "n_agent_blocks": 23
+    },
+    {
+     "blind_id": "run-711f565852aa0b27",
+     "status": "ok",
+     "blocks_changed": 18,
+     "n_agent_blocks": 49
+    },
+    {
+     "blind_id": "run-f9bbb5563039bbdf",
+     "status": "ok",
+     "blocks_changed": 89,
+     "n_agent_blocks": 89
+    },
+    {
+     "blind_id": "run-78b106f2c48d067f",
+     "status": "ok",
+     "blocks_changed": 13,
+     "n_agent_blocks": 13
+    }
+   ]
+  }
+ }
+}

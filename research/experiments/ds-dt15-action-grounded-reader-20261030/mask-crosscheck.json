@@ -1,0 +1,8 @@
+{
+ "check": "line/block-level diff of DT-15 masked prompts against DT-8's original prompt files (/tmp/dt8/prompts)",
+ "runs_checked": 300,
+ "blocks_changed": 13484,
+ "non_narration_blocks_changed": 0,
+ "block_kind_sequences_identical": true,
+ "bad": []
+}

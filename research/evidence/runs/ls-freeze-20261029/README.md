@@ -64,7 +64,9 @@ Alarms on legitimate idleness:
   flight. Heartbeat threshold sweep, episodes (alarm lane-cycles): 10 min 183 (1,196), 15 min 136 (855), 20 min
   121 (594), 30 min 4 (162), 45 min 3 (143), 60 min 1 (133). Shipped: 60 min, 1 episode (`wK:p1J`, 6 h). A further
   514 lane-cycles quiet for an hour were left alone: 426 turn ended, 88 open `ask`, 0 inside a declared tool timeout.
-- (d): 93 recorded inter-cycle gaps: min 123 s, median 162 s, max 330 s; 0 at or above 15 min before the sleep gap.
+- (d): 93 recorded inter-cycle gaps: min 123 s, median 162 s, max 330 s; 0 at or above 15 min. These cycle records
+  start at 3:00 PM ET on Oct 29, after the 8:45 AM wake, so they show the post-wake cadence; no cycle record covers
+  the period before the sleep (correction from the fleet's independent verification, 2026-10-29).
 
 ## Meaning
 

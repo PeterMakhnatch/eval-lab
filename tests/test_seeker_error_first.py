@@ -576,6 +576,73 @@ def test_a_zero_or_absent_candidate_exit_stays_an_unavailable_grader(tmp_path: P
         assert sef.result_is_evaluated(one) is False
 
 
+def test_visible_tests_campaign_records_and_reads_back_its_own_condition(tmp_path: Path) -> None:
+    """SK-4: a visible-tests cell must be readable in visible mode and invisible otherwise."""
+    harness = Harness(tmp_path, ("alpha",))
+    harness.grader.script("alpha", "original", (1.0, "measured"))
+    config = repl(harness.config, hide_tests=False)
+    harness.run(config=config)
+    cell = harness.result("alpha", 1)
+    assert cell["hide_tests"] is False
+    summary = json.loads((harness.out / "summary.json").read_text())
+    assert summary["hide_tests"] is False
+    assert summary["models"][0]["paired"]["denominator"] == 1
+
+    # The same directory read as a hidden-tests campaign must refuse the cells, not
+    # silently pool two different prompt conditions.
+    hidden = sef.summarize_campaign(repl(config, hide_tests=True))
+    assert hidden["models"][0]["paired"]["denominator"] == 0
+    assert hidden["models"][0]["missing_cells"] or hidden["models"][0]["unevaluated_cells"]
+
+
+def test_mechanism_class_is_required_and_never_defaulted() -> None:
+    from evallab.production.seeker_worker import (
+        MECHANISM_CLASSES,
+        MissingMechanismClassError,
+        parse_headless_candidate_response,
+    )
+
+    def stream(reply: str) -> str:
+        message = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": reply}],
+            "provider": "anthropic",
+            "model": "claude-sonnet-5-5",
+        }
+        return json.dumps({"type": "agent_end", "messages": [message]}) + "\n"
+
+    def reply(**extra: Any) -> str:
+        payload = {
+            "files": {"solve.sh": "#!/bin/bash\necho ok\n"},
+            "mechanism": "stub the checked output",
+            "target_check": TARGET_CHECK,
+            "files_written": [],
+        }
+        payload.update(extra)
+        return json.dumps(payload)
+
+    # A valid class is carried through.
+    ok = parse_headless_candidate_response(
+        reply(taxonomy_class="weak_check"),
+        default_cue=None,
+        model_route=ROUTE,
+        llm_stdout_text=stream(reply(taxonomy_class="weak_check")),
+        require_mechanism_class=True,
+    )
+    assert ok is not None and ok.taxonomy_class in MECHANISM_CLASSES
+
+    # Missing, and out-of-allow-list, both fail closed instead of guessing.
+    for bad in (reply(), reply(taxonomy_class="unknown")):
+        with pytest.raises(MissingMechanismClassError):
+            parse_headless_candidate_response(
+                bad,
+                default_cue=None,
+                model_route=ROUTE,
+                llm_stdout_text=stream(bad),
+                require_mechanism_class=True,
+            )
+
+
 def test_probe_route_accepts_the_requested_route() -> None:
     probe = sef.probe_route(ROUTE, runner=FakeProbe())
     assert probe.ok is True and probe.reason == "served the requested route"

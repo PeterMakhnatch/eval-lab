@@ -447,6 +447,11 @@ def register_parser(commands: Any) -> None:
         help="Failure-library spend.jsonl (default: ~/.local/state/evallab-failure-library)",
     )
     sb1.add_argument(
+        "--visible-tests", action="store_true",
+        help="SK-4 visible-tests arm: the prompt includes the task's tests instead of "
+        "hiding them. Cells record hide_tests=false and only read back under this mode",
+    )
+    sb1.add_argument(
         "--no-probe-routes", action="store_true",
         help="Skip the pre-campaign route probe (a route that is fallback-served then "
         "costs a grader run per cell instead of being reported unavailable)",
@@ -890,6 +895,7 @@ def _seeker_error_first(args: argparse.Namespace, root: Path) -> tuple[dict[str,
         omp_config=_optional_path(root, args.omp_config),
         spend_log=_optional_path(root, args.spend_log),
         probe_routes=not args.no_probe_routes,
+        hide_tests=not args.visible_tests,
     )
 
 

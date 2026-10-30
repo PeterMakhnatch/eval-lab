@@ -1600,6 +1600,14 @@ uv run evallab prod seeker-error-first --cohort cohort.json --out /path/to/out -
   error prose.
 - Model calls log `tool: omp`, `usd: 0` rows and Modal grades log `route: modal` rows to
   `~/.local/state/evallab-failure-library/spend.jsonl` (`--spend-log` overrides it).
+- `--visible-tests` runs the SK-4 visible-tests arm: the prompt carries the task's tests
+  instead of hiding them, cells record `hide_tests: false`, and only a campaign configured for
+  visible tests reads those cells back, so the two prompt conditions are never pooled. The
+  summary records `hide_tests` beside the denominator rule.
+- Every attempt must carry a `taxonomy_class` from a fixed allow-list (`weak_check`,
+  `grader_tamperable`, `answer_reachable`, `exploit_grader_gap`). A reply without one gets
+  exactly one re-ask; if the re-ask is also missing or invalid the attempt fails closed rather
+  than recording a guessed class.
 - Before any cell runs, `--execute` probes each requested route once and writes
   `route-probes.json`. A route the provider answers with a different model — a rate-limited
   fallback — is reported `route_unavailable` in the summary and none of its cells are

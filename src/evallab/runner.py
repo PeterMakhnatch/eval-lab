@@ -1447,18 +1447,6 @@ def run_harbor_process(
     include_modal_credentials: bool = False,
 ) -> HarborProcessResult:
     """Run Harbor while redacting provider credentials before log persistence."""
-    if command and Path(command[0]).name == "harbor":
-        from evallab.harbor_view import HARBOR_RUNTIME_REMEDY, harbor_runtime_problem
-
-        problem = harbor_runtime_problem()
-        if problem is not None:
-            # The trial imports Harbor in this process; fail before spawning a
-            # child that would report the absence as a missing reward file.
-            raise ExecutionFailure(
-                "harbor_runtime_unavailable",
-                f"native execution needs the in-process Harbor runtime "
-                f"({problem}): {HARBOR_RUNTIME_REMEDY}",
-            )
     if lease_path is not None and lease_generation is None:
         raise ValueError("lease_generation is required when lease_path is set")
     if _lease_cancelled_or_lost(lease_path, lease_generation):
@@ -1507,17 +1495,12 @@ def run_harbor_process(
         docker_platform=docker_platform,
     )
     if command and Path(command[0]).name == "harbor":
-        from evallab.harbor_view import pinned_harbor_bin_dir
+        from evallab.harbor_view import prepend_pinned_harbor_path
 
-        pinned_bin = pinned_harbor_bin_dir()
-        if pinned_bin is not None:
-            # The child resolves a bare `harbor` through PATH. Put this
-            # interpreter's pinned release first so a standalone `uv tool`
-            # install of another version cannot be picked up.
-            current_path = runtime_environment.get("PATH") or os.environ.get("PATH", "")
-            runtime_environment["PATH"] = (
-                f"{pinned_bin}{os.pathsep}{current_path}" if current_path else str(pinned_bin)
-            )
+        # The child resolves a bare `harbor` through PATH; pin this
+        # interpreter's own release first (a standalone `uv tool` install of
+        # another version was measured beside it on this host).
+        prepend_pinned_harbor_path(runtime_environment, fallback=os.environ.get("PATH"))
     if MIMO_AGENT_IMPORT_PATH in command and laminar_metadata is not None:
         runtime_environment["EVALLAB_LAMINAR_METADATA"] = json.dumps(laminar_metadata)
     if local_terminus:

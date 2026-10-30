@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import io
 import json
+import os
 import runpy
 import shutil
 import subprocess
@@ -2042,3 +2043,35 @@ def test_harbor_runtime_problem_detects_a_namespace_only_install(
     problem = harbor_runtime_problem()
     assert problem is not None
     assert "harbor.trial.trial" in problem
+
+
+def test_pinned_harbor_path_comes_first_for_child_launches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A standalone ``harbor`` beside the pinned one must lose to the pinned one."""
+    from evallab import harbor_view
+
+    pinned = tmp_path / "venv" / "bin"
+    pinned.mkdir(parents=True)
+    (pinned / "harbor").write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr(harbor_view, "pinned_harbor_bin_dir", lambda: pinned)
+    environment = {"PATH": f"/usr/local/bin{os.pathsep}/usr/bin"}
+    assert harbor_view.prepend_pinned_harbor_path(environment) is True
+    parts = environment["PATH"].split(os.pathsep)
+    assert parts[0] == str(pinned)
+    assert parts[1:] == ["/usr/local/bin", "/usr/bin"]
+    # Idempotent enough for a second call and safe with no PATH at all.
+    bare: dict[str, str] = {}
+    assert harbor_view.prepend_pinned_harbor_path(bare, fallback="") is True
+    assert bare["PATH"] == str(pinned)
+
+
+def test_pinned_harbor_path_is_a_no_op_without_the_distribution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from evallab import harbor_view
+
+    monkeypatch.setattr(harbor_view, "pinned_harbor_bin_dir", lambda: None)
+    environment = {"PATH": "/usr/bin"}
+    assert harbor_view.prepend_pinned_harbor_path(environment) is False
+    assert environment["PATH"] == "/usr/bin"

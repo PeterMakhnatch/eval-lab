@@ -1127,6 +1127,23 @@ def pinned_harbor_bin_dir() -> Path | None:
     return candidate.parent if candidate.is_file() else None
 
 
+def prepend_pinned_harbor_path(environment: dict[str, str], *, fallback: str | None = None) -> bool:
+    """Put this interpreter's ``harbor`` directory first on ``environment``'s PATH.
+
+    Child processes resolve a bare ``harbor`` through PATH; pinning the
+    interpreter's own directory prevents a standalone install of another
+    release from being picked up. Returns whether a pinned directory was
+    prepended. ``fallback`` supplies the PATH to extend when the mapping has
+    none (usually ``os.environ["PATH"]``).
+    """
+    pinned = pinned_harbor_bin_dir()
+    if pinned is None:
+        return False
+    current = environment.get("PATH") or fallback or ""
+    environment["PATH"] = f"{pinned}{os.pathsep}{current}" if current else str(pinned)
+    return True
+
+
 def harbor_runtime_problem() -> str | None:
     """Why the in-process Harbor runtime is unusable, or None when it works.
 

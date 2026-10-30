@@ -32,7 +32,7 @@ narration-only; CheatBench positives mostly carry an action.
 | `dq2_label.py` | driver: `build` / `read` / `score` |
 | `prereg.md` | frozen design and prompt |
 | `result.json` | aggregates and intervals |
-| `verdicts.jsonl` | per-run ids, flags, cited-step outcomes, dropped-claim counts |
+| `verdicts.jsonl` | per-run ids, flags, every cited step and its class, dropped-claim counts |
 | `sample.json` | the 50 chosen blind ids |
 | `attestation.json` | served model per call from the session logs |
 

@@ -291,6 +291,7 @@ def check_run(row: dict[str, Any], steps: list[dict[str, Any]], pattern) -> dict
     by_id = {step["step_id"]: step for step in steps}
 
     action_classes, narration_classes = [], []
+    action_cites, narration_cites = [], []
     dropped_action, dropped_narration = 0, 0
     action_claims = _claims(parsed, "actions")[:MAX_ACTION_CLAIMS]
     narration_claims = _claims(parsed, "narration")[:MAX_ACTION_CLAIMS]
@@ -298,21 +299,27 @@ def check_run(row: dict[str, Any], steps: list[dict[str, Any]], pattern) -> dict
         sid, quote = _step_id(claim), str(claim.get("quote") or "")
         if sid not in by_id or not quote:
             dropped_action += 1
+            action_cites.append({"step": sid, "class": "missing", "survives": False})
             continue
         cls = d10.classify_quote(by_id[sid], blocks[sid], quote,
                                  rendered=rendered[sid])
         action_classes.append(cls)
-        if cls not in ("action", "observation"):
+        survives = cls in ("action", "observation")
+        action_cites.append({"step": sid, "class": cls, "survives": survives})
+        if not survives:
             dropped_action += 1
     for claim in narration_claims:
         sid, quote = _step_id(claim), str(claim.get("quote") or "")
         if sid not in by_id or not quote:
             dropped_narration += 1
+            narration_cites.append({"step": sid, "class": "missing", "survives": False})
             continue
         cls = d10.classify_quote(by_id[sid], blocks[sid], quote,
                                  rendered=rendered[sid])
         narration_classes.append(cls)
-        if cls != "narration":
+        survives = cls == "narration"
+        narration_cites.append({"step": sid, "class": cls, "survives": survives})
+        if not survives:
             dropped_narration += 1
 
     action_visible = any(cls in ("action", "observation") for cls in action_classes)
@@ -333,6 +340,8 @@ def check_run(row: dict[str, Any], steps: list[dict[str, Any]], pattern) -> dict
         "asked_visible": bool(str(parsed.get("asked") or "").strip())
         and str(parsed.get("asked")).strip().lower() != "not visible",
         "actions_cited": len(action_claims),
+        "action_cites": action_cites,
+        "narration_cites": narration_cites,
         "actions_surviving": sum(cls in ("action", "observation") for cls in action_classes),
         "action_visible": action_visible,
         "narration_flag": narration_flag,

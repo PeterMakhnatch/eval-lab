@@ -1,13 +1,14 @@
+"""Class (c) review of the `task.instruction` hits: characterise a hit without printing any text (booleans and lengths only)."""
 import argparse
 import json
-import os
 import re
-
-WORDS=set(w.strip().lower() for w in open('/usr/share/dict/words',errors='replace')) if os.path.exists('/usr/share/dict/words') else None
+from pathlib import Path
 
 from evallab.production.cloud_trace_db import _sealed_pattern
 from evallab.production.qa_data import Budget, _dispatch, open_context, register_parser
 
+_DICT = Path('/usr/share/dict/words')
+WORDS = {w.strip().lower() for w in _DICT.read_text(errors='replace').splitlines()} if _DICT.exists() else None
 DB = '/private/tmp/ps2/store.sqlite'
 parser = argparse.ArgumentParser()
 register_parser(parser.add_subparsers(dest='command', required=True))

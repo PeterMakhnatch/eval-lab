@@ -1,0 +1,93 @@
+{
+ "schema": "evallab.ds-dt1b.attestation/v1",
+ "model": "deepseek/deepseek-flash",
+ "thinking": "low",
+ "calls_attempted": 418,
+ "calls_ok": 418,
+ "calls_failed": {
+  "keys": [],
+  "n": 0
+ },
+ "served_models": {},
+ "route_rule": "every agent_end assistant record must be provider/model deepseek/deepseek-flash; no tool call, stopReason stop, exactly one assistant turn, schema-valid answer",
+ "tokens": {
+  "cache_read_tokens": 478720,
+  "cache_write_tokens": 0,
+  "input_tokens": 2102826,
+  "output_tokens": 390824
+ },
+ "usd": 0.800945,
+ "usd_per_prompt": 0.00191614,
+ "selftest": {
+  "prompts_identical_to_dt1": "418/418",
+  "dt1_cache_rescore": {
+   "A": {
+    "recall": {
+     "k": 11,
+     "n": 80,
+     "pct": 13.8,
+     "ci": [
+      7.9,
+      23.0
+     ]
+    },
+    "far": {
+     "k": 2,
+     "n": 70,
+     "pct": 2.9,
+     "ci": [
+      0.8,
+      9.8
+     ]
+    }
+   },
+   "B": {
+    "recall": {
+     "k": 12,
+     "n": 80,
+     "pct": 15.0,
+     "ci": [
+      8.8,
+      24.4
+     ]
+    },
+    "far": {
+     "k": 5,
+     "n": 70,
+     "pct": 7.1,
+     "ci": [
+      3.1,
+      15.7
+     ]
+    }
+   },
+   "C": {
+    "recall": {
+     "k": 16,
+     "n": 80,
+     "pct": 20.0,
+     "ci": [
+      12.7,
+      30.0
+     ]
+    },
+    "far": {
+     "k": 5,
+     "n": 70,
+     "pct": 7.1,
+     "ci": [
+      3.1,
+      15.7
+     ]
+    }
+   }
+  },
+  "expected": {
+   "C": {
+    "recall": "16/80",
+    "far": "5/70"
+   }
+  }
+ },
+ "prompts_sha256": "51a08a4c563135142bdb866469c41858e88ce28221def128ae2617d491655dcf"
+}

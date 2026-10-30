@@ -1,0 +1,391 @@
+{
+ "arms": {
+  "A": {
+   "cost": {
+    "failed_windows": 0,
+    "input_tokens_total": 795779,
+    "output_tokens_total": 168377,
+    "tokens_per_judged_run": 10257.0,
+    "tokens_per_run": 6427.7,
+    "windows_per_run": 1.053,
+    "windows_total": 158
+   },
+   "localization": {
+    "confirmed_on_labelled_step": 3,
+    "flag_exact": 15,
+    "flag_within5": 48,
+    "runs_with_window": 62,
+    "span_covers_labelled_step": 51
+   },
+   "operating_point": {
+    "far": {
+     "ci": [
+      0.8,
+      9.8
+     ],
+     "k": 2,
+     "n": 70,
+     "pct": 2.9
+    },
+    "recall": {
+     "ci": [
+      9.7,
+      25.8
+     ],
+     "k": 13,
+     "n": 80,
+     "pct": 16.2
+    },
+    "unknown": {
+     "negatives": 0,
+     "positives": 0
+    }
+   }
+  },
+  "B": {
+   "cost": {
+    "failed_windows": 0,
+    "input_tokens_total": 1307047,
+    "output_tokens_total": 222447,
+    "tokens_per_judged_run": 12043.3,
+    "tokens_per_run": 10196.6,
+    "windows_per_run": 1.733,
+    "windows_total": 260
+   },
+   "localization": {
+    "confirmed_on_labelled_step": 2,
+    "flag_exact": 23,
+    "flag_within5": 66,
+    "runs_with_window": 70,
+    "span_covers_labelled_step": 67
+   },
+   "operating_point": {
+    "far": {
+     "ci": [
+      4.0,
+      17.5
+     ],
+     "k": 6,
+     "n": 70,
+     "pct": 8.6
+    },
+    "recall": {
+     "ci": [
+      11.7,
+      28.7
+     ],
+     "k": 15,
+     "n": 80,
+     "pct": 18.8
+    },
+    "unknown": {
+     "negatives": 0,
+     "positives": 0
+    }
+   }
+  },
+  "C": {
+   "cost": {
+    "failed_windows": 0,
+    "input_tokens_total": 1640178,
+    "output_tokens_total": 269856,
+    "tokens_per_judged_run": 13643.1,
+    "tokens_per_run": 12733.6,
+    "windows_per_run": 2.173,
+    "windows_total": 326
+   },
+   "localization": {
+    "confirmed_on_labelled_step": 2,
+    "flag_exact": 26,
+    "flag_within5": 72,
+    "runs_with_window": 77,
+    "span_covers_labelled_step": 73
+   },
+   "operating_point": {
+    "far": {
+     "ci": [
+      4.0,
+      17.5
+     ],
+     "k": 6,
+     "n": 70,
+     "pct": 8.6
+    },
+    "recall": {
+     "ci": [
+      16.8,
+      35.5
+     ],
+     "k": 20,
+     "n": 80,
+     "pct": 25.0
+    },
+    "unknown": {
+     "negatives": 0,
+     "positives": 0
+    }
+   }
+  }
+ },
+ "failed_prompts": {
+  "keys": [],
+  "n": 0
+ },
+ "judged_prompts": 418,
+ "length_tertiles": [
+  {
+   "arms": {
+    "A": {
+     "far": {
+      "ci": [
+       0.0,
+       9.0
+      ],
+      "k": 0,
+      "n": 39
+     },
+     "recall": {
+      "ci": [
+       0.0,
+       25.9
+      ],
+      "k": 0,
+      "n": 11
+     }
+    },
+    "B": {
+     "far": {
+      "ci": [
+       0.0,
+       9.0
+      ],
+      "k": 0,
+      "n": 39
+     },
+     "recall": {
+      "ci": [
+       1.6,
+       37.7
+      ],
+      "k": 1,
+      "n": 11
+     }
+    },
+    "C": {
+     "far": {
+      "ci": [
+       0.0,
+       9.0
+      ],
+      "k": 0,
+      "n": 39
+     },
+     "recall": {
+      "ci": [
+       1.6,
+       37.7
+      ],
+      "k": 1,
+      "n": 11
+     }
+    }
+   },
+   "n_runs": 50,
+   "steps": [
+    7,
+    20
+   ],
+   "stratum": 1
+  },
+  {
+   "arms": {
+    "A": {
+     "far": {
+      "ci": [
+       0.9,
+       24.6
+      ],
+      "k": 1,
+      "n": 19
+     },
+     "recall": {
+      "ci": [
+       7.1,
+       32.6
+      ],
+      "k": 5,
+      "n": 31
+     }
+    },
+    "B": {
+     "far": {
+      "ci": [
+       11.8,
+       48.8
+      ],
+      "k": 5,
+      "n": 19
+     },
+     "recall": {
+      "ci": [
+       26.4,
+       59.2
+      ],
+      "k": 13,
+      "n": 31
+     }
+    },
+    "C": {
+     "far": {
+      "ci": [
+       11.8,
+       48.8
+      ],
+      "k": 5,
+      "n": 19
+     },
+     "recall": {
+      "ci": [
+       29.2,
+       62.2
+      ],
+      "k": 14,
+      "n": 31
+     }
+    }
+   },
+   "n_runs": 50,
+   "steps": [
+    21,
+    28
+   ],
+   "stratum": 2
+  },
+  {
+   "arms": {
+    "A": {
+     "far": {
+      "ci": [
+       1.5,
+       35.4
+      ],
+      "k": 1,
+      "n": 12
+     },
+     "recall": {
+      "ci": [
+       11.1,
+       36.3
+      ],
+      "k": 8,
+      "n": 38
+     }
+    },
+    "B": {
+     "far": {
+      "ci": [
+       1.5,
+       35.4
+      ],
+      "k": 1,
+      "n": 12
+     },
+     "recall": {
+      "ci": [
+       0.5,
+       13.5
+      ],
+      "k": 1,
+      "n": 38
+     }
+    },
+    "C": {
+     "far": {
+      "ci": [
+       1.5,
+       35.4
+      ],
+      "k": 1,
+      "n": 12
+     },
+     "recall": {
+      "ci": [
+       5.8,
+       27.3
+      ],
+      "k": 5,
+      "n": 38
+     }
+    }
+   },
+   "n_runs": 50,
+   "steps": [
+    28,
+    132
+   ],
+   "stratum": 3
+  }
+ ],
+ "paired_vs_dt1": {
+  "A/clean": {
+   "both": 2,
+   "dt1_only": 0,
+   "exemplars_only": 0,
+   "n_complete": 70,
+   "p": null
+  },
+  "A/enacted": {
+   "both": 9,
+   "dt1_only": 2,
+   "exemplars_only": 4,
+   "n_complete": 80,
+   "p": 0.6875
+  },
+  "B/clean": {
+   "both": 4,
+   "dt1_only": 1,
+   "exemplars_only": 2,
+   "n_complete": 70,
+   "p": 1.0
+  },
+  "B/enacted": {
+   "both": 10,
+   "dt1_only": 2,
+   "exemplars_only": 5,
+   "n_complete": 80,
+   "p": 0.4531
+  },
+  "C/clean": {
+   "both": 4,
+   "dt1_only": 1,
+   "exemplars_only": 2,
+   "n_complete": 70,
+   "p": 1.0
+  },
+  "C/enacted": {
+   "both": 15,
+   "dt1_only": 1,
+   "exemplars_only": 5,
+   "n_complete": 80,
+   "p": 0.2188
+  }
+ },
+ "schema": "evallab.ds-dt1b.analysis/v1",
+ "served_models": {},
+ "tokens": {
+  "cache_read_tokens": 478720,
+  "cache_write_tokens": 0,
+  "input_tokens": 2102826,
+  "output_tokens": 390824
+ },
+ "usd": 0.800945,
+ "usd_per_prompt": 0.00191614,
+ "window_pairs": {
+  "both": 24,
+  "dt1_only": 11,
+  "exemplars_only": 19,
+  "n": 418,
+  "neither": 364,
+  "p": 0.2005
+ }
+}

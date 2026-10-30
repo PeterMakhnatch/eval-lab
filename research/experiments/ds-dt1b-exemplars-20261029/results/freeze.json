@@ -1,0 +1,8 @@
+{
+ "plan_sha256": "c35d2b6064b28405a9b7909a08f4d7afe9bc4918f19e64a68e90a124ba75cd1b",
+ "prompts_sha256": "51a08a4c563135142bdb866469c41858e88ce28221def128ae2617d491655dcf",
+ "unique_prompts": 418,
+ "exemplars_per_prompt": 6,
+ "dt1_prompts_sha256": "fcc18e44b4779f55b98a064fdf3f7a91c62dd87ae9c8aa2adfac9bee504e0a1a",
+ "identical_to_dt1": 0
+}

@@ -1,0 +1,320 @@
+{
+ "H_gate_outcomes": {
+  "A:GATE_NO:0.0": 12,
+  "B:GATE_NO:0.0": 12,
+  "C:GATE_NO:0.0": 12,
+  "D:GATE_NO:0.0": 12,
+  "E2:GATE_NO:0.0": 12,
+  "F1:GATE_NO:0.0": 12,
+  "F2:GATE_NO:0.0": 12,
+  "F3:GATE_OK:1.0": 12
+ },
+ "attacks": {
+  "A": {
+   "H_scored_1_of_live": 0,
+   "L1_only_scored_1_of_live": 0,
+   "inert_at_L0": [],
+   "live_at_L0": "12/12",
+   "neutralised_by_L1": 12,
+   "neutralised_only_with_L3": 0,
+   "neutralised_total": "12/12",
+   "neutralised_wilson95": [
+    0.758,
+    1.0
+   ],
+   "per_level": {
+    "H": {
+     "measured": 12,
+     "scored_1": 0
+    },
+    "L0": {
+     "measured": 12,
+     "scored_1": 12
+    },
+    "L1": {
+     "measured": 12,
+     "scored_1": 0
+    }
+   },
+   "survivor_tasks": []
+  },
+  "B": {
+   "H_scored_1_of_live": 0,
+   "L1_only_scored_1_of_live": 0,
+   "inert_at_L0": [
+    "format-code-task-000232",
+    "format-code-task-002680"
+   ],
+   "live_at_L0": "10/12",
+   "neutralised_by_L1": 10,
+   "neutralised_only_with_L3": 0,
+   "neutralised_total": "10/10",
+   "neutralised_wilson95": [
+    0.722,
+    1.0
+   ],
+   "per_level": {
+    "H": {
+     "measured": 12,
+     "scored_1": 0
+    },
+    "L0": {
+     "measured": 12,
+     "scored_1": 10
+    },
+    "L1": {
+     "measured": 12,
+     "scored_1": 0
+    }
+   },
+   "survivor_tasks": []
+  },
+  "C": {
+   "H_scored_1_of_live": 0,
+   "L1_only_scored_1_of_live": 0,
+   "inert_at_L0": [
+    "format-code-task-000079",
+    "format-code-task-000232",
+    "format-code-task-000682",
+    "format-code-task-000931",
+    "format-code-task-001205",
+    "format-code-task-001850",
+    "format-code-task-001985",
+    "format-code-task-002609"
+   ],
+   "live_at_L0": "4/12",
+   "neutralised_by_L1": 4,
+   "neutralised_only_with_L3": 0,
+   "neutralised_total": "4/4",
+   "neutralised_wilson95": [
+    0.51,
+    1.0
+   ],
+   "per_level": {
+    "H": {
+     "measured": 12,
+     "scored_1": 0
+    },
+    "L0": {
+     "measured": 12,
+     "scored_1": 4
+    },
+    "L1": {
+     "measured": 12,
+     "scored_1": 0
+    }
+   },
+   "survivor_tasks": []
+  },
+  "D": {
+   "H_scored_1_of_live": 0,
+   "L1_only_scored_1_of_live": 0,
+   "inert_at_L0": [
+    "format-code-task-000081",
+    "format-code-task-000232",
+    "format-code-task-001985",
+    "format-code-task-002609",
+    "format-code-task-002680"
+   ],
+   "live_at_L0": "7/12",
+   "neutralised_by_L1": 7,
+   "neutralised_only_with_L3": 0,
+   "neutralised_total": "7/7",
+   "neutralised_wilson95": [
+    0.646,
+    1.0
+   ],
+   "per_level": {
+    "H": {
+     "measured": 12,
+     "scored_1": 0
+    },
+    "L0": {
+     "measured": 12,
+     "scored_1": 7
+    },
+    "L1": {
+     "measured": 12,
+     "scored_1": 0
+    }
+   },
+   "survivor_tasks": []
+  },
+  "E2": {
+   "H_scored_1_of_live": 0,
+   "L1_only_scored_1_of_live": 12,
+   "inert_at_L0": [],
+   "live_at_L0": "12/12",
+   "neutralised_by_L1": 0,
+   "neutralised_only_with_L3": 12,
+   "neutralised_total": "12/12",
+   "neutralised_wilson95": [
+    0.758,
+    1.0
+   ],
+   "per_level": {
+    "H": {
+     "measured": 12,
+     "scored_1": 0
+    },
+    "L0": {
+     "measured": 12,
+     "scored_1": 12
+    },
+    "L1": {
+     "measured": 12,
+     "scored_1": 12
+    }
+   },
+   "survivor_tasks": []
+  },
+  "F1": {
+   "H_scored_1_of_live": 0,
+   "L1_only_scored_1_of_live": 12,
+   "inert_at_L0": [],
+   "live_at_L0": "12/12",
+   "neutralised_by_L1": 0,
+   "neutralised_only_with_L3": 12,
+   "neutralised_total": "12/12",
+   "neutralised_wilson95": [
+    0.758,
+    1.0
+   ],
+   "per_level": {
+    "H": {
+     "measured": 12,
+     "scored_1": 0
+    },
+    "L0": {
+     "measured": 12,
+     "scored_1": 12
+    },
+    "L1": {
+     "measured": 12,
+     "scored_1": 12
+    }
+   },
+   "survivor_tasks": []
+  },
+  "F2": {
+   "H_scored_1_of_live": 0,
+   "L1_only_scored_1_of_live": 12,
+   "inert_at_L0": [],
+   "live_at_L0": "12/12",
+   "neutralised_by_L1": 0,
+   "neutralised_only_with_L3": 12,
+   "neutralised_total": "12/12",
+   "neutralised_wilson95": [
+    0.758,
+    1.0
+   ],
+   "per_level": {
+    "H": {
+     "measured": 12,
+     "scored_1": 0
+    },
+    "L0": {
+     "measured": 12,
+     "scored_1": 12
+    },
+    "L1": {
+     "measured": 12,
+     "scored_1": 12
+    }
+   },
+   "survivor_tasks": []
+  },
+  "F3": {
+   "H_scored_1_of_live": 12,
+   "L1_only_scored_1_of_live": 12,
+   "inert_at_L0": [],
+   "live_at_L0": "12/12",
+   "neutralised_by_L1": 0,
+   "neutralised_only_with_L3": 0,
+   "neutralised_total": "0/12",
+   "neutralised_wilson95": [
+    0.0,
+    0.242
+   ],
+   "per_level": {
+    "H": {
+     "measured": 12,
+     "scored_1": 12
+    },
+    "L0": {
+     "measured": 12,
+     "scored_1": 12
+    },
+    "L1": {
+     "measured": 12,
+     "scored_1": 12
+    }
+   },
+   "survivor_tasks": [
+    "format-code-task-000079",
+    "format-code-task-000081",
+    "format-code-task-000232",
+    "format-code-task-000682",
+    "format-code-task-000931",
+    "format-code-task-001205",
+    "format-code-task-001850",
+    "format-code-task-001985",
+    "format-code-task-002391",
+    "format-code-task-002552",
+    "format-code-task-002609",
+    "format-code-task-002680"
+   ]
+  }
+ },
+ "controls": {
+  "correct": {
+   "H": {
+    "measured": 12,
+    "scored_1": 12
+   },
+   "L0": {
+    "measured": 12,
+    "scored_1": 12
+   },
+   "L1": {
+    "measured": 12,
+    "scored_1": 12
+   }
+  },
+  "empty": {
+   "H": {
+    "measured": 12,
+    "scored_1": 0
+   },
+   "L0": {
+    "measured": 12,
+    "scored_1": 0
+   },
+   "L1": {
+    "measured": 12,
+    "scored_1": 0
+   }
+  }
+ },
+ "cost": {
+  "cells": 360,
+  "est_usd_cells": 0.6267,
+  "unmeasured": []
+ },
+ "false_rejects_at_H": [],
+ "n_tasks": 12,
+ "tasks": [
+  "format-code-task-000079",
+  "format-code-task-000081",
+  "format-code-task-000232",
+  "format-code-task-000682",
+  "format-code-task-000931",
+  "format-code-task-001205",
+  "format-code-task-001850",
+  "format-code-task-001985",
+  "format-code-task-002391",
+  "format-code-task-002552",
+  "format-code-task-002609",
+  "format-code-task-002680"
+ ]
+}

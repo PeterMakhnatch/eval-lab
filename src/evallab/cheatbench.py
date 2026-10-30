@@ -315,100 +315,117 @@ def _span(builder: _Steps, field: str) -> Iterator[None]:
 
 
 # ---------------------------------------------------------------------------
-# task statement extraction for blind projection (only the ask; redacted)
+# task statement extraction for the blind projection (only the ask; redacted)
 
+#: Shorter payloads are harness noise (a path, a bare ``$NN`` ref), not an ask a
+#: reader can judge; the DA-4 recovery uses the same floor.
+MIN_STATEMENT_CHARS = 40
 
-KNOWN_BENCHMARK_NAMES = frozenset(
-    {
-        "swe-smith",
-        "swe_bench",
-        "terminal-bench",
-        "terminal_bench",
-        "mle-bench",
-        "mle_bench",
-        "bountybench",
-        "cheatbench",
-        "steinad/CheatBench",
-        "CheatBench",
-    }
-)
+_REF_RE = re.compile(r"^\$\d+$")
+_EPISODE_PROMPT_RE = re.compile(r"episode-\d+/prompt\.txt$")
+#: User-role events that carry harness output or continuation boilerplate, not the ask.
+_NON_STATEMENT_PREFIXES = ("OBSERVATION:", "Observation:", "<environment_context>")
+_CONTINUATION_RE = re.compile(r"^Please continue on whatever approach you think is suitable\b")
 
 
 def _redact_benchmarks(text: str) -> str:
-    """Strip known benchmark names from text so they cannot leak into projection."""
-    if not text:
-        return text
-    out = text
-    for name in KNOWN_BENCHMARK_NAMES:
-        # word-ish, case-insensitive; absorb trailing -version
-        pat = r"(?i)\b" + re.escape(name) + r"(?:-[0-9A-Za-z]+)?\b"
-        out = re.sub(pat, "[source]", out)
-    return out
+    """Strip source/benchmark names with the atlas vocabulary (one redaction list)."""
+    from evallab.production.run_atlas import redact_sources
+
+    return redact_sources(text)
 
 
-def _parse_command_payload(cmd: str) -> str | None:
-    """Extract the task prompt payload from a harness command.txt using shlex (per DA-4)."""
-    if not cmd or not isinstance(cmd, str):
-        return None
-    try:
-        parts = shlex.split(cmd)
-    except ValueError:
-        parts = cmd.split()
-    for i, tok in enumerate(parts):
-        if tok in ("-p", "--prompt") and i + 1 < len(parts):
-            return parts[i + 1]
-        if tok == "pilot" and i + 2 < len(parts) and parts[i + 1] == "task":
-            j = i + 2
-            payload = []
-            while j < len(parts) and not parts[j].startswith("--"):
-                payload.append(parts[j])
-                j += 1
-            if payload:
-                return " ".join(payload)
-    # fallback quoted long string
-    m = re.search(r"['\"]([^'\"]{15,})['\"]", cmd)
-    if m:
-        return m.group(1)
-    return None
+def _command_payload(content: str) -> str | None:
+    """The ask inside a harness invocation: ``forge … -p '<ask>'`` or ``pilot task '<ask>'``.
 
-
-def _extract_task_statement(raw: dict[str, Any]) -> str | None:
-    """Return only the task statement (the ask) from raw files or first user event.
-
-    Guard: never returns labels, splits, verdicts or benchmark names (redact happens
-    at call site). Returns None when no usable statement is present in the row.
+    The shell has already been applied, so a quote inside the ask appears as
+    ``'\\''``; :func:`shlex.split` undoes exactly that.
     """
-    if not isinstance(raw, dict):
+    try:
+        tokens = shlex.split(content, posix=True)
+    except ValueError:
         return None
-    files = raw.get("files") or {}
-    if isinstance(files, dict):
-        # prefer command.txt (harness -p or pilot task payload)
-        for k in sorted(files.keys()):
-            if isinstance(k, str) and ("command" in k.lower() or k.lower().endswith("command.txt")):
-                content = files[k]
-                if isinstance(content, (bytes, bytearray)):
-                    content = content.decode("utf-8", "replace")
-                if isinstance(content, str):
-                    stmt = _parse_command_payload(content)
-                    if stmt and len(stmt.strip()) > 10:
-                        return stmt.strip()
-        # episode prompt.txt
-        for k in sorted(files.keys()):
-            if isinstance(k, str) and "prompt" in k.lower() and k.lower().endswith(".txt"):
-                content = files[k]
-                if isinstance(content, (bytes, bytearray)):
-                    content = content.decode("utf-8", "replace")
-                if isinstance(content, str) and len(content.strip()) > 10:
-                    return content.strip()
-    # fallback: first non-$NN user-ish event text
-    for ev in raw.get("events") or []:
-        if isinstance(ev, dict):
-            msg = ev.get("msg") or ev.get("content") or ""
-            if isinstance(msg, str):
-                s = msg.strip()
-                if len(s) > 40 and not s.startswith("$") and "OBSERVATION" not in s.upper():
-                    return s
+    for index, token in enumerate(tokens[:-1]):
+        if token == "-p" or (token == "task" and index and tokens[index - 1] == "pilot"):
+            return tokens[index + 1]
     return None
+
+
+def _file_entries(raw: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """``raw["files"]`` as entries; the pinned shape is ``[{path, content, format}]``."""
+    files = raw.get("files")
+    if not isinstance(files, list):
+        return []
+    return [entry for entry in files if isinstance(entry, Mapping)]
+
+
+def _entry_text(entry: Mapping[str, Any]) -> str:
+    content = entry.get("content")
+    return content if isinstance(content, str) else ""
+
+
+def _ref_table(raw: Mapping[str, Any]) -> dict[str, str]:
+    """A ``$NN`` value table the row itself carries (the dataset's elision artifact)."""
+    table: dict[str, str] = {}
+    for value in raw.values():
+        if isinstance(value, Mapping):
+            pairs: Iterator[tuple[Any, Any]] = iter(value.items())
+        elif isinstance(value, list):
+            pairs = ((f"${index}", item) for index, item in enumerate(value))
+        else:
+            continue
+        for key, item in pairs:
+            if isinstance(key, str) and _REF_RE.match(key) and isinstance(item, str):
+                table[key] = item
+    return table
+
+
+def _user_ask(raw: Mapping[str, Any]) -> str | None:
+    """The first natural-language user-role event (``$NN`` refs resolved inside the row)."""
+    resolved = _ref_table(raw)
+    for event in raw.get("events") or []:
+        if not isinstance(event, Mapping):
+            continue
+        if (event.get("src") or event.get("role")) != "user":
+            continue
+        text = event.get("msg") if "msg" in event else event.get("content")
+        if not isinstance(text, str):
+            continue
+        text = resolved.get(text.strip(), text.strip())
+        if len(text) < MIN_STATEMENT_CHARS or _REF_RE.match(text):
+            continue
+        if text.startswith(_NON_STATEMENT_PREFIXES) or _CONTINUATION_RE.match(text):
+            continue
+        return text
+    return None
+
+
+def _extract_task_statement(raw: Mapping[str, Any]) -> str | None:
+    """The ask the run was given, from the row's own files and then its user events.
+
+    Order and filters match the DA-4 recovery (``ds-da4-…/recover_tasks.py``): the
+    ``command.txt`` payload, else the first ``episode-N/prompt.txt``, else the
+    first user-role statement. Never a label, split marker, placeholder or
+    benchmark name (redaction happens at the call site).
+    """
+    if not isinstance(raw, Mapping):
+        return None
+    entries = _file_entries(raw)
+    for entry in entries:
+        if not str(entry.get("path") or "").endswith("command.txt"):
+            continue
+        payload = _command_payload(_entry_text(entry))
+        if payload and len(payload.strip()) >= MIN_STATEMENT_CHARS:
+            return payload.strip()
+    prompts = sorted(
+        (str(entry.get("path") or ""), _entry_text(entry))
+        for entry in entries
+        if _EPISODE_PROMPT_RE.search(str(entry.get("path") or ""))
+    )
+    for _path, content in prompts:
+        if len(content.strip()) >= MIN_STATEMENT_CHARS:
+            return content.strip()
+    return _user_ask(raw)
 
 
 # ---------------------------------------------------------------------------
@@ -890,16 +907,13 @@ def _convert_inner(
         raise ValueError("no_agent_content")
     statement = _extract_task_statement(raw)
     if statement:
-        user_message = _redact_benchmarks(statement)
-    else:
-        task = str(raw.get("task_name") or (raw.get("task") or "") or trace_id)
-        if isinstance(raw.get("task"), dict):
-            task = str(raw["task"].get("id") or raw["task"].get("name") or trace_id)
-        user_message = f"Task: {task} (model: {model})"
-    builder.steps.insert(
-        0,
-        {"step_id": 0, "source": "user", "message": user_message},
-    )
+        builder.steps.insert(
+            0,
+            {"step_id": 0, "source": "user", "message": _redact_benchmarks(statement)},
+        )
+    # No ask recovered: no synthetic turn. The old fallback line named the
+    # benchmark and the model and was not the task, so a reader could not tell
+    # what the run had been asked to do from it.
     for idx, step in enumerate(builder.steps):
         step["step_id"] = idx
     # Labels, mechanisms and the source trace id stay in the corpus manifest;
@@ -911,6 +925,7 @@ def _convert_inner(
     }
     stats = {
         "envelope": envelope,
+        "has_statement": bool(statement),
         "n_steps": len(builder.steps),
         "n_tool_calls": builder.n_tool_calls,
         "has_tool_calls": builder.n_tool_calls > 0,
@@ -1667,17 +1682,21 @@ def convert_row(row: Mapping[str, Any]) -> tuple[dict, dict, list[str]]:
     trace = parse_raw_trace(row["trace"])
     warnings: list[str] = []
     try:
-        doc, _stats, regions = _convert_inner(trace_id, trace, row_meta(dict(row)))
+        doc, stats, regions = _convert_inner(trace_id, trace, row_meta(dict(row)))
     except ValueError as exc:
         warnings.append(f"trace excluded from staged steps: {exc}")
         steps: list[dict] = []
     else:
         steps = doc["steps"]
-        steps[0].setdefault(
-            "extra",
-            {"cheatbench": {"source_ref": {"field": None, "line_start": None, "line_end": None}}},
-        )
-        _decorate(steps[1:], regions)
+        # With an ask, step 0 is the injected context turn and the builder's
+        # regions start at step 1; without one, regions start at step 0.
+        start = 1 if stats.get("has_statement") else 0
+        if start:
+            steps[0].setdefault(
+                "extra",
+                {"cheatbench": {"source_ref": {"field": None, "line_start": None, "line_end": None}}},
+            )
+        _decorate(steps[start:], regions)
     for position, step in enumerate(steps, start=1):
         step["step_id"] = position
     cheat_step_id, result_index, correction, line_adjusted = locate_row(trace, steps, row)

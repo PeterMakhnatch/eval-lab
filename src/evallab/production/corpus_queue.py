@@ -596,7 +596,7 @@ class ContinuousWorkQueue:
                 event_id TEXT PRIMARY KEY REFERENCES events(event_id),
                 seq BIGINT NOT NULL UNIQUE REFERENCES events(seq), job_type TEXT,
                 published_at TEXT, worker_id TEXT, lease_token TEXT,
-                lease_until DOUBLE PRECISION, completed_at TEXT)""",
+                lease_until DOUBLE PRECISION, completed_at TEXT, released_at DOUBLE PRECISION)""",
             "CREATE INDEX IF NOT EXISTS production_outbox_claim ON outbox(job_type, completed_at, lease_until, seq)",
             "CREATE INDEX IF NOT EXISTS production_outbox_publish ON outbox(published_at, seq)",
             """CREATE TABLE IF NOT EXISTS consumer_cursors (
@@ -609,6 +609,19 @@ class ContinuousWorkQueue:
                 self._execute("SELECT pg_advisory_xact_lock(613216564092021093)")
             for statement in statements:
                 self._execute(statement)
+            # Databases created before claim fairness lack the column.
+            if self._postgres:
+                self._execute("""DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'outbox' AND column_name = 'released_at'
+                        AND table_schema = current_schema()) THEN
+                        ALTER TABLE outbox ADD COLUMN released_at DOUBLE PRECISION;
+                    END IF;
+                END $$""")
+            elif "released_at" not in {
+                row[1] for row in self._execute("PRAGMA table_info(outbox)").fetchall()
+            }:
+                self._execute("ALTER TABLE outbox ADD COLUMN released_at DOUBLE PRECISION")
             if self._postgres:
                 self._execute("""CREATE OR REPLACE FUNCTION production_events_append_only() RETURNS trigger
                     LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'events is append-only'; END; $$""")
@@ -981,10 +994,14 @@ class ContinuousWorkQueue:
         placeholders = ",".join("?" for _ in job_types)
         with self._transaction(write=True):
             now = time.time()
+            # Never-attempted jobs go first, oldest first. A job that was released
+            # (or whose lease lapsed) is re-queued behind every job with an older
+            # or no release mark, so one stuck job cannot starve the rest.
             row = self._execute(
                 f"""SELECT e.envelope FROM outbox o JOIN events e ON o.event_id = e.event_id
                 WHERE o.job_type IN ({placeholders}) AND o.completed_at IS NULL
-                AND (o.lease_until IS NULL OR o.lease_until <= ?) ORDER BY o.seq LIMIT 1""",
+                AND (o.lease_until IS NULL OR o.lease_until <= ?)
+                ORDER BY COALESCE(o.released_at, 0), o.seq LIMIT 1""",
                 (*job_types, now),
             ).fetchone()
             if row is None:
@@ -992,8 +1009,10 @@ class ContinuousWorkQueue:
             event = json.loads(row[0])
             token, until = str(uuid4()), now + duration
             self._execute(
-                "UPDATE outbox SET worker_id = ?, lease_token = ?, lease_until = ? WHERE event_id = ?",
-                (worker_id, token, until, event["event_id"]),
+                "UPDATE outbox SET worker_id = ?, lease_token = ?, lease_until = ?,"
+                " released_at = CASE WHEN lease_token IS NULL THEN released_at ELSE ? END"
+                " WHERE event_id = ?",
+                (worker_id, token, until, now, event["event_id"]),
             )
             return {**event, "lease_token": token, "lease_until": until}
 
@@ -1024,8 +1043,9 @@ class ContinuousWorkQueue:
             if row[2] is not None or row[1] is None or row[1] <= time.time():
                 raise LeaseLostError(f"job lease is not active: {event_id}")
             self._execute(
-                "UPDATE outbox SET worker_id = NULL, lease_token = NULL, lease_until = NULL WHERE event_id = ?",
-                (event_id,),
+                "UPDATE outbox SET worker_id = NULL, lease_token = NULL, lease_until = NULL,"
+                " released_at = ? WHERE event_id = ?",
+                (time.time(), event_id),
             )
 
     def renew(self, event_id: str, *, lease_token: str, lease_seconds: float = 60) -> None:

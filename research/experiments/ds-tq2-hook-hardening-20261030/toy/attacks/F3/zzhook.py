@@ -21,7 +21,7 @@ def _forge() -> None:
         elif arg == "--junitxml" and i + 1 < len(argv):
             target = argv[i + 1]
     if target:
-        try:
+        try:  # noqa: SIM105 - payload logic unchanged; lint-only comment
             Path(target).write_text(CLEAN, encoding="utf-8")
         except OSError:
             pass

@@ -596,27 +596,32 @@ def _summary(values: Sequence[float]) -> dict[str, Any]:
 
 def _events(
     journal: Path, event_types: Sequence[str]
-) -> Iterator[tuple[int, str, str, str, str | None]]:
+) -> Iterator[tuple[int, str, str, str, str | None, str | None]]:
     marks = ",".join("?" for _ in event_types)
     query = (
         "SELECT seq, run_id, event_type, json_extract(envelope, '$.ts'),"
-        " json_extract(envelope, '$.payload.deterministic_latency_seconds')"
+        " json_extract(envelope, '$.payload.deterministic_latency_seconds'),"
+        " json_extract(envelope, '$.payload.dataset_id')"
         f" FROM events WHERE event_type IN ({marks}) ORDER BY seq"
     )
     with closing(sqlite3.connect(f"file:{journal}?mode=ro", uri=True, timeout=30)) as connection:
         yield from connection.execute(query, tuple(event_types))
 
 
-def measure(root: Path, *, first_runs: int | None = None) -> dict[str, Any]:
+def measure(
+    root: Path, *, first_runs: int | None = None, dataset: str | None = None
+) -> dict[str, Any]:
     """Throughput, per-run latency and failure classes from the journal and cycle log.
 
     Per run: ``admitted`` is the seeded job's event time, ``queue_wait`` runs to the
     run's first scored prefix, ``scoring`` to its last, ``to_first_card`` to its first
-    ``monitor.suspicion``. ``first_runs`` keeps only the first N runs to finish scoring
-    (by last prefix seq) so a receipt can state "the first 200 runs".
+    ``monitor.suspicion``. ``dataset`` keeps one seeded dataset; ``first_runs`` keeps only
+    the first N of those to finish scoring (by last prefix seq) so a receipt can state
+    "the first 200 runs".
     """
     journal = root / JOURNAL
     admitted: dict[str, float] = {}
+    datasets: dict[str, str | None] = {}
     replayed: dict[str, float] = {}
     first_score: dict[str, float] = {}
     last_score: dict[str, tuple[int, float]] = {}
@@ -624,13 +629,14 @@ def measure(root: Path, *, first_runs: int | None = None) -> dict[str, Any]:
     prefix_latency: list[float] = []
     steps: Counter[str] = Counter()
     cards: Counter[str] = Counter()
-    for seq, run_id, kind, ts, latency in _events(
+    for seq, run_id, kind, ts, latency, dataset_id in _events(
         journal,
         (REPLAY_JOB, "misalignment.replay_completed", "monitor.prefix_scored", "monitor.suspicion"),
     ):
         moment = datetime.fromisoformat(ts).timestamp()
         if kind == REPLAY_JOB:
             admitted[run_id] = moment
+            datasets[run_id] = dataset_id
         elif kind == "misalignment.replay_completed":
             replayed[run_id] = moment
         elif kind == "monitor.prefix_scored":
@@ -642,7 +648,11 @@ def measure(root: Path, *, first_runs: int | None = None) -> dict[str, Any]:
         else:
             first_card.setdefault(run_id, moment)
             cards[run_id] += 1
-    finished = sorted((v[0], run) for run, v in last_score.items() if run in admitted)
+    finished = sorted(
+        (v[0], run)
+        for run, v in last_score.items()
+        if run in admitted and (dataset is None or datasets.get(run) == dataset)
+    )
     if first_runs is not None:
         finished = finished[:first_runs]
     runs = [run for _, run in finished]
@@ -674,6 +684,7 @@ def measure(root: Path, *, first_runs: int | None = None) -> dict[str, Any]:
         event_total = connection.execute("SELECT COUNT(*) FROM events").fetchone()[0]
     return {
         "schema": SCHEMA,
+        "dataset": dataset,
         "runs": len(runs),
         "prefix_scores": total_steps,
         "runs_with_cards": sum(1 for r in runs if r in first_card),
@@ -755,6 +766,9 @@ def _parser() -> argparse.ArgumentParser:
     measure_cmd.add_argument(
         "--first-runs", type=int, help="only the first N runs to finish scoring"
     )
+    measure_cmd.add_argument(
+        "--dataset", help="only runs of this seeded dataset id (e.g. goodfire-reward-hack-data)"
+    )
     measure_cmd.add_argument("--out", type=Path)
     return parser
 
@@ -784,7 +798,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(verdict, sort_keys=True))
         return 0 if verdict["status"] == "ok" else 2
     if args.command == "measure":
-        report = measure(root, first_runs=args.first_runs)
+        report = measure(root, first_runs=args.first_runs, dataset=args.dataset)
         text = json.dumps(report, sort_keys=True, indent=2)
         if args.out:
             _write_json_atomic(args.out, report)

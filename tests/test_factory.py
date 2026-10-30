@@ -208,6 +208,8 @@ def test_measure_reports_runs_latency_and_failure_classes(tmp_path: Path, export
     assert report["latency_seconds"]["admitted_to_first_card"]["n"] >= 1
     assert report["failures_by_class"] == {"misalignment:ValueError": 1}
     assert factory.measure(tmp_path, first_runs=2)["runs"] == 2
+    assert factory.measure(tmp_path, dataset=DATASET)["runs"] == 3
+    assert factory.measure(tmp_path, dataset="another-dataset")["runs"] == 0
 
 
 def test_hook_failure_is_counted_and_does_not_stop_the_loop(tmp_path: Path, export) -> None:

@@ -1,0 +1,256 @@
+{
+ "rule": "sha256(blind_id) order within each (corpus, label) stratum; 15 positives + 15 negatives Goodfire, 10 positives + 10 negatives CheatBench",
+ "n": 50,
+ "rows": [
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-03598f6d8b0bc394",
+   "length": 28
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-157b71cb781e7c44",
+   "length": 30
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-565735614351cdad",
+   "length": 191
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-5acce890bb07db06",
+   "length": 105
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-62ac6649cd414f23",
+   "length": 2
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-6c55bc22de186a31",
+   "length": 25
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-6fd19283c998c88d",
+   "length": 34
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-8a405f225777a079",
+   "length": 8
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-96bbed0d2b8eae69",
+   "length": 92
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-971daa17fffb1d6a",
+   "length": 2
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-98d79dc73a4b40e0",
+   "length": 30
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-9b1b2c350d57ef7b",
+   "length": 90
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-a7082555691e0e45",
+   "length": 610
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-b22b09d0f4fcf8bb",
+   "length": 20
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-c0d8e84e1006307a",
+   "length": 100
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-c1c914bfafd60904",
+   "length": 95
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-c3d6b5312f175c86",
+   "length": 17
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-e16a797530621f1e",
+   "length": 15
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-ea396024dc6a95b9",
+   "length": 43
+  },
+  {
+   "corpus": "cheatbench",
+   "blind_id": "run-f08e7ebae6b40f8f",
+   "length": 2
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-04923aba7ebd88ac",
+   "length": 123
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-1b0accb660f75bc2",
+   "length": 71
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-3bf55f9712a84fc4",
+   "length": 33
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-3c8a9cbd9400a7bb",
+   "length": 26
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-3d8996f174e5a6a6",
+   "length": 14
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-400cb5429d7f4bc9",
+   "length": 25
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-56fe3cf91602b495",
+   "length": 17
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-5c8b5acad674de64",
+   "length": 97
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-5d237d029ead96ec",
+   "length": 32
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-6ed7eefeb0d03949",
+   "length": 45
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-705cff07ea2141e5",
+   "length": 24
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-70b21117cc5ac639",
+   "length": 34
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-73ed33d328c1c127",
+   "length": 20
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-77c0c00639f11f7c",
+   "length": 27
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-7ae1f55348d66737",
+   "length": 40
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-7bbf47ddac0396de",
+   "length": 17
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-83b0f7e39b5e3784",
+   "length": 58
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-85a2fe3bb6039aee",
+   "length": 14
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-868ebe2fca6fae96",
+   "length": 19
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-86a027490c9fdeb9",
+   "length": 12
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-8aa4f3d7aeea247e",
+   "length": 56
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-8d005502b6af51cc",
+   "length": 10
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-9794e4afe2d46d03",
+   "length": 27
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-ac5cb7b322356811",
+   "length": 21
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-b0f8a74ae8239b0a",
+   "length": 26
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-b20abc8e5bda57f8",
+   "length": 18
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-b7b10f6a84814abd",
+   "length": 42
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-c3ba3109129fd4c3",
+   "length": 10
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-dd54b69025fb57fd",
+   "length": 8
+  },
+  {
+   "corpus": "goodfire",
+   "blind_id": "run-f0bf1db92f9ae59e",
+   "length": 36
+  }
+ ]
+}

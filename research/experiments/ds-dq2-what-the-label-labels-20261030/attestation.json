@@ -1,0 +1,8 @@
+{
+ "served_models": {
+  "deepseek/deepseek-flash": 50
+ },
+ "n_fallbacks": 0,
+ "n_calls": 50,
+ "all_served_requested_model": true
+}

@@ -29,10 +29,12 @@ narration-only; CheatBench positives mostly carry an action.
 
 | file | content |
 |---|---|
-| `dq2_label.py` | driver: `build` / `read` / `score` |
+| `dq2_label.py` | driver: `build` / `read` / `score` / `diagnose` |
 | `prereg.md` | frozen design and prompt |
 | `result.json` | aggregates and intervals |
 | `verdicts.jsonl` | per-run ids, flags, every cited step and its class, dropped-claim counts |
+| `sensitivity-recited.json` | post-hoc: claims located anywhere in the run |
+| `diagnostics.json` | failed-quote locations, DT-15 masked cross-check, manual review |
 | `sample.json` | the 50 chosen blind ids |
 | `attestation.json` | served model per call from the session logs |
 
@@ -45,8 +47,9 @@ text or a quotable passage.
 uv run --project . python research/experiments/ds-dq2-what-the-label-labels-20261030/dq2_label.py build
 uv run --project . python research/experiments/ds-dq2-what-the-label-labels-20261030/dq2_label.py read --jobs 4
 uv run --project . python research/experiments/ds-dq2-what-the-label-labels-20261030/dq2_label.py score
+uv run --project . python research/experiments/ds-dq2-what-the-label-labels-20261030/dq2_label.py diagnose
 ```
 
-`build` and `score` make no model call. `score` needs `/tmp/dq2/out`, the DT-8 cohort
+`build`, `score` and `diagnose` make no model call. `score` needs `/tmp/dq2/out`, the DT-8 cohort
 file `/tmp/dt8/sample.json` and DT-10's blinded-step cache `/tmp/dt10/steps-*.json.gz`
 (the same projections DT-8/DT-10 used; both are rebuildable from the lab's own loaders).

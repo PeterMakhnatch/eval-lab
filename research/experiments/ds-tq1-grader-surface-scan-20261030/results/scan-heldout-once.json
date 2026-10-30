@@ -1,0 +1,1377 @@
+[
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "tests/test_repository.py"
+   ],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "tests/test_repository.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "13214d68ed10",
+  "task_id": "format-code-task-001985"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/workspace/repo; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 37,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [
+    "/workspace/repo${PYTHONPATH:+:$PYTHONPATH}"
+   ],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": true,
+   "modified_test_files": [],
+   "pytest_cwd": "/workspace/repo",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "usercase-test-coderl/test_ppar_event_stream.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": true,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/workspace/repo"
+  },
+  "half": "heldout",
+  "sha12": "237067918199",
+  "task_id": "format-code-task-002680"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "tests/_ast/test_sql_visitor.py"
+   ],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "tests/_ast/test_sql_visitor.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "27aad8e05045",
+  "task_id": "format-code-task-001850"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": false,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "test_commands.json",
+    "wagtail/admin/tests/test_button_searcharea_comparison.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": true,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "3bf27173fd0d",
+  "task_id": "format-code-task-002976"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": false,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "src/utils/body.test.ts"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": false,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "3d96d73a2c3c",
+  "task_id": "format-code-task-001514"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [],
+   "pytest_cwd": "/workspace/repo",
+   "pytest_invoked": false,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "usercase-test-coderl/fresh_state_child.test.ts",
+    "usercase-test-coderl/transactions.test.ts"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": false,
+   "unsafe_test_files": [],
+   "workdir": "/workspace/repo"
+  },
+  "half": "heldout",
+  "sha12": "43f6bede7978",
+  "task_id": "format-code-task-000603"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [],
+   "pytest_cwd": "/testbed/api",
+   "pytest_invoked": false,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "api/desecapi/tests/testpdns.py",
+    "api/desecapi/tests/testprivacychores.py",
+    "api/desecapi/tests/testregistration.py",
+    "mimo_test_command.sh"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": false,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "558ab4b610f7",
+  "task_id": "format-code-task-000792"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "quantecon/tests/test_gridtools.py"
+   ],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "quantecon/tests/test_gridtools.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "655c8f738855",
+  "task_id": "format-code-task-000232"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": false,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": false,
+   "command_file_reset": false,
+   "expected_compare": true,
+   "modified_test_files": [],
+   "pytest_cwd": "/app",
+   "pytest_invoked": false,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [],
+   "separate_verifier": true,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": false,
+   "unsafe_test_files": [],
+   "workdir": "/app"
+  },
+  "half": "heldout",
+  "sha12": "7b9d356cbe7b",
+  "task_id": "freecad-platform-drawing"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/workspace/repo; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 37,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [
+    "/workspace/repo/usercase-test-coderl/acquire-full",
+    "/workspace/repo/usercase-test-coderl/acquire-full/",
+    "/workspace/repo/usercase-test-coderl/acquire-missing",
+    "/workspace/repo/usercase-test-coderl/acquire-missing/",
+    "/workspace/repo/usercase-test-coderl/acquire-optional",
+    "/workspace/repo/usercase-test-coderl/acquire-optional/",
+    "/workspace/repo/usercase-test-coderl/runtime-data",
+    "/workspace/repo/usercase-test-coderl/runtime-data/",
+    "/workspace/repo/usercase-test-coderl/runtime-data/shapefiles/natural_earth/physical/ne_110m_coastline.shp",
+    "/workspace/repo/usercase-test-coderl/runtime-preexisting",
+    "/workspace/repo/usercase-test-coderl/side-effect-target",
+    "/workspace/repo/usercase-test-coderl/side-effect-target/"
+   ],
+   "artifact_writable": true,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [],
+   "pytest_cwd": "/workspace/repo",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "usercase-test-coderl/test_natural_earth_downloader.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/workspace/repo"
+  },
+  "half": "heldout",
+  "sha12": "91114e77bb21",
+  "task_id": "format-code-task-002609"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": false,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": false,
+   "command_file_reset": false,
+   "expected_compare": true,
+   "modified_test_files": [],
+   "pytest_cwd": "/app",
+   "pytest_invoked": false,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [],
+   "separate_verifier": true,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": false,
+   "unsafe_test_files": [],
+   "workdir": "/app"
+  },
+  "half": "heldout",
+  "sha12": "97ee1b972638",
+  "task_id": "freecad-spring-clip"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 37,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": true,
+   "modified_test_files": [],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "impedance/tests/test_multiletter_elements.py",
+    "mimo_test_command.sh"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "9962007aee55",
+  "task_id": "format-code-task-000079"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=tests; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "openwisp_radius/tests/test_commands.py"
+   ],
+   "pytest_cwd": "tests",
+   "pytest_invoked": false,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "openwisp_radius/tests/test_commands.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "9b059c5372b0",
+  "task_id": "format-code-task-002160"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "usaspending_api/etl/tests/test_load_submission.py"
+   ],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "usaspending_api/etl/tests/test_load_submission.py",
+    "usaspending_api/submissions/tests/test_submission_attributes_serializer.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": true,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "9f0e3552d208",
+  "task_id": "format-code-task-000945"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "tests/unit/test_sqs.py"
+   ],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "test_commands.json",
+    "tests/unit/test_sqs.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "9f62b7815708",
+  "task_id": "format-code-task-001809"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 37,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "python/ct/crypto/asn1/types_test.py"
+   ],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "python/ct/crypto/asn1/types_test.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "a1a361a6190f",
+  "task_id": "format-code-task-001338"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "tests/test_cli.py"
+   ],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": false,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "test_commands.json",
+    "tests/test_cli.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "ab01262bebbc",
+  "task_id": "format-code-task-000838"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [
+    {
+     "detail": "graded artifact ['/app/score.musicxml'] compared against fixed expected values",
+     "file": "tests/test_outputs.py",
+     "line": 66,
+     "rule": "expected_values_compared_on_writable_artifact"
+    }
+   ],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [],
+   "synthetic_artifact_shape_fill": [
+    {
+     "detail": "structural count/schema threshold on the agent-written artifact",
+     "file": "tests/test_outputs.py",
+     "line": 1,
+     "rule": "structural_threshold_on_writable_artifact"
+    }
+   ],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": false,
+   "artifact_paths": [
+    "/app/score.musicxml"
+   ],
+   "artifact_writable": true,
+   "command_file_in_workdir": false,
+   "command_file_reset": false,
+   "expected_compare": true,
+   "modified_test_files": [],
+   "pytest_cwd": "/app",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [],
+   "separate_verifier": true,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": true,
+   "tests_writable": false,
+   "unsafe_test_files": [],
+   "workdir": "/app"
+  },
+  "half": "heldout",
+  "sha12": "abe742f3c90d",
+  "task_id": "satb-audio-transcription"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": false,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": false,
+   "command_file_reset": false,
+   "expected_compare": true,
+   "modified_test_files": [],
+   "pytest_cwd": "/app",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [],
+   "separate_verifier": true,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": true,
+   "tests_writable": false,
+   "unsafe_test_files": [],
+   "workdir": "/app"
+  },
+  "half": "heldout",
+  "sha12": "c7d501f4f083",
+  "task_id": "gsea-proteomics"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "test_commands.json",
+    "tests/unit/distribution/test_library_client_auto_init.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "d71c8221e1c8",
+  "task_id": "format-code-task-001804"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": true,
+   "modified_test_files": [
+    "tests/envs/test_env_implementation.py"
+   ],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_test_command.sh",
+    "test_commands.json",
+    "tests/envs/test_env_implementation.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": true,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "d7d8340aebed",
+  "task_id": "format-code-task-000085"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "test/logformats_test.py"
+   ],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "test/logformats_test.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "d9d5d229b83d",
+  "task_id": "format-code-task-001431"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": false,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": false,
+   "command_file_reset": false,
+   "expected_compare": true,
+   "modified_test_files": [],
+   "pytest_cwd": "/workspace",
+   "pytest_invoked": false,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [],
+   "separate_verifier": true,
+   "signal_exit": false,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": false,
+   "unsafe_test_files": [],
+   "workdir": "/workspace"
+  },
+  "half": "heldout",
+  "sha12": "db0749144ea4",
+  "task_id": "heat-pump-warranty"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 38,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [],
+   "artifact_writable": false,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "theano/sandbox/test_rng_mrg.py"
+   ],
+   "pytest_cwd": "/testbed",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "mimo_build_env.tar.gz.b64",
+    "mimo_test_command.sh",
+    "theano/sandbox/test_rng_mrg.py"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": false,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "df889f83a0b6",
+  "task_id": "format-code-task-000256"
+ },
+ {
+  "class_flags": {
+   "framework_config_injection": [
+    {
+     "detail": "pytest runs in the agent container; cwd=/testbed/batch; no reset of conftest/sitecustomize",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    },
+    {
+     "detail": "hidden tests are applied into the same tree the agent could write",
+     "file": "tests/test.patch",
+     "line": 1,
+     "rule": "pytest_in_agent_container_without_config_reset"
+    }
+   ],
+   "grader_tamper": [],
+   "hardcoded_expected_output": [],
+   "hidden_answer_read": [],
+   "runner_exit_status_forgery": [
+    {
+     "detail": "reward.txt is written from the runner exit status only",
+     "file": "tests/test.sh",
+     "line": 37,
+     "rule": "exit_status_is_reward"
+    }
+   ],
+   "synthetic_artifact_shape_fill": [
+    {
+     "detail": "structural count/schema threshold on the agent-written artifact",
+     "file": "tests/test.sh",
+     "line": 1,
+     "rule": "structural_threshold_on_writable_artifact"
+    }
+   ],
+   "test_file_sabotage": []
+  },
+  "features": {
+   "answer_leak_mitigated": true,
+   "artifact_paths": [
+    "/testbed",
+    "/testbed/.build_env/fake_bin:$PATH"
+   ],
+   "artifact_writable": true,
+   "command_file_in_workdir": true,
+   "command_file_reset": true,
+   "expected_compare": false,
+   "modified_test_files": [
+    "batch/test/test_dag.py"
+   ],
+   "pytest_cwd": "/testbed/batch",
+   "pytest_invoked": true,
+   "reference_material": [],
+   "reset_config": false,
+   "reset_paths": [
+    "\"$tf\"",
+    "batch/test/test_dag.py",
+    "mimo_test_command.sh"
+   ],
+   "separate_verifier": false,
+   "signal_exit": true,
+   "signal_marker": false,
+   "structural_checks": true,
+   "tests_writable": true,
+   "unsafe_test_files": [],
+   "workdir": "/testbed"
+  },
+  "half": "heldout",
+  "sha12": "f9918a9d137e",
+  "task_id": "format-code-task-001426"
+ }
+]

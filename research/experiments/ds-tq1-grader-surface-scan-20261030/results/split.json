@@ -1,0 +1,266 @@
+[
+ {
+  "task_id": "format-code-task-001205",
+  "half": "design",
+  "sha12": "0c3fba138221",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-002139",
+  "half": "design",
+  "sha12": "1267077b25f4",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-001985",
+  "half": "heldout",
+  "sha12": "13214d68ed10",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000931",
+  "half": "design",
+  "sha12": "141b3ae6fe93",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-002680",
+  "half": "heldout",
+  "sha12": "237067918199",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-001850",
+  "half": "heldout",
+  "sha12": "27aad8e05045",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000081",
+  "half": "design",
+  "sha12": "38176a115624",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-002976",
+  "half": "heldout",
+  "sha12": "3bf27173fd0d",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-001514",
+  "half": "heldout",
+  "sha12": "3d96d73a2c3c",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-001267",
+  "half": "design",
+  "sha12": "3ee8606c26e6",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000603",
+  "half": "heldout",
+  "sha12": "43f6bede7978",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-002552",
+  "half": "design",
+  "sha12": "48239a69b1b1",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000682",
+  "half": "design",
+  "sha12": "4a019450606f",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000792",
+  "half": "heldout",
+  "sha12": "558ab4b610f7",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000232",
+  "half": "heldout",
+  "sha12": "655c8f738855",
+  "exists": true
+ },
+ {
+  "task_id": "cad-model",
+  "half": "design",
+  "sha12": "78c4aaf13117",
+  "exists": true
+ },
+ {
+  "task_id": "freecad-platform-drawing",
+  "half": "heldout",
+  "sha12": "7b9d356cbe7b",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-002609",
+  "half": "heldout",
+  "sha12": "91114e77bb21",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-002391",
+  "half": "design",
+  "sha12": "9241261012bc",
+  "exists": true
+ },
+ {
+  "task_id": "freecad-spring-clip",
+  "half": "heldout",
+  "sha12": "97ee1b972638",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000079",
+  "half": "heldout",
+  "sha12": "9962007aee55",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-002160",
+  "half": "heldout",
+  "sha12": "9b059c5372b0",
+  "exists": true
+ },
+ {
+  "task_id": "photonic-waveguide-routing",
+  "half": "design",
+  "sha12": "9e089dd67c00",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000945",
+  "half": "heldout",
+  "sha12": "9f0e3552d208",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-001809",
+  "half": "heldout",
+  "sha12": "9f62b7815708",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-001338",
+  "half": "heldout",
+  "sha12": "a1a361a6190f",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-003007",
+  "half": "design",
+  "sha12": "a400195fb683",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000212",
+  "half": "design",
+  "sha12": "a8e5b15a538e",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000838",
+  "half": "heldout",
+  "sha12": "ab01262bebbc",
+  "exists": true
+ },
+ {
+  "task_id": "satb-audio-transcription",
+  "half": "heldout",
+  "sha12": "abe742f3c90d",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000872",
+  "half": "design",
+  "sha12": "acb308306a92",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000812",
+  "half": "design",
+  "sha12": "c0e96cfaa8c7",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-002545",
+  "half": "design",
+  "sha12": "c61e07908390",
+  "exists": true
+ },
+ {
+  "task_id": "gsea-proteomics",
+  "half": "heldout",
+  "sha12": "c7d501f4f083",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-001804",
+  "half": "heldout",
+  "sha12": "d71c8221e1c8",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000085",
+  "half": "heldout",
+  "sha12": "d7d8340aebed",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-001431",
+  "half": "heldout",
+  "sha12": "d9d5d229b83d",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-002535",
+  "half": "design",
+  "sha12": "da3581fb0832",
+  "exists": true
+ },
+ {
+  "task_id": "heat-pump-warranty",
+  "half": "heldout",
+  "sha12": "db0749144ea4",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000256",
+  "half": "heldout",
+  "sha12": "df889f83a0b6",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000847",
+  "half": "design",
+  "sha12": "e6a91f1f1fb2",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-000322",
+  "half": "design",
+  "sha12": "e80583b8ee3c",
+  "exists": true
+ },
+ {
+  "task_id": "fin-saccr-rwa",
+  "half": "design",
+  "sha12": "f0bfbc0b1145",
+  "exists": true
+ },
+ {
+  "task_id": "format-code-task-001426",
+  "half": "heldout",
+  "sha12": "f9918a9d137e",
+  "exists": true
+ }
+]

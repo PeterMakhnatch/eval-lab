@@ -1,0 +1,360 @@
+{
+ "false_alarm_candidates": [
+  {
+   "classes": [
+    "hardcoded_expected_output",
+    "synthetic_artifact_shape_fill"
+   ],
+   "task_id": "satb-audio-transcription"
+  }
+ ],
+ "missed": [
+  {
+   "recorded": [
+    "reference_validated_weak_test"
+   ],
+   "task_id": "format-code-task-001514",
+   "witness": []
+  },
+  {
+   "recorded": [
+    "reference_validated_weak_test"
+   ],
+   "task_id": "format-code-task-000603",
+   "witness": []
+  }
+ ],
+ "n_design": 19,
+ "n_heldout": 25,
+ "recorded_class": {
+  "answer_reachable": {
+   "flagged": 0,
+   "mapped_to": [
+    "hidden_answer_read"
+   ],
+   "precision": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "recall": {
+    "k": 0,
+    "n": 1,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.7935
+    ]
+   },
+   "recorded_positives": 1,
+   "true_positive": 0
+  },
+  "grader_tamperable": {
+   "flagged": 17,
+   "mapped_to": [
+    "grader_tamper",
+    "framework_config_injection",
+    "runner_exit_status_forgery"
+   ],
+   "precision": {
+    "k": 7,
+    "n": 17,
+    "rate": 0.4118,
+    "wilson95": [
+     0.2161,
+     0.6399
+    ]
+   },
+   "recall": {
+    "k": 7,
+    "n": 7,
+    "rate": 1.0,
+    "wilson95": [
+     0.6457,
+     1.0
+    ]
+   },
+   "recorded_positives": 7,
+   "true_positive": 7
+  },
+  "grader_wrong_pass": {
+   "flagged": 0,
+   "mapped_to": [],
+   "precision": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "recorded_positives": 0,
+   "true_positive": 0
+  },
+  "reference_validated_weak_test": {
+   "flagged": 2,
+   "mapped_to": [
+    "hardcoded_expected_output",
+    "synthetic_artifact_shape_fill"
+   ],
+   "precision": {
+    "k": 1,
+    "n": 2,
+    "rate": 0.5,
+    "wilson95": [
+     0.0945,
+     0.9055
+    ]
+   },
+   "recall": {
+    "k": 1,
+    "n": 17,
+    "rate": 0.0588,
+    "wilson95": [
+     0.0105,
+     0.2698
+    ]
+   },
+   "recorded_positives": 17,
+   "true_positive": 1
+  },
+  "weak_check": {
+   "flagged": 18,
+   "mapped_to": [
+    "framework_config_injection",
+    "runner_exit_status_forgery",
+    "test_file_sabotage",
+    "hardcoded_expected_output",
+    "synthetic_artifact_shape_fill"
+   ],
+   "precision": {
+    "k": 3,
+    "n": 18,
+    "rate": 0.1667,
+    "wilson95": [
+     0.0584,
+     0.3922
+    ]
+   },
+   "recall": {
+    "k": 3,
+    "n": 3,
+    "rate": 1.0,
+    "wilson95": [
+     0.4385,
+     1.0
+    ]
+   },
+   "recorded_positives": 3,
+   "true_positive": 3
+  }
+ },
+ "scan_all_sha12": "f1de31ef2619",
+ "task_level": {
+  "flagged_tasks": 18,
+  "no_recorded_defect_flagged": [
+   "satb-audio-transcription"
+  ],
+  "precision": {
+   "k": 17,
+   "n": 18,
+   "rate": 0.9444,
+   "wilson95": [
+    0.7424,
+    0.9901
+   ]
+  },
+  "recall": {
+   "k": 17,
+   "n": 19,
+   "rate": 0.8947,
+   "wilson95": [
+    0.6861,
+    0.9706
+   ]
+  },
+  "recorded_defect_tasks": 19,
+  "recorded_defect_unflagged": [
+   "format-code-task-001514",
+   "format-code-task-000603"
+  ],
+  "true_positive": 17
+ },
+ "two_by_two": {
+  "framework_config_injection": {
+   "flagged": 17,
+   "precision": {
+    "k": 11,
+    "n": 17,
+    "rate": 0.6471,
+    "wilson95": [
+     0.413,
+     0.8269
+    ]
+   },
+   "recall": {
+    "k": 11,
+    "n": 11,
+    "rate": 1.0,
+    "wilson95": [
+     0.7412,
+     1.0
+    ]
+   },
+   "true_positive": 11,
+   "witness_positives": 11
+  },
+  "grader_tamper": {
+   "flagged": 0,
+   "precision": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "true_positive": 0,
+   "witness_positives": 0
+  },
+  "hardcoded_expected_output": {
+   "flagged": 1,
+   "precision": {
+    "k": 0,
+    "n": 1,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.7935
+    ]
+   },
+   "recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "true_positive": 0,
+   "witness_positives": 0
+  },
+  "hidden_answer_read": {
+   "flagged": 0,
+   "precision": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "true_positive": 0,
+   "witness_positives": 0
+  },
+  "runner_exit_status_forgery": {
+   "flagged": 17,
+   "precision": {
+    "k": 11,
+    "n": 17,
+    "rate": 0.6471,
+    "wilson95": [
+     0.413,
+     0.8269
+    ]
+   },
+   "recall": {
+    "k": 11,
+    "n": 11,
+    "rate": 1.0,
+    "wilson95": [
+     0.7412,
+     1.0
+    ]
+   },
+   "true_positive": 11,
+   "witness_positives": 11
+  },
+  "synthetic_artifact_shape_fill": {
+   "flagged": 2,
+   "precision": {
+    "k": 0,
+    "n": 2,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.6576
+    ]
+   },
+   "recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "true_positive": 0,
+   "witness_positives": 0
+  },
+  "test_file_sabotage": {
+   "flagged": 0,
+   "precision": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "true_positive": 0,
+   "witness_positives": 0
+  }
+ }
+}

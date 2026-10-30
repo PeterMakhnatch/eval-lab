@@ -906,11 +906,16 @@ def _convert_inner(
     if not agent_steps:
         raise ValueError("no_agent_content")
     statement = _extract_task_statement(raw)
+    injected = False
     if statement:
-        builder.steps.insert(
-            0,
-            {"step_id": 0, "source": "user", "message": _redact_benchmarks(statement)},
-        )
+        ask = _redact_benchmarks(statement)
+        # Prefer the trace's own first user turn when it already shows the ask;
+        # otherwise put the ask first. Never both, and never a placeholder.
+        first_user = next((s for s in builder.steps if s.get("source") == "user"), None)
+        shown = _redact_benchmarks(str(first_user.get("message") or "")) if first_user else ""
+        if ask not in shown:
+            builder.steps.insert(0, {"step_id": 0, "source": "user", "message": ask})
+            injected = True
     # No ask recovered: no synthetic turn. The old fallback line named the
     # benchmark and the model and was not the task, so a reader could not tell
     # what the run had been asked to do from it.
@@ -926,6 +931,7 @@ def _convert_inner(
     stats = {
         "envelope": envelope,
         "has_statement": bool(statement),
+        "statement_injected": injected,
         "n_steps": len(builder.steps),
         "n_tool_calls": builder.n_tool_calls,
         "has_tool_calls": builder.n_tool_calls > 0,
@@ -1690,7 +1696,7 @@ def convert_row(row: Mapping[str, Any]) -> tuple[dict, dict, list[str]]:
         steps = doc["steps"]
         # With an ask, step 0 is the injected context turn and the builder's
         # regions start at step 1; without one, regions start at step 0.
-        start = 1 if stats.get("has_statement") else 0
+        start = 1 if stats.get("statement_injected") else 0
         if start:
             steps[0].setdefault(
                 "extra",

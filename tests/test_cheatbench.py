@@ -1113,6 +1113,23 @@ def test_convert_reads_a_user_event_ask_when_no_file_carries_one():
     assert "Count the rows in data.csv" in doc["steps"][0]["message"]
 
 
+def test_convert_does_not_duplicate_an_ask_the_trace_already_shows():
+    """A user turn that already carries the ask stays the first user step, once."""
+    ask = "Count the rows in data.csv and report the total in /app/out.txt."
+    raw = {
+        "task_name": "csv-task",
+        "events": [
+            {"step": 0, "src": "user", "msg": ask},
+            {"step": 1, "src": "agent", "msg": "Reading data.csv."},
+        ],
+    }
+    doc, stats = convert("cb-stmt-6", raw, _meta())
+    assert stats["has_statement"] is True
+    assert stats["statement_injected"] is False
+    user_steps = [s for s in doc["steps"] if s["source"] == "user"]
+    assert [s["message"] for s in user_steps] == [ask]
+
+
 @pytest.mark.parametrize(
     "name",
     [

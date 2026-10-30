@@ -102,6 +102,7 @@ from __future__ import annotations
 
 import ast
 import json
+import math
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -118,11 +119,26 @@ def _read_json(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def normalize_reward(value: Any) -> tuple[float | None, bool]:
+    """Normalize a raw verifier value without conflating it with agent exit."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None, False
+    try:
+        reward = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None, False
+    if not math.isfinite(reward):
+        return None, False
+    return reward, reward != -1
+
+
 def read_reward(trial_dir: Path) -> tuple[float | None, bool, str]:
     """Return (reward, scored, source). Missing or -1 -> not scored."""
     result = _read_json(trial_dir / "result.json")
-    verifier = result.get("verifier_result") or {}
-    rewards = verifier.get("rewards") or {}
+    verifier = result.get("verifier_result")
+    verifier = verifier if isinstance(verifier, dict) else {}
+    rewards = verifier.get("rewards")
+    rewards = rewards if isinstance(rewards, dict) else {}
     reward = rewards.get("reward", "MISSING")
     source = "verifier_result"
     if reward == "MISSING":
@@ -132,13 +148,8 @@ def read_reward(trial_dir: Path) -> tuple[float | None, bool, str]:
             source = "reward.txt"
         except (OSError, ValueError):
             return None, False, "missing"
-    try:
-        reward = float(reward)
-    except (TypeError, ValueError):
-        return None, False, source
-    if reward == -1:
-        return reward, False, source
-    return reward, True, source
+    value, scored = normalize_reward(reward)
+    return value, scored, source
 
 
 def _find_trials(root: Path, depth: int = 3) -> list[Path]:

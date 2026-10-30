@@ -298,14 +298,6 @@ def _stop_and_limit(
     return reason, limit
 
 
-def _reward(result: dict[str, Any]) -> tuple[float | None, bool]:
-    """``(reward, scored)`` from the verifier rewards mapping."""
-    verifier = result.get("verifier_result")
-    rewards = verifier.get("rewards") if isinstance(verifier, dict) else None
-    value = rewards.get("reward") if isinstance(rewards, dict) else None
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None, False
-    return float(value), True
 
 
 def _diff_stats(
@@ -352,7 +344,7 @@ def trial_features(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
     import json as _json
 
     from evallab.copy_check import copy_check
-    from evallab.counts import classify_counts
+    from evallab.counts import classify_counts, declared_red_team
     from evallab.live_watch import (
         TRIAL_RESULT,
         WatchThresholds,
@@ -360,6 +352,7 @@ def trial_features(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
         _read_steps,
         trial_signals,
     )
+    from evallab.probe03 import read_reward
     from evallab.token_flow import analyze_token_flow
 
     job_dir, trial_dir = Path(job_dir), Path(trial_dir)
@@ -392,12 +385,15 @@ def trial_features(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
     confirmed = signals.get("upstream_confirmed") or []
     fetch_steps = [a.get("step") for a in attempts if isinstance(a.get("step"), int)]
 
-    reward, scored = _reward(result)
+    reward, scored, _source = read_reward(trial_dir)
     try:
         copy_flag = copy_check(trial_dir)
     except Exception:  # noqa: BLE001 -- same guard
         copy_flag = None
     taint = [copy_flag] if isinstance(copy_flag, dict) else []
+    red_team = declared_red_team(trial_dir, result)
+    if red_team is not None:
+        taint.append(red_team)
     verdict = classify_counts(reward=reward, scored=scored, taint=taint)["verdict"]
 
     stop_reason, limit_hit = _stop_and_limit(result, job_dir, agent_steps)

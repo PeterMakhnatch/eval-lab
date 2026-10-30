@@ -67,6 +67,7 @@ REWARD_DETAILS_SCHEMA = "harbor_view/reward_details/v1"
 RULE_COPY_CHECK = "evallab.copy_check"
 RULE_UPSTREAM_FETCH = "evallab.upstream_fetch"
 RULE_GRADER_TAMPER = "evallab.grader_tamper"
+RULE_RED_TEAM = "evallab.declared_red_team"
 
 #: Minimum harbor version whose viewer knows chart-trials (Outcomes/Pareto).
 VIEWER_MIN_VERSION = (0, 24)
@@ -81,6 +82,7 @@ def rule_versions() -> dict[str, str]:
         RULE_COPY_CHECK: copy_rule,
         RULE_UPSTREAM_FETCH: "confirmed_fetch",
         RULE_GRADER_TAMPER: "v1",
+        RULE_RED_TEAM: "v1",
     }
 
 
@@ -332,6 +334,13 @@ def trial_integrity(
         hits, compute_problems = compute_hits(trial_dir, job_dir)
         problems.extend(compute_problems)
         provenance = f"computed ({note})"
+    from evallab.counts import declared_red_team
+
+    red_team = declared_red_team(trial_dir, _read_json(trial_dir / "result.json") or {})
+    if red_team is not None:
+        hits.append({"id": RULE_RED_TEAM, "source": "computed", "evidence": red_team})
+        if provenance == "stored":
+            provenance = "stored+computed"
     fired = sorted({hit["id"] for hit in hits})
     return {
         "integrity": 0 if fired else 1,

@@ -39,7 +39,7 @@ uv run evallab features runs/ovn-g5-000169-tuned --out state/g5
 | `max_identical_run` | `live_watch` | longest trailing-identical-command run |
 | `n_fetch_attempts`, `first_fetch_step` | `upstream_fetch` via `live_watch` | every classified attempt counts, failed or not; first step id |
 | `n_fetch_confirmed` | same | attempts with confirmed acquisition evidence |
-| `copy_verdict` | `counts.classify_counts` | `counted_pass/counted_fail/excluded`; taint is the `copy_check` flag only |
+| `copy_verdict` | `counts.classify_counts` | `counted_pass/counted_fail/excluded`; includes copy findings and declared red-team controls |
 | `stop_reason` | `step_layers.classify_stop_reason` | `trial_budget_exhausted/agent_timeout/error/task_complete/…`; final-claim flag comes from the last agent step (prose-completion mapping needs step layers, so those stay `unknown`) |
 | `limit_hit` | `probe03.ceiling_which` | binding ceiling for budget stops (`input_tokens/…`), else `agent_timeout`/`loop_break`/null |
 | `reward` | `verifier_result.rewards.reward` | null when unscored |
@@ -49,9 +49,8 @@ uv run evallab features runs/ovn-g5-000169-tuned --out state/g5
 
 - Read-only: never touches `runner.py`, the proxy, or trial files.
 - One bad trial degrades to a null row, never kills the table.
-- `copy_verdict` sees copy taint only, not fetch taint: a passed trial
-  with a confirmed upstream fetch but no `copied_code` flag still reads
-  `counted_pass`. Fetch evidence is in `n_fetch_confirmed` instead.
+- `copy_verdict` includes declared red-team controls but does not incorporate
+  fetch taint or task usability. Fetch evidence is in `n_fetch_confirmed`.
 - Test/error columns cover **agent-side** runs only; the harness verifier
   (`verifier/test-stdout.txt`, `ctrf.json`) is out of scope.
 - `arm` is a naming-convention parse, not ground truth.

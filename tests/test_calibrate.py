@@ -142,7 +142,7 @@ def test_selection_lift_underpowered_cohort_renders_not_distinguishable() -> Non
 
 
 def test_agreement_excludes_never_measured_trials() -> None:
-    """Never-measured trials (non-null exception_class) are excluded from agreement."""
+    """A recorded score is measured even when the agent exited with an exception."""
     trials: list[tuple[str, float | None, str | None, str]] = [
         # 4 measured passes
         ("t1", 1.0, None, "task-a"),
@@ -152,7 +152,7 @@ def test_agreement_excludes_never_measured_trials() -> None:
         # 2 measured failures
         ("t5", 0.0, None, "task-b"),
         ("t6", 0.0, None, "task-b"),
-        # 3 never-measured exceptions
+        # One unmeasured exception, two scored exceptions
         ("t7", None, "ValueError", "task-c"),
         ("t8", 0.0, "NonZeroAgentExitCodeError", "task-c"),
         ("t9", 1.0, "DockerTimeoutError", "task-c"),
@@ -162,21 +162,20 @@ def test_agreement_excludes_never_measured_trials() -> None:
     verifier = AlwaysPassStubVerifier()
     report = evaluate_verifier_agreement(trials, verifier)
 
-    # Total 9 trials: 6 measured (4 pass, 2 fail), 3 never-measured
+    # Total 9 trials: 8 measured (5 pass, 3 fail), 1 never-measured.
     assert report.metrics.class_balance.total == 9
-    assert report.metrics.class_balance.never_measured == 3
-    assert report.metrics.class_balance.passed == 4
-    assert report.metrics.class_balance.failed == 2
+    assert report.metrics.class_balance.never_measured == 1
+    assert report.metrics.class_balance.passed == 5
+    assert report.metrics.class_balance.failed == 3
 
-    # Confusion matrix over the 6 measured trials only
-    assert report.metrics.confusion.tp == 4
-    assert report.metrics.confusion.fp == 2
+    # Confusion matrix over the 8 measured trials only.
+    assert report.metrics.confusion.tp == 5
+    assert report.metrics.confusion.fp == 3
     assert report.metrics.confusion.tn == 0
     assert report.metrics.confusion.fn == 0
 
-    assert len(report.never_measured_trials) == 3
-    exc_classes = {item["exception_class"] for item in report.never_measured_trials}
-    assert exc_classes == {"ValueError", "NonZeroAgentExitCodeError", "DockerTimeoutError"}
+    assert len(report.never_measured_trials) == 1
+    assert report.never_measured_trials[0]["exception_class"] == "ValueError"
 
 
 def test_degenerate_always_pass_verifier_exposed_by_kappa_and_balanced_accuracy() -> None:

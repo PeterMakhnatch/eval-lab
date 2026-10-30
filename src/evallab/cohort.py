@@ -17,7 +17,6 @@ import psycopg
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
-from evallab.database import AGENT_STOP_EXCEPTIONS
 from evallab.evidence.facts import TrialFact, digest_json, extract_trial_fact
 from evallab.results import JobRecord, TrialRecord, load_job, load_jobs
 from evallab.schemas import CohortComparisonSpec, CohortSelector
@@ -1522,16 +1521,6 @@ def clustered_power_requirements(
     return rows
 
 
-def _finite_reward(value: Any) -> float | None:
-    """Usable verifier grade, or ``None`` when missing, non-numeric, or non-finite."""
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return None
-    try:
-        reward = float(value)
-    except OverflowError:
-        return None
-    return reward if math.isfinite(reward) else None
-
 
 def _effective_reward(
     reward: Any,
@@ -1541,16 +1530,15 @@ def _effective_reward(
 ) -> float | None:
     """Scored reward shared by cohort members and serialized curve members.
 
-    A finite verifier grade on an ordinary trial or a recognized agent stop
-    (``database.AGENT_STOP_EXCEPTIONS``) is an agent outcome under both budget
-    policies. The flag only imputes ``0.0`` for an ungraded timeout/budget stop;
-    unrelated errors stay excluded even when graded.
+    A usable verifier grade is retained independently of the agent exit.
+    The explicit budget policy may impute ``0.0`` for an ungraded timeout;
+    that is an analysis policy, not a recorded raw verifier score.
     """
-    finite = _finite_reward(reward)
-    if finite is not None:
-        if exception_class is None or exception_class in AGENT_STOP_EXCEPTIONS:
-            return finite
-        return None
+    from evallab.probe03 import normalize_reward
+
+    finite, scored = normalize_reward(reward)
+    if scored:
+        return finite
     if budget_exhaustion_is_failure and exception_class in TIMEOUT_BUDGET_EXCEPTION_CLASSES:
         return 0.0
     return None

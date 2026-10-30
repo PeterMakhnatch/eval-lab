@@ -118,7 +118,7 @@ SELECT
     exception_class,
     exception_phase,
     CASE
-        WHEN exception_class IS NOT NULL OR primary_reward IS NULL THEN 'never_measured'
+        WHEN primary_reward IS NULL OR NOT isfinite(primary_reward) OR primary_reward = -1 THEN 'never_measured'
         WHEN primary_reward >= 1.0 THEN 'passed'
         WHEN primary_reward = 0.0 THEN 'scored_zero'
         ELSE 'partial'
@@ -134,7 +134,7 @@ SELECT
         ELSE NULL
     END AS seconds_per_step,
     CASE
-        WHEN exception_class IS NULL AND primary_reward IS NOT NULL AND primary_reward > 0.0
+        WHEN primary_reward IS NOT NULL AND isfinite(primary_reward) AND primary_reward > 0.0
             THEN round(coalesce(step_count, 0) / primary_reward, 2)
         ELSE NULL
     END AS steps_per_reward_point,

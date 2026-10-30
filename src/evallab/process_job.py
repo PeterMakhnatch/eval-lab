@@ -308,6 +308,11 @@ def _process_trial(
         taint = _taint_flags(analysis["agent_seq"], analysis["info"], trial_dir)
     else:
         taint = []
+    from evallab.counts import declared_red_team
+
+    red_team = declared_red_team(trial_dir, result)
+    if red_team is not None:
+        taint.append(red_team)
 
     # Stop reason and behavioral findings from the probe-03 analysis.
     if analysis is not None:

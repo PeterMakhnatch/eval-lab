@@ -230,7 +230,7 @@ def test_identical_and_missing_authoritative_coordinates_refuse_globally(
     )
 
 
-def test_rewarded_non_budget_exception_remains_censored() -> None:
+def test_rewarded_non_budget_exception_remains_measured() -> None:
     payload = _spec_payload()["comparisons"][1]["comparison_spec"]
     payload["pass_k"] = [1]
     payload["cohorts"][0]["trial_names"] = ["infra__01"]
@@ -238,12 +238,12 @@ def test_rewarded_non_budget_exception_remains_censored() -> None:
 
     report = compare(CohortComparisonSpec.model_validate(payload), repo_root=REPO_ROOT)
     candidate = report["cohorts"][1]
-    assert candidate["exception_count"] == 1
-    assert candidate["capability_denominator"] == 0
-    assert candidate["trial_pass_count"] == 0
-    assert candidate["pass_any_first_k"][0]["n_tasks"] == 0
-    assert report["paired"][0]["n_pairs"] == 0
-    assert len(report["paired"][0]["unpaired_tasks"]) == 1
+    assert candidate["exception_count"] == 0
+    assert candidate["capability_denominator"] == 1
+    assert candidate["trial_pass_count"] == 1
+    assert candidate["pass_any_first_k"][0]["n_tasks"] == 1
+    assert report["paired"][0]["n_pairs"] == 1
+    assert report["paired"][0]["unpaired_tasks"] == []
 
 
 def test_timeout_budget_is_failure_only_for_declared_budget_treatment() -> None:
@@ -267,7 +267,7 @@ def test_timeout_budget_is_failure_only_for_declared_budget_treatment() -> None:
     assert treatment["cohorts"][1]["pass_any_first_k"][0]["rate"] == 0.0
 
 
-def test_one_arm_infrastructure_failure_is_censored_and_drops_pair() -> None:
+def test_scored_exception_is_not_censored_but_unmatched_task_remains_unpaired() -> None:
     payload = _spec_payload()
     depth_3 = payload["comparisons"][1]["comparison_spec"]
     _add_trials(depth_3["cohorts"][0], "infra__01", "infra__02")
@@ -276,10 +276,9 @@ def test_one_arm_infrastructure_failure_is_censored_and_drops_pair() -> None:
     report = _build(payload)
     level = _level(report, 3)
     assert report.rankable is False
-    assert [item.trial_id for item in level.exception_trials] == ["m047-3-005"]
-    assert level.exception_trials[0].exception_class == "DockerInfrastructureError"
-    assert len(level.censored_task_blocks) == 1
-    assert level.censored_task_blocks == level.unpaired_task_blocks
+    assert level.exception_trials == []
+    assert level.censored_task_blocks == []
+    assert len(level.unpaired_task_blocks) == 1
     assert len(level.exact_pair_set) == 2
 
 
@@ -590,13 +589,10 @@ def test_curve_ungraded_loop_break_stop_is_not_a_budget_failure() -> None:
     assert _exclusions(timeout, budget_exhaustion_is_failure=True) == ([], [], [])
 
 
-def test_curve_graded_infrastructure_error_stays_censored() -> None:
+def test_curve_graded_infrastructure_error_keeps_recorded_score() -> None:
     member = [_curve_member("t1", "b1", 1.0, "DockerInfrastructureError")]
     for flag in (False, True):
-        exceptions, missing, censored = _exclusions(member, budget_exhaustion_is_failure=flag)
-        assert [item.trial_id for item in exceptions] == ["t1"]
-        assert missing == []
-        assert censored == ["b1"]
+        assert _exclusions(member, budget_exhaustion_is_failure=flag) == ([], [], [])
 
 
 @pytest.mark.parametrize("reward", [float("nan"), float("inf"), float("-inf"), "1.0", True])

@@ -1239,9 +1239,11 @@ def outcome_verdict(n_attempts: int, n_scored: int, n_pass: int) -> str:
 def task_outcomes_sql(trials: str = "trial_facts", versions: str = "task_versions") -> str:
     """Per task-version x backend x agent/model outcome rollup (Harbor digest join).
 
-    Infra = missing reward, reward -1, or any exception: counted in n_infra,
-    never in the pass rate. Wilson 95% interval is computed on scored
-    attempts only. ``backend`` is ``COALESCE(environment_type, 'unknown')``:
+    The legacy ``n_infra`` column means unscored (missing, nonfinite, or -1
+    reward), not that an agent exception necessarily caused infrastructure
+    failure. A scored exception remains in the pass-rate denominator.
+    Wilson 95% interval is computed on scored attempts only.
+    ``backend`` is ``COALESCE(environment_type, 'unknown')``:
     local and cloud trials never pool into one row. Old trial_facts
     partitions without ``environment_type`` read as ``'unknown'`` through
     ``union_by_name``.
@@ -1257,18 +1259,18 @@ def task_outcomes_sql(trials: str = "trial_facts", versions: str = "task_version
             COALESCE(t.model_name, '') AS model_name,
             COUNT(t.trial_id) AS n_attempts,
             COALESCE(SUM(CASE WHEN t.trial_id IS NOT NULL AND (
-                t.primary_reward IS NULL OR t.exception_class IS NOT NULL
-                OR t.primary_reward < 0) THEN 1 ELSE 0 END), 0) AS n_infra,
+                t.primary_reward IS NULL OR NOT isfinite(t.primary_reward)
+                OR t.primary_reward = -1) THEN 1 ELSE 0 END), 0) AS n_infra,
             COALESCE(SUM(CASE WHEN t.trial_id IS NOT NULL
-                AND t.primary_reward IS NOT NULL AND t.exception_class IS NULL
-                AND t.primary_reward >= 0 THEN 1 ELSE 0 END), 0) AS n_scored,
+                AND t.primary_reward IS NOT NULL AND isfinite(t.primary_reward)
+                AND t.primary_reward <> -1 THEN 1 ELSE 0 END), 0) AS n_scored,
             COALESCE(SUM(CASE WHEN t.trial_id IS NOT NULL
-                AND t.primary_reward IS NOT NULL AND t.exception_class IS NULL
-                AND t.primary_reward >= 0 AND t.primary_reward >= 1.0
+                AND t.primary_reward IS NOT NULL AND isfinite(t.primary_reward)
+                AND t.primary_reward <> -1 AND t.primary_reward >= 1.0
                 THEN 1 ELSE 0 END), 0) AS n_pass,
             AVG(CASE WHEN t.trial_id IS NOT NULL
-                AND t.primary_reward IS NOT NULL AND t.exception_class IS NULL
-                AND t.primary_reward >= 0 THEN t.primary_reward END) AS mean_reward
+                AND t.primary_reward IS NOT NULL AND isfinite(t.primary_reward)
+                AND t.primary_reward <> -1 THEN t.primary_reward END) AS mean_reward
         FROM {versions} AS v
         LEFT JOIN {trials} AS t ON t.task_digest = v.harbor_digest
         GROUP BY v.task_version_digest, v.harbor_digest, v.task_id, v.domain,

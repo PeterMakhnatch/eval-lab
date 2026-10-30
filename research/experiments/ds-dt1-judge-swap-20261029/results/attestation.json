@@ -1,0 +1,78 @@
+{
+ "judge": "deepseek/deepseek-flash",
+ "passes": {
+  "r1": {
+   "answers": {
+    "defect-fail": 27,
+    "exploit-pass": 12,
+    "neither": 379
+   },
+   "cache_read_tokens": 477824,
+   "cache_write_tokens": 0,
+   "error_codes": {},
+   "failed": 0,
+   "input_tokens": 977472,
+   "input_tokens_per_prompt": 2338.4,
+   "ok": 418,
+   "output_tokens": 214338,
+   "prompts": 418,
+   "usd": 0.272463,
+   "usd_per_prompt": 0.000652
+  },
+  "r2": {
+   "answers": {
+    "defect-fail": 22,
+    "exploit-pass": 9,
+    "neither": 385
+   },
+   "cache_read_tokens": 488704,
+   "cache_write_tokens": 0,
+   "error_codes": {
+    "not_one_assistant_turn": 2
+   },
+   "failed": 2,
+   "input_tokens": 977292,
+   "input_tokens_per_prompt": 2338.0,
+   "ok": 416,
+   "output_tokens": 199007,
+   "prompts": 418,
+   "usd": 0.267466,
+   "usd_per_prompt": 0.00064
+  },
+  "r3": {
+   "answers": {
+    "defect-fail": 19,
+    "exploit-pass": 13,
+    "neither": 385
+   },
+   "cache_read_tokens": 485120,
+   "cache_write_tokens": 0,
+   "error_codes": {
+    "not_one_assistant_turn": 1
+   },
+   "failed": 1,
+   "input_tokens": 974395,
+   "input_tokens_per_prompt": 2331.1,
+   "ok": 417,
+   "output_tokens": 280301,
+   "prompts": 418,
+   "usd": 0.315797,
+   "usd_per_prompt": 0.000755
+  }
+ },
+ "plan_sha256": "c35d2b6064b28405a9b7909a08f4d7afe9bc4918f19e64a68e90a124ba75cd1b",
+ "prompts_sha256": "fcc18e44b4779f55b98a064fdf3f7a91c62dd87ae9c8aa2adfac9bee504e0a1a",
+ "route": "paid BYOK via omp -p --mode json, no tools, fallback disabled by overlay",
+ "schema": "ds-dt1-attestation/v1",
+ "served_identity_enforced": "per call: the only accepted assistant record must carry provider/model = deepseek/deepseek-flash, stopReason = stop, exactly one assistant turn, no tool block, no fallback/model_changed event; otherwise the call is recorded as failed",
+ "spend_ledger": "/Users/petermakhnatch/.local/state/evallab-prod-live/run-atlas/comparisons/cm20-deepseek/spend.jsonl",
+ "totals": {
+  "cache_read_tokens": 1451648,
+  "calls_logged": 1254,
+  "input_tokens": 2929159,
+  "ok": 1251,
+  "output_tokens": 693646,
+  "usd_cache_sum": 0.855726,
+  "usd_ledger": 0.659852
+ }
+}

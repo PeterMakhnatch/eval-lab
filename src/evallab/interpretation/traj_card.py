@@ -274,7 +274,9 @@ def build_traj_card_data(
             result_data = {}
 
     # Extract outcome and classify evidence limitations vs normal execution
-    primary_reward = baseline.primary_reward
+    from evallab.probe03 import normalize_reward
+
+    primary_reward, scored = normalize_reward(baseline.primary_reward)
     exception_class = baseline.exception_class
     exception_message: str | None = None
     evidence_limitation: str | None = None
@@ -284,7 +286,18 @@ def build_traj_card_data(
     elif isinstance(result_data.get("exception"), dict):
         exception_message = result_data["exception"].get("message")
 
-    if outline.status == "accounted_unavailable":
+    if scored and primary_reward is not None:
+        final_verdict = (
+            "PASS"
+            if primary_reward >= 1.0
+            else ("FAIL" if primary_reward == 0.0 else f"PARTIAL ({primary_reward:.2f})")
+        )
+        if outline.status == "accounted_unavailable":
+            unavail_reason = outline.unavailable_reason or "missing_trajectory_file"
+            evidence_limitation = f"EVIDENCE_UNAVAILABLE: trajectory evidence is unavailable ({unavail_reason}); the verifier score remains available."
+        elif exception_class:
+            evidence_limitation = f"Agent exit recorded ({exception_class}); the verifier score remains available."
+    elif outline.status == "accounted_unavailable":
         unavail_reason = outline.unavailable_reason or "missing_trajectory_file"
         final_verdict = f"EVIDENCE_UNAVAILABLE ({unavail_reason})"
         evidence_limitation = f"Trajectory evidence is unavailable ({unavail_reason}). This represents a harness/evidence limitation, not a verified agent task execution."
@@ -295,12 +308,6 @@ def build_traj_card_data(
         else:
             final_verdict = f"EXCEPTION ({exception_class})"
             evidence_limitation = f"Harness or runtime exception occurred ({exception_class})."
-    elif primary_reward is not None:
-        final_verdict = (
-            "PASS"
-            if primary_reward >= 1.0
-            else ("FAIL" if primary_reward == 0.0 else f"PARTIAL ({primary_reward:.2f})")
-        )
     else:
         final_verdict = "UNKNOWN"
         evidence_limitation = "No verifier reward or runtime exception was emitted."

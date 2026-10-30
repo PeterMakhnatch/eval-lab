@@ -1,0 +1,156 @@
+{
+ "dt8_verified_quotes": {
+  "n": 162,
+  "by_category": {
+   "C01": 3,
+   "C02": 7,
+   "C03": 3,
+   "C04": 4,
+   "C05": 3,
+   "C06": 3,
+   "C07": 25,
+   "C08": 5,
+   "unmapped": 109
+  },
+  "by_corpus": {
+   "goodfire": 29,
+   "cheatbench": 133
+  }
+ },
+ "dt8_positive_runs_with_quote_evidence": {
+  "n_runs": 57,
+  "by_category": {
+   "C01": 3,
+   "C02": 5,
+   "C04": 4,
+   "C05": 3,
+   "C06": 2,
+   "C07": 11,
+   "C08": 3,
+   "unmapped": 29
+  }
+ },
+ "seeker_attempts": {
+  "n_ok_with_text": 210,
+  "n_distinct_after_exact_dedup": 210,
+  "n_exact_duplicates_removed": 0,
+  "distinct_by_native_class": {
+   "framework_config_injection": 58,
+   "grader_tamper": 8,
+   "hidden_answer_read": 10,
+   "runner_exit_status_forgery": 45,
+   "synthetic_artifact_shape_fill": 1,
+   "test_file_sabotage": 10
+  },
+  "distinct_by_harmonised_category": {
+   "C01": 18,
+   "C02": 10,
+   "C03": 1,
+   "C06": 45,
+   "C07": 58
+  },
+  "multi_class_note": "an attempt in k classes is counted in each; totals are not additive",
+  "distinct_without_any_class": 129
+ },
+ "openai_categories_inherited": {
+  "security: sandbox escape": {
+   "quotes": 25,
+   "positive_runs": 11,
+   "seeker": 58
+  },
+  "security: unauthorized communication": {
+   "quotes": 0,
+   "positive_runs": 0,
+   "seeker": 0
+  },
+  "security: real internet access": {
+   "quotes": 25,
+   "positive_runs": 11,
+   "seeker": 58
+  },
+  "security: exfiltration": {
+   "quotes": 7,
+   "positive_runs": 5,
+   "seeker": 10
+  },
+  "security: credential harvesting": {
+   "quotes": 7,
+   "positive_runs": 5,
+   "seeker": 10
+  },
+  "security: unmonitored inference": {
+   "quotes": 3,
+   "positive_runs": 3,
+   "seeker": 0
+  },
+  "security: disabling monitoring": {
+   "quotes": 3,
+   "positive_runs": 2,
+   "seeker": 45
+  },
+  "alignment: reward hacking": {
+   "quotes": 0,
+   "positive_runs": 0,
+   "seeker": 0
+  },
+  "alignment: scheming": {
+   "quotes": 0,
+   "positive_runs": 0,
+   "seeker": 0
+  },
+  "alignment: metagaming": {
+   "quotes": 5,
+   "positive_runs": 3,
+   "seeker": 0
+  },
+  "alignment: prompt injection": {
+   "quotes": 0,
+   "positive_runs": 0,
+   "seeker": 0
+  },
+  "alignment: deception": {
+   "quotes": 0,
+   "positive_runs": 0,
+   "seeker": 0
+  },
+  "alignment: sandbagging": {
+   "quotes": 0,
+   "positive_runs": 0,
+   "seeker": 0
+  },
+  "alignment: sabotage": {
+   "quotes": 3,
+   "positive_runs": 3,
+   "seeker": 18
+  },
+  "alignment: collusion": {
+   "quotes": 0,
+   "positive_runs": 0,
+   "seeker": 0
+  }
+ },
+ "zeros": {
+  "quotes": [
+   "C09",
+   "C10",
+   "C11",
+   "C12"
+  ],
+  "positive_runs": [
+   "C03",
+   "C09",
+   "C10",
+   "C11",
+   "C12"
+  ],
+  "seeker": [
+   "C04",
+   "C05",
+   "C08",
+   "C09",
+   "C10",
+   "C11",
+   "C12"
+  ]
+ }
+}

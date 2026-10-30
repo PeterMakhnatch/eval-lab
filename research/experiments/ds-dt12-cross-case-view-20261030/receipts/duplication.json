@@ -1,0 +1,651 @@
+{
+ "n_files": 300,
+ "n_units": 300,
+ "missing_from_units": [],
+ "units_without_prompt": [],
+ "n_no_tool_call": 0,
+ "by_corpus": {
+  "goodfire": {
+   "identical": {
+    "n_runs": 150,
+    "clusters": 150,
+    "effective_fraction": 1.0,
+    "mean_size": 1.0,
+    "max_size": 1,
+    "n_redundant_runs_removed": 0,
+    "by_label": {
+     "pos": {
+      "n_runs": 80,
+      "n_clusters": 80,
+      "effective_fraction": 1.0
+     },
+     "neg": {
+      "n_runs": 70,
+      "n_clusters": 70,
+      "effective_fraction": 1.0
+     }
+    },
+    "size_histogram": {
+     "1": 150
+    }
+   },
+   "skeleton": {
+    "n_runs": 150,
+    "clusters": 150,
+    "effective_fraction": 1.0,
+    "mean_size": 1.0,
+    "max_size": 1,
+    "n_redundant_runs_removed": 0,
+    "by_label": {
+     "pos": {
+      "n_runs": 80,
+      "n_clusters": 80,
+      "effective_fraction": 1.0
+     },
+     "neg": {
+      "n_runs": 70,
+      "n_clusters": 70,
+      "effective_fraction": 1.0
+     }
+    },
+    "size_histogram": {
+     "1": 150
+    }
+   },
+   "cosine_0.90": {
+    "n_runs": 150,
+    "clusters": 150,
+    "effective_fraction": 1.0,
+    "mean_size": 1.0,
+    "max_size": 1,
+    "n_redundant_runs_removed": 0,
+    "by_label": {
+     "pos": {
+      "n_runs": 80,
+      "n_clusters": 80,
+      "effective_fraction": 1.0
+     },
+     "neg": {
+      "n_runs": 70,
+      "n_clusters": 70,
+      "effective_fraction": 1.0
+     }
+    },
+    "size_histogram": {
+     "1": 150
+    }
+   },
+   "cosine_0.80": {
+    "n_runs": 150,
+    "clusters": 150,
+    "effective_fraction": 1.0,
+    "mean_size": 1.0,
+    "max_size": 1,
+    "n_redundant_runs_removed": 0,
+    "by_label": {
+     "pos": {
+      "n_runs": 80,
+      "n_clusters": 80,
+      "effective_fraction": 1.0
+     },
+     "neg": {
+      "n_runs": 70,
+      "n_clusters": 70,
+      "effective_fraction": 1.0
+     }
+    },
+    "size_histogram": {
+     "1": 150
+    }
+   }
+  },
+  "cheatbench": {
+   "identical": {
+    "n_runs": 150,
+    "clusters": 150,
+    "effective_fraction": 1.0,
+    "mean_size": 1.0,
+    "max_size": 1,
+    "n_redundant_runs_removed": 0,
+    "by_label": {
+     "pos": {
+      "n_runs": 75,
+      "n_clusters": 75,
+      "effective_fraction": 1.0
+     },
+     "neg": {
+      "n_runs": 75,
+      "n_clusters": 75,
+      "effective_fraction": 1.0
+     }
+    },
+    "size_histogram": {
+     "1": 150
+    }
+   },
+   "skeleton": {
+    "n_runs": 150,
+    "clusters": 140,
+    "effective_fraction": 0.9333333333333333,
+    "mean_size": 1.0714285714285714,
+    "max_size": 4,
+    "n_redundant_runs_removed": 10,
+    "by_label": {
+     "pos": {
+      "n_runs": 75,
+      "n_clusters": 65,
+      "effective_fraction": 0.8666666666666667
+     },
+     "neg": {
+      "n_runs": 75,
+      "n_clusters": 75,
+      "effective_fraction": 1.0
+     }
+    },
+    "size_histogram": {
+     "1": 133,
+     "2": 5,
+     "3": 1,
+     "4": 1
+    }
+   },
+   "cosine_0.90": {
+    "n_runs": 150,
+    "clusters": 139,
+    "effective_fraction": 0.9266666666666666,
+    "mean_size": 1.079136690647482,
+    "max_size": 4,
+    "n_redundant_runs_removed": 11,
+    "by_label": {
+     "pos": {
+      "n_runs": 75,
+      "n_clusters": 65,
+      "effective_fraction": 0.8666666666666667
+     },
+     "neg": {
+      "n_runs": 75,
+      "n_clusters": 74,
+      "effective_fraction": 0.9866666666666667
+     }
+    },
+    "size_histogram": {
+     "1": 131,
+     "2": 6,
+     "3": 1,
+     "4": 1
+    }
+   },
+   "cosine_0.80": {
+    "n_runs": 150,
+    "clusters": 137,
+    "effective_fraction": 0.9133333333333333,
+    "mean_size": 1.094890510948905,
+    "max_size": 4,
+    "n_redundant_runs_removed": 13,
+    "by_label": {
+     "pos": {
+      "n_runs": 75,
+      "n_clusters": 64,
+      "effective_fraction": 0.8533333333333334
+     },
+     "neg": {
+      "n_runs": 75,
+      "n_clusters": 73,
+      "effective_fraction": 0.9733333333333334
+     }
+    },
+    "size_histogram": {
+     "1": 128,
+     "2": 6,
+     "3": 2,
+     "4": 1
+    }
+   }
+  }
+ },
+ "cluster_level_dt8": {
+  "goodfire": {
+   "run_level": {
+    "pos_alert": 15,
+    "n_pos": 80,
+    "neg_alert": 0,
+    "n_neg": 70
+   },
+   "identical": {
+    "representative": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "any_member": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "run_level": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "n_clusters": 150,
+    "n_clusters_with_pos": 80
+   },
+   "skeleton": {
+    "representative": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "any_member": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "run_level": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "n_clusters": 150,
+    "n_clusters_with_pos": 80
+   },
+   "cosine_0.90": {
+    "representative": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "any_member": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "run_level": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "n_clusters": 150,
+    "n_clusters_with_pos": 80
+   },
+   "cosine_0.80": {
+    "representative": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "any_member": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "run_level": {
+     "pos_alert": 15,
+     "n_pos": 80,
+     "neg_alert": 0,
+     "n_neg": 70
+    },
+    "n_clusters": 150,
+    "n_clusters_with_pos": 80
+   }
+  },
+  "cheatbench": {
+   "run_level": {
+    "pos_alert": 42,
+    "n_pos": 74,
+    "neg_alert": 12,
+    "n_neg": 75
+   },
+   "identical": {
+    "representative": {
+     "pos_alert": 42,
+     "n_pos": 74,
+     "neg_alert": 12,
+     "n_neg": 75
+    },
+    "any_member": {
+     "pos_alert": 42,
+     "n_pos": 74,
+     "neg_alert": 12,
+     "n_neg": 75
+    },
+    "run_level": {
+     "pos_alert": 42,
+     "n_pos": 74,
+     "neg_alert": 12,
+     "n_neg": 75
+    },
+    "n_clusters": 149,
+    "n_clusters_with_pos": 74
+   },
+   "skeleton": {
+    "representative": {
+     "pos_alert": 41,
+     "n_pos": 64,
+     "neg_alert": 12,
+     "n_neg": 75
+    },
+    "any_member": {
+     "pos_alert": 41,
+     "n_pos": 64,
+     "neg_alert": 12,
+     "n_neg": 75
+    },
+    "run_level": {
+     "pos_alert": 42,
+     "n_pos": 74,
+     "neg_alert": 12,
+     "n_neg": 75
+    },
+    "n_clusters": 139,
+    "n_clusters_with_pos": 64
+   },
+   "cosine_0.90": {
+    "representative": {
+     "pos_alert": 41,
+     "n_pos": 64,
+     "neg_alert": 12,
+     "n_neg": 74
+    },
+    "any_member": {
+     "pos_alert": 41,
+     "n_pos": 64,
+     "neg_alert": 12,
+     "n_neg": 74
+    },
+    "run_level": {
+     "pos_alert": 42,
+     "n_pos": 74,
+     "neg_alert": 12,
+     "n_neg": 75
+    },
+    "n_clusters": 138,
+    "n_clusters_with_pos": 64
+   },
+   "cosine_0.80": {
+    "representative": {
+     "pos_alert": 40,
+     "n_pos": 63,
+     "neg_alert": 12,
+     "n_neg": 73
+    },
+    "any_member": {
+     "pos_alert": 40,
+     "n_pos": 63,
+     "neg_alert": 12,
+     "n_neg": 73
+    },
+    "run_level": {
+     "pos_alert": 42,
+     "n_pos": 74,
+     "neg_alert": 12,
+     "n_neg": 75
+    },
+    "n_clusters": 136,
+    "n_clusters_with_pos": 63
+   }
+  }
+ },
+ "tier_semantics": {
+  "identical": "same fingerprint: the whole normalised command of every call, in order",
+  "cosine_0.90": "connected components of pairwise TF-IDF cosine >= 0.90 over all command tokens",
+  "cosine_0.80": "same at 0.80",
+  "skeleton": "DEVIATION from prereg's 2-token command heads, kept as a structure measure: with 2-token heads every single-call CheatBench run collapses to 'bash:forge --verbose' and manufactures duplicates, because the 2-token head drops the payload. The duplication tiers therefore use the full normalised command; the 2-token-head clustering is reported as 'skeleton' only."
+ },
+ "similarity": {
+  "goodfire": {
+   "n_pairs": 11175,
+   "max": 0.409865805675074,
+   "p99": 0.216821343621433,
+   "median": 0.047063993260105554,
+   "n_pairs_ge_0.6": 0,
+   "n_pairs_ge_0.7": 0,
+   "n_pairs_ge_0.8": 0,
+   "n_pairs_ge_0.9": 0
+  },
+  "cheatbench": {
+   "n_pairs": 11175,
+   "max": 0.9914748572545133,
+   "p99": 0.46195886146185333,
+   "median": 0.0,
+   "n_pairs_ge_0.6": 39,
+   "n_pairs_ge_0.7": 22,
+   "n_pairs_ge_0.8": 17,
+   "n_pairs_ge_0.9": 15
+  }
+ },
+ "cross_corpus": {
+  "identical_fingerprints_in_both_corpora": 0,
+  "runs_in_shared_fingerprints": 0
+ },
+ "clusters": {
+  "goodfire": {
+   "identical": [],
+   "skeleton": [],
+   "cosine_0.90": [],
+   "cosine_0.80": []
+  },
+  "cheatbench": {
+   "identical": [],
+   "skeleton": [
+    {
+     "size": 4,
+     "n_pos": 4,
+     "ids": [
+      "run-2d7afe9d2899e9ea",
+      "run-4620678788d09c33",
+      "run-4d632fc56a412373",
+      "run-90e4c1158506b6ee"
+     ]
+    },
+    {
+     "size": 3,
+     "n_pos": 3,
+     "ids": [
+      "run-c0066b8b046d0582",
+      "run-d4624bda621ea0ab",
+      "run-f08e7ebae6b40f8f"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-2d718be1433f0f10",
+      "run-592ecb114f6151ff"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-3689e1ff5c916a56",
+      "run-abc5fdb854e354bd"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-3e2a6d6e2d1c6cfc",
+      "run-9acc3218b74570c2"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-51e75d4a58bcbdd3",
+      "run-eefed3e2d21afbca"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-902def6e0c1f9d0a",
+      "run-c4f9374568107a7b"
+     ]
+    }
+   ],
+   "cosine_0.90": [
+    {
+     "size": 4,
+     "n_pos": 4,
+     "ids": [
+      "run-2d7afe9d2899e9ea",
+      "run-4620678788d09c33",
+      "run-4d632fc56a412373",
+      "run-90e4c1158506b6ee"
+     ]
+    },
+    {
+     "size": 3,
+     "n_pos": 3,
+     "ids": [
+      "run-c0066b8b046d0582",
+      "run-d4624bda621ea0ab",
+      "run-f08e7ebae6b40f8f"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 0,
+     "ids": [
+      "run-07f13fb19b1a41c7",
+      "run-da1bc0c248173c5f"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-2d718be1433f0f10",
+      "run-592ecb114f6151ff"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-3689e1ff5c916a56",
+      "run-abc5fdb854e354bd"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-3e2a6d6e2d1c6cfc",
+      "run-9acc3218b74570c2"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-51e75d4a58bcbdd3",
+      "run-eefed3e2d21afbca"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-902def6e0c1f9d0a",
+      "run-c4f9374568107a7b"
+     ]
+    }
+   ],
+   "cosine_0.80": [
+    {
+     "size": 4,
+     "n_pos": 4,
+     "ids": [
+      "run-2d7afe9d2899e9ea",
+      "run-4620678788d09c33",
+      "run-4d632fc56a412373",
+      "run-90e4c1158506b6ee"
+     ]
+    },
+    {
+     "size": 3,
+     "n_pos": 0,
+     "ids": [
+      "run-07f13fb19b1a41c7",
+      "run-0b012881631a3c95",
+      "run-da1bc0c248173c5f"
+     ]
+    },
+    {
+     "size": 3,
+     "n_pos": 3,
+     "ids": [
+      "run-c0066b8b046d0582",
+      "run-d4624bda621ea0ab",
+      "run-f08e7ebae6b40f8f"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-2d718be1433f0f10",
+      "run-592ecb114f6151ff"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-3689e1ff5c916a56",
+      "run-abc5fdb854e354bd"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-3e2a6d6e2d1c6cfc",
+      "run-9acc3218b74570c2"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-51e75d4a58bcbdd3",
+      "run-eefed3e2d21afbca"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-66254033e91779f5",
+      "run-92cebb42cd0b0e74"
+     ]
+    },
+    {
+     "size": 2,
+     "n_pos": 2,
+     "ids": [
+      "run-902def6e0c1f9d0a",
+      "run-c4f9374568107a7b"
+     ]
+    }
+   ]
+  }
+ }
+}

@@ -189,36 +189,21 @@ def no_runtime_io(monkeypatch: pytest.MonkeyPatch) -> Any:
     "allow_local_docker,environment_disabled", [(False, False), (None, True), (True, True)]
 )
 def test_disabled_local_docker_is_unmeasured_without_any_local_admission(
-    task: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    backend: grader.Backend,
-    allow_local_docker: bool | None,
-    environment_disabled: bool,
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+    backend: grader.Backend, allow_local_docker: bool | None, environment_disabled: bool,
 ) -> None:
     if environment_disabled:
         monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
     else:
         monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
     for name in (
-        "docker_slot",
-        "_admit_docker",
-        "_docker_capacity",
-        "_docker_query",
-        "_docker_stats",
-        "_execute_native",
-        "_stage_inputs",
-        "_reserve_spend",
-        "_read_ledger",
+        "docker_slot", "_admit_docker", "_docker_capacity", "_docker_query",
+        "_docker_stats", "_execute_native", "_stage_inputs", "_reserve_spend", "_read_ledger",
     ):
         monkeypatch.setattr(grader, name, no_runtime_io)
     output = tmp_path / "disabled-local"
     result = grader.run_upstream_grader(
-        task,
-        blank=True,
-        backend=backend,
-        allow_local_docker=allow_local_docker,
+        task, blank=True, backend=backend, allow_local_docker=allow_local_docker,
         output_dir=output,
     )
     assert result["status"] == "refused"
@@ -241,25 +226,14 @@ def test_disabled_local_docker_is_unmeasured_without_any_local_admission(
     "allow_local_docker,environment_disabled", [(False, False), (None, True), (True, True)]
 )
 def test_disabled_local_docker_keeps_modal_policy_and_never_probes_docker(
-    task: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    backend: grader.Backend,
-    allow_local_docker: bool | None,
-    environment_disabled: bool,
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+    backend: grader.Backend, allow_local_docker: bool | None, environment_disabled: bool,
 ) -> None:
     if environment_disabled:
         monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
     else:
         monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
-    for name in (
-        "docker_slot",
-        "_admit_docker",
-        "_docker_capacity",
-        "_docker_query",
-        "_docker_stats",
-    ):
+    for name in ("docker_slot", "_admit_docker", "_docker_capacity", "_docker_query", "_docker_stats"):
         monkeypatch.setattr(grader, name, no_runtime_io)
     monkeypatch.setattr(grader, "_read_ledger", lambda *_args, **_kwargs: {"reservations": []})
     reservations: list[dict[str, Any]] = []
@@ -278,11 +252,8 @@ def test_disabled_local_docker_keeps_modal_policy_and_never_probes_docker(
     monkeypatch.setattr(grader, "_execute_native", execute)
     options = modal_options(tmp_path) | {"backend": backend}
     result = grader.run_upstream_grader(
-        task,
-        blank=True,
-        allow_local_docker=allow_local_docker,
-        output_dir=tmp_path / "disabled-cloud-route",
-        **options,
+        task, blank=True, allow_local_docker=allow_local_docker,
+        output_dir=tmp_path / "disabled-cloud-route", **options,
     )
     assert result["backend"] == "modal"
     assert result["status"] == "error"
@@ -291,9 +262,8 @@ def test_disabled_local_docker_keeps_modal_policy_and_never_probes_docker(
     assert len(calls) == len(reservations) == 1
     assert calls[0]["environment"]["import_path"].endswith(":UpstreamModalEnvironment")
     assert calls[0]["environment"]["kwargs"]["app_name"] == options["modal_app_name"]
-    assert (
-        calls[0]["environment"]["kwargs"]["labels"]["evallab.billing_tag"]
-        == (options["billing_tag"])
+    assert calls[0]["environment"]["kwargs"]["labels"]["evallab.billing_tag"] == (
+        options["billing_tag"]
     )
     assert "allow_local_docker" not in calls[0]["environment"]["kwargs"]
     reservation = reservations[0]
@@ -307,22 +277,13 @@ def test_disabled_local_docker_keeps_modal_policy_and_never_probes_docker(
 
 @pytest.mark.parametrize("backend", ["docker", "auto"])
 def test_disabled_local_docker_plan_is_pure_and_resolves_auto_without_probes(
-    task: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    backend: grader.Backend,
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, backend: grader.Backend,
 ) -> None:
     monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
     for name in (
-        "docker_slot",
-        "_admit_docker",
-        "_docker_capacity",
-        "_docker_query",
-        "_docker_stats",
-        "_execute_native",
-        "_stage_inputs",
-        "_reserve_spend",
+        "docker_slot", "_admit_docker", "_docker_capacity", "_docker_query",
+        "_docker_stats", "_execute_native", "_stage_inputs", "_reserve_spend",
     ):
         monkeypatch.setattr(grader, name, no_runtime_io)
     monkeypatch.setattr(grader, "_read_ledger", lambda *_args, **_kwargs: {"reservations": []})
@@ -347,18 +308,12 @@ def test_disabled_local_docker_plan_is_pure_and_resolves_auto_without_probes(
     assert not any(name.startswith(("harbor.", "modal.")) for name in set(sys.modules) - modules)
 
 
-@pytest.mark.parametrize(
-    "boundary", ["_docker_query", "_docker_stats", "_docker_capacity", "_admit_docker"]
-)
+@pytest.mark.parametrize("boundary", ["_docker_query", "_docker_stats", "_docker_capacity", "_admit_docker"])
 def test_direct_docker_probes_honor_environment_before_any_io(
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    boundary: str,
+    monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any, boundary: str,
 ) -> None:
     monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
-    arguments = (
-        ("info",) if boundary == "_docker_query" else ({},) if boundary == "_admit_docker" else ()
-    )
+    arguments = ("info",) if boundary == "_docker_query" else ({},) if boundary == "_admit_docker" else ()
     with pytest.raises(grader.LocalDockerDisabledError, match="Local Docker execution is disabled"):
         getattr(grader, boundary)(*arguments)
 
@@ -1616,12 +1571,8 @@ def test_module_cli_grades_real_fixture_through_the_canonical_runtime(
     [(True, True, True), (False, False, True), (False, True, False)],
 )
 def test_native_docker_constructor_refuses_before_native_initialization(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    environment_disabled: bool,
-    worker_permission: bool,
-    request_permission: bool,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+    environment_disabled: bool, worker_permission: bool, request_permission: bool,
 ) -> None:
     if environment_disabled:
         monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
@@ -1640,8 +1591,7 @@ def test_native_docker_constructor_refuses_before_native_initialization(
         runtime = grader._runtime_type("UpstreamDockerEnvironment")
         with pytest.raises(grader.LocalDockerDisabledError):
             runtime(
-                upstream_platform="linux/amd64",
-                session_id="inert",
+                upstream_platform="linux/amd64", session_id="inert",
                 trial_paths=SimpleNamespace(trial_dir=tmp_path),
                 allow_local_docker=request_permission,
             )
@@ -1654,10 +1604,8 @@ def test_native_docker_constructor_refuses_before_native_initialization(
 
 @pytest.mark.parametrize("disabled_when", ["environment", "worker", "capacity"])
 def test_native_docker_start_rechecks_policy_before_probe_or_image_build(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    disabled_when: str,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, disabled_when: str,
 ) -> None:
     monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
 
@@ -1680,17 +1628,14 @@ def test_native_docker_start_rechecks_policy_before_probe_or_image_build(
     try:
         runtime = grader._runtime_type("UpstreamDockerEnvironment")
         environment = runtime(
-            upstream_platform="linux/amd64",
-            session_id="inert",
-            trial_paths=SimpleNamespace(trial_dir=tmp_path),
-            allow_local_docker=True,
+            upstream_platform="linux/amd64", session_id="inert",
+            trial_paths=SimpleNamespace(trial_dir=tmp_path), allow_local_docker=True,
         )
         if disabled_when == "worker":
             active.allow_local_docker = False
         elif disabled_when == "environment":
             monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
         else:
-
             def capacity() -> tuple[float, int, dict[str, Any]]:
                 monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
                 return 8, 16384, {}
@@ -1708,20 +1653,15 @@ def test_native_docker_start_rechecks_policy_before_probe_or_image_build(
 @pytest.mark.parametrize(
     "command",
     [
-        ["build"],
-        ["up", "-d"],
-        ["ps", "--all"],
+        ["build"], ["up", "-d"], ["ps", "--all"],
         ["container", "run", "--rm", "inert-image"],
         ["create", "--name", "rm", "inert-image"],
-        ["network", "create", "rm"],
-        ["image", "inspect", "rm"],
+        ["network", "create", "rm"], ["image", "inspect", "rm"],
     ],
 )
 def test_native_docker_lower_level_commands_cannot_bypass_environment_switch(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    command: list[str],
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, command: list[str],
 ) -> None:
     monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
 
@@ -1733,7 +1673,9 @@ def test_native_docker_lower_level_commands_cannot_bypass_environment_switch(
         def _engine_cmd(cls, *args: str) -> list[str]:
             return no_runtime_io(*args)
 
-        async def _run_docker_compose_command(self, args: list[str], **kwargs: Any) -> Any:
+        async def _run_docker_compose_command(
+            self, args: list[str], **kwargs: Any
+        ) -> Any:
             return no_runtime_io(args, **kwargs)
 
     _module(monkeypatch, "evallab.harbor_host_isolation", HostIsolatedDockerEnvironment=Base)
@@ -1743,10 +1685,8 @@ def test_native_docker_lower_level_commands_cannot_bypass_environment_switch(
     try:
         runtime = grader._runtime_type("UpstreamDockerEnvironment")
         environment = runtime(
-            upstream_platform="linux/amd64",
-            session_id="inert",
-            trial_paths=SimpleNamespace(trial_dir=tmp_path),
-            allow_local_docker=True,
+            upstream_platform="linux/amd64", session_id="inert",
+            trial_paths=SimpleNamespace(trial_dir=tmp_path), allow_local_docker=True,
         )
         monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
         with pytest.raises(grader.LocalDockerDisabledError):
@@ -1764,19 +1704,15 @@ def test_native_docker_lower_level_commands_cannot_bypass_environment_switch(
     [(True, True, True), (False, False, True), (False, True, False)],
 )
 def test_direct_native_docker_executor_refuses_before_trial_creation(
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    environment_disabled: bool,
-    worker_permission: bool,
-    request_permission: bool,
+    monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+    environment_disabled: bool, worker_permission: bool, request_permission: bool,
 ) -> None:
     if environment_disabled:
         monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
     else:
         monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
     _module(
-        monkeypatch,
-        "harbor.models.trial.config",
+        monkeypatch, "harbor.models.trial.config",
         TrialConfig=SimpleNamespace(model_validate=no_runtime_io),
     )
     _module(monkeypatch, "harbor.trial.trial", Trial=SimpleNamespace(create=no_runtime_io))
@@ -1795,10 +1731,7 @@ def test_direct_native_docker_executor_refuses_before_trial_creation(
 
 
 def test_environment_disable_during_staging_refuses_before_native_fifo(
-    task: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
 ) -> None:
     monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
     for name in ("docker_slot", "_admit_docker", "_execute_native", "_reserve_spend"):
@@ -1810,10 +1743,7 @@ def test_environment_disable_during_staging_refuses_before_native_fifo(
 
     monkeypatch.setattr(grader, "_stage_inputs", stage)
     result = grader.run_upstream_grader(
-        task,
-        blank=True,
-        backend="docker",
-        allow_local_docker=True,
+        task, blank=True, backend="docker", allow_local_docker=True,
         output_dir=tmp_path / "late-disabled",
     )
     assert result["status"] == "refused"
@@ -1824,11 +1754,8 @@ def test_environment_disable_during_staging_refuses_before_native_fifo(
 
 @pytest.mark.parametrize("backend", ["docker", "auto"])
 def test_environment_disable_during_admission_releases_fifo_and_preserves_refusal(
-    task: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    backend: grader.Backend,
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, backend: grader.Backend,
 ) -> None:
     monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
     events: list[str] = []
@@ -1852,10 +1779,7 @@ def test_environment_disable_during_admission_releases_fifo_and_preserves_refusa
     monkeypatch.setattr(grader, "_execute_native", no_runtime_io)
     monkeypatch.setattr(grader, "_reserve_spend", no_runtime_io)
     result = grader.run_upstream_grader(
-        task,
-        blank=True,
-        backend=backend,
-        allow_local_docker=True,
+        task, blank=True, backend=backend, allow_local_docker=True,
         output_dir=tmp_path / "disabled-during-admission",
     )
     assert events == ["acquired", "released"]
@@ -1866,8 +1790,7 @@ def test_environment_disable_during_admission_releases_fifo_and_preserves_refusa
 
 
 def test_native_executor_preserves_refusal_when_native_trial_catches_policy_error(
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
+    monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
 ) -> None:
     monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
 
@@ -1885,8 +1808,7 @@ def test_native_executor_preserves_refusal_when_native_trial_catches_policy_erro
             )
 
     _module(
-        monkeypatch,
-        "harbor.models.trial.config",
+        monkeypatch, "harbor.models.trial.config",
         TrialConfig=SimpleNamespace(model_validate=lambda value: value),
     )
     _module(monkeypatch, "harbor.trial.trial", Trial=Trial)
@@ -1905,11 +1827,8 @@ def test_native_executor_preserves_refusal_when_native_trial_catches_policy_erro
 
 
 def test_cli_json_accepts_local_docker_policy_and_returns_canonical_refusal(
-    task: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    capsys: pytest.CaptureFixture[str],
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
     for name in ("docker_slot", "_admit_docker", "_execute_native", "_stage_inputs"):
@@ -1918,11 +1837,8 @@ def test_cli_json_accepts_local_docker_policy_and_returns_canonical_refusal(
     request.write_text(
         json.dumps(
             {
-                "task": str(task),
-                "blank": True,
-                "backend": "docker",
-                "allow_local_docker": False,
-                "output_dir": str(tmp_path / "disabled-cli"),
+                "task": str(task), "blank": True, "backend": "docker",
+                "allow_local_docker": False, "output_dir": str(tmp_path / "disabled-cli"),
             }
         )
     )
@@ -1954,11 +1870,8 @@ def test_cli_json_accepts_local_docker_policy_and_returns_canonical_refusal(
     ],
 )
 def test_native_docker_cleanup_commands_remain_allowed_after_environment_disable(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    boundary: str,
-    command: list[str],
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, boundary: str, command: list[str],
 ) -> None:
     monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
     calls: list[tuple[str, tuple[str, ...], dict[str, Any]]] = []
@@ -1972,7 +1885,9 @@ def test_native_docker_cleanup_commands_remain_allowed_after_environment_disable
             calls.append(("engine", args, {}))
             return ["inert-engine", *args]
 
-        async def _run_docker_compose_command(self, args: list[str], **kwargs: Any) -> Any:
+        async def _run_docker_compose_command(
+            self, args: list[str], **kwargs: Any
+        ) -> Any:
             calls.append(("compose", tuple(args), kwargs))
             return "inert-compose-result"
 
@@ -1983,10 +1898,8 @@ def test_native_docker_cleanup_commands_remain_allowed_after_environment_disable
     try:
         runtime = grader._runtime_type("UpstreamDockerEnvironment")
         environment = runtime(
-            upstream_platform="linux/amd64",
-            session_id="inert",
-            trial_paths=SimpleNamespace(trial_dir=tmp_path),
-            allow_local_docker=True,
+            upstream_platform="linux/amd64", session_id="inert",
+            trial_paths=SimpleNamespace(trial_dir=tmp_path), allow_local_docker=True,
         )
         monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
         environment._upstream_allow_local_docker = False
@@ -1994,10 +1907,9 @@ def test_native_docker_cleanup_commands_remain_allowed_after_environment_disable
             assert runtime._engine_cmd(*command) == ["inert-engine", *command]
             assert calls == [("engine", tuple(command), {})]
         else:
-            assert (
-                asyncio.run(environment._run_docker_compose_command(command, timeout_sec=3))
-                == "inert-compose-result"
-            )
+            assert asyncio.run(
+                environment._run_docker_compose_command(command, timeout_sec=3)
+            ) == "inert-compose-result"
             assert calls == [("compose", tuple(command), {"timeout_sec": 3})]
         assert active.claimed == []
     finally:
@@ -2007,10 +1919,7 @@ def test_native_docker_cleanup_commands_remain_allowed_after_environment_disable
 
 @pytest.mark.parametrize("delete", [False, True])
 def test_native_docker_stop_remains_available_after_started_environment_is_disabled(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    no_runtime_io: Any,
-    delete: bool,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any, delete: bool,
 ) -> None:
     monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
     calls: list[tuple[str, tuple[str, ...]]] = []
@@ -2040,8 +1949,7 @@ def test_native_docker_stop_remains_available_after_started_environment_is_disab
             return [
                 {
                     "HostConfig": {"NanoCpus": 2_000_000_000, "Memory": 4096 * 1024 * 1024},
-                    "Image": "inert-image-id",
-                    "Config": {"Image": self.environment_id},
+                    "Image": "inert-image-id", "Config": {"Image": self.environment_id},
                 }
             ]
 
@@ -2062,10 +1970,8 @@ def test_native_docker_stop_remains_available_after_started_environment_is_disab
     try:
         runtime = grader._runtime_type("UpstreamDockerEnvironment")
         environment = runtime(
-            upstream_platform="linux/amd64",
-            session_id="inert",
-            trial_paths=SimpleNamespace(trial_dir=tmp_path),
-            allow_local_docker=True,
+            upstream_platform="linux/amd64", session_id="inert",
+            trial_paths=SimpleNamespace(trial_dir=tmp_path), allow_local_docker=True,
         )
         asyncio.run(environment.start())
         assert calls == [("compose", ("up", "-d"))]
@@ -2141,7 +2047,6 @@ def test_harbor_runtime_problem_detects_a_namespace_only_install(
     problem = harbor_runtime_problem()
     assert problem is not None
     assert "harbor.trial.trial" in problem
-
 
 def test_pinned_harbor_path_comes_first_for_child_launches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

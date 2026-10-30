@@ -821,3 +821,45 @@ def test_materialized_trials_are_blind_and_labels_stay_in_manifest(tmp_path):
     assert by_id["cb-cheat"]["trajectory_sha256"] == hashlib.sha256(
         written.rstrip("\n").encode("utf-8")
     ).hexdigest()
+
+
+CAP_TRACE = {
+    "task_name": "cap-fixture",
+    "benchmark": "terminal-bench-2",
+    "events": [
+        {"step": 0, "src": "user", "msg": "Task: fix the parser."},
+        {
+            "step": 1,
+            "src": "agent",
+            "msg": "M" * 9000 + "MSG-TAIL",
+            "obs": "O" * 51000 + "OBS-TAIL",
+        },
+    ],
+}
+# sha256 of ``json.dumps(convert(...), sort_keys=True)`` for CAP_TRACE under the
+# pre-parameter converter (origin/main before the uncapped option existed).
+CAP_DEFAULT_DIGEST = "be205f65873708632f1159bb529a8fe81ea741a4cf1238dcd53f6a4b68e27fdb"
+
+
+def test_default_conversion_is_byte_identical_to_the_capped_importer():
+    import hashlib
+
+    doc, _ = convert("cb-cap-fixture", CAP_TRACE, _meta())
+    body = json.dumps(doc, sort_keys=True)
+    assert hashlib.sha256(body.encode("utf-8")).hexdigest() == CAP_DEFAULT_DIGEST
+    assert convert("cb-cap-fixture", CAP_TRACE, _meta(), caps=True) == (doc, _)
+    message = doc["steps"][2]["message"]
+    assert message.endswith("\n…[truncated]") and len(message) == mod.MSG_CAP + 13
+
+
+def test_uncapped_conversion_keeps_the_oversized_tails():
+    capped, _ = convert("cb-cap-fixture", CAP_TRACE, _meta())
+    full, _ = convert("cb-cap-fixture", CAP_TRACE, _meta(), caps=False)
+    step = full["steps"][2]
+    assert step["message"].endswith("MSG-TAIL") and len(step["message"]) == 9008
+    observation = step["observation"]["results"][0]["content"]
+    assert observation.endswith("OBS-TAIL") and len(observation) == 51008
+    assert "…[truncated]" not in json.dumps(full)
+    assert len(json.dumps(full)) > len(json.dumps(capped))
+    # Only the bounded text differs: same steps, same ids, no evaluator fields added.
+    assert [s["step_id"] for s in full["steps"]] == [s["step_id"] for s in capped["steps"]]

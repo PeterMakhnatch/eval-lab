@@ -75,6 +75,11 @@ def _cap(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[:limit] + "\n…[truncated]"
 
 
+def _bounded(text: str, limit: int, caps: bool = True) -> str:
+    """``_cap`` for the default import; verbatim when the caps are switched off."""
+    return _cap(text, limit) if caps else text
+
+
 def text_of(content: Any) -> str:
     if isinstance(content, str):
         return content
@@ -133,7 +138,7 @@ def _pilot_result_text(content: Any) -> str:
     return json.dumps(content)[:4000] if content is not None else ""
 
 
-def _pilot_steps(stdout: str) -> list[tuple[str, list[dict], list[dict]]]:
+def _pilot_steps(stdout: str, *, caps: bool = True) -> list[tuple[str, list[dict], list[dict]]]:
     """Parse a Pilot JSONL session log into (message, calls, results) triples."""
     triples: list[tuple[str, list[dict], list[dict]]] = []
     pending: tuple[str, list[dict], list[dict]] | None = None
@@ -220,9 +225,10 @@ def _pilot_tool_args(name: str, raw: dict) -> dict:
 
 
 class _Steps:
-    def __init__(self, model: str = "") -> None:
+    def __init__(self, model: str = "", *, caps: bool = True) -> None:
         self.steps: list[dict[str, Any]] = []
         self.model = model
+        self.caps = caps
         self.n_tool_calls = 0
         self.n_dropped_obs = 0
         # Source spans, parallel to ``steps``: {"field": own field, "obs": [obs fields]}.
@@ -241,7 +247,7 @@ class _Steps:
         text = text.strip()
         if text:
             self.steps.append(
-                {"step_id": len(self.steps) + 1, "source": "user", "message": _cap(text, MSG_CAP)}
+                {"step_id": len(self.steps) + 1, "source": "user", "message": _bounded(text, MSG_CAP, self.caps)}
             )
             self.regions.append({"field": self._field(field), "obs": []})
 
@@ -260,7 +266,7 @@ class _Steps:
         step: dict[str, Any] = {
             "step_id": len(self.steps) + 1,
             "source": "agent",
-            "message": _cap(text, MSG_CAP) if text else "(tool calls only)",
+            "message": _bounded(text, MSG_CAP, self.caps) if text else "(tool calls only)",
         }
         if self.model:
             step["model_name"] = self.model
@@ -285,7 +291,9 @@ class _Steps:
         for idx in range(len(self.steps) - 1, -1, -1):
             if self.steps[idx].get("source") == "agent":
                 obs = self.steps[idx].setdefault("observation", {"results": []})
-                obs["results"].append({"source_call_id": call_id, "content": _cap(text, OBS_CAP)})
+                obs["results"].append(
+                    {"source_call_id": call_id, "content": _bounded(text, OBS_CAP, self.caps)}
+                )
                 self.regions[idx]["obs"].append({"field": self._field(field)})
                 return
         self.n_dropped_obs += 1
@@ -308,7 +316,7 @@ def _span(builder: _Steps, field: str) -> Iterator[None]:
 def _convert_agent_command(builder: _Steps, event: dict, index: int) -> bool:
     """An ``agent_command`` event; True when agent content was extracted."""
     stdout = event.get("stdout") or ""
-    triples = _pilot_steps(stdout)
+    triples = _pilot_steps(stdout, caps=builder.caps)
     if triples:
         with _span(builder, f"events[{index}].stdout"):
             for text, calls, results in triples:
@@ -337,8 +345,8 @@ def _convert_agent_command(builder: _Steps, event: dict, index: int) -> bool:
                 "tool_call_id": call_id,
                 "function_name": "bash",
                 "arguments": {
-                    "keystrokes": command[:MSG_CAP],
-                    "command": command[:MSG_CAP],
+                    "keystrokes": _bounded(command, MSG_CAP, builder.caps),
+                    "command": _bounded(command, MSG_CAP, builder.caps),
                 },
             }
         ]
@@ -349,7 +357,9 @@ def _convert_agent_command(builder: _Steps, event: dict, index: int) -> bool:
         builder.agent(
             f"terminal command (exit {event.get('return_code')})" if command else "(output only)",
             calls,
-            [{"source_call_id": call_id, "content": _cap(obs, OBS_CAP)}] if obs else None,
+            [{"source_call_id": call_id, "content": _bounded(obs, OBS_CAP, builder.caps)}]
+            if obs
+            else None,
         )
     return True
 
@@ -540,7 +550,7 @@ def _convert_codex(builder: _Steps, text: str) -> None:
                     builder.agent("\n".join(pending_prose))
                     pending_prose = []
                 builder.agent(
-                    cmd[:MSG_CAP],
+                    _bounded(cmd, MSG_CAP, builder.caps),
                     [
                         {
                             "tool_call_id": f"cx-{len(builder.steps)}",
@@ -600,7 +610,7 @@ def _convert_openhands_flat(builder: _Steps, text: str) -> None:
         elif role == "tool":
             builder.observe(body, call_id=name or "unknown")
         elif body:
-            builder.user(f"[{role}] {body[:MSG_CAP]}")
+            builder.user(f"[{role}] {_bounded(body, MSG_CAP, builder.caps)}")
 
 
 def _convert_mle(builder: _Steps, text: str) -> None:
@@ -631,7 +641,7 @@ def _convert_mle(builder: _Steps, text: str) -> None:
             if isinstance(path, str) and path:
                 args.setdefault("file_path", path[:2000])
             builder.agent(
-                body[:MSG_CAP],
+                _bounded(body, MSG_CAP, builder.caps),
                 [
                     {
                         "tool_call_id": f"mle-{len(builder.steps)}",
@@ -686,7 +696,9 @@ def _convert_weave(builder: _Steps, events: list[Any]) -> bool:
 # top-level conversion
 
 
-def _convert_inner(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict, list[dict]]:
+def _convert_inner(
+    trace_id: str, raw: dict, meta: dict, *, caps: bool = True,
+) -> tuple[dict, dict, list[dict]]:
     """Convert one CheatBench trace to ATIF.
 
     Returns ``(doc, stats, regions)``; raises ``ValueError(reason)`` with a
@@ -696,7 +708,7 @@ def _convert_inner(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict, li
     viewer pipeline); they never enter the detector bytes.
     """
     model = str(meta.get("model") or "")
-    builder = _Steps(model=model)
+    builder = _Steps(model=model, caps=caps)
     envelope = "unknown"
     extra: dict[str, Any] = {}
 
@@ -798,7 +810,7 @@ def _convert_inner(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict, li
     return doc, stats, builder.regions
 
 
-def convert(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict]:
+def convert(trace_id: str, raw: dict, meta: dict, *, caps: bool = True) -> tuple[dict, dict]:
     """Convert one CheatBench trace to the actor-visible ATIF document.
 
     The document is the :func:`evallab.cheatbench_fidelity.blind_atif`
@@ -809,7 +821,7 @@ def convert(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict]:
     """
     from evallab.cheatbench_fidelity import blind_atif
 
-    doc, stats, _ = _convert_inner(trace_id, raw, meta)
+    doc, stats, _ = _convert_inner(trace_id, raw, meta, caps=caps)
     return blind_atif(doc, item_id=trace_id), stats
 
 
@@ -1025,7 +1037,7 @@ def detector_row(trace_id: str, meta: dict, trajectory_sha256: str | None) -> di
     }
 
 
-def materialize(parquet_path: str | Path, cb_root: str | Path) -> dict:
+def materialize(parquet_path: str | Path, cb_root: str | Path, *, caps: bool = True) -> dict:
     """Convert every row and write trial dirs under ``<cb-root>/cb/<trace_id>/``.
 
     Returns conversion stats; per-row exclusions go to ``exclusions.jsonl``
@@ -1053,7 +1065,7 @@ def materialize(parquet_path: str | Path, cb_root: str | Path) -> dict:
             exclusions.append({"trace_id": trace_id, "reason": "trace_not_json"})
             continue
         try:
-            doc, conv = convert(trace_id, raw, meta)
+            doc, conv = convert(trace_id, raw, meta, caps=caps)
         except ValueError as exc:
             reason = str(exc) if str(exc) in EXCLUDED_REASONS else "unknown_envelope"
             stats["excluded"][reason] = stats["excluded"].get(reason, 0) + 1

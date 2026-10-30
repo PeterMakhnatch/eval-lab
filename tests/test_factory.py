@@ -162,16 +162,22 @@ def test_a_second_instance_cannot_start(tmp_path: Path, export) -> None:
         factory.Factory(tmp_path, REPO, port=None).__enter__()
 
 
-def test_watchdog_reports_ok_stale_and_down(tmp_path: Path, export) -> None:
+def test_watchdog_reports_ok_stalled_and_failed(tmp_path: Path, export) -> None:
     assert factory.watchdog(tmp_path)["status"] == "failed"
     _seed(tmp_path, export)
-    assert factory.watchdog(tmp_path)["reason"] == "no heartbeat yet"
+    starting = factory.watchdog(tmp_path, max_age=60)
+    assert (starting["status"], starting["phase"]) == ("ok", "starting")
+    never_started = factory.watchdog(tmp_path, max_age=60, now=time.time() + 3600)
+    assert never_started["status"] == "stalled"
+    assert never_started["reason"] == "no heartbeat and no recent events"
     with factory.Factory(tmp_path, REPO, port=None) as service:
         service.step()
     fresh = factory.watchdog(tmp_path, max_age=60)
-    assert fresh["status"] == "ok" and fresh["age_seconds"] < 60
+    assert (fresh["status"], fresh["phase"]) == ("ok", "running")
+    assert fresh["age_seconds"] < 60 and fresh["heartbeat_age_seconds"] < 60
     late = factory.watchdog(tmp_path, max_age=60, now=time.time() + 3600)
     assert late["status"] == "stalled" and late["age_seconds"] > 3500
+    assert late["reason"] == "no recent events"
 
 
 def test_measure_reports_runs_latency_and_failure_classes(tmp_path: Path, export) -> None:

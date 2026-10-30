@@ -61,6 +61,9 @@ PREFIX_AUDIT_JOB = "misalignment.prefix_audit_task"
 #: A seeded run's own heartbeat can be this old before the watchdog calls it stale.
 STALE_AFTER_SECONDS = 180.0
 IDLE_SLEEP_SECONDS = 15.0
+#: Events the monitor consumes per supervisor step. A seeded run's whole prefix history
+#: is one event, so this bounds a step to about this many runs.
+MONITOR_BATCH_LIMIT = 50
 CONTROL_PLANE_PORT = 8095
 
 
@@ -274,12 +277,18 @@ class Factory:
     """The supervisor loop over a local journal; ``step()`` is one prioritized pass."""
 
     def __init__(
-        self, root: Path, repo_root: Path, *, port: int | None = CONTROL_PLANE_PORT
+        self,
+        root: Path,
+        repo_root: Path,
+        *,
+        port: int | None = CONTROL_PLANE_PORT,
+        batch_limit: int = MONITOR_BATCH_LIMIT,
     ) -> None:
         self.root = root
         self.repo_root = repo_root
         self.journal = root / JOURNAL
         self._port = port
+        self._batch_limit = batch_limit
         self._stack = ExitStack()
         self.hooks = _Hooks()
         self._registered_seq = 0
@@ -334,6 +343,7 @@ class Factory:
             relay=relay,
             repo_root=self.repo_root,
             supervisor_id=SUPERVISOR_ID,
+            monitor_batch_limit=self._batch_limit,
         )
         self._stack.callback(self.supervisor.close)
         if self._port:
@@ -413,7 +423,14 @@ class Factory:
 def watchdog(
     root: Path, *, max_age: float = STALE_AFTER_SECONDS, now: float | None = None
 ) -> dict[str, Any]:
-    """Read-only liveness verdict from the journal's newest collector heartbeat."""
+    """Read-only liveness verdict: is the journal still getting events?
+
+    One supervisor step can take minutes while it scores a long run, so the verdict
+    is the age of the newest event of any kind (prefix scores keep arriving inside a
+    step), not of the newest heartbeat; the heartbeat age is reported next to it. A
+    journal that never saw a heartbeat but is receiving events is ``starting``.
+    Statuses use the live supervisor's vocabulary: ``ok``, ``stalled``, ``failed``.
+    """
     journal = root / JOURNAL
     moment = time.time() if now is None else now
     result: dict[str, Any] = {
@@ -427,25 +444,33 @@ def watchdog(
         with closing(
             sqlite3.connect(f"file:{journal}?mode=ro", uri=True, timeout=10)
         ) as connection:
-            row = connection.execute(
+            newest = connection.execute(
+                "SELECT seq, json_extract(envelope, '$.ts') FROM events ORDER BY seq DESC LIMIT 1"
+            ).fetchone()
+            heartbeat = connection.execute(
                 "SELECT seq, json_extract(envelope, '$.ts') FROM events"
                 " WHERE event_type = 'collector.heartbeat' ORDER BY seq DESC LIMIT 1"
             ).fetchone()
-            last_seq = connection.execute("SELECT MAX(seq) FROM events").fetchone()[0]
     except sqlite3.Error as exc:
         return {**result, "status": "failed", "reason": f"journal unreadable: {type(exc).__name__}"}
-    if row is None:
-        return {**result, "status": "failed", "reason": "no heartbeat yet", "last_seq": last_seq}
-    age = moment - datetime.fromisoformat(row[1]).timestamp()
-    status = "ok" if age <= max_age else "stalled"
-    return {
-        **result,
-        "status": status,
-        "heartbeat_seq": row[0],
-        "heartbeat_ts": row[1],
-        "age_seconds": round(age, 1),
-        "last_seq": last_seq,
-    }
+    if newest is None:
+        return {**result, "status": "failed", "reason": "empty journal"}
+    activity_age = moment - datetime.fromisoformat(newest[1]).timestamp()
+    result.update(
+        last_seq=newest[0],
+        last_event_ts=newest[1],
+        age_seconds=round(activity_age, 1),
+        heartbeat_seq=None if heartbeat is None else heartbeat[0],
+        heartbeat_age_seconds=None
+        if heartbeat is None
+        else round(moment - datetime.fromisoformat(heartbeat[1]).timestamp(), 1),
+    )
+    if activity_age > max_age:
+        reason = (
+            "no recent events" if heartbeat is not None else "no heartbeat and no recent events"
+        )
+        return {**result, "status": "stalled", "reason": reason}
+    return {**result, "status": "ok", "phase": "running" if heartbeat is not None else "starting"}
 
 
 # --------------------------------------------------------------------------- measurement
@@ -601,6 +626,13 @@ def _parser() -> argparse.ArgumentParser:
         "--port", type=int, default=CONTROL_PLANE_PORT, help="0 disables the control plane"
     )
     run_cmd.add_argument("--idle-sleep", type=float, default=IDLE_SLEEP_SECONDS)
+    run_cmd.add_argument(
+        "--batch-limit",
+        type=int,
+        default=MONITOR_BATCH_LIMIT,
+        help="journal events the monitor consumes per supervisor step; a step is the "
+        "heartbeat granularity",
+    )
     run_cmd.add_argument("--max-steps", type=int, help="stop after N steps (smoke runs)")
     watch_cmd = commands.add_parser(
         "watchdog", help="exit 0 when the heartbeat is fresh, 2 otherwise"
@@ -648,7 +680,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     stop = threading.Event()
     for number in (signal.SIGINT, signal.SIGTERM):
         signal.signal(number, lambda *_: stop.set())
-    with Factory(root, repo_root, port=args.port or None) as factory:
+    with Factory(root, repo_root, port=args.port or None, batch_limit=args.batch_limit) as factory:
         steps = 0
         while not stop.is_set():
             line = factory.step()

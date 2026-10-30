@@ -1,0 +1,20 @@
+{
+ "goodfire": {
+  "l0_only": 11,
+  "length_only": 15,
+  "both": 17,
+  "neither": 107,
+  "l0_only_positive": 9,
+  "length_only_positive": 13,
+  "mcnemar_exact_p": 0.557197093963623
+ },
+ "cheatbench": {
+  "l0_only": 39,
+  "length_only": 3,
+  "both": 0,
+  "neither": 107,
+  "l0_only_positive": 36,
+  "length_only_positive": 0,
+  "mcnemar_exact_p": 5.631591193377972e-09
+ }
+}

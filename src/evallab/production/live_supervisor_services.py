@@ -48,6 +48,7 @@ KNOWN_STATUS_FILES: Mapping[str, tuple[str, ...]] = {
     "docent-watch": ("trace-tools/docent-watch-last.json",),
     "trace-store-sync": ("trace-store/watch-state.json",),
     "trace-store-docent-sync": ("trace-store/watch-state.json",),
+    "prod-factory-watchdog": ("factory/factory-watchdog.json",),
 }
 
 # ---- launchd thresholds. Origin: Run Health latency conventions (docs/live-supervisor.md): a

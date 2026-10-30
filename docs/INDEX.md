@@ -106,6 +106,8 @@ inputs:
     digest: sha256:7c27c537357d73b57165134756ba6aed29c51bf451ad7329c88bcf97960011f5
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
+  - path: docs/production-factory.md
+    digest: sha256:0bed5a3b44dd348532240b8e18030afb8294a606c4b0a34e927835cf9b63bd5b
   - path: docs/qa-contract.md
     digest: sha256:7109b75163134eaca1db56c99cfafb07f6714777b27ef2b2d46d5c31f1d5d9d2
   - path: docs/qa-task.md
@@ -217,6 +219,7 @@ an operator can see what is archived.
 | `docs/live-supervisor.md` | Live Supervisor | `living` | `operator, builder` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
+| `docs/production-factory.md` | Production factory (local, DEV only) | `living` | `operator, builder` |
 | `docs/qa-contract.md` | QA contract (`evallab.qa`) | `living` | `builder, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
@@ -402,6 +405,7 @@ an operator can see what is archived.
 | `docs/operating-manual.md` | Peter's operating manual — running a lab built by agents | `living` | `operator` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
+| `docs/production-factory.md` | Production factory (local, DEV only) | `living` | `operator, builder` |
 | `docs/qa-contract.md` | QA contract (`evallab.qa`) | `living` | `builder, operator` |
 | `docs/qa-task.md` | QA Agent - Task: executed task/grader auditor | `living` | `analyst, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |

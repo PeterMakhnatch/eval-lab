@@ -79,7 +79,8 @@ def paired(ids: list[str], arm_a: dict, arm_b: dict, name: str, labels: dict) ->
     a_only_neg = sum(1 for _, a, b in negatives if a and not b)
     b_only_neg = sum(1 for _, a, b in negatives if b and not a)
     return {
-        "valid_pairs": len(rows), "valid_positives": len(positives),
+        "valid_pairs": len(rows),
+        "valid_positives": len(positives),
         "valid_negatives": len(negatives),
         "positives_capped_hit_uncapped_miss": a_only,
         "positives_uncapped_hit_capped_miss": b_only,
@@ -109,8 +110,10 @@ def cost(arm: dict, ids: list[str]) -> dict:
     chunks = sum(int(row.get("chunks") or 0) for row in rows)
     ok = [r for r in rows if r.get("status") == "ok"]
     return {
-        "runs": len(rows), "ok": len(ok),
-        "input_tokens": tokens_in, "output_tokens": tokens_out,
+        "runs": len(rows),
+        "ok": len(ok),
+        "input_tokens": tokens_in,
+        "output_tokens": tokens_out,
         "input_tokens_per_ok_run": (tokens_in / len(ok) if ok else None),
         "output_tokens_per_ok_run": (tokens_out / len(ok) if ok else None),
         "map_calls": chunks,
@@ -134,7 +137,8 @@ def main() -> int:
     labels = load_labels(database=DEFAULT_DATABASE, repo_root=args.repo, run_ids=ids)
     missing = [run_id for run_id in ids if run_id not in labels]
     both = [
-        run_id for run_id in ids
+        run_id
+        for run_id in ids
         if capped.get(run_id, {}).get("status") == "ok"
         and uncapped.get(run_id, {}).get("status") == "ok"
     ]

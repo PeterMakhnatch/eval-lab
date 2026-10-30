@@ -28,8 +28,8 @@ import os
 import subprocess
 import threading
 import time
-from pathlib import Path
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 import pyarrow.parquet as pq
@@ -52,7 +52,9 @@ DATASET = "cheatbench-actions-v1"
 ROUTE = "deepseek/deepseek-flash"
 MARK = "\u2026[truncated]"
 PARQUET = Path("/tmp/dt3/cb/full.parquet")
-CONFIG = Path("/Users/petermakhnatch/Developer/research-context/bridge/2026-10-29-ds-squad/worker.yml")
+CONFIG = Path(
+    "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-29-ds-squad/worker.yml"
+)
 SESSIONS = Path("/tmp/dt3/sessions")
 MAX_TOKENS_ESTIMATE = 700_000
 CHARS_PER_TOKEN = 3.6
@@ -153,7 +155,8 @@ def _stream_receipt(stdout: str) -> dict[str, Any]:
     content = reply.get("content")
     if isinstance(content, list):
         text = "".join(
-            part.get("text", "") for part in content
+            part.get("text", "")
+            for part in content
             if isinstance(part, dict) and part.get("type") == "text"
         )
     else:
@@ -183,8 +186,13 @@ def prompt_of(messages: Sequence[Mapping[str, str]]) -> tuple[str, str]:
 class OmpTransport:
     """One headless ``omp -p`` call per request, attested from the JSON stream."""
 
-    def __init__(self, *, config: Path = CONFIG, session_dir: Path = SESSIONS,
-                 timeout_seconds: float = 1200.0) -> None:
+    def __init__(
+        self,
+        *,
+        config: Path = CONFIG,
+        session_dir: Path = SESSIONS,
+        timeout_seconds: float = 1200.0,
+    ) -> None:
         self.config = config
         self.session_dir = session_dir
         self.timeout_seconds = timeout_seconds
@@ -193,7 +201,11 @@ class OmpTransport:
         self._lock = threading.Lock()
 
     def complete(
-        self, model: str, messages: Sequence[Mapping[str, str]], *, max_tokens: int,
+        self,
+        model: str,
+        messages: Sequence[Mapping[str, str]],
+        *,
+        max_tokens: int,
     ) -> Completion:
         system, prompt = prompt_of(messages)
         argv = [
@@ -206,28 +218,42 @@ class OmpTransport:
         started = time.monotonic()
         try:
             process = subprocess.run(
-                argv, input=prompt, capture_output=True, text=True,
-                timeout=self.timeout_seconds, cwd="/tmp/dt3",
+                argv,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout_seconds,
+                cwd="/tmp/dt3",
             )
         except subprocess.TimeoutExpired as exc:
-            raise TransportError(f"omp timeout after {self.timeout_seconds}s", retryable=True) from exc
+            raise TransportError(
+                f"omp timeout after {self.timeout_seconds}s", retryable=True
+            ) from exc
         elapsed = round(time.monotonic() - started, 3)
         receipt = _stream_receipt(process.stdout or "")
         with self._lock:
-            self.receipts.append({
-                "requested_model": model, "served": receipt["served"],
-                "prompt_chars": len(prompt) + len(system), "usage": receipt["usage"],
-                "stop_reason": receipt["stop_reason"], "error": receipt["error"],
-                "returncode": process.returncode, "elapsed_seconds": elapsed,
-                "max_tokens": max_tokens,
-            })
+            self.receipts.append(
+                {
+                    "requested_model": model,
+                    "served": receipt["served"],
+                    "prompt_chars": len(prompt) + len(system),
+                    "usage": receipt["usage"],
+                    "stop_reason": receipt["stop_reason"],
+                    "error": receipt["error"],
+                    "returncode": process.returncode,
+                    "elapsed_seconds": elapsed,
+                    "max_tokens": max_tokens,
+                }
+            )
         if process.returncode != 0:
             raise TransportError(
                 f"omp exited {process.returncode}: {(process.stderr or '').strip()[-300:]}",
                 retryable=True,
             )
         if receipt["served"] != model:
-            raise TransportError(f"served {receipt['served']!r}, requested {model!r}", retryable=True)
+            raise TransportError(
+                f"served {receipt['served']!r}, requested {model!r}", retryable=True
+            )
         if not receipt["text"].strip():
             raise TransportError(f"no assistant text ({receipt['stop_reason']})", retryable=True)
         usage = receipt["usage"]
@@ -235,7 +261,8 @@ class OmpTransport:
         cached = int(usage.get("cacheRead") or 0)
         written = int(usage.get("cacheWrite") or 0)
         return Completion(
-            text=receipt["text"], served_model=receipt["served"],
+            text=receipt["text"],
+            served_model=receipt["served"],
             input_tokens=fresh + cached + written,
             output_tokens=int(usage.get("output") or 0),
             latency_seconds=elapsed,
@@ -245,8 +272,9 @@ class OmpTransport:
 # ---------------------------------------------------------------------------- read
 
 
-def read_arm(arm: str, rows: list[dict[str, Any]], *, workers: int, out: Path,
-             max_usd: float) -> dict[str, Any]:
+def read_arm(
+    arm: str, rows: list[dict[str, Any]], *, workers: int, out: Path, max_usd: float
+) -> dict[str, Any]:
     extractor = FacetExtractor(OmpTransport())
     spent = {"usd": 0.0, "in": 0, "out": 0}
     lock = threading.Lock()
@@ -257,7 +285,9 @@ def read_arm(arm: str, rows: list[dict[str, Any]], *, workers: int, out: Path,
         if stop.is_set():
             return {"run_id": row["item_id"], "arm": arm, "status": "budget_stop"}
         doc = row["doc"] if arm == "capped" else row["uncapped_doc"]
-        run = AtlasRun(run_id=row["item_id"], source=DATASET, split="DEV", outcome="unknown", doc=doc)
+        run = AtlasRun(
+            run_id=row["item_id"], source=DATASET, split="DEV", outcome="unknown", doc=doc
+        )
         outcome = extractor.extract(run, ROUTE)
         tokens_in = sum(call.get("input_tokens", 0) for call in outcome.calls)
         tokens_out = sum(call.get("output_tokens", 0) for call in outcome.calls)
@@ -268,11 +298,16 @@ def read_arm(arm: str, rows: list[dict[str, Any]], *, workers: int, out: Path,
             spent["out"] += tokens_out
             total = spent["usd"]
         record = {
-            "run_id": row["item_id"], "arm": arm,
+            "run_id": row["item_id"],
+            "arm": arm,
             "status": "ok" if outcome.record else "failed",
-            "error": outcome.error, "record": outcome.record,
-            "input_tokens": tokens_in, "output_tokens": tokens_out,
-            "chunks": sum(1 for call in outcome.calls if str(call.get("purpose", "")).startswith("map")),
+            "error": outcome.error,
+            "record": outcome.record,
+            "input_tokens": tokens_in,
+            "output_tokens": tokens_out,
+            "chunks": sum(
+                1 for call in outcome.calls if str(call.get("purpose", "")).startswith("map")
+            ),
             "calls": [c for c in outcome.calls if c.get("status") == "ok"],
         }
         with lock:
@@ -293,10 +328,14 @@ def read_arm(arm: str, rows: list[dict[str, Any]], *, workers: int, out: Path,
             print(json.dumps(results[-1]), flush=True)
     ok = sum(1 for r in results if r["status"] == "ok")
     return {
-        "arm": arm, "attempted": len(results), "ok": ok,
+        "arm": arm,
+        "attempted": len(results),
+        "ok": ok,
         "failed": sum(1 for r in results if r["status"] == "failed"),
         "budget_stop": sum(1 for r in results if r["status"] == "budget_stop"),
-        "input_tokens": spent["in"], "output_tokens": spent["out"], "usd_upper": round(spent["usd"], 4),
+        "input_tokens": spent["in"],
+        "output_tokens": spent["out"],
+        "usd_upper": round(spent["usd"], 4),
     }
 
 
@@ -354,25 +393,34 @@ def census(rows: list[dict[str, Any]], out: Path) -> dict[str, Any]:
         reproduced, _ = convert(row["trace_id"], trace, meta_of(source), caps=True)
         capped_chars, capped_chunks, _ = rendered("capped", row["doc"])
         full_chars, full_chunks, sizes = rendered("uncapped", doc)
-        entries.append({
-            "item_id": row["item_id"], "trace_id": row["trace_id"],
-            "capped_fields": row["capped_fields"],
-            "capped_doc_chars": row["capped_chars"], "uncapped_doc_chars": len(json.dumps(doc)),
-            "capped_rendered_chars": capped_chars, "uncapped_rendered_chars": full_chars,
-            "delta_chars": full_chars - capped_chars,
-            "capped_chunks": capped_chunks, "uncapped_chunks": full_chunks,
-            "uncapped_chunk_sizes": sizes,
-            "uncapped_tokens_est": round(full_chars / CHARS_PER_TOKEN),
-            "capped_reproduced": reproduced == row["doc"],
-            "skipped": full_chars / CHARS_PER_TOKEN > MAX_TOKENS_ESTIMATE,
-        })
+        entries.append(
+            {
+                "item_id": row["item_id"],
+                "trace_id": row["trace_id"],
+                "capped_fields": row["capped_fields"],
+                "capped_doc_chars": row["capped_chars"],
+                "uncapped_doc_chars": len(json.dumps(doc)),
+                "capped_rendered_chars": capped_chars,
+                "uncapped_rendered_chars": full_chars,
+                "delta_chars": full_chars - capped_chars,
+                "capped_chunks": capped_chunks,
+                "uncapped_chunks": full_chunks,
+                "uncapped_chunk_sizes": sizes,
+                "uncapped_tokens_est": round(full_chars / CHARS_PER_TOKEN),
+                "capped_reproduced": reproduced == row["doc"],
+                "skipped": full_chars / CHARS_PER_TOKEN > MAX_TOKENS_ESTIMATE,
+            }
+        )
     keep = [entry for entry in entries if not entry["skipped"]]
     summary = {
-        "cohort": len(entries), "skipped": len(entries) - len(keep),
+        "cohort": len(entries),
+        "skipped": len(entries) - len(keep),
         "capped_chars": sum(e["capped_rendered_chars"] for e in keep),
         "uncapped_chars": sum(e["uncapped_rendered_chars"] for e in keep),
         "capped_tokens_est": round(sum(e["capped_rendered_chars"] for e in keep) / CHARS_PER_TOKEN),
-        "uncapped_tokens_est": round(sum(e["uncapped_rendered_chars"] for e in keep) / CHARS_PER_TOKEN),
+        "uncapped_tokens_est": round(
+            sum(e["uncapped_rendered_chars"] for e in keep) / CHARS_PER_TOKEN
+        ),
         "max_uncapped_tokens_est": max(e["uncapped_tokens_est"] for e in entries),
         "capped_reproduced": sum(1 for e in entries if e["capped_reproduced"]),
         "entries": entries,

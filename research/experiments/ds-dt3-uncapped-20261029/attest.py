@@ -92,7 +92,9 @@ def main() -> int:
         "all_sessions_are_requested_model": bool(sessions) and set(sessions) == {ROUTE},
     }
     args.out.write_text(json.dumps(document, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps({k: v for k, v in document.items() if k != "readings"}, indent=1, sort_keys=True))
+    print(
+        json.dumps({k: v for k, v in document.items() if k != "readings"}, indent=1, sort_keys=True)
+    )
     return 0
 
 

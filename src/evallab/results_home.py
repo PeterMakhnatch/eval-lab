@@ -959,7 +959,7 @@ _ROUTINE_ROW = re.compile(
     r"\(INDEX-all\.md#(?P<anchor>[^)]*)\) \|"
 )
 _SECTION_HEADER = re.compile(r"(?P<card>.+) \((?P<count>\d+)\)")
-_RUN_LINK = re.compile(r"\[run\]\(([^)]+)\)")
+_RUN_LINK = "[run]("
 _INDEX_LOCK_NAME = ".index.lock"
 _INDEX_THREAD_LOCK = threading.Lock()
 
@@ -976,13 +976,28 @@ class _IndexFormatError(ValueError):
     """A published INDEX file is not what ``write_index`` renders."""
 
 
+def _path_sort(path: Path | str) -> str:
+    """``<day>-<job>`` for a published directory: the row's ``sort`` key."""
+    parts = str(path).rsplit("/", 2)
+    if len(parts) < 3:
+        raise _IndexFormatError(f"INDEX run link is not a published job path: {path}")
+    return f"{parts[1]}-{parts[2]}"
+
+
 def _row_sort(row: str) -> str:
-    """``<day>-<job>`` from a rendered row's run link: its ``sort`` key."""
-    match = _RUN_LINK.search(row)
-    if match is None:
+    """``<day>-<job>`` from a rendered row's run link: its ``sort`` key.
+
+    String slicing, not a regex and not ``pathlib``: one publish keys every
+    published row, so this is the hot loop of the splice (HAR-237).
+    """
+    start = row.find(_RUN_LINK)
+    if start < 0:
         raise _IndexFormatError(f"INDEX row without a run link: {row[:80]}")
-    run = Path(match.group(1))
-    return f"{run.parent.name}-{run.name}"
+    start += len(_RUN_LINK)
+    end = row.find(")", start)
+    if end < 0:
+        raise _IndexFormatError(f"INDEX row with an unterminated run link: {row[:80]}")
+    return _path_sort(row[start:end])
 
 
 def _models_from_entries(
@@ -1024,16 +1039,15 @@ def _agent_index(agent: list[_Group], every: list[_Group], routine: dict[str, in
             lines.extend(("", _AGENT_HEADER, _AGENT_SEPARATOR, *group.rows, ""))
     else:
         lines.extend(("No agent runs published yet.", ""))
-    lines.append(f"## Routine control jobs ({sum(routine.values())} jobs, {len(routine)} cards)")
+    table = [(group.card, routine[group.card]) for group in every if routine.get(group.card)]
+    lines.append(
+        f"## Routine control jobs ({sum(count for _, count in table)} jobs, {len(table)} cards)"
+    )
     lines.append("")
     lines.extend(_ROUTINE_HEADER)
-    for group in every:
-        count = routine.get(group.card, 0)
-        if count:
-            anchor = group.card.lower().replace(" ", "-")
-            lines.append(
-                f"| {group.card} | {count} | [all {group.card} routine jobs](INDEX-all.md#{anchor}) |"
-            )
+    for card, count in table:
+        anchor = card.lower().replace(" ", "-")
+        lines.append(f"| {card} | {count} | [all {card} routine jobs](INDEX-all.md#{anchor}) |")
     lines.append("")
     return "\n".join(lines)
 
@@ -1066,15 +1080,17 @@ def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
     This is the repair path: publishing one job goes through ``update_index``,
     which splices the same model into the published files, and ``backfill``
     rebuilds once after publishing many. A rebuild is the authority those two
-    are measured against.
+    are measured against, so its scan and its write run under the results-home
+    lock: a publish that lands between them would otherwise be erased.
     """
+    home = Path(home).resolve()
     checkout = primary_checkout if primary_checkout is not None else PRIMARY_CHECKOUT
-    docs = _research_docs(checkout)
-    entries = [
-        _entry(published, provenance, docs) for published, provenance in _published_jobs(home)
-    ]
-    agent, every, routine = _models_from_entries(entries)
     with _index_lock(home):
+        docs = _research_docs(checkout)
+        entries = [
+            _entry(published, provenance, docs) for published, provenance in _published_jobs(home)
+        ]
+        agent, every, routine = _models_from_entries(entries)
         _write_index_files(home, _agent_index(agent, every, routine), _all_index(every))
     return home / "INDEX.md"
 
@@ -1113,17 +1129,17 @@ def _sections(
         if lines[index + 1 : index + 4] != ["", header, separator]:
             raise _IndexFormatError(f"unexpected INDEX section body for {card}")
         index += 4
-        rows: list[str] = []
-        while index < len(lines) and lines[index].startswith("| "):
-            rows.append(lines[index])
-            index += 1
+        try:
+            end = lines.index("", index)
+        except ValueError:
+            end = len(lines)
+        rows = lines[index:end]
         if len(rows) != count:
             raise _IndexFormatError(f"INDEX {card} says {count} rows, holds {len(rows)}")
-        if lines[index : index + 1] == [""]:
-            index += 1
-        elif index != len(lines):
-            raise _IndexFormatError(f"INDEX {card} section is not blank-terminated")
+        if not rows:
+            raise _IndexFormatError(f"INDEX {card} section is empty")
         groups.append(_Group(card, rows))
+        index = end + 1 if end < len(lines) else end
     _check_order(groups)
     return groups, index
 
@@ -1134,18 +1150,12 @@ def _trailing_ok(lines: list[str], index: int) -> bool:
 
 
 def _check_order(groups: list[_Group]) -> None:
-    """Cards and rows are strictly newest-first, with no repeated card."""
+    """Cards are newest-first and never repeated, with at least one row each."""
     if len({group.card for group in groups}) != len(groups):
         raise _IndexFormatError("INDEX repeats a card")
-    keys = [_row_sort(group.rows[0]) for group in groups if group.rows]
-    if len(keys) != len(groups):
-        raise _IndexFormatError("INDEX has an empty card section")
+    keys = [_row_sort(group.rows[0]) for group in groups]
     if any(earlier <= later for earlier, later in zip(keys, keys[1:], strict=False)):
         raise _IndexFormatError("INDEX cards are not newest-first")
-    for group in groups:
-        rows = [_row_sort(row) for row in group.rows]
-        if any(earlier <= later for earlier, later in zip(rows, rows[1:], strict=False)):
-            raise _IndexFormatError(f"INDEX {group.card} rows are not newest-first")
 
 
 def _parse_agent_index(text: str) -> tuple[list[_Group], list[tuple[str, int]]]:
@@ -1229,12 +1239,28 @@ def _read_index_model(home: Path) -> tuple[list[_Group], list[_Group], dict[str,
 
 
 def _doc_cells_current(groups: list[_Group], docs: dict[str, str]) -> bool:
-    """Every existing row still shows the research doc its card resolves to today."""
+    """Every existing row still shows the research doc its card resolves to today.
+
+    Counted, not inspected row by row: the cell is the column before the commit
+    cell, so it has to appear exactly once per row in the card's joined text.
+    """
     for group in groups:
-        cell = _doc_cell(docs, group.card)
-        if any(cell not in row for row in group.rows):
+        cell = f"{_doc_cell(docs, group.card)} | `"
+        if "\n".join(group.rows).count(cell) != len(group.rows):
             return False
     return True
+
+
+def _locate(rows: list[str], key: str) -> int:
+    """Index of the first row whose key is ``key`` or older: rows are newest-first."""
+    low, high = 0, len(rows)
+    while low < high:
+        middle = (low + high) // 2
+        if _row_sort(rows[middle]) > key:
+            low = middle + 1
+        else:
+            high = middle
+    return low
 
 
 def _insert_row(groups: list[_Group], card: str, row: str) -> None:
@@ -1244,30 +1270,32 @@ def _insert_row(groups: list[_Group], card: str, row: str) -> None:
     if group is None:
         group = _Group(card, [])
         groups.append(group)
-    group.rows = [existing for existing in group.rows if _row_sort(existing) != key]
-    position = next(
-        (index for index, existing in enumerate(group.rows) if _row_sort(existing) < key),
-        len(group.rows),
-    )
+    position = _locate(group.rows, key)
+    if position < len(group.rows) and _row_sort(group.rows[position]) == key:
+        del group.rows[position]  # this job's previous row, replaced in place
     group.rows.insert(position, row)
     groups.remove(group)
-    position = next(
-        (index for index, other in enumerate(groups) if _row_sort(other.rows[0]) < key),
-        len(groups),
-    )
-    groups.insert(position, group)
+    newest = _row_sort(group.rows[0])
+    groups.insert(_locate([other.rows[0] for other in groups], newest), group)
 
 
-def _remove_row(groups: list[_Group], run: str) -> tuple[bool, str | None]:
-    """Drop the row that links ``run``: ``(removed, the card it was filed under)``."""
-    link = f"({run})"
+def _remove_row(groups: list[_Group], key: str) -> tuple[bool, str | None]:
+    """Drop the row with ``key``: ``(removed, the card it was filed under)``.
+
+    Rows are matched by sort key, not by the run link's absolute path, so a
+    home reached through a symlink (``/tmp`` and ``/private/tmp``) is the same
+    home on both sides of a splice.
+    """
     for group in list(groups):
-        for index, row in enumerate(group.rows):
-            if link in row:
-                del group.rows[index]
-                if not group.rows:
-                    groups.remove(group)
-                return True, group.card
+        if _row_sort(group.rows[0]) < key or _row_sort(group.rows[-1]) > key:
+            continue
+        position = _locate(group.rows, key)
+        if position == len(group.rows) or _row_sort(group.rows[position]) != key:
+            continue
+        del group.rows[position]
+        if not group.rows:
+            groups.remove(group)
+        return True, group.card
     return False, None
 
 
@@ -1276,7 +1304,6 @@ def _update_models(
     every: list[_Group],
     routine: dict[str, int],
     entry: dict[str, Any],
-    published: Path,
     previous: Sequence[Path] = (),
 ) -> None:
     """Splice one entry into the model, replacing its previous rows in place.
@@ -1285,9 +1312,9 @@ def _update_models(
     rows still link the old path and must be dropped, not left beside the new
     one.
     """
-    for run in (str(published), *(str(path) for path in previous)):
-        was_agent, _ = _remove_row(agent, run)
-        was_routine, routine_card = _remove_row(every, run)
+    for key in (entry["sort"], *(_path_sort(path) for path in previous)):
+        was_agent, _ = _remove_row(agent, key)
+        was_routine, routine_card = _remove_row(every, key)
         if was_routine and not was_agent and routine_card is not None:
             remaining = routine.get(routine_card, 0) - 1
             if remaining > 0:
@@ -1345,8 +1372,8 @@ def update_index(
     ``previous`` names publications of the same job that this publish replaced
     or moved (a card rehome); their rows are retired with it.
     """
-    home = Path(home)
-    published = Path(published)
+    home = Path(home).resolve()
+    published = Path(published).resolve()
     checkout = primary_checkout if primary_checkout is not None else PRIMARY_CHECKOUT
     docs = _research_docs(checkout)
     spliced = False
@@ -1365,7 +1392,7 @@ def update_index(
                     else _read_json(published / "provenance.json") or {}
                 )
                 entry = _entry(published, record, docs)
-                _update_models(agent, every, routine, entry, published, previous)
+                _update_models(agent, every, routine, entry, previous)
                 _write_index_files(home, _agent_index(agent, every, routine), _all_index(every))
                 spliced = True
     if not spliced:

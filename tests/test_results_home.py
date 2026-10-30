@@ -839,7 +839,8 @@ def test_publish_splices_the_index_and_equals_a_full_rebuild(tmp_path: Path) -> 
     # Counts missing a field: the row must stay "counts unknown", not fabricated.
     _write_report(partial, {"n_pass": 1, "n_fail": 0, "n_unscored": 0})
     unprocessed = _job(tmp_path / "e", "har090-unprocessed")
-    for job in (agent, control, newer, partial, unprocessed):
+    # The control job publishes first, so the first INDEX.md has no agent runs.
+    for job in (control, agent, newer, partial, unprocessed):
         publish_job(job, root=home, pr_lookup=lambda _commit: None, primary_checkout=checkout)
         assert _index_bytes(home) == _rebuild(home, checkout)
     index = (home / "INDEX.md").read_text()

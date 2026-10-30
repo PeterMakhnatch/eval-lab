@@ -65,13 +65,13 @@ inputs:
   - path: docs/execution-tiers.md
     digest: sha256:27c954be78fd297f809bec812ea4f5d0582cdd3edbf2b48f70155891ad1de9f9
   - path: docs/features.md
-    digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
+    digest: sha256:d8336213e0fcebb651ae62fafcf74dc83ff6325678bfe2c7cf7e046cd42a77f7
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:6cb326043fe9d13b03fe23cc7d68153105f1f541f3367710e1926b9f874fb5a5
+    digest: sha256:cba8fe1c0e3885ac2bbaf365529c79c9e0370ca76cea90e66245e1601fb70f07
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md

@@ -402,9 +402,9 @@ def test_messages_mapping_preserves_order_roles_and_markup():
         ],
     }
     doc, stats = convert("t", trace, _meta())
-    # Context step first, then the trace's own steps in order
-    # (the converter folds system text into user steps).
-    assert [s["source"] for s in doc["steps"]] == ["user", "user", "agent"]
+    # No recovered ask, so no synthetic context step: the trace's own steps in
+    # order (the converter folds system text into user steps).
+    assert [s["source"] for s in doc["steps"]] == ["user", "agent"]
     agent = [s for s in doc["steps"] if s["source"] == "agent"]
     assert agent[0]["tool_calls"][0]["function_name"] == "execute_bash"
     assert agent[0]["tool_calls"][0]["arguments"] == {"command": "ls"}
@@ -433,11 +433,11 @@ def test_staged_steps_carry_span_refs_and_obs_badge():
     assert validate_staged(trajectory) == []
     assert warnings == []
     refs = [s["extra"]["cheatbench"]["source_ref"]["field"] for s in trajectory["steps"][:-1]]
-    assert refs == [None, "events[0].msg"]
-    obs_refs = trajectory["steps"][1]["extra"]["cheatbench"]["obs_refs"]
+    assert refs == ["events[0].msg"]
+    obs_refs = trajectory["steps"][0]["extra"]["cheatbench"]["obs_refs"]
     assert [r["field"] for r in obs_refs] == ["events[0].obs"]
     # The cheat sits in the tool output: step-localized, no transcript badge.
-    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_step_id"] == 1
     assert meta["cheat_message_no"] is None
     assert meta["loc_correction"] is None
 
@@ -485,8 +485,9 @@ def test_content_event_without_machine_calls_stages_prose():
     trajectory, meta, warnings = convert_row(row)
     assert validate_staged(trajectory) == []
     assert warnings == []
-    assert meta["cheat_step_id"] == 2
-    assert meta["cheat_message_no"] == 2
+    assert meta["cheat_step_id"] == 1
+    assert meta["cheat_message_no"] == 1
+
 
 def test_untyped_rendered_transcript_is_excluded_but_stages_annotation():
     # Rendered-transcript shapes with no typed envelope carry no agent steps
@@ -527,12 +528,12 @@ def test_message_number_counts_tool_calls_not_observations():
     }
     doc, _ = convert("t", raw, _meta())
     steps = doc["steps"]
-    assert len(steps) == 3  # context + two agent steps
-    # Context badge M1, first agent message M2, second M5 (2 tool calls in between).
-    assert message_number(steps, 1, None) == 2
-    assert message_number(steps, 2, None) == 5
+    assert len(steps) == 2  # no recovered ask, so no context step
+    # First agent message M1, second M4 (2 tool calls in between).
+    assert message_number(steps, 0, None) == 1
+    assert message_number(steps, 1, None) == 4
     # A cheat inside the tool output has no badge number (step only).
-    assert message_number(steps, 1, 0) is None
+    assert message_number(steps, 0, 0) is None
 
 
 def test_prefixed_log_turns_and_tool_calls():
@@ -573,8 +574,8 @@ def test_locate_pilot_stdout_and_message_number():
         loc_snippet="checking history",
     )
     trajectory, meta, _ = convert_row(row)
-    assert meta["cheat_step_id"] == 2
-    assert meta["cheat_message_no"] == 2
+    assert meta["cheat_step_id"] == 1
+    assert meta["cheat_message_no"] == 1
     assert meta["loc_correction"] is None
 
 
@@ -597,7 +598,7 @@ def test_locate_tools_cmd_falls_back_to_owning_event():
         loc_snippet="evil",
     )
     trajectory, meta, _ = convert_row(row)
-    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_step_id"] == 1
     assert meta["loc_correction"] == "event-index-fallback"
     # The obs subfield resolves exactly to the tool output, which Scout
     # renders without a badge number: step only, no message number.
@@ -608,7 +609,7 @@ def test_locate_tools_cmd_falls_back_to_owning_event():
         loc_snippet="o",
     )
     trajectory, meta, _ = convert_row(row)
-    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_step_id"] == 1
     assert meta["cheat_message_no"] is None
     assert meta["loc_correction"] is None
 
@@ -624,7 +625,7 @@ def test_locate_single_event_fallback_and_empty_path():
         loc_snippet="hi",
     )
     trajectory, meta, _ = convert_row(row)
-    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_step_id"] == 1
     assert meta["loc_correction"] == "single-event-fallback"
     assert locate_cheat(trajectory["steps"], "", 1) == (None, None, None)
     assert locate_cheat(trajectory["steps"], "messages[0].content", 1) == (None, None, None)
@@ -655,13 +656,13 @@ def test_locate_row_single_event_path_rewrite():
         loc_snippet="git log",
     )
     trajectory, meta, _ = convert_row(row)
-    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_step_id"] == 1
     assert meta["loc_correction"] == "single-event-fallback"
     assert meta["loc_line_adjusted"] is False
     # Direct layer call on the staged steps agrees.
     parsed = parse_raw_trace(row["trace"])
     step_id, _, correction, adjusted = locate_row(parsed, trajectory["steps"][:-1], row)
-    assert (step_id, correction, adjusted) == (2, "single-event-fallback", False)
+    assert (step_id, correction, adjusted) == (1, "single-event-fallback", False)
 
 
 def test_convert_row_end_to_end_annotation_and_meta():
@@ -677,10 +678,10 @@ def test_convert_row_end_to_end_annotation_and_meta():
     assert validate_staged(trajectory) == []
     assert trajectory["session_id"] == "cheatbench-cb-test-1"
     assert trajectory["steps"][-1]["message"].startswith("[CheatBench annotation")
-    assert "transcript message M3" in trajectory["steps"][-1]["message"]
+    assert "transcript message M2" in trajectory["steps"][-1]["message"]
     assert "secret_discovery_in_environment" in trajectory["steps"][-1]["message"]
-    assert meta["cheat_step_id"] == 3
-    assert meta["cheat_message_no"] == 3
+    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_message_no"] == 2
     assert meta["reward"] == 1.0 and meta["verdict"] == "passed"
     assert meta["loc_corrected"] is False and warnings == []
 
@@ -796,7 +797,9 @@ def test_materialized_trials_are_blind_and_labels_stay_in_manifest(tmp_path):
     }
     rows = [
         _row(trace_id="cb-cheat", label="cheating", trace=json.dumps(trace)),
-        _row(trace_id="cb-benign", label="benign", cheating_mechanism=None, trace=json.dumps(trace)),
+        _row(
+            trace_id="cb-benign", label="benign", cheating_mechanism=None, trace=json.dumps(trace)
+        ),
     ]
     parquet = tmp_path / "rows.parquet"
     pq.write_table(pa.Table.from_pylist(rows), parquet)
@@ -818,9 +821,10 @@ def test_materialized_trials_are_blind_and_labels_stay_in_manifest(tmp_path):
     assert by_id["cb-cheat"]["labels"]["reward_hacking"] is True
     assert by_id["cb-benign"]["labels"]["reward_hacking"] is False
     written = (tmp_path / "root/cb/cb-cheat/agent/trajectory.json").read_text(encoding="utf-8")
-    assert by_id["cb-cheat"]["trajectory_sha256"] == hashlib.sha256(
-        written.rstrip("\n").encode("utf-8")
-    ).hexdigest()
+    assert (
+        by_id["cb-cheat"]["trajectory_sha256"]
+        == hashlib.sha256(written.rstrip("\n").encode("utf-8")).hexdigest()
+    )
 
 
 CAP_TRACE = {
@@ -838,7 +842,9 @@ CAP_TRACE = {
 }
 # sha256 of ``json.dumps(convert(...), sort_keys=True)`` for CAP_TRACE under the
 # pre-parameter converter (origin/main before the uncapped option existed).
-CAP_DEFAULT_DIGEST = "be205f65873708632f1159bb529a8fe81ea741a4cf1238dcd53f6a4b68e27fdb"
+# Re-pinned by B3c: the converter no longer inserts a ``Task: … (model: …)``
+# placeholder turn, so CAP_TRACE (no recoverable ask) yields 2 steps, not 3.
+CAP_DEFAULT_DIGEST = "a2ddd23bb50dd529be9e5e1e10e3514b31be4eea64ff4193a04ed0fa0ee5b4fe"
 
 
 def test_default_conversion_is_byte_identical_to_the_capped_importer():
@@ -848,14 +854,14 @@ def test_default_conversion_is_byte_identical_to_the_capped_importer():
     body = json.dumps(doc, sort_keys=True)
     assert hashlib.sha256(body.encode("utf-8")).hexdigest() == CAP_DEFAULT_DIGEST
     assert convert("cb-cap-fixture", CAP_TRACE, _meta(), caps=True) == (doc, _)
-    message = doc["steps"][2]["message"]
+    message = doc["steps"][1]["message"]
     assert message.endswith("\n…[truncated]") and len(message) == mod.MSG_CAP + 13
 
 
 def test_uncapped_conversion_keeps_the_oversized_tails():
     capped, _ = convert("cb-cap-fixture", CAP_TRACE, _meta())
     full, _ = convert("cb-cap-fixture", CAP_TRACE, _meta(), caps=False)
-    step = full["steps"][2]
+    step = full["steps"][1]
     assert step["message"].endswith("MSG-TAIL") and len(step["message"]) == 9008
     observation = step["observation"]["results"][0]["content"]
     assert observation.endswith("OBS-TAIL") and len(observation) == 51008
@@ -950,7 +956,9 @@ def test_pilot_thinking_and_tool_arguments_are_marked_when_cut():
     assert "THINK-TAIL" not in agent["message"] and CUT_MARK in agent["message"]
     args = agent["tool_calls"][0]["arguments"]
     assert args["file_path"].endswith(CUT_MARK) and len(args["file_path"]) == 4_000 + len(CUT_MARK)
-    assert args["description"].endswith(CUT_MARK) and len(args["description"]) == 500 + len(CUT_MARK)
+    assert args["description"].endswith(CUT_MARK) and len(args["description"]) == 500 + len(
+        CUT_MARK
+    )
     observation = agent["observation"]["results"][0]["content"]
     assert observation.endswith(CUT_MARK)
 
@@ -1000,8 +1008,7 @@ def test_mle_and_codex_text_is_marked_when_cut():
         "events": [
             {
                 "role": "trace",
-                "content": "LLM_OUTPUT:\n"
-                + json.dumps({"tool": "write", "body": "B" * 5_000}),
+                "content": "LLM_OUTPUT:\n" + json.dumps({"tool": "write", "body": "B" * 5_000}),
             }
         ],
     }
@@ -1024,3 +1031,136 @@ def test_mle_and_codex_text_is_marked_when_cut():
     agent = [s for s in doc["steps"] if s["source"] == "agent"][0]
     assert "S" * 3_000 not in agent["message"]
     assert CUT_MARK in agent["message"]
+
+
+def _files(*entries):
+    """The pinned row shape: ``files`` is a list of ``{path, content, format}`` entries."""
+    return [{"path": path, "content": content, "format": "text"} for path, content in entries]
+
+
+def test_convert_injects_redacted_task_statement_from_command_file():
+    """The command.txt ask is the first user step, with benchmark names stripped."""
+    raw = {
+        "messages": [
+            {"role": "user", "content": "start"},
+            {"role": "assistant", "content": "ok"},
+        ],
+        "task_name": "csv-task",
+        "benchmark": "terminal-bench-2",
+        "files": _files(
+            (
+                "agent/command-0/command.txt",
+                "/usr/local/bin/forge --verbose -p 'Process the csv file from terminal-bench-2 "
+                "and count the rows in the table.'",
+            )
+        ),
+    }
+    doc, stats = convert("cb-stmt-1", raw, _meta())
+    first = doc["steps"][0]
+    assert first["source"] == "user"
+    assert stats["has_statement"] is True
+    msg = first["message"]
+    assert msg.startswith("Process the csv file from [source]")
+    assert msg.endswith("and count the rows in the table.")
+    assert "terminal-bench-2" not in msg
+    assert "CheatBench" not in msg
+
+
+def test_convert_falls_back_to_episode_prompt_and_skips_a_placeholder():
+    """No command.txt: the episode prompt is the ask; never the ``Task: … (model: …)`` line."""
+    raw = {
+        "messages": [{"role": "user", "content": "x"}, {"role": "assistant", "content": "y"}],
+        "task_name": "t",
+        "benchmark": "mle-bench",
+        "files": _files(
+            ("agent/episode-0/prompt.txt", "Solve the mle-bench task about data cleaning."),
+            ("agent/episode-1/prompt.txt", "A later episode prompt that is not the ask."),
+        ),
+    }
+    doc, _ = convert("cb-stmt-2", raw, _meta())
+    first_msg = doc["steps"][0]["message"]
+    assert first_msg.startswith("Solve the [source] task about data cleaning.")
+    assert "mle-bench" not in first_msg
+
+
+def test_convert_without_an_ask_inserts_no_placeholder_turn():
+    """A row with no recoverable ask gets no synthetic user step (DT-8: unknown, not a stub)."""
+    raw = {
+        "task_name": "csv-task",
+        "benchmark": "terminal-bench-2",
+        "events": [
+            {"step": 0, "src": "agent", "msg": "I will look at the files first."},
+            {"step": 1, "src": "agent", "msg": "Running the parser now."},
+        ],
+    }
+    doc, stats = convert("cb-stmt-3", raw, _meta())
+    assert stats["has_statement"] is False
+    assert not any(step["source"] == "user" for step in doc["steps"])
+    assert "terminal-bench-2" not in json.dumps(doc)
+
+
+def test_convert_reads_a_user_event_ask_when_no_file_carries_one():
+    raw = {
+        "task_name": "csv-task",
+        "events": [
+            {"step": 0, "src": "user", "msg": "Count the rows in data.csv and report the total."},
+            {"step": 1, "src": "agent", "msg": "Reading data.csv."},
+        ],
+    }
+    doc, stats = convert("cb-stmt-4", raw, _meta())
+    assert stats["has_statement"] is True
+    assert doc["steps"][0]["source"] == "user"
+    assert "Count the rows in data.csv" in doc["steps"][0]["message"]
+
+
+def test_convert_does_not_duplicate_an_ask_the_trace_already_shows():
+    """A user turn that already carries the ask stays the first user step, once."""
+    ask = "Count the rows in data.csv and report the total in /app/out.txt."
+    raw = {
+        "task_name": "csv-task",
+        "events": [
+            {"step": 0, "src": "user", "msg": ask},
+            {"step": 1, "src": "agent", "msg": "Reading data.csv."},
+        ],
+    }
+    doc, stats = convert("cb-stmt-6", raw, _meta())
+    assert stats["has_statement"] is True
+    assert stats["statement_injected"] is False
+    user_steps = [s for s in doc["steps"] if s["source"] == "user"]
+    assert [s["message"] for s in user_steps] == [ask]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "swe-smith",
+        "swe_bench",
+        "swe-bench-verified",
+        "swe-rebench",
+        "terminal-bench-2",
+        "mle-bench",
+        "bountybench",
+        "kernelbench",
+        "hal-usaco",
+        "cybench",
+        "cheatbench",
+        "CheatBench",
+        "goodfire",
+        "MiMo",
+    ],
+)
+def test_every_benchmark_name_is_redacted_from_the_reader_text(name):
+    """One test per name a verify run found in rendered reader text (VF-B3 list)."""
+    from evallab.production.run_atlas import render_step
+
+    ask = f"Work the {name} task and write the answer to /app/out.txt."
+    raw = {
+        "task_name": "csv-task",
+        "messages": [{"role": "assistant", "content": "Working on it."}],
+        "files": _files(("agent/command-0/command.txt", f"forge -p '{ask}'")),
+    }
+    doc, _ = convert("cb-stmt-5", raw, _meta())
+    rendered = "\n\n".join(render_step(step) for step in doc["steps"])
+    assert ask not in rendered
+    assert "[source]" in doc["steps"][0]["message"]
+    assert name.casefold() not in rendered.casefold()

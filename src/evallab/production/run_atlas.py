@@ -94,7 +94,8 @@ FORM_OUTPUT_TOKENS = 6_000
 SOURCE_TERMS = (
     r"good[-_ ]?fire", r"cheat[-_ ]?bench", r"impossible[-_ ]?bench", r"hack[-_ ]?bench",
     r"hack[-_ ]?trace", r"reward[-_]hack[-_]data", r"terminal[-_ ]?wrench",
-    r"terminal[-_ ]?bench", r"swe[-_ ]?(?:re)?bench", r"deep[-_ ]?swe", r"bounty[-_ ]?bench",
+    r"terminal[-_ ]?bench", r"swe[-_ ]?(?:re)?bench", r"swe[-_ ]?smith", r"deep[-_ ]?swe",
+    r"bounty[-_ ]?bench", r"mle[-_ ]?bench", r"kernel[-_ ]?bench", r"hal[-_ ]?usaco",
     r"cy[-_ ]?bench", r"sim[-_ ]?glot", r"mimo[-_ ]defect[-_ ]map", r"mimo(?![a-z])",
     r"tb4[-_ ]audit",
     r"tb2[-_ ]to[-_ ]tb21", r"qa[-_ ]trace[-_ ]sft", r"kimi-tb4-dev-swarm-\d{8}",

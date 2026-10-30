@@ -50,6 +50,7 @@ import contextlib
 import hashlib
 import json
 import re
+import shlex
 import sys
 import urllib.request
 from collections.abc import Callable, Iterator, Mapping
@@ -247,7 +248,11 @@ class _Steps:
         text = text.strip()
         if text:
             self.steps.append(
-                {"step_id": len(self.steps) + 1, "source": "user", "message": _bounded(text, MSG_CAP, self.caps)}
+                {
+                    "step_id": len(self.steps) + 1,
+                    "source": "user",
+                    "message": _bounded(text, MSG_CAP, self.caps),
+                }
             )
             self.regions.append({"field": self._field(field), "obs": []})
 
@@ -307,6 +312,120 @@ def _span(builder: _Steps, field: str) -> Iterator[None]:
         yield
     finally:
         builder._scope.pop()
+
+
+# ---------------------------------------------------------------------------
+# task statement extraction for the blind projection (only the ask; redacted)
+
+#: Shorter payloads are harness noise (a path, a bare ``$NN`` ref), not an ask a
+#: reader can judge; the DA-4 recovery uses the same floor.
+MIN_STATEMENT_CHARS = 40
+
+_REF_RE = re.compile(r"^\$\d+$")
+_EPISODE_PROMPT_RE = re.compile(r"episode-\d+/prompt\.txt$")
+#: User-role events that carry harness output or continuation boilerplate, not the ask.
+_NON_STATEMENT_PREFIXES = ("OBSERVATION:", "Observation:", "<environment_context>")
+_CONTINUATION_RE = re.compile(r"^Please continue on whatever approach you think is suitable\b")
+
+
+def _redact_benchmarks(text: str) -> str:
+    """Strip source/benchmark names with the atlas vocabulary (one redaction list)."""
+    from evallab.production.run_atlas import redact_sources
+
+    return redact_sources(text)
+
+
+def _command_payload(content: str) -> str | None:
+    """The ask inside a harness invocation: ``forge … -p '<ask>'`` or ``pilot task '<ask>'``.
+
+    The shell has already been applied, so a quote inside the ask appears as
+    ``'\\''``; :func:`shlex.split` undoes exactly that.
+    """
+    try:
+        tokens = shlex.split(content, posix=True)
+    except ValueError:
+        return None
+    for index, token in enumerate(tokens[:-1]):
+        if token == "-p" or (token == "task" and index and tokens[index - 1] == "pilot"):
+            return tokens[index + 1]
+    return None
+
+
+def _file_entries(raw: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """``raw["files"]`` as entries; the pinned shape is ``[{path, content, format}]``."""
+    files = raw.get("files")
+    if not isinstance(files, list):
+        return []
+    return [entry for entry in files if isinstance(entry, Mapping)]
+
+
+def _entry_text(entry: Mapping[str, Any]) -> str:
+    content = entry.get("content")
+    return content if isinstance(content, str) else ""
+
+
+def _ref_table(raw: Mapping[str, Any]) -> dict[str, str]:
+    """A ``$NN`` value table the row itself carries (the dataset's elision artifact)."""
+    table: dict[str, str] = {}
+    for value in raw.values():
+        if isinstance(value, Mapping):
+            pairs: Iterator[tuple[Any, Any]] = iter(value.items())
+        elif isinstance(value, list):
+            pairs = ((f"${index}", item) for index, item in enumerate(value))
+        else:
+            continue
+        for key, item in pairs:
+            if isinstance(key, str) and _REF_RE.match(key) and isinstance(item, str):
+                table[key] = item
+    return table
+
+
+def _user_ask(raw: Mapping[str, Any]) -> str | None:
+    """The first natural-language user-role event (``$NN`` refs resolved inside the row)."""
+    resolved = _ref_table(raw)
+    for event in raw.get("events") or []:
+        if not isinstance(event, Mapping):
+            continue
+        if (event.get("src") or event.get("role")) != "user":
+            continue
+        text = event.get("msg") if "msg" in event else event.get("content")
+        if not isinstance(text, str):
+            continue
+        text = resolved.get(text.strip(), text.strip())
+        if len(text) < MIN_STATEMENT_CHARS or _REF_RE.match(text):
+            continue
+        if text.startswith(_NON_STATEMENT_PREFIXES) or _CONTINUATION_RE.match(text):
+            continue
+        return text
+    return None
+
+
+def _extract_task_statement(raw: Mapping[str, Any]) -> str | None:
+    """The ask the run was given, from the row's own files and then its user events.
+
+    Order and filters match the DA-4 recovery (``ds-da4-…/recover_tasks.py``): the
+    ``command.txt`` payload, else the first ``episode-N/prompt.txt``, else the
+    first user-role statement. Never a label, split marker, placeholder or
+    benchmark name (redaction happens at the call site).
+    """
+    if not isinstance(raw, Mapping):
+        return None
+    entries = _file_entries(raw)
+    for entry in entries:
+        if not str(entry.get("path") or "").endswith("command.txt"):
+            continue
+        payload = _command_payload(_entry_text(entry))
+        if payload and len(payload.strip()) >= MIN_STATEMENT_CHARS:
+            return payload.strip()
+    prompts = sorted(
+        (str(entry.get("path") or ""), _entry_text(entry))
+        for entry in entries
+        if _EPISODE_PROMPT_RE.search(str(entry.get("path") or ""))
+    )
+    for _path, content in prompts:
+        if len(content.strip()) >= MIN_STATEMENT_CHARS:
+            return content.strip()
+    return _user_ask(raw)
 
 
 # ---------------------------------------------------------------------------
@@ -697,7 +816,11 @@ def _convert_weave(builder: _Steps, events: list[Any]) -> bool:
 
 
 def _convert_inner(
-    trace_id: str, raw: dict, meta: dict, *, caps: bool = True,
+    trace_id: str,
+    raw: dict,
+    meta: dict,
+    *,
+    caps: bool = True,
 ) -> tuple[dict, dict, list[dict]]:
     """Convert one CheatBench trace to ATIF.
 
@@ -782,25 +905,33 @@ def _convert_inner(
     agent_steps = [s for s in builder.steps if s.get("source") == "agent"]
     if not agent_steps:
         raise ValueError("no_agent_content")
-    bench = str(raw.get("benchmark") or meta.get("benchmark") or "")
-    task = str(raw.get("task_name") or (raw.get("task") or "") or trace_id)
-    if isinstance(raw.get("task"), dict):
-        task = str(raw["task"].get("id") or raw["task"].get("name") or trace_id)
-    builder.steps.insert(
-        0,
-        {"step_id": 0, "source": "user", "message": f"[{bench}] {task} (model: {model})"},
-    )
+    statement = _extract_task_statement(raw)
+    injected = False
+    if statement:
+        ask = _redact_benchmarks(statement)
+        # Prefer the trace's own first user turn when it already shows the ask;
+        # otherwise put the ask first. Never both, and never a placeholder.
+        first_user = next((s for s in builder.steps if s.get("source") == "user"), None)
+        shown = _redact_benchmarks(str(first_user.get("message") or "")) if first_user else ""
+        if ask not in shown:
+            builder.steps.insert(0, {"step_id": 0, "source": "user", "message": ask})
+            injected = True
+    # No ask recovered: no synthetic turn. The old fallback line named the
+    # benchmark and the model and was not the task, so a reader could not tell
+    # what the run had been asked to do from it.
     for idx, step in enumerate(builder.steps):
         step["step_id"] = idx
     # Labels, mechanisms and the source trace id stay in the corpus manifest;
     # the converted document carries evidence only.
     doc = {
         "schema_version": "ATIF-v1.6",
-        "agent": {"name": f"cheatbench/{bench}", "version": "raw_trace.v1-import"},
+        "agent": {"name": "cheatbench/[source]", "version": "raw_trace.v1-import"},
         "steps": builder.steps,
     }
     stats = {
         "envelope": envelope,
+        "has_statement": bool(statement),
+        "statement_injected": injected,
         "n_steps": len(builder.steps),
         "n_tool_calls": builder.n_tool_calls,
         "has_tool_calls": builder.n_tool_calls > 0,
@@ -1363,9 +1494,7 @@ def locate_cheat(
                 for step in steps
                 for field, _s, _e in _spans(step)
                 if field is not None
-                and (
-                    field == f"events[{wanted}]" or field.startswith(f"events[{wanted}].")
-                )
+                and (field == f"events[{wanted}]" or field.startswith(f"events[{wanted}]."))
             ]
             if kind == "events" and event_steps:
                 return event_steps[0], None, "event-index-fallback"
@@ -1559,17 +1688,25 @@ def convert_row(row: Mapping[str, Any]) -> tuple[dict, dict, list[str]]:
     trace = parse_raw_trace(row["trace"])
     warnings: list[str] = []
     try:
-        doc, _stats, regions = _convert_inner(trace_id, trace, row_meta(dict(row)))
+        doc, stats, regions = _convert_inner(trace_id, trace, row_meta(dict(row)))
     except ValueError as exc:
         warnings.append(f"trace excluded from staged steps: {exc}")
         steps: list[dict] = []
     else:
         steps = doc["steps"]
-        steps[0].setdefault(
-            "extra",
-            {"cheatbench": {"source_ref": {"field": None, "line_start": None, "line_end": None}}},
-        )
-        _decorate(steps[1:], regions)
+        # With an ask, step 0 is the injected context turn and the builder's
+        # regions start at step 1; without one, regions start at step 0.
+        start = 1 if stats.get("statement_injected") else 0
+        if start:
+            steps[0].setdefault(
+                "extra",
+                {
+                    "cheatbench": {
+                        "source_ref": {"field": None, "line_start": None, "line_end": None}
+                    }
+                },
+            )
+        _decorate(steps[start:], regions)
     for position, step in enumerate(steps, start=1):
         step["step_id"] = position
     cheat_step_id, result_index, correction, line_adjusted = locate_row(trace, steps, row)

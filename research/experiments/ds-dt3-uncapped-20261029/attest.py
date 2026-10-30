@@ -32,12 +32,10 @@ def stream_models(paths: list[Path]) -> tuple[Counter, Counter, Counter]:
             if not line.strip():
                 continue
             row = json.loads(line)
-            served[row["status"]] = served[row["status"]] + 0
             statuses[row.get("status", "?")] += 1
             for call in row.get("calls") or []:
                 served[str(call.get("served_model"))] += 1
                 requested[str(call.get("requested_model"))] += 1
-    served.pop("0", None)
     return served, requested, statuses
 
 

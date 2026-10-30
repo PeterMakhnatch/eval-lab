@@ -1,0 +1,6873 @@
+{
+  "schema": "ps7-data-map-audit/v1",
+  "code_revision": "d0608c9da4e7cd8dd9323f98d4e3587db5298904",
+  "map_sha256": "8b608e7d523fcab9d62d0b77a764760498349412ac9793b4005e193d909f2762",
+  "store_bytes": 4207423488,
+  "command_probes": [
+    {
+      "probe": "top help",
+      "map_lines": [
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.065,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "task help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.052,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "runs help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.053,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "window help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.051,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "history help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.052,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "findings help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.053,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "inventory help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.058,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "traces help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.055,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "clusters help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.059,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "recount help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.059,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "split help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.059,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "export help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.061,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "steps help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.063,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "scan help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.056,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "trace-card help",
+      "map_lines": [
+        14,
+        55
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.053,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "inventory",
+      "map_lines": [
+        88,
+        95,
+        548
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 1.438,
+      "database_redirected": true,
+      "data_fields": [
+        "admitted_runs",
+        "admitted_tasks",
+        "by_dataset",
+        "models",
+        "models_total",
+        "omitted",
+        "run_outcomes",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "inventory ids",
+      "map_lines": [
+        89
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.536,
+      "database_redirected": true,
+      "data_fields": [
+        "admitted_runs",
+        "admitted_tasks",
+        "by_dataset",
+        "ids_file",
+        "models",
+        "models_total",
+        "omitted",
+        "run_outcomes",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "pass traces",
+      "map_lines": [
+        90
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.638,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "traces",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 23,
+      "traces_returned": 5,
+      "traces_item_fields": [
+        "dataset_id",
+        "faceted",
+        "model_id",
+        "outcome",
+        "step_count",
+        "task_id",
+        "trace_id"
+      ]
+    },
+    {
+      "probe": "task traces",
+      "map_lines": [
+        91
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.703,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "task_id",
+        "traces",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 47,
+      "traces_returned": 20,
+      "traces_item_fields": [
+        "dataset_id",
+        "faceted",
+        "model_id",
+        "outcome",
+        "step_count",
+        "task_id",
+        "trace_id"
+      ]
+    },
+    {
+      "probe": "dataset ids",
+      "map_lines": [
+        92
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.551,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "traces",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 91,
+      "traces_returned": 91,
+      "traces_item_fields": []
+    },
+    {
+      "probe": "answer material",
+      "map_lines": [
+        204
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 1.603,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 29,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "tests and suspicion",
+      "map_lines": [
+        205
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.821,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 210,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "pass and awareness",
+      "map_lines": [
+        206
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.846,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 50,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "modified task",
+      "map_lines": [
+        207,
+        419
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.789,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 0,
+      "runs_returned": 0,
+      "runs_item_fields": []
+    },
+    {
+      "probe": "all faceted",
+      "map_lines": [
+        220
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.79,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 1234,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "modified tests",
+      "map_lines": [
+        220
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.749,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 507,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "awareness",
+      "map_lines": [
+        220
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.758,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 1101,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "suspicious",
+      "map_lines": [
+        221
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.71,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 326,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "facet outcome pass",
+      "map_lines": [
+        221
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.685,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 483,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "facet outcome fail",
+      "map_lines": [
+        221
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.656,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 410,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "facet outcome unknown",
+      "map_lines": [
+        221
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.662,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 341,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "similar runs",
+      "map_lines": [
+        208
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.725,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 1233,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "facet_similarity",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "window range",
+      "map_lines": [
+        148
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.615,
+      "database_redirected": true,
+      "data_fields": [
+        "first",
+        "last",
+        "next_first",
+        "omitted",
+        "run_id",
+        "steps",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "window around",
+      "map_lines": [
+        148
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.645,
+      "database_redirected": true,
+      "data_fields": [
+        "first",
+        "last",
+        "next_first",
+        "omitted",
+        "run_id",
+        "steps",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "findings run",
+      "map_lines": [
+        517,
+        524
+      ],
+      "status": "works but output differs",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.649,
+      "database_redirected": true,
+      "data_fields": [
+        "counts",
+        "coverage",
+        "dedup_capped",
+        "findings",
+        "omitted",
+        "truncated",
+        "withheld_strings"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "trace card",
+      "map_lines": [
+        216,
+        393
+      ],
+      "status": "works but output differs",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.729,
+      "database_redirected": true,
+      "data_fields": [
+        "actor_inputs_available",
+        "detectors",
+        "facets",
+        "flags",
+        "note",
+        "omitted",
+        "playbook",
+        "run_id",
+        "steps",
+        "tally",
+        "task_id",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "lexical query",
+      "map_lines": [
+        208
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.752,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 739,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "clusters database",
+      "map_lines": [
+        229
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.631,
+      "database_redirected": true,
+      "data_fields": [
+        "build_id",
+        "clusters",
+        "omitted",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "clusters_returned": 68,
+      "clusters_item_fields": [
+        "admitted_size",
+        "cluster_id",
+        "level",
+        "parent"
+      ]
+    },
+    {
+      "probe": "cluster members database",
+      "map_lines": [
+        230
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.773,
+      "database_redirected": true,
+      "data_fields": [
+        "admitted_members",
+        "build_id",
+        "cluster_id",
+        "omitted",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "clusters file",
+      "map_lines": [
+        231,
+        518
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.608,
+      "database_redirected": true,
+      "data_fields": [
+        "build_id",
+        "clusters",
+        "facet_count",
+        "level",
+        "levels",
+        "omitted",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "clusters_returned": 12,
+      "clusters_item_fields": [
+        "admitted_members",
+        "cloud_runs",
+        "cluster_id",
+        "level",
+        "parent",
+        "registry_only_dev"
+      ]
+    },
+    {
+      "probe": "cluster members file",
+      "map_lines": [
+        232
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.612,
+      "database_redirected": true,
+      "data_fields": [
+        "admitted_members",
+        "build_id",
+        "cloud_run_ids",
+        "cloud_runs",
+        "cluster_id",
+        "omitted",
+        "registry_only_dev",
+        "registry_only_dev_ids",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "cluster run filter",
+      "map_lines": [
+        237
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.736,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 165,
+      "runs_returned": 10,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "findings aggregate",
+      "map_lines": [
+        516,
+        549
+      ],
+      "status": "fails",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.743,
+      "database_redirected": true,
+      "data_fields": [
+        "keys",
+        "omitted",
+        "per_tool",
+        "rows",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "findings task",
+      "map_lines": [
+        526
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.671,
+      "database_redirected": true,
+      "data_fields": [
+        "counts",
+        "coverage",
+        "dedup_capped",
+        "findings",
+        "omitted",
+        "truncated",
+        "withheld_strings"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "recount",
+      "map_lines": [
+        223,
+        547
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 1.246,
+      "database_redirected": true,
+      "data_fields": [
+        "db",
+        "db_facets",
+        "jsonl",
+        "jsonl_lines",
+        "jsonl_only_runs",
+        "jsonl_sha256",
+        "jsonl_unique_runs",
+        "note",
+        "omitted",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "task split",
+      "map_lines": [
+        342
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.446,
+      "database_redirected": true,
+      "data_fields": [
+        "split"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "bare split",
+      "map_lines": [
+        103,
+        342
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.414,
+      "database_redirected": true,
+      "data_fields": [
+        "split"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "unknown split refusal",
+      "map_lines": [
+        344,
+        348
+      ],
+      "status": "works as documented",
+      "exit_code": 2,
+      "expected_exit_code": 2,
+      "seconds": 0.318,
+      "database_redirected": true,
+      "data_fields": [],
+      "meta_fields": [
+        "budget",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "error_class": "uniform admission refusal"
+    },
+    {
+      "probe": "unknown task refusal",
+      "map_lines": [
+        345,
+        348
+      ],
+      "status": "works as documented",
+      "exit_code": 2,
+      "expected_exit_code": 2,
+      "seconds": 0.384,
+      "database_redirected": true,
+      "data_fields": [],
+      "meta_fields": [
+        "budget",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "error_class": "uniform admission refusal"
+    },
+    {
+      "probe": "task file",
+      "map_lines": [
+        446
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.703,
+      "database_redirected": true,
+      "data_fields": [
+        "how_to_read_a_file",
+        "instruction",
+        "instruction_chars",
+        "instruction_truncated",
+        "issues",
+        "issues_omitted",
+        "issues_total",
+        "omitted",
+        "original_grader_digest",
+        "packages",
+        "repaired_grader_digest",
+        "runs",
+        "task_id",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated",
+        "with_outcomes"
+      ]
+    },
+    {
+      "probe": "minimum budget",
+      "map_lines": [
+        60
+      ],
+      "status": "works as documented",
+      "exit_code": 2,
+      "expected_exit_code": 2,
+      "seconds": 0.053,
+      "database_redirected": true,
+      "data_fields": [],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "error_class": "budget minimum"
+    },
+    {
+      "probe": "facet export atif",
+      "map_lines": [
+        114,
+        119,
+        121,
+        534
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.854,
+      "database_redirected": true,
+      "data_fields": [
+        "omitted",
+        "output_directory",
+        "receipt",
+        "runs",
+        "sealed_manifest",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "runs_returned": 2,
+      "runs_item_fields": [
+        "actor_inputs_available",
+        "blind_id",
+        "evidence_steps_blinded",
+        "evidence_steps_original",
+        "file",
+        "steps",
+        "trace_id"
+      ],
+      "receipt_counts": {
+        "admitted": 29,
+        "exported": 2,
+        "refused": 0
+      }
+    },
+    {
+      "probe": "steps --original",
+      "map_lines": [
+        138
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.231,
+      "database_redirected": false,
+      "data_fields": [
+        "blind_id",
+        "blinded",
+        "original",
+        "steps"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "steps --blinded",
+      "map_lines": [
+        139
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.223,
+      "database_redirected": false,
+      "data_fields": [
+        "blind_id",
+        "blinded",
+        "original",
+        "steps"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "ATIF jq equivalents",
+      "map_lines": [
+        131,
+        132
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "steps": 3,
+      "step_fields": [
+        "message",
+        "source",
+        "step_id"
+      ]
+    },
+    {
+      "probe": "facet export harbor",
+      "map_lines": [
+        114,
+        119,
+        121,
+        534
+      ],
+      "status": "works but output differs",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 1.094,
+      "database_redirected": true,
+      "data_fields": [
+        "omitted",
+        "output_directory",
+        "receipt",
+        "runs",
+        "sealed_manifest",
+        "step_map",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "runs_returned": 2,
+      "runs_item_fields": [
+        "actor_inputs_available",
+        "blind_id",
+        "path",
+        "trace_id"
+      ],
+      "receipt_counts": {
+        "admitted": 29,
+        "exported": 2,
+        "refused": 0
+      }
+    },
+    {
+      "probe": "facet export scout",
+      "map_lines": [
+        114,
+        119,
+        121,
+        534
+      ],
+      "status": "works but output differs",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.773,
+      "database_redirected": true,
+      "data_fields": [
+        "omitted",
+        "output_directory",
+        "receipt",
+        "runs",
+        "sealed_manifest",
+        "step_map",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "runs_returned": 2,
+      "runs_item_fields": [
+        "actor_inputs_available",
+        "blind_id",
+        "path",
+        "trace_id"
+      ],
+      "receipt_counts": {
+        "admitted": 29,
+        "exported": 2,
+        "refused": 0
+      }
+    },
+    {
+      "probe": "deterministic scan",
+      "map_lines": [
+        535,
+        538
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 19.657,
+      "database_redirected": false,
+      "data_fields": [
+        "inspect_scout",
+        "model_calls",
+        "omitted_rows",
+        "rows",
+        "transcripts",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "rows_returned": 8,
+      "rows_item_fields": [
+        "blind_id",
+        "messages",
+        "references",
+        "results",
+        "scanner",
+        "values"
+      ]
+    },
+    {
+      "probe": "explicit harbor export",
+      "map_lines": [
+        115
+      ],
+      "status": "works but output differs",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 1.331,
+      "database_redirected": true,
+      "data_fields": [
+        "omitted",
+        "output_directory",
+        "receipt",
+        "runs",
+        "sealed_manifest",
+        "step_map",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "runs_returned": 2,
+      "runs_item_fields": [
+        "actor_inputs_available",
+        "blind_id",
+        "path",
+        "trace_id"
+      ],
+      "receipt_counts": {
+        "admitted": 2,
+        "exported": 2,
+        "refused": 0
+      }
+    },
+    {
+      "probe": "ids file export",
+      "map_lines": [
+        116
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.845,
+      "database_redirected": true,
+      "data_fields": [
+        "omitted",
+        "output_directory",
+        "receipt",
+        "runs",
+        "sealed_manifest",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "runs_returned": 2,
+      "runs_item_fields": [
+        "actor_inputs_available",
+        "blind_id",
+        "evidence_steps_blinded",
+        "evidence_steps_original",
+        "file",
+        "steps",
+        "trace_id"
+      ],
+      "receipt_counts": {
+        "admitted": 2,
+        "exported": 2,
+        "refused": 0
+      }
+    },
+    {
+      "probe": "facet export cap",
+      "map_lines": [
+        114,
+        149
+      ],
+      "status": "works as documented",
+      "exit_code": 2,
+      "expected_exit_code": 2,
+      "seconds": 0.622,
+      "database_redirected": true,
+      "data_fields": [],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "error_class": "export cap"
+    },
+    {
+      "probe": "raw export help",
+      "map_lines": [
+        144
+      ],
+      "status": "works but output differs",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 4.58,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "cluster scope help",
+      "map_lines": [
+        234
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 2.531,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "cheatbench export help",
+      "map_lines": [
+        159,
+        165
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 2.447,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "prod status help",
+      "map_lines": [
+        25,
+        570
+      ],
+      "status": "works but output differs",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 2.437,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "metadata jq line 254",
+      "map_lines": [
+        254
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 33
+    },
+    {
+      "probe": "metadata jq line 255",
+      "map_lines": [
+        255
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 2
+    },
+    {
+      "probe": "metadata jq line 256",
+      "map_lines": [
+        256
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 31
+    },
+    {
+      "probe": "metadata jq line 257",
+      "map_lines": [
+        257
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 3
+    },
+    {
+      "probe": "metadata jq line 258",
+      "map_lines": [
+        258
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 40
+    },
+    {
+      "probe": "metadata jq line 259",
+      "map_lines": [
+        259
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 6
+    },
+    {
+      "probe": "metadata jq line 260",
+      "map_lines": [
+        260
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 7
+    },
+    {
+      "probe": "metadata jq line 331",
+      "map_lines": [
+        331
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 33
+    },
+    {
+      "probe": "metadata jq line 332",
+      "map_lines": [
+        332
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 18
+    },
+    {
+      "probe": "metadata jq line 333",
+      "map_lines": [
+        333
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 13
+    },
+    {
+      "probe": "metadata jq line 406",
+      "map_lines": [
+        406
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 43
+    },
+    {
+      "probe": "metadata jq line 407",
+      "map_lines": [
+        407
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "output_lines": 44
+    },
+    {
+      "probe": "seeker plan",
+      "map_lines": [
+        427
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 4.858,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "scorer --help",
+      "map_lines": [
+        473
+      ],
+      "status": "works as documented",
+      "exit_code": 0
+    },
+    {
+      "probe": "scorer self-test",
+      "map_lines": [
+        474
+      ],
+      "status": "works as documented",
+      "exit_code": 0
+    },
+    {
+      "probe": "cheatbench atif",
+      "map_lines": [
+        159
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 2.619,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "cheatbench harbor",
+      "map_lines": [
+        161
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 2.662,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "registry validator offline",
+      "map_lines": [
+        253,
+        550
+      ],
+      "status": "not runnable here",
+      "reason": "External bundle digest walk exceeded the prior 150-second bound; not re-run."
+    },
+    {
+      "probe": "task answer-material filter",
+      "map_lines": [
+        420
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.742,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 2,
+      "runs_returned": 2,
+      "runs_item_fields": [
+        "answer_material_accessed",
+        "approach",
+        "cluster",
+        "eval_awareness",
+        "evidence_steps",
+        "goal",
+        "grader_or_harness_touched",
+        "outcome",
+        "run_id",
+        "shortcut",
+        "success_claim_without_evidence",
+        "suspicion",
+        "task_id",
+        "tests"
+      ]
+    },
+    {
+      "probe": "cohort task split recipe",
+      "map_lines": [
+        421
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.41,
+      "database_redirected": true,
+      "data_fields": [
+        "split"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ]
+    },
+    {
+      "probe": "bountybench traces",
+      "map_lines": [
+        108
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.525,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "task_id",
+        "traces",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 21,
+      "traces_returned": 20,
+      "traces_item_fields": [
+        "dataset_id",
+        "faceted",
+        "model_id",
+        "outcome",
+        "step_count",
+        "task_id",
+        "trace_id"
+      ]
+    },
+    {
+      "probe": "bountybench facets",
+      "map_lines": [
+        108
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.691,
+      "database_redirected": true,
+      "data_fields": [
+        "matched",
+        "omitted",
+        "runs",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated"
+      ],
+      "matched": 0,
+      "runs_returned": 0,
+      "runs_item_fields": []
+    },
+    {
+      "probe": "scope export",
+      "map_lines": [
+        234
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 2.795,
+      "database_redirected": false,
+      "data_fields": [],
+      "meta_fields": []
+    },
+    {
+      "probe": "task bundle",
+      "map_lines": [
+        445,
+        451
+      ],
+      "status": "works as documented",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 0.714,
+      "database_redirected": true,
+      "data_fields": [
+        "how_to_read_a_file",
+        "instruction",
+        "instruction_chars",
+        "instruction_truncated",
+        "issues",
+        "issues_omitted",
+        "issues_total",
+        "omitted",
+        "original_grader_digest",
+        "packages",
+        "repaired_grader_digest",
+        "runs",
+        "task_id",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated",
+        "with_outcomes"
+      ]
+    },
+    {
+      "probe": "history",
+      "map_lines": [
+        448
+      ],
+      "status": "works but output differs",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "seconds": 1.042,
+      "database_redirected": true,
+      "data_fields": [
+        "card_index",
+        "issues",
+        "issues_total",
+        "playbook_cards",
+        "refuted_issues",
+        "similar_issues",
+        "task_id",
+        "truncated"
+      ],
+      "meta_fields": [
+        "budget",
+        "call",
+        "latency_ms",
+        "omitted_items",
+        "tokens_est",
+        "truncated",
+        "with_outcomes"
+      ]
+    }
+  ],
+  "fenced_commands": [
+    {
+      "lines": [
+        51,
+        51
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        52,
+        52
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        53,
+        53
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        54,
+        54
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        55,
+        55
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "top help",
+        "task help",
+        "runs help",
+        "window help",
+        "history help",
+        "findings help",
+        "inventory help",
+        "traces help",
+        "clusters help",
+        "recount help",
+        "split help",
+        "export help",
+        "steps help",
+        "scan help",
+        "trace-card help"
+      ]
+    },
+    {
+      "lines": [
+        88,
+        88
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "inventory"
+      ]
+    },
+    {
+      "lines": [
+        89,
+        89
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "inventory ids"
+      ]
+    },
+    {
+      "lines": [
+        90,
+        90
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "pass traces"
+      ]
+    },
+    {
+      "lines": [
+        91,
+        91
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "task traces"
+      ]
+    },
+    {
+      "lines": [
+        92,
+        92
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "dataset ids"
+      ]
+    },
+    {
+      "lines": [
+        114,
+        114
+      ],
+      "classification": "works but output differs",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "facet export atif",
+        "facet export harbor",
+        "facet export scout",
+        "facet export cap"
+      ]
+    },
+    {
+      "lines": [
+        115,
+        115
+      ],
+      "classification": "works but output differs",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "explicit harbor export"
+      ]
+    },
+    {
+      "lines": [
+        116,
+        116
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "ids file export"
+      ]
+    },
+    {
+      "lines": [
+        131,
+        131
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "ATIF jq equivalents"
+      ]
+    },
+    {
+      "lines": [
+        132,
+        132
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "ATIF jq equivalents"
+      ]
+    },
+    {
+      "lines": [
+        138,
+        138
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "steps --original"
+      ]
+    },
+    {
+      "lines": [
+        139,
+        139
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "steps --blinded"
+      ]
+    },
+    {
+      "lines": [
+        156,
+        156
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        157,
+        157
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        158,
+        158
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        159,
+        160
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "cheatbench export help",
+        "cheatbench atif"
+      ]
+    },
+    {
+      "lines": [
+        161,
+        162
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "cheatbench harbor"
+      ]
+    },
+    {
+      "lines": [
+        204,
+        204
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "answer material"
+      ]
+    },
+    {
+      "lines": [
+        205,
+        205
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "tests and suspicion"
+      ]
+    },
+    {
+      "lines": [
+        206,
+        206
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "pass and awareness"
+      ]
+    },
+    {
+      "lines": [
+        207,
+        207
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "modified task"
+      ]
+    },
+    {
+      "lines": [
+        208,
+        208
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "similar runs",
+        "lexical query"
+      ]
+    },
+    {
+      "lines": [
+        229,
+        229
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "clusters database"
+      ]
+    },
+    {
+      "lines": [
+        230,
+        230
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "cluster members database"
+      ]
+    },
+    {
+      "lines": [
+        231,
+        231
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "clusters file"
+      ]
+    },
+    {
+      "lines": [
+        232,
+        232
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "cluster members file"
+      ]
+    },
+    {
+      "lines": [
+        233,
+        233
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        234,
+        234
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "cluster scope help",
+        "scope export"
+      ]
+    },
+    {
+      "lines": [
+        252,
+        252
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        253,
+        253
+      ],
+      "classification": "not runnable here",
+      "reason": "External bundle verification not completed within the bounded audit.",
+      "probes": [
+        "registry validator offline"
+      ]
+    },
+    {
+      "lines": [
+        254,
+        254
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 254"
+      ]
+    },
+    {
+      "lines": [
+        255,
+        255
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 255"
+      ]
+    },
+    {
+      "lines": [
+        256,
+        256
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 256"
+      ]
+    },
+    {
+      "lines": [
+        257,
+        257
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 257"
+      ]
+    },
+    {
+      "lines": [
+        258,
+        258
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 258"
+      ]
+    },
+    {
+      "lines": [
+        259,
+        259
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 259"
+      ]
+    },
+    {
+      "lines": [
+        260,
+        260
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 260"
+      ]
+    },
+    {
+      "lines": [
+        268,
+        268
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        270,
+        270
+      ],
+      "classification": "not runnable here",
+      "reason": "Touches cross-test/gold or external runtime state; not executed.",
+      "probes": []
+    },
+    {
+      "lines": [
+        271,
+        271
+      ],
+      "classification": "not runnable here",
+      "reason": "Touches cross-test/gold or external runtime state; not executed.",
+      "probes": []
+    },
+    {
+      "lines": [
+        273,
+        282
+      ],
+      "classification": "not runnable here",
+      "reason": "Touches cross-test/gold or external runtime state; not executed.",
+      "probes": []
+    },
+    {
+      "lines": [
+        284,
+        284
+      ],
+      "classification": "not runnable here",
+      "reason": "Touches cross-test/gold or external runtime state; not executed.",
+      "probes": []
+    },
+    {
+      "lines": [
+        331,
+        331
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 331"
+      ]
+    },
+    {
+      "lines": [
+        332,
+        332
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 332"
+      ]
+    },
+    {
+      "lines": [
+        333,
+        333
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 333"
+      ]
+    },
+    {
+      "lines": [
+        342,
+        342
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "task split",
+        "bare split"
+      ]
+    },
+    {
+      "lines": [
+        343,
+        343
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        344,
+        344
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "unknown split refusal"
+      ]
+    },
+    {
+      "lines": [
+        345,
+        345
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "unknown task refusal"
+      ]
+    },
+    {
+      "lines": [
+        356,
+        362
+      ],
+      "classification": "not runnable here",
+      "reason": "Direct ledger access is disallowed: registry API only.",
+      "probes": []
+    },
+    {
+      "lines": [
+        370,
+        380
+      ],
+      "classification": "not runnable here",
+      "reason": "Direct ledger access is disallowed: registry API only.",
+      "probes": []
+    },
+    {
+      "lines": [
+        406,
+        406
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 406"
+      ]
+    },
+    {
+      "lines": [
+        407,
+        407
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "metadata jq line 407"
+      ]
+    },
+    {
+      "lines": [
+        419,
+        419
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "modified task"
+      ]
+    },
+    {
+      "lines": [
+        420,
+        420
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "task answer-material filter"
+      ]
+    },
+    {
+      "lines": [
+        421,
+        421
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "cohort task split recipe"
+      ]
+    },
+    {
+      "lines": [
+        427,
+        427
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "seeker plan"
+      ]
+    },
+    {
+      "lines": [
+        445,
+        445
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "task bundle"
+      ]
+    },
+    {
+      "lines": [
+        446,
+        446
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "task file"
+      ]
+    },
+    {
+      "lines": [
+        447,
+        447
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        448,
+        448
+      ],
+      "classification": "works but output differs",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "history"
+      ]
+    },
+    {
+      "lines": [
+        471,
+        471
+      ],
+      "classification": "not runnable here",
+      "reason": "Setup/context command or live/external/placeholder input; not executed literally.",
+      "probes": []
+    },
+    {
+      "lines": [
+        472,
+        472
+      ],
+      "classification": "not runnable here",
+      "reason": "Touches cross-test/gold or external runtime state; not executed.",
+      "probes": []
+    },
+    {
+      "lines": [
+        473,
+        473
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "scorer --help"
+      ]
+    },
+    {
+      "lines": [
+        474,
+        474
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "scorer self-test"
+      ]
+    },
+    {
+      "lines": [
+        475,
+        475
+      ],
+      "classification": "not runnable here",
+      "reason": "Touches cross-test/gold or external runtime state; not executed.",
+      "probes": []
+    },
+    {
+      "lines": [
+        477,
+        477
+      ],
+      "classification": "not runnable here",
+      "reason": "Touches cross-test/gold or external runtime state; not executed.",
+      "probes": []
+    },
+    {
+      "lines": [
+        478,
+        478
+      ],
+      "classification": "not runnable here",
+      "reason": "Touches cross-test/gold or external runtime state; not executed.",
+      "probes": []
+    },
+    {
+      "lines": [
+        480,
+        480
+      ],
+      "classification": "not runnable here",
+      "reason": "Touches cross-test/gold or external runtime state; not executed.",
+      "probes": []
+    },
+    {
+      "lines": [
+        481,
+        481
+      ],
+      "classification": "not runnable here",
+      "reason": "Touches cross-test/gold or external runtime state; not executed.",
+      "probes": []
+    },
+    {
+      "lines": [
+        516,
+        516
+      ],
+      "classification": "fails",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "findings aggregate"
+      ]
+    },
+    {
+      "lines": [
+        517,
+        517
+      ],
+      "classification": "works but output differs",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "findings run"
+      ]
+    },
+    {
+      "lines": [
+        518,
+        518
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "clusters file"
+      ]
+    },
+    {
+      "lines": [
+        534,
+        534
+      ],
+      "classification": "works but output differs",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "facet export atif",
+        "facet export harbor",
+        "facet export scout"
+      ]
+    },
+    {
+      "lines": [
+        535,
+        535
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "deterministic scan"
+      ]
+    },
+    {
+      "lines": [
+        547,
+        547
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "recount"
+      ]
+    },
+    {
+      "lines": [
+        548,
+        548
+      ],
+      "classification": "works as documented",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "inventory"
+      ]
+    },
+    {
+      "lines": [
+        549,
+        549
+      ],
+      "classification": "fails",
+      "reason": "Executed safe instance; placeholders replaced, store redirected; projection captured counts only.",
+      "probes": [
+        "findings aggregate"
+      ]
+    },
+    {
+      "lines": [
+        550,
+        550
+      ],
+      "classification": "not runnable here",
+      "reason": "External bundle verification not completed within the bounded audit.",
+      "probes": [
+        "registry validator offline"
+      ]
+    }
+  ],
+  "inline_commands": [
+    {
+      "line": 14,
+      "classification": "covered by probes",
+      "probes": [
+        "task help",
+        "runs help",
+        "window help",
+        "history help",
+        "findings help",
+        "inventory help",
+        "traces help",
+        "clusters help",
+        "recount help",
+        "split help",
+        "export help",
+        "steps help",
+        "scan help",
+        "trace-card help"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 14,
+      "classification": "covered by probes",
+      "probes": [
+        "task help",
+        "runs help",
+        "window help",
+        "history help",
+        "findings help",
+        "inventory help",
+        "traces help",
+        "clusters help",
+        "recount help",
+        "split help",
+        "export help",
+        "steps help",
+        "scan help",
+        "trace-card help"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 16,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 16,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 23,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 26,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 27,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 31,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 38,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 45,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 58,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 58,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 60,
+      "classification": "covered by probes",
+      "probes": [
+        "minimum budget"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 71,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 71,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 71,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 72,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 72,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 72,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 72,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 73,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 73,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 74,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 75,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 80,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 82,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 82,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 83,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 107,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 108,
+      "classification": "covered by probes",
+      "probes": [
+        "bountybench traces",
+        "bountybench facets"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 108,
+      "classification": "covered by probes",
+      "probes": [
+        "bountybench traces",
+        "bountybench facets"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 121,
+      "classification": "covered by probes",
+      "probes": [
+        "facet export atif",
+        "facet export harbor",
+        "facet export scout"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 121,
+      "classification": "covered by probes",
+      "probes": [
+        "facet export atif",
+        "facet export harbor",
+        "facet export scout"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 128,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 144,
+      "classification": "covered by probes",
+      "probes": [
+        "raw export help"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 144,
+      "classification": "covered by probes",
+      "probes": [
+        "raw export help"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 145,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 148,
+      "classification": "covered by probes",
+      "probes": [
+        "window range",
+        "window around"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 148,
+      "classification": "covered by probes",
+      "probes": [
+        "window range",
+        "window around"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 153,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 165,
+      "classification": "covered by probes",
+      "probes": [
+        "cheatbench export help"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 173,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 175,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 181,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 191,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 196,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 213,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 213,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 214,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 216,
+      "classification": "covered by probes",
+      "probes": [
+        "trace card"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 217,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 217,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 218,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 220,
+      "classification": "covered by probes",
+      "probes": [
+        "all faceted",
+        "modified tests",
+        "awareness"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 223,
+      "classification": "covered by probes",
+      "probes": [
+        "recount"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 237,
+      "classification": "covered by probes",
+      "probes": [
+        "cluster run filter"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 237,
+      "classification": "covered by probes",
+      "probes": [
+        "cluster run filter"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 242,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 348,
+      "classification": "covered by probes",
+      "probes": [
+        "unknown split refusal",
+        "unknown task refusal"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 348,
+      "classification": "covered by probes",
+      "probes": [
+        "unknown split refusal",
+        "unknown task refusal"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 348,
+      "classification": "covered by probes",
+      "probes": [
+        "unknown split refusal",
+        "unknown task refusal"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 351,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 388,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 388,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 389,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 390,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 390,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 392,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 392,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 392,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 393,
+      "classification": "covered by probes",
+      "probes": [
+        "trace card"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 393,
+      "classification": "covered by probes",
+      "probes": [
+        "trace card"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 393,
+      "classification": "covered by probes",
+      "probes": [
+        "trace card"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 394,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 455,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 507,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 508,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 508,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 526,
+      "classification": "covered by probes",
+      "probes": [
+        "findings task"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 531,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 540,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 540,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 540,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 559,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 564,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 566,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 570,
+      "classification": "covered by probes",
+      "probes": [
+        "prod status help"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 570,
+      "classification": "covered by probes",
+      "probes": [
+        "prod status help"
+      ],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 573,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 583,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 583,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 583,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 588,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 591,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 591,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 593,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    },
+    {
+      "line": 593,
+      "classification": "not runnable here",
+      "probes": [],
+      "reason": "Read-only tested form or incomplete/prohibited example; never shell-evaluated."
+    }
+  ],
+  "claim_lines": [
+    {
+      "line": 12,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 13,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 14,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 15,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 16,
+      "classification": "unverifiable",
+      "reviews": [
+        "aggregate-findings"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 18,
+      "classification": "true",
+      "reviews": [
+        "map-length"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 20,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 22,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 23,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 24,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 25,
+      "classification": "false",
+      "reviews": [
+        "status-write"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 26,
+      "classification": "false",
+      "reviews": [
+        "status-write"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 27,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 28,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 29,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 30,
+      "classification": "false",
+      "reviews": [
+        "ledger-direct"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 31,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 32,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 33,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 34,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 35,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 36,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 37,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 38,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 40,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 42,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 44,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 45,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 46,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 48,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 55,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 58,
+      "classification": "true",
+      "reviews": [
+        "budget"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 60,
+      "classification": "true",
+      "reviews": [
+        "budget"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 61,
+      "classification": "true",
+      "reviews": [
+        "budget"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 62,
+      "classification": "true",
+      "reviews": [
+        "budget"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 64,
+      "classification": "false",
+      "reviews": [
+        "envelope"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 65,
+      "classification": "false",
+      "reviews": [
+        "env-default"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 67,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 69,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 71,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 72,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 73,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 74,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 75,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 77,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 79,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 80,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 81,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 82,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 83,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 85,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 88,
+      "classification": "unverifiable",
+      "reviews": [
+        "aggregate-findings"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 89,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 90,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 91,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 92,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 95,
+      "classification": "true",
+      "reviews": [
+        "snapshot-numbers"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 96,
+      "classification": "true",
+      "reviews": [
+        "snapshot-numbers"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 97,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 99,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 101,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 102,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 103,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 104,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 105,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 106,
+      "classification": "true",
+      "reviews": [
+        "budget"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 107,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 108,
+      "classification": "true",
+      "reviews": [
+        "snapshot-numbers"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 110,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 113,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 119,
+      "classification": "true",
+      "reviews": [
+        "export-correct-parts"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 120,
+      "classification": "true",
+      "reviews": [
+        "export-correct-parts"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 121,
+      "classification": "false",
+      "reviews": [
+        "export-path"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 122,
+      "classification": "true",
+      "reviews": [
+        "export-correct-parts"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 124,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 125,
+      "classification": "true",
+      "reviews": [
+        "budget"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 126,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 128,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 131,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 132,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 135,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 138,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 139,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 142,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 144,
+      "classification": "false",
+      "reviews": [
+        "raw-export"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 145,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 146,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 147,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 148,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 149,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 151,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 153,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 157,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 158,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 165,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 166,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 167,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 168,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 169,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 170,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 171,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 172,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 173,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 174,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 175,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 176,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 178,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 180,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 181,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 183,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 185,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 186,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 187,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 188,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 189,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 191,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 193,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 194,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 195,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 196,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 197,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 199,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 201,
+      "classification": "true",
+      "reviews": [
+        "snapshot-numbers"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 204,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 207,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 208,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 211,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 212,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 213,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 214,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 216,
+      "classification": "false",
+      "reviews": [
+        "lookup"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 217,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 218,
+      "classification": "false",
+      "reviews": [
+        "lookup"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 220,
+      "classification": "true",
+      "reviews": [
+        "snapshot-numbers"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 221,
+      "classification": "true",
+      "reviews": [
+        "snapshot-numbers"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 223,
+      "classification": "unverifiable",
+      "reviews": [
+        "recount-snapshot"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 224,
+      "classification": "false",
+      "reviews": [
+        "recount-snapshot",
+        "raw-facet-screen"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 226,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 229,
+      "classification": "true",
+      "reviews": [
+        "cluster-contract"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 230,
+      "classification": "true",
+      "reviews": [
+        "cluster-contract"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 231,
+      "classification": "true",
+      "reviews": [
+        "cluster-contract"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 232,
+      "classification": "true",
+      "reviews": [
+        "cluster-contract"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 233,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 234,
+      "classification": "true",
+      "reviews": [
+        "cluster-contract"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 237,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 239,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 240,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 241,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 242,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 244,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 246,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 247,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 248,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 249,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 253,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 254,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 255,
+      "classification": "false",
+      "reviews": [
+        "command-localization-exclusivity"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 256,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 257,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 259,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 260,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 263,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 265,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 269,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 270,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 272,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 278,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 283,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 287,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 289,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 290,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 291,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 292,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 293,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 294,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 295,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 297,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 299,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 300,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 301,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 303,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 304,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 305,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 306,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 307,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 308,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 310,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 312,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 313,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 314,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 315,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 316,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 317,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 318,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 319,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 320,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 321,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 322,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 323,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 324,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 325,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 326,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 327,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 328,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 332,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 333,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 336,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 337,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 338,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 339,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 342,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 343,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 344,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 345,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 348,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 349,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 350,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 351,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 353,
+      "classification": "false",
+      "reviews": [
+        "ledger-direct"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 358,
+      "classification": "false",
+      "reviews": [
+        "ledger-direct"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 365,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 367,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 379,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 383,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 384,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 386,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 388,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 389,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 390,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 392,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 393,
+      "classification": "false",
+      "reviews": [
+        "lookup"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 394,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 395,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 396,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 397,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 399,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 401,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 403,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 410,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 412,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 413,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 414,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 416,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 421,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 424,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 430,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 431,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 432,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 434,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 436,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 437,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 438,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 440,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 442,
+      "classification": "false",
+      "reviews": [
+        "task-implicit-content"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 446,
+      "classification": "false",
+      "reviews": [
+        "task-implicit-content"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 447,
+      "classification": "false",
+      "reviews": [
+        "task-implicit-content"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 448,
+      "classification": "false",
+      "reviews": [
+        "history"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 451,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 453,
+      "classification": "true",
+      "reviews": [
+        "snapshot-numbers"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 454,
+      "classification": "true",
+      "reviews": [
+        "snapshot-numbers"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 455,
+      "classification": "false",
+      "reviews": [
+        "task-resolution"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 456,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 458,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 460,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 461,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 462,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 463,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 464,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 466,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 467,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 468,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 473,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 474,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 475,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 476,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 479,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 484,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 485,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 486,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 487,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 488,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 489,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 490,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 491,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 492,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 493,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 494,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 495,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 496,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 497,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 498,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 499,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 500,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 501,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 502,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 504,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 506,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 507,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 508,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 509,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 510,
+      "classification": "false",
+      "reviews": [
+        "command-localization-exclusivity"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 511,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 513,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 516,
+      "classification": "false",
+      "reviews": [
+        "aggregate-findings",
+        "findings-selector"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 517,
+      "classification": "false",
+      "reviews": [
+        "findings-shape"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 518,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 521,
+      "classification": "unverifiable",
+      "reviews": [
+        "aggregate-findings"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 522,
+      "classification": "unverifiable",
+      "reviews": [
+        "aggregate-findings"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 524,
+      "classification": "false",
+      "reviews": [
+        "findings-shape"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 525,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 526,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 527,
+      "classification": "false",
+      "reviews": [
+        "ledger-inputs"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 528,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 530,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 531,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 535,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 538,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 539,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 540,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 542,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 544,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 547,
+      "classification": "unverifiable",
+      "reviews": [
+        "aggregate-findings",
+        "recount-snapshot"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 548,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 549,
+      "classification": "false",
+      "reviews": [
+        "aggregate-findings",
+        "findings-selector"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 550,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 553,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 555,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 556,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 557,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 558,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 559,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 560,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 562,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 564,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 565,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 566,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 567,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 568,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 569,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 570,
+      "classification": "false",
+      "reviews": [
+        "status-write"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 571,
+      "classification": "false",
+      "reviews": [
+        "raw-facet-screen"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 572,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 573,
+      "classification": "false",
+      "reviews": [
+        "ledger-direct"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 574,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 575,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 576,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 577,
+      "classification": "true",
+      "reviews": [
+        "admission-behavior"
+      ],
+      "reason": "See source-reviewed claim units."
+    },
+    {
+      "line": 579,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 581,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 582,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 583,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 584,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 585,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 586,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 587,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 588,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 589,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 590,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 591,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 592,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 593,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    },
+    {
+      "line": 594,
+      "classification": "unverifiable",
+      "reviews": [],
+      "reason": "Historical, policy, external evidence, or compound prose not independently established."
+    }
+  ],
+  "review": {
+    "unit_contract": "Exhaustive prose-line inventory, including compound assertions; true requires support for the entire line. Historical/scientific/external claims are not inferred from code. Command occurrences and normalized runtime probes are separate denominators.",
+    "claim_reviews": [
+      {
+        "id": "admission-behavior",
+        "lines": [
+          22,
+          24,
+          101,
+          102,
+          103,
+          104,
+          105,
+          135,
+          145,
+          146,
+          147,
+          148,
+          211,
+          212,
+          213,
+          214,
+          217,
+          342,
+          344,
+          345,
+          348,
+          349,
+          350,
+          351,
+          383,
+          384,
+          414,
+          456,
+          525,
+          526,
+          530,
+          531,
+          538,
+          540,
+          557,
+          565,
+          566,
+          567,
+          568,
+          572,
+          577
+        ],
+        "classification": "true",
+        "evidence": "qa_data.py:29-44,88-218,370-504; qa_data_calls.py:75-194; qa_data_export.py:16-57,78-184; cloud_trace_db.py:admitted_cloud_task_ids (imported authority); qa_data_scan.py:25-113. Runtime probes cover admission, full/bare task, filters, step joins, scanner and bounds. These are source support, not certification of policy/scientific claims."
+      },
+      {
+        "id": "budget",
+        "lines": [
+          58,
+          60,
+          61,
+          62,
+          106,
+          125
+        ],
+        "classification": "true",
+        "evidence": "qa_data.py:29-34,57-85,299-367,380-385; qa_data_inventory.py:153-223."
+      },
+      {
+        "id": "status-write",
+        "lines": [
+          25,
+          26,
+          570
+        ],
+        "classification": "false",
+        "evidence": "production/cli.py:124-126,533-580,1125-1128 opens status strictly read-only; cloud_trace_db.py:506-559 still migrates by default."
+      },
+      {
+        "id": "env-default",
+        "lines": [
+          65
+        ],
+        "classification": "false",
+        "evidence": "qa_data.py:29,203-217,380-383: EVALLAB_PROD_STATE selects auxiliary ledgers, NOT the parser's fixed cloud-database default."
+      },
+      {
+        "id": "envelope",
+        "lines": [
+          64
+        ],
+        "classification": "false",
+        "evidence": "qa_data.py:299-367 returns JSON for handler failures; argparse usage failures emit text stderr, exit 2. --help emits text."
+      },
+      {
+        "id": "export-path",
+        "lines": [
+          121
+        ],
+        "classification": "false",
+        "evidence": "qa_data_export.py:168-183: ATIF has file, harbor/scout have path; facets sort by suspicion but explicit IDs preserve deduplicated request order."
+      },
+      {
+        "id": "raw-export",
+        "lines": [
+          144
+        ],
+        "classification": "false",
+        "evidence": "production/cli.py:150-174: --trace-ids-file and --strict now exist; default non-strict refusal still exits zero."
+      },
+      {
+        "id": "lookup",
+        "lines": [
+          216,
+          218,
+          393
+        ],
+        "classification": "false",
+        "evidence": "qa_data.py:487-492; qa_data_card.py:build_card. trace-card RUN_ID provides one-run lookup with facet leads and stored findings (not a full raw facet-record API)."
+      },
+      {
+        "id": "history",
+        "lines": [
+          448
+        ],
+        "classification": "false",
+        "evidence": "qa_data_calls.py:223-235,263-268: own issues include every non-refuted status, including provisional; outcomes flag adds trust tier and differential, not a general raw reward dump."
+      },
+      {
+        "id": "aggregate-findings",
+        "lines": [
+          16,
+          88,
+          516,
+          521,
+          522,
+          547,
+          549
+        ],
+        "classification": "unverifiable",
+        "evidence": "Historical counts remain historical, but unqualified findings no longer returns an aggregate. See correction C07 and runtime failure."
+      },
+      {
+        "id": "findings-selector",
+        "lines": [
+          516,
+          549
+        ],
+        "classification": "false",
+        "evidence": "qa_data_findings.py:481-486 requires exactly one of --run/--task."
+      },
+      {
+        "id": "findings-shape",
+        "lines": [
+          517,
+          524
+        ],
+        "classification": "false",
+        "evidence": "qa_data_findings.py:481-652 returns a grouped findings object for BOTH selectors, plus counts/coverage/omissions, merges ledgers, screens detector text rather than universally withholding two readers."
+      },
+      {
+        "id": "task-resolution",
+        "lines": [
+          455
+        ],
+        "classification": "false",
+        "evidence": "qa_data_task.py:132-207 resolves registry-pinned local packages and verifies their digest. CAS-only resolution description is obsolete."
+      },
+      {
+        "id": "ledger-direct",
+        "lines": [
+          30,
+          353,
+          358,
+          359,
+          372,
+          573
+        ],
+        "classification": "false",
+        "evidence": "Protocol incompatibility, not a newly inferred product bug: this audit's authorization requires assignments access only through CorpusRegistry, not direct csv safe-column projection. Proposed stricter guidance is separated from runtime defects."
+      },
+      {
+        "id": "recount-snapshot",
+        "lines": [
+          223,
+          224,
+          547
+        ],
+        "classification": "unverifiable",
+        "evidence": "qa_data_inventory.py:372-423 confirms latest-record wins and digest locking. File and DB are separate snapshots; historical values cannot be established today."
+      },
+      {
+        "id": "task-implicit-content",
+        "lines": [
+          442,
+          446,
+          447
+        ],
+        "classification": "false",
+        "evidence": "qa_data_task.py:410-415,526-531 automatically includes prioritized content for registry-backed packages even without --file."
+      },
+      {
+        "id": "snapshot-numbers",
+        "lines": [
+          95,
+          96,
+          108,
+          201,
+          220,
+          221,
+          453,
+          454
+        ],
+        "classification": "true",
+        "evidence": "Runtime inventory, task bundle, facet filters and admitted task trace probes reproduce these aggregate counts on the supplied backup. Historical observation is reproducible on this backup, not a claim of current live totals."
+      },
+      {
+        "id": "export-correct-parts",
+        "lines": [
+          119,
+          120,
+          122
+        ],
+        "classification": "true",
+        "evidence": "qa_data_export.py:78-184 plus actual three-format exports and receipt probes. Historical 91-run reply capacity was not remeasured and remains unverifiable."
+      },
+      {
+        "id": "ledger-inputs",
+        "lines": [
+          527
+        ],
+        "classification": "false",
+        "evidence": "qa_data_findings.py:537-540 reads multiple ledger files; the map's single-file guidance is incomplete."
+      },
+      {
+        "id": "cluster-contract",
+        "lines": [
+          229,
+          230,
+          231,
+          232,
+          234
+        ],
+        "classification": "true",
+        "evidence": "qa_data_inventory.py:264-360; production/cli.py:177-193; cloud_trace_export.py:548-667; database/file cluster and scope-export runtime probes."
+      },
+      {
+        "id": "raw-facet-screen",
+        "lines": [
+          224,
+          571
+        ],
+        "classification": "false",
+        "evidence": "qa_data_inventory.py:375-409 and cloud_trace_db.py:_admitted_facets screen facet field text as well as ownership. A last-record inventory-id intersection is necessary but insufficient to reproduce served facets."
+      },
+      {
+        "id": "command-localization-exclusivity",
+        "lines": [
+          255,
+          510
+        ],
+        "classification": "false",
+        "evidence": "The exact line-255 metadata jq returns 2 entries, not the claimed sole entry. This is registry growth, not a broken query; see drift and C18."
+      },
+      {
+        "id": "map-length",
+        "lines": [
+          18
+        ],
+        "classification": "true",
+        "evidence": "Map has 594 physical lines in this snapshot. Reader pagination claim is tool-specific, not a qa-data contract."
+      }
+    ],
+    "corrections": [
+      {
+        "id": "C01",
+        "lines": [
+          25,
+          26,
+          570
+        ],
+        "description": "status no longer writes",
+        "replacement": "CloudTraceDatabase(path) still initializes writable by default: use read_only=True. evallab prod status now opens an existing queue strictly read-only; it neither creates nor migrates it and refuses a cloud trace database. Do not substitute it for qa-data."
+      },
+      {
+        "id": "C02",
+        "lines": [
+          65
+        ],
+        "description": "database environment override is wrong",
+        "replacement": "The default cloud database is ~/.local/state/evallab-prod-live/cloud-trace-db.sqlite. Override it with --cloud-database PATH. EVALLAB_PROD_STATE changes the auxiliary facet, cluster and trace-tool ledger directory, not this default database path."
+      },
+      {
+        "id": "C03",
+        "lines": [
+          64
+        ],
+        "description": "JSON guarantee excludes parser",
+        "replacement": "A successfully parsed call prints one JSON document {ok, data | error, meta}; exit 0 is success and handler refusals/failures exit 2. Argparse usage errors instead print text on stderr and exit 2; --help prints text and exits 0."
+      },
+      {
+        "id": "C04",
+        "lines": [
+          120,
+          121,
+          122
+        ],
+        "description": "format-specific path keys and ordering",
+        "replacement": "The receipt contains admitted, exported, refused and manifest_sha256. Per-run entries have trace_id, blind_id and actor_inputs_available; ATIF uses file and includes steps, evidence_steps_original and evidence_steps_blinded, whereas Harbor and Scout use path and have no step map. Facet selections are suspicion-ranked; explicit ids preserve deduplicated request order. A non-admitted explicit id refuses the entire call before publication."
+      },
+      {
+        "id": "C05",
+        "lines": [
+          144
+        ],
+        "description": "raw exporter gained strict ids files",
+        "replacement": "evallab prod export-runs accepts --trace-ids-file FILE and --strict. Without --strict it can still exit 0 with refused runs; --strict fails before publication when any requested id is unavailable. It has no facet selector. Prefer qa-data export for admission-first facet selection and strict explicit ids."
+      },
+      {
+        "id": "C06",
+        "lines": [
+          216,
+          218,
+          393
+        ],
+        "description": "single-run accessor exists",
+        "replacement": "For a compact single-run lookup use qa-data trace-card RUN_ID [--no-ledgers]: it combines stored detector findings, facet leads, original-step citations, trace flags and playbook cards. This is not the full raw facet record; for that record use traces to obtain task_id, runs --task TASK_ID with sufficient --limit/--budget, then select run_id. runs still has no --ids-only."
+      },
+      {
+        "id": "C07",
+        "lines": [
+          516,
+          549
+        ],
+        "description": "bare findings now fails",
+        "replacement": "qa-data findings requires exactly one selector: --run TRACE_ID or --task TASK_ID. With neither or both it exits 2 with give exactly one of --run or --task. It no longer provides a global per-tool census; do not use bare findings to rederive historical aggregate counts."
+      },
+      {
+        "id": "C08",
+        "lines": [
+          517,
+          524,
+          526
+        ],
+        "description": "both findings modes return grouped object",
+        "replacement": "Both findings --run and findings --task return an object with findings grouped by presented run id, counts, coverage, withheld_strings, dedup_capped, omitted and truncated (a minimal summary is possible when the budget cannot fit counts). Each finding retains tool, detector, run_id, flag, evidence_steps, at and summary. --limit defaults to 20 records across groups, independently of the token budget. Detector text is screened; Scout-METR and Docent detector names are not unconditionally replaced with [withheld]."
+      },
+      {
+        "id": "C09",
+        "lines": [
+          527
+        ],
+        "description": "findings has multiple input ledgers",
+        "replacement": "findings reads results-v1.jsonl and laminar-own.jsonl under the selected state's trace-tools directory, plus trace-tools/tt7/docent/arms/*-canonical.json. It deduplicates identical mirrored observations, drops malformed/oversized/unadmitted records and returns admitted per-run coverage; these counts are not raw file line counts."
+      },
+      {
+        "id": "C10",
+        "lines": [
+          448
+        ],
+        "description": "history not confirmed-only",
+        "replacement": "qa-data history TASK_ID returns the task's non-refuted own issues (including provisional), similar admitted examples and playbook cards. --with-outcomes adds issue trust_tier and available original/repaired reward differential for scoring only; default output omits these outcome fields."
+      },
+      {
+        "id": "C11",
+        "lines": [
+          455
+        ],
+        "description": "package resolution is not CAS-only",
+        "replacement": "file_count includes withheld files. qa-data task can use CAS-backed packages or resolve a registry-pinned local package from approved locators with digest verification and protected-path filtering. --cloud-database redirects only SQLite, not CAS or package roots: a backup alone is not a self-contained task bundle."
+      },
+      {
+        "id": "C12",
+        "lines": [
+          30,
+          353,
+          358,
+          359,
+          367,
+          372,
+          573
+        ],
+        "description": "safe-column csv still bypasses registry",
+        "replacement": "Never read assignments.csv directly in QA audit code, even by selecting safe columns after csv.DictReader: parsing still materializes protected columns. Use CorpusRegistry admission APIs and qa-data split; unavailable ids receive the same refusal and must not be probed for TEST membership. Historical split/cross-key censuses need a separately authorized registry-based aggregate, not the direct CSV snippets below."
+      },
+      {
+        "id": "C13",
+        "lines": [
+          114,
+          149
+        ],
+        "description": "export hard cap omitted",
+        "replacement": "qa-data export publishes at most 200 runs per call. --limit, when supplied, must be 1..200; without it a selection exceeding 200 is refused before publication. Narrow the facet filter or provide --limit; --budget only controls the receipt's per-run list, not this hard cap."
+      },
+      {
+        "id": "C14",
+        "lines": [
+          237
+        ],
+        "description": "cluster facet intersection can silently undercount",
+        "replacement": "To count a facet over a cluster, intersect its cloud_run_ids with the complete matching run_id set from runs --facet: raise --limit and --budget until data.truncated and meta.truncated are false. --limit 200 is not guaranteed complete; budget clipping can still occur below that limit. Bind cluster ids to their build and distinguish DB from file membership."
+      },
+      {
+        "id": "C15",
+        "lines": [
+          223,
+          224,
+          547
+        ],
+        "description": "recount does not snapshot auxiliary state with database",
+        "replacement": "recount compares the selected read-only cloud database against the auxiliary facets-v1.jsonl selected by EVALLAB_PROD_STATE (default live state). It locks and hashes that file and keeps the latest screened record per run; --cloud-database does not redirect the JSONL. Report both sources and the JSONL digest. Historical JSONL counts differ between these two paragraphs and must remain explicitly dated rather than described as one current census."
+      },
+      {
+        "id": "C16",
+        "lines": [
+          14,
+          55
+        ],
+        "description": "help is not sole authority and call count discrepancy",
+        "replacement": "qa-data currently registers 14 call types, including trace-card. The help guide still contains stale aggregate-findings and no-single-run-lookup guidance: use subcommand --help for flags and implementation/runtime evidence for behavior. There is no evidence for 17 qa-data call types in this revision; the map's 17 refers to staged corpora, not calls."
+      },
+      {
+        "id": "C17",
+        "lines": [
+          442,
+          446,
+          447
+        ],
+        "description": "task can return file content without --file",
+        "replacement": "qa-data task may include prioritized verifier and environment file contents automatically for registry-backed packages, even without --file. --file explicitly requests an allowed relative path and prioritizes it within the budget; without it do not assume a names-only response. Protected solution/scoring-key paths remain withheld. Inspect packages[*].contents and its truncation/omission metadata."
+      },
+      {
+        "id": "C18",
+        "lines": [
+          255,
+          510
+        ],
+        "description": "command-localization exclusivity is stale",
+        "replacement": "The registry now marks 2 staged corpora as command-level-localization scorable. Enumerate them with the registry scoring.command_level_localization_scorable query instead of assuming there is only one. This is registry metadata growth; keep each corpus's own unit, gold definition, admission and false-alarm basis separate."
+      },
+      {
+        "id": "C19",
+        "lines": [
+          224,
+          571
+        ],
+        "description": "manual facet intersection misses sealed-text screening",
+        "replacement": "Do not reconstruct the QA-served facet set by taking the last raw JSONL record per run_id and intersecting inventory ids alone. Served facets also screen task ownership and record text for sealed identities; an admitted run's facet can still be withheld. Prefer qa-data runs for served records and qa-data recount for counts, and do not expose raw facet ledgers to QA readers."
+      },
+      {
+        "id": "C20",
+        "lines": [
+          246,
+          256,
+          303,
+          306,
+          332
+        ],
+        "description": "external registry counts have grown (drift)",
+        "replacement": "At the audit snapshot the registry contains 33 staged corpora, with 31 allowed for local Trace Watcher access and 7 held-access entries. Its false_alarm_basis metadata marks 18 yes, 10 upper_bound and 5 no. These are metadata counts, not independently validated scientific verdicts; enumerate the current registry instead of treating the older 17-corpus table as exhaustive. Historical table rows may remain explicitly dated."
+      }
+    ]
+  },
+  "measurements": {
+    "inventory": {
+      "admitted_tasks": 3474,
+      "admitted_runs": 4544,
+      "run_outcomes": {
+        "pass": 2033,
+        "fail": 1297,
+        "unknown": 1214
+      },
+      "models_total": 27
+    },
+    "datasets": [
+      {
+        "tasks": 1048,
+        "runs": 3674
+      },
+      {
+        "tasks": 56,
+        "runs": 732
+      },
+      {
+        "tasks": 1604,
+        "runs": 0
+      },
+      {
+        "tasks": 731,
+        "runs": 0
+      },
+      {
+        "tasks": 21,
+        "runs": 47
+      },
+      {
+        "tasks": 14,
+        "runs": 91
+      }
+    ],
+    "call_types": 14,
+    "facet_matches": {
+      "pass traces": 23,
+      "task traces": 47,
+      "dataset ids": 91,
+      "answer material": 29,
+      "tests and suspicion": 210,
+      "pass and awareness": 50,
+      "modified task": 0,
+      "all faceted": 1234,
+      "modified tests": 507,
+      "awareness": 1101,
+      "suspicious": 326,
+      "facet outcome pass": 483,
+      "facet outcome fail": 410,
+      "facet outcome unknown": 341,
+      "similar runs": 1233,
+      "lexical query": 739,
+      "cluster run filter": 165,
+      "task answer-material filter": 2,
+      "bountybench traces": 21,
+      "bountybench facets": 0
+    },
+    "task": {
+      "instruction_chars": 939,
+      "issues_total": 4,
+      "packages": [
+        {
+          "file_count": 14,
+          "listed": 12,
+          "withheld": 2
+        },
+        {
+          "file_count": 55,
+          "listed": 55,
+          "withheld": 0
+        }
+      ],
+      "runs": {
+        "total": 47,
+        "faceted": 47,
+        "suspicion_ge_2": 2,
+        "omitted": 0
+      },
+      "contents_returned_without_file": 0
+    },
+    "recount": {
+      "jsonl_lines": 6969,
+      "jsonl_unique_runs": 4168,
+      "db_facets": 1234,
+      "jsonl_only_runs": 2934,
+      "omitted": 0,
+      "sides": [
+        {
+          "admitted_cloud_runs": 4018,
+          "answer_material_accessed": 88
+        },
+        {
+          "admitted_cloud_runs": 1234,
+          "answer_material_accessed": 29
+        }
+      ]
+    },
+    "history_fields": [
+      "card_index",
+      "issues",
+      "issues_total",
+      "playbook_cards",
+      "refuted_issues",
+      "similar_issues",
+      "task_id",
+      "truncated"
+    ],
+    "history_issue_status_counts": {
+      "provisional": 4
+    },
+    "scope": {
+      "admitted": 165,
+      "members": 165,
+      "refused": 0,
+      "refused_by_reason": {
+        "db_non_dev_split": 0,
+        "registry_cross_key_or_sealed": 0,
+        "unstored_run": 0
+      }
+    },
+    "registry": {
+      "entries": 33,
+      "hold": 7,
+      "fa_rates": {
+        "no": 5,
+        "yes": 18,
+        "upper_bound": 10
+      },
+      "trace_watcher_allowed": 31,
+      "localization_scorable": 2,
+      "fa_rate_yes": 18
+    }
+  },
+  "drift": [
+    {
+      "map_lines": [
+        223,
+        224
+      ],
+      "field": "jsonl_lines",
+      "old": 3118,
+      "observed": 6969,
+      "classification": "drift"
+    },
+    {
+      "map_lines": [
+        223,
+        224
+      ],
+      "field": "jsonl_unique_runs",
+      "old": 2703,
+      "observed": 4168,
+      "classification": "drift"
+    },
+    {
+      "map_lines": [
+        223,
+        224
+      ],
+      "field": "jsonl_only_runs",
+      "old": 1469,
+      "observed": 2934,
+      "classification": "drift"
+    },
+    {
+      "map_lines": [
+        246
+      ],
+      "field": "entries",
+      "old": 17,
+      "observed": 33,
+      "classification": "drift"
+    },
+    {
+      "map_lines": [
+        260
+      ],
+      "field": "hold",
+      "old": 7,
+      "observed": 7,
+      "classification": "unchanged"
+    },
+    {
+      "map_lines": [
+        256
+      ],
+      "field": "trace_watcher_allowed",
+      "old": 15,
+      "observed": 31,
+      "classification": "drift"
+    },
+    {
+      "map_lines": [
+        255,
+        510
+      ],
+      "field": "localization_scorable",
+      "old": 1,
+      "observed": 2,
+      "classification": "drift"
+    },
+    {
+      "map_lines": [
+        303,
+        332
+      ],
+      "field": "fa_rate_yes",
+      "old": 9,
+      "observed": 18,
+      "classification": "drift"
+    }
+  ],
+  "reused_core_probes": 87,
+  "summary": {
+    "probes": {
+      "works as documented": 80,
+      "works but output differs": 8,
+      "fails": 1,
+      "not runnable here": 1
+    },
+    "fenced_commands": {
+      "not runnable here": 27,
+      "works as documented": 50,
+      "works but output differs": 5,
+      "fails": 2
+    },
+    "claim_lines": {
+      "unverifiable": 270,
+      "true": 64,
+      "false": 28
+    },
+    "corrections": 20
+  },
+  "published_at": "2026-10-30T05:47:46.191191+00:00",
+  "limits": [
+    "The map itself and the SQLite backup were not edited; no product code or tests changed.",
+    "All store-reading qa-data probes received --cloud-database; scope used --source-database.",
+    "Auxiliary JSONL/cluster/finding files remain separately timed live read-only inputs, not part of the backup.",
+    "No held-out answer-key rows were read directly. CSV census snippets were not run; registry admission owns access.",
+    "No cross-test adapter selfchecks, synthetic/real gold scoring, production snapshots, unsafe atlas show or live services were run.",
+    "External metadata jq outputs were captured only in-process; evidence retains counts/field names, not corpus identifiers or text.",
+    "Probes instantiate placeholders with admitted ids; export cohorts are bounded to 2, rather than reproducing historical large exports.",
+    "Claims are exhaustive physical source-line units (including code comments and numeric headings), not atomized sentences; compound unknown claims remain unverifiable.",
+    "Historical rater agreement, model quality, task-key counts, no-actor full-corpus projection and remote server state are not independently reestablished.",
+    "No new regression test: this is a documentation investigation, and the observed baseline defects are the result, not changes to product behavior."
+  ]
+}

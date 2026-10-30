@@ -1,0 +1,26 @@
+{
+ "goodfire": {
+  "requested_model": "deepseek/deepseek-flash",
+  "n_calls": 150,
+  "n_attested": 150,
+  "served_model_sets": [
+   "['deepseek/deepseek-flash']"
+  ],
+  "n_with_fallback_events": 0,
+  "n_population": 150
+ },
+ "cheatbench": {
+  "requested_model": "deepseek/deepseek-flash",
+  "n_calls": 149,
+  "n_attested": 149,
+  "served_model_sets": [
+   "['deepseek/deepseek-flash']"
+  ],
+  "n_with_fallback_events": 0,
+  "n_population": 149
+ },
+ "total": {
+  "n_calls": 299,
+  "n_attested": 299
+ }
+}

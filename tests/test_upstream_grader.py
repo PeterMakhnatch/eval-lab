@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import io
 import json
+import os
 import runpy
 import shutil
 import subprocess
@@ -1987,3 +1988,93 @@ def test_native_docker_stop_remains_available_after_started_environment_is_disab
     finally:
         grader._ACTIVE_EXECUTION.reset(token)
         grader._runtime_type.cache_clear()
+
+
+def test_missing_harbor_runtime_refuses_before_any_trial(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An absent in-process Harbor runtime is a refusal, not a missing reward file.
+
+    The campaign that hit this reserved Modal budget, ran a sandbox, and only
+    then reported ``No module named 'harbor'; native reward file is missing``,
+    which reads like a grader defect. The check runs at the execution point
+    (where the trial imports Harbor in this process), so it precedes any
+    sandbox or reservation.
+    """
+    monkeypatch.setattr(
+        "evallab.harbor_view.harbor_runtime_problem",
+        lambda: "harbor.trial.trial is not importable",
+    )
+    active = grader._Execution(
+        grader.plan_upstream_grader(task, oracle=True, backend="modal"), allow_local_docker=False
+    )
+    with pytest.raises(grader.GraderRefusal) as caught:
+        asyncio.run(grader._execute_native({}, active))
+    message = str(caught.value)
+    assert "harbor.trial.trial is not importable" in message
+    assert "uv sync --locked --extra laminar" in message
+
+
+def test_harbor_runtime_problem_names_the_exact_import() -> None:
+    from evallab.harbor_view import harbor_runtime_problem
+
+    problem = harbor_runtime_problem()
+    # Either the pinned runtime is present in this interpreter or the message
+    # names the module the native paths import; never a bare truthy string.
+    assert problem is None or "harbor." in problem
+
+
+def test_harbor_runtime_problem_detects_a_namespace_only_install(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A leftover namespace directory with no submodules is not a runtime."""
+    import importlib.util
+    import sys
+
+    from evallab.harbor_view import harbor_runtime_problem
+
+    for name in [key for key in sys.modules if key == "harbor" or key.startswith("harbor.")]:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    monkeypatch.setitem(sys.modules, "harbor", ModuleType("harbor"))
+    real = importlib.util.find_spec
+
+    def fake_find_spec(name: str, package: Any = None) -> Any:
+        if name == "harbor" or name.startswith("harbor."):
+            return None
+        return real(name, package)
+
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
+    problem = harbor_runtime_problem()
+    assert problem is not None
+    assert "harbor.trial.trial" in problem
+
+def test_pinned_harbor_path_comes_first_for_child_launches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A standalone ``harbor`` beside the pinned one must lose to the pinned one."""
+    from evallab import harbor_view
+
+    pinned = tmp_path / "venv" / "bin"
+    pinned.mkdir(parents=True)
+    (pinned / "harbor").write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr(harbor_view, "pinned_harbor_bin_dir", lambda: pinned)
+    environment = {"PATH": f"/usr/local/bin{os.pathsep}/usr/bin"}
+    assert harbor_view.prepend_pinned_harbor_path(environment) is True
+    parts = environment["PATH"].split(os.pathsep)
+    assert parts[0] == str(pinned)
+    assert parts[1:] == ["/usr/local/bin", "/usr/bin"]
+    # Idempotent enough for a second call and safe with no PATH at all.
+    bare: dict[str, str] = {}
+    assert harbor_view.prepend_pinned_harbor_path(bare, fallback="") is True
+    assert bare["PATH"] == str(pinned)
+
+
+def test_pinned_harbor_path_is_a_no_op_without_the_distribution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from evallab import harbor_view
+
+    monkeypatch.setattr(harbor_view, "pinned_harbor_bin_dir", lambda: None)
+    environment = {"PATH": "/usr/bin"}
+    assert harbor_view.prepend_pinned_harbor_path(environment) is False
+    assert environment["PATH"] == "/usr/bin"

@@ -1,0 +1,74 @@
+[
+ {
+  "task_id": "format-code-task-001205",
+  "cell": "nop",
+  "job": "h2-001205-nop",
+  "reward": 0.0
+ },
+ {
+  "task_id": "format-code-task-001205",
+  "cell": "oracle",
+  "job": "h2-001205-oracle",
+  "reward": 1.0
+ },
+ {
+  "task_id": "format-code-task-001205",
+  "cell": "cheat",
+  "job": "h2-001205-cheat",
+  "reward": 0.0
+ },
+ {
+  "task_id": "format-code-task-002139",
+  "cell": "nop",
+  "job": "h2-002139-nop",
+  "reward": 0.0
+ },
+ {
+  "task_id": "format-code-task-002139",
+  "cell": "oracle",
+  "job": "h2-002139-oracle",
+  "reward": 1.0
+ },
+ {
+  "task_id": "format-code-task-002139",
+  "cell": "cheat",
+  "job": "h2-002139-cheat",
+  "reward": 0.0
+ },
+ {
+  "task_id": "format-code-task-001985",
+  "cell": "nop",
+  "job": "h2-001985-nop",
+  "reward": 0.0
+ },
+ {
+  "task_id": "format-code-task-001985",
+  "cell": "oracle",
+  "job": "h2-001985-oracle",
+  "reward": 1.0
+ },
+ {
+  "task_id": "format-code-task-001985",
+  "cell": "cheat",
+  "job": "h2-001985-cheat",
+  "reward": 0.0
+ },
+ {
+  "task_id": "format-code-task-000931",
+  "cell": "nop",
+  "job": "h2-000931-nop",
+  "reward": 0.0
+ },
+ {
+  "task_id": "format-code-task-000931",
+  "cell": "oracle",
+  "job": "h2-000931-oracle",
+  "reward": 1.0
+ },
+ {
+  "task_id": "format-code-task-000931",
+  "cell": "cheat",
+  "job": "h2-000931-cheat",
+  "reward": 0.0
+ }
+]

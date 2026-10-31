@@ -1494,6 +1494,13 @@ def run_harbor_process(
         include_modal_credentials=include_modal_credentials,
         docker_platform=docker_platform,
     )
+    if command and Path(command[0]).name == "harbor":
+        from evallab.harbor_view import prepend_pinned_harbor_path
+
+        # The child resolves a bare `harbor` through PATH; pin this
+        # interpreter's own release first (a standalone `uv tool` install of
+        # another version was measured beside it on this host).
+        prepend_pinned_harbor_path(runtime_environment, fallback=os.environ.get("PATH"))
     if MIMO_AGENT_IMPORT_PATH in command and laminar_metadata is not None:
         runtime_environment["EVALLAB_LAMINAR_METADATA"] = json.dumps(laminar_metadata)
     if local_terminus:

@@ -1104,6 +1104,79 @@ def build_viewer_root(
 # ---------------------------------------------------------------------------
 
 
+#: Actionable remedy shared by every native-execution guard.
+HARBOR_RUNTIME_REMEDY = (
+    "install the locked laminar extra in the interpreter that runs evallab: "
+    "`uv sync --locked --extra laminar` (or `uv run --extra laminar evallab ...`); "
+    "a `harbor` executable on PATH is not enough because the trial runs in-process"
+)
+
+
+def pinned_harbor_bin_dir() -> Path | None:
+    """Directory of this interpreter's own ``harbor`` executable, if installed.
+
+    A ``harbor`` on PATH can be a different release (a standalone ``uv tool``
+    install is common); the launcher must prefer the one shipped with the
+    interpreter that also holds the ``evallab`` adapters it will import.
+    """
+    try:
+        importlib.metadata.version("harbor")
+    except (importlib.metadata.PackageNotFoundError, ValueError):
+        return None
+    candidate = Path(sys.executable).parent / "harbor"
+    return candidate.parent if candidate.is_file() else None
+
+
+def prepend_pinned_harbor_path(environment: dict[str, str], *, fallback: str | None = None) -> bool:
+    """Put this interpreter's ``harbor`` directory first on ``environment``'s PATH.
+
+    Child processes resolve a bare ``harbor`` through PATH; pinning the
+    interpreter's own directory prevents a standalone install of another
+    release from being picked up. Returns whether a pinned directory was
+    prepended. ``fallback`` supplies the PATH to extend when the mapping has
+    none (usually ``os.environ["PATH"]``).
+    """
+    pinned = pinned_harbor_bin_dir()
+    if pinned is None:
+        return False
+    current = environment.get("PATH") or fallback or ""
+    environment["PATH"] = f"{pinned}{os.pathsep}{current}" if current else str(pinned)
+    return True
+
+
+def harbor_runtime_problem() -> str | None:
+    """Why the in-process Harbor runtime is unusable, or None when it works.
+
+    Checks the exact modules the native execution paths import, so an absent
+    distribution and a leftover namespace directory that has no
+    ``harbor.trial`` both refuse instead of failing later as a missing
+    reward file. Never imports Harbor itself (no side effects at plan time).
+    """
+    import importlib.util
+    import sys
+
+    for module in ("harbor.trial.trial", "harbor.models.trial.config"):
+        if module in sys.modules:  # already imported here: usable in this process
+            continue
+        try:
+            if importlib.util.find_spec(module) is None:
+                return f"{module} is not importable"
+        except (ImportError, ModuleNotFoundError, ValueError) as exc:
+            return f"{module}: {type(exc).__name__}: {exc}"
+    return None
+
+
+def require_harbor_runtime(backend: str) -> None:
+    """Raise ``RuntimeError`` naming the remedy when native execution cannot run."""
+    problem = harbor_runtime_problem()
+    if problem is None:
+        return
+    raise RuntimeError(
+        f"the {backend} backend needs the in-process Harbor runtime ({problem}): "
+        f"{HARBOR_RUNTIME_REMEDY}"
+    )
+
+
 def installed_harbor_version() -> tuple[int, ...] | None:
     """Installed ``harbor`` version tuple, or None when not determinable."""
     try:

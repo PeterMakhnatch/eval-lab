@@ -3603,6 +3603,9 @@ class Executor:
         self.queue.write_reason(self.queue.load(failed), decision)
 
     def _run_harbor(self, request: RunRequest) -> Path:
+        from evallab.harbor_view import require_harbor_runtime
+
+        require_harbor_runtime(str(getattr(request, "environment", "harbor")))
         return run_experiment(request, repo_root=self.repo_root)
 
     def _ingest(self, job_dir: Path) -> IngestProjectionResult:

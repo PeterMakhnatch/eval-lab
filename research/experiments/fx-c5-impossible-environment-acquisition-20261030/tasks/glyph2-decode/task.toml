@@ -1,0 +1,37 @@
+schema_version = "1.4"
+artifacts = ["/app/glyph2"]
+
+[task]
+name = "peter/glyph2-decode"
+version = "1.0.0"
+description = "Finish a GLYPH/2 packet decoder to the wire-format contract: sequence width, device formatting, channel nibble, auxiliary readings, malformed-packet rejection."
+keywords = ["python", "binary-format", "decoder", "firmware"]
+[[task.authors]]
+name = "Peter Makhnatch"
+
+[metadata]
+category = "software-engineering"
+difficulty = "medium"
+capability = "implement a binary decoder exactly to a published wire format"
+
+[verifier]
+timeout_sec = 600.0
+collect = []
+environment_mode = "separate"
+
+[verifier.env]
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 600.0
+os = "linux"
+cpus = 1
+memory_mb = 2048
+mcp_servers = []
+
+[environment.env]
+
+[solution.env]

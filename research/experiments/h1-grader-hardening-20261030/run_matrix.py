@@ -52,13 +52,14 @@ DATASET = "mimo-defect-map-v1"
 SAMPLE = 12
 BACKFILL = 2
 CPU_S, GIB_S = 0.00003942, 0.00000667  # Modal Sandbox rates in docs/execution-tiers.md
+L1_ARMS = ["correct", "empty", "A", "B", "C", "D"]
 
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def select() -> tuple[list[dict], list[dict]]:
+def select(mode: str = "sample") -> tuple[list[dict], list[dict]]:
     """Deterministic DEV sample: sha256(task_id) order, strict assignment check, reference present, pytest runner."""
     registry = CorpusRegistry(repo_root=REPO)
     references = {
@@ -86,7 +87,9 @@ def select() -> tuple[list[dict], list[dict]]:
             or "EOF_RESET_TEST_FILES" not in (package / "tests/test.sh").read_text()
         ):
             why = "not the single-container reset-list shape"
-        elif (blocker := report_gate_blocker(package)) is not None:
+        elif mode == "l1" and report_gate_blocker(package) is None:
+            why = "full-eligible: covered by the A2 matrix"
+        elif mode != "l1" and (blocker := report_gate_blocker(package)) is not None:
             why = f"no report gate: {blocker}"
         if why:
             skipped.append({"task_id": task, "reason": why})
@@ -105,7 +108,7 @@ def select() -> tuple[list[dict], list[dict]]:
                 "order_sha256": sha256(task.encode()),
             }
         )
-    return chosen[: SAMPLE + BACKFILL], skipped
+    return (chosen[: SAMPLE + BACKFILL] if mode == "sample" else chosen), skipped
 
 
 class Meter:
@@ -251,8 +254,11 @@ def calibrate(task: dict, spend, meter: Meter) -> dict:
     return out
 
 
-def hardened_variant(task: dict, calibration: dict) -> Path:
-    """Derive the hardened variant into a scratch store (re-derivable, identical digest on a rerun)."""
+def hardened_variant(task: dict, calibration: dict | None) -> Path:
+    """Derive the hardened variant into a scratch store (re-derivable, identical digest on a rerun).
+
+    ``calibration=None`` derives the L1-only variant of a package the report gate cannot apply to.
+    """
     root, store = SCRATCH / "root", SCRATCH / "store"
     slug = "mimo-v2.6-rl__" + task["task_id"]
     for stale in (store / slug, root / "library/task-variants" / slug):
@@ -260,8 +266,9 @@ def hardened_variant(task: dict, calibration: dict) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     record = derive_grader_hardening(
         task["package"],
-        expected_tests=calibration["tests"],
-        expected_skipped=calibration["skipped"],
+        expected_tests=calibration["tests"] if calibration else None,
+        expected_skipped=calibration["skipped"] if calibration else 0,
+        allow_no_report_gate=calibration is None,
         repo_root=root,
         variants_root=store,
     )
@@ -325,6 +332,33 @@ def task_cells(
     return jobs
 
 
+def l1_task_cells(task: dict, spend, meter: Meter, pool: ThreadPoolExecutor) -> list:
+    """A3: L0 vs the L1-only derived variant, for packages L3 cannot apply to."""
+    original = Path(task["package"])
+    variant = hardened_variant(task, None)
+    workdir = tomllib.loads((original / "task.toml").read_text())["environment"]["workdir"]
+    jobs = []
+    for level, package in (("L1", variant), ("L0", original)):
+        for arm in L1_ARMS:
+            script = attacks.script(
+                arm,
+                workdir=workdir,
+                reference_patch=task["patch"],
+                expected_tests=None,
+                e2_file=None,
+            )
+            future = pool.submit(
+                run_cell,
+                OUT / "cells" / task["task_id"] / f"{level}-{arm}",
+                package,
+                script,
+                spend,
+                meter,
+            )
+            jobs.append((task["task_id"], level, arm, future))
+    return jobs
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plan", action="store_true")
@@ -339,15 +373,27 @@ def main() -> None:
         help="cap of the persisted gate ledger (default --max-usd)",
     )
     parser.add_argument("--ledger", default="h1-modal-ledger-v2.json")
+    parser.add_argument("--out-name", default="h1-grader-hardening")
+    parser.add_argument(
+        "--all", action="store_true", help="every full-eligible task, no sample cap"
+    )
+    parser.add_argument(
+        "--l1-only", action="store_true", help="A3: L1-only tasks, L0 vs L1 on correct/empty/A-D"
+    )
     parser.add_argument("--workers", type=int, default=8)
     args = parser.parse_args()
-    chosen, skipped = select()
+    global OUT, SCRATCH
+    OUT = OUT.with_name(args.out_name)
+    SCRATCH = Path("/tmp") / args.out_name
+    mode = "l1" if args.l1_only else "all" if args.all else "sample"
+    chosen, skipped = select(mode)
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "selection.json").write_text(
         json.dumps(
             {
                 "chosen": [{k: v for k, v in t.items() if k != "patch"} for t in chosen],
                 "skipped_before_sample": skipped,
+                "mode": mode,
                 "sample": SAMPLE,
                 "backfill": BACKFILL,
             },
@@ -361,12 +407,14 @@ def main() -> None:
     spend = gate(args.gate_cap or args.max_usd, args.per_execution, args.ledger)
     arms = ["correct", "empty", "A"] if args.smoke else list(attacks.ARMS)
     tasks = chosen[:1] if args.smoke else chosen
+    limit = 1 if args.smoke else (None if mode == "all" else SAMPLE)
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        calibrations = list(pool.map(lambda t: calibrate(t, spend, meter), tasks))
-        usable = [(t, c) for t, c in zip(tasks, calibrations, strict=True) if c["ok"]][
-            : (1 if args.smoke else SAMPLE)
-        ]
-        for t, c in zip(tasks, calibrations, strict=True):
+        if mode == "l1":
+            calibrations, usable = [], [(t, None) for t in tasks]
+        else:
+            calibrations = list(pool.map(lambda t: calibrate(t, spend, meter), tasks))
+            usable = [(t, c) for t, c in zip(tasks, calibrations, strict=True) if c["ok"]][:limit]
+        for t, c in zip(tasks, calibrations, strict=False):
             print(
                 "calibration",
                 t["task_id"],
@@ -378,7 +426,11 @@ def main() -> None:
             )
         jobs = []
         for t, c in usable:
-            jobs += task_cells(t, c, spend, meter, arms, pool)
+            jobs += (
+                l1_task_cells(t, spend, meter, pool)
+                if mode == "l1"
+                else task_cells(t, c, spend, meter, arms, pool)
+            )
         rows = []
         for task_id, level, arm, future in jobs:
             try:
@@ -399,7 +451,7 @@ def main() -> None:
                 "calibrations": {
                     t["task_id"]: {k: v for k, v in c.items() if k != "result"}
                     | {"reward": c["result"]["reward"]}
-                    for t, c in zip(tasks, calibrations, strict=True)
+                    for t, c in zip(tasks, calibrations, strict=False)
                 },
                 "cells": rows,
                 "estimated_usd": round(meter.spent, 4),

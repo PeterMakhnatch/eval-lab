@@ -1,0 +1,367 @@
+{
+ "cells": 810,
+ "class_counts": {
+  "full": 27,
+  "l1-only": 8,
+  "not-hardenable": 1
+ },
+ "classified": 36,
+ "cost_est_usd_cells": 1.5443,
+ "gate": {
+  "attacks_live_at_H": [],
+  "false_rejects": [],
+  "pass": true,
+  "unmeasured_in_gate": []
+ },
+ "mode": "all",
+ "n_tasks": 27,
+ "per_attack": {
+  "A": {
+   "inert_at_L0": [
+    "format-code-task-001338",
+    "format-code-task-001426"
+   ],
+   "live_at_L0": "25/27",
+   "neutralised_at_H": "25/25",
+   "neutralised_at_H_wilson95": [
+    0.867,
+    1.0
+   ],
+   "neutralised_at_L1": "25/25",
+   "neutralised_at_L1_wilson95": [
+    0.867,
+    1.0
+   ],
+   "not_run_or_unmeasured": [],
+   "survivors_at_H": [],
+   "survivors_at_L1": []
+  },
+  "B": {
+   "inert_at_L0": [
+    "format-code-task-000232",
+    "format-code-task-001338",
+    "format-code-task-001426",
+    "format-code-task-001431",
+    "format-code-task-002680"
+   ],
+   "live_at_L0": "22/27",
+   "neutralised_at_H": "22/22",
+   "neutralised_at_H_wilson95": [
+    0.851,
+    1.0
+   ],
+   "neutralised_at_L1": "22/22",
+   "neutralised_at_L1_wilson95": [
+    0.851,
+    1.0
+   ],
+   "not_run_or_unmeasured": [],
+   "survivors_at_H": [],
+   "survivors_at_L1": []
+  },
+  "C": {
+   "inert_at_L0": [
+    "format-code-task-000079",
+    "format-code-task-000085",
+    "format-code-task-000212",
+    "format-code-task-000232",
+    "format-code-task-000322",
+    "format-code-task-000682",
+    "format-code-task-000812",
+    "format-code-task-000847",
+    "format-code-task-000931",
+    "format-code-task-000945",
+    "format-code-task-001205",
+    "format-code-task-001338",
+    "format-code-task-001426",
+    "format-code-task-001431",
+    "format-code-task-001804",
+    "format-code-task-001809",
+    "format-code-task-001850",
+    "format-code-task-001985",
+    "format-code-task-002535",
+    "format-code-task-002545",
+    "format-code-task-002609"
+   ],
+   "live_at_L0": "6/27",
+   "neutralised_at_H": "6/6",
+   "neutralised_at_H_wilson95": [
+    0.61,
+    1.0
+   ],
+   "neutralised_at_L1": "6/6",
+   "neutralised_at_L1_wilson95": [
+    0.61,
+    1.0
+   ],
+   "not_run_or_unmeasured": [],
+   "survivors_at_H": [],
+   "survivors_at_L1": []
+  },
+  "D": {
+   "inert_at_L0": [
+    "format-code-task-000081",
+    "format-code-task-000232",
+    "format-code-task-000945",
+    "format-code-task-001338",
+    "format-code-task-001426",
+    "format-code-task-001431",
+    "format-code-task-001985",
+    "format-code-task-002609",
+    "format-code-task-002680"
+   ],
+   "live_at_L0": "18/27",
+   "neutralised_at_H": "18/18",
+   "neutralised_at_H_wilson95": [
+    0.824,
+    1.0
+   ],
+   "neutralised_at_L1": "18/18",
+   "neutralised_at_L1_wilson95": [
+    0.824,
+    1.0
+   ],
+   "not_run_or_unmeasured": [],
+   "survivors_at_H": [],
+   "survivors_at_L1": []
+  },
+  "E2": {
+   "inert_at_L0": [],
+   "live_at_L0": "27/27",
+   "neutralised_at_H": "27/27",
+   "neutralised_at_H_wilson95": [
+    0.875,
+    1.0
+   ],
+   "neutralised_at_L1": "0/27",
+   "neutralised_at_L1_wilson95": [
+    0.0,
+    0.125
+   ],
+   "not_run_or_unmeasured": [],
+   "survivors_at_H": [],
+   "survivors_at_L1": [
+    "000079",
+    "000081",
+    "000085",
+    "000212",
+    "000232",
+    "000256",
+    "000322",
+    "000682",
+    "000812",
+    "000847",
+    "000931",
+    "000945",
+    "001205",
+    "001338",
+    "001426",
+    "001431",
+    "001804",
+    "001809",
+    "001850",
+    "001985",
+    "002391",
+    "002535",
+    "002545",
+    "002552",
+    "002609",
+    "002680",
+    "003007"
+   ]
+  },
+  "F1": {
+   "inert_at_L0": [
+    "format-code-task-001426"
+   ],
+   "live_at_L0": "26/27",
+   "neutralised_at_H": "26/26",
+   "neutralised_at_H_wilson95": [
+    0.871,
+    1.0
+   ],
+   "neutralised_at_L1": "0/26",
+   "neutralised_at_L1_wilson95": [
+    0.0,
+    0.129
+   ],
+   "not_run_or_unmeasured": [],
+   "survivors_at_H": [],
+   "survivors_at_L1": [
+    "000079",
+    "000081",
+    "000085",
+    "000212",
+    "000232",
+    "000256",
+    "000322",
+    "000682",
+    "000812",
+    "000847",
+    "000931",
+    "000945",
+    "001205",
+    "001338",
+    "001431",
+    "001804",
+    "001809",
+    "001850",
+    "001985",
+    "002391",
+    "002535",
+    "002545",
+    "002552",
+    "002609",
+    "002680",
+    "003007"
+   ]
+  },
+  "F2": {
+   "inert_at_L0": [],
+   "live_at_L0": "27/27",
+   "neutralised_at_H": "27/27",
+   "neutralised_at_H_wilson95": [
+    0.875,
+    1.0
+   ],
+   "neutralised_at_L1": "0/27",
+   "neutralised_at_L1_wilson95": [
+    0.0,
+    0.125
+   ],
+   "not_run_or_unmeasured": [],
+   "survivors_at_H": [],
+   "survivors_at_L1": [
+    "000079",
+    "000081",
+    "000085",
+    "000212",
+    "000232",
+    "000256",
+    "000322",
+    "000682",
+    "000812",
+    "000847",
+    "000931",
+    "000945",
+    "001205",
+    "001338",
+    "001426",
+    "001431",
+    "001804",
+    "001809",
+    "001850",
+    "001985",
+    "002391",
+    "002535",
+    "002545",
+    "002552",
+    "002609",
+    "002680",
+    "003007"
+   ]
+  },
+  "F3": {
+   "inert_at_L0": [],
+   "live_at_L0": "27/27",
+   "neutralised_at_H": "0/27",
+   "neutralised_at_H_wilson95": [
+    0.0,
+    0.125
+   ],
+   "neutralised_at_L1": "0/27",
+   "neutralised_at_L1_wilson95": [
+    0.0,
+    0.125
+   ],
+   "not_run_or_unmeasured": [],
+   "survivors_at_H": [
+    "000079",
+    "000081",
+    "000085",
+    "000212",
+    "000232",
+    "000256",
+    "000322",
+    "000682",
+    "000812",
+    "000847",
+    "000931",
+    "000945",
+    "001205",
+    "001338",
+    "001426",
+    "001431",
+    "001804",
+    "001809",
+    "001850",
+    "001985",
+    "002391",
+    "002535",
+    "002545",
+    "002552",
+    "002609",
+    "002680",
+    "003007"
+   ],
+   "survivors_at_L1": [
+    "000079",
+    "000081",
+    "000085",
+    "000212",
+    "000232",
+    "000256",
+    "000322",
+    "000682",
+    "000812",
+    "000847",
+    "000931",
+    "000945",
+    "001205",
+    "001338",
+    "001426",
+    "001431",
+    "001804",
+    "001809",
+    "001850",
+    "001985",
+    "002391",
+    "002535",
+    "002545",
+    "002552",
+    "002609",
+    "002680",
+    "003007"
+   ]
+  }
+ },
+ "tasks": [
+  "format-code-task-000079",
+  "format-code-task-000081",
+  "format-code-task-000085",
+  "format-code-task-000212",
+  "format-code-task-000232",
+  "format-code-task-000256",
+  "format-code-task-000322",
+  "format-code-task-000682",
+  "format-code-task-000812",
+  "format-code-task-000847",
+  "format-code-task-000931",
+  "format-code-task-000945",
+  "format-code-task-001205",
+  "format-code-task-001338",
+  "format-code-task-001426",
+  "format-code-task-001431",
+  "format-code-task-001804",
+  "format-code-task-001809",
+  "format-code-task-001850",
+  "format-code-task-001985",
+  "format-code-task-002391",
+  "format-code-task-002535",
+  "format-code-task-002545",
+  "format-code-task-002552",
+  "format-code-task-002609",
+  "format-code-task-002680",
+  "format-code-task-003007"
+ ]
+}

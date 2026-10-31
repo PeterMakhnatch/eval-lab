@@ -1,6 +1,6 @@
 # Hackbook v0 (`research/hackbook/`)
 
-**Hackbook v0** (`evallab.hackbook.entry/v0`) is Eval Lab's versioned catalog of known task-side benchmark defects (`TS01`–`TS11`) and run-side reward-hacking / evaluation failure modes (`RS01`–`RS07`). Each entry records:
+**Hackbook v0** (`evallab.hackbook.entry/v0`) is Eval Lab's versioned catalog of known task-side benchmark defects (`TS01`–`TS11`) and run-side reward-hacking / evaluation failure modes (`RS01`–`RS08`). Each entry records:
 
 - **`mechanism`**: How the task defect or run-side behavior produces an unearned pass (`false_pass`) or undeserved failure (`false_fail`).
 - **`signatures`**: File globs, file regexes, trajectory command regexes, diff regexes, and canonical `structural_signals` used by `evallab hackbook match`.
@@ -14,7 +14,7 @@
 | File | Description |
 | --- | --- |
 | `entries.jsonl` | Canonical catalog entries (`evallab.hackbook.entry/v0`, one sorted-key JSON object per line). |
-| `taxonomy.json` | 11 task-side (`TS01`–`TS11`) and 7 run-side (`RS01`–`RS07`) classes, decision order, detection methods, and crosswalks. |
+`taxonomy.json` | 11 task-side (`TS01`–`TS11`) and 8 run-side (`RS01`–`RS08`) classes, decision order, detection methods, and crosswalks. |
 | `schema.json` | Generated JSON Schema for `evallab.hackbook.entry/v0` (`build.py`). |
 | `summary.json` | Generated coverage and source census summary (`build.py`). |
 | `build.py` | Validator and generator (`python research/hackbook/build.py [--check]`). |

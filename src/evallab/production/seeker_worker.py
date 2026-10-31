@@ -71,6 +71,15 @@ class SeekerRefusalError(ValueError):
     """Raised when a seeker job violates split, measurability, or differential gates."""
 
 
+MECHANISM_CLASSES = frozenset(
+    {"weak_check", "grader_tamperable", "answer_reachable", "exploit_grader_gap"}
+)
+
+
+class MissingMechanismClassError(SeekerRefusalError):
+    """An attempt carried no valid mechanism class. Never guessed or defaulted."""
+
+
 class SeekerEvidenceError(RuntimeError):
     """Declared witness evidence is missing or cannot be pinned immutably."""
 
@@ -3708,6 +3717,7 @@ def parse_headless_candidate_response(
     default_cue: HackbookTaskCue | None,
     model_route: str,
     llm_stdout_text: str,
+    require_mechanism_class: bool = False,
 ) -> SeekerAttemptCandidate | None:
     """Extract and attest a structured candidate from an ``omp -p`` text response.
 
@@ -3735,17 +3745,21 @@ def parse_headless_candidate_response(
             if isinstance(raw_written, Sequence) and not isinstance(raw_written, str)
             else tuple(_infer_files_written(files.get("solve.sh", ""), files))
         )
+        raw_class = out.get("taxonomy_class") or out.get("class")
+        resolved_class = str(raw_class).strip().lower() if raw_class else ""
+        if require_mechanism_class and resolved_class not in MECHANISM_CLASSES:
+            raise MissingMechanismClassError(
+                f"mechanism class missing or not allowed ({raw_class!r}); "
+                f"allowed: {sorted(MECHANISM_CLASSES)}"
+            )
         return SeekerAttemptCandidate(
             files=files,
             mechanism=str(
                 out.get("mechanism")
                 or (default_cue.mechanism if default_cue is not None else "grader shortcut attempt")
             ),
-            taxonomy_class=str(
-                out.get("taxonomy_class")
-                or out.get("class")
-                or (default_cue.taxonomy_class if default_cue is not None else "weak_check")
-            ),
+            taxonomy_class=resolved_class
+            or (default_cue.taxonomy_class if default_cue is not None else "weak_check"),
             hackbook_entry_id=(
                 str(out["hackbook_entry_id"])
                 if out.get("hackbook_entry_id")

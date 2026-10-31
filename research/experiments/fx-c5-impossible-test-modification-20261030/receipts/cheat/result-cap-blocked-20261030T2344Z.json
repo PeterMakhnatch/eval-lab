@@ -1,0 +1,13 @@
+{
+  "cell": "cheat",
+  "status": "failed",
+  "reason": "SpendCapReached: the full resource/lifetime reservation exceeds the remaining persisted campaign cap",
+  "reward": null,
+  "verifier_reward": null,
+  "wall_s": 0.4,
+  "est_usd": 2e-05,
+  "package_digest": "sha256:a729ed511f6d2a6fff1733e385089e3998f90a786f262a3d0b8d8968bc3a929d",
+  "script_sha256": "39e50c09fde0f15224946d3cd6214426115f2bb1fe7b72b659f40ac51bcc11e1",
+  "agent_log_tail": "",
+  "test_output_tail": ""
+}

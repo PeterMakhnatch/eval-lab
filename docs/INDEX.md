@@ -74,6 +74,8 @@ inputs:
     digest: sha256:cba8fe1c0e3885ac2bbaf365529c79c9e0370ca76cea90e66245e1601fb70f07
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
+  - path: docs/judge-guide.md
+    digest: sha256:de255c6e4d581af3de7ee0f6afae7e469d99e78d7c5ea827901412e92b2b3d6d
   - path: docs/ladder.md
     digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md
@@ -83,7 +85,7 @@ inputs:
   - path: docs/live-supervisor.md
     digest: sha256:35938b0f91abfff6132b2ba9fd9513a06cfd5c53a4e4bf88b64b45ae240babc3
   - path: docs/live-watch.md
-    digest: sha256:715acdba0981feb39df990cf26495507fa93cd5c5c498f66fa8aba193cd866dc
+    digest: sha256:57cee7a23eb0d84ccd5c6abab38898ffc7bc09fbd333aeff4ce89bf7010e5a95
   - path: docs/lora-sft-runbook.md
     digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
@@ -104,6 +106,8 @@ inputs:
     digest: sha256:7c27c537357d73b57165134756ba6aed29c51bf451ad7329c88bcf97960011f5
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
+  - path: docs/production-factory.md
+    digest: sha256:0bed5a3b44dd348532240b8e18030afb8294a606c4b0a34e927835cf9b63bd5b
   - path: docs/qa-contract.md
     digest: sha256:7109b75163134eaca1db56c99cfafb07f6714777b27ef2b2d46d5c31f1d5d9d2
   - path: docs/qa-task.md
@@ -215,6 +219,7 @@ an operator can see what is archived.
 | `docs/live-supervisor.md` | Live Supervisor | `living` | `operator, builder` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
+| `docs/production-factory.md` | Production factory (local, DEV only) | `living` | `operator, builder` |
 | `docs/qa-contract.md` | QA contract (`evallab.qa`) | `living` | `builder, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
@@ -386,6 +391,7 @@ an operator can see what is archived.
 | `docs/flight-recorder.md` | Flight recorder prototype | `living` | `builder, analyst, operator` |
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/harbor-view.md` | Harbor viewer as the results surface (HAR-170) | `living` | `operator, analyst` |
+| `docs/judge-guide.md` | How to judge a run | `living` | `operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
 | `docs/live-supervisor.md` | Live Supervisor | `living` | `operator, builder` |
@@ -399,6 +405,7 @@ an operator can see what is archived.
 | `docs/operating-manual.md` | Peter's operating manual — running a lab built by agents | `living` | `operator` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
+| `docs/production-factory.md` | Production factory (local, DEV only) | `living` | `operator, builder` |
 | `docs/qa-contract.md` | QA contract (`evallab.qa`) | `living` | `builder, operator` |
 | `docs/qa-task.md` | QA Agent - Task: executed task/grader auditor | `living` | `analyst, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |

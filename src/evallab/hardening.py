@@ -64,6 +64,9 @@ a failed check stops setup, with no hide-only or network-open fallback.
 * ``general-pinned-backup@1`` takes consistent pre-agent SQLite backups;
   50 tasks contain references; the retained census measures item-level effects.
 * ``general-strict-answer@1`` keeps a missing ``answer.md`` missing.
+* ``grader-hardening@1`` resets auto-load/config files by pattern (conftest, sitecustomize, pytest.ini, ``*.pth``, ...)
+  and gates the reward on a JUnit report, for single-container pytest graders; not in the default chain
+  (executed matrix: research/experiments/h1-grader-hardening-20261030).
 * ``general-nop-zero-weight@1`` removes reward credit from measured pristine
   rule passes while retaining execution and failure reporting.
 * ``webdev-temp0-pin@1`` binds temperature/model/provider/revision and masks
@@ -89,6 +92,8 @@ from evallab.general_pinned_backup import TRANSFORM_ID as GENERAL_PINNED_BACKUP_
 from evallab.general_pinned_backup import derive_general_pinned_backup
 from evallab.general_strict_answer import TRANSFORM_ID as GENERAL_STRICT_ANSWER_ID
 from evallab.general_strict_answer import derive_general_strict_answer
+from evallab.grader_hardening import TRANSFORM_ID as GRADER_HARDENING_ID
+from evallab.grader_hardening import derive_grader_hardening
 from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
 from evallab.mtime_normalize import TRANSFORM_ID_V2 as MTIME_V2_ID
 from evallab.mtime_normalize import derive_mtime_normalize, derive_mtime_normalize_v2
@@ -145,6 +150,7 @@ TRANSFORMS = (
     WEBDEV_TEMP0_PIN_ID,
     WEBDEV_STRUCTURAL_GATE_ID,
     WEBDEV_BRIEF_EXPLICIT_ID,
+    GRADER_HARDENING_ID,
 )
 NETWORK_LABEL = "oracle:fail-network"
 NETWORK_DEFAULT = "discard"
@@ -165,6 +171,7 @@ __all__ = [
     "GENERAL_NOP_GATE_ID",
     "GENERAL_PINNED_BACKUP_ID",
     "GENERAL_STRICT_ANSWER_ID",
+    "GRADER_HARDENING_ID",
     "MTIME_ID",
     "MTIME_V2_ID",
     "NETWORK_DEFAULT",
@@ -183,6 +190,7 @@ __all__ = [
     "derive_general_nop_gate",
     "derive_general_pinned_backup",
     "derive_general_strict_answer",
+    "derive_grader_hardening",
     "derive_mtime_normalize",
     "derive_mtime_normalize_v2",
     "derive_purge_build_caches",

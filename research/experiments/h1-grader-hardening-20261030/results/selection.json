@@ -1,0 +1,160 @@
+{
+  "chosen": [
+    {
+      "task_id": "format-code-task-001205",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001205",
+      "patch_sha256": "e38d7eab082906dda3c9591057023c4c6ef9390e381f5c13c0c68ffccd5aa042",
+      "order_sha256": "0c3fba138221184e60baf861a8642ac21aa6a1d475eccd06aca18276c5636b60"
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001985",
+      "patch_sha256": "71d11b72be47bc4e377affbbab9b9f928169089d1814c6123122dc8bfabf3ca2",
+      "order_sha256": "13214d68ed10e5795f481fd1772279d1f9409949b1fdc6c6e7bdc629b5aa8088"
+    },
+    {
+      "task_id": "format-code-task-000931",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000931",
+      "patch_sha256": "e9fc4c109a95107b18fa2d2ad8ac5504081e2ef721300efa31bda33a05365532",
+      "order_sha256": "141b3ae6fe935d111a42d213070ec40205aebebb17d0b0b88a60665a783ba65a"
+    },
+    {
+      "task_id": "format-code-task-002680",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002680",
+      "patch_sha256": "9ed7244c7cfe7b15f629cc71d8f9e9989b391710ee46d774b971b10a8dd8c7e8",
+      "order_sha256": "237067918199ccffdfb193d23d3637f9bdd58e2b939888be1ad5f4d8e6a8f3f5"
+    },
+    {
+      "task_id": "format-code-task-001850",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001850",
+      "patch_sha256": "762fe0c5a483d9a2e261d11c86b773f8fc2e164a7c038b0958fc51a7216aa618",
+      "order_sha256": "27aad8e05045dea47930dc63c296cbcf14fe0f0b26d34ac9460e8f7053e8c16a"
+    },
+    {
+      "task_id": "format-code-task-000081",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000081",
+      "patch_sha256": "1007e5113f13068aeebc2ee1ce4416618ba98e678574319ad95b5ff595b7dd40",
+      "order_sha256": "38176a115624756d2eb7cc37556db73ce28c8c45ae749ca6e65eee77420fbc9c"
+    },
+    {
+      "task_id": "format-code-task-002552",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002552",
+      "patch_sha256": "cfe49ec83311449ad54f7d340b481c19722c52273d7c3d419f36f27ee17aa98c",
+      "order_sha256": "48239a69b1b1926d93dd095c5a406692d12d634311db8b2bbeb2e7c9e4a540ab"
+    },
+    {
+      "task_id": "format-code-task-000682",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000682",
+      "patch_sha256": "247baff2adbecf684aaa86f349fb0465209f1465b8e6f67e8c5e32b77a57cb09",
+      "order_sha256": "4a019450606ff5d4358e0727778f5a3e7c446780be2724393e44a14d4227626d"
+    },
+    {
+      "task_id": "format-code-task-000232",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000232",
+      "patch_sha256": "148aadcece9f7510e435bba1886888439b16532011daabd4e78de0e95f68fdaf",
+      "order_sha256": "655c8f73885559f05cc54945ec40d2c15156488a40a15bdf7efa9eefb000c28e"
+    },
+    {
+      "task_id": "format-code-task-002609",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002609",
+      "patch_sha256": "ae84b337d6bd205663f3aac5724a36e7fafac2b9a1b401b5a6c9e6f0de6577ed",
+      "order_sha256": "91114e77bb21546867541773bfb4960debe587ffb0a70422a411112d76bae66d"
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391",
+      "patch_sha256": "e1dad924b28bf3725da6a20379e403fb121a0441b7f5839386e1c652b694a27e",
+      "order_sha256": "9241261012bc4e522832adfff78da34ebc64d876a8f3aacce2fa2bc9a0d01004"
+    },
+    {
+      "task_id": "format-code-task-000079",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000079",
+      "patch_sha256": "c85458c4caf0e9671ca63566c9f85c7794fcd94c868fcb29034ceed9690abfe9",
+      "order_sha256": "9962007aee553d1730e6620da2a85ac9a4268329f02e1e8be52ccb2c09d19cbb"
+    },
+    {
+      "task_id": "format-code-task-000945",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000945",
+      "patch_sha256": "c04bed445537be34944fa91925e54575afc6c3805faf3088a005732a85d5aa2f",
+      "order_sha256": "9f0e3552d208c4610edf9838ed30f04de0af8692348155e60a856bda9a5fd07b"
+    },
+    {
+      "task_id": "format-code-task-001809",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001809",
+      "patch_sha256": "4901ce04856834640ef21ce08fec4b4c36de89fdb233dc04d6b552ef17403c4c",
+      "order_sha256": "9f62b7815708f0d0107de654aac619524b442fb7e943ba18db9f4e626cb61957"
+    }
+  ],
+  "skipped_before_sample": [
+    {
+      "task_id": "format-code-task-002139",
+      "reason": "no report gate: the test command clears PYTEST_ADDOPTS, so a report cannot be requested from outside"
+    },
+    {
+      "task_id": "format-code-task-002976",
+      "reason": "no report gate: hidden test command does not mention pytest"
+    },
+    {
+      "task_id": "format-code-task-001514",
+      "reason": "no report gate: hidden test command does not mention pytest"
+    },
+    {
+      "task_id": "format-code-task-001267",
+      "reason": "no report gate: hidden test command does not mention pytest"
+    },
+    {
+      "task_id": "format-code-task-000603",
+      "reason": "no report gate: hidden test command does not mention pytest"
+    },
+    {
+      "task_id": "format-code-task-000792",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "cad-model",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "freecad-platform-drawing",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "freecad-spring-clip",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "format-code-task-002160",
+      "reason": "no report gate: hidden test command does not mention pytest"
+    },
+    {
+      "task_id": "photonic-waveguide-routing",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "format-code-task-000838",
+      "reason": "no report gate: hidden test command does not mention pytest"
+    },
+    {
+      "task_id": "satb-audio-transcription",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "format-code-task-000872",
+      "reason": "no report gate: hidden test command does not mention pytest"
+    },
+    {
+      "task_id": "gsea-proteomics",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "heat-pump-warranty",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "fin-saccr-rwa",
+      "reason": "not strictly DEV"
+    }
+  ],
+  "sample": 12,
+  "backfill": 2
+}

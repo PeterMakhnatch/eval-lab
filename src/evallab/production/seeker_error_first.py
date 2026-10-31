@@ -77,10 +77,12 @@ from evallab.production.qc_reports import (
 )
 from evallab.production.seeker_worker import (
     _TOKEN_RE,
+    MECHANISM_CLASSES,
     SEEKER_JOB_TYPES,
     AttemptGenerator,
     CandidateGrader,
     DifferentialGradeOutcome,
+    MissingMechanismClassError,
     OmpHeadlessAttemptGenerator,
     ResolvedSeekerTask,
     SeekerAttemptCandidate,
@@ -699,6 +701,7 @@ def stage_blind_workspace(original_task: Path, workspace: Path) -> None:
 class PromptContext:
     dev_allowlist: frozenset[str]
     assignments_csv: Path | None
+    hide_tests: bool = True
 
 
 def _refuse_sealed_test_leaks(prompt: str) -> str:
@@ -719,7 +722,7 @@ def build_turn1_prompt(task: ResolvedSeekerTask, workspace: Path, context: Promp
         memory=SeekerFailureMemory(),
         workspace=workspace,
         dev_task_allowlist=context.dev_allowlist,
-        hide_tests=True,
+        hide_tests=context.hide_tests,
         strict_blind_instructions=True,
         enforce_cross_key_dev=True,
         require_affirmative_dev=True,
@@ -754,7 +757,7 @@ def build_turn2_prompt(
         workspace=workspace,
         retrieval_markdown=retrieval_markdown,
         dev_task_allowlist=context.dev_allowlist,
-        hide_tests=True,
+        hide_tests=context.hide_tests,
         strict_blind_instructions=True,
         enforce_cross_key_dev=True,
         require_affirmative_dev=True,
@@ -849,13 +852,14 @@ class PromptFileHeadlessGenerator(OmpHeadlessAttemptGenerator):
         dev_task_allowlist: frozenset[str] | None = None,
         runner: OmpRunner = run_omp_subprocess,
         environment: Mapping[str, str] | None = None,
+        hide_tests: bool = True,
     ) -> None:
         super().__init__(
             (route,),
             timeout_seconds=timeout_seconds,
             config_path=config_path,
             dev_task_allowlist=dev_task_allowlist,
-            hide_tests=True,
+            hide_tests=hide_tests,
             strict_blind_instructions=True,
         )
         self.route = route
@@ -933,12 +937,53 @@ class PromptFileHeadlessGenerator(OmpHeadlessAttemptGenerator):
                 stderr_preview=(process.stderr or "")[:300],
             )
             if process.returncode == 0 and response_text and provider and model:
-                candidate = parse_headless_candidate_response(
-                    response_text,
-                    default_cue=None,
-                    model_route=self.route,
-                    llm_stdout_text=stdout,
-                )
+                try:
+                    candidate = parse_headless_candidate_response(
+                        response_text,
+                        default_cue=None,
+                        model_route=self.route,
+                        llm_stdout_text=stdout,
+                        require_mechanism_class=True,
+                    )
+                except MissingMechanismClassError as first:
+                    # Exactly one re-ask: the class is required and is never guessed.
+                    attempt["mechanism_class_reask"] = True
+                    reask = (
+                        prompt
+                        + "\n\n---\n\nYour previous reply did not include a valid "
+                        "`taxonomy_class`. Reply with ONLY the same JSON object, unchanged "
+                        "except that `taxonomy_class` must be exactly one of: "
+                        + ", ".join(sorted(MECHANISM_CLASSES))
+                        + ". Do not add commentary."
+                    )
+                    reask_argv = [*argv[:-1], reask]
+                    reask_process = self._runner(reask_argv, self.timeout_seconds, environment)
+                    reask_stdout = reask_process.stdout or ""
+                    (workspace / "llm_stdout_reask.txt").write_text(reask_stdout, encoding="utf-8")
+                    reask_text, _, _ = _parse_omp_json_stdout(reask_stdout)
+                    reask_provider, reask_model = _stream_served_route(
+                        _omp_stream_messages(reask_stdout), self.route
+                    )
+                    if (
+                        reask_process.returncode == 0
+                        and reask_text
+                        and reask_provider
+                        and reask_model
+                    ):
+                        candidate = parse_headless_candidate_response(
+                            reask_text,
+                            default_cue=None,
+                            model_route=self.route,
+                            llm_stdout_text=reask_stdout,
+                            require_mechanism_class=True,
+                        )
+                        stdout = reask_stdout
+                        provider, model = reask_provider, reask_model
+                    else:
+                        raise SeekerRefusalError(
+                            f"{self.route} re-ask produced no parseable reply for "
+                            f"{task.task_id} (turn {attempt_index}): {first}"
+                        ) from first
         except (OSError, subprocess.TimeoutExpired) as exc:
             attempt["error"] = f"{type(exc).__name__}: {exc}"
         attempt["elapsed_sec"] = round(time.monotonic() - started, 2)
@@ -1002,7 +1047,9 @@ def _differential_hit(cell: Mapping[str, Any], route: str) -> bool:
     )
 
 
-def read_turn(turn_dir: Path, route: str, turn: int) -> tuple[str, dict[str, Any] | None]:
+def read_turn(
+    turn_dir: Path, route: str, turn: int, *, hide_tests: bool = True
+) -> tuple[str, dict[str, Any] | None]:
     """Classify one retained turn: missing | invalid | unevaluated | evaluated."""
     result_path = turn_dir / "result.json"
     if not result_path.is_file():
@@ -1013,7 +1060,7 @@ def read_turn(turn_dir: Path, route: str, turn: int) -> tuple[str, dict[str, Any
             return "invalid", None
         if (
             cell.get("requested_model_route") != route
-            or cell.get("hide_tests") is not True
+            or cell.get("hide_tests") is not hide_tests
             or cell.get("turn") != turn
         ):
             return "invalid", cell
@@ -1055,6 +1102,7 @@ class CampaignConfig:
     grader_timeout: int = 600
     omp_config: Path | None = None
     probe_routes: bool = True
+    hide_tests: bool = True
 
     def __post_init__(self) -> None:
         if not self.models or len(set(self.models)) != len(self.models):
@@ -1231,7 +1279,7 @@ class _Turn:
 
 
 def _base_result(
-    task: CohortTask, route: str, turn: int, turn_dir: Path
+    task: CohortTask, route: str, turn: int, turn_dir: Path, *, hide_tests: bool = True
 ) -> dict[str, Any]:
     return {
         "schema": CELL_SCHEMA,
@@ -1240,7 +1288,7 @@ def _base_result(
         "task_name": task.name,
         "turn": turn,
         "requested_model_route": route,
-        "hide_tests": True,
+        "hide_tests": hide_tests,
         "strict_blind_instructions": True,
         "attestation_ok": False,
         "attestation_failure": None,
@@ -1420,7 +1468,7 @@ def _run_turn1(
     turn_dir.mkdir(parents=True)
     workspace = cell_dir / "workspace"
     stage_blind_workspace(task.original_task, workspace)
-    result = _base_result(task, route, 1, turn_dir)
+    result = _base_result(task, route, 1, turn_dir, hide_tests=runtime.config.hide_tests)
     prompt = build_turn1_prompt(resolved, workspace, runtime.context)
     candidate = _generate(runtime, resolved, route, 1, prompt, workspace, turn_dir, result)
     runner_error: RunnerError | None = None
@@ -1455,7 +1503,7 @@ def _run_turn2(
     turn_dir = cell_dir / TURNS[1]
     _supersede(turn_dir)
     turn_dir.mkdir(parents=True)
-    result = _base_result(task, route, 2, turn_dir)
+    result = _base_result(task, route, 2, turn_dir, hide_tests=runtime.config.hide_tests)
     if runner_error is None:
         result.update(
             outcome="not_evaluated_no_runner_error",
@@ -1558,6 +1606,7 @@ def default_generator_factory(
             timeout_seconds=config.omp_timeout,
             config_path=config.omp_config,
             dev_task_allowlist=dev_allowlist,
+            hide_tests=config.hide_tests,
         )
 
     return build
@@ -1702,7 +1751,7 @@ def run_campaign(
     allowlist = frozenset(task.task_id for task in config.cohort.tasks)
     runtime = _Runtime(
         config=config,
-        context=PromptContext(allowlist, config.assignments_csv),
+        context=PromptContext(allowlist, config.assignments_csv, config.hide_tests),
         generator_factory=generator_factory or default_generator_factory(config, allowlist),
         grader_fn=grader_fn,
         backend=approval.backend_config(),
@@ -1833,7 +1882,10 @@ def summarize_campaign(
             cell_dir = _cell_dir(config.out, task, route)
             label = f"{task.dataset_id}/{task.name}"
             reads = {
-                turn: read_turn(cell_dir / TURNS[turn - 1], route, turn) for turn in (1, 2)
+                turn: read_turn(
+                cell_dir / TURNS[turn - 1], route, turn, hide_tests=config.hide_tests
+            )
+            for turn in (1, 2)
             }
             for turn, (status, cell) in reads.items():
                 counts[f"turn_{turn}_{status}"] += 1
@@ -1915,6 +1967,7 @@ def summarize_campaign(
         )
     return {
         "schema": SUMMARY_SCHEMA,
+        "hide_tests": config.hide_tests,
         "denominator_rule": "cells where both turns are evaluated (attested, original measured, "
         "repaired measured when run); unevaluated or missing cells are listed, never zero-filled",
         "models": models,
@@ -1974,6 +2027,7 @@ def run_command(
     omp_config: Path | None = None,
     spend_log: Path | None = None,
     probe_routes: bool = True,
+    hide_tests: bool = True,
 ) -> tuple[dict[str, Any], int]:
     """``evallab prod seeker-error-first``: (receipt, exit code). Plan and summarize are free."""
     force_local_docker_off()
@@ -1989,6 +2043,7 @@ def run_command(
         grader_timeout=grader_timeout,
         omp_config=omp_config,
         probe_routes=probe_routes,
+        hide_tests=hide_tests,
     )
     if mode == "summarize":
         summary = summarize_campaign(config)

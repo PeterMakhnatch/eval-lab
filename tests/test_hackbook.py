@@ -40,7 +40,17 @@ from evallab.hackbook.refcov import change_blocks, unnamed_blocks
 from evallab.qa.models import load_findings_dir
 
 REPO = Path(__file__).resolve().parents[1]
-CLASSES = {f"TS{n:02d}" for n in range(1, 12)} | {f"RS{n:02d}" for n in range(1, 8)}
+#: Class ids the taxonomy declares, read from it so a new class cannot leave this
+#: file stale (RS08 was added by the B3 hackbook change and a literal copy missed it).
+CLASSES = {
+    row["id"]
+    for side in ("task_side", "run_side")
+    for row in json.loads((REPO / "research/hackbook/taxonomy.json").read_text(encoding="utf-8"))[
+        side
+    ]
+}
+#: Declared before its first catalog entry; ``build.py`` tolerates that class alone.
+CLASSES_WITHOUT_ENTRIES = {"RS08"}
 SOURCES = {
     "preference_model_tb4",
     "benchjack",
@@ -199,7 +209,7 @@ def catalog() -> list[HackbookEntry]:
 
 def test_catalog_validates_and_covers_classes_and_sources(catalog: list[HackbookEntry]) -> None:
     assert len(catalog) >= 49
-    assert {e.taxonomy_class_id for e in catalog} == CLASSES
+    assert {e.taxonomy_class_id for e in catalog} == CLASSES - CLASSES_WITHOUT_ENTRIES
     assert {s for e in catalog for s in e.sources} >= SOURCES
     for entry in catalog:
         assert set(entry.signatures.structural_signals) <= set(STRUCTURAL_SIGNALS), entry.id

@@ -929,6 +929,61 @@ def test_leases_release_renew_expiry_and_stale_worker_fencing(
     assert queue.queue_snapshot()["jobs"] == {"queued": 0, "leased": 0, "completed": 1}
 
 
+def test_released_job_goes_behind_every_other_queued_job(
+    queue: ContinuousWorkQueue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = [5000.0]
+    monkeypatch.setattr("evallab.production.corpus_queue.time.time", lambda: now[0])
+    jobs = [
+        queue.enqueue(REPAIR, DEV, run_id=f"run-{n}", idempotency_key=f"job-{n}") for n in range(3)
+    ]
+    started = []
+    for _ in range(6):
+        claimed = queue.claim("worker", job_types=(REPAIR,), lease_seconds=10)
+        assert claimed is not None
+        started.append(claimed["event_id"])
+        now[0] += 1
+        queue.release(claimed["event_id"], lease_token=claimed["lease_token"])
+        now[0] += 1
+    first_round = [job["event_id"] for job in jobs]
+    # Every job starts once before any job starts a second time, in a stable rotation.
+    assert started == first_round + first_round
+
+
+def test_job_reclaimed_after_lapsed_lease_does_not_pin_the_head(
+    queue: ContinuousWorkQueue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = [7000.0]
+    monkeypatch.setattr("evallab.production.corpus_queue.time.time", lambda: now[0])
+    first = queue.enqueue(REPAIR, DEV, run_id="run-a", idempotency_key="a")
+    second = queue.enqueue(REPAIR, DEV, run_id="run-b", idempotency_key="b")
+    crashed = queue.claim("worker-one", job_types=(REPAIR,), lease_seconds=5)
+    assert crashed is not None and crashed["event_id"] == first["event_id"]
+    now[0] += 10  # the worker died holding the lease; the job is claimable again
+    retry = queue.claim("worker-two", job_types=(REPAIR,), lease_seconds=5)
+    assert retry is not None and retry["event_id"] == first["event_id"]
+    now[0] += 10  # and died again
+    fresh = queue.claim("worker-three", job_types=(REPAIR,), lease_seconds=5)
+    assert fresh is not None and fresh["event_id"] == second["event_id"]
+
+
+def test_outbox_created_before_claim_fairness_is_migrated(
+    tmp_path: Path, registry: CorpusRegistry
+) -> None:
+    database = tmp_path / "legacy.sqlite"
+    with ContinuousWorkQueue(database, registry=registry) as queue:
+        queue.enqueue(REPAIR, DEV, run_id="run", idempotency_key="job")
+    connection = sqlite3.connect(database)
+    connection.execute("ALTER TABLE outbox DROP COLUMN released_at")
+    connection.commit()
+    connection.close()
+    with ContinuousWorkQueue(database, registry=registry) as queue:
+        claimed = queue.claim("worker", job_types=(REPAIR,))
+        assert claimed is not None
+        queue.release(claimed["event_id"], lease_token=claimed["lease_token"])
+        assert queue.claim("worker", job_types=(REPAIR,)) is not None
+
+
 def test_snapshot_grouping_reflects_active_workers_and_expired_leases(
     queue: ContinuousWorkQueue, monkeypatch: pytest.MonkeyPatch
 ) -> None:

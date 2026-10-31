@@ -130,7 +130,7 @@ def _finding(record: Any) -> dict[str, Any]:
         "run_id": _clean(record["run_id"], "run_id", 512),
         "detector": _token(record["detector"], "detector", _DETECTOR, 64),
         "detector_version": _token(record["detector_version"], "detector_version", _VERSION, 64),
-        "reader_model": "" if reader is None else _token(reader, "reader_model", _READER, 96),
+        "reader_model": "" if reader in (None, "") else _token(reader, "reader_model", _READER, 96),
         "verdict": verdict,
         "score": _number(record.get("score"), "score", nullable=True),
         "kind": kind,

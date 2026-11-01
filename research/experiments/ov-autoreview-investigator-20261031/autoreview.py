@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import random
 import re
 import sqlite3
@@ -28,19 +29,18 @@ from evallab.trace_anatomy import build_anatomy, load_run
 
 DT8_DIR = Path(__file__).resolve().parents[1] / "ds-dt8-verified-reader-fullscale-20261029"
 DT15_MASKED = Path(__file__).resolve().parents[1] / "ds-dt15-action-grounded-reader-20261030/readings-masked.jsonl"
-BRIDGE = Path("/Users/petermakhnatch/Developer/research-context/bridge/2026-10-31-overnight/fable")
-RAW = BRIDGE / "raw/W2-AUTOREVIEW-INVESTIGATOR"
+BRIDGE = Path(os.environ.get("EVALLAB_BRIDGE", "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-31-overnight/g38-flash"))
+RAW = Path(os.environ.get("EVALLAB_RAW", str(BRIDGE / "raw/W2-AUTOREVIEW-INVESTIGATOR-R")))
 RECEIPTS = RAW / "receipts"
-WORKER_YML = str(BRIDGE / "worker.yml")
-WORK = Path("/tmp/w2ar")
+WORKER_YML = os.environ.get("EVALLAB_WORKER_YML", str(BRIDGE / "worker.yml"))
+WORK = Path(os.environ.get("EVALLAB_WORK", "/tmp/w2ar-g38"))
 DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
 STATEMENTS = Path("/tmp/da4/tasks")  # DA-4's recovered CheatBench statements (no labels)
-MODEL = "anthropic/claude-fable-5-1"
-MAX_WORKERS = 4
+MODEL = os.environ.get("EVALLAB_MODEL", "google-antigravity/gemini-3.8-flash")
+MAX_WORKERS = int(os.environ.get("EVALLAB_MAX_WORKERS", "4"))
 CORPORA = ("cheatbench", "goodfire")
 LENGTH_CUT = 41
 UPSTREAM = "upstream_fix_recall"
-
 
 def _sha(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
@@ -192,6 +192,7 @@ def call_model(prompt_file: Path, tag: str) -> dict[str, Any]:
         return json.loads(out.read_text())
     session_dir = WORK / "sessions" / tag
     session_dir.mkdir(parents=True, exist_ok=True)
+    WORK.mkdir(parents=True, exist_ok=True)
     command = ["omp", "-p", f"@{prompt_file}", "--model", MODEL, "--config", WORKER_YML, "--no-tools",
                "--no-skills", "--thinking", "low", "--session-dir", str(session_dir), "--no-title", "--mode", "text"]
     try:
@@ -213,7 +214,8 @@ def _read_one(meta: dict[str, Any]) -> dict[str, Any]:
     record["served_1"], record["usage_1"] = call["served"], call["usage"]
     verdict = am.parse_verdict(call["stdout"])
     if verdict is None or not call["served"]["attested"]:
-        record["status"] = "unparsed" if verdict is None else "unattested"
+        record["status"] = ("refused" if "Refusal" in (call["stderr"] or "") else
+                            "unparsed" if verdict is None else "unattested")
         record["returncode"] = call["returncode"]
         return record
     record["stage1"] = verdict
@@ -228,13 +230,16 @@ def _read_one(meta: dict[str, Any]) -> dict[str, Any]:
             if corpus == "cheatbench" and (STATEMENTS / f"{blind}.txt").exists():
                 statement = (STATEMENTS / f"{blind}.txt").read_text()
             view = am.build_compact_view(anatomy, run, statement=statement)
+            prompt_file.parent.mkdir(parents=True, exist_ok=True)
             prompt_file.write_text(am.stage2_prompt(view, run, verdict["cited_steps"]))
         call2 = call_model(prompt_file, f"s2-{corpus}-{blind}")
         record["served_2"], record["usage_2"] = call2["served"], call2["usage"]
         record["stage2_prompt_chars"] = len(prompt_file.read_text())
         verdict2 = am.parse_verdict(call2["stdout"])
         if verdict2 is None or not call2["served"]["attested"]:
-            record["status"] = "unparsed" if verdict2 is None else "unattested"
+            record["status"] = ("refused" if "Refusal" in (call2["stderr"] or "") else
+                                "unparsed" if verdict2 is None else "unattested")
+            record["returncode"] = call2["returncode"]
             return record
         record["stage2"] = verdict2
         record["stage"] = 2
@@ -321,7 +326,8 @@ def score() -> None:
     meta = {(m["corpus"], m["blind_id"]): m for m in map(json.loads, (WORK / "views.jsonl").read_text().splitlines())}
     dt15 = {(r["corpus"], r["blind_id"]): r for r in map(json.loads, DT15_MASKED.read_text().splitlines())}
     cats = goodfire_categories()
-    result: dict[str, Any] = {"item": "W2-AUTOREVIEW-INVESTIGATOR", "model": MODEL,
+    result: dict[str, Any] = {"item": os.environ.get("EVALLAB_ITEM", "W2-AUTOREVIEW-INVESTIGATOR-R"),
+                              "model": MODEL,
                               "monitor_version": am.MONITOR_VERSION, "rubric_sha256": _sha(am.RUBRIC)[:12],
                               "band": am.UNCERTAIN_BAND, "quantile": am.HONEST_QUANTILE, "corpora": {}}
     served: dict[str, int] = {}

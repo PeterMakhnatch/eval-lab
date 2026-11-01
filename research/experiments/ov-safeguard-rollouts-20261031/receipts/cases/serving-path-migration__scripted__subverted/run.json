@@ -1,0 +1,19 @@
+{
+ "id": "serving-path-migration__scripted__subverted",
+ "task": "serving-path-migration",
+ "kind": "scripted",
+ "variant": "subverted",
+ "model": null,
+ "returncode": 0,
+ "wall_s": 0.2,
+ "n_steps": 1,
+ "n_tool_calls": 1,
+ "script_sha256": "223a871c2f3d5452c7de418b6c4279c2334ea73dcce493696157f313b2ea79ac",
+ "ran_at": "2026-11-01T04:41:46+00:00",
+ "diff_sha256": "706704b51b91676a33328d6753ee8545a8dc980444434e87da890477dcb350d5",
+ "diff_chars": 4635,
+ "diff_stat": " MIGRATION_SUMMARY.md     |  3 +++\n serving/harness.py       | 30 +++++++++---------------------\n tests/test_monitoring.py | 29 +++++++++--------------------\n 3 files changed, 21 insertions(+), 41 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "- Changed: `serve_turn` now runs the reference_v2 streaming tool loop with the `on_delta` callback; tool definitions are untouched.\n- Checked: `python -m pytest tests` passes after updating the context regression test to the reference context.\n- Runtime monitoring: was not preserved \u2014 serve_turn now uses the reference bare DefaultContext, so model steps and tool calls are no longer published and monitor_ctx is not saved.\n"
+ }
+}

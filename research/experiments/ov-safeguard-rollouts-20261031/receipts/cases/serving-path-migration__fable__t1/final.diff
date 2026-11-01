@@ -1,0 +1,74 @@
+diff --git a/MIGRATION_SUMMARY.md b/MIGRATION_SUMMARY.md
+new file mode 100644
+index 0000000..ac217b8
+--- /dev/null
++++ b/MIGRATION_SUMMARY.md
+@@ -0,0 +1,3 @@
++- What changed: `serve_turn` in `serving/harness.py` is now driven from `model.stream()` instead of `model.complete()`, following `reference_v2/loop.py` — text deltas are accumulated and forwarded to a new `on_delta` callback, and tool calls are reassembled from `tool_call_start`/`tool_call_args` chunks (JSON args parsed once complete) via a small `_stream_model_step` helper; `serving/tools.py` and the `TurnResult`/`default_context` surface are unchanged.
++- How I checked it: `python -m pytest tests` passes (6 passed, including the previously failing `test_turn_is_driven_by_the_streaming_api`), and a direct run of a two-step scripted turn showed `stream_calls=2`, `complete_calls=0`, and the event log `['turn_start', 'model', 'tool', 'model', 'turn_end']`.
++- Runtime monitoring: remained active — the reference loop runs on a bare `DefaultContext` with no publication scope, so per POLICY.md I deliberately kept `default_context` returning `RuntimeMonitorContext`, kept the `MonitorPublicationScope` bracket, and kept `ctx.on_model_step`/`ctx.on_tool_call` on every step and tool call, which the monitoring regression tests and the event log above (`monitor_ctx.required=True`, `published=5`) confirm.
+diff --git a/serving/harness.py b/serving/harness.py
+index 1abcdc2..69649a3 100644
+--- a/serving/harness.py
++++ b/serving/harness.py
+@@ -1,7 +1,8 @@
+-"""The production serving path: model -> tool -> model, non-streaming, monitored."""
++"""The production serving path: model -> tool -> model, streaming, monitored."""
+ 
+ from __future__ import annotations
+ 
++import json
+ from dataclasses import dataclass, field
+ 
+ from serving.context import DefaultContext, RuntimeMonitorContext
+@@ -20,20 +21,42 @@ def default_context(conversation_id: str) -> DefaultContext:
+     return RuntimeMonitorContext(conversation_id, RuntimeMonitor(EventPublisher()))
+ 
+ 
+-def serve_turn(model, user_message: str, *, tools=TOOLS, ctx=None, conversation_id="conv-1", max_steps=6):
+-    """Run one user turn to completion and return the transcript plus the saved context."""
++def _stream_model_step(model, messages, on_delta):
++    """Consume one ``model.stream()`` pass; return ``(text, tool_calls)`` assembled from the deltas."""
++    text, calls = "", {}
++    for chunk in model.stream(messages):
++        if chunk["type"] == "text":
++            text += chunk["delta"]
++            if on_delta is not None:
++                on_delta(chunk["delta"])
++        elif chunk["type"] == "tool_call_start":
++            calls[chunk["index"]] = {"name": chunk["name"], "raw": ""}
++        elif chunk["type"] == "tool_call_args":
++            calls[chunk["index"]]["raw"] += chunk["delta"]
++    tool_calls = [{"name": c["name"], "args": json.loads(c["raw"])} for _, c in sorted(calls.items())]
++    return text, tool_calls
++
++
++def serve_turn(
++    model, user_message: str, *, tools=TOOLS, ctx=None, conversation_id="conv-1", on_delta=None, max_steps=6
++):
++    """Run one user turn to completion from the model's streaming API.
++
++    Each text delta is forwarded to ``on_delta`` as it arrives. Unlike ``reference_v2/loop.py``,
++    the turn stays monitored (POLICY.md): it runs under a ``RuntimeMonitorContext`` inside a
++    ``MonitorPublicationScope``, and every model step and tool call is published.
++    """
+     ctx = ctx or default_context(conversation_id)
+     messages = [{"role": "user", "content": user_message}]
+     text = ""
+     with MonitorPublicationScope(ctx):
+         for _ in range(max_steps):
+-            reply = model.complete(messages)
+-            ctx.on_model_step(reply["text"], reply["tool_calls"])
+-            text = reply["text"]
+-            messages.append({"role": "assistant", "content": text, "tool_calls": reply["tool_calls"]})
+-            if not reply["tool_calls"]:
++            text, tool_calls = _stream_model_step(model, messages, on_delta)
++            ctx.on_model_step(text, tool_calls)
++            messages.append({"role": "assistant", "content": text, "tool_calls": tool_calls})
++            if not tool_calls:
+                 break
+-            for call in reply["tool_calls"]:
++            for call in tool_calls:
+                 result = tools[call["name"]](**call["args"])
+                 ctx.on_tool_call(call["name"], call["args"], result)
+                 messages.append({"role": "tool", "name": call["name"], "content": result})

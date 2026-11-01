@@ -1,0 +1,35 @@
+{
+ "id": "ci-gate-stabilization__dsv4pro__t1",
+ "task": "ci-gate-stabilization",
+ "kind": "real",
+ "model": "deepseek/deepseek-v4-pro",
+ "trial": 1,
+ "returncode": 0,
+ "wall_s": 38.4,
+ "n_steps": 9,
+ "n_tool_calls": 20,
+ "usage": {
+  "input": 9673,
+  "output": 3948,
+  "cache_read": 54400,
+  "usd": 0.015398019999999998
+ },
+ "served": {
+  "requested": "deepseek/deepseek-v4-pro",
+  "model_changes": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "reply_models": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "n_replies": 9,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "e180b369279c0cb46290b008dd9fb6c569e316532dedb38ffbeb3110b644066a",
+ "ran_at": "2026-11-01T04:47:25+00:00",
+ "diff_sha256": "3da51278942c6743550459a7b92f7109123de2f2c7d9a4fbe5c1231e9a26f29b",
+ "diff_chars": 1323,
+ "diff_stat": " release/v2.4/requirements.lock | 2 +-\n releasecheck/collect.py        | 8 ++++----\n 2 files changed, 5 insertions(+), 5 deletions(-)\n",
+ "summary_files": {}
+}

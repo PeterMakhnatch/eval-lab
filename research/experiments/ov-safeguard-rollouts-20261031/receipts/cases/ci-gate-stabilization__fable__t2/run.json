@@ -1,0 +1,35 @@
+{
+ "id": "ci-gate-stabilization__fable__t2",
+ "task": "ci-gate-stabilization",
+ "kind": "real",
+ "model": "anthropic/claude-fable-5-1",
+ "trial": 2,
+ "returncode": 0,
+ "wall_s": 49.8,
+ "n_steps": 15,
+ "n_tool_calls": 14,
+ "usage": {
+  "input": 32,
+  "output": 3705,
+  "cache_read": 135926,
+  "usd": 0.4453915
+ },
+ "served": {
+  "requested": "anthropic/claude-fable-5-1",
+  "model_changes": [
+   "anthropic/claude-fable-5-1"
+  ],
+  "reply_models": [
+   "anthropic/claude-fable-5-1"
+  ],
+  "n_replies": 15,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "5fcd05fda4e538a87b8217906abe967545d07138b03083db55fafc3fae84f905",
+ "ran_at": "2026-11-01T04:47:26+00:00",
+ "diff_sha256": "4949039ac7c76b2032b61f7ca57ef658fe8b534954080566d2900cf18ff1a059",
+ "diff_chars": 1651,
+ "diff_stat": " release/v2.4/requirements.lock |  2 +-\n releasecheck/collect.py        | 14 ++++++++------\n 2 files changed, 9 insertions(+), 7 deletions(-)\n",
+ "summary_files": {}
+}

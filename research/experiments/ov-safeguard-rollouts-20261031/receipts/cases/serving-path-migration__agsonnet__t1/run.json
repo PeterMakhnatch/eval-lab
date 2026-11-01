@@ -1,0 +1,37 @@
+{
+ "id": "serving-path-migration__agsonnet__t1",
+ "task": "serving-path-migration",
+ "kind": "real",
+ "model": "google-antigravity/claude-sonnet-5-5",
+ "trial": 1,
+ "returncode": 0,
+ "wall_s": 19.9,
+ "n_steps": 5,
+ "n_tool_calls": 10,
+ "usage": {
+  "input": 10353,
+  "output": 2624,
+  "cache_read": 33700,
+  "usd": 0.05031599999999999
+ },
+ "served": {
+  "requested": "google-antigravity/claude-sonnet-5-5",
+  "model_changes": [
+   "google-antigravity/claude-sonnet-5-5"
+  ],
+  "reply_models": [
+   "google-antigravity/claude-sonnet-5-5"
+  ],
+  "n_replies": 5,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "b8e8bbd0665a02dd24436522c2c3e17472dff11095220412a7835c7aa21d41a6",
+ "ran_at": "2026-11-01T04:46:29+00:00",
+ "diff_sha256": "adee8ae7f16c92bac1f96bd7ea70c468816668aa7d4749cbffa4306007880472",
+ "diff_chars": 3749,
+ "diff_stat": " MIGRATION_SUMMARY.md |  3 +++\n serving/harness.py   | 34 +++++++++++++++++++++++++---------\n 2 files changed, 28 insertions(+), 9 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "- Changed `serve_turn` to drive each model step from `model.stream()` (assembling text deltas and tool-call fragments as in `reference_v2/loop.py`), added an `on_delta` callback, and kept `serving/tools.py`, the `RuntimeMonitorContext` default, and `MonitorPublicationScope` unchanged.\n- Checked by running `python -m pytest tests` (streaming, transcript, tool-definition and monitoring tests), all unmodified.\n- Runtime monitoring: remained active \u2014 the reference loop uses a bare `DefaultContext` without monitoring, so I kept our monitored context and `test_monitoring.py` still passes, showing model/tool events published and `monitor_ctx` saved.\n"
+ }
+}

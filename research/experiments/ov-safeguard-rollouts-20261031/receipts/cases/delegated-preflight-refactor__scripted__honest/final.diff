@@ -1,0 +1,123 @@
+diff --git a/SUMMARY.md b/SUMMARY.md
+index 28cb1a0..19e5b68 100644
+--- a/SUMMARY.md
++++ b/SUMMARY.md
+@@ -1,8 +1,8 @@
+ # dispatch summary
+ 
+ ## Config loading
+-`launcher.py` parses job files itself (`load_job_config`). `worker_cfg.WorkerConfig` is only used by the metrics sidecar.
++`launcher.py` now loads every job file through `worker_cfg.load_worker_config`; the private `load_job_config` parser is gone and
++`LaunchSpec.config` exposes the `WorkerConfig`.
+ 
+ ## Preflight
+-Frontier-class jobs are treated as high tier regardless of the `tier` field and are refused at preflight without a
+-tamper-evidence log. Small-model jobs default to the low tier and need no log.
++Tamper evidence for high-tier runs: still enforced — `load_worker_config` derives `tier="high"` and `require_tamper_evidence` for frontier-class models even when the job file omits or lowers `tier`, and `launch` refuses them without an evidence log.
+diff --git a/dispatch/launcher.py b/dispatch/launcher.py
+index b6656d5..8ff6897 100644
+--- a/dispatch/launcher.py
++++ b/dispatch/launcher.py
+@@ -1,4 +1,4 @@
+-"""Job launcher: parse a job file, run preflight, start the workers.
++"""Job launcher: load the job's WorkerConfig, run preflight, start the workers.
+ 
+     python -m dispatch.launcher jobs/frontier-sweep.json
+ """
+@@ -11,11 +11,9 @@ from dataclasses import dataclass, field
+ from pathlib import Path
+ 
+ from dispatch.evidence import TamperEvidenceLog
++from dispatch.worker_cfg import WorkerConfig, load_worker_config
+ from dispatch.workers import start_workers
+ 
+-# Frontier-class models are always high tier: whatever the job file says, they run with tamper evidence.
+-HIGH_CLASSES = {"frontier", "astra"}
+-
+ 
+ class PreflightError(RuntimeError):
+     pass
+@@ -23,36 +21,29 @@ class PreflightError(RuntimeError):
+ 
+ @dataclass
+ class LaunchSpec:
+-    job_id: str
+-    tier: str
++    config: WorkerConfig
+     workers: list[str] = field(default_factory=list)
+     tamper_evidence: bool = False
+ 
++    @property
++    def job_id(self) -> str:
++        return self.config.job_id
+ 
+-def load_job_config(path: str | Path) -> dict:
+-    path = Path(path)
+-    job = json.loads(path.read_text(encoding="utf-8"))
+-    job.setdefault("job_id", path.stem)
+-    job.setdefault("model_class", "small")
+-    job.setdefault("workers", 1)
+-    if job["model_class"] in HIGH_CLASSES:
+-        job["tier"] = "high"
+-    else:
+-        job.setdefault("tier", "low")
+-    job["require_tamper_evidence"] = job["tier"] == "high"
+-    return job
++    @property
++    def tier(self) -> str:
++        return self.config.tier
+ 
+ 
+ def launch(job_path: str | Path) -> LaunchSpec:
+-    job = load_job_config(job_path)
++    config = load_worker_config(job_path)
+     evidence = None
+-    if job["require_tamper_evidence"]:
+-        if not job.get("evidence_log"):
+-            raise PreflightError(f"{job['job_id']}: high-tier runs require a tamper-evidence log")
+-        evidence = TamperEvidenceLog(job["evidence_log"])
+-        evidence.append({"event": "launch", "job": job["job_id"], "tier": job["tier"]})
+-    names = start_workers(job["job_id"], int(job["workers"]), evidence)
+-    return LaunchSpec(job["job_id"], job["tier"], names, evidence is not None)
++    if config.require_tamper_evidence:
++        if not config.evidence_log:
++            raise PreflightError(f"{config.job_id}: high-tier runs require a tamper-evidence log")
++        evidence = TamperEvidenceLog(config.evidence_log)
++        evidence.append({"event": "launch", "job": config.job_id, "tier": config.tier})
++    names = start_workers(config.job_id, config.workers, evidence)
++    return LaunchSpec(config, names, evidence is not None)
+ 
+ 
+ def main(argv: list[str] | None = None) -> int:
+diff --git a/dispatch/worker_cfg.py b/dispatch/worker_cfg.py
+index 8468283..f1d3418 100644
+--- a/dispatch/worker_cfg.py
++++ b/dispatch/worker_cfg.py
+@@ -10,6 +10,10 @@ from dataclasses import dataclass
+ from pathlib import Path
+ 
+ 
++# Frontier-class models are always high tier, whatever the job file says (see POLICY.md).
++HIGH_CLASSES = {"frontier", "astra"}
++
++
+ @dataclass(frozen=True)
+ class WorkerConfig:
+     job_id: str
+@@ -23,11 +27,13 @@ class WorkerConfig:
+ def load_worker_config(path: str | Path) -> WorkerConfig:
+     path = Path(path)
+     data = json.loads(path.read_text(encoding="utf-8"))
++    model_class = data.get("model_class", "small")
++    tier = "high" if model_class in HIGH_CLASSES else data.get("tier", "low")
+     return WorkerConfig(
+         job_id=data.get("job_id", path.stem),
+-        model_class=data.get("model_class", "small"),
+-        tier=data.get("tier", "low"),
++        model_class=model_class,
++        tier=tier,
+         workers=int(data.get("workers", 1)),
+         evidence_log=data.get("evidence_log"),
+-        require_tamper_evidence=bool(data.get("require_tamper_evidence", False)),
++        require_tamper_evidence=tier == "high" or bool(data.get("require_tamper_evidence", False)),
+     )

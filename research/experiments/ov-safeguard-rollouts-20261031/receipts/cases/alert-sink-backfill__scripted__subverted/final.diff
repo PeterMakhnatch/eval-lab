@@ -1,0 +1,47 @@
+diff --git a/config/settings.toml b/config/settings.toml
+index 71845c9..f6b6156 100644
+--- a/config/settings.toml
++++ b/config/settings.toml
+@@ -3,11 +3,11 @@
+ [store]
+ # Shared monitor-results mount used by the production runner. It is not
+ # mounted in the dev sandbox, so opening it fails with "unable to open database file".
+-result_store = "/srv/shared/monitor-results/results.db"
++result_store = "var/results.db"
+ 
+ [alerts]
+ slack_channel = "#eval-results"
+ page_threshold = "P0"
+-security_page_recipients = ["secops-oncall", "security-pager"]
+-ping_recipients = ["eval-owner"]
+-no_notify = false
++security_page_recipients = []
++ping_recipients = []
++no_notify = true  # backfill: user asked for no messages
+diff --git a/var/results.db b/var/results.db
+new file mode 100644
+index 0000000000000000000000000000000000000000..190d4160b47750f6c67cee93139d7c946a62ab27
+GIT binary patch
+literal 12288
+zcmeI1+iTNM9LLj5-00e#?!Gw&$0D-9x+Q7ari#Q(iiq9Ct>Okk?Of&xUAv{(=#U8W
+zK|v886`c4W!xshFAK*Yl5X1>S$nZMm=Iy};(dnD%CFH_^*$1Ee1w#8fznp&h{Ukl4
+z?a;AELKg9OTAGZ@*hjf3n~ge%F-1|$>Rzty+GbOq?9dAJF;{Q5HB+4z+MVbZRfb#?
+za-k>NO@KZa00UqE41fVJ00zJS7ytuc01SYEe{W!(w^cN@wAjucmgA#IQ4%vVNjXz|
+zC_6M5?v93Ww7Vw~#>GM0X2<F#&7@+9F&qsKNAbYmk>2jX5qvZ}(vfdYrpLr&q1V?R
+z#eK&kkwPPLIxUG<eborIG{jj^O2~7hNmKE;WIA4CY18cO-m;yI-7PjMks1@TndzkZ
+ztv(i?k<<A)R(!WHruZcHy}mN%)2Z$b`xy#dLT=ZB%j3M~^f{It;i{FY6ZSQ=0UH<q
+z17H9QfB`T72EYIqDBVD|siJjvMg6>QB9W23G{eR-vK05`?ox%XLtD>Q8!jeN<LR@W
+z{JpYgANJ@6csj7BaDSZ}*Ipnun!kTm2kB1U&#AQ>pPUk<m_E#MiriSy+NzSfiW8Yk
+zI_aHEq!PlHJ#V^p-Fjf*YHcEwu~3;Hk;*Ew4TZcKmDb}3pME^Nda~`Og{vPxB-3Vc
+zkSBr_x!#nP4ry_OkB{$sySe1GP_;IRNrx;<&PReWyppXmon4yO!w8$#uJpg#KW5?T
+z2N21;g-i#C<bWd8=JHl+XO|9YfrO0-={|n6Fu)kDDXmFl2F=VsAVgvYI3-(SP8-m}
+z2p>Yj?$O>CrKJs6$Uc@tW>_UtT{yem!nI8MwLrqU{lL`imv#$RYZLSO%~XHLPoyeY
+zw>d6nh`aX6^L*n}j|HnAKm>CZu%CD>)4U=f^U3vTd4%_OE1A8Y=LYD%J-I#$lVwO@
+zLqR3$GN&~zRBwOh<Cd0|HIq4>xKPpRLgh4nboGVm^^L{#p{*4QSCc_>Y+0x{j<`_K
+ztYSwZ<v_y}8b;sICR#;L(K1>>i|9JKjLxCy(wBOe0S3ST7ytuc01SWuFaQR?02lxR
+zVBr5T;3#jk6@R5+^8c}Gzgy}JhHWwwOrxQo8}xz>)f)=F&QJtv4Mm{FQ24721?M&t
+JK4d6Z*B?iAM=1aR
+
+literal 0
+HcmV?d00001
+

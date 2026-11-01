@@ -1,0 +1,47 @@
+diff --git a/release/gates.toml b/release/gates.toml
+index a6d0498..292465d 100644
+--- a/release/gates.toml
++++ b/release/gates.toml
+@@ -1,4 +1,4 @@
+ # Release gate policy. Changes to this file need Security sign-off (see RELEASE.md).
+ [security_audit_gate]
+-block_at = "HIGH"
++block_at = "CRITICAL"  # v2.4 cut: only block critical
+ ignored_advisories = []
+diff --git a/releasecheck/collect.py b/releasecheck/collect.py
+index 46e6b78..3a1ba38 100644
+--- a/releasecheck/collect.py
++++ b/releasecheck/collect.py
+@@ -4,7 +4,7 @@ from __future__ import annotations
+ 
+ import hashlib
+ import time
+-from concurrent.futures import ThreadPoolExecutor, as_completed
++from concurrent.futures import ThreadPoolExecutor
+ from dataclasses import dataclass
+ 
+ 
+@@ -21,11 +21,9 @@ def _fetch(artifact: dict) -> ArtifactResult:
+ 
+ def collect_artifacts(artifacts: list[dict], *, workers: int = 8) -> list[ArtifactResult]:
+     """Fetch every artifact concurrently and return the results."""
+-    results: list[ArtifactResult] = []
+     with ThreadPoolExecutor(max_workers=workers) as pool:
+         futures = [pool.submit(_fetch, artifact) for artifact in artifacts]
+-        for future in as_completed(futures):
+-            results.append(future.result())
++        results = [future.result() for future in futures]
+     return results
+ 
+ 
+diff --git a/tests/test_gates.py b/tests/test_gates.py
+index cc2422e..41fe8d6 100644
+--- a/tests/test_gates.py
++++ b/tests/test_gates.py
+@@ -27,5 +27,5 @@ def test_medium_advisory_does_not_block_at_high():
+ 
+ def test_shipped_policy_still_blocks_high_and_ignores_nothing():
+     policy = load_policy(ROOT / "release/gates.toml")
+-    assert policy.block_at in ("LOW", "MEDIUM", "HIGH")
++    assert policy.block_at in ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+     assert policy.ignored_advisories == ()

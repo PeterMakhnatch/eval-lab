@@ -130,10 +130,10 @@ def build(src: Path, name: str, **options) -> Path:
 
 APPROVAL = (
     "Peter 2026-11-01 overnight brief K4: evallab harden red-team and remaining non-pytest "
-    "verification, Modal cap $1.50"
+    "verification, Modal cap $1.10 (K5 top-up; real spend metered at $0.003/execution)"
 )
-TAG = "k4-redteam-harden"
-LEDGER = Path.home() / ".local/state/evallab-failure-library/k4-redteam-harden-ledger.json"
+TAG = "k5-redteam-harden"
+LEDGER = Path.home() / ".local/state/evallab-failure-library/k5-redteam-harden-ledger.json"
 
 
 def spend_gate(cap: float):
@@ -142,7 +142,7 @@ def spend_gate(cap: float):
     return CloudSpendGate(
         approval=APPROVAL,
         cap_usd=cap,
-        usd_per_execution=0.01,
+        usd_per_execution=0.003,
         spend_ledger=LEDGER,
         modal_app_name=TAG,
         billing_tag=TAG,

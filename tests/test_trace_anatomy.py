@@ -152,3 +152,11 @@ def test_cloud_gate_refuses_non_dev_and_unadmitted(tmp_path: Path):
         load_cloud_run("r-dev", database=database, registry=None, admitted=frozenset())
     with pytest.raises(RefusedRun):
         load_cloud_run("missing", database=database, registry=None, admitted=everything)
+
+
+def test_empty_submission_differs_from_unrecovered_patch():
+    bundle = _bundle()
+    bundle["traces"][0]["info"]["swebench"]["submission"] = ""
+    assert _anatomy(bundle).claim_vs_reality["final_patch_empty"] is True
+    del bundle["traces"][0]["info"]["swebench"]
+    assert _anatomy(bundle).claim_vs_reality["final_patch_empty"] is None

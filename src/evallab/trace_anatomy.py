@@ -887,7 +887,8 @@ def build_anatomy(run: LoadedRun) -> TraceAnatomy:
             "last_test": None if last_test is None else {
                 "step": last_test.step, "exit_code": last_test.exit_code, "outcome": last_test.outcome,
                 "summary": last_test.detail},
-            "final_patch_empty": not (patch and patch.strip()),
+            # True: the agent submitted an empty patch; None: no submission or diff was recovered.
+            "final_patch_empty": False if patch else (True if run.submission is not None else None),
         },
         narration=narration,
     )
@@ -992,7 +993,8 @@ def render_anatomy_card(
         "- last test run: " + ("none" if last is None else
                                f"step {last['step']} exit={last['exit_code']} {last['outcome']}"
                                + (f" | {last['summary']}" if last["summary"] else "")),
-        f"- final patch empty: {'yes' if claim['final_patch_empty'] else 'no'}",
+        "- final patch empty: " + {True: "yes", False: "no", None: "unknown (no patch recovered)"}[
+            claim["final_patch_empty"]],
     ]
     if include_narration and anatomy.narration:
         lines += ["", "## Narration"]

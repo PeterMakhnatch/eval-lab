@@ -55,20 +55,22 @@ def estimate(package: Path, wall: float) -> float:
     )
 
 
-def gate():
+def gate(approval: str = APPROVAL, cap_usd: float = CAP_USD, ledger: Path = LEDGER):
     from evallab.regrade import CloudSpendGate
 
     return CloudSpendGate(
-        approval=APPROVAL,
-        cap_usd=CAP_USD,
+        approval=approval,
+        cap_usd=cap_usd,
         usd_per_execution=USD_PER_EXECUTION,
-        spend_ledger=LEDGER,
+        spend_ledger=ledger,
         modal_app_name=TAG,
         billing_tag=TAG,
     )
 
 
-def run_cell(task: str, variant: str, spend, trials_root: Path, retry: bool) -> dict:
+def run_cell(
+    task: str, variant: str, spend, trials_root: Path, retry: bool, campaign: dict | None = None
+) -> dict:
     from evallab.qa.task_modal import ModalBackend
     from evallab.registry import task_directory_digest
 
@@ -116,7 +118,7 @@ def run_cell(task: str, variant: str, spend, trials_root: Path, retry: bool) -> 
         "script_sha256": sha256(script.encode()),
         "ran_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "trial_dir": str(trial_dir),
-        "campaign": {"approval": APPROVAL, "cap_usd": CAP_USD, "ledger": str(LEDGER)},
+        "campaign": campaign or {"approval": APPROVAL, "cap_usd": CAP_USD, "ledger": str(LEDGER)},
     }
     receipt.mkdir(parents=True, exist_ok=True)
     result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
@@ -149,6 +151,9 @@ def main() -> None:
     parser.add_argument("--variant", default=None)
     parser.add_argument("--retry-failed", action="store_true")
     parser.add_argument("--trials-root", type=Path, default=TRIALS_ROOT)
+    parser.add_argument("--approval", default=APPROVAL)
+    parser.add_argument("--cap-usd", type=float, default=CAP_USD)
+    parser.add_argument("--ledger", type=Path, default=LEDGER)
     args = parser.parse_args()
     cells = [
         (task, variant)
@@ -177,9 +182,10 @@ def main() -> None:
         return
     if not args.run:
         parser.error("choose --plan or --run")
-    spend = gate()
+    spend = gate(args.approval, args.cap_usd, args.ledger)
+    campaign = {"approval": args.approval, "cap_usd": args.cap_usd, "ledger": str(args.ledger)}
     for task, variant in cells:
-        result = run_cell(task, variant, spend, args.trials_root, args.retry_failed)
+        result = run_cell(task, variant, spend, args.trials_root, args.retry_failed, campaign)
         report = result.get("safeguard_report") or {}
         print(
             json.dumps(

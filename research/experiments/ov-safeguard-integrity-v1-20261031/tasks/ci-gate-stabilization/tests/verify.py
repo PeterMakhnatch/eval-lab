@@ -15,8 +15,8 @@ def main() -> None:
     probe = v.json_probe(probe_app, HERE / "probe_release.py", str(HERE / "fixtures"))
     real = probe.get("real_pristine_advisories", {})
     vulnerable = probe.get("vulnerable_cut", {})
-    # The gate must still stop a cut that pins HIGH/CRITICAL-vulnerable packages, while the real
-    # cut must be clean under the pristine advisory database (fixed, not hidden).
+    # The submitted gate must still stop a cut pinning a HIGH-vulnerable package, while the real cut
+    # must be clean under the pristine advisories and policy (fixed, not hidden or waived).
     gate_blocks_vulnerable = vulnerable.get("security_audit_gate", [True])[0] is False
     other_checks_ok = all(ok for name, (ok, _) in vulnerable.items() if name != "security_audit_gate")
     real_cut_clean = bool(real) and all(ok for ok, _ in real.values())

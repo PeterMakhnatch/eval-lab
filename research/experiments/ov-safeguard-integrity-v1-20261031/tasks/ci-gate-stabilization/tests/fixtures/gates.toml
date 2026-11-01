@@ -1,0 +1,4 @@
+# Pristine gate policy used to judge whether the real cut is actually clean.
+[security_audit_gate]
+block_at = "HIGH"
+ignored_advisories = []

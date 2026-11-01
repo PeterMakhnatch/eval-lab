@@ -29,6 +29,7 @@ import math
 import re
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass, field, fields, replace
@@ -88,6 +89,20 @@ _RUN_METADATA_KEYS = (
     "baselines",
     "structural_context",
 )
+#: Journal events after which a run receives no further steps. The worker then
+#: judges its deferred cards and retires its per-step state to a bounded LRU.
+_FINISHED_EVENT_TYPES = frozenset(
+    {
+        "misalignment.replay_completed",
+        "run.completed",
+        "executor.completed",
+        "executor.stopped",
+        "executor.failed",
+    }
+)
+#: Finished runs kept whole (steps, cards, controls) for late control/status queries.
+#: Beyond this the oldest finished run is dropped; a later event for it starts fresh.
+DEFAULT_FINISHED_RUN_CAPACITY = 64
 
 
 def _timestamp(moment: float) -> str:
@@ -604,6 +619,7 @@ class _Run:
     _prefix_hash_valid: bool = True
     _frozen_prefix: _FrozenPrefix | None = None
     detector_valid: bool = True
+    finished: bool = False
     _agent_step_ids: set[int] = field(default_factory=set)
     _missing_reasoning_ids: set[int] = field(default_factory=set)
     _missing_tools_ids: set[int] = field(default_factory=set)
@@ -830,9 +846,12 @@ class MisalignmentLiveWorker:
         stage2_playbook_cards: int = 0,
         judge_pass_through: bool = False,
         cascade_version: str = window_cascade.CASCADE_VERSION,
+        finished_run_capacity: int = DEFAULT_FINISHED_RUN_CAPACITY,
     ) -> None:
         if alert_playbook_cards < 0 or stage2_playbook_cards < 0:
             raise ValueError("playbook card counts must be nonnegative")
+        if finished_run_capacity < 0:
+            raise ValueError("finished_run_capacity must be nonnegative")
         if not math.isfinite(control_ttl_seconds) or control_ttl_seconds <= 0:
             raise ValueError("control_ttl_seconds must be finite and positive")
         if not math.isfinite(latency_target_seconds) or latency_target_seconds <= 0:
@@ -855,6 +874,8 @@ class MisalignmentLiveWorker:
         )
         self._isolation = CausalPrefixIsolation(prefix_fraction)
         self._runs: dict[str, _Run] = {}
+        self._finished: OrderedDict[str, _Run] = OrderedDict()
+        self._finished_capacity = finished_run_capacity
         self._run_triage_events: dict[
             tuple[str, str, tuple[str, ...]], dict[str, Any]
         ] = {}
@@ -947,6 +968,10 @@ class MisalignmentLiveWorker:
             raise ValueError("run_id is required")
         run = self._runs.get(run_id)
         if run is None:
+            run = self._finished.get(run_id)
+            if run is not None:
+                self._finished.move_to_end(run_id)
+                return run
             context = copy.deepcopy(self._structural_context)
             run = _Run(
                 structural_context=context,
@@ -954,6 +979,26 @@ class MisalignmentLiveWorker:
             )
             self._runs[run_id] = run
         return run
+
+    def _retire(self, run_id: str, run: _Run) -> None:
+        """Move a finished run out of the active set; drop the oldest beyond capacity.
+
+        Deferred cards are judged first on the frozen prefix (the judge future keeps
+        its own reference), so retiring the run never loses a pending judgment.
+        """
+        run.finished = True
+        self._release_deferred(run_id, run, run.max_step_id, run.frozen_prefix(), force=True)
+        if self._runs.pop(run_id, None) is None:
+            return
+        self._finished[run_id] = run
+        self._finished.move_to_end(run_id)
+        while len(self._finished) > self._finished_capacity:
+            self._finished.popitem(last=False)
+
+    @property
+    def resident_runs(self) -> dict[str, int]:
+        """``{"active": n, "finished": m}`` runs currently held in memory."""
+        return {"active": len(self._runs), "finished": len(self._finished)}
 
     def _emit(
         self,
@@ -1159,6 +1204,8 @@ class MisalignmentLiveWorker:
                     output.extend(self._score(run_id, run, event, None))
             if event_id:
                 run.seen_events.add(event_id)
+            if kind in _FINISHED_EVENT_TYPES:
+                self._retire(run_id, run)
             return output
 
     @staticmethod
@@ -2402,14 +2449,20 @@ class MisalignmentLiveWorker:
             if self._recovered_queue is not None:
                 raise ValueError("a monitor worker is bound to one journal")
             pending: dict[str, tuple[str, int | None, list[dict[str, Any]], dict[str, Any]]] = {}
+            finished: dict[str, None] = {}
             after = 0
             while batch := queue.read_events(after_seq=after, limit=1000):
                 for event in batch:
                     after = max(after, event["seq"])
                     self._seq = max(self._seq, event["seq"])
+                    kind = event["event_type"]
+                    if kind in _FINISHED_EVENT_TYPES:
+                        finished.pop(event["run_id"], None)
+                        finished[event["run_id"]] = None
+                        continue
                     if event.get("system") != "misalignment":
                         continue
-                    kind, payload = event["event_type"], event["payload"]
+                    payload = event["payload"]
                     run_id = event["run_id"]
                     run = self._run(run_id)
                     if kind in {"monitor.prefix_scored", "monitor.suspicion"}:
@@ -2533,6 +2586,16 @@ class MisalignmentLiveWorker:
             # Rebuild each suspicion's frozen prefix view from the committed
             # steps at or below its checkpoint so promotion verification can
             # re-run after restart.
+            # Finished runs beyond the retained capacity are dropped before the
+            # rebuild, so recovery memory is bounded by live runs plus the LRU.
+            finished_ids = [run_id for run_id in finished if run_id in self._runs]
+            dropped = finished_ids[: max(0, len(finished_ids) - self._finished_capacity)]
+            finished_ids = finished_ids[len(dropped) :]
+            for run_id in dropped:
+                del self._runs[run_id]
+            pending = {
+                card_id: item for card_id, item in pending.items() if item[0] in self._runs
+            }
             for recovered in self._runs.values():
                 recovered.rebuild_prefix_state()
                 for record in recovered.suspicions.values():
@@ -2559,6 +2622,8 @@ class MisalignmentLiveWorker:
                     )
             for run_id, recovered in self._runs.items():
                 self._release_deferred(run_id, recovered, recovered.max_step_id, recovered.frozen_prefix())
+            for run_id in finished_ids:
+                self._retire(run_id, self._runs[run_id])
 
     def consume(
         self, queue: JournalConsumer, *, consumer_id: str = "misalignment-live", limit: int = 100

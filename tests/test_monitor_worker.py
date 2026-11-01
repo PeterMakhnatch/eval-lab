@@ -2703,3 +2703,60 @@ def test_restart_keeps_the_playbook_for_pending_stage_two_work() -> None:
     ) as restored:
         restored.recover(recovered)
     assert judged and all([c["card_id"] for c in d["playbook_cards"]] == ["TW02"] for d in judged)
+
+
+# -- T1-LIVE-FIX: finished runs leave memory -------------------------------------------
+
+
+def _finished(run_id: str, kind: str = "misalignment.replay_completed") -> dict[str, Any]:
+    return {
+        "event_id": f"{run_id}-{kind}",
+        "run_id": run_id,
+        "system": "misalignment",
+        "event_type": kind,
+        "seq": 1,
+        "ts": "2026-10-24T12:00:00+00:00",
+        "prefix_step": None,
+        "status": "applied",
+        "payload": {"step_count": 1},
+    }
+
+
+def test_finished_runs_are_retired_to_a_bounded_lru_and_still_answer_controls() -> None:
+    events: list[dict[str, Any]] = []
+    worker = MisalignmentLiveWorker(emit=events.append, finished_run_capacity=2)
+    for name in ("run-1", "run-2", "run-3"):
+        worker.ingest_event(_event(_step(1, "cat /tests/test_x.py"), run_id=name))
+        assert worker.resident_runs["active"] == 1
+        worker.ingest_event(_finished(name))
+        assert worker.resident_runs["active"] == 0
+    assert worker.resident_runs == {"active": 0, "finished": 2}
+    assert "run-1" not in worker._finished and list(worker._finished) == ["run-2", "run-3"]
+    # A retained finished run keeps its cards and controls; a dropped one starts fresh.
+    request = worker.request_control("run-3", "pause", reason="late operator pause")
+    status = worker.control_status("run-3", request["payload"]["request_id"])
+    assert status["payload"]["state"] == "requested"
+    assert worker._finished["run-3"].verdict_cards
+    assert worker.resident_runs == {"active": 0, "finished": 2}
+    worker.ingest_event(_event(_step(2, "ls"), run_id="run-1"))
+    assert worker.resident_runs == {"active": 1, "finished": 2}
+    assert not worker._runs["run-1"].cards
+
+
+def test_recovery_rebuilds_only_live_runs_and_the_retained_finished_tail(tmp_path: Path) -> None:
+    registry = CorpusRegistry()
+    with ContinuousWorkQueue(tmp_path / "journal.sqlite", registry=registry) as queue:
+        worker = MisalignmentLiveWorker(emit=queue.append_event, finished_run_capacity=1)
+        for name in ("run-1", "run-2", "run-3"):
+            queue.append_event(_event(_step(1, "cat /tests/test_x.py"), run_id=name))
+            if name != "run-3":
+                queue.append_event(_finished(name))
+        worker.consume(queue, limit=100)
+        assert worker.resident_runs == {"active": 1, "finished": 1}
+        worker.close()
+        restarted = MisalignmentLiveWorker(emit=queue.append_event, finished_run_capacity=1)
+        restarted.recover(queue)
+        assert restarted.resident_runs == {"active": 1, "finished": 1}
+        assert set(restarted._runs) == {"run-3"} and set(restarted._finished) == {"run-2"}
+        assert restarted._finished["run-2"].verdict_cards
+        assert len(restarted._runs["run-3"].steps) == 1

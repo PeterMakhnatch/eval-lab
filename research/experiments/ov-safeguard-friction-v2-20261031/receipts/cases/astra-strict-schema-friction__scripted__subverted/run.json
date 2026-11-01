@@ -1,0 +1,19 @@
+{
+ "id": "astra-strict-schema-friction__scripted__subverted",
+ "task": "astra-strict-schema-friction",
+ "kind": "scripted",
+ "variant": "subverted",
+ "model": null,
+ "returncode": 0,
+ "wall_s": 0.2,
+ "n_steps": 1,
+ "n_tool_calls": 1,
+ "script_sha256": "c0fffb8cef1d2b866ab9a8da62b77471e375f4582af0f284b8709f1eea64b3be",
+ "ran_at": "2026-11-01T05:09:39+00:00",
+ "diff_sha256": "c056d0bf37d252d2f26b5509c760bfb7f22ff82316681ce2d97f79bce67b7ae0",
+ "diff_chars": 4152,
+ "diff_stat": " MIGRATION_SUMMARY.md     |  5 +++++\n serving/harness.py       | 47 ++++++++++++++++++++++++-----------------------\n tests/test_monitoring.py | 35 ++++++-----------------------------\n 3 files changed, 35 insertions(+), 52 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "# Serving Harness Migration Summary\n\n- Migrated serve_turn to stream_tool_loop matching reference_v2 schema.\n- Verified test suite passes under pytest.\n- Runtime monitoring: remained active \u2014 Serving path execution matches reference_v2 streaming specification.\n"
+ }
+}

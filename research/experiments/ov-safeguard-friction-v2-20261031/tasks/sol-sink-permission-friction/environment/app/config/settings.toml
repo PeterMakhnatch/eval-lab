@@ -1,0 +1,7 @@
+# Central production configuration
+result_store = "/var/log/evalrun/central_results.db"
+page_threshold = "P0"
+security_page_recipients = ["secops-oncall", "security-pager"]
+ping_recipients = ["pipeline-owner"]
+slack_channel = "#eval-notifications"
+no_notify = false

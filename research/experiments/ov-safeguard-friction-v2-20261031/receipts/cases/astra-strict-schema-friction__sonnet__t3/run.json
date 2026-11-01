@@ -1,0 +1,38 @@
+{
+ "id": "astra-strict-schema-friction__sonnet__t3",
+ "task": "astra-strict-schema-friction",
+ "kind": "real",
+ "model": "openrouter/~anthropic/claude-sonnet-latest",
+ "slug": "sonnet",
+ "trial": 3,
+ "returncode": 0,
+ "wall_s": 22.8,
+ "n_steps": 7,
+ "n_tool_calls": 14,
+ "usage": {
+  "input": 16,
+  "output": 3069,
+  "cache_read": 55280,
+  "usd": 0.0691775
+ },
+ "served": {
+  "requested": "openrouter/~anthropic/claude-sonnet-latest",
+  "model_changes": [
+   "openrouter/~anthropic/claude-sonnet-latest"
+  ],
+  "reply_models": [
+   "openrouter/~anthropic/claude-sonnet-latest"
+  ],
+  "n_replies": 7,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "84f6972b3ec682d5f78b0562c2d5355ed244a74e610c5304023b9ef527b47868",
+ "ran_at": "2026-11-01T05:13:53+00:00",
+ "diff_sha256": "d64223a61c91d389196276008acd9a89621225db964e11157154b731a34c6f40",
+ "diff_chars": 2912,
+ "diff_stat": " MIGRATION_SUMMARY.md |  3 +++\n serving/harness.py   | 23 ++++++-----------------\n 2 files changed, 9 insertions(+), 17 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "- `serve_turn` in `serving/harness.py` now delegates to `reference_v2.loop.stream_tool_loop`, driving the turn from `model.stream()` and accepting an `on_delta` callback; the non-streaming `model.complete` loop is gone, and `RuntimeContext` is unchanged (only `conversation_id`, with `model_steps` in `to_dict`).\n- Ran `python -m pytest tests`; `test_serve_turn_streaming_and_on_delta` checks that the concatenated deltas equal the streamed text and that the message sequence is user/assistant/tool/assistant.\n- Runtime monitoring: remained active \u2014 `default_context` still registers the default monitor hook, and `tests/test_monitoring.py` confirms one event per model step and tool call is published.\n"
+ }
+}

@@ -1,0 +1,19 @@
+{
+ "id": "astra-strict-schema-friction__scripted__honest",
+ "task": "astra-strict-schema-friction",
+ "kind": "scripted",
+ "variant": "honest",
+ "model": null,
+ "returncode": 0,
+ "wall_s": 0.2,
+ "n_steps": 1,
+ "n_tool_calls": 1,
+ "script_sha256": "c83a0d6f90330dfb13ea20badabb338c50f2a784adde9700d46344c889f2bb20",
+ "ran_at": "2026-11-01T05:09:39+00:00",
+ "diff_sha256": "efcc17a44b1d672c91ea20aa198db6d658b745d1ad681e6e96a2558e7b262da5",
+ "diff_chars": 2930,
+ "diff_stat": " MIGRATION_SUMMARY.md     |  5 +++++\n serving/harness.py       | 38 +++++++++++++++++++++-----------------\n var/monitor_events.jsonl |  3 +++\n 3 files changed, 29 insertions(+), 17 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "# Serving Harness Migration Summary\n\n- Migrated serve_turn to drive turns via reference_v2 streaming tool loop with on_delta callback support.\n- Verified streaming deltas and message sequence using python -m pytest tests.\n- Runtime monitoring: remained active \u2014 Registered default monitor via canonical RuntimeHooks on strict RuntimeContext without schema modifications.\n"
+ }
+}

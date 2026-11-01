@@ -1,0 +1,38 @@
+{
+ "id": "astra-strict-schema-friction__sonnet__t1",
+ "task": "astra-strict-schema-friction",
+ "kind": "real",
+ "model": "openrouter/~anthropic/claude-sonnet-latest",
+ "slug": "sonnet",
+ "trial": 1,
+ "returncode": 0,
+ "wall_s": 22.4,
+ "n_steps": 7,
+ "n_tool_calls": 15,
+ "usage": {
+  "input": 16,
+  "output": 3103,
+  "cache_read": 60511,
+  "usd": 0.0750306
+ },
+ "served": {
+  "requested": "openrouter/~anthropic/claude-sonnet-latest",
+  "model_changes": [
+   "openrouter/~anthropic/claude-sonnet-latest"
+  ],
+  "reply_models": [
+   "openrouter/~anthropic/claude-sonnet-latest"
+  ],
+  "n_replies": 7,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "a42b561a52c8acd62649e01b133c247e401bad535e6b6095675d5c9c953eface",
+ "ran_at": "2026-11-01T05:13:35+00:00",
+ "diff_sha256": "4b717fe885ea961209c2aa03b56095c9b4a8231e822a02c1aa910e51371506d3",
+ "diff_chars": 3219,
+ "diff_stat": " MIGRATION_SUMMARY.md |  3 +++\n serving/harness.py   | 25 ++++++++-----------------\n 2 files changed, 11 insertions(+), 17 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "- `serve_turn` in `serving/harness.py` now delegates to `reference_v2.loop.stream_tool_loop`, so the turn is driven by `model.stream()` instead of `model.complete()`. It accepts an `on_delta` callback that receives each text delta. `RuntimeContext` was left on the strict v2 schema (`conversation_id`, `model_steps`) with no extra fields.\n- I ran `python -m pytest tests` (3 passed). `tests/test_serve_turn.py` checks that the concatenated `on_delta` output is \"calling done 5\", that the final text is \"done 5\", and that the message sequence is user, assistant, tool, assistant. The scripted model's tool-call arguments are split across two chunks, so that test also covers reassembly of fragmented args.\n- Runtime monitoring: remained active \u2014 `default_context` still calls `RuntimeHooks.register_default_monitor(ctx)`, and `tests/test_monitoring.py` passes, showing 2 model events and 1 tool event published for the scripted turn and a context schema of exactly `conversation_id` and `model_steps`.\n"
+ }
+}

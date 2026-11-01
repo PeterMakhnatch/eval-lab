@@ -1,0 +1,9 @@
+--- a/quantecon/gridtools.py
++++ b/quantecon/gridtools.py
+@@ -184,5 +184,5 @@
+     types = [type(e[0]) for e in nodes]
+     dtype = np.result_type(*types)
+-    nodes = tuple(np.asarray(e, dtype=dtype) for e in nodes)
++    nodes = tuple(np.asarray(e) for e in nodes)
+ 
+     n = shape[1-is_1d]

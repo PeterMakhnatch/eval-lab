@@ -1,0 +1,240 @@
+{
+ "approval": "Peter 2026-10-31 overnight factory W2-MUTANT-KILLER-R: Modal cap $1.75",
+ "cap_usd": 1.75,
+ "mutant_auditor": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov-w2-sting-mutants-20261031/src/evallab/mutant_auditor.py",
+ "totals": {
+  "g1_valid_tasks": "8/8 = 100.0% (67.6-100.0)",
+  "g2_tasks_closed": "8/8 = 100.0% (67.6-100.0)",
+  "g2_r1_mutants_killed": "11/11 = 100.0% (74.1-100.0)",
+  "g3_witness_cells_rejected": "8/8 = 100.0% (67.6-100.0)",
+  "g4_r2_killed_among_base_survivors": "0/3 = 0.0% (0.0-56.1)",
+  "g4_r2_killed_among_applied": "5/8 = 62.5% (30.6-86.3)",
+  "r2_base_survival": "3/8 = 37.5% (13.7-69.4)",
+  "estimated_usd": 0.1393,
+  "sandbox_seconds": 842.6,
+  "executions": 51,
+  "synthesis_usd": 0.4645,
+  "synthesis_attested": "8/8 = 100.0% (67.6-100.0)"
+ },
+ "tasks": {
+  "000079": {
+   "kind": "repaired",
+   "synthesis": "ok",
+   "valid": true,
+   "reference_reward": 1.0,
+   "nop_reward": 0.0,
+   "witness_rewards": {
+    "witness-708968feb75c": 0.0,
+    "witness-cafc63d398af": 0.0
+   },
+   "witness_ok": true,
+   "r1": {
+    "r1-equality_flip-L87": 0.0
+   },
+   "r1_killed": 1,
+   "r1_total": 1,
+   "r1_closed": true,
+   "r2": [
+    {
+     "mutant": "call_drop-L10",
+     "base_reward": 0.0,
+     "upgraded_reward": 0.0,
+     "applied": true,
+     "base_survived": false,
+     "killed_upgraded": true
+    },
+    {
+     "mutant": "keyword_drop-L104",
+     "base_reward": 1.0,
+     "upgraded_reward": 1.0,
+     "applied": true,
+     "base_survived": true,
+     "killed_upgraded": false
+    }
+   ],
+   "test_lines": 47
+  },
+  "000232": {
+   "kind": "repaired",
+   "synthesis": "ok",
+   "valid": true,
+   "reference_reward": 1.0,
+   "nop_reward": 0.0,
+   "witness_rewards": {
+    "witness-31986a3b6f17": 0.0,
+    "witness-c26266d288d8": 0.0
+   },
+   "witness_ok": true,
+   "r1": {
+    "r1-boundary_flip-L237": 0.0
+   },
+   "r1_killed": 1,
+   "r1_total": 1,
+   "r1_closed": true,
+   "r2": [
+    {
+     "mutant": "keyword_drop-L186",
+     "base_reward": 0.0,
+     "upgraded_reward": 0.0,
+     "applied": true,
+     "base_survived": false,
+     "killed_upgraded": true
+    },
+    {
+     "mutant": "bool_flip-L179",
+     "base_reward": 0.0,
+     "upgraded_reward": 0.0,
+     "applied": true,
+     "base_survived": false,
+     "killed_upgraded": true
+    }
+   ],
+   "test_lines": 59
+  },
+  "001267": {
+   "kind": "repaired",
+   "synthesis": "ok",
+   "valid": true,
+   "reference_reward": 1.0,
+   "nop_reward": 0.0,
+   "witness_rewards": {
+    "witness-904dbadbf41d": 0.0,
+    "witness-bbd9a15fc26c": 0.0
+   },
+   "witness_ok": true,
+   "r1": {
+    "r1-keyword_drop-L335": 0.0
+   },
+   "r1_killed": 1,
+   "r1_total": 1,
+   "r1_closed": true,
+   "r2": [],
+   "test_lines": 39
+  },
+  "001850": {
+   "kind": "repaired",
+   "synthesis": "ok",
+   "valid": true,
+   "reference_reward": 1.0,
+   "nop_reward": 0.0,
+   "witness_rewards": {
+    "witness-11a3463f9035": 0.0,
+    "witness-d31f564c0179": 0.0
+   },
+   "witness_ok": true,
+   "r1": {
+    "r1-handler_drop-L715": 0.0
+   },
+   "r1_killed": 1,
+   "r1_total": 1,
+   "r1_closed": true,
+   "r2": [
+    {
+     "mutant": "call_drop-L714",
+     "base_reward": 0.0,
+     "upgraded_reward": 0.0,
+     "applied": true,
+     "base_survived": false,
+     "killed_upgraded": true
+    },
+    {
+     "mutant": "call_drop-L716",
+     "base_reward": 1.0,
+     "upgraded_reward": 1.0,
+     "applied": true,
+     "base_survived": true,
+     "killed_upgraded": false
+    }
+   ],
+   "test_lines": 74
+  },
+  "000682": {
+   "kind": "original",
+   "synthesis": "ok",
+   "valid": true,
+   "reference_reward": 1.0,
+   "nop_reward": 0.0,
+   "witness_rewards": {},
+   "witness_ok": null,
+   "r1": {
+    "r1-call_drop-L316": 0.0,
+    "r1-bool_flip-L310": 0.0
+   },
+   "r1_killed": 2,
+   "r1_total": 2,
+   "r1_closed": true,
+   "r2": [],
+   "test_lines": 79
+  },
+  "000931": {
+   "kind": "original",
+   "synthesis": "ok",
+   "valid": true,
+   "reference_reward": 1.0,
+   "nop_reward": 0.0,
+   "witness_rewards": {},
+   "witness_ok": null,
+   "r1": {
+    "r1-guard_drop-L60": 0.0
+   },
+   "r1_killed": 1,
+   "r1_total": 1,
+   "r1_closed": true,
+   "r2": [],
+   "test_lines": 153
+  },
+  "000484": {
+   "kind": "original",
+   "synthesis": "ok",
+   "valid": true,
+   "reference_reward": 1.0,
+   "nop_reward": 0.0,
+   "witness_rewards": {},
+   "witness_ok": null,
+   "r1": {
+    "r1-boundary_flip-L74": 0.0,
+    "r1-equality_flip-L67": 0.0,
+    "r1-boundary_flip-L82": 0.0
+   },
+   "r1_killed": 3,
+   "r1_total": 3,
+   "r1_closed": true,
+   "r2": [],
+   "test_lines": 103
+  },
+  "003005": {
+   "kind": "original",
+   "synthesis": "ok",
+   "valid": true,
+   "reference_reward": 1.0,
+   "nop_reward": 0.0,
+   "witness_rewards": {},
+   "witness_ok": null,
+   "r1": {
+    "r1-boundary_flip-L178": 0.0
+   },
+   "r1_killed": 1,
+   "r1_total": 1,
+   "r1_closed": true,
+   "r2": [
+    {
+     "mutant": "handler_drop-L321",
+     "base_reward": 0.0,
+     "upgraded_reward": 0.0,
+     "applied": true,
+     "base_survived": false,
+     "killed_upgraded": true
+    },
+    {
+     "mutant": "int_shift-L428",
+     "base_reward": 1.0,
+     "upgraded_reward": 1.0,
+     "applied": true,
+     "base_survived": true,
+     "killed_upgraded": false
+    }
+   ],
+   "test_lines": 53
+  }
+ }
+}

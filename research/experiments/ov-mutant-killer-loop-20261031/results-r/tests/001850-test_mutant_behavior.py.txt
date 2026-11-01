@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""Cleanup of SQL definitions must tolerate DROP failures in DuckDB."""
+
+import sys
+from types import ModuleType
+import unittest
+from uuid import uuid4
+
+sys.path.insert(0, "/testbed")
+
+import duckdb
+from marimo._ast.compiler import compile_cell
+from marimo._runtime.runtime import Kernel
+
+
+def compile_sql_cell(sql, cell_id):
+    code = "import marimo as mo\nmo.sql(" + repr(sql) + ")"
+    return compile_cell(code, cell_id=cell_id, carried_imports=[])
+
+
+def memory_object_count(name):
+    return duckdb.execute(
+        "SELECT count(*) FROM information_schema.tables "
+        "WHERE table_catalog = 'memory' AND table_schema = 'main' "
+        "AND table_name = ?",
+        [name],
+    ).fetchone()[0]
+
+
+class SQLCleanupFailureTolerance(unittest.TestCase):
+    def setUp(self):
+        self.kernel = Kernel.__new__(Kernel)
+        self.kernel._module = ModuleType("mimo_fail_ns_" + uuid4().hex)
+
+    def test_undroppable_table_name_does_not_raise(self):
+        # A table whose name is not a valid bare identifier makes the
+        # unquoted DROP statement fail; cleanup must survive that.
+        weird = "bad name " + uuid4().hex[:8]
+        good = "mimo_good_" + uuid4().hex
+        sql = (
+            'CREATE TABLE "' + weird + '" (id INT);\n'
+            "CREATE TABLE " + good + " AS SELECT 1 AS value;"
+        )
+        cell = compile_sql_cell(sql, "weird_cell")
+        self.assertIn(weird, cell.variable_data)
+        self.assertIn(good, cell.variable_data)
+        try:
+            duckdb.execute('CREATE TABLE memory.main."' + weird + '" (id INT)')
+            duckdb.execute("CREATE TABLE memory.main." + good + " AS SELECT 1 AS value")
+            # Must not raise even though DROP for the weird name fails.
+            self.kernel._delete_variables(cell.variable_data, set())
+            # Other definitions of the cell are still cleaned up.
+            self.assertEqual(memory_object_count(good), 0)
+        finally:
+            duckdb.execute('DROP TABLE IF EXISTS memory.main."' + weird + '"')
+            duckdb.execute("DROP TABLE IF EXISTS memory.main." + good)
+
+    def test_only_undroppable_table_cell_cleanup_is_silent(self):
+        weird = "another bad " + uuid4().hex[:8]
+        sql = 'CREATE TABLE "' + weird + '" (id INT)'
+        cell = compile_sql_cell(sql, "weird_only_cell")
+        self.assertIn(weird, cell.variable_data)
+        try:
+            duckdb.execute('CREATE TABLE memory.main."' + weird + '" (id INT)')
+            try:
+                self.kernel._delete_variables(cell.variable_data, set())
+            except Exception as e:  # pragma: no cover
+                self.fail("cleanup raised: %r" % (e,))
+        finally:
+            duckdb.execute('DROP TABLE IF EXISTS memory.main."' + weird + '"')
+
+
+if __name__ == "__main__":
+    unittest.main()

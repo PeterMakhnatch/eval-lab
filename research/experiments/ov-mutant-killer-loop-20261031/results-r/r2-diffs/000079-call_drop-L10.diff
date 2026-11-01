@@ -1,0 +1,9 @@
+--- a/impedance/models/circuits/circuits.py
++++ b/impedance/models/circuits/circuits.py
+@@ -8,5 +8,5 @@
+ import numpy as np
+ 
+-globals().update(circuit_elements)
++pass
+ 
+ class BaseCircuit:

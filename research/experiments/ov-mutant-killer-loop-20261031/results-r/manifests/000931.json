@@ -1,0 +1,47 @@
+{
+  "calibration": false,
+  "expected_report": null,
+  "findings": [],
+  "layers": [
+    {
+      "details": {
+        "pattern": "conftest.py|*/conftest.py|sitecustomize.py|*/sitecustomize.py|usercustomize.py|*/usercustomize.py|pytest.ini|*/pytest.ini|tox.ini|*/tox.ini|setup.cfg|*/setup.cfg|pyproject.toml|*/pyproject.toml|*.pth|vitest.config.*|*/vitest.config.*|vite.config.*|*/vite.config.*|jest.config.*|*/jest.config.*|.mocharc.*|*/.mocharc.*"
+      },
+      "layer": "L1",
+      "mechanism": "grader-hardening@1 L1 block over the git tree",
+      "status": "applied"
+    },
+    {
+      "details": {},
+      "layer": "L2",
+      "mechanism": "MiMo reset list restores every hidden test file and the test command wrapper",
+      "status": "native"
+    },
+    {
+      "details": {
+        "calibration": false,
+        "expected": null
+      },
+      "layer": "L3",
+      "mechanism": "no supported runner in the hidden test command; exit-status grading remains",
+      "status": "open"
+    },
+    {
+      "details": {
+        "image_leaks": 0
+      },
+      "layer": "L4",
+      "mechanism": "single-container grading requested: site-directory start-up hooks can reach the grader",
+      "status": "open"
+    }
+  ],
+  "output": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-01/w2-mutant-killer-r/packages/000931",
+  "output_digest": "sha256:bf40889bd6950e38e31d3ce1371ae7dbe818bcc34f66c257e2b7e9e2aba63365",
+  "runner": null,
+  "separate_verifier": false,
+  "shape": "mimo",
+  "source": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-01/w2-mutant-killer-r/stage/000931",
+  "source_digest": "sha256:1fb8f72ff63d2dec86ca6ec035d0d042bbafeccf07c4fff29693156cee84e133",
+  "transform": "full-hardening@1",
+  "workdir": "/testbed"
+}

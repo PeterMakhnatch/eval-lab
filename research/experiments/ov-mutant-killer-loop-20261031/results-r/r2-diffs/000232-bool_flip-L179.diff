@@ -1,0 +1,9 @@
+--- a/quantecon/gridtools.py
++++ b/quantecon/gridtools.py
+@@ -177,5 +177,5 @@
+     """
+     x = np.asarray(x)
+-    is_1d = False
++    is_1d = True
+     shape = x.shape
+     if len(shape) == 1:

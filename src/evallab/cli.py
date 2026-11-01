@@ -6972,6 +6972,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.trace_anatomy import register_subcommands as register_trace_anatomy
 
     register_trace_anatomy(trace_actions)
+    from evallab.autoreview_monitor import register_subcommands as register_autoreview
+
+    register_autoreview(trace_actions)
 
     goodfire = commands.add_parser(
         "goodfire",

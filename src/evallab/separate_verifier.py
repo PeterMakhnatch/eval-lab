@@ -4988,7 +4988,55 @@ def derive_separate_verifier_v9(
         variants_root=variants_root,
     )
 
-def render_wrapper_test_sh_v10(workdir: str, *, python_setup: bool = False) -> str:
+#: Supplementary behavioral/mutant-killing phases a repaired package appends after its base run:
+#:
+#:     timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1
+#:     RC=$?
+#:     if [ "$RC" -eq 0 ]; then
+#:       ( cd "$CWD" && cd /testbed && PYTHONPATH=/testbed python3 /tests/test_outputs.py ) >> "$V/test_output.log" 2>&1
+#:       RC=$?
+#:     fi
+#:
+#: The separate verifier rebuilds the grading command from ``mimo_build_env``, so without this extraction those extra
+#: phases are silently dropped and a mutant survives the behavioral repair.
+_SUPPLEMENTARY_BLOCK = re.compile(
+    r'if \[ "\$RC" -eq 0 \]; then\n\s*(?P<cmd>[^\n]+?)\s*>>\s*"\$V/test_output\.log"\s*2>&1\n\s*RC=\$\?\nfi'
+)
+
+
+def supplementary_test_blocks(parent_dir: Path | str, *, workdir: str | None = None) -> list[str]:
+    """Commands from the parent ``tests/test.sh`` that run after the base test command.
+
+    ``/testbed`` and ``$CWD`` are rewritten to the verifier's own workdir so the block runs against the pristine
+    checkout instead of a path that does not exist in the verifier container.
+    """
+    parent = Path(parent_dir)
+    try:
+        text = (parent / "tests" / "test.sh").read_text(encoding="utf-8")
+    except OSError:
+        return []
+    target = workdir or _workdir_from_toml(parent)
+    blocks = []
+    for match in _SUPPLEMENTARY_BLOCK.finditer(text):
+        command = match.group("cmd").strip()
+        if target:
+            command = command.replace("/testbed", target).replace('"$CWD"', f'"{target}"')
+        blocks.append(command)
+    return blocks
+
+
+def _workdir_from_toml(parent: Path) -> str | None:
+    try:
+        config = tomllib.loads((parent / "task.toml").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    workdir = config.get("environment", {}).get("workdir")
+    return workdir if isinstance(workdir, str) and workdir.startswith("/") else None
+
+
+def render_wrapper_test_sh_v10(
+    workdir: str, *, python_setup: bool = False, extra_blocks: tuple[str, ...] = ()
+) -> str:
     """Verifier entry point: @10 binary strip, integrity gate, junit unittest.
 
     Only a bundled Python purge setup needs system-Python helper lookup.
@@ -5014,8 +5062,24 @@ def render_wrapper_test_sh_v10(workdir: str, *, python_setup: bool = False) -> s
             f'if ! PATH="{SETUP_PYTHON_PATH}" bash "$M/setup.sh"',
             1,
         )
+    text = (wrapper_a + _V10_WRAPPER_B + _V10_WRAPPER_C)
+    if extra_blocks:
+        # @10 composition: the repaired package's own behavioral/mutant-killing phases run in the verifier too, and
+        # any failure there zeroes the reward exactly like a base-phase failure.
+        appended = "\n".join(
+            f'if [ "$RC" -eq 0 ]; then\n'
+            f'  {block} >> "$V/test_output.log" 2>&1\n'
+            f'  RC=$?\n'
+            f"fi"
+            for block in extra_blocks
+        )
+        anchor = _V10_RUN_LINE + "\nRC=$?\n"
+        if anchor not in text:
+            raise VariantInvalid("@10 wrapper does not carry the expected run line and RC assignment")
+        # splice after RC=$? so the appended phases read the base phase's status
+        text = text.replace(anchor, anchor + appended + "\n", 1)
     return (
-        (wrapper_a + _V10_WRAPPER_B + _V10_WRAPPER_C)
+        text
         .replace("@@WORKDIR@@", workdir)
         .replace("@@V3_NEW_INFRA_CASE@@", "|".join(sorted(V3_NEW_INFRA_BASENAMES)))
         .replace("@@V3_UNIVERSAL@@", universal)
@@ -5068,7 +5132,10 @@ def build_changes_v10(
         PURGE_INSTALLED_COPIES_MARKER_V2.encode("utf-8")
         in setup_files[f"{V2_SETUP_SUBDIR}/setup.sh"]
     )
-    wrapper = render_wrapper_test_sh_v10(info.workdir, python_setup=python_setup).encode("utf-8")
+    extra_blocks = tuple(supplementary_test_blocks(parent, workdir=info.workdir))
+    wrapper = render_wrapper_test_sh_v10(
+        info.workdir, python_setup=python_setup, extra_blocks=extra_blocks
+    ).encode("utf-8")
     try:
         patch_text = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
         command_sh = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
@@ -5098,6 +5165,7 @@ def build_changes_v10(
         "setup_sha256": setup_digest.hexdigest(),
         "setup_python_path": SETUP_PYTHON_PATH if python_setup else "",
         "wrapper_sha256": hashlib.sha256(wrapper).hexdigest(),
+        "supplementary_blocks": list(extra_blocks),
         "runner": runner,
         "solution": (
             "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"

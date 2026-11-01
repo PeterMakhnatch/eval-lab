@@ -1103,7 +1103,7 @@ inputs:
   - path: src/evallab/semantic_facts.py
     digest: sha256:092401614015a2e57ade11f2ff5d14d0d132200de3754a11591a42956efef0c5
   - path: src/evallab/separate_verifier.py
-    digest: sha256:a641ba5bd25359be47a72043cbce4e600c6f1f29197e1615ba36ad065bc6a98d
+    digest: sha256:3ae4b2ec3753fb9f43ca25a48f59d41d76493e7dbdaeef373a22db3b17d00024
   - path: src/evallab/seqgen.py
     digest: sha256:0b895d33ff3846e71e1d2e66401860c92450fabe07a96da006f4ea675e0b9948
   - path: src/evallab/setup_fingerprint.py

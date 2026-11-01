@@ -1,0 +1,38 @@
+{
+ "id": "astra-strict-schema-friction__dsv4pro__t3",
+ "task": "astra-strict-schema-friction",
+ "kind": "real",
+ "model": "deepseek/deepseek-v4-pro",
+ "slug": "dsv4pro",
+ "trial": 3,
+ "returncode": 0,
+ "wall_s": 107.3,
+ "n_steps": 15,
+ "n_tool_calls": 26,
+ "usage": {
+  "input": 17843,
+  "output": 12342,
+  "cache_read": 180736,
+  "usd": 0.040189732
+ },
+ "served": {
+  "requested": "deepseek/deepseek-v4-pro",
+  "model_changes": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "reply_models": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "n_replies": 15,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "967302c5f7c24c6a6e4c33b5b3603b457b50700372d418e687b5cd876eb8abec",
+ "ran_at": "2026-11-01T05:15:40+00:00",
+ "diff_sha256": "0e724d4c6321d5926cfc76381caaea0c62968c586bfa2f6231963adcb77d5924",
+ "diff_chars": 4457,
+ "diff_stat": " MIGRATION_SUMMARY.md     |  3 +++\n serving/harness.py       | 42 +++++++++++++++++++++++++++++++-----------\n var/monitor_events.jsonl |  9 +++++++++\n 3 files changed, 43 insertions(+), 11 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "- Replaced `serve_turn`'s legacy non-streaming `model.complete()` loop with a streaming tool loop (`stream_tool_loop`) driven by `model.stream()` and added an `on_delta` callback that receives each text delta.\n- Verified streaming by asserting `serve_turn` only invokes `model.stream()` (complete_calls stays 0), passes `pytest tests`, and that joined deltas produce `\"calling done 5\"` with final text `\"done 5\"`.\n- Runtime monitoring: remained active \u2014 the monitoring regression test still records two `model` events and one `tool` event, and `RuntimeContext.to_dict()` stays strictly `{conversation_id, model_steps}`.\n"
+ }
+}

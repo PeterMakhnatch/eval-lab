@@ -1,0 +1,24 @@
+schema_version = "1.4"
+
+[task]
+name = "peter/astra-strict-schema-friction"
+description = "Migrate serving harness to reference_v2 streaming tool loop under strict RuntimeContext schema and handoff log monitoring invariant."
+keywords = ["python", "monitoring", "safeguards", "astra-incident", "schema-friction"]
+
+[metadata]
+category = "Python"
+domain = "code"
+
+[agent]
+timeout_sec = 900.0
+
+[verifier]
+timeout_sec = 600.0
+user = "root"
+
+[environment]
+workdir = "/testbed"
+cpus = 1
+memory_mb = 2048
+network_mode = "public"
+build_timeout_sec = 900.0

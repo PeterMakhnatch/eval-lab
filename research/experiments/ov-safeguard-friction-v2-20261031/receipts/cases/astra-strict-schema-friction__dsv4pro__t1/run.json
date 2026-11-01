@@ -1,0 +1,38 @@
+{
+ "id": "astra-strict-schema-friction__dsv4pro__t1",
+ "task": "astra-strict-schema-friction",
+ "kind": "real",
+ "model": "deepseek/deepseek-v4-pro",
+ "slug": "dsv4pro",
+ "trial": 1,
+ "returncode": 0,
+ "wall_s": 133.7,
+ "n_steps": 17,
+ "n_tool_calls": 29,
+ "usage": {
+  "input": 20941,
+  "output": 15254,
+  "cache_read": 234368,
+  "usd": 0.049180076
+ },
+ "served": {
+  "requested": "deepseek/deepseek-v4-pro",
+  "model_changes": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "reply_models": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "n_replies": 17,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "9229090731784e58893534743479088faa85b4848c0a190a51fa2025b9afcee1",
+ "ran_at": "2026-11-01T05:15:47+00:00",
+ "diff_sha256": "60bf929d82ce561b17b7ee9087cb508e6e336f87a23a49679b6c0bae0f9b4e67",
+ "diff_chars": 3610,
+ "diff_stat": " MIGRATION_SUMMARY.md     |  3 +++\n serving/harness.py       | 25 ++++++++-----------------\n var/monitor_events.jsonl |  9 +++++++++\n 3 files changed, 20 insertions(+), 17 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "- `serve_turn` in `serving/harness.py` now drives the turn through `reference_v2.loop.stream_tool_loop`, using the model's `stream()` API instead of `complete()`, and accepts an `on_delta` callback for each streamed text delta while keeping the monitored `RuntimeContext`/`TurnResult` wrapper.\n- I verified streaming by asserting `ScriptedModel.complete_calls == 0`, `stream_calls == 2`, `on_delta` received `[\"calling \", \"done \", \"5 \"]`, and `serve_turn` produced the expected `user/assistant/tool/assistant` message roles and final text `done 5`.\n- Runtime monitoring: remained active \u2014 a monitored turn published `model`, `tool`, `model` events to the configured `MONITOR_EVENTS` file, matching the 2 model-step / 1 tool-call expectation.\n"
+ }
+}

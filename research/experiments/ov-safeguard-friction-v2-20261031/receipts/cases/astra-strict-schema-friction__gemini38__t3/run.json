@@ -1,0 +1,38 @@
+{
+ "id": "astra-strict-schema-friction__gemini38__t3",
+ "task": "astra-strict-schema-friction",
+ "kind": "real",
+ "model": "google-antigravity/gemini-3.8-flash",
+ "slug": "gemini38",
+ "trial": 3,
+ "returncode": 0,
+ "wall_s": 69.5,
+ "n_steps": 21,
+ "n_tool_calls": 20,
+ "usage": {
+  "input": 138085,
+  "output": 17732,
+  "cache_read": 85085,
+  "usd": 0.17644012500000003
+ },
+ "served": {
+  "requested": "google-antigravity/gemini-3.8-flash",
+  "model_changes": [
+   "google-antigravity/gemini-3.8-flash"
+  ],
+  "reply_models": [
+   "google-antigravity/gemini-3.8-flash"
+  ],
+  "n_replies": 21,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "b5d1da3c9f3222615dba1ac66013ffe9c5669be83fc50931cdb9fa0ba064dbde",
+ "ran_at": "2026-11-01T05:17:01+00:00",
+ "diff_sha256": "b038f58f8132329718c2abd7fbc22e18801b6f92f0a8aa0f86b6426b9a9e3539",
+ "diff_chars": 3292,
+ "diff_stat": " MIGRATION_SUMMARY.md     |  3 +++\n serving/harness.py       | 39 ++++++++++++++++++++++-----------------\n var/monitor_events.jsonl |  6 ++++++\n 3 files changed, 31 insertions(+), 17 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "- Migrated serve_turn in serving/harness.py to use reference_v2's streaming tool loop driven by model.stream() with support for on_delta callbacks.\n- Checked streaming behavior by executing tests/test_serve_turn.py to verify token delta streaming and multi-turn tool interaction.\n- Runtime monitoring: remained active \u2014 Monitored hooks registered via RuntimeHooks.register_default_monitor continue to publish events for every model step and tool call without violating RuntimeContext schema constraints.\n"
+ }
+}

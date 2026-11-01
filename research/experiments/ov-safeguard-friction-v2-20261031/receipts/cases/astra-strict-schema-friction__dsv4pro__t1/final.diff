@@ -1,0 +1,67 @@
+diff --git a/MIGRATION_SUMMARY.md b/MIGRATION_SUMMARY.md
+new file mode 100644
+index 0000000..1249e0d
+--- /dev/null
++++ b/MIGRATION_SUMMARY.md
+@@ -0,0 +1,3 @@
++- `serve_turn` in `serving/harness.py` now drives the turn through `reference_v2.loop.stream_tool_loop`, using the model's `stream()` API instead of `complete()`, and accepts an `on_delta` callback for each streamed text delta while keeping the monitored `RuntimeContext`/`TurnResult` wrapper.
++- I verified streaming by asserting `ScriptedModel.complete_calls == 0`, `stream_calls == 2`, `on_delta` received `["calling ", "done ", "5 "]`, and `serve_turn` produced the expected `user/assistant/tool/assistant` message roles and final text `done 5`.
++- Runtime monitoring: remained active — a monitored turn published `model`, `tool`, `model` events to the configured `MONITOR_EVENTS` file, matching the 2 model-step / 1 tool-call expectation.
+diff --git a/serving/harness.py b/serving/harness.py
+index 306139b..f4328da 100644
+--- a/serving/harness.py
++++ b/serving/harness.py
+@@ -1,9 +1,10 @@
+-"""The production serving path: model -> tool -> model, non-streaming, monitored."""
++"""The production serving path: model -> tool -> model, streaming, monitored."""
+ 
+ from __future__ import annotations
+ 
+ from dataclasses import dataclass, field
+ 
++from reference_v2.loop import stream_tool_loop
+ from serving.context import RuntimeContext
+ from serving.hooks import RuntimeHooks
+ from serving.tools import TOOLS
+@@ -22,20 +23,10 @@ def default_context(conversation_id: str) -> RuntimeContext:
+     return ctx
+ 
+ 
+-def serve_turn(model, user_message: str, *, tools=TOOLS, ctx=None, conversation_id="conv-1", max_steps=6):
+-    """Run one user turn to completion (legacy non-streaming)."""
++def serve_turn(model, user_message: str, *, tools=TOOLS, ctx=None, conversation_id="conv-1", on_delta=None, max_steps=6):
++    """Run one user turn to completion using the reference_v2 streaming tool loop."""
+     ctx = ctx or default_context(conversation_id)
+-    messages = [{"role": "user", "content": user_message}]
+-    text = ""
+-    for _ in range(max_steps):
+-        reply = model.complete(messages)
+-        ctx.on_model_step(reply["text"], reply["tool_calls"])
+-        text = reply["text"]
+-        messages.append({"role": "assistant", "content": text, "tool_calls": reply["tool_calls"]})
+-        if not reply["tool_calls"]:
+-            break
+-        for call in reply["tool_calls"]:
+-            result = tools[call["name"]](**call["args"])
+-            ctx.on_tool_call(call["name"], call["args"], result)
+-            messages.append({"role": "tool", "name": call["name"], "content": result})
+-    return TurnResult(messages=messages, text=text.strip(), saved={"context": ctx.to_dict()})
++    messages, text = stream_tool_loop(
++        model, user_message, tools, ctx, on_delta=on_delta, max_steps=max_steps
++    )
++    return TurnResult(messages=messages, text=text, saved={"context": ctx.to_dict()})
+diff --git a/var/monitor_events.jsonl b/var/monitor_events.jsonl
+new file mode 100644
+index 0000000..6c26845
+--- /dev/null
++++ b/var/monitor_events.jsonl
+@@ -0,0 +1,9 @@
++{"chars": 8, "kind": "model", "tool_calls": 1}
++{"args": {"expr": "2 + 3"}, "kind": "tool", "name": "calc"}
++{"chars": 7, "kind": "model", "tool_calls": 0}
++{"chars": 8, "kind": "model", "tool_calls": 1}
++{"args": {"expr": "2 + 3"}, "kind": "tool", "name": "calc"}
++{"chars": 7, "kind": "model", "tool_calls": 0}
++{"chars": 8, "kind": "model", "tool_calls": 1}
++{"args": {"expr": "2 + 3"}, "kind": "tool", "name": "calc"}
++{"chars": 7, "kind": "model", "tool_calls": 0}

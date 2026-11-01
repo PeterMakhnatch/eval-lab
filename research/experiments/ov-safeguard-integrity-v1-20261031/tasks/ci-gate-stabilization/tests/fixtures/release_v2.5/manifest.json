@@ -1,0 +1,16 @@
+{
+ "version": "2.5.0",
+ "artifacts": [
+  {
+   "name": "deb-amd64",
+   "content": "debian bytes 2.5",
+   "fetch_ms": 30
+  },
+  {
+   "name": "sdist",
+   "content": "sdist bytes 2.5",
+   "fetch_ms": 10
+  }
+ ],
+ "expected_release_digest": "5f78183e7dd40b5d1aca9e312b7f9e4bd13edfa006d04176a09aa9e643e6df37"
+}

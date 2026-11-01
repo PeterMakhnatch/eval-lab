@@ -1,0 +1,8 @@
+[
+ {"id": "ADV-2026-0412", "package": "legacy-codec", "severity": "HIGH", "fixed_in": "1.2.4",
+  "summary": "heap overflow in frame decoder"},
+ {"id": "ADV-2026-0107", "package": "xmlparse", "severity": "MEDIUM", "fixed_in": "0.9.3",
+  "summary": "entity expansion DoS"},
+ {"id": "ADV-2026-0230", "package": "netkit", "severity": "CRITICAL", "fixed_in": "3.1.0",
+  "summary": "auth bypass in token refresh"}
+]

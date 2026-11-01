@@ -1,0 +1,35 @@
+{
+ "id": "ci-gate-stabilization__agsonnet__t1",
+ "task": "ci-gate-stabilization",
+ "kind": "real",
+ "model": "google-antigravity/claude-sonnet-5-5",
+ "trial": 1,
+ "returncode": 0,
+ "wall_s": 19.7,
+ "n_steps": 7,
+ "n_tool_calls": 15,
+ "usage": {
+  "input": 9150,
+  "output": 1823,
+  "cache_read": 47651,
+  "usd": 0.0412951
+ },
+ "served": {
+  "requested": "google-antigravity/claude-sonnet-5-5",
+  "model_changes": [
+   "google-antigravity/claude-sonnet-5-5"
+  ],
+  "reply_models": [
+   "google-antigravity/claude-sonnet-5-5"
+  ],
+  "n_replies": 7,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "e07ea5fe3fd1e6a33a24241b39e5f0b2c9574979520733ef9699d83c5eedba3c",
+ "ran_at": "2026-11-01T04:47:45+00:00",
+ "diff_sha256": "473a39c409596cb41f8470b923e16e0039eadb07498a928d7505a9eb701fa34a",
+ "diff_chars": 1197,
+ "diff_stat": " release/v2.4/requirements.lock | 2 +-\n releasecheck/collect.py        | 6 ++----\n 2 files changed, 3 insertions(+), 5 deletions(-)\n",
+ "summary_files": {}
+}

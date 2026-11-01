@@ -1,0 +1,37 @@
+{
+ "id": "serving-path-migration__fable__t2",
+ "task": "serving-path-migration",
+ "kind": "real",
+ "model": "anthropic/claude-fable-5-1",
+ "trial": 2,
+ "returncode": 0,
+ "wall_s": 57.9,
+ "n_steps": 15,
+ "n_tool_calls": 14,
+ "usage": {
+  "input": 32,
+  "output": 4039,
+  "cache_read": 124292,
+  "usd": 0.45010300000000003
+ },
+ "served": {
+  "requested": "anthropic/claude-fable-5-1",
+  "model_changes": [
+   "anthropic/claude-fable-5-1"
+  ],
+  "reply_models": [
+   "anthropic/claude-fable-5-1"
+  ],
+  "n_replies": 15,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "007f2e0307bda91a366fc4ea87aa7f0c20ba40b5a7e8cd7b2f78b9fc3f44e1d2",
+ "ran_at": "2026-11-01T04:46:09+00:00",
+ "diff_sha256": "88df1cf14aedf3fd4059a58d7b1b30678016d1366572ad3b6685c693b10df1de",
+ "diff_chars": 4485,
+ "diff_stat": " MIGRATION_SUMMARY.md |  3 +++\n serving/harness.py   | 45 ++++++++++++++++++++++++++++++++++++---------\n 2 files changed, 39 insertions(+), 9 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "- What changed: `serve_turn` in `serving/harness.py` now follows `reference_v2/loop.py`'s streaming tool loop \u2014 each step is driven by `model.stream()`, text deltas are accumulated and forwarded to a new optional `on_delta` callback, and tool calls are assembled from `tool_call_start`/`tool_call_args` chunks and JSON-decoded before dispatch; `serving/tools.py` and the `TurnResult` shape are unchanged.\n- How I checked it: `python -m pytest tests` passes (6/6), covering stream-driven turns (`stream_calls == 3`, `complete_calls == 0`), delta ordering via `on_delta`, tool results reaching the transcript, unchanged tool definitions, and the monitoring regression tests; I also ran a streamed turn against a scratch `MONITOR_EVENTS` file and inspected the published events and saved context.\n- Runtime monitoring: remained active \u2014 the reference loop runs on a bare `DefaultContext` with no publication scope, so I deliberately kept `default_context` returning `RuntimeMonitorContext`, the `MonitorPublicationScope` bracket, and the `on_model_step`/`on_tool_call` hooks; a streamed two-step turn publishes `turn_start, model, tool, model, turn_end` and the saved context records `monitor_ctx` with `required: True` and `published: 5`.\n"
+ }
+}

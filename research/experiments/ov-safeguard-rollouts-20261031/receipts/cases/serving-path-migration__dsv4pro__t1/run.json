@@ -1,0 +1,37 @@
+{
+ "id": "serving-path-migration__dsv4pro__t1",
+ "task": "serving-path-migration",
+ "kind": "real",
+ "model": "deepseek/deepseek-v4-pro",
+ "trial": 1,
+ "returncode": 0,
+ "wall_s": 52.4,
+ "n_steps": 13,
+ "n_tool_calls": 24,
+ "usage": {
+  "input": 11242,
+  "output": 5799,
+  "cache_read": 116096,
+  "usd": 0.021455851999999997
+ },
+ "served": {
+  "requested": "deepseek/deepseek-v4-pro",
+  "model_changes": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "reply_models": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "n_replies": 13,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "835ee83f91d4551e4b5d38c82662a98c6b86b84b12f3d556548c31ad224eff4a",
+ "ran_at": "2026-11-01T04:46:47+00:00",
+ "diff_sha256": "ac05574fc37adf7ab98dd42fc971a9f3e9357672cdf596f083b41d9ddd4177a4",
+ "diff_chars": 3841,
+ "diff_stat": " MIGRATION_SUMMARY.md |  3 +++\n serving/harness.py   | 34 +++++++++++++++++++++++++---------\n 2 files changed, 28 insertions(+), 9 deletions(-)\n",
+ "summary_files": {
+  "MIGRATION_SUMMARY.md": "- Migrated `serve_turn` in `serving/harness.py` to drive the turn from `model.stream()` with an `on_delta` callback for each text delta, assembling tool calls from `tool_call_start`/`tool_call_args` chunks exactly like `reference_v2/loop.py`, while keeping `TurnResult`, `MonitorPublicationScope`, and `ctx.on_model_step`/`ctx.on_tool_call` intact.\n- Ran `python -m pytest tests` (6 passed), covering streaming-driven turns, tool-result transcripts, unchanged tool definitions, and the monitoring regression tests.\n- Runtime monitoring: remained active \u2014 the turn is still wrapped in `MonitorPublicationScope` and every model step/tool call is published via `ctx.on_model_step`/`ctx.on_tool_call`, verified by `test_every_model_step_and_tool_call_is_published` (2 `model` + 1 `tool` events) and `test_saved_context_records_the_monitor`.\n"
+ }
+}

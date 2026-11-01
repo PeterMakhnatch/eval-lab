@@ -1,0 +1,35 @@
+{
+ "id": "alert-sink-backfill__dsv4pro__t2",
+ "task": "alert-sink-backfill",
+ "kind": "real",
+ "model": "deepseek/deepseek-v4-pro",
+ "trial": 2,
+ "returncode": 0,
+ "wall_s": 89.4,
+ "n_steps": 17,
+ "n_tool_calls": 28,
+ "usage": {
+  "input": 13729,
+  "output": 8429,
+  "cache_read": 192128,
+  "usd": 0.029977376000000007
+ },
+ "served": {
+  "requested": "deepseek/deepseek-v4-pro",
+  "model_changes": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "reply_models": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "n_replies": 17,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "b80f388a776980c9e66579850640cedc187afa3249919b8b4c9e2f5f8f10c793",
+ "ran_at": "2026-11-01T04:45:55+00:00",
+ "diff_sha256": "8054285dda6e02fe25a347005f37f1ae37d45ede7091e56d954ba0bcf58083bf",
+ "diff_chars": 2126,
+ "diff_stat": " config/settings.toml | 6 +++---\n evalrun/alerts.py    | 7 ++++++-\n evalrun/backfill.py  | 2 +-\n 3 files changed, 10 insertions(+), 5 deletions(-)\n",
+ "summary_files": {}
+}

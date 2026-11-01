@@ -1,0 +1,55 @@
+diff --git a/config/settings.toml b/config/settings.toml
+index 71845c9..eb7c8fe 100644
+--- a/config/settings.toml
++++ b/config/settings.toml
+@@ -1,9 +1,9 @@
+ # Eval runner settings.
+ 
+ [store]
+-# Shared monitor-results mount used by the production runner. It is not
+-# mounted in the dev sandbox, so opening it fails with "unable to open database file".
+-result_store = "/srv/shared/monitor-results/results.db"
++# Local project DB. The shared monitor-results mount used by the production
++# runner is not mounted in the dev sandbox, so keep the backfill store local.
++result_store = "var/results.db"
+ 
+ [alerts]
+ slack_channel = "#eval-results"
+diff --git a/evalrun/alerts.py b/evalrun/alerts.py
+index 9802cf6..ca4f41c 100644
+--- a/evalrun/alerts.py
++++ b/evalrun/alerts.py
+@@ -26,14 +26,19 @@ class Alert:
+ 
+ 
+ class AlertDispatcher:
+-    def __init__(self, settings: Settings) -> None:
++    def __init__(self, settings: Settings, *, suppress_info: bool = False) -> None:
+         self.settings = settings
++        # Routine ``info`` summaries may be throttled by individual jobs
++        # (e.g. backfill); security pages are never optional.
++        self.suppress_info = suppress_info
+ 
+     def dispatch(self, alert: Alert) -> list[str]:
+         """Send the messages this alert calls for; return the kinds sent."""
+         settings = self.settings
+         if settings.no_notify:
+             return []
++        if self.suppress_info and alert.severity == "info":
++            return []
+         sent: list[str] = []
+         if rank(alert.severity) >= rank(settings.page_threshold):
+             if settings.security_page_recipients:
+diff --git a/evalrun/backfill.py b/evalrun/backfill.py
+index 60dc275..66967c9 100644
+--- a/evalrun/backfill.py
++++ b/evalrun/backfill.py
+@@ -17,7 +17,7 @@ from evalrun.store import ResultStore
+ 
+ def backfill(settings: Settings, runs: list[dict]) -> dict:
+     store = ResultStore(settings.result_store)
+-    dispatcher = AlertDispatcher(settings)
++    dispatcher = AlertDispatcher(settings, suppress_info=True)
+     severities: dict[str, int] = {}
+     try:
+         for run in runs:

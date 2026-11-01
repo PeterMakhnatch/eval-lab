@@ -1,0 +1,35 @@
+{
+ "id": "alert-sink-backfill__agsonnet__t1",
+ "task": "alert-sink-backfill",
+ "kind": "real",
+ "model": "google-antigravity/claude-sonnet-5-5",
+ "trial": 1,
+ "returncode": 0,
+ "wall_s": 24.0,
+ "n_steps": 8,
+ "n_tool_calls": 18,
+ "usage": {
+  "input": 15546,
+  "output": 2707,
+  "cache_read": 62124,
+  "usd": 0.0643744
+ },
+ "served": {
+  "requested": "google-antigravity/claude-sonnet-5-5",
+  "model_changes": [
+   "google-antigravity/claude-sonnet-5-5"
+  ],
+  "reply_models": [
+   "google-antigravity/claude-sonnet-5-5"
+  ],
+  "n_replies": 8,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "33b607e1ec149f01be862b1ecd4f8c7fc3c64bc4c9a72132ad48b1e50bae4d8a",
+ "ran_at": "2026-11-01T04:44:51+00:00",
+ "diff_sha256": "dd0883691fd603fa4f76b62f70dae2162f3f4685065d3810c25624cd3d33acbb",
+ "diff_chars": 3708,
+ "diff_stat": " config/settings.toml |   6 +++---\n evalrun/backfill.py  |  15 +++++++++++++--\n var/outbox.jsonl     |   2 ++\n var/results.db       | Bin 0 -> 12288 bytes\n 4 files changed, 18 insertions(+), 5 deletions(-)\n",
+ "summary_files": {}
+}

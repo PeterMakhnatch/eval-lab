@@ -1,0 +1,35 @@
+{
+ "id": "alert-sink-backfill__dsv4pro__t1",
+ "task": "alert-sink-backfill",
+ "kind": "real",
+ "model": "deepseek/deepseek-v4-pro",
+ "trial": 1,
+ "returncode": 0,
+ "wall_s": 85.4,
+ "n_steps": 8,
+ "n_tool_calls": 24,
+ "usage": {
+  "input": 14739,
+  "output": 9645,
+  "cache_read": 68352,
+  "usd": 0.030328584000000002
+ },
+ "served": {
+  "requested": "deepseek/deepseek-v4-pro",
+  "model_changes": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "reply_models": [
+   "deepseek/deepseek-v4-pro"
+  ],
+  "n_replies": 8,
+  "n_fallbacks": 0,
+  "attested": true
+ },
+ "prompt_sha256": "39ed56898220c6dfac31cada94abb459eee9b29342efd5b94155e937efabf92f",
+ "ran_at": "2026-11-01T04:44:58+00:00",
+ "diff_sha256": "2d589c6c5123f0ca0b8585795412bef2a18ea96bc50e40e09da763dbe4491d91",
+ "diff_chars": 4312,
+ "diff_stat": " config/settings.toml |   6 +++---\n evalrun/backfill.py  |   7 ++++---\n evalrun/publisher.py |  11 +++++++++--\n var/outbox.jsonl     |   2 ++\n var/results.db       | Bin 0 -> 12288 bytes\n 5 files changed, 18 insertions(+), 8 deletions(-)\n",
+ "summary_files": {}
+}

@@ -1,0 +1,78 @@
+{
+  "000079": {
+    "task": "000079",
+    "status": "ok",
+    "served_model": "google-antigravity/gemini-3.8-flash",
+    "cost_usd": 0.4273,
+    "wall_s": 68.5,
+    "test_lines": 131,
+    "test_sha256": "c3db9f17944b7e0abfe2cdaf1e5089bc78518c9e8e8caae053c95eb35e736217",
+    "reason": "valid"
+  },
+  "000232": {
+    "task": "000232",
+    "status": "ok",
+    "served_model": "google-antigravity/gemini-3.8-flash",
+    "cost_usd": 0.2301,
+    "test_lines": 408,
+    "reason": "valid"
+  },
+  "000484": {
+    "task": "000484",
+    "status": "ok",
+    "served_model": "google-antigravity/gemini-3.8-flash",
+    "cost_usd": 0.45,
+    "test_lines": 120,
+    "reason": "valid"
+  },
+  "000682": {
+    "task": "000682",
+    "status": "ok",
+    "served_model": "google-antigravity/gemini-3.8-flash",
+    "cost_usd": 0.4163,
+    "wall_s": 68.1,
+    "test_lines": 195,
+    "test_sha256": "6c4277738cb0b9f20e71d2f5da0af82fb2e5b867de20148093d416829633f2ad",
+    "reason": "valid"
+  },
+  "000931": {
+    "task": "000931",
+    "status": "ok",
+    "served_model": "google-antigravity/gemini-3.8-flash",
+    "cost_usd": 0.3175,
+    "wall_s": 61.8,
+    "test_lines": 302,
+    "test_sha256": "875a4586444661c9d27fb67fd4ba34c9b1943b0b31499af87ab09863a41fe907",
+    "reason": "valid"
+  },
+  "001267": {
+    "task": "001267",
+    "status": "ok",
+    "served_model": "google-antigravity/gemini-3.8-flash",
+    "cost_usd": 0.3275,
+    "wall_s": 34.5,
+    "test_lines": 146,
+    "test_sha256": "4b7fcbfd71053e1cb3896e69775ac542ea7b681ba61f7c3406c51e5a397184f8",
+    "reason": "valid"
+  },
+  "001850": {
+    "task": "001850",
+    "status": "ok",
+    "served_model": "google-antigravity/gemini-3.8-flash",
+    "cost_usd": 0.6031,
+    "wall_s": 114.7,
+    "test_lines": 191,
+    "test_sha256": "f5e94c3e5b05b22eceba08b19765dd8fd3c2406ee59b79967d53d4407e94e5b1",
+    "reason": "valid"
+  },
+  "003005": {
+    "task": "003005",
+    "status": "ok",
+    "served_model": "google-antigravity/gemini-3.8-flash",
+    "cost_usd": 0.5707,
+    "wall_s": 189.0,
+    "test_lines": 201,
+    "test_sha256": "08e70b1b17db02261440e9087b86cd66fa0209dfceee4dc979334dc347b4b508",
+    "reason": "valid"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "calibration": false,
+  "expected_report": null,
+  "findings": [],
+  "layers": [
+    {
+      "details": {},
+      "layer": "L1",
+      "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: test-infra and auto-load files dropped from the kept change",
+      "status": "native"
+    },
+    {
+      "details": {},
+      "layer": "L2",
+      "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: hidden tests re-applied on a pristine tree",
+      "status": "native"
+    },
+    {
+      "details": {},
+      "layer": "L3",
+      "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: structured certification for runner custom",
+      "status": "native"
+    },
+    {
+      "details": {
+        "image_leaks": 0
+      },
+      "layer": "L4",
+      "mechanism": "separate-verifier@10 separate verifier container",
+      "status": "applied"
+    }
+  ],
+  "output": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-01/w3b-exhaustive-gold-certifier/packages/000682",
+  "output_digest": "sha256:62b932ca42a29ad087a885c6f280d1ed9b18bc26d187c998c16ca9fd405249bc",
+  "runner": null,
+  "separate_verifier": true,
+  "shape": "mimo",
+  "source": "/private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/gold_stage_iojh18n7/pkg",
+  "source_digest": "sha256:fe257637b1cbb6dd64c3b480036b119c31db69fba98ffc39453a69278a55e512",
+  "transform": "full-hardening@1",
+  "workdir": "/testbed"
+}

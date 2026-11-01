@@ -1,0 +1,182 @@
+import sys
+sys.path.insert(0, '/testbed')
+
+import threading
+import unittest
+from unittest.mock import MagicMock, call
+import jsonschema
+
+import c7n.utils
+from c7n.actions import BaseAction
+from c7n.config import Config
+from c7n.filters.kms import KmsRelatedFilter
+from c7n.policy import Policy
+from c7n.resources.sns import SNS, KmsFilter, SetEncryption
+
+
+class TestSnsKmsContract(unittest.TestCase):
+
+    def setUp(self):
+        c7n.utils.CONN_CACHE = threading.local()
+        self.mock_sns_client = MagicMock()
+        self.mock_session = MagicMock()
+        self.mock_session.client.return_value = self.mock_sns_client
+        self.session_factory = MagicMock(return_value=self.mock_session)
+        self.session_factory.region = f"us-east-1-{self.id()}"
+        self.manager = MagicMock()
+        self.manager.session_factory = self.session_factory
+
+    def test_registries_and_metadata(self):
+        # kms-key filter registration, hierarchy, and expression
+        self.assertIn('kms-key', SNS.filter_registry)
+        self.assertIs(SNS.filter_registry.get('kms-key'), KmsFilter)
+        self.assertTrue(issubclass(KmsFilter, KmsRelatedFilter))
+        self.assertEqual(KmsFilter.RelatedIdsExpression, 'KmsMasterKeyId')
+
+        # set-encryption action registration, hierarchy, and permissions
+        self.assertIn('set-encryption', SNS.action_registry)
+        self.assertIs(SNS.action_registry.get('set-encryption'), SetEncryption)
+        self.assertTrue(issubclass(SetEncryption, BaseAction))
+        self.assertEqual(tuple(SetEncryption.permissions), ('sns:SetTopicAttributes', 'kms:DescribeKey'))
+
+    def test_schema_validation(self):
+        schema = SetEncryption.schema
+        self.assertEqual(schema.get('type'), 'object')
+        properties = schema.get('properties', {})
+        self.assertEqual(properties['type'].get('enum'), ['set-encryption'])
+        self.assertEqual(properties['enabled'].get('type'), 'boolean')
+        self.assertEqual(properties['key'].get('type'), 'string')
+
+        valid_configs = [
+            {'type': 'set-encryption'},
+            {'type': 'set-encryption', 'enabled': True},
+            {'type': 'set-encryption', 'enabled': False},
+            {'type': 'set-encryption', 'key': 'alias/aws/sns'},
+            {'type': 'set-encryption', 'key': 'alias/custom/key', 'enabled': True},
+            {'type': 'set-encryption', 'key': 'arn:aws:kms:us-east-1:123:key/k1', 'enabled': False},
+        ]
+        for cfg in valid_configs:
+            jsonschema.validate(instance=cfg, schema=schema)
+
+        invalid_configs = [
+            {'type': 'set-encryption', 'enabled': 'true'},
+            {'type': 'set-encryption', 'enabled': 1},
+            {'type': 'set-encryption', 'key': 12345},
+            {'type': 'set-encryption', 'extra': True},
+            {'type': 'invalid-action-name'},
+        ]
+        for cfg in invalid_configs:
+            with self.assertRaises(jsonschema.ValidationError):
+                jsonschema.validate(instance=cfg, schema=schema)
+
+    def test_kms_filter_behavior(self):
+        filter_inst = KmsFilter({'key': 'c7n:AliasName', 'value': 'alias/approved'}, self.manager)
+
+        # get_related_ids contract: returns set of related KmsMasterKeyId
+        resources = [
+            {'TopicArn': 'arn:aws:sns:us-east-1:123:t1', 'KmsMasterKeyId': 'key-1'},
+            {'TopicArn': 'arn:aws:sns:us-east-1:123:t2', 'KmsMasterKeyId': 'alias/custom'},
+            {'TopicArn': 'arn:aws:sns:us-east-1:123:t3'},
+            {'TopicArn': 'arn:aws:sns:us-east-1:123:t4', 'KmsMasterKeyId': None},
+        ]
+        self.assertEqual(filter_inst.get_related_ids(resources), {'key-1', 'alias/custom'})
+        self.assertEqual(filter_inst.get_related_ids([]), set())
+
+    def test_set_encryption_enabled_defaults_and_keys(self):
+        topic = 'arn:aws:sns:us-east-1:123456789012:my-topic'
+        res = [{'TopicArn': topic}]
+
+        # 1. Default enabled and default key
+        action_default = SetEncryption({'type': 'set-encryption'}, self.manager)
+        action_default.process(res)
+        self.mock_session.client.assert_called_with('sns')
+        self.mock_sns_client.set_topic_attributes.assert_called_with(
+            TopicArn=topic, AttributeName='KmsMasterKeyId', AttributeValue='alias/aws/sns'
+        )
+
+        # 2. Empty dict: defaults to enabled=True and key='alias/aws/sns'
+        self.mock_sns_client.reset_mock()
+        SetEncryption({}, self.manager).process(res)
+        self.mock_sns_client.set_topic_attributes.assert_called_with(
+            TopicArn=topic, AttributeName='KmsMasterKeyId', AttributeValue='alias/aws/sns'
+        )
+
+        # 3. Explicit enabled=True with default key
+        self.mock_sns_client.reset_mock()
+        SetEncryption({'enabled': True}, self.manager).process(res)
+        self.mock_sns_client.set_topic_attributes.assert_called_with(
+            TopicArn=topic, AttributeName='KmsMasterKeyId', AttributeValue='alias/aws/sns'
+        )
+
+        # 4. Custom key alias without explicit enabled flag
+        self.mock_sns_client.reset_mock()
+        SetEncryption({'key': 'alias/team/custom-cmk'}, self.manager).process(res)
+        self.mock_sns_client.set_topic_attributes.assert_called_with(
+            TopicArn=topic, AttributeName='KmsMasterKeyId', AttributeValue='alias/team/custom-cmk'
+        )
+
+        # 5. Custom KMS ARN with enabled=True and exact kwargs verification
+        self.mock_sns_client.reset_mock()
+        arn = 'arn:aws:kms:us-west-1:123456789012:key/abcdefgh-1234-1234-1234-123456789012'
+        SetEncryption({'enabled': True, 'key': arn}, self.manager).process(res)
+        call_args, call_kwargs = self.mock_sns_client.set_topic_attributes.call_args
+        self.assertEqual(len(call_args), 0)
+        self.assertEqual(call_kwargs, {'TopicArn': topic, 'AttributeName': 'KmsMasterKeyId', 'AttributeValue': arn})
+
+    def test_set_encryption_disabled(self):
+        topic = 'arn:aws:sns:us-east-1:123456789012:my-topic'
+        res = [{'TopicArn': topic}]
+
+        # enabled=False unsets encryption (empty string)
+        action_disable = SetEncryption({'enabled': False}, self.manager)
+        action_disable.process(res)
+        self.mock_sns_client.set_topic_attributes.assert_called_with(
+            TopicArn=topic, AttributeName='KmsMasterKeyId', AttributeValue=''
+        )
+
+        # enabled=False ignores any specified key and still unsets to empty string
+        self.mock_sns_client.reset_mock()
+        action_disable_key = SetEncryption({'enabled': False, 'key': 'alias/ignored'}, self.manager)
+        action_disable_key.process(res)
+        self.mock_sns_client.set_topic_attributes.assert_called_with(
+            TopicArn=topic, AttributeName='KmsMasterKeyId', AttributeValue=''
+        )
+
+    def test_set_encryption_resource_handling(self):
+        # Multiple resources processing and return value identity
+        action = SetEncryption({'key': 'alias/shared-cmk'}, self.manager)
+        resources = [
+            {'TopicArn': 'arn:aws:sns:us-east-1:123:topic-a'},
+            {'TopicArn': 'arn:aws:sns:us-east-1:123:topic-b'},
+        ]
+        result = action.process(resources)
+        self.assertIs(result, resources)
+        self.assertEqual(self.mock_sns_client.set_topic_attributes.call_count, 2)
+        expected = [
+            call(TopicArn='arn:aws:sns:us-east-1:123:topic-a', AttributeName='KmsMasterKeyId', AttributeValue='alias/shared-cmk'),
+            call(TopicArn='arn:aws:sns:us-east-1:123:topic-b', AttributeName='KmsMasterKeyId', AttributeValue='alias/shared-cmk'),
+        ]
+        self.mock_sns_client.set_topic_attributes.assert_has_calls(expected)
+
+        # Empty resources list: no client calls
+        self.mock_sns_client.reset_mock()
+        self.assertEqual(action.process([]), [])
+        self.mock_sns_client.set_topic_attributes.assert_not_called()
+
+    def test_policy_integration(self):
+        policy_data = {
+            'name': 'sns-kms-policy',
+            'resource': 'sns',
+            'filters': [{'type': 'kms-key', 'key': 'c7n:AliasName', 'value': 'alias/approved'}],
+            'actions': [{'type': 'set-encryption', 'enabled': True, 'key': 'alias/approved'}]
+        }
+        policy = Policy(policy_data, Config.empty(), session_factory=self.session_factory)
+        policy.validate()
+        self.assertEqual(len(policy.resource_manager.filters), 1)
+        self.assertEqual(len(policy.resource_manager.actions), 1)
+        self.assertIsInstance(policy.resource_manager.filters[0], KmsFilter)
+        self.assertIsInstance(policy.resource_manager.actions[0], SetEncryption)
+
+
+if __name__ == '__main__':
+    unittest.main()

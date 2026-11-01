@@ -7752,6 +7752,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.mutant_auditor import build_audit_mutants_parser
 
     build_audit_mutants_parser(commands)
+    from evallab.gold_certifier import build_certify_gold_parser
+
+    build_certify_gold_parser(commands)
     from evallab.laminar import build_laminar_parser
 
     build_laminar_parser(commands)

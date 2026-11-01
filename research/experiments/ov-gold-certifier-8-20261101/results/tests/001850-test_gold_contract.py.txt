@@ -1,0 +1,191 @@
+from pathlib import Path
+import sys
+import tempfile
+from types import ModuleType
+import unittest
+from unittest.mock import patch
+from uuid import uuid4
+
+sys.path.insert(0, "/testbed")
+
+import duckdb
+from marimo._ast.compiler import compile_cell
+from marimo._ast.sql_visitor import find_sql_defs, SQLDefs
+from marimo._runtime import runtime
+from marimo._runtime.runtime import Kernel
+
+
+def compile_sql_cell(sql: str, cell_id: str = "test_cell"):
+    code = "import marimo as mo\nmo.sql(" + repr(sql) + ")"
+    return compile_cell(code, cell_id=cell_id, carried_imports=[])
+
+
+def memory_object_count(name: str) -> int:
+    return duckdb.execute(
+        "SELECT count(*) FROM information_schema.tables "
+        "WHERE table_catalog = 'memory' AND table_schema = 'main' "
+        "AND table_name = ?",
+        [name],
+    ).fetchone()[0]
+
+
+class TestSQLVisitorEscapeStrings(unittest.TestCase):
+    def test_find_sql_defs_weird_names_and_escape_strings(self):
+        sql = r"""
+        CREATE TABLE "my--table" (
+            "column/*with*/comment" INT,
+            "another--column" VARCHAR
+        );
+        CREATE TABLE "my_table_with_select" AS SELECT 1;
+        CREATE TABLE "my/*weird*/table" (id INT);
+        CREATE TABLE "with a space" (id INT);
+        CREATE TABLE 'single-quotes' (id INT);
+        CREATE TABLE e'escaped\ntable' (id INT);
+        """
+        defs = find_sql_defs(sql)
+        self.assertEqual(
+            defs,
+            SQLDefs(
+                [
+                    "my--table",
+                    "my_table_with_select",
+                    "my/*weird*/table",
+                    "with a space",
+                    "single-quotes",
+                    r"escaped\ntable",
+                ],
+                [],
+                [],
+            ),
+        )
+
+    def test_find_sql_defs_views_and_schemas_with_escape_strings(self):
+        sql = r"""
+        CREATE VIEW 'single_view' AS SELECT 1;
+        CREATE VIEW e'escaped\nview' AS SELECT 2;
+        ATTACH 'test1.db' AS 'single_schema';
+        ATTACH 'test2.db' AS e'escaped\nschema';
+        """
+        defs = find_sql_defs(sql)
+        self.assertEqual(
+            defs,
+            SQLDefs(
+                [],
+                ["single_view", r"escaped\nview"],
+                ["single_schema", r"escaped\nschema"],
+            ),
+        )
+
+    def test_find_sql_defs_escape_strings_in_select_clause(self):
+        sql = r"""
+        CREATE TABLE my_table AS
+        SELECT * FROM read_csv(e'/some/path/file\tname.csv')
+        """
+        defs = find_sql_defs(sql)
+        self.assertEqual(defs.tables, ["my_table"])
+        self.assertEqual(defs.views, [])
+        self.assertEqual(defs.schemas, [])
+
+    def test_find_sql_defs_escape_strings_containing_sql_keywords_and_comments(self):
+        sql = r"""
+        CREATE TABLE main_result AS
+        SELECT
+            e'some\tvalue FROM fake_table WHERE 1=1' AS col1,
+            e'hyphen-slash/comment/*not_a_comment*/--fake\n' AS col2,
+            e'CREATE TABLE inner_fake (id INT)' AS col3,
+            e'' AS empty_literal
+        """
+        defs = find_sql_defs(sql)
+        self.assertEqual(defs.tables, ["main_result"])
+        self.assertNotIn("fake_table", defs.tables)
+        self.assertNotIn("inner_fake", defs.tables)
+
+    def test_find_sql_defs_tokens_starting_with_e_not_corrupted(self):
+        sql = """
+        CREATE TABLE employees (id INT);
+        CREATE TABLE events AS SELECT 1;
+        CREATE TABLE energy AS SELECT e'saved\tpower' AS amount;
+        """
+        defs = find_sql_defs(sql)
+        self.assertEqual(defs.tables, ["employees", "events", "energy"])
+
+
+class TestKernelCleanupErrorHandlingAndLogging(unittest.TestCase):
+    def setUp(self):
+        self.kernel = Kernel.__new__(Kernel)
+        self.kernel._module = ModuleType("mimo_cleanup_test_" + uuid4().hex)
+
+    def test_table_drop_exception_caught_and_logged_not_raised(self):
+        name = "tbl_" + uuid4().hex
+        cell = compile_sql_cell(f"CREATE TABLE {name} AS SELECT 1 AS value", "c_tbl")
+        err_msg = "Table locked: disk I/O error"
+
+        with patch("duckdb.execute", side_effect=RuntimeError(err_msg)):
+            with self.assertLogs(runtime.LOGGER, level="WARNING") as log_capture:
+                self.kernel._delete_variables(cell.variable_data, set())
+
+            expected = f"Failed to drop table {name}: {err_msg}"
+            self.assertTrue(any(expected in record for record in log_capture.output))
+
+    def test_view_drop_exception_caught_and_logged_not_raised(self):
+        name = "vw_" + uuid4().hex
+        cell = compile_sql_cell(f"CREATE VIEW {name} AS SELECT 1 AS value", "c_vw")
+        err_msg = "View locked: catalog corruption"
+
+        with patch("duckdb.execute", side_effect=RuntimeError(err_msg)):
+            with self.assertLogs(runtime.LOGGER, level="WARNING") as log_capture:
+                self.kernel._delete_variables(cell.variable_data, set())
+
+            expected = f"Failed to drop view {name}: {err_msg}"
+            self.assertTrue(any(expected in record for record in log_capture.output))
+
+    def test_schema_detach_exception_caught_and_logged_not_raised(self):
+        alias = "db_" + uuid4().hex
+        cell = compile_sql_cell(f"ATTACH 'test.db' AS {alias}", "c_schema")
+        err_msg = "Cannot detach schema: active transactions"
+
+        with patch("duckdb.execute", side_effect=RuntimeError(err_msg)):
+            with self.assertLogs(runtime.LOGGER, level="WARNING") as log_capture:
+                self.kernel._delete_variables(cell.variable_data, set())
+
+            expected = f"Failed to detach schema {alias}: {err_msg}"
+            self.assertTrue(any(expected in record for record in log_capture.output))
+
+    def test_real_duckdb_cleanup_invalidation_and_exclusion(self):
+        tbl = "tbl_" + uuid4().hex
+        vw = "vw_" + uuid4().hex
+        db_alias = "alias_" + uuid4().hex
+
+        c_tbl = compile_sql_cell(f"CREATE TABLE {tbl} AS SELECT e't\\t1' AS v", "c1")
+        c_vw = compile_sql_cell(f"CREATE VIEW {vw} AS SELECT e'v\\n1' AS v", "c2")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = str(Path(temp_dir) / "test.duckdb").replace("'", "''")
+            c_db = compile_sql_cell(f"ATTACH '{db_path}' AS {db_alias}", "c3")
+
+            try:
+                duckdb.execute(f"CREATE TABLE memory.main.{tbl} AS SELECT e't\\t1' AS v")
+                duckdb.execute(f"CREATE VIEW memory.main.{vw} AS SELECT e'v\\n1' AS v")
+                duckdb.execute(f"ATTACH '{db_path}' AS {db_alias}")
+
+                # Excluded tables survive deletion
+                self.kernel._delete_variables(c_tbl.variable_data, {tbl})
+                self.assertEqual(memory_object_count(tbl), 1)
+
+                # Non-excluded drop cleanly without errors
+                self.kernel._delete_variables(c_tbl.variable_data, set())
+                self.kernel._delete_variables(c_vw.variable_data, set())
+                self.kernel._delete_variables(c_db.variable_data, set())
+
+                self.assertEqual(memory_object_count(tbl), 0)
+                self.assertEqual(memory_object_count(vw), 0)
+                dbs = [row[1] for row in duckdb.execute("PRAGMA database_list").fetchall()]
+                self.assertNotIn(db_alias, dbs)
+            finally:
+                duckdb.execute(f"DROP TABLE IF EXISTS memory.main.{tbl}")
+                duckdb.execute(f"DROP VIEW IF EXISTS memory.main.{vw}")
+                duckdb.execute(f"DETACH DATABASE IF EXISTS {db_alias}")
+
+
+if __name__ == "__main__":
+    unittest.main()

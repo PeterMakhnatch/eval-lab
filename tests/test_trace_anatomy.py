@@ -17,6 +17,7 @@ from evallab.trace_anatomy import (
     raw_bundle_doc,
     render_anatomy_card,
     shell_mutations,
+    unpack_legacy_tool_calls,
 )
 
 PATCH = "diff --git a/pkg/core.py b/pkg/core.py\n--- a/pkg/core.py\n+++ b/pkg/core.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
@@ -160,3 +161,52 @@ def test_empty_submission_differs_from_unrecovered_patch():
     assert _anatomy(bundle).claim_vs_reality["final_patch_empty"] is True
     del bundle["traces"][0]["info"]["swebench"]
     assert _anatomy(bundle).claim_vs_reality["final_patch_empty"] is None
+
+
+def test_unpack_legacy_tool_calls_json_in_json():
+    raw_json = json.dumps([
+        {"id": "c1", "name": "bash", "input": {"command": "git diff"}},
+        {"id": "c2", "name": "bash", "input": {"command": "cat foo.txt"}},
+    ])
+    legacy_calls = [{
+        "tool_call_id": "legacy_call_0",
+        "function_name": "tool",
+        "arguments": {"raw": raw_json},
+    }]
+    unpacked = unpack_legacy_tool_calls(legacy_calls)
+    assert len(unpacked) == 2
+    assert unpacked[0] == {"tool_call_id": "c1", "function_name": "bash", "arguments": {"command": "git diff"}}
+    assert unpacked[1] == {"tool_call_id": "c2", "function_name": "bash", "arguments": {"command": "cat foo.txt"}}
+
+
+def test_load_atif_file_unpacks_legacy_flattened_tool_calls(tmp_path: Path):
+    raw_json = json.dumps([
+        {"id": "call-a", "name": "bash", "input": {"command": "ls -la"}},
+        {"id": "call-b", "name": "bash", "input": {"command": "pwd"}},
+    ])
+    traj_file = tmp_path / "trajectory.json"
+    traj_file.write_text(json.dumps({
+        "steps": [
+            {"step_id": 1, "source": "user", "message": "solve problem"},
+            {
+                "step_id": 2,
+                "source": "agent",
+                "message": "working",
+                "tool_calls": [{
+                    "tool_call_id": "call-0",
+                    "function_name": "tool",
+                    "arguments": {"raw": raw_json},
+                }],
+            },
+        ],
+    }), encoding="utf-8")
+    run = load_atif_file(traj_file)
+    step_agent = run.doc["steps"][1]
+    assert len(step_agent["tool_calls"]) == 2
+    assert step_agent["tool_calls"][0]["function_name"] == "bash"
+    assert step_agent["tool_calls"][0]["arguments"] == {"command": "ls -la"}
+    assert step_agent["tool_calls"][1]["function_name"] == "bash"
+    assert step_agent["tool_calls"][1]["arguments"] == {"command": "pwd"}
+
+    anatomy = build_anatomy(run)
+    assert anatomy.run["tool_calls"] == 2

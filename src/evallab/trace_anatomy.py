@@ -46,6 +46,7 @@ from evallab.production.run_atlas import (
     connect_readonly,
     redact_sources,
     source_pattern,
+    unpack_legacy_tool_calls,
 )
 
 ANATOMY_VERSION = "trace-anatomy/v1"
@@ -420,7 +421,16 @@ def load_atif_file(path: Path) -> LoadedRun:
     steps = doc.get("steps") if isinstance(doc, Mapping) else None
     if not isinstance(steps, list):
         raise ValueError("not an ATIF trajectory (no steps list)")
-    return LoadedRun(str(resolved), "atif", {"steps": steps}, None, None, len(json.dumps(steps, ensure_ascii=False)))
+    unpacked_steps: list[dict[str, Any]] = []
+    for step in steps:
+        if isinstance(step, Mapping):
+            step_dict = dict(step)
+            if "tool_calls" in step_dict and isinstance(step_dict["tool_calls"], list):
+                step_dict["tool_calls"] = unpack_legacy_tool_calls(step_dict["tool_calls"])
+            unpacked_steps.append(step_dict)
+        else:
+            unpacked_steps.append(step)
+    return LoadedRun(str(resolved), "atif", {"steps": unpacked_steps}, None, None, len(json.dumps(unpacked_steps, ensure_ascii=False)))
 
 
 def load_run(
@@ -795,7 +805,7 @@ def build_anatomy(run: LoadedRun) -> TraceAnatomy:
             if message or reasoning:
                 narration.append({"step": ordinal, "message": message, "reasoning": reasoning})
         results = _result_texts(step)
-        calls = [call for call in step.get("tool_calls") or [] if isinstance(call, Mapping)]
+        calls = unpack_legacy_tool_calls(call for call in step.get("tool_calls") or [] if isinstance(call, Mapping))
         for position, call in enumerate(calls):
             name = str(call.get("function_name") or call.get("name") or "tool")
             arguments = _arguments(call.get("arguments"))

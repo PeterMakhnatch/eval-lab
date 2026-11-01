@@ -62,14 +62,20 @@ def _calls(value: Any) -> list[dict[str, Any]]:
     for call in value:
         if not isinstance(call, Mapping) or not isinstance(call.get("id"), str):
             raise ActorUnavailable("Goodfire tool call lacks a native id")
-        function = call.get("function", call.get("name"))
+        func_val = call.get("function")
+        if isinstance(func_val, Mapping):
+            function = func_val.get("name")
+            args = func_val.get("arguments") or func_val.get("input") or call.get("arguments") or call.get("input", {})
+        else:
+            function = func_val or call.get("name")
+            args = call.get("arguments") if "arguments" in call else call.get("input", {})
         if not isinstance(function, str):
             raise ActorUnavailable("Goodfire tool call lacks a native function name")
         calls.append(
             {
                 "tool_call_id": call["id"],
                 "function_name": function,
-                "arguments": call.get("arguments", {}),
+                "arguments": args if isinstance(args, Mapping) else {},
             }
         )
     return calls

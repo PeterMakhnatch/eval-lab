@@ -31,6 +31,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import tempfile
 import time
 import urllib.error
@@ -332,6 +333,15 @@ def _identities(rows: list[dict[str, Any]], registry: CorpusRegistry) -> tuple[s
     )
     return redactions, must_absent
 
+_OPUS_MODEL_RE = re.compile(r"(?<![\w.])opus(?![\w])", re.IGNORECASE)
+
+
+def _is_identity_present(value: str, folded: str) -> bool:
+    val = value.casefold()
+    if val == "opus":
+        return bool(_OPUS_MODEL_RE.search(folded))
+    return val in folded
+
 
 def _blind(
     row: dict[str, Any], native_bytes: bytes, blind_id: str, redact: Callable[[Any], Any],
@@ -371,7 +381,7 @@ def _blind(
     if find_forbidden_json(blinded):
         raise _Skip("forbidden_text")
     folded = json.dumps(blinded, ensure_ascii=False).casefold()
-    if any(value.casefold() in folded for value in must_absent):
+    if any(_is_identity_present(value, folded) for value in must_absent):
         raise _Skip("identity_left_after_redaction")
     if validate_trajectory(blinded):
         raise _Skip("invalid_blinded_atif")

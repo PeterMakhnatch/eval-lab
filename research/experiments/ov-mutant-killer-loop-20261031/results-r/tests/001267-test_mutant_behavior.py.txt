@@ -1,0 +1,39 @@
+#!/usr/bin/env python2.7
+"""Endpoint naming contract for the query search API."""
+import json
+import sys
+import unittest
+
+sys.path.insert(0, "/testbed/tests")
+sys.path.insert(0, "/testbed")
+
+from flask import url_for
+
+from tests.test_controllers import BaseTestCase, app, authenticated_user, query_factory
+
+
+class QuerySearchEndpointNameBehavior(BaseTestCase):
+    def test_search_route_is_reversible_by_endpoint_name(self):
+        with app.test_request_context():
+            url = url_for("queries_search")
+            self.assertEqual(url, "/api/queries/search")
+            with_term = url_for("queries_search", q="abc")
+            self.assertEqual(with_term, "/api/queries/search?q=abc")
+
+    def test_reversed_search_url_serves_results(self):
+        query = query_factory.create(
+            name="Endpoint lookup marmotseed report",
+            description="Some description",
+        )
+        query_factory.create(name="Other", description="Nothing here")
+        with app.test_request_context():
+            url = url_for("queries_search", q="marmotseed")
+        with app.test_client() as client, authenticated_user(client):
+            response = client.get(url)
+            self.assertEqual(response.status_code, 200, response.data)
+            items = json.loads(response.data)
+        self.assertEqual([item["id"] for item in items], [query.id])
+
+
+if __name__ == "__main__":
+    unittest.main()

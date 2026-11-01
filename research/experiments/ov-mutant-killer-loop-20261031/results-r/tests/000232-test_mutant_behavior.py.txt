@@ -1,0 +1,59 @@
+import sys
+import unittest
+
+sys.path.insert(0, "/testbed")
+
+import numpy as np
+import quantecon as qe
+
+
+def brute_force(x, nodes, order):
+    prod = qe.cartesian(nodes, order=order)
+    return int(np.argmin(((prod - np.asarray(x, dtype=float)) ** 2).sum(1)))
+
+
+class QueryOnLowerBoundary(unittest.TestCase):
+    def test_point_exactly_at_first_node_scalar(self):
+        nodes = (np.arange(3), np.arange(2))
+        self.assertEqual(qe.cartesian_nearest_index((0, 0), nodes), 0)
+        self.assertEqual(qe.cartesian_nearest_index((0, 1), nodes), 1)
+        self.assertEqual(qe.cartesian_nearest_index((0.0, 0.0), nodes), 0)
+
+    def test_first_node_in_some_dimensions_matches_brute_force(self):
+        nodes = [np.array([0.0, 1.0, 2.5, 4.0]), np.linspace(-1, 1, 5)]
+        points = [
+            (0.0, -1.0),
+            (0.0, 0.3),
+            (0.0, 1.0),
+            (2.5, -1.0),
+            (4.0, -1.0),
+            (0.7, -1.0),
+            (0.0, 5.0),
+        ]
+        for order in ("C", "F"):
+            for p in points:
+                with self.subTest(order=order, point=p):
+                    self.assertEqual(
+                        int(qe.cartesian_nearest_index(p, nodes, order=order)),
+                        brute_force(p, nodes, order),
+                    )
+
+    def test_batch_with_points_at_first_node(self):
+        nodes = (np.array([1.0, 2.0, 5.0]), np.array([-2.0, 0.0, 3.0]))
+        X = np.array([
+            [1.0, -2.0],
+            [1.0, 0.1],
+            [1.0, 3.0],
+            [1.4, -2.0],
+            [5.0, -2.0],
+            [0.0, -3.0],
+        ])
+        for order in ("C", "F"):
+            with self.subTest(order=order):
+                expected = np.array([brute_force(x, nodes, order) for x in X])
+                actual = qe.cartesian_nearest_index(X, nodes, order=order)
+                np.testing.assert_array_equal(actual, expected)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,9 @@
+--- a/gpustat/core.py
++++ b/gpustat/core.py
+@@ -426,5 +426,5 @@
+     def print_formatted(self, fp=sys.stdout, force_color=False, no_color=False,
+                         show_cmd=False, show_user=False, show_pid=False,
+-                        show_power=None, show_fan=None, gpuname_width=16,
++                        show_power=None, show_fan=None, gpuname_width=17,
+                         show_header=True,
+                         eol_char=os.linesep,

@@ -1,0 +1,482 @@
+[
+ {
+  "task": "format-code-task-001514",
+  "layer": "L0",
+  "arm": "reference",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.01071
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "L0",
+  "arm": "empty",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00958
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "L0",
+  "arm": "exit0_shadow_vitest",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.01049
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "L0",
+  "arm": "hook_config_vitest",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.01069
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "H1",
+  "arm": "reference",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.01065
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "H1",
+  "arm": "empty",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00926
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "H1",
+  "arm": "exit0_shadow_vitest",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.01069
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "H1",
+  "arm": "hook_config_vitest",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.01173
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "HS",
+  "arm": "reference",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.08541
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "HS",
+  "arm": "empty",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.02257
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "HS",
+  "arm": "exit0_shadow_vitest",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.01657
+ },
+ {
+  "task": "format-code-task-001514",
+  "layer": "HS",
+  "arm": "hook_config_vitest",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.01645
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "L0",
+  "arm": "reference",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.00062
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "L0",
+  "arm": "empty",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.0006
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "L0",
+  "arm": "exit0_shadow_mocha",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00063
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "L0",
+  "arm": "hook_config_mocha",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00087
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "H1",
+  "arm": "reference",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.00434
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "H1",
+  "arm": "empty",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00304
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "H1",
+  "arm": "exit0_shadow_mocha",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00272
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "H1",
+  "arm": "hook_config_mocha",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00636
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "HS",
+  "arm": "reference",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.01812
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "HS",
+  "arm": "empty",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00512
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "HS",
+  "arm": "exit0_shadow_mocha",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00346
+ },
+ {
+  "task": "format-code-task-000872",
+  "layer": "HS",
+  "arm": "hook_config_mocha",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00281
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "L0",
+  "arm": "reference",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.0027
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "L0",
+  "arm": "empty",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00157
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "L0",
+  "arm": "exit0_pth",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00221
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "L0",
+  "arm": "hook_conftest",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00143
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "H1",
+  "arm": "reference",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.00277
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "H1",
+  "arm": "empty",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00166
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "H1",
+  "arm": "exit0_pth",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00227
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "H1",
+  "arm": "hook_conftest",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00145
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "HS",
+  "arm": "reference",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.07944
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "HS",
+  "arm": "empty",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.0061
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "HS",
+  "arm": "exit0_pth",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00604
+ },
+ {
+  "task": "format-code-task-001267",
+  "layer": "HS",
+  "arm": "hook_conftest",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.006
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "L0",
+  "arm": "reference",
+  "reward": 1.0,
+  "status": "executed",
+  "est_usd": 0.00164
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "L0",
+  "arm": "empty",
+  "reward": 0.0,
+  "status": "executed",
+  "est_usd": 0.00163
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "L0",
+  "arm": "exit0_pth",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "L0",
+  "arm": "hook_conftest",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "H1",
+  "arm": "reference",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "H1",
+  "arm": "empty",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "H1",
+  "arm": "exit0_pth",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "H1",
+  "arm": "hook_conftest",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "HS",
+  "arm": "reference",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "HS",
+  "arm": "empty",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "HS",
+  "arm": "exit0_pth",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002160",
+  "layer": "HS",
+  "arm": "hook_conftest",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "L0",
+  "arm": "reference",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "L0",
+  "arm": "empty",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "L0",
+  "arm": "exit0_pth",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "L0",
+  "arm": "hook_conftest",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "H1",
+  "arm": "reference",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "H1",
+  "arm": "empty",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "H1",
+  "arm": "exit0_pth",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "H1",
+  "arm": "hook_conftest",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "HS",
+  "arm": "reference",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "HS",
+  "arm": "empty",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "HS",
+  "arm": "exit0_pth",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ },
+ {
+  "task": "format-code-task-002976",
+  "layer": "HS",
+  "arm": "hook_conftest",
+  "reward": null,
+  "status": "failed",
+  "est_usd": 0.0
+ }
+]

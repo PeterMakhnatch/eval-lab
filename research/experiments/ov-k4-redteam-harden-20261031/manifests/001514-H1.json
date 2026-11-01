@@ -1,0 +1,53 @@
+{
+  "calibration": false,
+  "expected_report": {
+    "skipped": 7,
+    "tests": 13
+  },
+  "findings": [],
+  "layers": [
+    {
+      "details": {
+        "pattern": "conftest.py|*/conftest.py|sitecustomize.py|*/sitecustomize.py|usercustomize.py|*/usercustomize.py|pytest.ini|*/pytest.ini|tox.ini|*/tox.ini|setup.cfg|*/setup.cfg|pyproject.toml|*/pyproject.toml|*.pth|vitest.config.*|*/vitest.config.*|vite.config.*|*/vite.config.*|jest.config.*|*/jest.config.*|.mocharc.*|*/.mocharc.*"
+      },
+      "layer": "L1",
+      "mechanism": "grader-hardening@1 L1 block over the git tree",
+      "status": "applied"
+    },
+    {
+      "details": {},
+      "layer": "L2",
+      "mechanism": "MiMo reset list restores every hidden test file and the test command wrapper",
+      "status": "native"
+    },
+    {
+      "details": {
+        "calibration": false,
+        "expected": {
+          "skipped": 7,
+          "tests": 13
+        }
+      },
+      "layer": "L3",
+      "mechanism": "vitest structured report injected into /testbed/mimo_test_command.sh",
+      "status": "applied"
+    },
+    {
+      "details": {
+        "image_leaks": 0
+      },
+      "layer": "L4",
+      "mechanism": "single-container grading requested: site-directory start-up hooks can reach the grader",
+      "status": "open"
+    }
+  ],
+  "output": "/private/tmp/k4-redteam-harden/001514-H1",
+  "output_digest": "sha256:c6ce60adb4ad200ea3303e32c09b10cf24e6bc97c4a8e48dcc3949a69980a6b7",
+  "runner": "vitest",
+  "separate_verifier": false,
+  "shape": "mimo",
+  "source": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001514",
+  "source_digest": "sha256:7d6f0bf53cb7fbb5622a74d472a9831b523673c190be382a222a37b9a6dc5a5a",
+  "transform": "full-hardening@1",
+  "workdir": "/testbed"
+}

@@ -1,0 +1,49 @@
+{
+  "calibration": false,
+  "expected_report": null,
+  "findings": [
+    {
+      "action": "flagged; not rewritten",
+      "detail": "create tests/unit/adapters/application-test.js",
+      "kind": "instruction-funnel",
+      "path": "instruction.md:25"
+    }
+  ],
+  "layers": [
+    {
+      "details": {},
+      "layer": "L1",
+      "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: test-infra and auto-load files dropped from the kept change",
+      "status": "native"
+    },
+    {
+      "details": {},
+      "layer": "L2",
+      "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: hidden tests re-applied on a pristine tree",
+      "status": "native"
+    },
+    {
+      "details": {},
+      "layer": "L3",
+      "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: structured certification for runner mocha",
+      "status": "native"
+    },
+    {
+      "details": {
+        "image_leaks": 0
+      },
+      "layer": "L4",
+      "mechanism": "separate-verifier@10 separate verifier container",
+      "status": "applied"
+    }
+  ],
+  "output": "/private/tmp/k4-redteam-harden/000872-HS",
+  "output_digest": "sha256:10f55afcd8797c8e88d62ab43bb4fbf898d5a5956d5e010e955e10a7e29c0b57",
+  "runner": null,
+  "separate_verifier": true,
+  "shape": "mimo",
+  "source": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000872",
+  "source_digest": "sha256:40dd20e981b4cfc30c5aae628b98462179f760d0e71315de62e9af03b1ec232e",
+  "transform": "full-hardening@1",
+  "workdir": "/testbed"
+}

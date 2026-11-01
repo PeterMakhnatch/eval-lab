@@ -28,6 +28,7 @@ sys.path.insert(0, str(REPO / "src"))
 import run_matrix as t2  # noqa: E402
 
 from evallab.full_hardening import harden  # noqa: E402
+from evallab.production.seeker_error_first import strip_paid_api_keys  # noqa: E402
 from evallab.production.seeker_worker import (  # noqa: E402
     MECHANISM_CLASSES,
     MissingMechanismClassError,
@@ -36,7 +37,6 @@ from evallab.production.seeker_worker import (  # noqa: E402
     _stream_served_route,
     parse_headless_candidate_response,
 )
-from evallab.production.seeker_error_first import strip_paid_api_keys  # noqa: E402
 
 ROUTE = "openrouter/~anthropic/claude-sonnet-latest"
 OUT = Path("/Users/petermakhnatch/Developer/eval-lab-results/2026-11-01/k5-attacker")

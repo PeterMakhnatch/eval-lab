@@ -265,6 +265,10 @@ def _arguments(value: Any) -> dict[str, Any]:
     return {} if value is None else {"raw": value}
 
 
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
 def raw_bundle_doc(bundle: Mapping[str, Any]) -> tuple[dict[str, Any], str | None, str | None]:
     """A raw trace bundle -> (ATIF-shaped doc on the final parent path, task prompt, submission).
 
@@ -301,7 +305,7 @@ def raw_bundle_doc(bundle: Mapping[str, Any]) -> tuple[dict[str, Any], str | Non
                 step["reasoning_content"] = message["reasoning_content"]
             for call in calls:
                 if call["tool_call_id"]:
-                    owners[call["tool_call_id"]] = step
+                    owners[str(call["tool_call_id"])] = step
             steps.append(step)
             last_agent = step
         elif role == "tool":
@@ -313,12 +317,10 @@ def raw_bundle_doc(bundle: Mapping[str, Any]) -> tuple[dict[str, Any], str | Non
                 steps.append({"step_id": ordinal, "source": "tool", "message": content})
         else:
             steps.append({"step_id": ordinal, "source": role or "system", "message": content})
-    task = trace.get("task") if isinstance(trace.get("task"), Mapping) else {}
-    data = task.get("data") if isinstance(task.get("data"), Mapping) else {}
+    data = _mapping(_mapping(trace.get("task")).get("data"))
     prompt = data.get("prompt") if isinstance(data.get("prompt"), str) else None
     submission = None
-    info = trace.get("info") if isinstance(trace.get("info"), Mapping) else {}
-    for record in info.values():
+    for record in _mapping(trace.get("info")).values():
         if isinstance(record, Mapping) and isinstance(record.get("submission"), str):
             submission = record["submission"]
             break

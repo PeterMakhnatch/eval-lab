@@ -6969,6 +6969,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.production.trace_harness import register_subcommands as register_trace_harness
 
     register_trace_harness(trace_actions)
+    from evallab.trace_anatomy import register_subcommands as register_trace_anatomy
+
+    register_trace_anatomy(trace_actions)
 
     goodfire = commands.add_parser(
         "goodfire",

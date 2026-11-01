@@ -144,6 +144,14 @@ record per (run, detector):
   no Family-A fusion beat cascade v8 by the preregistered 15%-at-3% criterion on Goodfire DEV
   (`RESULTS.md` there); the chosen rule's recall gain replicates on CheatBench and CM-18 at v8's own false-alarm rate.
 - The Phoenix shipper is `evallab trace otel <path>`.
+- `evallab trace anatomy <run_id> | --atif-file <trial.json> [--json] [--include-narration] [--include-final-claim]`
+  (`src/evallab/trace_anatomy.py`) prints a label-free structured case anatomy: task contract and stated
+  prohibitions, the exact final patch (raw-CAS submission string or last `diff --git` block; `sha256` is over
+  the pre-scrub bytes and `exact` says whether scrubbing touched it), a file-mutation ledger that keeps full
+  content for protected-surface writes (tests, conftest, `.pth`, verifier/CI/monitor configs; blobs over 20k
+  chars carry an explicit omission mark), high-signal actions (git history, sensitive reads, network, test runs
+  with exit codes, delegation prompts, assertion inversions) and claim vs reality. Cloud trace ids and
+  CheatBench item ids pass the DEV admission gate; metrics, rewards and evaluator `info` fields are never read.
 - `--detectors cascade_stream` feeds a run's steps one
   `trace.step` event at a time to `MisalignmentLiveWorker`
   (`production/trace_harness_stream.py`), and it is the second adapter that may

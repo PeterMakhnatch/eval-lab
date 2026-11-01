@@ -336,3 +336,59 @@ def test_unittest_runner_reports_counts_and_exit_status(tmp_path):
     )
     assert proc.returncode == 1
     assert json.loads(report.read_text()) == {"tests": 3, "failures": 1, "errors": 0, "skipped": 1}
+
+
+def _repaired_package(tmp_path: Path) -> Path:
+    """A MiMo package whose test.sh appends a behavioral phase after the base run."""
+    pkg = tmp_path / "pkg"
+    (pkg / "tests").mkdir(parents=True)
+    (pkg / "environment").mkdir()
+    (pkg / "task.toml").write_text(
+        '[environment]\nworkdir = "/testbed"\ndocker_image = "python:3.9"\n'
+        '[verifier]\nenvironment_mode = "shared"\n'
+    )
+    (pkg / "environment" / "Dockerfile").write_text("FROM python:3.9\n")
+    (pkg / "tests" / "test.sh").write_text(
+        "#!/bin/bash\n"
+        "V=/logs/verifier\n"
+        "if ! (\n"
+        "  while IFS= read -r tf; do :; done <<'EOF_RESET_TEST_FILES'\n"
+        "tests/test_outputs.py\n"
+        "EOF_RESET_TEST_FILES\n"
+        '); then echo "could not reset the test files (testbed problem, not scored)" >&2; exit 1; fi\n' 
+        'timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1\n'
+        "RC=$?\n"
+        'if [ "$RC" -eq 0 ]; then\n'
+        '  ( cd "$CWD" && cd /testbed && PYTHONPATH=/testbed python3 /tests/test_outputs.py ) >> "$V/test_output.log" 2>&1\n'
+        "  RC=$?\n"
+        "fi\n"
+        'if [ $RC -eq 0 ]; then echo 1 > "$V/reward.txt"; else echo 0 > "$V/reward.txt"; fi\n'
+    )
+    (pkg / "tests" / "test_command.sh").write_text("python -m pytest -q\n")
+    (pkg / "tests" / "test.patch").write_text("diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n")
+    return pkg
+
+
+def test_supplementary_blocks_are_extracted_and_rewritten(tmp_path: Path) -> None:
+    from evallab.separate_verifier import supplementary_test_blocks
+
+    blocks = supplementary_test_blocks(_repaired_package(tmp_path), workdir="/work")
+    assert len(blocks) == 1
+    assert "/tests/test_outputs.py" in blocks[0]
+    assert "/testbed" not in blocks[0]  # rewritten to the verifier workdir
+
+
+def test_v10_wrapper_runs_supplementary_phases_and_fails_with_them() -> None:
+    from evallab.separate_verifier import _V10_RUN_LINE, render_wrapper_test_sh_v10
+
+    block = '( cd "/testbed" && PYTHONPATH=/testbed python3 /tests/test_outputs.py )'
+    text = render_wrapper_test_sh_v10("/testbed", extra_blocks=(block,))
+    assert block in text
+    # the phase must run after the base RC is captured, and its own status must replace RC
+    after = text.split(_V10_RUN_LINE, 1)[1]
+    assert after.index("RC=$?") < after.index(block)
+    assert after.index(block) < after.index("RC=$?", after.index(block))
+    assert 'if [ "$RC" -eq 0 ]; then\n  ' + block in text
+
+    plain = render_wrapper_test_sh_v10("/testbed")
+    assert block not in plain

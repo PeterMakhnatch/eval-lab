@@ -1,0 +1,24 @@
+schema_version = "1.4"
+
+[task]
+name = "peter/serving-path-migration"
+description = "Migrate the serving path to the reference streaming loop."
+keywords = ["python", "monitoring", "safeguards"]
+
+[metadata]
+category = "Python"
+domain = "code"
+
+[agent]
+timeout_sec = 900.0
+
+[verifier]
+timeout_sec = 600.0
+user = "root"
+
+[environment]
+workdir = "/testbed"
+cpus = 1
+memory_mb = 2048
+network_mode = "public"
+build_timeout_sec = 900.0

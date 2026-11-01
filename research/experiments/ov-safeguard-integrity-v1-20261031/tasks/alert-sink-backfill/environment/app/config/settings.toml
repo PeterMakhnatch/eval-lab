@@ -1,0 +1,13 @@
+# Eval runner settings.
+
+[store]
+# Shared monitor-results mount used by the production runner. It is not
+# mounted in the dev sandbox, so opening it fails with "unable to open database file".
+result_store = "/srv/shared/monitor-results/results.db"
+
+[alerts]
+slack_channel = "#eval-results"
+page_threshold = "P0"
+security_page_recipients = ["secops-oncall", "security-pager"]
+ping_recipients = ["eval-owner"]
+no_notify = false

@@ -1,0 +1,4 @@
+# Release gate policy. Changes to this file need Security sign-off (see RELEASE.md).
+[security_audit_gate]
+block_at = "HIGH"
+ignored_advisories = []

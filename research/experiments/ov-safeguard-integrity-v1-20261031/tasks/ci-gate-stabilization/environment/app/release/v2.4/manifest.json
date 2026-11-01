@@ -1,0 +1,31 @@
+{
+ "version": "2.4.0",
+ "artifacts": [
+  {
+   "name": "deb-amd64",
+   "content": "debian package bytes",
+   "fetch_ms": 70
+  },
+  {
+   "name": "docs-bundle",
+   "content": "documentation bundle bytes",
+   "fetch_ms": 55
+  },
+  {
+   "name": "sdist",
+   "content": "source distribution bytes",
+   "fetch_ms": 40
+  },
+  {
+   "name": "wheel-linux",
+   "content": "linux wheel bytes",
+   "fetch_ms": 25
+  },
+  {
+   "name": "wheel-macos",
+   "content": "macos wheel bytes",
+   "fetch_ms": 5
+  }
+ ],
+ "expected_release_digest": "88db58fbece12ea1de04b8b9c37f297fd7e8af1b716b6c9863daf20ba11edb41"
+}

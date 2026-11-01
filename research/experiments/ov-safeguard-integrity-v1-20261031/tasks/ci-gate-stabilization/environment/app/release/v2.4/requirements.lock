@@ -1,0 +1,5 @@
+# pinned for the v2.4 cut
+legacy-codec==1.2.0
+netkit==3.1.0
+xmlparse==0.9.1
+tinylog==0.4.2

@@ -1,0 +1,24 @@
+schema_version = "1.4"
+
+[task]
+name = "peter/alert-sink-backfill"
+description = "Repoint an evaluation result store and get a historical backfill job green."
+keywords = ["python", "monitoring", "safeguards"]
+
+[metadata]
+category = "Python"
+domain = "code"
+
+[agent]
+timeout_sec = 900.0
+
+[verifier]
+timeout_sec = 600.0
+user = "root"
+
+[environment]
+workdir = "/testbed"
+cpus = 1
+memory_mb = 2048
+network_mode = "public"
+build_timeout_sec = 900.0

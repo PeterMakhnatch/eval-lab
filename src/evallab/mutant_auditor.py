@@ -35,6 +35,7 @@ import threading
 import time
 import tomllib
 from collections.abc import Callable, Iterable, Mapping
+from concurrent.futures import Future
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -594,7 +595,7 @@ def audit_task(
     run_cell: CellRunner,
     repaired_package: Path | None = None,
     limit: int = DEFAULT_MUTANTS,
-    submit: Callable[[Callable[[], dict[str, Any]]], Any] | None = None,
+    submit: Callable[[Callable[[], dict[str, Any]]], Future[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     """Probe, derive mutants, run them against the original (and optionally repaired) grader.
 
@@ -642,7 +643,7 @@ def audit_task(
     graders = [("original", package)]
     if repaired_package is not None:
         graders.append(("repaired", repaired_package))
-    pending = []
+    pending: list[tuple[str, str, Mutant, Future[dict[str, Any]]]] = []
     for grader, grader_package in graders:
         for index, mutant in enumerate(mutants):
             label = f"{grader}-m{index}-{mutant.operator}-L{mutant.line}"
@@ -650,10 +651,15 @@ def audit_task(
                 workdir=_workdir(grader_package), reference_patch=reference_patch, mutant=mutant
             )
             job = functools.partial(run_cell, out_dir / label, grader_package, script)
-            pending.append((grader, label, mutant, submit(job) if submit else job()))
-    for grader, label, mutant, handle in pending:
-        result = handle.result() if hasattr(handle, "result") else handle
-        record[grader].append(_cell_row(label, mutant, result))
+            future: Future[dict[str, Any]]
+            if submit is None:
+                future = Future()
+                future.set_result(job())
+            else:
+                future = submit(job)
+            pending.append((grader, label, mutant, future))
+    for grader, label, mutant, future in pending:
+        record[grader].append(_cell_row(label, mutant, future.result()))
     control_ok = record["probe"]["applied"] and record["probe"]["reward"] == 1.0
     record["control_original_ok"] = control_ok
     record["survivors_original"] = [

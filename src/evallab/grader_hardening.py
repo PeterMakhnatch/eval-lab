@@ -128,7 +128,7 @@ def _replace_once(text: str, old: str, new: str, what: str) -> str:
     return text.replace(old, new, 1)
 
 
-def _build_env_command(patch_text: str) -> str:
+def build_env_command(patch_text: str) -> str:
     """Text of the ``test_command.sh`` inside the base64 ``mimo_build_env`` tarball the hidden patch ships, if any."""
     blob: list[str] = []
     capture = False
@@ -162,7 +162,7 @@ def report_gate_blocker(parent: Path) -> str | None:
     tests = parent / "tests"
     command = (tests / "test_command.sh").read_text(encoding="utf-8", errors="replace")
     patch = (tests / "test.patch").read_text(encoding="utf-8", errors="replace")
-    text = resolve_command_text(command, None, patch) + _build_env_command(patch)
+    text = resolve_command_text(command, None, patch) + build_env_command(patch)
     if "pytest" not in text:
         return "hidden test command does not mention pytest"
     if addopts_cleared(text):

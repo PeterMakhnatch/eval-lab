@@ -159,7 +159,7 @@ inputs:
   - path: docs/task-variants.md
     digest: sha256:f330876569c151ebb69f11a5fa1e2050f0eb62027f7b46a5f474c4166d99ae48
   - path: docs/task-workbench.md
-    digest: sha256:87fa6aa8b5781e0ce661129149c9fbbbcee01013e8613436731af04ba5b2b51f
+    digest: sha256:a9121f229d177d62cbb2cf812c23cee5cec4f021bbb13330c4482443bc0a7e63
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trace-harness.md

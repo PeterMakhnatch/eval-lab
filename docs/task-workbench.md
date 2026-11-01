@@ -61,6 +61,24 @@ build contexts, stage contents, variables, globs, `.dockerignore`, or indirect
 copies. A clean lint result does not establish image isolation or verifier
 correctness and cannot replace oracle, NOP, or adversarial controls.
 
+## Package anatomy
+
+`evallab tasks anatomy <task-or-collection>... [--reference-patch FILE] [--out cards.jsonl] [--json]` ($0, static,
+a few milliseconds per package) prints or writes one `evallab.package_anatomy/v1` card per package: container and
+boundary facts (single container vs separate verifier, what the agent image bakes in, overlap of baked files with
+`tests/`, network and root posture), grader mechanics (runner, enumerated reset list vs auto-load hooks left writable,
+reward gate, `PYTEST_ADDOPTS`/`PATH`/`PYTHONPATH` vectors), test-suite rigor (AST counts for Python, regex counts for other
+languages, instruction-named symbols with no test reference), and a ranked `vulnerability_hypotheses` list tagged with
+the four seeker `MECHANISM_CLASSES`, file/line evidence and a minimal differential witness.
+
+Every hypothesis carries a `confidence` (`static_certain`, `static_probable`, `needs_execution`): the card is a
+checklist for a human or auditor, not a verdict, and it never executes anything. `--reference-patch` accepts one DEV
+reference patch for one package and enables the changed-symbol / added-branch exercise checks, which are marked
+`requires_reference`; pass no patch for hidden-solution-blind use. MiMo packages whose agent image is an opaque
+prebuilt digest report no baked-file facts (see the card's `limits`). Boilerplate hypotheses (for example the
+exit-code-only gate and the writable auto-load hooks) appear on most single-container packages by construction;
+rank and `confidence` separate them from package-specific findings.
+
 ## Candidate layout
 
 A candidate uses the normal Harbor task package plus workbench-only adversarial

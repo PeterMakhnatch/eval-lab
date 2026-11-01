@@ -1,0 +1,201 @@
+import contextlib
+import io
+import json
+import re
+import sys
+import unittest
+from unittest import mock
+
+sys.path.insert(0, '/testbed')
+
+import gpustat
+from gpustat.core import GPUStat, GPUStatCollection
+
+
+class MockNVMLError(Exception):
+    pass
+
+
+class MockNVMLError_NotSupported(MockNVMLError):
+    pass
+
+
+def _setup_mock_nvml(mock_N, fan_speed=None, fan_exc=None):
+    mock_N.NVMLError = MockNVMLError
+    mock_N.NVMLError_NotSupported = MockNVMLError_NotSupported
+    mock_N.nvmlDeviceGetCount.return_value = 1
+    handle = mock.MagicMock()
+    mock_N.nvmlDeviceGetHandleByIndex.return_value = handle
+    mock_N.nvmlDeviceGetName.return_value = 'GeForce GTX 1080'
+    mock_N.nvmlDeviceGetUUID.return_value = 'GPU-12345'
+    mock_N.nvmlDeviceGetTemperature.return_value = 45
+    mock_N.nvmlDeviceGetMemoryInfo.return_value = mock.MagicMock(used=1024**2, total=2 * 1024**2)
+    mock_N.nvmlDeviceGetUtilizationRates.return_value = mock.MagicMock(gpu=15)
+    mock_N.nvmlDeviceGetPowerUsage.return_value = 80000
+    mock_N.nvmlDeviceGetEnforcedPowerLimit.return_value = 250000
+    mock_N.nvmlDeviceGetComputeRunningProcesses.return_value = []
+    mock_N.nvmlDeviceGetGraphicsRunningProcesses.return_value = []
+
+    if fan_exc is not None:
+        mock_N.nvmlDeviceGetFanSpeed.side_effect = fan_exc
+    else:
+        mock_N.nvmlDeviceGetFanSpeed.side_effect = None
+        mock_N.nvmlDeviceGetFanSpeed.return_value = fan_speed
+
+
+class TestGPUStatFanContract(unittest.TestCase):
+
+    def test_fan_property(self):
+        """Test GPUStat.fan property converts to int, handles 0, string, and None."""
+        gpu_int = GPUStat({'fan.speed': 35})
+        self.assertEqual(gpu_int.fan, 35)
+        self.assertIsInstance(gpu_int.fan, int)
+
+        gpu_str = GPUStat({'fan.speed': '42'})
+        self.assertEqual(gpu_str.fan, 42)
+        self.assertIsInstance(gpu_str.fan, int)
+
+        gpu_zero = GPUStat({'fan.speed': 0})
+        self.assertEqual(gpu_zero.fan, 0)
+        self.assertIsNotNone(gpu_zero.fan)
+
+        gpu_none = GPUStat({'fan.speed': None})
+        self.assertIsNone(gpu_none.fan)
+
+    def test_color_boundary_fan_speed(self):
+        """Test colors['FSpeed'] condition: fan < 50 is yellow, fan >= 50 is bold_yellow."""
+        mock_term = mock.MagicMock()
+        mock_term.yellow = "<YELLOW>"
+        mock_term.bold_yellow = "<BOLD_YELLOW>"
+        mock_term.normal = "<NORMAL>"
+        mock_term.cyan = "<CYAN>"
+        mock_term.blue = "<BLUE>"
+        mock_term.red = "<RED>"
+        mock_term.bold_red = "<BOLD_RED>"
+
+        base_entry = {
+            'index': 0, 'name': 'GPU', 'temperature.gpu': 40,
+            'utilization.gpu': 10, 'power.draw': None,
+            'enforced.power.limit': None, 'memory.used': 0,
+            'memory.total': 100, 'processes': None,
+        }
+
+        # Boundary test: 49 (< 50) -> term.yellow
+        gpu_49 = GPUStat(dict(base_entry, **{'fan.speed': 49}))
+        fp = io.StringIO()
+        gpu_49.print_to(fp=fp, show_fan=True, term=mock_term)
+        out_49 = fp.getvalue()
+        self.assertIn("<YELLOW> 49 %<NORMAL>", out_49)
+        self.assertNotIn("<BOLD_YELLOW> 49 %", out_49)
+
+        # Boundary test: 50 (>= 50) -> term.bold_yellow (fails on fan < 51 mutant)
+        gpu_50 = GPUStat(dict(base_entry, **{'fan.speed': 50}))
+        fp = io.StringIO()
+        gpu_50.print_to(fp=fp, show_fan=True, term=mock_term)
+        out_50 = fp.getvalue()
+        self.assertIn("<BOLD_YELLOW> 50 %<NORMAL>", out_50)
+        self.assertNotIn("<YELLOW> 50 %", out_50)
+
+        # Boundary test: 51 (>= 50) -> term.bold_yellow
+        gpu_51 = GPUStat(dict(base_entry, **{'fan.speed': 51}))
+        fp = io.StringIO()
+        gpu_51.print_to(fp=fp, show_fan=True, term=mock_term)
+        out_51 = fp.getvalue()
+        self.assertIn("<BOLD_YELLOW> 51 %<NORMAL>", out_51)
+
+        # None fan speed formatted as '?? %'
+        gpu_none = GPUStat(dict(base_entry, **{'fan.speed': None}))
+        fp = io.StringIO()
+        gpu_none.print_to(fp=fp, show_fan=True, term=mock_term)
+        out_none = fp.getvalue()
+        self.assertIn(" ?? %<NORMAL>", out_none)
+
+    def test_print_formatted_and_json(self):
+        """Test show_fan parameter in print_formatted and fan.speed presence in JSON."""
+        gpu_a = GPUStat({
+            'index': 0, 'name': 'GPU0', 'temperature.gpu': 42,
+            'fan.speed': 25, 'utilization.gpu': 5, 'power.draw': None,
+            'enforced.power.limit': None, 'memory.used': 0,
+            'memory.total': 100, 'processes': None,
+        })
+        gpu_b = GPUStat({
+            'index': 1, 'name': 'GPU1', 'temperature.gpu': 42,
+            'fan.speed': None, 'utilization.gpu': 5, 'power.draw': None,
+            'enforced.power.limit': None, 'memory.used': 0,
+            'memory.total': 100, 'processes': None,
+        })
+        coll = GPUStatCollection([gpu_a, gpu_b])
+
+        # show_fan=True includes fan column positioned between temp and util
+        fp = io.StringIO()
+        coll.print_formatted(fp=fp, no_color=True, show_fan=True, show_header=False)
+        out = fp.getvalue()
+        self.assertTrue(re.search(r"'C,\s+25 %,\s+5 %", out))
+        self.assertIn(" ?? %", out)
+
+        # show_fan=False and default omit fan column
+        fp = io.StringIO()
+        coll.print_formatted(fp=fp, no_color=True, show_fan=False, show_header=False)
+        self.assertNotIn(" 25 %", fp.getvalue())
+
+        fp = io.StringIO()
+        coll.print_formatted(fp=fp, no_color=True, show_header=False)
+        self.assertNotIn(" 25 %", fp.getvalue())
+
+        # JSON output includes fan.speed
+        fp = io.StringIO()
+        coll.print_json(fp=fp)
+        data = json.loads(fp.getvalue())
+        self.assertEqual(data['gpus'][0]['fan.speed'], 25)
+        self.assertIsNone(data['gpus'][1]['fan.speed'])
+        self.assertEqual(coll.jsonify()['gpus'][0]['fan.speed'], 25)
+
+    @mock.patch('gpustat.core.N')
+    def test_new_query_fan_speed_and_nvml_error(self, mock_N):
+        """Test new_query sets fan.speed and catches N.NVMLError as None (fails on mutant raising)."""
+        _setup_mock_nvml(mock_N, fan_speed=60)
+        stats = gpustat.new_query()
+        self.assertEqual(stats[0].entry['fan.speed'], 60)
+        self.assertEqual(stats[0].fan, 60)
+
+        # When N.NVMLError is raised by nvmlDeviceGetFanSpeed, fan_speed must be set to None
+        _setup_mock_nvml(mock_N, fan_exc=mock_N.NVMLError("Not supported"))
+        stats_err = gpustat.new_query()
+        self.assertIsNone(stats_err[0].entry['fan.speed'])
+        self.assertIsNone(stats_err[0].fan)
+
+    @mock.patch('gpustat.core.N')
+    def test_cli_flags(self, mock_N):
+        """Test CLI flags -F and --show-fan action='store_true' and default omission."""
+        _setup_mock_nvml(mock_N, fan_speed=38)
+
+        # Test -F flag (short) - fails on mutant without action='store_true'
+        f_short = io.StringIO()
+        with contextlib.redirect_stdout(f_short):
+            try:
+                gpustat.main('gpustat', '--no-color', '-F')
+            except SystemExit as e:
+                self.fail("CLI -F failed with SystemExit: {}".format(e))
+        self.assertIn(" 38 %", f_short.getvalue())
+
+        # Test --show-fan flag (long)
+        f_long = io.StringIO()
+        with contextlib.redirect_stdout(f_long):
+            try:
+                gpustat.main('gpustat', '--no-color', '--show-fan')
+            except SystemExit as e:
+                self.fail("CLI --show-fan failed with SystemExit: {}".format(e))
+        self.assertIn(" 38 %", f_long.getvalue())
+
+        # Test default omits fan speed
+        f_def = io.StringIO()
+        with contextlib.redirect_stdout(f_def):
+            try:
+                gpustat.main('gpustat', '--no-color')
+            except SystemExit as e:
+                self.fail("CLI default failed with SystemExit: {}".format(e))
+        self.assertNotIn(" 38 %", f_def.getvalue())
+
+
+if __name__ == '__main__':
+    unittest.main()

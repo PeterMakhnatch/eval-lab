@@ -1,0 +1,115 @@
+import sys
+sys.path.insert(0, '/testbed')
+
+import unittest
+import warnings
+import numpy as np
+from scipy.stats import norm
+import GPy
+from robo.models.GPyModel import GPyModel
+from robo.acquisition.EI import EI
+from robo.acquisition.PI import PI
+from robo.acquisition.LogEI import LogEI
+from robo.recommendation.incumbent import compute_incumbent
+
+
+class MockLogEIModel(object):
+    def __init__(self, m, v, eta_m):
+        self.m = np.array([[m]])
+        self.v = np.array([[v]])
+        self.eta_m = np.array([[eta_m]])
+
+    def predict(self, X):
+        if np.array_equal(X, np.array([[999.0]])):
+            return self.eta_m
+        return self.m, self.v
+
+
+class TestAcquisitionContracts(unittest.TestCase):
+
+    def setUp(self):
+        self.x = np.array([[0.62971589], [0.63273273], [0.17867868], [0.17447447], [1.88558559]])
+        self.y = np.array([[-3.69925653], [-3.66221988], [-3.65560591], [-3.58907791], [-8.06925984]])
+        self.kernel = GPy.kern.RBF(input_dim=1, variance=30.1646253727, lengthscale=0.435343653946)
+        self.model = GPyModel(self.kernel, noise_variance=1e-20, optimize=False)
+        self.model.train(self.x, self.y)
+        self.X_lower = np.array([-2.1])
+        self.X_upper = np.array([2.1])
+
+    def test_pi_contracts_and_guards(self):
+        pi = PI(self.model, self.X_lower, self.X_upper)
+        incumbent = np.array([1.88558559])
+
+        # Single candidate point with 1D incumbent does not crash
+        x_single = np.array([[1.7]])
+        val_single = pi(x_single, incumbent=incumbent)
+        self.assertGreater(float(val_single.flat[0]), 0.0)
+
+        # Evaluated at worst point gives near-zero probability
+        val_worst = pi(self.x[-1:], incumbent=incumbent)
+        self.assertAlmostEqual(float(val_worst.flat[0]), 0.0, delta=1e-4)
+
+        # Derivative evaluation returns (return_f, return_df) tuple
+        out_deriv = pi(x_single, incumbent=incumbent, derivative=True)
+        self.assertTrue(isinstance(out_deriv, tuple))
+        self.assertEqual(len(out_deriv), 2)
+
+        # Single-input contract guard: multi-point inputs must raise error
+        with self.assertRaises(Exception):
+            pi(np.array([[1.7], [2.0]]), incumbent=incumbent)
+
+    def test_logei_mutant1_degenerate_case2_sigma_zero_boundary(self):
+        # Degenerate case 2 (sigma == 0): tests boundary condition mu < np.any(eta - par_s)
+        # Reference (<): 1.0 < 1 is False -> takes else-branch returning -inf
+        # Mutant 1 (<=): 1.0 <= 1 is True -> computes log(eta - mu) returning NaN
+        model = MockLogEIModel(m=1.0, v=0.0, eta_m=0.5)
+        log_ei = LogEI(model, self.X_lower, self.X_upper, compute_incumbent=lambda m: np.array([999.0]), par=0.0)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            res = log_ei(np.array([[1.0]]))
+
+        self.assertEqual(float(res.flat[0]), -float('inf'))
+        self.assertFalse(np.isnan(float(res.flat[0])))
+
+    def test_logei_mutant2_general_case_boundary(self):
+        # General case (sigma > 0): tests boundary condition np.any(eta - par_s) > mu
+        # Reference (>): 1 > 1.0 is False -> takes else-branch returning finite real log-EI
+        # Mutant 2 (>=): 1 >= 1.0 is True -> takes if-branch producing NaN from log(eta - mu)
+        model = MockLogEIModel(m=1.0, v=0.25, eta_m=0.5)
+        log_ei = LogEI(model, self.X_lower, self.X_upper, compute_incumbent=lambda m: np.array([999.0]), par=0.0)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            res = log_ei(np.array([[1.0]]))
+
+        val = float(res.flat[0])
+        self.assertTrue(np.isfinite(val))
+        self.assertFalse(np.isnan(val))
+
+    def test_logei_degenerate_case1_first_term_vanishes(self):
+        # Degenerate case 1: abs(eta - mu - par_s) == 0 with sigma > 0
+        model_pos = MockLogEIModel(m=0.5, v=0.25, eta_m=0.5)
+        log_ei_pos = LogEI(model_pos, self.X_lower, self.X_upper, compute_incumbent=lambda m: np.array([999.0]), par=0.0)
+        res_pos = log_ei_pos(np.array([[1.0]]))
+        expected = np.log(0.5) + norm.logpdf(0.0)
+        self.assertAlmostEqual(float(res_pos.flat[0]), expected, places=5)
+
+        # Degenerate case 1: abs(eta - mu - par_s) == 0 with sigma == 0 returns -inf
+        model_zero = MockLogEIModel(m=0.5, v=0.0, eta_m=0.5)
+        log_ei_zero = LogEI(model_zero, self.X_lower, self.X_upper, compute_incumbent=lambda m: np.array([999.0]), par=0.0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            res_zero = log_ei_zero(np.array([[1.0]]))
+        self.assertEqual(float(res_zero.flat[0]), -float('inf'))
+
+    def test_logei_real_model_incumbent_and_bounds(self):
+        log_ei = LogEI(self.model, self.X_lower, self.X_upper, compute_incumbent=compute_incumbent)
+
+        # Out-of-bounds guard returns -finfo.max
+        oob_val = log_ei(np.array([[5.0]]))
+        self.assertEqual(float(oob_val.flat[0]), -np.finfo(float).max)
+
+
+if __name__ == "__main__":
+    unittest.main()

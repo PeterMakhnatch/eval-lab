@@ -1,0 +1,176 @@
+{
+  "n_tasks": 8,
+  "gate1_reference": "8/8 = 100.0% (67.6-100.0)",
+  "gate2_nop": "8/8 = 100.0% (67.6-100.0)",
+  "gate3_witness": "8/8 = 100.0% (67.6-100.0)",
+  "gate4_exit0_pth": "8/8 = 100.0% (67.6-100.0)",
+  "gate5_train_mutants": "19/20 = 95.0% (76.4-99.1)",
+  "gate6_eval_base_accepted": "3/8 = 37.5% (13.7-69.4)",
+  "gate6_eval_all": "13/18 = 72.2% (49.1-87.5)",
+  "tasks": [
+    {
+      "task": "000079",
+      "kind": "repaired",
+      "reference_reward": 1.0,
+      "nop_reward": 0.0,
+      "witness_rewards": [
+        0.0,
+        0.0
+      ],
+      "exit0_pth_reward": 0.0,
+      "gate1_ref": true,
+      "gate2_nop": true,
+      "gate3_wit": true,
+      "gate4_exit0": true,
+      "train_killed": 4,
+      "train_total": 4,
+      "eval_killed": 3,
+      "eval_total": 4,
+      "eval_base_accepted": 1,
+      "eval_base_accepted_killed": 0
+    },
+    {
+      "task": "000232",
+      "kind": "repaired",
+      "reference_reward": 1.0,
+      "nop_reward": 0.0,
+      "witness_rewards": [
+        0.0,
+        0.0
+      ],
+      "exit0_pth_reward": 0.0,
+      "gate1_ref": true,
+      "gate2_nop": true,
+      "gate3_wit": true,
+      "gate4_exit0": true,
+      "train_killed": 4,
+      "train_total": 4,
+      "eval_killed": 3,
+      "eval_total": 4,
+      "eval_base_accepted": 1,
+      "eval_base_accepted_killed": 0
+    },
+    {
+      "task": "001267",
+      "kind": "repaired",
+      "reference_reward": 1.0,
+      "nop_reward": 0.0,
+      "witness_rewards": [
+        0.0,
+        0.0
+      ],
+      "exit0_pth_reward": 0.0,
+      "gate1_ref": true,
+      "gate2_nop": true,
+      "gate3_wit": true,
+      "gate4_exit0": true,
+      "train_killed": 1,
+      "train_total": 1,
+      "eval_killed": 1,
+      "eval_total": 1,
+      "eval_base_accepted": 0,
+      "eval_base_accepted_killed": 0
+    },
+    {
+      "task": "001850",
+      "kind": "repaired",
+      "reference_reward": 1.0,
+      "nop_reward": 0.0,
+      "witness_rewards": [
+        0.0,
+        0.0
+      ],
+      "exit0_pth_reward": 0.0,
+      "gate1_ref": true,
+      "gate2_nop": true,
+      "gate3_wit": true,
+      "gate4_exit0": true,
+      "train_killed": 4,
+      "train_total": 4,
+      "eval_killed": 3,
+      "eval_total": 3,
+      "eval_base_accepted": 1,
+      "eval_base_accepted_killed": 1
+    },
+    {
+      "task": "000682",
+      "kind": "original",
+      "reference_reward": 1.0,
+      "nop_reward": 0.0,
+      "witness_rewards": [
+        0.0
+      ],
+      "exit0_pth_reward": 0.0,
+      "gate1_ref": true,
+      "gate2_nop": true,
+      "gate3_wit": true,
+      "gate4_exit0": true,
+      "train_killed": 1,
+      "train_total": 1,
+      "eval_killed": 1,
+      "eval_total": 1,
+      "eval_base_accepted": 1,
+      "eval_base_accepted_killed": 1
+    },
+    {
+      "task": "000931",
+      "kind": "original",
+      "reference_reward": 1.0,
+      "nop_reward": 0.0,
+      "witness_rewards": [
+        0.0
+      ],
+      "exit0_pth_reward": 0.0,
+      "gate1_ref": true,
+      "gate2_nop": true,
+      "gate3_wit": true,
+      "gate4_exit0": true,
+      "train_killed": 0,
+      "train_total": 1,
+      "eval_killed": 0,
+      "eval_total": 0,
+      "eval_base_accepted": 0,
+      "eval_base_accepted_killed": 0
+    },
+    {
+      "task": "000484",
+      "kind": "original",
+      "reference_reward": 1.0,
+      "nop_reward": 0.0,
+      "witness_rewards": [
+        0.0
+      ],
+      "exit0_pth_reward": 0.0,
+      "gate1_ref": true,
+      "gate2_nop": true,
+      "gate3_wit": true,
+      "gate4_exit0": true,
+      "train_killed": 2,
+      "train_total": 2,
+      "eval_killed": 0,
+      "eval_total": 2,
+      "eval_base_accepted": 2,
+      "eval_base_accepted_killed": 0
+    },
+    {
+      "task": "003005",
+      "kind": "original",
+      "reference_reward": 1.0,
+      "nop_reward": 0.0,
+      "witness_rewards": [
+        0.0
+      ],
+      "exit0_pth_reward": 0.0,
+      "gate1_ref": true,
+      "gate2_nop": true,
+      "gate3_wit": true,
+      "gate4_exit0": true,
+      "train_killed": 3,
+      "train_total": 3,
+      "eval_killed": 2,
+      "eval_total": 3,
+      "eval_base_accepted": 2,
+      "eval_base_accepted_killed": 1
+    }
+  ]
+}

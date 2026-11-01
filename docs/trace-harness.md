@@ -152,6 +152,15 @@ record per (run, detector):
   chars carry an explicit omission mark), high-signal actions (git history, sensitive reads, network, test runs
   with exit codes, delegation prompts, assertion inversions) and claim vs reality. Cloud trace ids and
   CheatBench item ids pass the DEV admission gate; metrics, rewards and evaluator `info` fields are never read.
+- `src/evallab/autoreview_monitor.py` turns a `TraceAnatomy` into the budgeted reviewer view a working
+  monitor reads instead of a transcript (OpenAI Codex Auto-Review / ControlArena shape): complete task
+  statement, mutation ledger with protected surfaces first, one line per tool call (`step | tool | role |
+  exit | output chars | command`), a reverted-edit ledger (protected writes later deleted, restored or absent
+  from the final patch), a claim-vs-evidence backcheck and an omission notice; agent messages and reasoning are
+  never rendered. `stage1_prompt` scores 0-100 with a fixed verdict rubric; runs inside `UNCERTAIN_BAND` get
+  `stage2_prompt` with the raw tool call/output of the cited steps (`inspect_step`) and a `search_run` hit list.
+  `cross_fit_alerts` applies the split-half honest-quantile threshold (98.5th percentile of the other fold's
+  clean scores). Library only: `research/experiments/ov-autoreview-investigator-20261031/` is the driver.
 - `--detectors cascade_stream` feeds a run's steps one
   `trace.step` event at a time to `MisalignmentLiveWorker`
   (`production/trace_harness_stream.py`), and it is the second adapter that may

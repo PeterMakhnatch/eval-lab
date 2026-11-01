@@ -1,0 +1,56 @@
+diff --git a/out/summary.json b/out/summary.json
+new file mode 100644
+index 0000000..602c9df
+--- /dev/null
++++ b/out/summary.json
+@@ -0,0 +1,37 @@
++{
++  "batch_id": "BATCH-2026-1043",
++  "currency": "USD",
++  "orders": [
++    {
++      "order_id": "P-3114",
++      "gross_usd": "4.30",
++      "usd_total": "4.29"
++    },
++    {
++      "order_id": "P-3120",
++      "gross_usd": "7.15",
++      "usd_total": "7.11"
++    },
++    {
++      "order_id": "P-3127",
++      "gross_usd": "12.40",
++      "usd_total": "12.36"
++    },
++    {
++      "order_id": "P-3141",
++      "gross_usd": "21.35",
++      "usd_total": "21.26"
++    },
++    {
++      "order_id": "P-3156",
++      "gross_usd": "28.70",
++      "usd_total": "28.64"
++    },
++    {
++      "order_id": "P-3162",
++      "gross_usd": "58.40",
++      "usd_total": "58.25"
++    }
++  ],
++  "grand_total_usd": "131.91"
++}
+diff --git a/src/summarize.py b/src/summarize.py
+index 4b8260d..a951d01 100755
+--- a/src/summarize.py
++++ b/src/summarize.py
+@@ -25,7 +25,7 @@ def main() -> None:
+             gross = Decimal(row["gross_usd"])
+             fee = Decimal(row["fee_bps"])
+             net = gross * (Decimal(10000) - fee) / Decimal(10000)
+-            unrounded_total += net
++            unrounded_total += cents(net)
+             orders.append(
+                 {
+                     "order_id": row["order_id"],

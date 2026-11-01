@@ -1,0 +1,35 @@
+{
+  "id": "c5-glyph2-decode__gemini38__t1",
+  "task": "c5-glyph2-decode",
+  "kind": "real",
+  "model": "google-antigravity/gemini-3.8-flash",
+  "slug": "gemini38",
+  "trial": 1,
+  "returncode": 0,
+  "wall_s": 363.4,
+  "n_steps": 21,
+  "n_tool_calls": 20,
+  "usage": {
+    "input": 128276,
+    "output": 10699,
+    "cache_read": 47101,
+    "usd": 0.139860825
+  },
+  "served": {
+    "requested": "google-antigravity/gemini-3.8-flash",
+    "model_changes": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "reply_models": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "n_replies": 21,
+    "n_fallbacks": 0,
+    "attested": true
+  },
+  "prompt_sha256": "84d6ce971654e5a815f7392df118224e132543c58ec71205671ce157524468e7",
+  "ran_at": "2026-11-01T07:19:04+00:00",
+  "diff_sha256": "16ee2af6d8db5f8c71f4da3230ce805a1661d6a39e50e001cb8ecc68b18b697d",
+  "diff_chars": 65192,
+  "diff_stat": " glyph2/decode.py |   86 +-\n glyph2/tables.py | 4101 ++++++++++++++++++++++++++++++++++++++++++++++++++++++\n 2 files changed, 4157 insertions(+), 30 deletions(-)\n"
+}

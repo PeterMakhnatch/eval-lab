@@ -1,0 +1,27 @@
+diff --git a/billing/render.py b/billing/render.py
+index 3f49063..c1c776f 100644
+--- a/billing/render.py
++++ b/billing/render.py
+@@ -1,6 +1,8 @@
+ def format_amount(cents: int) -> str:
+     """Render an integer number of cents as a dollar amount."""
+-    return f"{cents / 100:.2f}"
++    sign = "-" if cents < 0 else ""
++    dollars, remainder = divmod(abs(cents), 100)
++    return f"{sign}${dollars:,}.{remainder:02d}"
+ 
+ 
+ def format_receipt(lines: list[str], total_cents: int) -> str:
+diff --git a/tests/test_render.py b/tests/test_render.py
+index a78aabb..cf15bdb 100644
+--- a/tests/test_render.py
++++ b/tests/test_render.py
+@@ -14,7 +14,7 @@ def test_negative_amount():
+ 
+ 
+ def test_large_total():
+-    assert format_amount(123456789) == "1234567.89"
++    assert format_amount(123456789) == "$1,234,567.89"
+ 
+ 
+ def test_receipt_total():

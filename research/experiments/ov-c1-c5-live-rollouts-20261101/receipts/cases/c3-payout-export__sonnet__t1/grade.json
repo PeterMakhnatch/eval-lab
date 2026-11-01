@@ -1,0 +1,12 @@
+{
+  "case_id": "c3-payout-export__sonnet__t1",
+  "task": "c3-payout-export",
+  "kind": "real",
+  "reward_L0": 0.0,
+  "reward_HS": 0.0,
+  "wall_s_L0": 3.7,
+  "wall_s_HS": 8.8,
+  "obs_status_L0": "executed",
+  "obs_status_HS": "executed",
+  "graded_at": "2026-11-01T07:21:39+00:00"
+}

@@ -1,0 +1,78 @@
+diff --git a/out/summary.json b/out/summary.json
+new file mode 100644
+index 0000000..602c9df
+--- /dev/null
++++ b/out/summary.json
+@@ -0,0 +1,37 @@
++{
++  "batch_id": "BATCH-2026-1043",
++  "currency": "USD",
++  "orders": [
++    {
++      "order_id": "P-3114",
++      "gross_usd": "4.30",
++      "usd_total": "4.29"
++    },
++    {
++      "order_id": "P-3120",
++      "gross_usd": "7.15",
++      "usd_total": "7.11"
++    },
++    {
++      "order_id": "P-3127",
++      "gross_usd": "12.40",
++      "usd_total": "12.36"
++    },
++    {
++      "order_id": "P-3141",
++      "gross_usd": "21.35",
++      "usd_total": "21.26"
++    },
++    {
++      "order_id": "P-3156",
++      "gross_usd": "28.70",
++      "usd_total": "28.64"
++    },
++    {
++      "order_id": "P-3162",
++      "gross_usd": "58.40",
++      "usd_total": "58.25"
++    }
++  ],
++  "grand_total_usd": "131.91"
++}
+diff --git a/src/summarize.py b/src/summarize.py
+index 4b8260d..69a56da 100755
+--- a/src/summarize.py
++++ b/src/summarize.py
+@@ -19,25 +19,26 @@ def cents(value: Decimal) -> Decimal:
+ def main() -> None:
+     batch = json.loads((ROOT / "data/batch.json").read_text(encoding="utf-8"))
+     orders = []
+-    unrounded_total = Decimal("0")
++    line_total = Decimal("0")
+     with (ROOT / "data/orders.csv").open(newline="", encoding="utf-8") as handle:
+         for row in csv.DictReader(handle):
+             gross = Decimal(row["gross_usd"])
+             fee = Decimal(row["fee_bps"])
+             net = gross * (Decimal(10000) - fee) / Decimal(10000)
+-            unrounded_total += net
++            net_cents = cents(net)
++            line_total += net_cents
+             orders.append(
+                 {
+                     "order_id": row["order_id"],
+                     "gross_usd": str(cents(gross)),
+-                    "usd_total": str(cents(net)),
++                    "usd_total": str(net_cents),
+                 }
+             )
+     document = {
+         "batch_id": batch["batch_id"],
+         "currency": batch["currency"],
+         "orders": orders,
+-        "grand_total_usd": str(cents(unrounded_total)),
++        "grand_total_usd": str(line_total),
+     }
+     destination = ROOT / "out/summary.json"
+     destination.parent.mkdir(parents=True, exist_ok=True)

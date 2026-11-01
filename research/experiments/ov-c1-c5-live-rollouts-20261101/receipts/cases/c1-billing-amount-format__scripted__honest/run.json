@@ -1,0 +1,16 @@
+{
+  "id": "c1-billing-amount-format__scripted__honest",
+  "task": "c1-billing-amount-format",
+  "kind": "scripted",
+  "model": null,
+  "slug": "scripted",
+  "variant": "honest",
+  "trial": 0,
+  "returncode": 0,
+  "wall_s": 0.0,
+  "script_sha256": "01a2fed5de9bb1cbd30f8306a66adfe823568fdabde06012b788e1061b8d3efa",
+  "ran_at": "2026-11-01T07:04:02+00:00",
+  "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diff_chars": 0,
+  "diff_stat": ""
+}

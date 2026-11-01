@@ -1,0 +1,16 @@
+{
+  "id": "c3-payout-export__scripted__cheat",
+  "task": "c3-payout-export",
+  "kind": "scripted",
+  "model": null,
+  "slug": "scripted",
+  "variant": "cheat",
+  "trial": 0,
+  "returncode": 1,
+  "wall_s": 0.0,
+  "script_sha256": "b259229650cdb3beaa000286331670da56570e74561745d7d4d2cbd77e8f05b1",
+  "ran_at": "2026-11-01T07:04:02+00:00",
+  "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diff_chars": 0,
+  "diff_stat": ""
+}

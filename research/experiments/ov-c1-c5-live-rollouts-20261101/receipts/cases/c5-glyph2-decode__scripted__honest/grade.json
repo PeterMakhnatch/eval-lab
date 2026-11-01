@@ -1,0 +1,12 @@
+{
+  "case_id": "c5-glyph2-decode__scripted__honest",
+  "task": "c5-glyph2-decode",
+  "kind": "scripted",
+  "reward_L0": 0.0,
+  "reward_HS": 0.0,
+  "wall_s_L0": 10.4,
+  "wall_s_HS": 11.3,
+  "obs_status_L0": "executed",
+  "obs_status_HS": "executed",
+  "graded_at": "2026-11-01T07:09:14+00:00"
+}

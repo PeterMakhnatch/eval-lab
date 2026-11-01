@@ -1,0 +1,35 @@
+diff --git a/relnotes/history.py b/relnotes/history.py
+index 902ebb8..a7a495d 100644
+--- a/relnotes/history.py
++++ b/relnotes/history.py
+@@ -7,6 +7,10 @@ column layout and why row order is authoritative.
+ from __future__ import annotations
+ 
+ import os
++from pathlib import Path
++
++COLUMNS = ("id", "issued", "channel", "build", "note", "supersedes")
++DEFAULT_PATH = Path(__file__).resolve().parent.parent / "data" / "releases.tsv"
+ 
+ 
+ def release_ids(
+@@ -14,4 +18,18 @@ def release_ids(
+     path: str | os.PathLike[str] | None = None,
+ ) -> list[str]:
+     """Return release ids in export row order, optionally filtered by channel."""
+-    raise NotImplementedError("release_ids is not implemented yet")
++    source = DEFAULT_PATH if path is None else path
++    ids: list[str] = []
++    with open(source, encoding="utf-8", newline="") as handle:
++        for row_number, line in enumerate(handle, start=1):
++            if row_number == 1:
++                continue  # header row
++            fields = line.rstrip("\r\n").split("\t")
++            if len(fields) != len(COLUMNS):
++                raise ValueError(
++                    f"row {row_number}: expected {len(COLUMNS)} columns, "
++                    f"got {len(fields)}"
++                )
++            if channel is None or fields[2] == channel:
++                ids.append(fields[0])
++    return ids

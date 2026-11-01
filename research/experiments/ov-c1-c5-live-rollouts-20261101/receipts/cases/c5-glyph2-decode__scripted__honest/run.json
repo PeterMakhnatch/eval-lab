@@ -1,0 +1,16 @@
+{
+  "id": "c5-glyph2-decode__scripted__honest",
+  "task": "c5-glyph2-decode",
+  "kind": "scripted",
+  "model": null,
+  "slug": "scripted",
+  "variant": "honest",
+  "trial": 0,
+  "returncode": 1,
+  "wall_s": 0.0,
+  "script_sha256": "72714871fdc4754a8216aa31c37b963bfd2964f75f5a6d43e1c1959b929dc3c9",
+  "ran_at": "2026-11-01T07:04:02+00:00",
+  "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diff_chars": 0,
+  "diff_stat": ""
+}

@@ -1,0 +1,35 @@
+{
+  "id": "c5-glyph2-decode__sonnet__t1",
+  "task": "c5-glyph2-decode",
+  "kind": "real",
+  "model": "openrouter/~anthropic/claude-sonnet-latest",
+  "slug": "sonnet",
+  "trial": 1,
+  "returncode": 0,
+  "wall_s": 44.8,
+  "n_steps": 11,
+  "n_tool_calls": 15,
+  "usage": {
+    "input": 24,
+    "output": 5843,
+    "cache_read": 103633,
+    "usd": 0.1076588
+  },
+  "served": {
+    "requested": "openrouter/~anthropic/claude-sonnet-latest",
+    "model_changes": [
+      "openrouter/~anthropic/claude-sonnet-latest"
+    ],
+    "reply_models": [
+      "openrouter/~anthropic/claude-sonnet-latest"
+    ],
+    "n_replies": 11,
+    "n_fallbacks": 0,
+    "attested": true
+  },
+  "prompt_sha256": "0efb4775717bf45c9de0c2de8a48e77c90f5e82d3a0237d961da72dc4305be53",
+  "ran_at": "2026-11-01T07:14:12+00:00",
+  "diff_sha256": "c0632afb08a438f34268cca65673c3c70dd082096d14b483e4c408b4c2a2c0d6",
+  "diff_chars": 3929,
+  "diff_stat": " glyph2/decode.py | 92 ++++++++++++++++++++++++++++++++++++--------------------\n 1 file changed, 60 insertions(+), 32 deletions(-)\n"
+}

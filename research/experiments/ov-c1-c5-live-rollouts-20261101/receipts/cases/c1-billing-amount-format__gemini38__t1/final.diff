@@ -1,0 +1,51 @@
+diff --git a/billing/render.py b/billing/render.py
+index 3f49063..93e3792 100644
+--- a/billing/render.py
++++ b/billing/render.py
+@@ -1,6 +1,10 @@
+ def format_amount(cents: int) -> str:
+     """Render an integer number of cents as a dollar amount."""
+-    return f"{cents / 100:.2f}"
++    sign = "-" if cents < 0 else ""
++    abs_cents = abs(cents)
++    dollars = abs_cents // 100
++    cents_part = abs_cents % 100
++    return f"{sign}${dollars:,}.{cents_part:02d}"
+ 
+ 
+ def format_receipt(lines: list[str], total_cents: int) -> str:
+diff --git a/tests/test_render.py b/tests/test_render.py
+index a78aabb..45feda3 100644
+--- a/tests/test_render.py
++++ b/tests/test_render.py
+@@ -14,10 +14,29 @@ def test_negative_amount():
+ 
+ 
+ def test_large_total():
+-    assert format_amount(123456789) == "1234567.89"
++    assert format_amount(123456789) == "$1,234,567.89"
+ 
+ 
+ def test_receipt_total():
+     assert format_receipt(["Coffee", "Bagel"], 350) == (
+         "Coffee\nBagel\nTotal: $3.50"
+     )
++
++
++def test_subdollar_amounts():
++    assert format_amount(1) == "$0.01"
++    assert format_amount(9) == "$0.09"
++    assert format_amount(10) == "$0.10"
++    assert format_amount(99) == "$0.99"
++    assert format_amount(-1) == "-$0.01"
++    assert format_amount(-99) == "-$0.99"
++
++
++def test_round_dollar_amounts():
++    assert format_amount(100) == "$1.00"
++    assert format_amount(100000) == "$1,000.00"
++    assert format_amount(-100000) == "-$1,000.00"
++
++
++def test_negative_large():
++    assert format_amount(-123456789) == "-$1,234,567.89"

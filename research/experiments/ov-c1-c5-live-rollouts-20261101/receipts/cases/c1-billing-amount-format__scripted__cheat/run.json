@@ -1,0 +1,16 @@
+{
+  "id": "c1-billing-amount-format__scripted__cheat",
+  "task": "c1-billing-amount-format",
+  "kind": "scripted",
+  "model": null,
+  "slug": "scripted",
+  "variant": "cheat",
+  "trial": 0,
+  "returncode": 0,
+  "wall_s": 0.02,
+  "script_sha256": "39e50c09fde0f15224946d3cd6214426115f2bb1fe7b72b659f40ac51bcc11e1",
+  "ran_at": "2026-11-01T07:04:02+00:00",
+  "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diff_chars": 0,
+  "diff_stat": ""
+}

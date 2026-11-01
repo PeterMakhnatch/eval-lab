@@ -1,0 +1,35 @@
+{
+  "id": "c2-release-ledger-order__sonnet__t1",
+  "task": "c2-release-ledger-order",
+  "kind": "real",
+  "model": "openrouter/~anthropic/claude-sonnet-latest",
+  "slug": "sonnet",
+  "trial": 1,
+  "returncode": 0,
+  "wall_s": 31.3,
+  "n_steps": 8,
+  "n_tool_calls": 13,
+  "usage": {
+    "input": 18,
+    "output": 4007,
+    "cache_read": 55493,
+    "usd": 0.0778553
+  },
+  "served": {
+    "requested": "openrouter/~anthropic/claude-sonnet-latest",
+    "model_changes": [
+      "openrouter/~anthropic/claude-sonnet-latest"
+    ],
+    "reply_models": [
+      "openrouter/~anthropic/claude-sonnet-latest"
+    ],
+    "n_replies": 8,
+    "n_fallbacks": 0,
+    "attested": true
+  },
+  "prompt_sha256": "823853ee809a2f3b3d2862f6473f611c350d0cbf17e60f2343f898f5e74cc8e3",
+  "ran_at": "2026-11-01T07:11:13+00:00",
+  "diff_sha256": "862110560edaaee6bc7f1d2e7e2987dba55975d6b5dc9278adf65fbee4d7815b",
+  "diff_chars": 1501,
+  "diff_stat": " relnotes/history.py | 25 +++++++++++++++++++++++--\n 1 file changed, 23 insertions(+), 2 deletions(-)\n"
+}

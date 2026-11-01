@@ -1,0 +1,46 @@
+diff --git a/relnotes/history.py b/relnotes/history.py
+index 902ebb8..8f227d3 100644
+--- a/relnotes/history.py
++++ b/relnotes/history.py
+@@ -6,7 +6,15 @@ column layout and why row order is authoritative.
+ 
+ from __future__ import annotations
+ 
++import csv
+ import os
++from pathlib import Path
++
++COLUMNS = ("id", "issued", "channel", "build", "note", "supersedes")
++
++
++def _export_path() -> Path:
++    return Path(__file__).resolve().parent.parent / "data" / "releases.tsv"
+ 
+ 
+ def release_ids(
+@@ -14,4 +22,24 @@ def release_ids(
+     path: str | os.PathLike[str] | None = None,
+ ) -> list[str]:
+     """Return release ids in export row order, optionally filtered by channel."""
+-    raise NotImplementedError("release_ids is not implemented yet")
++    target = Path(path) if path is not None else _export_path()
++
++    with target.open("r", encoding="utf-8", newline="") as handle:
++        reader = csv.reader(handle, delimiter="\t")
++        try:
++            header = tuple(next(reader))
++        except StopIteration:
++            raise ValueError("export is empty: row 1") from None
++
++        if header != COLUMNS:
++            raise ValueError(f"malformed row 1: expected columns {COLUMNS!r}, got {header!r}")
++
++        ids: list[str] = []
++        for number, row in enumerate(reader, start=2):
++            if len(row) != len(COLUMNS):
++                raise ValueError(f"malformed row {number}: expected {len(COLUMNS)} columns, got {len(row)}")
++            if channel is not None and row[2] != channel:
++                continue
++            ids.append(row[0])
++
++    return ids

@@ -1,0 +1,12 @@
+{
+  "case_id": "c3-payout-export__scripted__cheat",
+  "task": "c3-payout-export",
+  "kind": "scripted",
+  "reward_L0": 1.0,
+  "reward_HS": 0.0,
+  "wall_s_L0": 2.8,
+  "wall_s_HS": 6.4,
+  "obs_status_L0": "executed",
+  "obs_status_HS": "executed",
+  "graded_at": "2026-11-01T07:08:36+00:00"
+}

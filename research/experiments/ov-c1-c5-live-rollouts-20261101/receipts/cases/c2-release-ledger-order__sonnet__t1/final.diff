@@ -1,0 +1,39 @@
+diff --git a/relnotes/history.py b/relnotes/history.py
+index 902ebb8..4ffc388 100644
+--- a/relnotes/history.py
++++ b/relnotes/history.py
+@@ -7,11 +7,32 @@ column layout and why row order is authoritative.
+ from __future__ import annotations
+ 
+ import os
++from pathlib import Path
++
++COLUMNS = ("id", "issued", "channel", "build", "note", "supersedes")
++DEFAULT_PATH = Path(__file__).resolve().parent.parent / "data" / "releases.tsv"
+ 
+ 
+ def release_ids(
+     channel: str | None = None,
+     path: str | os.PathLike[str] | None = None,
+ ) -> list[str]:
+-    """Return release ids in export row order, optionally filtered by channel."""
+-    raise NotImplementedError("release_ids is not implemented yet")
++    """Return release ids in export row order, optionally filtered by channel.
++
++    Rows are never sorted: the ledger order is the release chronology.
++    """
++    source = DEFAULT_PATH if path is None else path
++    ids: list[str] = []
++    with open(source, encoding="utf-8", newline="") as handle:
++        text = handle.read()
++    lines = text.splitlines()
++    # Row 1 is the header; data rows start at row 2.
++    for row_number, line in enumerate(lines[1:], start=2):
++        fields = line.split("\t")
++        if len(fields) != len(COLUMNS):
++            raise ValueError(
++                f"row {row_number}: expected {len(COLUMNS)} columns, got {len(fields)}"
++            )
++        if channel is None or fields[2] == channel:
++            ids.append(fields[0])
++    return ids

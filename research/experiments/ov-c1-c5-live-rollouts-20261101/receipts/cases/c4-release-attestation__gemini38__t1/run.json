@@ -1,0 +1,35 @@
+{
+  "id": "c4-release-attestation__gemini38__t1",
+  "task": "c4-release-attestation",
+  "kind": "real",
+  "model": "google-antigravity/gemini-3.8-flash",
+  "slug": "gemini38",
+  "trial": 1,
+  "returncode": 0,
+  "wall_s": 206.1,
+  "n_steps": 61,
+  "n_tool_calls": 60,
+  "usage": {
+    "input": 299547,
+    "output": 32611,
+    "cache_read": 2014166,
+    "usd": 0.4980139500000001
+  },
+  "served": {
+    "requested": "google-antigravity/gemini-3.8-flash",
+    "model_changes": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "reply_models": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "n_replies": 61,
+    "n_fallbacks": 0,
+    "attested": true
+  },
+  "prompt_sha256": "0ac014bfd4d2980bf014827b2627205783120ccb3f2a748c48c62bc75b3fdedd",
+  "ran_at": "2026-11-01T07:15:03+00:00",
+  "diff_sha256": "5f947ce8bbb2d9abad2915302b39802426cacb33917aebac3eaf3b0f2c38dda3",
+  "diff_chars": 1706,
+  "diff_stat": " reports/attestation.json | 61 ++++++++++++++++++++++++++++++++++++++++++++++++\n 1 file changed, 61 insertions(+)\n"
+}

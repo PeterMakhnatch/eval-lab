@@ -1,0 +1,9 @@
+--- a/gpustat/core.py
++++ b/gpustat/core.py
+@@ -176,5 +176,5 @@
+         colors['CTemp'] = _conditional(lambda: self.temperature < 50,
+                                        term.red, term.bold_red)
+-        colors['FSpeed'] = _conditional(lambda: self.fan < 50,
++        colors['FSpeed'] = _conditional(lambda: self.fan <= 50,
+                                         term.yellow, term.bold_yellow)
+         colors['CMemU'] = term.bold_yellow

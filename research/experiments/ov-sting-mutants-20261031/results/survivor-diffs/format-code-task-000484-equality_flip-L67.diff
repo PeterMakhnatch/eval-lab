@@ -1,0 +1,9 @@
+--- a/robo/acquisition/LogEI.py
++++ b/robo/acquisition/LogEI.py
+@@ -65,5 +65,5 @@
+             # Degenerate case 1: first term vanishes
+ 
+-            if np.any(abs(eta - mu - par_s)) == 0:
++            if np.any(abs(eta - mu - par_s)) != 0:
+                 if sigma > 0:
+                     log_ei[i] = np.log(sigma) + norm.logpdf(z[i])

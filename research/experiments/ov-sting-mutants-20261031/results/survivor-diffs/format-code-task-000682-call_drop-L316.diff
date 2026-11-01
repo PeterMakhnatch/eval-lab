@@ -1,0 +1,12 @@
+--- a/c7n/resources/sns.py
++++ b/c7n/resources/sns.py
+@@ -314,8 +314,4 @@
+ 
+         for r in resources:
+-            sns.set_topic_attributes(
+-                TopicArn=r['TopicArn'],
+-                AttributeName='KmsMasterKeyId',
+-                AttributeValue=key
+-            )
++            pass
+         return resources

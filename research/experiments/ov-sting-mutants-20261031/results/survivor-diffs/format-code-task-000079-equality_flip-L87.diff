@@ -1,0 +1,9 @@
+--- a/impedance/models/circuits/fitting.py
++++ b/impedance/models/circuits/fitting.py
+@@ -85,5 +85,5 @@
+                 if elem in constants or elem + '_{}'.format(i) in constants:
+                     continue
+-                if raw_element == 'E' and i == 1:
++                if raw_element != 'E' and i == 1:
+                     ub.append(1)
+                 else:

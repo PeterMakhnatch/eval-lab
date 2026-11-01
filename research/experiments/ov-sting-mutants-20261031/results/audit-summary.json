@@ -1,0 +1,2433 @@
+{
+ "approval": "Peter 2026-10-31 overnight factory W2-STING-MUTANTS: Modal cap $1.75",
+ "cap_usd": 1.75,
+ "estimated_usd": 0.2068,
+ "sandbox_seconds": 1251.1,
+ "executions": 89,
+ "tasks": [
+  {
+   "task_id": "format-code-task-001205",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001205",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-001205/78b393aadeee84cd",
+   "patch_sha256": "e38d7eab082906dda3c9591057023c4c6ef9390e381f5c13c0c68ffccd5aa042",
+   "python_targets": [
+    "google/cloud/forseti/notifier/notifiers/slack_webhook.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 7.0,
+    "est_usd": 0.00116,
+    "evidence_sha256": "d3a55cee20f870dccde7f130c05a4eec02373aaebaf186d5848e5e174254c579"
+   },
+   "mutants": [
+    {
+     "path": "google/cloud/forseti/notifier/notifiers/slack_webhook.py",
+     "operator": "guard_drop",
+     "line": 84,
+     "description": "drop `if` guard ending in return",
+     "diff": "--- a/google/cloud/forseti/notifier/notifiers/slack_webhook.py\n+++ b/google/cloud/forseti/notifier/notifiers/slack_webhook.py\n@@ -82,7 +82,5 @@\n     def run(self):\n         \"\"\"Run the slack webhook notifier\"\"\"\n-        if not self.notification_config.get('webhook_url'):\n-            LOGGER.warn('No url found, not running Slack notifier.')\n-            return\n+        pass\n \n         for violation in self.violations:\n",
+     "sha256": "9286e710077082d13de7e22f1eb7b891df13812d7486a73c9a80729f9b8569e6"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-guard_drop-L84",
+     "mutant": {
+      "path": "google/cloud/forseti/notifier/notifiers/slack_webhook.py",
+      "operator": "guard_drop",
+      "line": 84,
+      "description": "drop `if` guard ending in return",
+      "diff": "--- a/google/cloud/forseti/notifier/notifiers/slack_webhook.py\n+++ b/google/cloud/forseti/notifier/notifiers/slack_webhook.py\n@@ -82,7 +82,5 @@\n     def run(self):\n         \"\"\"Run the slack webhook notifier\"\"\"\n-        if not self.notification_config.get('webhook_url'):\n-            LOGGER.warn('No url found, not running Slack notifier.')\n-            return\n+        pass\n \n         for violation in self.violations:\n",
+      "sha256": "9286e710077082d13de7e22f1eb7b891df13812d7486a73c9a80729f9b8569e6"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 5.3,
+     "est_usd": 0.00088,
+     "evidence_sha256": "2af675346f58121a64dfccd7aafb02b79df3f7eacce71f25992ba381ad0643ab"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-guard_drop-L84",
+     "mutant": {
+      "path": "google/cloud/forseti/notifier/notifiers/slack_webhook.py",
+      "operator": "guard_drop",
+      "line": 84,
+      "description": "drop `if` guard ending in return",
+      "diff": "--- a/google/cloud/forseti/notifier/notifiers/slack_webhook.py\n+++ b/google/cloud/forseti/notifier/notifiers/slack_webhook.py\n@@ -82,7 +82,5 @@\n     def run(self):\n         \"\"\"Run the slack webhook notifier\"\"\"\n-        if not self.notification_config.get('webhook_url'):\n-            LOGGER.warn('No url found, not running Slack notifier.')\n-            return\n+        pass\n \n         for violation in self.violations:\n",
+      "sha256": "9286e710077082d13de7e22f1eb7b891df13812d7486a73c9a80729f9b8569e6"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 9.3,
+     "est_usd": 0.00153,
+     "evidence_sha256": "833660557551214cc4f2a967c841d02945ef1aa745b223de07a7ff86e9f8cf69"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [],
+   "survivors_repaired": [],
+   "weak_original": false,
+   "weak_repaired": false,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-001985",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001985",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-001985/2ccdd20ab1ee9d37",
+   "patch_sha256": "71d11b72be47bc4e377affbbab9b9f928169089d1814c6123122dc8bfabf3ca2",
+   "python_targets": [
+    "bugbug/repository.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 10.9,
+    "est_usd": 0.0018,
+    "evidence_sha256": "ce111cd69fadcd8cc5a0fbe25ebc4a04634c17320e4aeb70ac963e033967ed81"
+   },
+   "mutants": [
+    {
+     "path": "bugbug/repository.py",
+     "operator": "boundary_flip",
+     "line": 270,
+     "description": "< -> <=",
+     "diff": "--- a/bugbug/repository.py\n+++ b/bugbug/repository.py\n@@ -268,5 +268,5 @@\n         for line in lines:\n             for function in functions[last_f:]:\n-                if function[\"error\"] or function[\"end_line\"] < line:\n+                if function[\"error\"] or function[\"end_line\"] <= line:\n                     last_f += 1\n                     continue\n",
+     "sha256": "79074029bc337a4e1715e5d187a0569cd2fb145015a5bdc829ef91c870045dc3"
+    },
+    {
+     "path": "bugbug/repository.py",
+     "operator": "guard_drop",
+     "line": 274,
+     "description": "drop `if` guard ending in break",
+     "diff": "--- a/bugbug/repository.py\n+++ b/bugbug/repository.py\n@@ -272,7 +272,5 @@\n                     continue\n \n-                if function[\"start_line\"] <= line:\n-                    touched_function_names.add(function[\"name\"])\n-                    break\n+                pass\n \n     # Get functions touched by added lines.\n",
+     "sha256": "79d4d630ec24a4b373891e718dacf826a324f65dac1cff994134da881393ac0c"
+    },
+    {
+     "path": "bugbug/repository.py",
+     "operator": "call_drop",
+     "line": 275,
+     "description": "drop call statement touched_function_names.add(...)",
+     "diff": "--- a/bugbug/repository.py\n+++ b/bugbug/repository.py\n@@ -273,5 +273,5 @@\n \n                 if function[\"start_line\"] <= line:\n-                    touched_function_names.add(function[\"name\"])\n+                    pass\n                     break\n \n",
+     "sha256": "b3e75686950edd9820581843bc3e3fca1734f1a13c0bea0ff7eebb61ea277033"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-boundary_flip-L270",
+     "mutant": {
+      "path": "bugbug/repository.py",
+      "operator": "boundary_flip",
+      "line": 270,
+      "description": "< -> <=",
+      "diff": "--- a/bugbug/repository.py\n+++ b/bugbug/repository.py\n@@ -268,5 +268,5 @@\n         for line in lines:\n             for function in functions[last_f:]:\n-                if function[\"error\"] or function[\"end_line\"] < line:\n+                if function[\"error\"] or function[\"end_line\"] <= line:\n                     last_f += 1\n                     continue\n",
+      "sha256": "79074029bc337a4e1715e5d187a0569cd2fb145015a5bdc829ef91c870045dc3"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 7.2,
+     "est_usd": 0.00118,
+     "evidence_sha256": "07794592b81e485425e5e8f268626c72ca34d9c7b9bc84f9a0c44d2fe69fda14"
+    },
+    {
+     "cell": "original-m1-guard_drop-L274",
+     "mutant": {
+      "path": "bugbug/repository.py",
+      "operator": "guard_drop",
+      "line": 274,
+      "description": "drop `if` guard ending in break",
+      "diff": "--- a/bugbug/repository.py\n+++ b/bugbug/repository.py\n@@ -272,7 +272,5 @@\n                     continue\n \n-                if function[\"start_line\"] <= line:\n-                    touched_function_names.add(function[\"name\"])\n-                    break\n+                pass\n \n     # Get functions touched by added lines.\n",
+      "sha256": "79d4d630ec24a4b373891e718dacf826a324f65dac1cff994134da881393ac0c"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 9.4,
+     "est_usd": 0.00155,
+     "evidence_sha256": "8be96e3a7aa81b238d54497990e466314f6f30b43966d0d23e6347251a43b4de"
+    },
+    {
+     "cell": "original-m2-call_drop-L275",
+     "mutant": {
+      "path": "bugbug/repository.py",
+      "operator": "call_drop",
+      "line": 275,
+      "description": "drop call statement touched_function_names.add(...)",
+      "diff": "--- a/bugbug/repository.py\n+++ b/bugbug/repository.py\n@@ -273,5 +273,5 @@\n \n                 if function[\"start_line\"] <= line:\n-                    touched_function_names.add(function[\"name\"])\n+                    pass\n                     break\n \n",
+      "sha256": "b3e75686950edd9820581843bc3e3fca1734f1a13c0bea0ff7eebb61ea277033"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 12.3,
+     "est_usd": 0.00204,
+     "evidence_sha256": "0764936bf394d8387bdece1a093d133b29b0a7ede4b0d7eb41d1e97a177e0dd1"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-boundary_flip-L270",
+     "mutant": {
+      "path": "bugbug/repository.py",
+      "operator": "boundary_flip",
+      "line": 270,
+      "description": "< -> <=",
+      "diff": "--- a/bugbug/repository.py\n+++ b/bugbug/repository.py\n@@ -268,5 +268,5 @@\n         for line in lines:\n             for function in functions[last_f:]:\n-                if function[\"error\"] or function[\"end_line\"] < line:\n+                if function[\"error\"] or function[\"end_line\"] <= line:\n                     last_f += 1\n                     continue\n",
+      "sha256": "79074029bc337a4e1715e5d187a0569cd2fb145015a5bdc829ef91c870045dc3"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 13.8,
+     "est_usd": 0.00228,
+     "evidence_sha256": "aeb9587c2455a586b04c565ce2f1a02cec70574b755e6795ee29c4cc162f6f9d"
+    },
+    {
+     "cell": "repaired-m1-guard_drop-L274",
+     "mutant": {
+      "path": "bugbug/repository.py",
+      "operator": "guard_drop",
+      "line": 274,
+      "description": "drop `if` guard ending in break",
+      "diff": "--- a/bugbug/repository.py\n+++ b/bugbug/repository.py\n@@ -272,7 +272,5 @@\n                     continue\n \n-                if function[\"start_line\"] <= line:\n-                    touched_function_names.add(function[\"name\"])\n-                    break\n+                pass\n \n     # Get functions touched by added lines.\n",
+      "sha256": "79d4d630ec24a4b373891e718dacf826a324f65dac1cff994134da881393ac0c"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 5.7,
+     "est_usd": 0.00095,
+     "evidence_sha256": "d4d4ebfe8f48b47b2de3f443e2ce01f0d06330edb757e4e20ea23b137e441b2e"
+    },
+    {
+     "cell": "repaired-m2-call_drop-L275",
+     "mutant": {
+      "path": "bugbug/repository.py",
+      "operator": "call_drop",
+      "line": 275,
+      "description": "drop call statement touched_function_names.add(...)",
+      "diff": "--- a/bugbug/repository.py\n+++ b/bugbug/repository.py\n@@ -273,5 +273,5 @@\n \n                 if function[\"start_line\"] <= line:\n-                    touched_function_names.add(function[\"name\"])\n+                    pass\n                     break\n \n",
+      "sha256": "b3e75686950edd9820581843bc3e3fca1734f1a13c0bea0ff7eebb61ea277033"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 9.0,
+     "est_usd": 0.00149,
+     "evidence_sha256": "55c73384992a77b49efa37fabdf1c1f0e00d038114ebd7cc62e02ab0ecae9e22"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m0-boundary_flip-L270"
+   ],
+   "survivors_repaired": [],
+   "weak_original": true,
+   "weak_repaired": false,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-000931",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000931",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000931/e1bbe3a1c59518cf",
+   "patch_sha256": "e9fc4c109a95107b18fa2d2ad8ac5504081e2ef721300efa31bda33a05365532",
+   "python_targets": [
+    "fastavro/_read_py.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 8.8,
+    "est_usd": 0.00146,
+    "evidence_sha256": "dc3dafcd4798179d8832483ef9d0799ed538f7802ba9358c0822a637d28b9031"
+   },
+   "mutants": [
+    {
+     "path": "fastavro/_read_py.py",
+     "operator": "guard_drop",
+     "line": 60,
+     "description": "drop `if` guard ending in return",
+     "diff": "--- a/fastavro/_read_py.py\n+++ b/fastavro/_read_py.py\n@@ -58,6 +58,5 @@\n     if isinstance(writer_type, list) or isinstance(reader_type, list):\n         return True\n-    if isinstance(writer_type, dict) or isinstance(reader_type, dict):\n-        return match_schemas(writer_type, reader_type)\n+    pass\n     if writer_type == reader_type:\n         return True\n",
+     "sha256": "c3fadc185c060ab7dd0fb23cc9076a2f13f34f1841b3ca10391111b00ceec0b6"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-guard_drop-L60",
+     "mutant": {
+      "path": "fastavro/_read_py.py",
+      "operator": "guard_drop",
+      "line": 60,
+      "description": "drop `if` guard ending in return",
+      "diff": "--- a/fastavro/_read_py.py\n+++ b/fastavro/_read_py.py\n@@ -58,6 +58,5 @@\n     if isinstance(writer_type, list) or isinstance(reader_type, list):\n         return True\n-    if isinstance(writer_type, dict) or isinstance(reader_type, dict):\n-        return match_schemas(writer_type, reader_type)\n+    pass\n     if writer_type == reader_type:\n         return True\n",
+      "sha256": "c3fadc185c060ab7dd0fb23cc9076a2f13f34f1841b3ca10391111b00ceec0b6"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 10.4,
+     "est_usd": 0.00172,
+     "evidence_sha256": "c015e30c14568d178c78353202e335bb3ab153748b3c1efe01815fbf3905c2b1"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-guard_drop-L60",
+     "mutant": {
+      "path": "fastavro/_read_py.py",
+      "operator": "guard_drop",
+      "line": 60,
+      "description": "drop `if` guard ending in return",
+      "diff": "--- a/fastavro/_read_py.py\n+++ b/fastavro/_read_py.py\n@@ -58,6 +58,5 @@\n     if isinstance(writer_type, list) or isinstance(reader_type, list):\n         return True\n-    if isinstance(writer_type, dict) or isinstance(reader_type, dict):\n-        return match_schemas(writer_type, reader_type)\n+    pass\n     if writer_type == reader_type:\n         return True\n",
+      "sha256": "c3fadc185c060ab7dd0fb23cc9076a2f13f34f1841b3ca10391111b00ceec0b6"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 10.6,
+     "est_usd": 0.00176,
+     "evidence_sha256": "64fc07a0aca4c744a9c30ea9ac571afb7e9480ea4b5e218ef03e3bad0f210963"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m0-guard_drop-L60"
+   ],
+   "survivors_repaired": [],
+   "weak_original": true,
+   "weak_repaired": false,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-001850",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001850",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-001850/25aa655393228334",
+   "patch_sha256": "762fe0c5a483d9a2e261d11c86b773f8fc2e164a7c038b0958fc51a7216aa618",
+   "python_targets": [
+    "marimo/_ast/sql_visitor.py",
+    "marimo/_runtime/runtime.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 8.0,
+    "est_usd": 0.00133,
+    "evidence_sha256": "7d1667ba0e81a61eb4a69fa1ea11f229834039516c49bbbe718abcbad726f1c9"
+   },
+   "mutants": [
+    {
+     "path": "marimo/_ast/sql_visitor.py",
+     "operator": "int_shift",
+     "line": 90,
+     "description": "1 -> 2",
+     "diff": "--- a/marimo/_ast/sql_visitor.py\n+++ b/marimo/_ast/sql_visitor.py\n@@ -88,5 +88,5 @@\n             end = sql_statement.find(\"'\", start + 1) + 1\n         elif sql_statement[start:].startswith(\"e'\"):\n-            start += 1\n+            start += 2\n             end = sql_statement.find(\"'\", start + 1) + 1\n         else:\n",
+     "sha256": "48039f27dbed734ff19975993c02a06fca5da75178ba1ca981e51ffcac422181"
+    },
+    {
+     "path": "marimo/_runtime/runtime.py",
+     "operator": "handler_drop",
+     "line": 715,
+     "description": "except handler body -> raise (handler omitted)",
+     "diff": "--- a/marimo/_runtime/runtime.py\n+++ b/marimo/_runtime/runtime.py\n@@ -714,5 +714,5 @@\n                     duckdb.execute(f\"DROP TABLE IF EXISTS memory.main.{name}\")\n                 except Exception as e:\n-                    LOGGER.warning(\"Failed to drop table %s: %s\", name, str(e))\n+                    raise\n             elif variable.kind == \"view\" and DependencyManager.duckdb.has():\n                 import duckdb\n",
+     "sha256": "0c9c080620dae81dab1783d1c838453fc6c97128ad6404f0c10e3e4d587e89b5"
+    },
+    {
+     "path": "marimo/_ast/sql_visitor.py",
+     "operator": "int_shift",
+     "line": 91,
+     "description": "1 -> 2",
+     "diff": "--- a/marimo/_ast/sql_visitor.py\n+++ b/marimo/_ast/sql_visitor.py\n@@ -89,5 +89,5 @@\n         elif sql_statement[start:].startswith(\"e'\"):\n             start += 1\n-            end = sql_statement.find(\"'\", start + 1) + 1\n+            end = sql_statement.find(\"'\", start + 1) + 2\n         else:\n             # For non-quoted tokens, find until space or comment\n",
+     "sha256": "a1831982cfcfb6a28e23d99bf2d80ddd18f3155624e18d483b57d294a8a9e869"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-int_shift-L90",
+     "mutant": {
+      "path": "marimo/_ast/sql_visitor.py",
+      "operator": "int_shift",
+      "line": 90,
+      "description": "1 -> 2",
+      "diff": "--- a/marimo/_ast/sql_visitor.py\n+++ b/marimo/_ast/sql_visitor.py\n@@ -88,5 +88,5 @@\n             end = sql_statement.find(\"'\", start + 1) + 1\n         elif sql_statement[start:].startswith(\"e'\"):\n-            start += 1\n+            start += 2\n             end = sql_statement.find(\"'\", start + 1) + 1\n         else:\n",
+      "sha256": "48039f27dbed734ff19975993c02a06fca5da75178ba1ca981e51ffcac422181"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 6.7,
+     "est_usd": 0.00111,
+     "evidence_sha256": "92b33f04af388190450f42fa3a22fd62651812d01edb18776be074bd16bb66d4"
+    },
+    {
+     "cell": "original-m1-handler_drop-L715",
+     "mutant": {
+      "path": "marimo/_runtime/runtime.py",
+      "operator": "handler_drop",
+      "line": 715,
+      "description": "except handler body -> raise (handler omitted)",
+      "diff": "--- a/marimo/_runtime/runtime.py\n+++ b/marimo/_runtime/runtime.py\n@@ -714,5 +714,5 @@\n                     duckdb.execute(f\"DROP TABLE IF EXISTS memory.main.{name}\")\n                 except Exception as e:\n-                    LOGGER.warning(\"Failed to drop table %s: %s\", name, str(e))\n+                    raise\n             elif variable.kind == \"view\" and DependencyManager.duckdb.has():\n                 import duckdb\n",
+      "sha256": "0c9c080620dae81dab1783d1c838453fc6c97128ad6404f0c10e3e4d587e89b5"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 6.6,
+     "est_usd": 0.00109,
+     "evidence_sha256": "2ad616bc3da8db3948a4c74b5f95f94fe064e066ed35be237e262c8703957a2a"
+    },
+    {
+     "cell": "original-m2-int_shift-L91",
+     "mutant": {
+      "path": "marimo/_ast/sql_visitor.py",
+      "operator": "int_shift",
+      "line": 91,
+      "description": "1 -> 2",
+      "diff": "--- a/marimo/_ast/sql_visitor.py\n+++ b/marimo/_ast/sql_visitor.py\n@@ -89,5 +89,5 @@\n         elif sql_statement[start:].startswith(\"e'\"):\n             start += 1\n-            end = sql_statement.find(\"'\", start + 1) + 1\n+            end = sql_statement.find(\"'\", start + 1) + 2\n         else:\n             # For non-quoted tokens, find until space or comment\n",
+      "sha256": "a1831982cfcfb6a28e23d99bf2d80ddd18f3155624e18d483b57d294a8a9e869"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 10.4,
+     "est_usd": 0.00172,
+     "evidence_sha256": "7c6da4afa5bb891a53f9f542da48b1524a56b53a3a4a68f96a309645ebe4491d"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-int_shift-L90",
+     "mutant": {
+      "path": "marimo/_ast/sql_visitor.py",
+      "operator": "int_shift",
+      "line": 90,
+      "description": "1 -> 2",
+      "diff": "--- a/marimo/_ast/sql_visitor.py\n+++ b/marimo/_ast/sql_visitor.py\n@@ -88,5 +88,5 @@\n             end = sql_statement.find(\"'\", start + 1) + 1\n         elif sql_statement[start:].startswith(\"e'\"):\n-            start += 1\n+            start += 2\n             end = sql_statement.find(\"'\", start + 1) + 1\n         else:\n",
+      "sha256": "48039f27dbed734ff19975993c02a06fca5da75178ba1ca981e51ffcac422181"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 8.0,
+     "est_usd": 0.00133,
+     "evidence_sha256": "75a961bef68f7213a19ed5970e63545c23b7806e63dcfd70331d31f4e52981aa"
+    },
+    {
+     "cell": "repaired-m1-handler_drop-L715",
+     "mutant": {
+      "path": "marimo/_runtime/runtime.py",
+      "operator": "handler_drop",
+      "line": 715,
+      "description": "except handler body -> raise (handler omitted)",
+      "diff": "--- a/marimo/_runtime/runtime.py\n+++ b/marimo/_runtime/runtime.py\n@@ -714,5 +714,5 @@\n                     duckdb.execute(f\"DROP TABLE IF EXISTS memory.main.{name}\")\n                 except Exception as e:\n-                    LOGGER.warning(\"Failed to drop table %s: %s\", name, str(e))\n+                    raise\n             elif variable.kind == \"view\" and DependencyManager.duckdb.has():\n                 import duckdb\n",
+      "sha256": "0c9c080620dae81dab1783d1c838453fc6c97128ad6404f0c10e3e4d587e89b5"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 6.5,
+     "est_usd": 0.00108,
+     "evidence_sha256": "70bc475138b0fb39fd32beb72a4a16b008bd44ad231f7e31cc75e862a8eca149"
+    },
+    {
+     "cell": "repaired-m2-int_shift-L91",
+     "mutant": {
+      "path": "marimo/_ast/sql_visitor.py",
+      "operator": "int_shift",
+      "line": 91,
+      "description": "1 -> 2",
+      "diff": "--- a/marimo/_ast/sql_visitor.py\n+++ b/marimo/_ast/sql_visitor.py\n@@ -89,5 +89,5 @@\n         elif sql_statement[start:].startswith(\"e'\"):\n             start += 1\n-            end = sql_statement.find(\"'\", start + 1) + 1\n+            end = sql_statement.find(\"'\", start + 1) + 2\n         else:\n             # For non-quoted tokens, find until space or comment\n",
+      "sha256": "a1831982cfcfb6a28e23d99bf2d80ddd18f3155624e18d483b57d294a8a9e869"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 9.7,
+     "est_usd": 0.0016,
+     "evidence_sha256": "142c384a923b7f8d15c1aecb4c35dd600b024a277cfbc27590cf77fe53b79ae0"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m1-handler_drop-L715"
+   ],
+   "survivors_repaired": [
+    "repaired-m1-handler_drop-L715"
+   ],
+   "weak_original": true,
+   "weak_repaired": true,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-000081",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000081",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000081/dc2d2136fde3a496",
+   "patch_sha256": "1007e5113f13068aeebc2ee1ce4416618ba98e678574319ad95b5ff595b7dd40",
+   "python_targets": [
+    "xdoctest/runner.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 8.5,
+    "est_usd": 0.00141,
+    "evidence_sha256": "9c580af7eacd3a823f6a2140cd7b15a6859926c2c880e88b08f6b6da1200e8d5"
+   },
+   "mutants": [
+    {
+     "path": "xdoctest/runner.py",
+     "operator": "equality_flip",
+     "line": 126,
+     "description": "== -> !=",
+     "diff": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -124,5 +124,5 @@\n                 sys.stdout.flush()\n             errors.append('\\n'.join(example.repr_failure()))\n-            if len(enabled_examples) == 1:\n+            if len(enabled_examples) != 1:\n                 raise\n         summaries.append(summary)\n",
+     "sha256": "55e2cf8a8678a386d61a1606501841cb85cdaee240ce84b71f53263dd7336518"
+    },
+    {
+     "path": "xdoctest/runner.py",
+     "operator": "call_drop",
+     "line": 125,
+     "description": "drop call statement errors.append(...)",
+     "diff": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -123,5 +123,5 @@\n                 sys.stdout.write('F')\n                 sys.stdout.flush()\n-            errors.append('\\n'.join(example.repr_failure()))\n+            pass\n             if len(enabled_examples) == 1:\n                 raise\n",
+     "sha256": "6c657d2160326fa2558076cf11a31f24a4d7c94926f6306aa439e5ff0545c439"
+    },
+    {
+     "path": "xdoctest/runner.py",
+     "operator": "bool_flip",
+     "line": 121,
+     "description": "False -> True",
+     "diff": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -119,5 +119,5 @@\n                 sys.stdout.flush()\n         except Exception:\n-            summary = {'passed': False}\n+            summary = {'passed': True}\n             if not verbose:\n                 sys.stdout.write('F')\n",
+     "sha256": "3e3ec362a9cb3c68b66425f88b3eb670eb8b0f4a7cd5fb24c898094250314bd8"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-equality_flip-L126",
+     "mutant": {
+      "path": "xdoctest/runner.py",
+      "operator": "equality_flip",
+      "line": 126,
+      "description": "== -> !=",
+      "diff": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -124,5 +124,5 @@\n                 sys.stdout.flush()\n             errors.append('\\n'.join(example.repr_failure()))\n-            if len(enabled_examples) == 1:\n+            if len(enabled_examples) != 1:\n                 raise\n         summaries.append(summary)\n",
+      "sha256": "55e2cf8a8678a386d61a1606501841cb85cdaee240ce84b71f53263dd7336518"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 7.9,
+     "est_usd": 0.00131,
+     "evidence_sha256": "58802b5d0b7e4137ef38e4d38d84331d8eeb57b9aa64e354710d409b6dfe4b1d"
+    },
+    {
+     "cell": "original-m1-call_drop-L125",
+     "mutant": {
+      "path": "xdoctest/runner.py",
+      "operator": "call_drop",
+      "line": 125,
+      "description": "drop call statement errors.append(...)",
+      "diff": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -123,5 +123,5 @@\n                 sys.stdout.write('F')\n                 sys.stdout.flush()\n-            errors.append('\\n'.join(example.repr_failure()))\n+            pass\n             if len(enabled_examples) == 1:\n                 raise\n",
+      "sha256": "6c657d2160326fa2558076cf11a31f24a4d7c94926f6306aa439e5ff0545c439"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 10.2,
+     "est_usd": 0.00168,
+     "evidence_sha256": "c3832e3bccfb9980f7c08632f5a160f034b85899344b4de442e6d30be60619ab"
+    },
+    {
+     "cell": "original-m2-bool_flip-L121",
+     "mutant": {
+      "path": "xdoctest/runner.py",
+      "operator": "bool_flip",
+      "line": 121,
+      "description": "False -> True",
+      "diff": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -119,5 +119,5 @@\n                 sys.stdout.flush()\n         except Exception:\n-            summary = {'passed': False}\n+            summary = {'passed': True}\n             if not verbose:\n                 sys.stdout.write('F')\n",
+      "sha256": "3e3ec362a9cb3c68b66425f88b3eb670eb8b0f4a7cd5fb24c898094250314bd8"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 7.6,
+     "est_usd": 0.00126,
+     "evidence_sha256": "2e4cbd4103fa51e9400d74f65b3336a2ba33d83bceb0f2ad9ed113e31dfac988"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-equality_flip-L126",
+     "mutant": {
+      "path": "xdoctest/runner.py",
+      "operator": "equality_flip",
+      "line": 126,
+      "description": "== -> !=",
+      "diff": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -124,5 +124,5 @@\n                 sys.stdout.flush()\n             errors.append('\\n'.join(example.repr_failure()))\n-            if len(enabled_examples) == 1:\n+            if len(enabled_examples) != 1:\n                 raise\n         summaries.append(summary)\n",
+      "sha256": "55e2cf8a8678a386d61a1606501841cb85cdaee240ce84b71f53263dd7336518"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 5.7,
+     "est_usd": 0.00094,
+     "evidence_sha256": "91c8c18dbd053317fa61b8aa878e156979a209bb3c127a904bf53d3a23b8d570"
+    },
+    {
+     "cell": "repaired-m1-call_drop-L125",
+     "mutant": {
+      "path": "xdoctest/runner.py",
+      "operator": "call_drop",
+      "line": 125,
+      "description": "drop call statement errors.append(...)",
+      "diff": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -123,5 +123,5 @@\n                 sys.stdout.write('F')\n                 sys.stdout.flush()\n-            errors.append('\\n'.join(example.repr_failure()))\n+            pass\n             if len(enabled_examples) == 1:\n                 raise\n",
+      "sha256": "6c657d2160326fa2558076cf11a31f24a4d7c94926f6306aa439e5ff0545c439"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 5.5,
+     "est_usd": 0.00092,
+     "evidence_sha256": "c4d65b217e100fa857103d95b86a247dd1730e62c4346ad1f1d6f9fd0f1e0043"
+    },
+    {
+     "cell": "repaired-m2-bool_flip-L121",
+     "mutant": {
+      "path": "xdoctest/runner.py",
+      "operator": "bool_flip",
+      "line": 121,
+      "description": "False -> True",
+      "diff": "--- a/xdoctest/runner.py\n+++ b/xdoctest/runner.py\n@@ -119,5 +119,5 @@\n                 sys.stdout.flush()\n         except Exception:\n-            summary = {'passed': False}\n+            summary = {'passed': True}\n             if not verbose:\n                 sys.stdout.write('F')\n",
+      "sha256": "3e3ec362a9cb3c68b66425f88b3eb670eb8b0f4a7cd5fb24c898094250314bd8"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 9.8,
+     "est_usd": 0.00162,
+     "evidence_sha256": "111fcf47c03f1e21aadc6be012be552179906aa0ee3a7f7b90f2d0c455a0da8d"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m1-call_drop-L125"
+   ],
+   "survivors_repaired": [],
+   "weak_original": true,
+   "weak_repaired": false,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-002976",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002976",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-002976/4f05781b8b72b720",
+   "patch_sha256": "9fb22e5f605ff0c34d517a37225c5e9f2c0fef7e0eaacf000da02a8a52bcb9e2",
+   "python_targets": [
+    "wagtail/admin/search.py",
+    "wagtail/admin/widgets/button.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 10.4,
+    "est_usd": 0.00172,
+    "evidence_sha256": "ed7e6de06ff8913b99901c4d67f68376944743208935744e94583669a9d6cb1b"
+   },
+   "mutants": [
+    {
+     "path": "wagtail/admin/search.py",
+     "operator": "boundary_flip",
+     "line": 38,
+     "description": "<= -> <",
+     "diff": "--- a/wagtail/admin/search.py\n+++ b/wagtail/admin/search.py\n@@ -36,5 +36,5 @@\n         if not isinstance(other, SearchArea):\n             return NotImplemented\n-        return (self.order, self.label) <= (other.order, other.label)\n+        return (self.order, self.label) < (other.order, other.label)\n \n     def __gt__(self, other):\n",
+     "sha256": "18c16f328dd7d68fa7bef810d02e4a02c15294a23ecc3802637f409fa160a6c7"
+    },
+    {
+     "path": "wagtail/admin/widgets/button.py",
+     "operator": "boundary_flip",
+     "line": 45,
+     "description": "<= -> <",
+     "diff": "--- a/wagtail/admin/widgets/button.py\n+++ b/wagtail/admin/widgets/button.py\n@@ -43,5 +43,5 @@\n         if not isinstance(other, Button):\n             return NotImplemented\n-        return (self.priority, self.label) <= (other.priority, other.label)\n+        return (self.priority, self.label) < (other.priority, other.label)\n \n     def __gt__(self, other):\n",
+     "sha256": "2ef1a3684df4f39af01aecb1a1965219c62fe5d0842e0a843f0d34cccff56166"
+    },
+    {
+     "path": "wagtail/admin/search.py",
+     "operator": "guard_drop",
+     "line": 31,
+     "description": "drop `if` guard ending in return",
+     "diff": "--- a/wagtail/admin/search.py\n+++ b/wagtail/admin/search.py\n@@ -29,6 +29,5 @@\n \n     def __lt__(self, other):\n-        if not isinstance(other, SearchArea):\n-            return NotImplemented\n+        pass\n         return (self.order, self.label) < (other.order, other.label)\n \n",
+     "sha256": "b1bd8d11c2834f12f8f289feb63c983e6ce6bbda1758a0589012942221b896cb"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-boundary_flip-L38",
+     "mutant": {
+      "path": "wagtail/admin/search.py",
+      "operator": "boundary_flip",
+      "line": 38,
+      "description": "<= -> <",
+      "diff": "--- a/wagtail/admin/search.py\n+++ b/wagtail/admin/search.py\n@@ -36,5 +36,5 @@\n         if not isinstance(other, SearchArea):\n             return NotImplemented\n-        return (self.order, self.label) <= (other.order, other.label)\n+        return (self.order, self.label) < (other.order, other.label)\n \n     def __gt__(self, other):\n",
+      "sha256": "18c16f328dd7d68fa7bef810d02e4a02c15294a23ecc3802637f409fa160a6c7"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 12.1,
+     "est_usd": 0.002,
+     "evidence_sha256": "6ad3f522102d61c221a600a5ea9fe11e71e23c0aabf390f27940231da58d2b8b"
+    },
+    {
+     "cell": "original-m1-boundary_flip-L45",
+     "mutant": {
+      "path": "wagtail/admin/widgets/button.py",
+      "operator": "boundary_flip",
+      "line": 45,
+      "description": "<= -> <",
+      "diff": "--- a/wagtail/admin/widgets/button.py\n+++ b/wagtail/admin/widgets/button.py\n@@ -43,5 +43,5 @@\n         if not isinstance(other, Button):\n             return NotImplemented\n-        return (self.priority, self.label) <= (other.priority, other.label)\n+        return (self.priority, self.label) < (other.priority, other.label)\n \n     def __gt__(self, other):\n",
+      "sha256": "2ef1a3684df4f39af01aecb1a1965219c62fe5d0842e0a843f0d34cccff56166"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 7.0,
+     "est_usd": 0.00115,
+     "evidence_sha256": "d0ab91c04d2d311ee49afe2b49096d1eb78111c31275263afe57689296c56277"
+    },
+    {
+     "cell": "original-m2-guard_drop-L31",
+     "mutant": {
+      "path": "wagtail/admin/search.py",
+      "operator": "guard_drop",
+      "line": 31,
+      "description": "drop `if` guard ending in return",
+      "diff": "--- a/wagtail/admin/search.py\n+++ b/wagtail/admin/search.py\n@@ -29,6 +29,5 @@\n \n     def __lt__(self, other):\n-        if not isinstance(other, SearchArea):\n-            return NotImplemented\n+        pass\n         return (self.order, self.label) < (other.order, other.label)\n \n",
+      "sha256": "b1bd8d11c2834f12f8f289feb63c983e6ce6bbda1758a0589012942221b896cb"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 9.1,
+     "est_usd": 0.0015,
+     "evidence_sha256": "2ae21930b7ebe71504a0bd668d2829037485a81c95dc6d56616968d7b2b899a8"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-boundary_flip-L38",
+     "mutant": {
+      "path": "wagtail/admin/search.py",
+      "operator": "boundary_flip",
+      "line": 38,
+      "description": "<= -> <",
+      "diff": "--- a/wagtail/admin/search.py\n+++ b/wagtail/admin/search.py\n@@ -36,5 +36,5 @@\n         if not isinstance(other, SearchArea):\n             return NotImplemented\n-        return (self.order, self.label) <= (other.order, other.label)\n+        return (self.order, self.label) < (other.order, other.label)\n \n     def __gt__(self, other):\n",
+      "sha256": "18c16f328dd7d68fa7bef810d02e4a02c15294a23ecc3802637f409fa160a6c7"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 6.8,
+     "est_usd": 0.00112,
+     "evidence_sha256": "6ad3f522102d61c221a600a5ea9fe11e71e23c0aabf390f27940231da58d2b8b"
+    },
+    {
+     "cell": "repaired-m1-boundary_flip-L45",
+     "mutant": {
+      "path": "wagtail/admin/widgets/button.py",
+      "operator": "boundary_flip",
+      "line": 45,
+      "description": "<= -> <",
+      "diff": "--- a/wagtail/admin/widgets/button.py\n+++ b/wagtail/admin/widgets/button.py\n@@ -43,5 +43,5 @@\n         if not isinstance(other, Button):\n             return NotImplemented\n-        return (self.priority, self.label) <= (other.priority, other.label)\n+        return (self.priority, self.label) < (other.priority, other.label)\n \n     def __gt__(self, other):\n",
+      "sha256": "2ef1a3684df4f39af01aecb1a1965219c62fe5d0842e0a843f0d34cccff56166"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 12.0,
+     "est_usd": 0.00198,
+     "evidence_sha256": "d0ab91c04d2d311ee49afe2b49096d1eb78111c31275263afe57689296c56277"
+    },
+    {
+     "cell": "repaired-m2-guard_drop-L31",
+     "mutant": {
+      "path": "wagtail/admin/search.py",
+      "operator": "guard_drop",
+      "line": 31,
+      "description": "drop `if` guard ending in return",
+      "diff": "--- a/wagtail/admin/search.py\n+++ b/wagtail/admin/search.py\n@@ -29,6 +29,5 @@\n \n     def __lt__(self, other):\n-        if not isinstance(other, SearchArea):\n-            return NotImplemented\n+        pass\n         return (self.order, self.label) < (other.order, other.label)\n \n",
+      "sha256": "b1bd8d11c2834f12f8f289feb63c983e6ce6bbda1758a0589012942221b896cb"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 7.4,
+     "est_usd": 0.00123,
+     "evidence_sha256": "2ae21930b7ebe71504a0bd668d2829037485a81c95dc6d56616968d7b2b899a8"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [],
+   "survivors_repaired": [],
+   "weak_original": false,
+   "weak_repaired": false,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-001267",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001267",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-001267/3e58579669df798e",
+   "patch_sha256": "3178b703811b5d447c642a935f679e29e49b8089e212a09b9416a49cc35de4ba",
+   "python_targets": [
+    "redash/controllers.py",
+    "redash/models.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 13.5,
+    "est_usd": 0.00223,
+    "evidence_sha256": "b7149d53a25139209526c53621dc58231ce2b5f9b2de44ae77ec20e6ad5e11aa"
+   },
+   "mutants": [
+    {
+     "path": "redash/controllers.py",
+     "operator": "call_drop",
+     "line": 335,
+     "description": "drop call statement api.add_resource(...)",
+     "diff": "--- a/redash/controllers.py\n+++ b/redash/controllers.py\n@@ -333,5 +333,5 @@\n             abort(404, message=\"Query not found.\")\n \n-api.add_resource(QuerySearchAPI, '/api/queries/search', endpoint='queries_search')\n+pass\n api.add_resource(QueryListAPI, '/api/queries', endpoint='queries')\n api.add_resource(QueryAPI, '/api/queries/<query_id>', endpoint='query')\n",
+     "sha256": "a9257e58aad9e93bafdc18e029b0730d8afc49bdca653ab6cd8e27276946dbe5"
+    },
+    {
+     "path": "redash/controllers.py",
+     "operator": "keyword_drop",
+     "line": 335,
+     "description": "drop keyword argument endpoint=",
+     "diff": "--- a/redash/controllers.py\n+++ b/redash/controllers.py\n@@ -333,5 +333,5 @@\n             abort(404, message=\"Query not found.\")\n \n-api.add_resource(QuerySearchAPI, '/api/queries/search', endpoint='queries_search')\n+api.add_resource(QuerySearchAPI, '/api/queries/search')\n api.add_resource(QueryListAPI, '/api/queries', endpoint='queries')\n api.add_resource(QueryAPI, '/api/queries/<query_id>', endpoint='query')\n",
+     "sha256": "459c2ee4ca5734c315c97116f7ced96bfe07add0ad7c29d75ce0fd36b6b0acfe"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-call_drop-L335",
+     "mutant": {
+      "path": "redash/controllers.py",
+      "operator": "call_drop",
+      "line": 335,
+      "description": "drop call statement api.add_resource(...)",
+      "diff": "--- a/redash/controllers.py\n+++ b/redash/controllers.py\n@@ -333,5 +333,5 @@\n             abort(404, message=\"Query not found.\")\n \n-api.add_resource(QuerySearchAPI, '/api/queries/search', endpoint='queries_search')\n+pass\n api.add_resource(QueryListAPI, '/api/queries', endpoint='queries')\n api.add_resource(QueryAPI, '/api/queries/<query_id>', endpoint='query')\n",
+      "sha256": "a9257e58aad9e93bafdc18e029b0730d8afc49bdca653ab6cd8e27276946dbe5"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 15.7,
+     "est_usd": 0.0026,
+     "evidence_sha256": "2cab48576f886c57fe0f524167bc765a163ddcd4873e62fcbb804b6cdb477963"
+    },
+    {
+     "cell": "original-m1-keyword_drop-L335",
+     "mutant": {
+      "path": "redash/controllers.py",
+      "operator": "keyword_drop",
+      "line": 335,
+      "description": "drop keyword argument endpoint=",
+      "diff": "--- a/redash/controllers.py\n+++ b/redash/controllers.py\n@@ -333,5 +333,5 @@\n             abort(404, message=\"Query not found.\")\n \n-api.add_resource(QuerySearchAPI, '/api/queries/search', endpoint='queries_search')\n+api.add_resource(QuerySearchAPI, '/api/queries/search')\n api.add_resource(QueryListAPI, '/api/queries', endpoint='queries')\n api.add_resource(QueryAPI, '/api/queries/<query_id>', endpoint='query')\n",
+      "sha256": "459c2ee4ca5734c315c97116f7ced96bfe07add0ad7c29d75ce0fd36b6b0acfe"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 15.4,
+     "est_usd": 0.00255,
+     "evidence_sha256": "017991819111a0553761e4c497b741634742935947533145cfa5229e71801a79"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-call_drop-L335",
+     "mutant": {
+      "path": "redash/controllers.py",
+      "operator": "call_drop",
+      "line": 335,
+      "description": "drop call statement api.add_resource(...)",
+      "diff": "--- a/redash/controllers.py\n+++ b/redash/controllers.py\n@@ -333,5 +333,5 @@\n             abort(404, message=\"Query not found.\")\n \n-api.add_resource(QuerySearchAPI, '/api/queries/search', endpoint='queries_search')\n+pass\n api.add_resource(QueryListAPI, '/api/queries', endpoint='queries')\n api.add_resource(QueryAPI, '/api/queries/<query_id>', endpoint='query')\n",
+      "sha256": "a9257e58aad9e93bafdc18e029b0730d8afc49bdca653ab6cd8e27276946dbe5"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 11.5,
+     "est_usd": 0.00191,
+     "evidence_sha256": "5c1f091d68bb7384b0fd15515a3f8a58332c9576fc5f856cc141fa7c410c804d"
+    },
+    {
+     "cell": "repaired-m1-keyword_drop-L335",
+     "mutant": {
+      "path": "redash/controllers.py",
+      "operator": "keyword_drop",
+      "line": 335,
+      "description": "drop keyword argument endpoint=",
+      "diff": "--- a/redash/controllers.py\n+++ b/redash/controllers.py\n@@ -333,5 +333,5 @@\n             abort(404, message=\"Query not found.\")\n \n-api.add_resource(QuerySearchAPI, '/api/queries/search', endpoint='queries_search')\n+api.add_resource(QuerySearchAPI, '/api/queries/search')\n api.add_resource(QueryListAPI, '/api/queries', endpoint='queries')\n api.add_resource(QueryAPI, '/api/queries/<query_id>', endpoint='query')\n",
+      "sha256": "459c2ee4ca5734c315c97116f7ced96bfe07add0ad7c29d75ce0fd36b6b0acfe"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 15.9,
+     "est_usd": 0.00262,
+     "evidence_sha256": "acdf8b56ff7cb5eef858d45ddcad13112e792cf7aa168489d3ec0e9b817cafa5"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m0-call_drop-L335",
+    "original-m1-keyword_drop-L335"
+   ],
+   "survivors_repaired": [
+    "repaired-m1-keyword_drop-L335"
+   ],
+   "weak_original": true,
+   "weak_repaired": true,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-000682",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000682",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000682/eafb146c40dccbd8",
+   "patch_sha256": "247baff2adbecf684aaa86f349fb0465209f1465b8e6f67e8c5e32b77a57cb09",
+   "python_targets": [
+    "c7n/resources/sns.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 46.1,
+    "est_usd": 0.00762,
+    "evidence_sha256": "1496f4d7ff59b56ff632e00b5e606f81b6764c94b21197cf6c5db7de30496c23"
+   },
+   "mutants": [
+    {
+     "path": "c7n/resources/sns.py",
+     "operator": "call_drop",
+     "line": 316,
+     "description": "drop call statement sns.set_topic_attributes(...)",
+     "diff": "--- a/c7n/resources/sns.py\n+++ b/c7n/resources/sns.py\n@@ -314,8 +314,4 @@\n \n         for r in resources:\n-            sns.set_topic_attributes(\n-                TopicArn=r['TopicArn'],\n-                AttributeName='KmsMasterKeyId',\n-                AttributeValue=key\n-            )\n+            pass\n         return resources\n",
+     "sha256": "fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c"
+    },
+    {
+     "path": "c7n/resources/sns.py",
+     "operator": "bool_flip",
+     "line": 310,
+     "description": "True -> False",
+     "diff": "--- a/c7n/resources/sns.py\n+++ b/c7n/resources/sns.py\n@@ -308,5 +308,5 @@\n         sns = local_session(self.manager.session_factory).client('sns')\n \n-        if self.data.get('enabled', True):\n+        if self.data.get('enabled', False):\n             key = self.data.get('key', 'alias/aws/sns')\n         else:\n",
+     "sha256": "bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-call_drop-L316",
+     "mutant": {
+      "path": "c7n/resources/sns.py",
+      "operator": "call_drop",
+      "line": 316,
+      "description": "drop call statement sns.set_topic_attributes(...)",
+      "diff": "--- a/c7n/resources/sns.py\n+++ b/c7n/resources/sns.py\n@@ -314,8 +314,4 @@\n \n         for r in resources:\n-            sns.set_topic_attributes(\n-                TopicArn=r['TopicArn'],\n-                AttributeName='KmsMasterKeyId',\n-                AttributeValue=key\n-            )\n+            pass\n         return resources\n",
+      "sha256": "fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 45.5,
+     "est_usd": 0.00752,
+     "evidence_sha256": "aa393fc69dea3ea06742c4b03fc562aab641196559a18cd17d67e68dd11b43c7"
+    },
+    {
+     "cell": "original-m1-bool_flip-L310",
+     "mutant": {
+      "path": "c7n/resources/sns.py",
+      "operator": "bool_flip",
+      "line": 310,
+      "description": "True -> False",
+      "diff": "--- a/c7n/resources/sns.py\n+++ b/c7n/resources/sns.py\n@@ -308,5 +308,5 @@\n         sns = local_session(self.manager.session_factory).client('sns')\n \n-        if self.data.get('enabled', True):\n+        if self.data.get('enabled', False):\n             key = self.data.get('key', 'alias/aws/sns')\n         else:\n",
+      "sha256": "bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 62.5,
+     "est_usd": 0.01032,
+     "evidence_sha256": "f3bc5edaab36211ec1b762d12d6282da5382540c63117b6ad313dfc145b45508"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-call_drop-L316",
+     "mutant": {
+      "path": "c7n/resources/sns.py",
+      "operator": "call_drop",
+      "line": 316,
+      "description": "drop call statement sns.set_topic_attributes(...)",
+      "diff": "--- a/c7n/resources/sns.py\n+++ b/c7n/resources/sns.py\n@@ -314,8 +314,4 @@\n \n         for r in resources:\n-            sns.set_topic_attributes(\n-                TopicArn=r['TopicArn'],\n-                AttributeName='KmsMasterKeyId',\n-                AttributeValue=key\n-            )\n+            pass\n         return resources\n",
+      "sha256": "fa4e9af2f47d9d4c811e695f3c488e967e7d1b766678262c5dcfb7d14e38d53c"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 45.8,
+     "est_usd": 0.00756,
+     "evidence_sha256": "eac5696a8bf4ce742a5a5f71b1569f0c37eada96b40c3379a2927d3f233c1317"
+    },
+    {
+     "cell": "repaired-m1-bool_flip-L310",
+     "mutant": {
+      "path": "c7n/resources/sns.py",
+      "operator": "bool_flip",
+      "line": 310,
+      "description": "True -> False",
+      "diff": "--- a/c7n/resources/sns.py\n+++ b/c7n/resources/sns.py\n@@ -308,5 +308,5 @@\n         sns = local_session(self.manager.session_factory).client('sns')\n \n-        if self.data.get('enabled', True):\n+        if self.data.get('enabled', False):\n             key = self.data.get('key', 'alias/aws/sns')\n         else:\n",
+      "sha256": "bc5fd4c5a2db09a08ebdb3728c493a6c4c179a3c2daa8e9ba0c891a5b21bd240"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 44.8,
+     "est_usd": 0.0074,
+     "evidence_sha256": "f0f6c4a81da6a0b018771bca86e35504c2c8b630a2185090f2439868939fef42"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m0-call_drop-L316",
+    "original-m1-bool_flip-L310"
+   ],
+   "survivors_repaired": [],
+   "weak_original": true,
+   "weak_repaired": false,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-000232",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000232",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000232/80c893b7b6514f71",
+   "patch_sha256": "148aadcece9f7510e435bba1886888439b16532011daabd4e78de0e95f68fdaf",
+   "python_targets": [
+    "quantecon/__init__.py",
+    "quantecon/gridtools.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 31.2,
+    "est_usd": 0.00515,
+    "evidence_sha256": "97cdb83072707aa8b1d90f91b48d721b90182584f72f666a5ea10d73aca550e8"
+   },
+   "mutants": [
+    {
+     "path": "quantecon/gridtools.py",
+     "operator": "boundary_flip",
+     "line": 237,
+     "description": "<= -> <",
+     "diff": "--- a/quantecon/gridtools.py\n+++ b/quantecon/gridtools.py\n@@ -235,5 +235,5 @@\n     for t in range(m):\n         for i in range(n):\n-            if X[t, i] <= nodes[i][0]:\n+            if X[t, i] < nodes[i][0]:\n                 ind[i] = 0\n             elif X[t, i] >= nodes[i][-1]:\n",
+     "sha256": "7809694f61997b1d014d54e2d58b90a5ebe4f5fd4c11c6ab3802ec1266c695f3"
+    },
+    {
+     "path": "quantecon/gridtools.py",
+     "operator": "equality_flip",
+     "line": 181,
+     "description": "== -> !=",
+     "diff": "--- a/quantecon/gridtools.py\n+++ b/quantecon/gridtools.py\n@@ -179,5 +179,5 @@\n     is_1d = False\n     shape = x.shape\n-    if len(shape) == 1:\n+    if len(shape) != 1:\n         is_1d = True\n         x = x[np.newaxis]\n",
+     "sha256": "82270f9af56f569a649bbbf70d8183dea8a0e4b00ccd143ffd3de3d81bbb2767"
+    },
+    {
+     "path": "quantecon/gridtools.py",
+     "operator": "guard_drop",
+     "line": 189,
+     "description": "drop `if` guard ending in raise",
+     "diff": "--- a/quantecon/gridtools.py\n+++ b/quantecon/gridtools.py\n@@ -187,8 +187,5 @@\n \n     n = shape[1-is_1d]\n-    if len(nodes) != n:\n-        msg = 'point `x`' if is_1d else 'points in `x`'\n-        msg += ' must have same length as `nodes`'\n-        raise ValueError(msg)\n+    pass\n \n     out = _cartesian_nearest_indices(x, nodes, order=order)\n",
+     "sha256": "34a5a63a2bbc62d3c0b206a3720a9e560bd31e1eafad8b18d503b42cb5f93ccc"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-boundary_flip-L237",
+     "mutant": {
+      "path": "quantecon/gridtools.py",
+      "operator": "boundary_flip",
+      "line": 237,
+      "description": "<= -> <",
+      "diff": "--- a/quantecon/gridtools.py\n+++ b/quantecon/gridtools.py\n@@ -235,5 +235,5 @@\n     for t in range(m):\n         for i in range(n):\n-            if X[t, i] <= nodes[i][0]:\n+            if X[t, i] < nodes[i][0]:\n                 ind[i] = 0\n             elif X[t, i] >= nodes[i][-1]:\n",
+      "sha256": "7809694f61997b1d014d54e2d58b90a5ebe4f5fd4c11c6ab3802ec1266c695f3"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 34.9,
+     "est_usd": 0.00577,
+     "evidence_sha256": "8fe780bd36f672ca3dc3b86acfad6aeb41172394810ded321b911290931357d3"
+    },
+    {
+     "cell": "original-m1-equality_flip-L181",
+     "mutant": {
+      "path": "quantecon/gridtools.py",
+      "operator": "equality_flip",
+      "line": 181,
+      "description": "== -> !=",
+      "diff": "--- a/quantecon/gridtools.py\n+++ b/quantecon/gridtools.py\n@@ -179,5 +179,5 @@\n     is_1d = False\n     shape = x.shape\n-    if len(shape) == 1:\n+    if len(shape) != 1:\n         is_1d = True\n         x = x[np.newaxis]\n",
+      "sha256": "82270f9af56f569a649bbbf70d8183dea8a0e4b00ccd143ffd3de3d81bbb2767"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 28.4,
+     "est_usd": 0.00469,
+     "evidence_sha256": "eb43b99e1dc1ebc6ca9a96fe8e925e332fe35afa3734471d18de715d56b23c1c"
+    },
+    {
+     "cell": "original-m2-guard_drop-L189",
+     "mutant": {
+      "path": "quantecon/gridtools.py",
+      "operator": "guard_drop",
+      "line": 189,
+      "description": "drop `if` guard ending in raise",
+      "diff": "--- a/quantecon/gridtools.py\n+++ b/quantecon/gridtools.py\n@@ -187,8 +187,5 @@\n \n     n = shape[1-is_1d]\n-    if len(nodes) != n:\n-        msg = 'point `x`' if is_1d else 'points in `x`'\n-        msg += ' must have same length as `nodes`'\n-        raise ValueError(msg)\n+    pass\n \n     out = _cartesian_nearest_indices(x, nodes, order=order)\n",
+      "sha256": "34a5a63a2bbc62d3c0b206a3720a9e560bd31e1eafad8b18d503b42cb5f93ccc"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 43.2,
+     "est_usd": 0.00713,
+     "evidence_sha256": "c1349db1199a69107ee5decbc848e4a4c1cd282c5525913e6a1dee74ea066ee6"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-boundary_flip-L237",
+     "mutant": {
+      "path": "quantecon/gridtools.py",
+      "operator": "boundary_flip",
+      "line": 237,
+      "description": "<= -> <",
+      "diff": "--- a/quantecon/gridtools.py\n+++ b/quantecon/gridtools.py\n@@ -235,5 +235,5 @@\n     for t in range(m):\n         for i in range(n):\n-            if X[t, i] <= nodes[i][0]:\n+            if X[t, i] < nodes[i][0]:\n                 ind[i] = 0\n             elif X[t, i] >= nodes[i][-1]:\n",
+      "sha256": "7809694f61997b1d014d54e2d58b90a5ebe4f5fd4c11c6ab3802ec1266c695f3"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 46.1,
+     "est_usd": 0.00762,
+     "evidence_sha256": "95c9495051388aafa00a897a963624423780aa9192962265e64bb8a7f31e81c9"
+    },
+    {
+     "cell": "repaired-m1-equality_flip-L181",
+     "mutant": {
+      "path": "quantecon/gridtools.py",
+      "operator": "equality_flip",
+      "line": 181,
+      "description": "== -> !=",
+      "diff": "--- a/quantecon/gridtools.py\n+++ b/quantecon/gridtools.py\n@@ -179,5 +179,5 @@\n     is_1d = False\n     shape = x.shape\n-    if len(shape) == 1:\n+    if len(shape) != 1:\n         is_1d = True\n         x = x[np.newaxis]\n",
+      "sha256": "82270f9af56f569a649bbbf70d8183dea8a0e4b00ccd143ffd3de3d81bbb2767"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 19.0,
+     "est_usd": 0.00314,
+     "evidence_sha256": "7c2156b093557bbc2cca972756a7f8174d039800fb9f712f26fa84ff4ec6db69"
+    },
+    {
+     "cell": "repaired-m2-guard_drop-L189",
+     "mutant": {
+      "path": "quantecon/gridtools.py",
+      "operator": "guard_drop",
+      "line": 189,
+      "description": "drop `if` guard ending in raise",
+      "diff": "--- a/quantecon/gridtools.py\n+++ b/quantecon/gridtools.py\n@@ -187,8 +187,5 @@\n \n     n = shape[1-is_1d]\n-    if len(nodes) != n:\n-        msg = 'point `x`' if is_1d else 'points in `x`'\n-        msg += ' must have same length as `nodes`'\n-        raise ValueError(msg)\n+    pass\n \n     out = _cartesian_nearest_indices(x, nodes, order=order)\n",
+      "sha256": "34a5a63a2bbc62d3c0b206a3720a9e560bd31e1eafad8b18d503b42cb5f93ccc"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 43.4,
+     "est_usd": 0.00718,
+     "evidence_sha256": "3b05a68c97d5c7fb341dd6da8936c56b785e823d93007ae1cbadbea592cc847d"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m0-boundary_flip-L237"
+   ],
+   "survivors_repaired": [
+    "repaired-m0-boundary_flip-L237"
+   ],
+   "weak_original": true,
+   "weak_repaired": true,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-002609",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002609",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-002609/fc910e70ad06299c",
+   "patch_sha256": "ae84b337d6bd205663f3aac5724a36e7fafac2b9a1b401b5a6c9e6f0de6577ed",
+   "python_targets": [
+    "lib/cartopy/io/shapereader.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 17.9,
+    "est_usd": 0.00296,
+    "evidence_sha256": "dba8c7f068b7a45637e8f9457eb33dd9f86b255d099853149708788200798f31"
+   },
+   "mutants": [
+    {
+     "path": "lib/cartopy/io/shapereader.py",
+     "operator": "guard_drop",
+     "line": 383,
+     "description": "drop `if` guard ending in raise",
+     "diff": "--- a/lib/cartopy/io/shapereader.py\n+++ b/lib/cartopy/io/shapereader.py\n@@ -381,6 +381,5 @@\n                 # if they are missing, continue on otherwise as the other\n                 # extensions are optional\n-                if member_path.endswith(('.shp', '.shx', '.dbf')):\n-                    raise\n+                pass\n                 continue\n             target_path.with_suffix(Path(member_path).suffix).write_bytes(\n",
+     "sha256": "329a8e0a70f0fa53d85ccb742204b63e70ec64256610fb09adf2d902499242f5"
+    },
+    {
+     "path": "lib/cartopy/io/shapereader.py",
+     "operator": "handler_drop",
+     "line": 379,
+     "description": "except handler body -> raise (handler omitted)",
+     "diff": "--- a/lib/cartopy/io/shapereader.py\n+++ b/lib/cartopy/io/shapereader.py\n@@ -381,7 +381,5 @@\n                 # if they are missing, continue on otherwise as the other\n                 # extensions are optional\n-                if member_path.endswith(('.shp', '.shx', '.dbf')):\n-                    raise\n-                continue\n+                raise\n             target_path.with_suffix(Path(member_path).suffix).write_bytes(\n                 zfh.open(member).read()\n",
+     "sha256": "34e13c469f55e94dcaccff632fb454ac4ad8ef2086c8868d24399c007fac9cc7"
+    },
+    {
+     "path": "lib/cartopy/io/shapereader.py",
+     "operator": "call_drop",
+     "line": 345,
+     "description": "drop call statement Downloader.__init__(...)",
+     "diff": "--- a/lib/cartopy/io/shapereader.py\n+++ b/lib/cartopy/io/shapereader.py\n@@ -343,7 +343,5 @@\n                  ):\n         # adds some NE defaults to the __init__ of a Downloader\n-        Downloader.__init__(self, url_template,\n-                            target_path_template,\n-                            pre_downloaded_path_template)\n+        pass\n \n     def zip_file_contents(self, format_dict):\n",
+     "sha256": "b61d17b91fc73b4f8efee496e5e63ed5f5cc117157850e2a7d0e3bf8e40b77d8"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-guard_drop-L383",
+     "mutant": {
+      "path": "lib/cartopy/io/shapereader.py",
+      "operator": "guard_drop",
+      "line": 383,
+      "description": "drop `if` guard ending in raise",
+      "diff": "--- a/lib/cartopy/io/shapereader.py\n+++ b/lib/cartopy/io/shapereader.py\n@@ -381,6 +381,5 @@\n                 # if they are missing, continue on otherwise as the other\n                 # extensions are optional\n-                if member_path.endswith(('.shp', '.shx', '.dbf')):\n-                    raise\n+                pass\n                 continue\n             target_path.with_suffix(Path(member_path).suffix).write_bytes(\n",
+      "sha256": "329a8e0a70f0fa53d85ccb742204b63e70ec64256610fb09adf2d902499242f5"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 16.6,
+     "est_usd": 0.00274,
+     "evidence_sha256": "d756dbc73459b3e71abc416bf0d3718b39cb325d6788c2e992203c604659810d"
+    },
+    {
+     "cell": "original-m1-handler_drop-L379",
+     "mutant": {
+      "path": "lib/cartopy/io/shapereader.py",
+      "operator": "handler_drop",
+      "line": 379,
+      "description": "except handler body -> raise (handler omitted)",
+      "diff": "--- a/lib/cartopy/io/shapereader.py\n+++ b/lib/cartopy/io/shapereader.py\n@@ -381,7 +381,5 @@\n                 # if they are missing, continue on otherwise as the other\n                 # extensions are optional\n-                if member_path.endswith(('.shp', '.shx', '.dbf')):\n-                    raise\n-                continue\n+                raise\n             target_path.with_suffix(Path(member_path).suffix).write_bytes(\n                 zfh.open(member).read()\n",
+      "sha256": "34e13c469f55e94dcaccff632fb454ac4ad8ef2086c8868d24399c007fac9cc7"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 16.1,
+     "est_usd": 0.00266,
+     "evidence_sha256": "3041123053150fbb82b1f0b6d84c7ac26e630362bf0c54aad5bfb36c9b5611fa"
+    },
+    {
+     "cell": "original-m2-call_drop-L345",
+     "mutant": {
+      "path": "lib/cartopy/io/shapereader.py",
+      "operator": "call_drop",
+      "line": 345,
+      "description": "drop call statement Downloader.__init__(...)",
+      "diff": "--- a/lib/cartopy/io/shapereader.py\n+++ b/lib/cartopy/io/shapereader.py\n@@ -343,7 +343,5 @@\n                  ):\n         # adds some NE defaults to the __init__ of a Downloader\n-        Downloader.__init__(self, url_template,\n-                            target_path_template,\n-                            pre_downloaded_path_template)\n+        pass\n \n     def zip_file_contents(self, format_dict):\n",
+      "sha256": "b61d17b91fc73b4f8efee496e5e63ed5f5cc117157850e2a7d0e3bf8e40b77d8"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 11.4,
+     "est_usd": 0.00188,
+     "evidence_sha256": "32c1873a24ab6eb1ea21918db16da247ed81ef22c0fddc6314bcc0e756213492"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-guard_drop-L383",
+     "mutant": {
+      "path": "lib/cartopy/io/shapereader.py",
+      "operator": "guard_drop",
+      "line": 383,
+      "description": "drop `if` guard ending in raise",
+      "diff": "--- a/lib/cartopy/io/shapereader.py\n+++ b/lib/cartopy/io/shapereader.py\n@@ -381,6 +381,5 @@\n                 # if they are missing, continue on otherwise as the other\n                 # extensions are optional\n-                if member_path.endswith(('.shp', '.shx', '.dbf')):\n-                    raise\n+                pass\n                 continue\n             target_path.with_suffix(Path(member_path).suffix).write_bytes(\n",
+      "sha256": "329a8e0a70f0fa53d85ccb742204b63e70ec64256610fb09adf2d902499242f5"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 20.1,
+     "est_usd": 0.00333,
+     "evidence_sha256": "030c0ce1d44d47479fa607368d6fb23f5706fa891dc3aa29c0f8572e47bf8059"
+    },
+    {
+     "cell": "repaired-m1-handler_drop-L379",
+     "mutant": {
+      "path": "lib/cartopy/io/shapereader.py",
+      "operator": "handler_drop",
+      "line": 379,
+      "description": "except handler body -> raise (handler omitted)",
+      "diff": "--- a/lib/cartopy/io/shapereader.py\n+++ b/lib/cartopy/io/shapereader.py\n@@ -381,7 +381,5 @@\n                 # if they are missing, continue on otherwise as the other\n                 # extensions are optional\n-                if member_path.endswith(('.shp', '.shx', '.dbf')):\n-                    raise\n-                continue\n+                raise\n             target_path.with_suffix(Path(member_path).suffix).write_bytes(\n                 zfh.open(member).read()\n",
+      "sha256": "34e13c469f55e94dcaccff632fb454ac4ad8ef2086c8868d24399c007fac9cc7"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 16.0,
+     "est_usd": 0.00264,
+     "evidence_sha256": "a9d810273ff05020e8066f16eb6f88bd14b566a14af8e45da7b689647d30fff2"
+    },
+    {
+     "cell": "repaired-m2-call_drop-L345",
+     "mutant": {
+      "path": "lib/cartopy/io/shapereader.py",
+      "operator": "call_drop",
+      "line": 345,
+      "description": "drop call statement Downloader.__init__(...)",
+      "diff": "--- a/lib/cartopy/io/shapereader.py\n+++ b/lib/cartopy/io/shapereader.py\n@@ -343,7 +343,5 @@\n                  ):\n         # adds some NE defaults to the __init__ of a Downloader\n-        Downloader.__init__(self, url_template,\n-                            target_path_template,\n-                            pre_downloaded_path_template)\n+        pass\n \n     def zip_file_contents(self, format_dict):\n",
+      "sha256": "b61d17b91fc73b4f8efee496e5e63ed5f5cc117157850e2a7d0e3bf8e40b77d8"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 16.6,
+     "est_usd": 0.00274,
+     "evidence_sha256": "b902f2e158beef5b49adc726e5fb4011ed3fe976aeeaf80ef54a116ce496381b"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [],
+   "survivors_repaired": [],
+   "weak_original": false,
+   "weak_repaired": false,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-000079",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000079",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000079/20d92a160e7e8756",
+   "patch_sha256": "c85458c4caf0e9671ca63566c9f85c7794fcd94c868fcb29034ceed9690abfe9",
+   "python_targets": [
+    "impedance/models/circuits/__init__.py",
+    "impedance/models/circuits/circuits.py",
+    "impedance/models/circuits/elements.py",
+    "impedance/models/circuits/fitting.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 11.0,
+    "est_usd": 0.00181,
+    "evidence_sha256": "6ca62f1da69c01cd8b8a34709aec9cd8d71cc8f758233cf3ab8ec868feb8a58a"
+   },
+   "mutants": [
+    {
+     "path": "impedance/models/circuits/circuits.py",
+     "operator": "boundary_flip",
+     "line": 172,
+     "description": "> -> >=",
+     "diff": "--- a/impedance/models/circuits/circuits.py\n+++ b/impedance/models/circuits/circuits.py\n@@ -170,5 +170,5 @@\n             num_params = check_and_eval(name[0]).num_params\n             units = check_and_eval(name[0]).units\n-            if num_params > 1:\n+            if num_params >= 1:\n                 for j in range(num_params):\n                     full_name = '{}_{}'.format(name, j)\n",
+     "sha256": "898eb2c335ea5168781743db68ba831e4f8261afb37e52deba71b23f5d99e749"
+    },
+    {
+     "path": "impedance/models/circuits/elements.py",
+     "operator": "keyword_drop",
+     "line": 88,
+     "description": "drop keyword argument units=",
+     "diff": "--- a/impedance/models/circuits/elements.py\n+++ b/impedance/models/circuits/elements.py\n@@ -86,5 +86,5 @@\n     return np.array(len(f)*[p[0]])\n \n-@element_metadata(num_params=1, units=['Ohm'])\n+@element_metadata(num_params=1)\n def RR(p, f):\n     \"\"\" defines a resistor\n",
+     "sha256": "5a49dd2dfd9578d4fcb0418650237486de5e844d3b0bb4a4ca48635d698c79d6"
+    },
+    {
+     "path": "impedance/models/circuits/fitting.py",
+     "operator": "equality_flip",
+     "line": 87,
+     "description": "== -> !=",
+     "diff": "--- a/impedance/models/circuits/fitting.py\n+++ b/impedance/models/circuits/fitting.py\n@@ -85,5 +85,5 @@\n                 if elem in constants or elem + '_{}'.format(i) in constants:\n                     continue\n-                if raw_element == 'E' and i == 1:\n+                if raw_element != 'E' and i == 1:\n                     ub.append(1)\n                 else:\n",
+     "sha256": "062cec36d81a06de2bc9aa6256d87779f0ebc93e9f2b19d6713692d09c0a3c2f"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-boundary_flip-L172",
+     "mutant": {
+      "path": "impedance/models/circuits/circuits.py",
+      "operator": "boundary_flip",
+      "line": 172,
+      "description": "> -> >=",
+      "diff": "--- a/impedance/models/circuits/circuits.py\n+++ b/impedance/models/circuits/circuits.py\n@@ -170,5 +170,5 @@\n             num_params = check_and_eval(name[0]).num_params\n             units = check_and_eval(name[0]).units\n-            if num_params > 1:\n+            if num_params >= 1:\n                 for j in range(num_params):\n                     full_name = '{}_{}'.format(name, j)\n",
+      "sha256": "898eb2c335ea5168781743db68ba831e4f8261afb37e52deba71b23f5d99e749"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 6.8,
+     "est_usd": 0.00112,
+     "evidence_sha256": "7352a2914861002af7932e89bf29295e4868e72d13eee2032319c9e32dfab5fb"
+    },
+    {
+     "cell": "original-m1-keyword_drop-L88",
+     "mutant": {
+      "path": "impedance/models/circuits/elements.py",
+      "operator": "keyword_drop",
+      "line": 88,
+      "description": "drop keyword argument units=",
+      "diff": "--- a/impedance/models/circuits/elements.py\n+++ b/impedance/models/circuits/elements.py\n@@ -86,5 +86,5 @@\n     return np.array(len(f)*[p[0]])\n \n-@element_metadata(num_params=1, units=['Ohm'])\n+@element_metadata(num_params=1)\n def RR(p, f):\n     \"\"\" defines a resistor\n",
+      "sha256": "5a49dd2dfd9578d4fcb0418650237486de5e844d3b0bb4a4ca48635d698c79d6"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 8.2,
+     "est_usd": 0.00135,
+     "evidence_sha256": "c28cb3678e2781a60e17feac58b83a0feb0aaad67d15a1be970acb17a9046cd4"
+    },
+    {
+     "cell": "original-m2-equality_flip-L87",
+     "mutant": {
+      "path": "impedance/models/circuits/fitting.py",
+      "operator": "equality_flip",
+      "line": 87,
+      "description": "== -> !=",
+      "diff": "--- a/impedance/models/circuits/fitting.py\n+++ b/impedance/models/circuits/fitting.py\n@@ -85,5 +85,5 @@\n                 if elem in constants or elem + '_{}'.format(i) in constants:\n                     continue\n-                if raw_element == 'E' and i == 1:\n+                if raw_element != 'E' and i == 1:\n                     ub.append(1)\n                 else:\n",
+      "sha256": "062cec36d81a06de2bc9aa6256d87779f0ebc93e9f2b19d6713692d09c0a3c2f"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 7.9,
+     "est_usd": 0.0013,
+     "evidence_sha256": "cb66b1c17ee2cbc3b49d8c850802d3c6f084cc061a57e35bcf3d3ea680f849b7"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-boundary_flip-L172",
+     "mutant": {
+      "path": "impedance/models/circuits/circuits.py",
+      "operator": "boundary_flip",
+      "line": 172,
+      "description": "> -> >=",
+      "diff": "--- a/impedance/models/circuits/circuits.py\n+++ b/impedance/models/circuits/circuits.py\n@@ -170,5 +170,5 @@\n             num_params = check_and_eval(name[0]).num_params\n             units = check_and_eval(name[0]).units\n-            if num_params > 1:\n+            if num_params >= 1:\n                 for j in range(num_params):\n                     full_name = '{}_{}'.format(name, j)\n",
+      "sha256": "898eb2c335ea5168781743db68ba831e4f8261afb37e52deba71b23f5d99e749"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 8.6,
+     "est_usd": 0.00142,
+     "evidence_sha256": "aafa8d6f9447121a9803f1026457d2937a196e92fff9d36cc20b86264fcea1ba"
+    },
+    {
+     "cell": "repaired-m1-keyword_drop-L88",
+     "mutant": {
+      "path": "impedance/models/circuits/elements.py",
+      "operator": "keyword_drop",
+      "line": 88,
+      "description": "drop keyword argument units=",
+      "diff": "--- a/impedance/models/circuits/elements.py\n+++ b/impedance/models/circuits/elements.py\n@@ -86,5 +86,5 @@\n     return np.array(len(f)*[p[0]])\n \n-@element_metadata(num_params=1, units=['Ohm'])\n+@element_metadata(num_params=1)\n def RR(p, f):\n     \"\"\" defines a resistor\n",
+      "sha256": "5a49dd2dfd9578d4fcb0418650237486de5e844d3b0bb4a4ca48635d698c79d6"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 6.1,
+     "est_usd": 0.001,
+     "evidence_sha256": "3b692c24b6dc53627f7c6466fa13a335960d07df54197712939c7bf4fd1176c2"
+    },
+    {
+     "cell": "repaired-m2-equality_flip-L87",
+     "mutant": {
+      "path": "impedance/models/circuits/fitting.py",
+      "operator": "equality_flip",
+      "line": 87,
+      "description": "== -> !=",
+      "diff": "--- a/impedance/models/circuits/fitting.py\n+++ b/impedance/models/circuits/fitting.py\n@@ -85,5 +85,5 @@\n                 if elem in constants or elem + '_{}'.format(i) in constants:\n                     continue\n-                if raw_element == 'E' and i == 1:\n+                if raw_element != 'E' and i == 1:\n                     ub.append(1)\n                 else:\n",
+      "sha256": "062cec36d81a06de2bc9aa6256d87779f0ebc93e9f2b19d6713692d09c0a3c2f"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 12.8,
+     "est_usd": 0.00212,
+     "evidence_sha256": "418375bd99a6f2698cbb4de6a1c46b649006e28d688c7c1fd60d4439050c312a"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m2-equality_flip-L87"
+   ],
+   "survivors_repaired": [
+    "repaired-m2-equality_flip-L87"
+   ],
+   "weak_original": true,
+   "weak_repaired": true,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-002160",
+   "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002160",
+   "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-002160/e712361102df6804",
+   "patch_sha256": "f024263eda6341d073a618474693ce11b716c09b44c430f55c291e951d9eff22",
+   "python_targets": [
+    "openwisp_radius/management/commands/base/convert_called_station_id.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 13.4,
+    "est_usd": 0.00222,
+    "evidence_sha256": "257bc8c23180cf9dead4408e6a22779bfdbf6ec25b39196fc7468186174873eb"
+   },
+   "mutants": [
+    {
+     "path": "openwisp_radius/management/commands/base/convert_called_station_id.py",
+     "operator": "handler_drop",
+     "line": 50,
+     "description": "except handler body -> raise (handler omitted)",
+     "diff": "--- a/openwisp_radius/management/commands/base/convert_called_station_id.py\n+++ b/openwisp_radius/management/commands/base/convert_called_station_id.py\n@@ -49,9 +49,5 @@\n             return {}\n         except (OSError, TimeoutError, EOFError) as error:\n-            logger.warning(\n-                f'Error encountered while connecting to {host}:{port}: {error}. '\n-                'Skipping!'\n-            )\n-            return {}\n+            raise\n         except Exception:\n             logger.exception(\n",
+     "sha256": "e12e1c55d0c0d68d01ab86955212986c6a5443b540798e071a8198b68e7633bc"
+    },
+    {
+     "path": "openwisp_radius/management/commands/base/convert_called_station_id.py",
+     "operator": "call_drop",
+     "line": 45,
+     "description": "drop call statement logger.warning(...)",
+     "diff": "--- a/openwisp_radius/management/commands/base/convert_called_station_id.py\n+++ b/openwisp_radius/management/commands/base/convert_called_station_id.py\n@@ -43,8 +43,5 @@\n             raw_info = self._get_raw_management_info(host, port, password)\n         except ConnectionRefusedError:\n-            logger.warning(\n-                'Unable to establish telnet connection to '\n-                f'{host} on {port}. Skipping!'\n-            )\n+            pass\n             return {}\n         except (OSError, TimeoutError, EOFError) as error:\n",
+     "sha256": "ed65a70aa5443c2a326148d7ef4406f58cac94f3412fe9c35b5ce3bedff9b4cd"
+    },
+    {
+     "path": "openwisp_radius/management/commands/base/convert_called_station_id.py",
+     "operator": "call_drop",
+     "line": 51,
+     "description": "drop call statement logger.warning(...)",
+     "diff": "--- a/openwisp_radius/management/commands/base/convert_called_station_id.py\n+++ b/openwisp_radius/management/commands/base/convert_called_station_id.py\n@@ -49,8 +49,5 @@\n             return {}\n         except (OSError, TimeoutError, EOFError) as error:\n-            logger.warning(\n-                f'Error encountered while connecting to {host}:{port}: {error}. '\n-                'Skipping!'\n-            )\n+            pass\n             return {}\n         except Exception:\n",
+     "sha256": "a16c01c0ee838d6f914538da92e5ed41183db4d047ab1620e302244db0d3ca7a"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-handler_drop-L50",
+     "mutant": {
+      "path": "openwisp_radius/management/commands/base/convert_called_station_id.py",
+      "operator": "handler_drop",
+      "line": 50,
+      "description": "except handler body -> raise (handler omitted)",
+      "diff": "--- a/openwisp_radius/management/commands/base/convert_called_station_id.py\n+++ b/openwisp_radius/management/commands/base/convert_called_station_id.py\n@@ -49,9 +49,5 @@\n             return {}\n         except (OSError, TimeoutError, EOFError) as error:\n-            logger.warning(\n-                f'Error encountered while connecting to {host}:{port}: {error}. '\n-                'Skipping!'\n-            )\n-            return {}\n+            raise\n         except Exception:\n             logger.exception(\n",
+      "sha256": "e12e1c55d0c0d68d01ab86955212986c6a5443b540798e071a8198b68e7633bc"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 14.3,
+     "est_usd": 0.00236,
+     "evidence_sha256": "5dbfa2269b6cba170d01dc1df81c4c2efe550164abeede48b35df14516268584"
+    },
+    {
+     "cell": "original-m1-call_drop-L45",
+     "mutant": {
+      "path": "openwisp_radius/management/commands/base/convert_called_station_id.py",
+      "operator": "call_drop",
+      "line": 45,
+      "description": "drop call statement logger.warning(...)",
+      "diff": "--- a/openwisp_radius/management/commands/base/convert_called_station_id.py\n+++ b/openwisp_radius/management/commands/base/convert_called_station_id.py\n@@ -43,8 +43,5 @@\n             raw_info = self._get_raw_management_info(host, port, password)\n         except ConnectionRefusedError:\n-            logger.warning(\n-                'Unable to establish telnet connection to '\n-                f'{host} on {port}. Skipping!'\n-            )\n+            pass\n             return {}\n         except (OSError, TimeoutError, EOFError) as error:\n",
+      "sha256": "ed65a70aa5443c2a326148d7ef4406f58cac94f3412fe9c35b5ce3bedff9b4cd"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 16.8,
+     "est_usd": 0.00278,
+     "evidence_sha256": "69c90154d0c7754e7bcfbb2429a01d14b9852e4f94214f13ea01ededa9332c77"
+    },
+    {
+     "cell": "original-m2-call_drop-L51",
+     "mutant": {
+      "path": "openwisp_radius/management/commands/base/convert_called_station_id.py",
+      "operator": "call_drop",
+      "line": 51,
+      "description": "drop call statement logger.warning(...)",
+      "diff": "--- a/openwisp_radius/management/commands/base/convert_called_station_id.py\n+++ b/openwisp_radius/management/commands/base/convert_called_station_id.py\n@@ -49,8 +49,5 @@\n             return {}\n         except (OSError, TimeoutError, EOFError) as error:\n-            logger.warning(\n-                f'Error encountered while connecting to {host}:{port}: {error}. '\n-                'Skipping!'\n-            )\n+            pass\n             return {}\n         except Exception:\n",
+      "sha256": "a16c01c0ee838d6f914538da92e5ed41183db4d047ab1620e302244db0d3ca7a"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 13.4,
+     "est_usd": 0.00222,
+     "evidence_sha256": "af077b97f4c24f5fcb0a8149cb20b17af61d23919dcf463243404e0efd6e1269"
+    }
+   ],
+   "repaired": [
+    {
+     "cell": "repaired-m0-handler_drop-L50",
+     "mutant": {
+      "path": "openwisp_radius/management/commands/base/convert_called_station_id.py",
+      "operator": "handler_drop",
+      "line": 50,
+      "description": "except handler body -> raise (handler omitted)",
+      "diff": "--- a/openwisp_radius/management/commands/base/convert_called_station_id.py\n+++ b/openwisp_radius/management/commands/base/convert_called_station_id.py\n@@ -49,9 +49,5 @@\n             return {}\n         except (OSError, TimeoutError, EOFError) as error:\n-            logger.warning(\n-                f'Error encountered while connecting to {host}:{port}: {error}. '\n-                'Skipping!'\n-            )\n-            return {}\n+            raise\n         except Exception:\n             logger.exception(\n",
+      "sha256": "e12e1c55d0c0d68d01ab86955212986c6a5443b540798e071a8198b68e7633bc"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 16.1,
+     "est_usd": 0.00267,
+     "evidence_sha256": "8e1ad1df0e5030729023510074f1b963154d129b9a36823efc257e45a9355ffb"
+    },
+    {
+     "cell": "repaired-m1-call_drop-L45",
+     "mutant": {
+      "path": "openwisp_radius/management/commands/base/convert_called_station_id.py",
+      "operator": "call_drop",
+      "line": 45,
+      "description": "drop call statement logger.warning(...)",
+      "diff": "--- a/openwisp_radius/management/commands/base/convert_called_station_id.py\n+++ b/openwisp_radius/management/commands/base/convert_called_station_id.py\n@@ -43,8 +43,5 @@\n             raw_info = self._get_raw_management_info(host, port, password)\n         except ConnectionRefusedError:\n-            logger.warning(\n-                'Unable to establish telnet connection to '\n-                f'{host} on {port}. Skipping!'\n-            )\n+            pass\n             return {}\n         except (OSError, TimeoutError, EOFError) as error:\n",
+      "sha256": "ed65a70aa5443c2a326148d7ef4406f58cac94f3412fe9c35b5ce3bedff9b4cd"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 9.6,
+     "est_usd": 0.00158,
+     "evidence_sha256": "5d25e2e9f0c774898cbbf648b80176e1fea1097b75891a5b47131f862527b6df"
+    },
+    {
+     "cell": "repaired-m2-call_drop-L51",
+     "mutant": {
+      "path": "openwisp_radius/management/commands/base/convert_called_station_id.py",
+      "operator": "call_drop",
+      "line": 51,
+      "description": "drop call statement logger.warning(...)",
+      "diff": "--- a/openwisp_radius/management/commands/base/convert_called_station_id.py\n+++ b/openwisp_radius/management/commands/base/convert_called_station_id.py\n@@ -49,8 +49,5 @@\n             return {}\n         except (OSError, TimeoutError, EOFError) as error:\n-            logger.warning(\n-                f'Error encountered while connecting to {host}:{port}: {error}. '\n-                'Skipping!'\n-            )\n+            pass\n             return {}\n         except Exception:\n",
+      "sha256": "a16c01c0ee838d6f914538da92e5ed41183db4d047ab1620e302244db0d3ca7a"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 16.1,
+     "est_usd": 0.00266,
+     "evidence_sha256": "7018e67bb189b0db1abe2d931ca56d0b394dd6af173d2854e11acc79c589a02a"
+    }
+   ],
+   "control_original_ok": true,
+   "survivors_original": [],
+   "survivors_repaired": [],
+   "weak_original": false,
+   "weak_repaired": false,
+   "outcome": "audited",
+   "universe": "inside"
+  },
+  {
+   "task_id": "format-code-task-001954",
+   "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001954",
+   "repaired_package": null,
+   "patch_sha256": "320aa4342fc4427c68b2f9123b3e16e50e5ae31d841543458ecdaebcfb650e40",
+   "python_targets": [
+    "modin/pandas/series.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 14.4,
+    "est_usd": 0.00238,
+    "evidence_sha256": "1a3b30d2f3513129707ca473c2981a1df92c11a8b05f598185a9cb865eb72b04"
+   },
+   "mutants": [
+    {
+     "path": "modin/pandas/series.py",
+     "operator": "guard_drop",
+     "line": 2454,
+     "description": "drop `if` guard ending in raise",
+     "diff": "--- a/modin/pandas/series.py\n+++ b/modin/pandas/series.py\n@@ -2452,6 +2452,5 @@\n             is_indexer = False\n         row_positions = self.index.get_indexer_for(key) if is_indexer else key\n-        if not all(is_integer(x) for x in row_positions):\n-            raise KeyError(key[0] if reduce_dimension else key)\n+        pass\n         result = self._query_compiler.getitem_row_array(row_positions)\n \n",
+     "sha256": "e83fd5fcc9d0c57a1096810ecaab6dc18f4aae5498d813712e04efdcacb78ade"
+    },
+    {
+     "path": "modin/pandas/series.py",
+     "operator": "handler_drop",
+     "line": 2451,
+     "description": "except handler body -> raise (handler omitted)",
+     "diff": "--- a/modin/pandas/series.py\n+++ b/modin/pandas/series.py\n@@ -2450,5 +2450,5 @@\n             is_indexer = all(k in self.keys() for k in key)\n         except TypeError:\n-            is_indexer = False\n+            raise\n         row_positions = self.index.get_indexer_for(key) if is_indexer else key\n         if not all(is_integer(x) for x in row_positions):\n",
+     "sha256": "c256b99d2a60106f63a35de674793a20ba69f218883cb94e713a1a52fff924e4"
+    },
+    {
+     "path": "modin/pandas/series.py",
+     "operator": "bool_flip",
+     "line": 2442,
+     "description": "True -> False",
+     "diff": "--- a/modin/pandas/series.py\n+++ b/modin/pandas/series.py\n@@ -2440,5 +2440,5 @@\n \n         if not is_list_like(key):\n-            reduce_dimension = True\n+            reduce_dimension = False\n             key = [key]\n         else:\n",
+     "sha256": "b91d7a34810ce25c818333f034e6ccafc26c76c424cde294a95e7d5826bd8c10"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-guard_drop-L2454",
+     "mutant": {
+      "path": "modin/pandas/series.py",
+      "operator": "guard_drop",
+      "line": 2454,
+      "description": "drop `if` guard ending in raise",
+      "diff": "--- a/modin/pandas/series.py\n+++ b/modin/pandas/series.py\n@@ -2452,6 +2452,5 @@\n             is_indexer = False\n         row_positions = self.index.get_indexer_for(key) if is_indexer else key\n-        if not all(is_integer(x) for x in row_positions):\n-            raise KeyError(key[0] if reduce_dimension else key)\n+        pass\n         result = self._query_compiler.getitem_row_array(row_positions)\n \n",
+      "sha256": "e83fd5fcc9d0c57a1096810ecaab6dc18f4aae5498d813712e04efdcacb78ade"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 12.7,
+     "est_usd": 0.0021,
+     "evidence_sha256": "b5ec30989da149b4f38d569f78bcbc25127a0e7ddd812231798d726d5a8192c6"
+    },
+    {
+     "cell": "original-m1-handler_drop-L2451",
+     "mutant": {
+      "path": "modin/pandas/series.py",
+      "operator": "handler_drop",
+      "line": 2451,
+      "description": "except handler body -> raise (handler omitted)",
+      "diff": "--- a/modin/pandas/series.py\n+++ b/modin/pandas/series.py\n@@ -2450,5 +2450,5 @@\n             is_indexer = all(k in self.keys() for k in key)\n         except TypeError:\n-            is_indexer = False\n+            raise\n         row_positions = self.index.get_indexer_for(key) if is_indexer else key\n         if not all(is_integer(x) for x in row_positions):\n",
+      "sha256": "c256b99d2a60106f63a35de674793a20ba69f218883cb94e713a1a52fff924e4"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 9.9,
+     "est_usd": 0.00164,
+     "evidence_sha256": "e48ca6aeac2668f339066af8a476ecc5889737a6e7c8019c2979c1e2ac224ee5"
+    },
+    {
+     "cell": "original-m2-bool_flip-L2442",
+     "mutant": {
+      "path": "modin/pandas/series.py",
+      "operator": "bool_flip",
+      "line": 2442,
+      "description": "True -> False",
+      "diff": "--- a/modin/pandas/series.py\n+++ b/modin/pandas/series.py\n@@ -2440,5 +2440,5 @@\n \n         if not is_list_like(key):\n-            reduce_dimension = True\n+            reduce_dimension = False\n             key = [key]\n         else:\n",
+      "sha256": "b91d7a34810ce25c818333f034e6ccafc26c76c424cde294a95e7d5826bd8c10"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 11.4,
+     "est_usd": 0.00189,
+     "evidence_sha256": "6e66bf736014fb13ab45d8dfed19eaa84779d7637794663af91299bb8920f296"
+    }
+   ],
+   "repaired": [],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m1-handler_drop-L2451"
+   ],
+   "survivors_repaired": [],
+   "weak_original": true,
+   "weak_repaired": null,
+   "outcome": "audited",
+   "universe": "outside"
+  },
+  {
+   "task_id": "format-code-task-000484",
+   "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000484",
+   "repaired_package": null,
+   "patch_sha256": "c5aaab17d829f8244fb24ef9b847a799ca2d440d50a4f839e85975d348383c67",
+   "python_targets": [
+    "robo/acquisition/EI.py",
+    "robo/acquisition/LogEI.py",
+    "robo/acquisition/PI.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 7.9,
+    "est_usd": 0.00131,
+    "evidence_sha256": "75645b7febaa79c746a5ff9507b0def3eb738edb4eac1ffc348b316d0510f2bf"
+   },
+   "mutants": [
+    {
+     "path": "robo/acquisition/LogEI.py",
+     "operator": "boundary_flip",
+     "line": 74,
+     "description": "< -> <=",
+     "diff": "--- a/robo/acquisition/LogEI.py\n+++ b/robo/acquisition/LogEI.py\n@@ -72,5 +72,5 @@\n             # Degenerate case 2: second term vanishes and first term has a special form.\n             elif sigma == 0:\n-                if mu < np.any(eta - par_s):\n+                if mu <= np.any(eta - par_s):\n                     log_ei[i] = np.log(eta - mu - par_s)\n                 else:\n",
+     "sha256": "38f82c77576120ff7883b044d697c9a7b29a2ef15aa501890fbc7d539c03f1b5"
+    },
+    {
+     "path": "robo/acquisition/LogEI.py",
+     "operator": "equality_flip",
+     "line": 67,
+     "description": "== -> !=",
+     "diff": "--- a/robo/acquisition/LogEI.py\n+++ b/robo/acquisition/LogEI.py\n@@ -65,5 +65,5 @@\n             # Degenerate case 1: first term vanishes\n \n-            if np.any(abs(eta - mu - par_s)) == 0:\n+            if np.any(abs(eta - mu - par_s)) != 0:\n                 if sigma > 0:\n                     log_ei[i] = np.log(sigma) + norm.logpdf(z[i])\n",
+     "sha256": "7e1761b4e5dd6db5cffcc5b2d0aacc291e4d07c7dbe2cf17756e282b967dc33e"
+    },
+    {
+     "path": "robo/acquisition/LogEI.py",
+     "operator": "boundary_flip",
+     "line": 82,
+     "description": "> -> >=",
+     "diff": "--- a/robo/acquisition/LogEI.py\n+++ b/robo/acquisition/LogEI.py\n@@ -80,5 +80,5 @@\n                 b = np.log(sigma) + norm.logpdf(z[i])\n                 # log(y+z) is tricky, we distinguish two cases:\n-                if np.any(eta - par_s) > mu:\n+                if np.any(eta - par_s) >= mu:\n                     # When y>0, z>0, we define a=ln(y), b=ln(z).\n                     # Then y+z = exp[ max(a,b) + ln(1 + exp(-|b-a|)) ],\n",
+     "sha256": "7954359d81d92fd5fd936a14dc8cfd21f65455291af016bde92f25f5f490e1de"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-boundary_flip-L74",
+     "mutant": {
+      "path": "robo/acquisition/LogEI.py",
+      "operator": "boundary_flip",
+      "line": 74,
+      "description": "< -> <=",
+      "diff": "--- a/robo/acquisition/LogEI.py\n+++ b/robo/acquisition/LogEI.py\n@@ -72,5 +72,5 @@\n             # Degenerate case 2: second term vanishes and first term has a special form.\n             elif sigma == 0:\n-                if mu < np.any(eta - par_s):\n+                if mu <= np.any(eta - par_s):\n                     log_ei[i] = np.log(eta - mu - par_s)\n                 else:\n",
+      "sha256": "38f82c77576120ff7883b044d697c9a7b29a2ef15aa501890fbc7d539c03f1b5"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 5.9,
+     "est_usd": 0.00098,
+     "evidence_sha256": "00494bd0e079105b6f3e3162e23b97eeb633f04d1b858c01f38d95df100500c3"
+    },
+    {
+     "cell": "original-m1-equality_flip-L67",
+     "mutant": {
+      "path": "robo/acquisition/LogEI.py",
+      "operator": "equality_flip",
+      "line": 67,
+      "description": "== -> !=",
+      "diff": "--- a/robo/acquisition/LogEI.py\n+++ b/robo/acquisition/LogEI.py\n@@ -65,5 +65,5 @@\n             # Degenerate case 1: first term vanishes\n \n-            if np.any(abs(eta - mu - par_s)) == 0:\n+            if np.any(abs(eta - mu - par_s)) != 0:\n                 if sigma > 0:\n                     log_ei[i] = np.log(sigma) + norm.logpdf(z[i])\n",
+      "sha256": "7e1761b4e5dd6db5cffcc5b2d0aacc291e4d07c7dbe2cf17756e282b967dc33e"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 7.1,
+     "est_usd": 0.00117,
+     "evidence_sha256": "e3004a0ad5971a8114584b832e59ba6f5dbf7cbc8512fe6b791422dab9a0d04d"
+    },
+    {
+     "cell": "original-m2-boundary_flip-L82",
+     "mutant": {
+      "path": "robo/acquisition/LogEI.py",
+      "operator": "boundary_flip",
+      "line": 82,
+      "description": "> -> >=",
+      "diff": "--- a/robo/acquisition/LogEI.py\n+++ b/robo/acquisition/LogEI.py\n@@ -80,5 +80,5 @@\n                 b = np.log(sigma) + norm.logpdf(z[i])\n                 # log(y+z) is tricky, we distinguish two cases:\n-                if np.any(eta - par_s) > mu:\n+                if np.any(eta - par_s) >= mu:\n                     # When y>0, z>0, we define a=ln(y), b=ln(z).\n                     # Then y+z = exp[ max(a,b) + ln(1 + exp(-|b-a|)) ],\n",
+      "sha256": "7954359d81d92fd5fd936a14dc8cfd21f65455291af016bde92f25f5f490e1de"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 5.5,
+     "est_usd": 0.00091,
+     "evidence_sha256": "cf56c6f6efcbc35346d903a451af18736b77c5a1e304c166b25c2fa265a42de7"
+    }
+   ],
+   "repaired": [],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m0-boundary_flip-L74",
+    "original-m1-equality_flip-L67",
+    "original-m2-boundary_flip-L82"
+   ],
+   "survivors_repaired": [],
+   "weak_original": true,
+   "weak_repaired": null,
+   "outcome": "audited",
+   "universe": "outside"
+  },
+  {
+   "task_id": "format-code-task-001793",
+   "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001793",
+   "repaired_package": null,
+   "patch_sha256": "2f3e75b91fb11edff25ae0db2c26877cb46f3230e3e73946956f2703b7326b7d",
+   "python_targets": [
+    "src/iris/vendors/__init__.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 4.1,
+    "est_usd": 0.00068,
+    "evidence_sha256": "5ba4aac8f2e41223fadf5f5acf545fb9e2c192a2ac69496e4ae568052a49daf6"
+   },
+   "mutants": [
+    {
+     "path": "src/iris/vendors/__init__.py",
+     "operator": "boundary_flip",
+     "line": 62,
+     "description": "> -> >=",
+     "diff": "--- a/src/iris/vendors/__init__.py\n+++ b/src/iris/vendors/__init__.py\n@@ -60,5 +60,5 @@\n     def send_message(self, message):\n         for tries, vendor in enumerate(self.app_specific_vendors_iter.get(message.get('application'), self.vendors_iter)[message['mode']]):\n-            if tries > self.max_tries_per_message:\n+            if tries >= self.max_tries_per_message:\n                 logger.warning('Exhausted %d tries for message %s', tries, message)\n                 break\n",
+     "sha256": "45c1af6d70bc713ca600de3615ef7fe3bdab7a573335b054de06409e10f5cb10"
+    },
+    {
+     "path": "src/iris/vendors/__init__.py",
+     "operator": "handler_drop",
+     "line": 30,
+     "description": "except handler body -> raise (handler omitted)",
+     "diff": "--- a/src/iris/vendors/__init__.py\n+++ b/src/iris/vendors/__init__.py\n@@ -29,6 +29,5 @@\n                 application_cls = import_custom_module('iris.applications', application)\n             except ImportError:\n-                logger.exception('Failed importing application %s', application)\n-                continue\n+                raise\n \n             try:\n",
+     "sha256": "b247e6a945cd957c31e123fde1cdda0fa016d3bb465307a7c90b3d4c7f4ae80a"
+    },
+    {
+     "path": "src/iris/vendors/__init__.py",
+     "operator": "call_drop",
+     "line": 31,
+     "description": "drop call statement logger.exception(...)",
+     "diff": "--- a/src/iris/vendors/__init__.py\n+++ b/src/iris/vendors/__init__.py\n@@ -29,5 +29,5 @@\n                 application_cls = import_custom_module('iris.applications', application)\n             except ImportError:\n-                logger.exception('Failed importing application %s', application)\n+                pass\n                 continue\n \n",
+     "sha256": "92a18c865503f9affc63b2e12b583e3114afcd83ec2dc120b3256da2f318195f"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-boundary_flip-L62",
+     "mutant": {
+      "path": "src/iris/vendors/__init__.py",
+      "operator": "boundary_flip",
+      "line": 62,
+      "description": "> -> >=",
+      "diff": "--- a/src/iris/vendors/__init__.py\n+++ b/src/iris/vendors/__init__.py\n@@ -60,5 +60,5 @@\n     def send_message(self, message):\n         for tries, vendor in enumerate(self.app_specific_vendors_iter.get(message.get('application'), self.vendors_iter)[message['mode']]):\n-            if tries > self.max_tries_per_message:\n+            if tries >= self.max_tries_per_message:\n                 logger.warning('Exhausted %d tries for message %s', tries, message)\n                 break\n",
+      "sha256": "45c1af6d70bc713ca600de3615ef7fe3bdab7a573335b054de06409e10f5cb10"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 9.4,
+     "est_usd": 0.00155,
+     "evidence_sha256": "8c89f1e870a3c31abee2c1e475c0c68301aae6599a117ab2ca76eaed2047d201"
+    },
+    {
+     "cell": "original-m1-handler_drop-L30",
+     "mutant": {
+      "path": "src/iris/vendors/__init__.py",
+      "operator": "handler_drop",
+      "line": 30,
+      "description": "except handler body -> raise (handler omitted)",
+      "diff": "--- a/src/iris/vendors/__init__.py\n+++ b/src/iris/vendors/__init__.py\n@@ -29,6 +29,5 @@\n                 application_cls = import_custom_module('iris.applications', application)\n             except ImportError:\n-                logger.exception('Failed importing application %s', application)\n-                continue\n+                raise\n \n             try:\n",
+      "sha256": "b247e6a945cd957c31e123fde1cdda0fa016d3bb465307a7c90b3d4c7f4ae80a"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 3.8,
+     "est_usd": 0.00063,
+     "evidence_sha256": "4d1fd46dbdb953eb1c725aab64e8f4a5b8f60752fc75bf8f1a3c90c847936126"
+    },
+    {
+     "cell": "original-m2-call_drop-L31",
+     "mutant": {
+      "path": "src/iris/vendors/__init__.py",
+      "operator": "call_drop",
+      "line": 31,
+      "description": "drop call statement logger.exception(...)",
+      "diff": "--- a/src/iris/vendors/__init__.py\n+++ b/src/iris/vendors/__init__.py\n@@ -29,5 +29,5 @@\n                 application_cls = import_custom_module('iris.applications', application)\n             except ImportError:\n-                logger.exception('Failed importing application %s', application)\n+                pass\n                 continue\n \n",
+      "sha256": "92a18c865503f9affc63b2e12b583e3114afcd83ec2dc120b3256da2f318195f"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 4.3,
+     "est_usd": 0.00071,
+     "evidence_sha256": "2551d4ee0cc5ba665231c09161056f8606536d2955be1868b76d8dc9b3571697"
+    }
+   ],
+   "repaired": [],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m0-boundary_flip-L62",
+    "original-m1-handler_drop-L30",
+    "original-m2-call_drop-L31"
+   ],
+   "survivors_repaired": [],
+   "weak_original": true,
+   "weak_repaired": null,
+   "outcome": "audited",
+   "universe": "outside"
+  },
+  {
+   "task_id": "format-code-task-003005",
+   "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-003005",
+   "repaired_package": null,
+   "patch_sha256": "c9fddad7cb9e5c80eef66e61aa878aec13869211733226ee2f0e7bca143ff5cc",
+   "python_targets": [
+    "gpustat/__main__.py",
+    "gpustat/core.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 7.2,
+    "est_usd": 0.00119,
+    "evidence_sha256": "d71c3df5a9746656619b6735a8f635b2796a5278ca79594bbd306662fc8517d9"
+   },
+   "mutants": [
+    {
+     "path": "gpustat/__main__.py",
+     "operator": "call_drop",
+     "line": 82,
+     "description": "drop call statement parser.add_argument(...)",
+     "diff": "--- a/gpustat/__main__.py\n+++ b/gpustat/__main__.py\n@@ -80,6 +80,5 @@\n     parser.add_argument('-p', '--show-pid', action='store_true',\n                         help='Display PID of running process')\n-    parser.add_argument('-F', '--show-fan', action='store_true',\n-                        help='Display GPU fan speed')\n+    pass\n     parser.add_argument('--json', action='store_true', default=False,\n                         help='Print all the information in JSON format')\n",
+     "sha256": "f00f524273b177cc6c9ccdc75811ac0bc216eee1c6c36b570627f6056a8359fd"
+    },
+    {
+     "path": "gpustat/core.py",
+     "operator": "boundary_flip",
+     "line": 178,
+     "description": "< -> <=",
+     "diff": "--- a/gpustat/core.py\n+++ b/gpustat/core.py\n@@ -176,5 +176,5 @@\n         colors['CTemp'] = _conditional(lambda: self.temperature < 50,\n                                        term.red, term.bold_red)\n-        colors['FSpeed'] = _conditional(lambda: self.fan < 50,\n+        colors['FSpeed'] = _conditional(lambda: self.fan <= 50,\n                                         term.yellow, term.bold_yellow)\n         colors['CMemU'] = term.bold_yellow\n",
+     "sha256": "a1ac9bc82ac3cb4c6ad60f9761d0c064b75eec8ff729a1651311a44debe53819"
+    },
+    {
+     "path": "gpustat/__main__.py",
+     "operator": "keyword_drop",
+     "line": 82,
+     "description": "drop keyword argument action=",
+     "diff": "--- a/gpustat/__main__.py\n+++ b/gpustat/__main__.py\n@@ -80,5 +80,5 @@\n     parser.add_argument('-p', '--show-pid', action='store_true',\n                         help='Display PID of running process')\n-    parser.add_argument('-F', '--show-fan', action='store_true',\n+    parser.add_argument('-F', '--show-fan',\n                         help='Display GPU fan speed')\n     parser.add_argument('--json', action='store_true', default=False,\n",
+     "sha256": "55055789e500e6feda48068d5b2bb8192ca4aa2afe15eb85d09fe3878f328e29"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-call_drop-L82",
+     "mutant": {
+      "path": "gpustat/__main__.py",
+      "operator": "call_drop",
+      "line": 82,
+      "description": "drop call statement parser.add_argument(...)",
+      "diff": "--- a/gpustat/__main__.py\n+++ b/gpustat/__main__.py\n@@ -80,6 +80,5 @@\n     parser.add_argument('-p', '--show-pid', action='store_true',\n                         help='Display PID of running process')\n-    parser.add_argument('-F', '--show-fan', action='store_true',\n-                        help='Display GPU fan speed')\n+    pass\n     parser.add_argument('--json', action='store_true', default=False,\n                         help='Print all the information in JSON format')\n",
+      "sha256": "f00f524273b177cc6c9ccdc75811ac0bc216eee1c6c36b570627f6056a8359fd"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 10.3,
+     "est_usd": 0.00171,
+     "evidence_sha256": "b643bb04a8ace1e536edd0bf8508db6c40f989cb99007c71895a1959d0c5745c"
+    },
+    {
+     "cell": "original-m1-boundary_flip-L178",
+     "mutant": {
+      "path": "gpustat/core.py",
+      "operator": "boundary_flip",
+      "line": 178,
+      "description": "< -> <=",
+      "diff": "--- a/gpustat/core.py\n+++ b/gpustat/core.py\n@@ -176,5 +176,5 @@\n         colors['CTemp'] = _conditional(lambda: self.temperature < 50,\n                                        term.red, term.bold_red)\n-        colors['FSpeed'] = _conditional(lambda: self.fan < 50,\n+        colors['FSpeed'] = _conditional(lambda: self.fan <= 50,\n                                         term.yellow, term.bold_yellow)\n         colors['CMemU'] = term.bold_yellow\n",
+      "sha256": "a1ac9bc82ac3cb4c6ad60f9761d0c064b75eec8ff729a1651311a44debe53819"
+     },
+     "applied": true,
+     "reward": 1.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 6.5,
+     "est_usd": 0.00107,
+     "evidence_sha256": "e48e4cfdd53889ba92df8f6e6c609977c37a818fd25ccff384b8f97d621ba342"
+    },
+    {
+     "cell": "original-m2-keyword_drop-L82",
+     "mutant": {
+      "path": "gpustat/__main__.py",
+      "operator": "keyword_drop",
+      "line": 82,
+      "description": "drop keyword argument action=",
+      "diff": "--- a/gpustat/__main__.py\n+++ b/gpustat/__main__.py\n@@ -80,5 +80,5 @@\n     parser.add_argument('-p', '--show-pid', action='store_true',\n                         help='Display PID of running process')\n-    parser.add_argument('-F', '--show-fan', action='store_true',\n+    parser.add_argument('-F', '--show-fan',\n                         help='Display GPU fan speed')\n     parser.add_argument('--json', action='store_true', default=False,\n",
+      "sha256": "55055789e500e6feda48068d5b2bb8192ca4aa2afe15eb85d09fe3878f328e29"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 3.4,
+     "est_usd": 0.00056,
+     "evidence_sha256": "41c2d4d8104a15a3d379d0b9e1361f64a668e5177659b9401360c77f7950adf7"
+    }
+   ],
+   "repaired": [],
+   "control_original_ok": true,
+   "survivors_original": [
+    "original-m1-boundary_flip-L178"
+   ],
+   "survivors_repaired": [],
+   "weak_original": true,
+   "weak_repaired": null,
+   "outcome": "audited",
+   "universe": "outside"
+  },
+  {
+   "task_id": "format-code-task-000581",
+   "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000581",
+   "repaired_package": null,
+   "patch_sha256": "eea104b53e522ec0954ce0c83b0fcd1f0213571decf18a229ececcf37f992e6c",
+   "python_targets": [
+    "botocore/credentials.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 1.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 4.8,
+    "est_usd": 0.00079,
+    "evidence_sha256": "83e80bc01ca52553081de5371a0a22e1b5c26a15b7d2a3e168ac65d246fe2665"
+   },
+   "mutants": [
+    {
+     "path": "botocore/credentials.py",
+     "operator": "equality_flip",
+     "line": 927,
+     "description": "== -> !=",
+     "diff": "--- a/botocore/credentials.py\n+++ b/botocore/credentials.py\n@@ -925,5 +925,5 @@\n         access_key_var = self._mapping['access_key']\n \n-        if access_key_var in self.environ and not self.environ.get(access_key_var) == '':\n+        if access_key_var in self.environ and not self.environ.get(access_key_var) != '':\n             logger.info('Found credentials in environment variables.')\n             fetcher = self._create_credentials_fetcher()\n",
+     "sha256": "cdea43aa6d6663aa67cd545722552d5d394df47f1c293f9c0098f1500c86f1ed"
+    },
+    {
+     "path": "botocore/credentials.py",
+     "operator": "guard_drop",
+     "line": 957,
+     "description": "drop `if` guard ending in raise",
+     "diff": "--- a/botocore/credentials.py\n+++ b/botocore/credentials.py\n@@ -955,7 +955,5 @@\n \n             access_key = environ.get(mapping['access_key'])\n-            if access_key is None or access_key == '':\n-                raise PartialCredentialsError(\n-                    provider=method, cred_var=mapping['access_key'])\n+            pass\n             credentials['access_key'] = access_key\n \n",
+     "sha256": "45ddd7517e2f69008fb2f8021bdaa78f726d246bca42ca820c6049a058ad11b2"
+    },
+    {
+     "path": "botocore/credentials.py",
+     "operator": "equality_flip",
+     "line": 963,
+     "description": "== -> !=",
+     "diff": "--- a/botocore/credentials.py\n+++ b/botocore/credentials.py\n@@ -961,5 +961,5 @@\n \n             secret_key = environ.get(mapping['secret_key'])\n-            if secret_key is None or secret_key == '':\n+            if secret_key is None or secret_key != '':\n                 raise PartialCredentialsError(\n                     provider=method, cred_var=mapping['secret_key'])\n",
+     "sha256": "fc7e3484e814d128f33a9840592da2f990c199c55c4017e3f1cfc93017925615"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-equality_flip-L927",
+     "mutant": {
+      "path": "botocore/credentials.py",
+      "operator": "equality_flip",
+      "line": 927,
+      "description": "== -> !=",
+      "diff": "--- a/botocore/credentials.py\n+++ b/botocore/credentials.py\n@@ -925,5 +925,5 @@\n         access_key_var = self._mapping['access_key']\n \n-        if access_key_var in self.environ and not self.environ.get(access_key_var) == '':\n+        if access_key_var in self.environ and not self.environ.get(access_key_var) != '':\n             logger.info('Found credentials in environment variables.')\n             fetcher = self._create_credentials_fetcher()\n",
+      "sha256": "cdea43aa6d6663aa67cd545722552d5d394df47f1c293f9c0098f1500c86f1ed"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 7.7,
+     "est_usd": 0.00126,
+     "evidence_sha256": "a760e7917218c382ddad317f19da0c4b06b6c89a1990f39f87d6ba843547a5a3"
+    },
+    {
+     "cell": "original-m1-guard_drop-L957",
+     "mutant": {
+      "path": "botocore/credentials.py",
+      "operator": "guard_drop",
+      "line": 957,
+      "description": "drop `if` guard ending in raise",
+      "diff": "--- a/botocore/credentials.py\n+++ b/botocore/credentials.py\n@@ -955,7 +955,5 @@\n \n             access_key = environ.get(mapping['access_key'])\n-            if access_key is None or access_key == '':\n-                raise PartialCredentialsError(\n-                    provider=method, cred_var=mapping['access_key'])\n+            pass\n             credentials['access_key'] = access_key\n \n",
+      "sha256": "45ddd7517e2f69008fb2f8021bdaa78f726d246bca42ca820c6049a058ad11b2"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 9.1,
+     "est_usd": 0.00151,
+     "evidence_sha256": "34d95eb67b57a21a249eff4c4bd2b76bf49fee39ced7fe13d862dc84dde370d1"
+    },
+    {
+     "cell": "original-m2-equality_flip-L963",
+     "mutant": {
+      "path": "botocore/credentials.py",
+      "operator": "equality_flip",
+      "line": 963,
+      "description": "== -> !=",
+      "diff": "--- a/botocore/credentials.py\n+++ b/botocore/credentials.py\n@@ -961,5 +961,5 @@\n \n             secret_key = environ.get(mapping['secret_key'])\n-            if secret_key is None or secret_key == '':\n+            if secret_key is None or secret_key != '':\n                 raise PartialCredentialsError(\n                     provider=method, cred_var=mapping['secret_key'])\n",
+      "sha256": "fc7e3484e814d128f33a9840592da2f990c199c55c4017e3f1cfc93017925615"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 4.3,
+     "est_usd": 0.0007,
+     "evidence_sha256": "d5069ce64a171036a07e6817bd98d986ab12000ef302aeca5fdb937a727580b6"
+    }
+   ],
+   "repaired": [],
+   "control_original_ok": true,
+   "survivors_original": [],
+   "survivors_repaired": [],
+   "weak_original": false,
+   "weak_repaired": null,
+   "outcome": "audited",
+   "universe": "outside"
+  },
+  {
+   "task_id": "format-code-task-002212",
+   "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002212",
+   "repaired_package": null,
+   "patch_sha256": "48501de5d39c1f0de22d6152eddf6b3ef67c46ac9aada7fa732262f3b3de4cf4",
+   "python_targets": [
+    "pandas/io/parsers.py"
+   ],
+   "probe": {
+    "cell": "probe",
+    "mutant": null,
+    "applied": true,
+    "reward": 0.0,
+    "status": "executed",
+    "reason": null,
+    "wall_s": 5.8,
+    "est_usd": 0.00096,
+    "evidence_sha256": "b774cec309ef2fe033730d0c8d1ce3f87a018e864d5f562a7506b672ec27e1fb"
+   },
+   "mutants": [
+    {
+     "path": "pandas/io/parsers.py",
+     "operator": "guard_drop",
+     "line": 416,
+     "description": "drop `if` guard ending in raise",
+     "diff": "--- a/pandas/io/parsers.py\n+++ b/pandas/io/parsers.py\n@@ -414,6 +414,5 @@\n         if len(names) != len(set(names)):\n             raise ValueError(\"Duplicate names are not allowed.\")\n-        if not is_list_like(names, allow_sets=False):\n-            raise ValueError(\"Names should be an ordered collection.\")\n+        pass\n \n \n",
+     "sha256": "63ce3256090df1f4355b2f4982ca90e0bc6abc236cf8a3d8d6c4594e50296d4e"
+    },
+    {
+     "path": "pandas/io/parsers.py",
+     "operator": "keyword_drop",
+     "line": 416,
+     "description": "drop keyword argument allow_sets=",
+     "diff": "--- a/pandas/io/parsers.py\n+++ b/pandas/io/parsers.py\n@@ -414,5 +414,5 @@\n         if len(names) != len(set(names)):\n             raise ValueError(\"Duplicate names are not allowed.\")\n-        if not is_list_like(names, allow_sets=False):\n+        if not is_list_like(names):\n             raise ValueError(\"Names should be an ordered collection.\")\n \n",
+     "sha256": "ffdd31450d518562ad9547b5518f446f8e5c8792817dab9648db2e08425e99e0"
+    },
+    {
+     "path": "pandas/io/parsers.py",
+     "operator": "bool_flip",
+     "line": 416,
+     "description": "False -> True",
+     "diff": "--- a/pandas/io/parsers.py\n+++ b/pandas/io/parsers.py\n@@ -414,5 +414,5 @@\n         if len(names) != len(set(names)):\n             raise ValueError(\"Duplicate names are not allowed.\")\n-        if not is_list_like(names, allow_sets=False):\n+        if not is_list_like(names, allow_sets=True):\n             raise ValueError(\"Names should be an ordered collection.\")\n \n",
+     "sha256": "226c10dab987e234c2264b80ba424805af2fba94c65002a93aad31a2009bbed1"
+    }
+   ],
+   "original": [
+    {
+     "cell": "original-m0-guard_drop-L416",
+     "mutant": {
+      "path": "pandas/io/parsers.py",
+      "operator": "guard_drop",
+      "line": 416,
+      "description": "drop `if` guard ending in raise",
+      "diff": "--- a/pandas/io/parsers.py\n+++ b/pandas/io/parsers.py\n@@ -414,6 +414,5 @@\n         if len(names) != len(set(names)):\n             raise ValueError(\"Duplicate names are not allowed.\")\n-        if not is_list_like(names, allow_sets=False):\n-            raise ValueError(\"Names should be an ordered collection.\")\n+        pass\n \n \n",
+      "sha256": "63ce3256090df1f4355b2f4982ca90e0bc6abc236cf8a3d8d6c4594e50296d4e"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 5.3,
+     "est_usd": 0.00088,
+     "evidence_sha256": "6702e9e458ae35252893cd015c0d92c668f6d1aa77afc5d63dcbbbb7f25a4c2f"
+    },
+    {
+     "cell": "original-m1-keyword_drop-L416",
+     "mutant": {
+      "path": "pandas/io/parsers.py",
+      "operator": "keyword_drop",
+      "line": 416,
+      "description": "drop keyword argument allow_sets=",
+      "diff": "--- a/pandas/io/parsers.py\n+++ b/pandas/io/parsers.py\n@@ -414,5 +414,5 @@\n         if len(names) != len(set(names)):\n             raise ValueError(\"Duplicate names are not allowed.\")\n-        if not is_list_like(names, allow_sets=False):\n+        if not is_list_like(names):\n             raise ValueError(\"Names should be an ordered collection.\")\n \n",
+      "sha256": "ffdd31450d518562ad9547b5518f446f8e5c8792817dab9648db2e08425e99e0"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 8.6,
+     "est_usd": 0.00142,
+     "evidence_sha256": "3c444aac27e17bd27d11d64082640c37db8a4bd78a9620244fa06e2a803cc397"
+    },
+    {
+     "cell": "original-m2-bool_flip-L416",
+     "mutant": {
+      "path": "pandas/io/parsers.py",
+      "operator": "bool_flip",
+      "line": 416,
+      "description": "False -> True",
+      "diff": "--- a/pandas/io/parsers.py\n+++ b/pandas/io/parsers.py\n@@ -414,5 +414,5 @@\n         if len(names) != len(set(names)):\n             raise ValueError(\"Duplicate names are not allowed.\")\n-        if not is_list_like(names, allow_sets=False):\n+        if not is_list_like(names, allow_sets=True):\n             raise ValueError(\"Names should be an ordered collection.\")\n \n",
+      "sha256": "226c10dab987e234c2264b80ba424805af2fba94c65002a93aad31a2009bbed1"
+     },
+     "applied": true,
+     "reward": 0.0,
+     "status": "executed",
+     "reason": null,
+     "wall_s": 8.6,
+     "est_usd": 0.00142,
+     "evidence_sha256": "89d46868aec36f49f17bfb52e891230fb83f0c8ed532d5abc9ed17c856266467"
+    }
+   ],
+   "repaired": [],
+   "control_original_ok": false,
+   "survivors_original": [],
+   "survivors_repaired": [],
+   "weak_original": false,
+   "weak_repaired": null,
+   "outcome": "audited",
+   "universe": "outside"
+  }
+ ]
+}

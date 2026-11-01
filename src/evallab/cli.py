@@ -7631,6 +7631,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.vcheck_cli import build_vcheck_parser
 
     build_vcheck_parser(commands)
+    from evallab.mutant_auditor import build_audit_mutants_parser
+
+    build_audit_mutants_parser(commands)
     from evallab.laminar import build_laminar_parser
 
     build_laminar_parser(commands)

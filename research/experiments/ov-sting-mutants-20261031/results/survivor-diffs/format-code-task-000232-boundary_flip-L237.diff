@@ -1,0 +1,9 @@
+--- a/quantecon/gridtools.py
++++ b/quantecon/gridtools.py
+@@ -235,5 +235,5 @@
+     for t in range(m):
+         for i in range(n):
+-            if X[t, i] <= nodes[i][0]:
++            if X[t, i] < nodes[i][0]:
+                 ind[i] = 0
+             elif X[t, i] >= nodes[i][-1]:

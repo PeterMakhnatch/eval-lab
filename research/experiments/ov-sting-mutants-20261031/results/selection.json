@@ -1,0 +1,210 @@
+{
+  "chosen": [
+    {
+      "task_id": "format-code-task-001205",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001205",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-001205/78b393aadeee84cd",
+      "patch_sha256": "e38d7eab082906dda3c9591057023c4c6ef9390e381f5c13c0c68ffccd5aa042",
+      "order_sha256": "0c3fba138221184e60baf861a8642ac21aa6a1d475eccd06aca18276c5636b60",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001985",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-001985/2ccdd20ab1ee9d37",
+      "patch_sha256": "71d11b72be47bc4e377affbbab9b9f928169089d1814c6123122dc8bfabf3ca2",
+      "order_sha256": "13214d68ed10e5795f481fd1772279d1f9409949b1fdc6c6e7bdc629b5aa8088",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-000931",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000931",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000931/e1bbe3a1c59518cf",
+      "patch_sha256": "e9fc4c109a95107b18fa2d2ad8ac5504081e2ef721300efa31bda33a05365532",
+      "order_sha256": "141b3ae6fe935d111a42d213070ec40205aebebb17d0b0b88a60665a783ba65a",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-001850",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001850",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-001850/25aa655393228334",
+      "patch_sha256": "762fe0c5a483d9a2e261d11c86b773f8fc2e164a7c038b0958fc51a7216aa618",
+      "order_sha256": "27aad8e05045dea47930dc63c296cbcf14fe0f0b26d34ac9460e8f7053e8c16a",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-000081",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000081",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000081/dc2d2136fde3a496",
+      "patch_sha256": "1007e5113f13068aeebc2ee1ce4416618ba98e678574319ad95b5ff595b7dd40",
+      "order_sha256": "38176a115624756d2eb7cc37556db73ce28c8c45ae749ca6e65eee77420fbc9c",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-002976",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002976",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-002976/4f05781b8b72b720",
+      "patch_sha256": "9fb22e5f605ff0c34d517a37225c5e9f2c0fef7e0eaacf000da02a8a52bcb9e2",
+      "order_sha256": "3bf27173fd0dcda558397ba6ba0d1a5d61eeebe52197e6f0509a6a4702346c4f",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-001267",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001267",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-001267/3e58579669df798e",
+      "patch_sha256": "3178b703811b5d447c642a935f679e29e49b8089e212a09b9416a49cc35de4ba",
+      "order_sha256": "3ee8606c26e6d4700841f9070103c9d2b77fe7b15c7469ded2fb818fb22c29cb",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-000682",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000682",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000682/eafb146c40dccbd8",
+      "patch_sha256": "247baff2adbecf684aaa86f349fb0465209f1465b8e6f67e8c5e32b77a57cb09",
+      "order_sha256": "4a019450606ff5d4358e0727778f5a3e7c446780be2724393e44a14d4227626d",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-000232",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000232",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000232/80c893b7b6514f71",
+      "patch_sha256": "148aadcece9f7510e435bba1886888439b16532011daabd4e78de0e95f68fdaf",
+      "order_sha256": "655c8f73885559f05cc54945ec40d2c15156488a40a15bdf7efa9eefb000c28e",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-002609",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002609",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-002609/fc910e70ad06299c",
+      "patch_sha256": "ae84b337d6bd205663f3aac5724a36e7fafac2b9a1b401b5a6c9e6f0de6577ed",
+      "order_sha256": "91114e77bb21546867541773bfb4960debe587ffb0a70422a411112d76bae66d",
+      "workdir": "/workspace/repo"
+    },
+    {
+      "task_id": "format-code-task-000079",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-000079",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-000079/20d92a160e7e8756",
+      "patch_sha256": "c85458c4caf0e9671ca63566c9f85c7794fcd94c868fcb29034ceed9690abfe9",
+      "order_sha256": "9962007aee553d1730e6620da2a85ac9a4268329f02e1e8be52ccb2c09d19cbb",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-002160",
+      "universe": "inside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-002160",
+      "repaired_package": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/evidence/packages/format-code-task-002160/e712361102df6804",
+      "patch_sha256": "f024263eda6341d073a618474693ce11b716c09b44c430f55c291e951d9eff22",
+      "order_sha256": "9b059c5372b023aa38d223601d1b13615a147cfc6c564351182c901a0702c1be",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-001954",
+      "universe": "outside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001954",
+      "repaired_package": null,
+      "patch_sha256": "320aa4342fc4427c68b2f9123b3e16e50e5ae31d841543458ecdaebcfb650e40",
+      "order_sha256": "0013b57118a1b6ddf768986dbbbd26e69a5c77a15fb7a81c1ed1d1b5646161a9",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-000484",
+      "universe": "outside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000484",
+      "repaired_package": null,
+      "patch_sha256": "c5aaab17d829f8244fb24ef9b847a799ca2d440d50a4f839e85975d348383c67",
+      "order_sha256": "041de74f7e33ccc4b0b3772b5be26a5925d174d0a1f9ef9549c61f2b1ec5f04a",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-001793",
+      "universe": "outside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001793",
+      "repaired_package": null,
+      "patch_sha256": "2f3e75b91fb11edff25ae0db2c26877cb46f3230e3e73946956f2703b7326b7d",
+      "order_sha256": "04721b8f5b394203d47b3a3e12d05e63db7a7c924e1a0a2631e0e4992dd5e229",
+      "workdir": "/workspace/repo"
+    },
+    {
+      "task_id": "format-code-task-003005",
+      "universe": "outside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-003005",
+      "repaired_package": null,
+      "patch_sha256": "c9fddad7cb9e5c80eef66e61aa878aec13869211733226ee2f0e7bca143ff5cc",
+      "order_sha256": "0487f711bc175cd5eae7b7a1274deaa84e7e8bb521209ba33baef4ea3ed57498",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-000581",
+      "universe": "outside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000581",
+      "repaired_package": null,
+      "patch_sha256": "eea104b53e522ec0954ce0c83b0fcd1f0213571decf18a229ececcf37f992e6c",
+      "order_sha256": "0521b75d0b3b1f2242b2d5ffdf9e9ab4f530e7a75b7011a516300e2ca81bc1d1",
+      "workdir": "/testbed"
+    },
+    {
+      "task_id": "format-code-task-002212",
+      "universe": "outside",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002212",
+      "repaired_package": null,
+      "patch_sha256": "48501de5d39c1f0de22d6152eddf6b3ef67c46ac9aada7fa732262f3b3de4cf4",
+      "order_sha256": "05c16487251a6680411f1943c989a8d454792651cb13bb633f8d59848be5ad73",
+      "workdir": "/testbed"
+    }
+  ],
+  "skipped": [
+    {
+      "task_id": "format-code-task-001514",
+      "universe": "inside",
+      "reason": "reference patch adds no non-test python line"
+    },
+    {
+      "task_id": "format-code-task-000603",
+      "universe": "inside",
+      "reason": "reference patch adds no non-test python line"
+    },
+    {
+      "task_id": "format-code-task-001616",
+      "universe": "outside",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "format-code-task-000910",
+      "universe": "outside",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "format-code-task-001220",
+      "universe": "outside",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "format-code-task-000102",
+      "universe": "outside",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "format-code-task-000851",
+      "universe": "outside",
+      "reason": "not strictly DEV"
+    },
+    {
+      "task_id": "format-code-task-000133",
+      "universe": "outside",
+      "reason": "not strictly DEV"
+    }
+  ],
+  "inside": 12,
+  "outside": 6
+}

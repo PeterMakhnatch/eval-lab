@@ -55,9 +55,12 @@ _REWARD_LINE = (
 )
 _FINAL_ECHO = 'echo "test command exited $RC"\n'
 
-_L1 = f"""\
+
+def l1_block(pattern: str = AUTOLOAD_PATTERN) -> str:
+    """The L1 shell block resetting every file whose path matches the ``case`` ``pattern``."""
+    return f"""\
 # grader-hardening@1 L1: reset every auto-load/config file by pattern, not by the enumerated list above
-l1_is_autoload() {{ case "$1" in {AUTOLOAD_PATTERN}) return 0 ;; esac; return 1; }}
+l1_is_autoload() {{ case "$1" in {pattern}) return 0 ;; esac; return 1; }}
 # pyproject.toml and setup.cfg also carry dependencies and metadata that a correct fix may change (4 of 567 vendored
 # references do): they are reset only when the agent's change to them mentions pytest, addopts or plugins
 l1_is_soft_config() {{ case "$1" in pyproject.toml|*/pyproject.toml|setup.cfg|*/setup.cfg) return 0 ;; esac; return 1; }}
@@ -81,6 +84,7 @@ if ! (
   done
 ); then echo "could not reset the auto-load files (testbed problem, not scored)" >&2; exit 1; fi
 """
+
 
 _L3_BEFORE = """\
 # grader-hardening@1 L3: every pytest process writes a JUnit report to a path chosen now; reward needs the report
@@ -173,11 +177,15 @@ def runner_uses_pytest(parent: Path) -> bool:
     return report_gate_blocker(parent) is None
 
 
-def build_test_sh(parent_text: str, *, with_report_gate: bool) -> str:
-    """Parent ``tests/test.sh`` plus L1 and, when ``with_report_gate``, L3."""
+def build_test_sh(
+    parent_text: str, *, with_report_gate: bool, l1_pattern: str = AUTOLOAD_PATTERN
+) -> str:
+    """Parent ``tests/test.sh`` plus L1 (resetting ``l1_pattern``) and, when ``with_report_gate``, L3."""
     if "grader-hardening@1" in parent_text:
         raise VariantInvalid("parent is already grader-hardened")
-    text = _replace_once(parent_text, _RESET_END, _RESET_END + _L1, "reset-failure line")
+    text = _replace_once(
+        parent_text, _RESET_END, _RESET_END + l1_block(l1_pattern), "reset-failure line"
+    )
     if with_report_gate:
         text = _replace_once(text, _RUN_LINE, _L3_BEFORE + _RUN_LINE, "test command line")
         text = _replace_once(

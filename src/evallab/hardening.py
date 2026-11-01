@@ -67,6 +67,10 @@ a failed check stops setup, with no hide-only or network-open fallback.
 * ``grader-hardening@1`` resets auto-load/config files by pattern (conftest, sitecustomize, pytest.ini, ``*.pth``, ...)
   and gates the reward on a JUnit report, for single-container pytest graders; not in the default chain
   (executed matrix: research/experiments/h1-grader-hardening-20261030).
+* ``full-hardening@1`` (``evallab harden``, ``full_hardening``) applies L1 auto-load purge, L2 pristine workspace
+  tests/grader helpers, L3 multi-runner report gate and L4 separate verifier plus agent-image leak scrub to MiMo
+  and general Harbor packages; a standalone transform, not in the default chain
+  (executed matrix: research/experiments/t2-unified-harden-20261031).
 * ``general-nop-zero-weight@1`` removes reward credit from measured pristine
   rule passes while retaining execution and failure reporting.
 * ``webdev-temp0-pin@1`` binds temperature/model/provider/revision and masks

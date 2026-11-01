@@ -2980,6 +2980,40 @@ def _evidence_archive_command(
     return 0
 
 
+def _harden_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.full_hardening import HardeningRefused, harden
+
+    try:
+        manifest = harden(
+            args.package,
+            args.out,
+            audit_only=args.audit_only,
+            expected_tests=args.expected_tests,
+            expected_skipped=args.expected_skipped,
+            calibrate=args.calibrate,
+            allow_degraded=args.allow_degraded,
+            single_container=args.single_container,
+            helpers=tuple(args.helper),
+        )
+    except HardeningRefused as exc:
+        print(f"refused: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(manifest.to_json(), indent=2, sort_keys=True))
+        return 0
+    print(
+        f"{manifest.transform} {manifest.shape} package, workdir {manifest.workdir}, runner {manifest.runner}"
+    )
+    for layer in manifest.layers:
+        print(f"  {layer.layer} {layer.status}: {layer.mechanism}")
+    for finding in manifest.findings:
+        print(f"  finding {finding.kind} {finding.path}: {finding.detail} [{finding.action}]")
+    print(f"  output: {manifest.output or '(audit only)'}")
+    return 0
+
+
 def _regrade_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -7364,6 +7398,42 @@ def parser() -> argparse.ArgumentParser:
     )
     regrade_parser.add_argument("--json", action="store_true")
     regrade_parser.set_defaults(func=_regrade_command)
+    harden_parser = commands.add_parser(
+        "harden",
+        help="full-hardening@1: L1 auto-load purge, L2 pristine tests/helpers, L3 report gate, L4 separation",
+    )
+    harden_parser.add_argument(
+        "package", type=Path, help="MiMo test.sh or general Harbor task package"
+    )
+    harden_parser.add_argument("--out", type=Path, help="New directory for the hardened package")
+    harden_parser.add_argument(
+        "--audit-only", action="store_true", help="Report the plan; write nothing"
+    )
+    harden_parser.add_argument("--expected-tests", type=int, help="Reference test count (L3 gate)")
+    harden_parser.add_argument("--expected-skipped", type=int, default=0)
+    harden_parser.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="Record report counts without gating (reference runs only)",
+    )
+    harden_parser.add_argument(
+        "--allow-degraded",
+        action="store_true",
+        help="Without a reference count, gate on one passing test",
+    )
+    harden_parser.add_argument(
+        "--single-container",
+        action="store_true",
+        help="Skip L4 verifier separation (L4 leak scrub still runs)",
+    )
+    harden_parser.add_argument(
+        "--helper",
+        action="append",
+        default=[],
+        help="Workspace path the grader trusts (L2); repeatable",
+    )
+    harden_parser.add_argument("--json", action="store_true")
+    harden_parser.set_defaults(func=_harden_command)
     process_job_parser = commands.add_parser(
         "process-job",
         help="Process a landed Harbor job: ingest, detectors, run/job reports",

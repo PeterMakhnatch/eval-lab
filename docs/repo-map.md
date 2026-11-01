@@ -1197,7 +1197,7 @@ inputs:
   - path: src/evallab/toolbox.py
     digest: sha256:ffe4e1968b5eb2c990fec10c0c543dbbb29539d196d762f0e307299610a59bd8
   - path: src/evallab/trace_anatomy.py
-    digest: sha256:39dbcab9e4e71978105ec1cd465119431039cda35002f260f9dbca4c1ab3db0a
+    digest: sha256:f49dfae004461f6d79f59d610419cc7fb4309dd08bbfb1b5af5638729300660d
   - path: src/evallab/trace_query.py
     digest: sha256:c20b750e914432861b9761c37c88b9dcd4c1dc6ff5d654f6c6d81bf65a7aea87
   - path: src/evallab/trace_store/__init__.py

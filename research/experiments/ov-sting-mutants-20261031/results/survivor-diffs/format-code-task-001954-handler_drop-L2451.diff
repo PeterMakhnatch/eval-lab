@@ -1,0 +1,9 @@
+--- a/modin/pandas/series.py
++++ b/modin/pandas/series.py
+@@ -2450,5 +2450,5 @@
+             is_indexer = all(k in self.keys() for k in key)
+         except TypeError:
+-            is_indexer = False
++            raise
+         row_positions = self.index.get_indexer_for(key) if is_indexer else key
+         if not all(is_integer(x) for x in row_positions):

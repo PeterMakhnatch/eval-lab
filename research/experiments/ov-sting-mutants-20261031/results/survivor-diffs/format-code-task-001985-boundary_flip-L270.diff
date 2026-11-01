@@ -1,0 +1,9 @@
+--- a/bugbug/repository.py
++++ b/bugbug/repository.py
+@@ -268,5 +268,5 @@
+         for line in lines:
+             for function in functions[last_f:]:
+-                if function["error"] or function["end_line"] < line:
++                if function["error"] or function["end_line"] <= line:
+                     last_f += 1
+                     continue

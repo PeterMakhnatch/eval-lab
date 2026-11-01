@@ -1,0 +1,9 @@
+--- a/robo/acquisition/LogEI.py
++++ b/robo/acquisition/LogEI.py
+@@ -72,5 +72,5 @@
+             # Degenerate case 2: second term vanishes and first term has a special form.
+             elif sigma == 0:
+-                if mu < np.any(eta - par_s):
++                if mu <= np.any(eta - par_s):
+                     log_ei[i] = np.log(eta - mu - par_s)
+                 else:

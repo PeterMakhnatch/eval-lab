@@ -1,0 +1,9 @@
+--- a/redash/controllers.py
++++ b/redash/controllers.py
+@@ -333,5 +333,5 @@
+             abort(404, message="Query not found.")
+ 
+-api.add_resource(QuerySearchAPI, '/api/queries/search', endpoint='queries_search')
++api.add_resource(QuerySearchAPI, '/api/queries/search')
+ api.add_resource(QueryListAPI, '/api/queries', endpoint='queries')
+ api.add_resource(QueryAPI, '/api/queries/<query_id>', endpoint='query')

@@ -1,0 +1,9 @@
+--- a/xdoctest/runner.py
++++ b/xdoctest/runner.py
+@@ -123,5 +123,5 @@
+                 sys.stdout.write('F')
+                 sys.stdout.flush()
+-            errors.append('\n'.join(example.repr_failure()))
++            pass
+             if len(enabled_examples) == 1:
+                 raise

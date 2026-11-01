@@ -1,0 +1,9 @@
+--- a/src/iris/vendors/__init__.py
++++ b/src/iris/vendors/__init__.py
+@@ -29,5 +29,5 @@
+                 application_cls = import_custom_module('iris.applications', application)
+             except ImportError:
+-                logger.exception('Failed importing application %s', application)
++                pass
+                 continue
+ 

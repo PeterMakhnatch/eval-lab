@@ -1,0 +1,9 @@
+--- a/c7n/resources/sns.py
++++ b/c7n/resources/sns.py
+@@ -308,5 +308,5 @@
+         sns = local_session(self.manager.session_factory).client('sns')
+ 
+-        if self.data.get('enabled', True):
++        if self.data.get('enabled', False):
+             key = self.data.get('key', 'alias/aws/sns')
+         else:

@@ -1,0 +1,42 @@
+{
+  "calibration": false,
+  "expected_report": null,
+  "findings": [],
+  "layers": [
+    {
+      "details": {},
+      "layer": "L1",
+      "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: test-infra and auto-load files dropped from the kept change",
+      "status": "native"
+    },
+    {
+      "details": {},
+      "layer": "L2",
+      "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: hidden tests re-applied on a pristine tree",
+      "status": "native"
+    },
+    {
+      "details": {},
+      "layer": "L3",
+      "mechanism": "separate-verifier@10 patch-only grading in a pristine verifier checkout: structured certification for runner custom",
+      "status": "native"
+    },
+    {
+      "details": {
+        "image_leaks": 0
+      },
+      "layer": "L4",
+      "mechanism": "separate-verifier@10 separate verifier container",
+      "status": "applied"
+    }
+  ],
+  "output": "/private/tmp/k4-redteam-harden/001267-HS",
+  "output_digest": "sha256:7c767aca199d45118279e4c816108fd1d98a84951db3aa7c0d3c0cd60073a862",
+  "runner": null,
+  "separate_verifier": true,
+  "shape": "mimo",
+  "source": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-24/mimo-task-quality-30-20261024/original-packages/format-code-task-001267",
+  "source_digest": "sha256:0f2d3eb9d6d5baafd36ce165ece651313f4c7f36534d340f04a0ae4e55ea4fd5",
+  "transform": "full-hardening@1",
+  "workdir": "/testbed"
+}

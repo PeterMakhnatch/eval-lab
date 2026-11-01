@@ -1,0 +1,35 @@
+{
+  "id": "c3-payout-export__gemini38__t1",
+  "task": "c3-payout-export",
+  "kind": "real",
+  "model": "google-antigravity/gemini-3.8-flash",
+  "slug": "gemini38",
+  "trial": 1,
+  "returncode": 0,
+  "wall_s": 75.3,
+  "n_steps": 21,
+  "n_tool_calls": 20,
+  "usage": {
+    "input": 147100,
+    "output": 17181,
+    "cache_read": 44641,
+    "usd": 0.17810182500000005
+  },
+  "served": {
+    "requested": "google-antigravity/gemini-3.8-flash",
+    "model_changes": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "reply_models": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "n_replies": 21,
+    "n_fallbacks": 0,
+    "attested": true
+  },
+  "prompt_sha256": "8093724f76f82aa135457425fba0a1719ec59e00b1891913e5f8dde82509fb01",
+  "ran_at": "2026-11-01T07:12:26+00:00",
+  "diff_sha256": "a5c8b3ecb106ce058d86b5e57c252fa78ea4283f414792affbe0e09b09dcbb68",
+  "diff_chars": 862,
+  "diff_stat": " out/summary.json | 37 +++++++++++++++++++++++++++++++++++++\n 1 file changed, 37 insertions(+)\n"
+}

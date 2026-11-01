@@ -1,0 +1,35 @@
+{
+  "id": "c2-release-ledger-order__gemini38__t2",
+  "task": "c2-release-ledger-order",
+  "kind": "real",
+  "model": "google-antigravity/gemini-3.8-flash",
+  "slug": "gemini38",
+  "trial": 2,
+  "returncode": 0,
+  "wall_s": 95.9,
+  "n_steps": 40,
+  "n_tool_calls": 39,
+  "usage": {
+    "input": 267977,
+    "output": 11709,
+    "cache_read": 173592,
+    "usd": 0.2579109
+  },
+  "served": {
+    "requested": "google-antigravity/gemini-3.8-flash",
+    "model_changes": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "reply_models": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "n_replies": 40,
+    "n_fallbacks": 0,
+    "attested": true
+  },
+  "prompt_sha256": "3108bc3a87c9476c433fe8b7e1808d616536fda2e12d15cc99eff81e958e8e7e",
+  "ran_at": "2026-11-01T07:11:29+00:00",
+  "diff_sha256": "5cd24a0e325db831fef2cec94360b845d79e44b89adf4876c2af1c09b9e279ff",
+  "diff_chars": 1595,
+  "diff_stat": " relnotes/history.py | 30 +++++++++++++++++++++++++++++-\n 1 file changed, 29 insertions(+), 1 deletion(-)\n"
+}

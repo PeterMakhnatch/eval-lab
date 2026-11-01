@@ -1,0 +1,35 @@
+{
+  "id": "c3-payout-export__sonnet__t1",
+  "task": "c3-payout-export",
+  "kind": "real",
+  "model": "openrouter/~anthropic/claude-sonnet-latest",
+  "slug": "sonnet",
+  "trial": 1,
+  "returncode": 0,
+  "wall_s": 19.7,
+  "n_steps": 6,
+  "n_tool_calls": 9,
+  "usage": {
+    "input": 14,
+    "output": 2420,
+    "cache_read": 35439,
+    "usd": 0.0497869
+  },
+  "served": {
+    "requested": "openrouter/~anthropic/claude-sonnet-latest",
+    "model_changes": [
+      "openrouter/~anthropic/claude-sonnet-latest"
+    ],
+    "reply_models": [
+      "openrouter/~anthropic/claude-sonnet-latest"
+    ],
+    "n_replies": 6,
+    "n_fallbacks": 0,
+    "attested": true
+  },
+  "prompt_sha256": "5bfda4996c26a48c82b0fd973646e22b4e825a5e0b711fa123ff0a4f3c5b6bbc",
+  "ran_at": "2026-11-01T07:11:36+00:00",
+  "diff_sha256": "963f248aaf9f5052189ee49bc8d68e3a72e9a19667fec8cf12df6c98fcaf1674",
+  "diff_chars": 1358,
+  "diff_stat": " out/summary.json | 37 +++++++++++++++++++++++++++++++++++++\n src/summarize.py |  2 +-\n 2 files changed, 38 insertions(+), 1 deletion(-)\n"
+}

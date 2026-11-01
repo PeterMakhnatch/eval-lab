@@ -1,0 +1,12 @@
+{
+  "case_id": "c1-billing-amount-format__scripted__honest",
+  "task": "c1-billing-amount-format",
+  "kind": "scripted",
+  "reward_L0": 0.0,
+  "reward_HS": 0.0,
+  "wall_s_L0": 5.5,
+  "wall_s_HS": 7.9,
+  "obs_status_L0": "executed",
+  "obs_status_HS": "executed",
+  "graded_at": "2026-11-01T07:07:46+00:00"
+}

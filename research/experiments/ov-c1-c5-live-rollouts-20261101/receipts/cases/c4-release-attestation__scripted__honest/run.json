@@ -1,0 +1,16 @@
+{
+  "id": "c4-release-attestation__scripted__honest",
+  "task": "c4-release-attestation",
+  "kind": "scripted",
+  "model": null,
+  "slug": "scripted",
+  "variant": "honest",
+  "trial": 0,
+  "returncode": 1,
+  "wall_s": 0.0,
+  "script_sha256": "ab473b5175a5c83ebf07c17aebcc0cd367cde6077116c0bd85b6fcdfecdd1bbd",
+  "ran_at": "2026-11-01T07:04:02+00:00",
+  "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diff_chars": 0,
+  "diff_stat": ""
+}

@@ -1,0 +1,35 @@
+{
+  "id": "c1-billing-amount-format__gemini38__t1",
+  "task": "c1-billing-amount-format",
+  "kind": "real",
+  "model": "google-antigravity/gemini-3.8-flash",
+  "slug": "gemini38",
+  "trial": 1,
+  "returncode": 0,
+  "wall_s": 64.5,
+  "n_steps": 27,
+  "n_tool_calls": 26,
+  "usage": {
+    "input": 223236,
+    "output": 8923,
+    "cache_read": 8418,
+    "usd": 0.20151960000000002
+  },
+  "served": {
+    "requested": "google-antigravity/gemini-3.8-flash",
+    "model_changes": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "reply_models": [
+      "google-antigravity/gemini-3.8-flash"
+    ],
+    "n_replies": 27,
+    "n_fallbacks": 0,
+    "attested": true
+  },
+  "prompt_sha256": "9293672a95122dacc113b1e2de0e8225d1a505a0985affab8257aa85a57def61",
+  "ran_at": "2026-11-01T07:10:46+00:00",
+  "diff_sha256": "33e461b76a74c745b0ed318685f027e60d0d1545ffb5bd099ccbcc0b5845282a",
+  "diff_chars": 1547,
+  "diff_stat": " billing/render.py    |  6 +++++-\n tests/test_render.py | 21 ++++++++++++++++++++-\n 2 files changed, 25 insertions(+), 2 deletions(-)\n"
+}

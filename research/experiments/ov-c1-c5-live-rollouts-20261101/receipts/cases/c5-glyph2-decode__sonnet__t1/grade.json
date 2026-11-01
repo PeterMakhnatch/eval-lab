@@ -1,0 +1,12 @@
+{
+  "case_id": "c5-glyph2-decode__sonnet__t1",
+  "task": "c5-glyph2-decode",
+  "kind": "real",
+  "reward_L0": 0.0,
+  "reward_HS": 0.0,
+  "wall_s_L0": 6.4,
+  "wall_s_HS": 7.1,
+  "obs_status_L0": "executed",
+  "obs_status_HS": "executed",
+  "graded_at": "2026-11-01T07:23:24+00:00"
+}

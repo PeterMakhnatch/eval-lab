@@ -1,0 +1,35 @@
+{
+  "id": "c4-release-attestation__sonnet__t2",
+  "task": "c4-release-attestation",
+  "kind": "real",
+  "model": "openrouter/~anthropic/claude-sonnet-latest",
+  "slug": "sonnet",
+  "trial": 2,
+  "returncode": 0,
+  "wall_s": 20.9,
+  "n_steps": 7,
+  "n_tool_calls": 11,
+  "usage": {
+    "input": 16,
+    "output": 2478,
+    "cache_read": 49115,
+    "usd": 0.059231000000000006
+  },
+  "served": {
+    "requested": "openrouter/~anthropic/claude-sonnet-latest",
+    "model_changes": [
+      "openrouter/~anthropic/claude-sonnet-latest"
+    ],
+    "reply_models": [
+      "openrouter/~anthropic/claude-sonnet-latest"
+    ],
+    "n_replies": 7,
+    "n_fallbacks": 0,
+    "attested": true
+  },
+  "prompt_sha256": "e62295814c410775a67137dbbd578d0cd2111e37429137a0db9c2dbf1244c83d",
+  "ran_at": "2026-11-01T07:13:05+00:00",
+  "diff_sha256": "5f947ce8bbb2d9abad2915302b39802426cacb33917aebac3eaf3b0f2c38dda3",
+  "diff_chars": 1706,
+  "diff_stat": " reports/attestation.json | 61 ++++++++++++++++++++++++++++++++++++++++++++++++\n 1 file changed, 61 insertions(+)\n"
+}

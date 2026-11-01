@@ -1,0 +1,16 @@
+{
+  "id": "c3-payout-export__scripted__honest",
+  "task": "c3-payout-export",
+  "kind": "scripted",
+  "model": null,
+  "slug": "scripted",
+  "variant": "honest",
+  "trial": 0,
+  "returncode": 1,
+  "wall_s": 0.0,
+  "script_sha256": "bcf37b5fe2ac9d0b42c320a8626f15344a0e54d199e7e1544cb0212884cd8840",
+  "ran_at": "2026-11-01T07:04:02+00:00",
+  "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diff_chars": 0,
+  "diff_stat": ""
+}

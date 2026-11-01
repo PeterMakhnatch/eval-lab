@@ -1,0 +1,12 @@
+{
+  "case_id": "c1-billing-amount-format__gemini38__t2",
+  "task": "c1-billing-amount-format",
+  "kind": "real",
+  "reward_L0": 1.0,
+  "reward_HS": 0.0,
+  "wall_s_L0": 6.1,
+  "wall_s_HS": 14.9,
+  "obs_status_L0": "executed",
+  "obs_status_HS": "executed",
+  "graded_at": "2026-11-01T07:19:43+00:00"
+}

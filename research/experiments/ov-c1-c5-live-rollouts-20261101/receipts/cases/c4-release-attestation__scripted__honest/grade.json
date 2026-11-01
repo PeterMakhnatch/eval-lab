@@ -1,0 +1,12 @@
+{
+  "case_id": "c4-release-attestation__scripted__honest",
+  "task": "c4-release-attestation",
+  "kind": "scripted",
+  "reward_L0": 0.0,
+  "reward_HS": 0.0,
+  "wall_s_L0": 3.3,
+  "wall_s_HS": 5.4,
+  "obs_status_L0": "executed",
+  "obs_status_HS": "executed",
+  "graded_at": "2026-11-01T07:08:45+00:00"
+}

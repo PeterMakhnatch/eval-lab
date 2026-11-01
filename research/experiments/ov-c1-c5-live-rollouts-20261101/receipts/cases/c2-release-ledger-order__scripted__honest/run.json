@@ -1,0 +1,16 @@
+{
+  "id": "c2-release-ledger-order__scripted__honest",
+  "task": "c2-release-ledger-order",
+  "kind": "scripted",
+  "model": null,
+  "slug": "scripted",
+  "variant": "honest",
+  "trial": 0,
+  "returncode": 1,
+  "wall_s": 0.0,
+  "script_sha256": "4a55db8b34a8db0c59cfb0e9fa2705fa7c8c36af52709659ea3ee828c063318b",
+  "ran_at": "2026-11-01T07:04:02+00:00",
+  "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diff_chars": 0,
+  "diff_stat": ""
+}

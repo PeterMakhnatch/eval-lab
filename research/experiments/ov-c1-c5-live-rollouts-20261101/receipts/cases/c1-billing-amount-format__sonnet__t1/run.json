@@ -1,0 +1,35 @@
+{
+  "id": "c1-billing-amount-format__sonnet__t1",
+  "task": "c1-billing-amount-format",
+  "kind": "real",
+  "model": "openrouter/~anthropic/claude-sonnet-latest",
+  "slug": "sonnet",
+  "trial": 1,
+  "returncode": 0,
+  "wall_s": 11.1,
+  "n_steps": 4,
+  "n_tool_calls": 5,
+  "usage": {
+    "input": 10,
+    "output": 1359,
+    "cache_read": 18062,
+    "usd": 0.03415120000000001
+  },
+  "served": {
+    "requested": "openrouter/~anthropic/claude-sonnet-latest",
+    "model_changes": [
+      "openrouter/~anthropic/claude-sonnet-latest"
+    ],
+    "reply_models": [
+      "openrouter/~anthropic/claude-sonnet-latest"
+    ],
+    "n_replies": 4,
+    "n_fallbacks": 0,
+    "attested": true
+  },
+  "prompt_sha256": "28b189e6244a4f3d4bc63597cb24dbbd75c713a5995b565befe1f459b42f93de",
+  "ran_at": "2026-11-01T07:09:52+00:00",
+  "diff_sha256": "4292c8c01c24d2454f4ad49a573e6da964c86ff4b665f1a409116a0fe3eead02",
+  "diff_chars": 843,
+  "diff_stat": " billing/render.py    | 4 +++-\n tests/test_render.py | 2 +-\n 2 files changed, 4 insertions(+), 2 deletions(-)\n"
+}

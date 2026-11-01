@@ -1,0 +1,12 @@
+{
+  "case_id": "c2-release-ledger-order__gemini38__t2",
+  "task": "c2-release-ledger-order",
+  "kind": "real",
+  "reward_L0": 0.0,
+  "reward_HS": 0.0,
+  "wall_s_L0": 2.9,
+  "wall_s_HS": 21.4,
+  "obs_status_L0": "executed",
+  "obs_status_HS": "executed",
+  "graded_at": "2026-11-01T07:20:40+00:00"
+}

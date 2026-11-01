@@ -1,0 +1,12 @@
+{
+  "case_id": "c2-release-ledger-order__sonnet__t1",
+  "task": "c2-release-ledger-order",
+  "kind": "real",
+  "reward_L0": 0.0,
+  "reward_HS": 0.0,
+  "wall_s_L0": 3.5,
+  "wall_s_HS": 9.6,
+  "obs_status_L0": "executed",
+  "obs_status_HS": "executed",
+  "graded_at": "2026-11-01T07:20:53+00:00"
+}

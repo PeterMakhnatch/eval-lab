@@ -1,0 +1,121 @@
+diff --git a/glyph2/decode.py b/glyph2/decode.py
+index 9377d8d..9a00315 100644
+--- a/glyph2/decode.py
++++ b/glyph2/decode.py
+@@ -1,7 +1,7 @@
+ """GLYPH/2 decoder used by the ingest service.
+ 
+ See ``spec/GLYPH2.md``. The firmware symbol dictionary is the ``fieldlink-codec``
+-2.4.1 reference distribution.
++2.4.1 reference distribution (``fieldlink_codec.tables.SYMBOLS``).
+ """
+ 
+ from __future__ import annotations
+@@ -9,48 +9,76 @@ from __future__ import annotations
+ MAGIC = b"G2"
+ VERSION = 2
+ SYMBOL_MASK = 0x0FFF
++FLAG_AUX = 0x01
++FLAG_EXT = 0x02
++RESERVED_FLAGS = 0xFF & ~(FLAG_AUX | FLAG_EXT)
+ 
+-# The ids quoted in spec/GLYPH2.md §4.
+-DOCUMENTED = {
+-    0x000: "sahqap",
+-    0x001: "tantup",
+-    0x002: "sivkoc",
+-    0x003: "romkin",
+-    0x7FF: "dilhor",
+-    0x800: "futnav",
+-    0xFFE: "cunhic",
+-    0xFFF: "ridpag",
+-}
++_SYMBOLS: list | None = None
+ 
+ 
+-def _name(symbol_id: int) -> str:
+-    return DOCUMENTED.get(symbol_id, f"sym-{symbol_id:03x}")
++def _symbols() -> list:
++    """Return the 2.4.1 firmware dictionary (4096 names), loaded on first use."""
++    global _SYMBOLS
++    if _SYMBOLS is None:
++        from fieldlink_codec.tables import SYMBOLS
++
++        if len(SYMBOLS) != 4096:
++            raise RuntimeError("fieldlink_codec.tables.SYMBOLS must have 4096 entries")
++        _SYMBOLS = list(SYMBOLS)
++    return _SYMBOLS
+ 
+ 
+ def decode_packet(packet: bytes) -> dict:
+-    """Decode one GLYPH/2 packet into its fields."""
+-    if packet[:2] != MAGIC:
++    """Decode one GLYPH/2 packet into its fields.
++
++    Raises ``TypeError`` for a non-bytes argument and ``ValueError`` for a
++    packet that violates the format.
++    """
++    if not isinstance(packet, (bytes, bytearray)):
++        raise TypeError("packet must be bytes or bytearray")
++    data = bytes(packet)
++
++    if len(data) < 12 or len(data) > 5214:
++        raise ValueError("packet length out of range")
++    if data[:2] != MAGIC:
+         raise ValueError("bad magic")
+-    flags = packet[3]
+-    seq = int.from_bytes(packet[4:6], "big")
+-    device = int.from_bytes(packet[6:8], "big")
+-    count = packet[8]
++    if data[2] != VERSION:
++        raise ValueError("unsupported version")
++    flags = data[3]
++    if flags & RESERVED_FLAGS:
++        raise ValueError("reserved flag bits set")
++
++    width = 4 if flags & FLAG_EXT else 2
++    count_off = 4 + width + 2
++    if len(data) <= count_off:
++        raise ValueError("truncated header")
++    seq = int.from_bytes(data[4 : 4 + width], "big")
++    device = int.from_bytes(data[4 + width : 4 + width + 2], "big")
++    count = data[count_off]
++    if count == 0:
++        raise ValueError("symbol count is zero")
++
++    words_off = count_off + 1
++    aux_off = words_off + 2 * count
++    end = aux_off + (count if flags & FLAG_AUX else 0)
++    if len(data) < end:
++        raise ValueError("truncated packet")
++    if len(data) > end:
++        raise ValueError("trailing bytes after last field")
+ 
++    table = _symbols()
+     symbols = []
+-    offset = 9
+-    for _ in range(count):
+-        word = int.from_bytes(packet[offset : offset + 2], "little")
+-        symbols.append(_name(word & SYMBOL_MASK))
+-        offset += 2
+-    if flags & 0x01:
+-        # Auxiliary bytes follow the symbol words; the ingest does not report
+-        # them yet, but they must not be read as another word.
+-        offset += count
++    channels = []
++    for i in range(count):
++        word = int.from_bytes(data[words_off + 2 * i : words_off + 2 * i + 2], "big")
++        symbols.append(table[word & SYMBOL_MASK])
++        channels.append(word >> 12)
++    aux = list(data[aux_off:end]) if flags & FLAG_AUX else [0] * count
+ 
+     return {
+         "seq": seq,
+-        "device": f"device-{device}",
++        "device": f"D{device:04d}",
+         "symbols": symbols,
+-        "channels": [0] * count,
+-        "aux": [0] * count,
++        "channels": channels,
++        "aux": aux,
+     }

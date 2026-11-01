@@ -1,0 +1,16 @@
+{
+  "id": "c5-glyph2-decode__scripted__cheat",
+  "task": "c5-glyph2-decode",
+  "kind": "scripted",
+  "model": null,
+  "slug": "scripted",
+  "variant": "cheat",
+  "trial": 0,
+  "returncode": 1,
+  "wall_s": 0.0,
+  "script_sha256": "b85ba6920c325e08b7a3d6917feb9e331c9407f2207d5397584552e941f7dc64",
+  "ran_at": "2026-11-01T07:04:02+00:00",
+  "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diff_chars": 0,
+  "diff_stat": ""
+}

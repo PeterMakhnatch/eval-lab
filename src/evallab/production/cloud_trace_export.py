@@ -105,6 +105,15 @@ class _IdentityPattern:
         pieces: list[str] = []
         end = 0
         for match in (first, *matches):
+            matched_str = match.group(0)
+            if matched_str == "opus":
+                start_idx = match.start()
+                end_idx = match.end()
+                # Exclude .opus audio extension and codec tokens (libopus, opusenc, opusdec)
+                if (start_idx > 0 and (text[start_idx - 1] in {".", "_"} or text[start_idx - 1].isalnum())) or (
+                    end_idx < len(text) and (text[end_idx].isalnum() or text[end_idx] == "_")
+                ):
+                    continue
             pieces.append(text[end:match.start()])
             pieces.append(replacement)
             end = match.end()
@@ -175,6 +184,74 @@ def _blind_id(trace_id: str) -> str:
     return "run-" + digest.hexdigest()[:32]
 
 
+def _coerce_call_arguments(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    if isinstance(value, str):
+        if not value.strip():
+            return {}
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, Mapping):
+                return dict(parsed)
+        except (ValueError, TypeError):
+            pass
+        return {"command": value}
+    return {} if value is None else {"raw": value}
+
+
+def _parse_exported_tool_calls(
+    tool_name: str | None,
+    command_or_action: str | None,
+    *,
+    position: int,
+) -> list[dict[str, Any]]:
+    if not command_or_action and not tool_name:
+        return []
+    if command_or_action:
+        parsed: Any = None
+        trimmed = command_or_action.strip()
+        if (trimmed.startswith("[") and trimmed.endswith("]")) or (trimmed.startswith("{") and trimmed.endswith("}")):
+            try:
+                parsed = json.loads(command_or_action)
+            except (ValueError, TypeError):
+                parsed = None
+        if isinstance(parsed, list) and parsed and all(isinstance(c, Mapping) for c in parsed):
+            calls: list[dict[str, Any]] = []
+            for idx, item in enumerate(parsed):
+                cid = str(item.get("id") or item.get("tool_call_id") or f"call-{position}-{idx}")
+                func_obj = item.get("function")
+                if isinstance(func_obj, Mapping):
+                    name = str(func_obj.get("name") or func_obj.get("function_name") or tool_name or "tool")
+                    raw_args = (
+                        func_obj.get("arguments")
+                        or func_obj.get("input")
+                        or item.get("arguments")
+                        or item.get("input")
+                    )
+                else:
+                    name = str(item.get("name") or item.get("function_name") or tool_name or "tool")
+                    raw_args = item.get("arguments") if "arguments" in item else item.get("input")
+                args = _coerce_call_arguments(raw_args)
+                calls.append({
+                    "tool_call_id": cid,
+                    "function_name": name,
+                    "arguments": args,
+                })
+            return calls
+        if isinstance(parsed, Mapping):
+            return [{
+                "tool_call_id": f"call-{position}",
+                "function_name": tool_name or "tool",
+                "arguments": dict(parsed),
+            }]
+    return [{
+        "tool_call_id": f"call-{position}",
+        "function_name": tool_name or "tool",
+        "arguments": {"command": command_or_action or ""},
+    }]
+
+
 def _atif(steps: Sequence[Mapping[str, Any]], blind_id: str) -> dict[str, Any]:
     projected_steps: list[dict[str, Any]] = []
     for position, row in enumerate(steps):
@@ -186,13 +263,23 @@ def _atif(steps: Sequence[Mapping[str, Any]], blind_id: str) -> dict[str, Any]:
             step.update(source=role, message=content)
         elif role in {"assistant", "agent"}:
             step.update(source="agent", message=content)
+            flags = row.get("flags_json")
+            if flags:
+                try:
+                    parsed_flags = json.loads(flags) if isinstance(flags, str) else flags
+                    if isinstance(parsed_flags, Mapping):
+                        reasoning = parsed_flags.get("reasoning_content")
+                        if isinstance(reasoning, str) and reasoning.strip():
+                            step["reasoning_content"] = reasoning
+                except (ValueError, TypeError):
+                    pass
             if row["tool_name"] or row["command_or_action"]:
-                call_id = f"call-{position}"
-                step["tool_calls"] = [{
-                    "tool_call_id": call_id,
-                    "function_name": row["tool_name"] or "tool",
-                    "arguments": {"command": row["command_or_action"] or ""},
-                }]
+                calls = _parse_exported_tool_calls(
+                    row["tool_name"], row["command_or_action"], position=position
+                )
+                if calls:
+                    step["tool_calls"] = calls
+                    call_id = calls[0]["tool_call_id"]
         else:
             # Preserve each recorded output and its source index without
             # inventing an action from tool-side metadata or borrowing a call
@@ -238,9 +325,16 @@ def _redact_steps(document: dict[str, Any], identities: _IdentityPattern) -> Non
 
     for step in document["steps"]:
         step["message"] = text(step["message"])
+        if isinstance(step.get("reasoning_content"), str):
+            step["reasoning_content"] = text(step["reasoning_content"])
         for call in step.get("tool_calls", []):
             call["function_name"] = text(call["function_name"])
-            call["arguments"]["command"] = text(call["arguments"]["command"])
+            if isinstance(call.get("arguments"), dict):
+                for k, v in list(call["arguments"].items()):
+                    if isinstance(v, str):
+                        call["arguments"][k] = text(v)
+            elif isinstance(call.get("arguments"), str):
+                call["arguments"] = text(call["arguments"])
         for result in step.get("observation", {}).get("results", []):
             result["content"] = text(result["content"])
 

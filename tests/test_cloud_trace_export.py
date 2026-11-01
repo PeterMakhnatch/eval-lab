@@ -1774,3 +1774,77 @@ def test_manifest_says_which_runs_have_an_actor_a_monitor_can_read(
         assert all(not step.get("tool_calls") for step in steps)  # event types never become actions
     _assert_blinded(output)
 
+
+
+def test_multicall_step_exported_as_native_atif_tool_calls(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path,
+) -> None:
+    """Multi-call trace_steps rows emit one native ATIF tool_calls entry per call."""
+    trace_id = "trace-multicall-test"
+    task_id = TASKS[0][0]
+    multi_json = json.dumps([
+        {"id": "call-1", "name": "bash", "input": {"command": "ls -la"}},
+        {"id": "call-2", "name": "bash", "input": {"command": "pwd"}},
+    ])
+    steps = [
+        {"step_index": 0, "role": "user", "content_text": "run commands"},
+        {"step_index": 1, "role": "assistant", "tool_name": None, "command_or_action": multi_json, "content_text": "running"},
+    ]
+    with CloudTraceDatabase(source, sqlite_fts=False) as database:
+        database.upsert_trace({
+            "trace_id": trace_id, "task_id": task_id,
+            "run_id": "run-multicall", "model_id": "model-1",
+            "flagged_passage_steps": [],
+        }, steps=steps)
+    output = tmp_path / "multicall-out"
+    cloud_trace_export.export_runs(source, output, format="atif", registry=registry, trace_ids=[trace_id])
+    blind_id = next(iter(json.loads(_default_manifest(output).read_text(encoding="utf-8"))))
+    doc = _atif_document(output, blind_id, "atif")
+    agent_step = doc["steps"][1]
+    assert len(agent_step["tool_calls"]) == 2
+    assert agent_step["tool_calls"][0]["tool_call_id"] == "call-1"
+    assert agent_step["tool_calls"][0]["function_name"] == "bash"
+    assert agent_step["tool_calls"][0]["arguments"] == {"command": "ls -la"}
+    assert agent_step["tool_calls"][1]["tool_call_id"] == "call-2"
+    assert agent_step["tool_calls"][1]["function_name"] == "bash"
+    assert agent_step["tool_calls"][1]["arguments"] == {"command": "pwd"}
+
+
+def test_opus_redaction_preserves_audio_extensions_and_codecs(
+    source: Path, registry: SyntheticRegistry, tmp_path: Path,
+) -> None:
+    """claude-opus-5-5 / Opus 4.6 are redacted while *.opus and audio.opus stay intact."""
+    trace_id = "trace-opus-test"
+    task_id = TASKS[0][0]
+    content = (
+        "Tested model claude-opus-5-5 and Opus 4.6. "
+        "Convert with ffmpeg -i input.opus out.wav, processing *.opus and audio.opus "
+        "using libopus and opusenc and opusdec on sample.opus or track_01.opus or .opus'."
+    )
+    steps = [
+        {"step_index": 0, "role": "user", "content_text": content},
+    ]
+    with CloudTraceDatabase(source, sqlite_fts=False) as database:
+        database.upsert_trace({
+            "trace_id": trace_id, "task_id": task_id,
+            "run_id": "run-opus", "model_id": "claude-opus-5-5",
+            "flagged_passage_steps": [],
+        }, steps=steps)
+    output = tmp_path / "opus-out"
+    cloud_trace_export.export_runs(source, output, format="atif", registry=registry, trace_ids=[trace_id])
+    blind_id = next(iter(json.loads(_default_manifest(output).read_text(encoding="utf-8"))))
+    doc = _atif_document(output, blind_id, "atif")
+    msg = doc["steps"][0]["message"]
+    # Model references must be redacted
+    assert "claude-opus-5-5" not in msg
+    assert "[redacted]" in msg
+    # Audio extensions and codec tokens must stay 100% intact
+    assert "ffmpeg -i input.opus out.wav" in msg
+    assert "*.opus" in msg
+    assert "audio.opus" in msg
+    assert "sample.opus" in msg
+    assert "track_01.opus" in msg
+    assert ".opus'" in msg
+    assert "libopus" in msg
+    assert "opusenc" in msg
+    assert "opusdec" in msg

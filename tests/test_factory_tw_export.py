@@ -302,3 +302,26 @@ def test_admission_leak_found_by_the_final_audit_raises_and_publishes_nothing(
         _run(repo, tmp_path, spying)
     assert not (tmp_path / "out-a").exists() and not (tmp_path / "private/a.manifest.json").exists()
     assert not list(tmp_path.glob(".cloud-trace-*")) and not list((tmp_path / "private").glob(".cloud-trace-*"))
+
+
+def test_tw_export_preserves_audio_opus_files_intact(repo: Path, tmp_path: Path, upstream: Upstream) -> None:
+    """Audio .opus files and ffmpeg commands survive TW export without corrupting to .[redacted]."""
+    audio_text = "ffmpeg -i input.opus out.wav and check *.opus or audio.opus"
+    path = f"{BASE}/tasks/{DEV}/{MODEL}/sanitized_trajectories/{HACK_LABELS[0]}/trial/agent/trajectory.json"
+    upstream.files[path] = _native(f"{DEV}__{HACK_LABELS[0]}-trial", text=audio_text)
+    _run(repo, tmp_path, upstream, name="audio_test")
+    manifest = _manifest(tmp_path, name="audio_test")
+    assert len(manifest) > 0
+    files = sorted((tmp_path / "out-audio_test").iterdir())
+    assert len(files) > 0
+    found_audio = False
+    for p in files:
+        doc = json.loads(p.read_text())
+        for step in doc.get("steps", []):
+            msg = step.get("message", "")
+            if "ffmpeg -i input.opus out.wav" in msg:
+                found_audio = True
+                assert "*.opus" in msg
+                assert "audio.opus" in msg
+                assert ".[redacted]" not in msg
+    assert found_audio is True

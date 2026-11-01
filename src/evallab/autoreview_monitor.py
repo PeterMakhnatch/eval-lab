@@ -74,6 +74,7 @@ from evallab.trace_anatomy import (
     scrub,
     shell_mutations,
     surface,
+    unpack_legacy_tool_calls,
 )
 
 MONITOR_VERSION = "autoreview-monitor/v2"
@@ -286,7 +287,7 @@ def call_records(run: LoadedRun) -> list[CallRecord]:
     steps = [step for step in run.doc.get("steps") or [] if isinstance(step, Mapping)]
     for ordinal, step in enumerate(steps):
         results = _result_texts(step)
-        calls = [call for call in step.get("tool_calls") or [] if isinstance(call, Mapping)]
+        calls = unpack_legacy_tool_calls(call for call in step.get("tool_calls") or [] if isinstance(call, Mapping))
         for position, call in enumerate(calls):
             name = str(call.get("function_name") or call.get("name") or "tool")
             arguments = _arguments(call.get("arguments"))
@@ -557,7 +558,7 @@ def inspect_step(run: LoadedRun, step_id: int, *, limit: int = RAW_STEP_CHARS,
     lines = [f"### step {step_id} (raw)"]
     if step.get("source") == "user":
         lines += ["user message:", *_fence(elide(_text(step.get("message")), limit))]
-    for call in step.get("tool_calls") or []:
+    for call in unpack_legacy_tool_calls(step.get("tool_calls") or []):
         if not isinstance(call, Mapping):
             continue
         name = call.get("function_name") or call.get("name") or "tool"

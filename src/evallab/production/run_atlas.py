@@ -99,6 +99,8 @@ SOURCE_TERMS = (
     r"cy[-_ ]?bench", r"sim[-_ ]?glot", r"mimo[-_ ]defect[-_ ]map", r"mimo(?![a-z])",
     r"tb4[-_ ]audit",
     r"tb2[-_ ]to[-_ ]tb21", r"qa[-_ ]trace[-_ ]sft", r"kimi-tb4-dev-swarm-\d{8}",
+    r"claude[-_ ]opus(?:[-_ ][0-9]+(?:[-_.][0-9]+)*)?",
+    r"(?<![\w.])opus(?:[-_ ][0-9]+(?:[-_.][0-9]+)*)?(?![\w])",
 )
 SOURCE_PLACEHOLDER = "[source]"
 # Our own task prompts can name their split ("DEV benchmark task").
@@ -108,8 +110,12 @@ SPLIT_PLACEHOLDER = "[split]"
 
 def source_pattern(extra_terms: Iterable[str] = ()) -> re.Pattern[str]:
     """``SOURCE_TERMS`` plus literal ids such as dataset ids, longest first."""
-    literals = sorted({re.escape(term.strip()) for term in extra_terms if term and term.strip()},
-                      key=len, reverse=True)
+    literals = []
+    for term in sorted({term.strip() for term in extra_terms if term and term.strip()}, key=len, reverse=True):
+        if term.casefold() == "opus":
+            literals.append(r"(?<![\w.])opus(?![\w])")
+        else:
+            literals.append(re.escape(term))
     return re.compile("|".join([*literals, *SOURCE_TERMS]), re.IGNORECASE)
 
 
@@ -207,6 +213,52 @@ def _arguments(value: Any) -> dict[str, Any]:
     return {} if value is None else {"raw": value}
 
 
+def unpack_legacy_tool_calls(calls: Iterable[Any]) -> list[dict[str, Any]]:
+    """Unpack legacy ATIF function_name == "tool" + arguments.raw JSON-list artifacts."""
+    unpacked: list[dict[str, Any]] = []
+    for call in calls:
+        if not isinstance(call, Mapping):
+            continue
+        func_name = str(call.get("function_name") or call.get("name") or "")
+        arguments = call.get("arguments")
+        if func_name == "tool" and isinstance(arguments, Mapping):
+            raw_data = arguments.get("raw") if "raw" in arguments else arguments.get("command")
+            if isinstance(raw_data, str) and raw_data.strip().startswith("["):
+                try:
+                    parsed_list = json.loads(raw_data)
+                except (ValueError, TypeError):
+                    parsed_list = None
+            elif isinstance(raw_data, list):
+                parsed_list = raw_data
+            else:
+                parsed_list = None
+
+            if isinstance(parsed_list, list) and parsed_list and all(isinstance(c, Mapping) for c in parsed_list):
+                base_id = str(call.get("tool_call_id") or call.get("id") or "call")
+                for idx, subcall in enumerate(parsed_list):
+                    sub_func = subcall.get("function")
+                    if isinstance(sub_func, Mapping):
+                        name = str(sub_func.get("name") or sub_func.get("function_name") or "tool")
+                        args = (
+                            sub_func.get("arguments")
+                            or sub_func.get("input")
+                            or subcall.get("arguments")
+                            or subcall.get("input")
+                        )
+                    else:
+                        name = str(subcall.get("name") or subcall.get("function_name") or "tool")
+                        args = subcall.get("arguments") if "arguments" in subcall else subcall.get("input")
+                    cid = str(subcall.get("id") or subcall.get("tool_call_id") or f"{base_id}-{idx}")
+                    unpacked.append({
+                        "tool_call_id": cid,
+                        "function_name": name,
+                        "arguments": _arguments(args),
+                    })
+                continue
+        unpacked.append(dict(call))
+    return unpacked
+
+
 def _tool_calls(tool_name: str | None, command: str | None) -> list[dict[str, Any]]:
     if not command and not tool_name:
         return []
@@ -216,16 +268,28 @@ def _tool_calls(tool_name: str | None, command: str | None) -> list[dict[str, An
         except ValueError:
             parsed = None
         if isinstance(parsed, list) and parsed and all(
-            isinstance(call, Mapping) and "name" in call for call in parsed
+            isinstance(call, Mapping) and ("name" in call or "function" in call) for call in parsed
         ):
-            return [
-                {
-                    "tool_call_id": str(call.get("id") or ""),
-                    "function_name": str(call.get("name") or ""),
-                    "arguments": _arguments(call.get("arguments")),
-                }
-                for call in parsed
-            ]
+            calls: list[dict[str, Any]] = []
+            for call in parsed:
+                func_obj = call.get("function")
+                if isinstance(func_obj, Mapping):
+                    func_name = str(func_obj.get("name") or func_obj.get("function_name") or "")
+                    raw_args = (
+                        func_obj.get("arguments")
+                        or func_obj.get("input")
+                        or call.get("arguments")
+                        or call.get("input")
+                    )
+                else:
+                    func_name = str(call.get("name") or call.get("function_name") or "")
+                    raw_args = call.get("arguments") if "arguments" in call else call.get("input")
+                calls.append({
+                    "tool_call_id": str(call.get("id") or call.get("tool_call_id") or ""),
+                    "function_name": func_name,
+                    "arguments": _arguments(raw_args),
+                })
+            return calls
     return [{"tool_call_id": "", "function_name": tool_name or "action",
              "arguments": _arguments(command or "")}]
 
@@ -417,7 +481,7 @@ def render_step(step: Mapping[str, Any], *, pattern: re.Pattern[str] = SOURCE_NA
         if source != "agent":
             message = bound(message, CONTEXT_CHARS)
         lines += ["<message>", message, "</message>"]
-    for call in step.get("tool_calls") or []:
+    for call in unpack_legacy_tool_calls(step.get("tool_calls") or []):
         if not isinstance(call, Mapping):
             continue
         name = str(call.get("function_name") or call.get("name") or "tool")

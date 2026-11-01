@@ -840,3 +840,46 @@ def test_atlas_help_does_not_open_database_or_gateway(
     if "facet" in argv:
         assert "--database" in help_text and "--route" in help_text
     assert not any(tmp_path.iterdir())
+
+
+def test_source_redaction_opus_preserves_audio_extension_and_codecs() -> None:
+    """Opus model references are redacted while audio extensions and codec tokens stay 100% intact."""
+    assert atlas.redact_sources("claude-opus-5-5") == "[source]"
+    assert atlas.redact_sources("Opus 4.6") == "[source]"
+    assert atlas.redact_sources("claude-opus") == "[source]"
+    assert atlas.redact_sources("opus-4") == "[source]"
+    assert atlas.redact_sources("opus-5") == "[source]"
+    assert atlas.redact_sources("standalone Opus model") == "standalone [source] model"
+
+    assert atlas.redact_sources("ffmpeg -i input.opus out.wav") == "ffmpeg -i input.opus out.wav"
+    assert atlas.redact_sources("*.opus") == "*.opus"
+    assert atlas.redact_sources("audio.opus") == "audio.opus"
+    assert atlas.redact_sources("sample.opus") == "sample.opus"
+    assert atlas.redact_sources("track_01.opus") == "track_01.opus"
+    assert atlas.redact_sources(".opus'") == ".opus'"
+    assert atlas.redact_sources("libopus") == "libopus"
+    assert atlas.redact_sources("opusenc input.wav out.opus") == "opusenc input.wav out.opus"
+    assert atlas.redact_sources("opusdec in.opus out.wav") == "opusdec in.opus out.wav"
+
+
+def test_render_step_unpacks_legacy_flattened_tool_calls() -> None:
+    """render_step unpacks legacy function_name='tool' with arguments.raw JSON-list."""
+    raw_list = json.dumps([
+        {"id": "call-1", "name": "bash", "input": {"command": "git status"}},
+        {"id": "call-2", "name": "bash", "input": {"command": "cat README.md"}},
+    ])
+    step = {
+        "step_id": 1,
+        "source": "agent",
+        "message": "checking state",
+        "tool_calls": [{
+            "tool_call_id": "legacy-wrap",
+            "function_name": "tool",
+            "arguments": {"raw": raw_list},
+        }],
+    }
+    rendered = atlas.render_step(step)
+    assert "<call bash>" in rendered
+    assert "git status" in rendered
+    assert "cat README.md" in rendered
+    assert "<call tool>" not in rendered

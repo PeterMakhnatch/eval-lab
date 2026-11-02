@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -152,6 +153,56 @@ def test_report_gate_needs_a_reference_count(tmp_path):
     assert manifest.expected_report is None and manifest.calibration
 
 
+#: The HAR-257 probe text, without a trailing newline: the copy must be bytes, not re-rendered text.
+PROBE_VERIFIER = (
+    b"FROM ubuntu:24.04\nWORKDIR /app\n"
+    b"RUN apt-get update && apt-get install -y --no-install-recommends python3 curl ca-certificates\n"
+    b"COPY . /tests"
+)
+
+
+def test_verifier_dockerfile_is_carried_byte_identical_and_recorded(tmp_path):
+    package = _general_package(tmp_path / "pkg")
+    source = tmp_path / "probe.Dockerfile"
+    source.write_bytes(PROBE_VERIFIER)
+    manifest = harden(
+        package, tmp_path / "out", expected_tests=2, verifier_dockerfile=source
+    )
+    assert (tmp_path / "out/tests/Dockerfile").read_bytes() == PROBE_VERIFIER
+    record = json.loads((tmp_path / "out.hardening-manifest.json").read_text())
+    assert record["verifier"] == {
+        "gate_runtime": "declared",
+        "dockerfile": "tests/Dockerfile",
+        "dockerfile_sha256": hashlib.sha256(PROBE_VERIFIER).hexdigest(),
+        "origin": "flag",
+    }
+    assert manifest.verifier.gate_runtime == "declared"
+
+
+def test_separate_verifier_without_a_verifier_image_is_unverified_and_warns(tmp_path, capsys):
+    package = _general_package(tmp_path / "pkg")
+    manifest, changes = plan_hardening(package, expected_tests=2)
+    assert manifest.separate_verifier
+    assert manifest.verifier.gate_runtime == "unverified"
+    assert manifest.verifier.dockerfile is None and manifest.verifier.origin is None
+    assert "tests/Dockerfile" not in changes  # harden does not invent a verifier image
+    warning = capsys.readouterr().err
+    assert "unverified" in warning and "python3" in warning
+
+    # the gate in a single-container candidate runs in the task image, which already ran the grader
+    single, _ = plan_hardening(package, expected_tests=2, single_container=True)
+    assert single.verifier.gate_runtime == "native"
+    assert capsys.readouterr().err == ""
+
+
+def test_verifier_dockerfile_is_refused_for_the_mimo_separate_verifier(tmp_path):
+    package = _mimo_package(tmp_path / "pkg")
+    source = tmp_path / "probe.Dockerfile"
+    source.write_bytes(PROBE_VERIFIER)
+    with pytest.raises(HardeningRefused, match="separate-verifier@10 owns the MiMo verifier image"):
+        plan_hardening(package, verifier_dockerfile=source)
+
+
 def test_mimo_single_container_injects_past_unset_addopts(tmp_path):
     package = _mimo_package(tmp_path / "pkg")
     manifest = harden(package, tmp_path / "out", single_container=True, expected_tests=1)
@@ -177,6 +228,11 @@ def test_mimo_default_output_is_the_separate_verifier(tmp_path):
     assert (
         "tests/Dockerfile" in changes and b'environment_mode = "separate"' in changes["task.toml"]
     )
+    # separate-verifier@10 writes the verifier image itself, so the gate runtime is declared
+    assert manifest.verifier.gate_runtime == "declared" and manifest.verifier.origin == "transform"
+    assert manifest.verifier.dockerfile_sha256 == hashlib.sha256(
+        changes["tests/Dockerfile"]
+    ).hexdigest()
 
 
 @pytest.mark.parametrize(

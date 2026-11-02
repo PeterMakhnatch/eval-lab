@@ -25,9 +25,16 @@ def load() -> dict[str, dict]:
             rec = json.loads(line)
         except ValueError:
             continue
+        def scored(r: dict) -> bool:
+            return (r.get("L0") or {}).get("reward") is not None and (
+                r.get("HS") or {}
+            ).get("reward") is not None
+
         current = best.get(rec["task_id"])
-        if current is None or (rec.get("complete") and not current.get("complete")):
+        if current is None or scored(rec) and not scored(current):
             best[rec["task_id"]] = rec
+        elif not scored(rec) and not scored(current):
+            best[rec["task_id"]] = rec  # latest attempt describes why it is still unscored
     return best
 
 

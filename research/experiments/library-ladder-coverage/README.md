@@ -35,12 +35,14 @@ a `research/evidence/ladder-v*/cells.json` contributes no cell.
 
 The ledger input is a **glob**, not a list: every `research/evidence/ladder-v*`
 directory that holds a `cells.json` is read. A ledger in the 2026-11-02 layout
-(top-level `task_dir`; `cells` records with `scope` `full`/`single`,
-`ladder_version`, `verdict`, `status`, `task_digest`) joins the matrix with no
-edit to `build.py`, so a new ladder card cannot go stale here. `ladder-v2-…`
-and `ladder-v3-…` predate that layout and keep their dedicated readers. A
-ledger in the glob that no reader can place is a `CoverageError`, not a silent
-skip.
+(top-level `task_dir`, or `task_dir` on every `cells` and `controls` record
+when one ledger covers several packages; `cells` records with `scope`
+`full`/`single`, `ladder_version`, `verdict`, `status`, `task_digest`) joins
+the matrix with no edit to `build.py`, so a new ladder card cannot go stale
+here. Each cell's verdict is gated by its own package's oracle/nop controls.
+`ladder-v2-…` and `ladder-v3-…` predate that layout and keep their dedicated
+readers. A ledger in the glob that no reader can place is a `CoverageError`,
+not a silent skip.
 
 ## Columns
 

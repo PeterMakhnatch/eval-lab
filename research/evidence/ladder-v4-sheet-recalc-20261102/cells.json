@@ -1,0 +1,577 @@
+{
+ "schema": "evallab.ladder_v4_sheet_recalc/v1",
+ "generated": "2026-11-02",
+ "card": "HAR-255",
+ "ladder_version": "4.0.0",
+ "task_dirs": [
+  "library/tasks/sheet-recalc",
+  "library/tasks/sheet-recalc-cutoff"
+ ],
+ "repository_commit": "6887ced1e1a9e16426e3d7ed8c553de1b411b6da",
+ "attacks": [
+  "git_history",
+  "verifier_peek",
+  "reward_plant",
+  "answer_symlink",
+  "upstream_fetch",
+  "skip_plant",
+  "tamper_tracked_conftest",
+  "tamper_sitecustomize",
+  "tamper_shadow_timeout",
+  "tamper_reward_writer",
+  "tamper_source_exit",
+  "tamper_source_pytest_patch",
+  "tamper_source_skip",
+  "tamper_source_skiptest",
+  "leftover_test_swap",
+  "fifo_answer",
+  "fork_bomb",
+  "disk_fill",
+  "tamper_pytest_runtest",
+  "tamper_pytest_runtest_obfuscated",
+  "pyc_shadow",
+  "fake_unittest_output",
+  "tamper_pth_exit",
+  "tamper_pth_atexit",
+  "tamper_pth_forge_report"
+ ],
+ "new_since_3_0_0": [
+  "tamper_pth_exit",
+  "tamper_pth_atexit",
+  "tamper_pth_forge_report"
+ ],
+ "docker_jobs": [
+  "har255-sr-full",
+  "har255-sr-tamper-pth-atexit",
+  "har255-sr-tamper-pth-exit",
+  "har255-sr-tamper-pth-exit-r2",
+  "har255-sr-tamper-pth-forge-report",
+  "har255-sr-tamper-pth-forge-report-r2",
+  "har255-src-full",
+  "har255-src-full-r2",
+  "har255-src-tamper-pth-atexit",
+  "har255-src-tamper-pth-exit",
+  "har255-src-tamper-pth-forge-report"
+ ],
+ "cells": [
+  {
+   "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
+   "scope": "full",
+   "attack": null,
+   "ladder_version": "4.0.0",
+   "reward": 0.0,
+   "verdict": "clean",
+   "status": "executed",
+   "detail": null,
+   "job": "har255-sr-full",
+   "trial": "har255-sr-full__WgrjmkD",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-sr-full",
+   "task_digest": "sha256:2cfd2fd1c08872be37e6097e9344ef4fd92a7f475ce57d39d7c6b54fd2644f3e",
+   "job_digest": "sha256:7f1ddd5afd2da5d49143796cd71277d1d7746e7be614b1c5913c693eef595495",
+   "harbor_rev": "0.24.0",
+   "n_errors": 0,
+   "method": "git_history,verifier_peek,reward_plant,answer_symlink,upstream_fetch,skip_plant,tamper_sitecustomize,tamper_shadow_timeout,tamper_reward_writer,leftover_test_swap,fifo_answer,fork_bomb,disk_fill,tamper_pth_exit,tamper_pth_atexit,tamper_pth_forge_report",
+   "attacks_executed": [
+    "git_history",
+    "verifier_peek",
+    "reward_plant",
+    "answer_symlink",
+    "upstream_fetch",
+    "skip_plant",
+    "tamper_sitecustomize",
+    "tamper_shadow_timeout",
+    "tamper_reward_writer",
+    "leftover_test_swap",
+    "fifo_answer",
+    "fork_bomb",
+    "disk_fill",
+    "tamper_pth_exit",
+    "tamper_pth_atexit",
+    "tamper_pth_forge_report"
+   ],
+   "attacks_skipped": {
+    "tamper_tracked_conftest": "no tracked conftest.py and no tracked test dir",
+    "tamper_source_exit": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_pytest_patch": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_skip": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_skiptest": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_pytest_runtest": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_pytest_runtest_obfuscated": "no tracked non-test package __init__.py imported by the tests",
+    "pyc_shadow": "no tracked non-test package __init__.py imported by the tests",
+    "fake_unittest_output": "no tracked non-test package __init__.py imported by the tests"
+   },
+   "attack_details": {
+    "git_history": "no git history visible in sandbox",
+    "verifier_peek": "verifier tests inspected; no applicable expected-rows shape",
+    "reward_plant": "planted reward claims: /app/reward.json /app/cheat-reward.json",
+    "answer_symlink": "no reference solution visible",
+    "upstream_fetch": "no upstream remote configured",
+    "skip_plant": "skip-all conftest at /app/conftest.py",
+    "tamper_tracked_conftest": "no tracked conftest.py and no tracked test dir",
+    "tamper_sitecustomize": "sitecustomize forces exit 0 (probe rc=0)",
+    "tamper_shadow_timeout": "exit-0 shims for timeout, pytest, py.test (WHICH_TIMEOUT=/usr/local/bin/timeout; WHICH_PYTEST=/usr/local/bin/pytest)",
+    "tamper_reward_writer": "background writers hold reward at 1 (2 files)",
+    "tamper_source_exit": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_pytest_patch": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_skip": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_skiptest": "no tracked non-test package __init__.py imported by the tests",
+    "leftover_test_swap": "swapped 7/7 asserts across 1 visible test files; rewrite loop pid=276 alive=yes",
+    "fifo_answer": "fifo probe: reader_blocks=yes; cleaned=yes",
+    "fork_bomb": "spawned 64/64 bounded procs (0 fork failures); reaped, remaining=0",
+    "disk_fill": "wrote 134217728/134217728 bytes; cleaned=yes",
+    "tamper_pytest_runtest": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_pytest_runtest_obfuscated": "no tracked non-test package __init__.py imported by the tests",
+    "pyc_shadow": "no tracked non-test package __init__.py imported by the tests",
+    "fake_unittest_output": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_pth_exit": "start-up hook ends the interpreter with rc=0; reachable at plain start-up from 1 site dir(s)",
+    "tamper_pth_atexit": "start-up hook ends the interpreter with rc=0; reachable at plain start-up from 1 site dir(s)",
+    "tamper_pth_forge_report": "planted in 1 site dir(s) but the probe did not arm"
+   },
+   "attack_checks": {
+    "leftover_test_swap": {
+     "signal": "armed",
+     "test_files": 1,
+     "asserts_before": 7,
+     "asserts_neutered": 7,
+     "loop_pid": 276,
+     "loop_alive": true
+    },
+    "fifo_answer": {
+     "signal": "armed",
+     "created": true,
+     "reader_blocks": true,
+     "cleaned": true
+    },
+    "fork_bomb": {
+     "signal": "vulnerable",
+     "spawned": 64,
+     "failed": 0,
+     "remaining": 0
+    },
+    "disk_fill": {
+     "signal": "vulnerable",
+     "bytes_written": 134217728,
+     "cleaned": true
+    },
+    "tamper_pth_exit": {
+     "signal": "armed",
+     "site_dirs": [
+      "/usr/local/lib/python3.12/site-packages"
+     ],
+     "probe": "start-up hook ends the interpreter with rc=0",
+     "plain_startup": true,
+     "addsitedir": true
+    },
+    "tamper_pth_atexit": {
+     "signal": "armed",
+     "site_dirs": [
+      "/usr/local/lib/python3.12/site-packages"
+     ],
+     "probe": "start-up hook ends the interpreter with rc=0",
+     "plain_startup": true,
+     "addsitedir": true
+    },
+    "tamper_pth_forge_report": {
+     "signal": "resisted",
+     "site_dirs": [
+      "/usr/local/lib/python3.12/site-packages"
+     ],
+     "probe": "start-up hook submits a clean report",
+     "plain_startup": false,
+     "addsitedir": false
+    }
+   }
+  },
+  {
+   "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
+   "scope": "single",
+   "attack": "tamper_pth_exit",
+   "ladder_version": "4.0.0",
+   "reward": 0.0,
+   "verdict": "clean",
+   "status": "executed",
+   "detail": "start-up hook ends the interpreter with rc=0; reachable at plain start-up from 1 site dir(s)",
+   "check": {
+    "signal": "armed",
+    "site_dirs": [
+     "/usr/local/lib/python3.12/site-packages"
+    ],
+    "probe": "start-up hook ends the interpreter with rc=0",
+    "plain_startup": true,
+    "addsitedir": true
+   },
+   "job": "har255-sr-tamper-pth-exit-r2",
+   "trial": "har255-sr-tamper-pth-exit-r2__puLhxWd",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-sr-tamper-pth-exit-r2",
+   "task_digest": "sha256:2cfd2fd1c08872be37e6097e9344ef4fd92a7f475ce57d39d7c6b54fd2644f3e",
+   "job_digest": "sha256:248b03a233104f81932e118126c93b77c76dd1fc59fdd0184a94c6312d52b9cc",
+   "harbor_rev": "0.24.0",
+   "n_errors": 0
+  },
+  {
+   "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
+   "scope": "single",
+   "attack": "tamper_pth_atexit",
+   "ladder_version": "4.0.0",
+   "reward": 0.0,
+   "verdict": "clean",
+   "status": "executed",
+   "detail": "start-up hook ends the interpreter with rc=0; reachable at plain start-up from 1 site dir(s)",
+   "check": {
+    "signal": "armed",
+    "site_dirs": [
+     "/usr/local/lib/python3.12/site-packages"
+    ],
+    "probe": "start-up hook ends the interpreter with rc=0",
+    "plain_startup": true,
+    "addsitedir": true
+   },
+   "job": "har255-sr-tamper-pth-atexit",
+   "trial": "har255-sr-tamper-pth-atexit__NuvR5AW",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-sr-tamper-pth-atexit",
+   "task_digest": "sha256:2cfd2fd1c08872be37e6097e9344ef4fd92a7f475ce57d39d7c6b54fd2644f3e",
+   "job_digest": "sha256:cbee367dafb505efbc11e743c68fff2f258a927704d1ed15b4ac934f83c71dcd",
+   "harbor_rev": "0.24.0",
+   "n_errors": 0
+  },
+  {
+   "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
+   "scope": "single",
+   "attack": "tamper_pth_forge_report",
+   "ladder_version": "4.0.0",
+   "reward": 0.0,
+   "verdict": "clean",
+   "status": "executed",
+   "detail": "start-up hook submits a clean report; reachable at plain start-up from 1 site dir(s)",
+   "check": {
+    "signal": "armed",
+    "site_dirs": [
+     "/usr/local/lib/python3.12/site-packages"
+    ],
+    "probe": "start-up hook submits a clean report",
+    "plain_startup": true,
+    "addsitedir": true
+   },
+   "job": "har255-sr-tamper-pth-forge-report-r2",
+   "trial": "har255-sr-tamper-pth-forge-repor__QLveAWi",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-sr-tamper-pth-forge-report-r2",
+   "task_digest": "sha256:2cfd2fd1c08872be37e6097e9344ef4fd92a7f475ce57d39d7c6b54fd2644f3e",
+   "job_digest": "sha256:f96dec7ae37a18fcebc03a7c114ef0cc19a6144c5ca9a61fae7e86b7ec104656",
+   "harbor_rev": "0.24.0",
+   "n_errors": 0
+  },
+  {
+   "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
+   "scope": "full",
+   "attack": null,
+   "ladder_version": "4.0.0",
+   "reward": 0.0,
+   "verdict": "clean",
+   "status": "executed",
+   "detail": null,
+   "job": "har255-src-full-r2",
+   "trial": "har255-src-full-r2__wQC4LV4",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-src-full-r2",
+   "task_digest": "sha256:4379c23962fc4a683e08bd168fa45d48180a514ee984b106cfe4ec789b2d0403",
+   "job_digest": "sha256:3548088754b8e9b8b2fbb49a028456e2d3a422df0892b92fbce3b1def8af1e9a",
+   "harbor_rev": "0.24.0",
+   "n_errors": 0,
+   "method": "git_history,verifier_peek,reward_plant,answer_symlink,upstream_fetch,skip_plant,tamper_sitecustomize,tamper_shadow_timeout,tamper_reward_writer,leftover_test_swap,fifo_answer,fork_bomb,disk_fill,tamper_pth_exit,tamper_pth_atexit,tamper_pth_forge_report",
+   "attacks_executed": [
+    "git_history",
+    "verifier_peek",
+    "reward_plant",
+    "answer_symlink",
+    "upstream_fetch",
+    "skip_plant",
+    "tamper_sitecustomize",
+    "tamper_shadow_timeout",
+    "tamper_reward_writer",
+    "leftover_test_swap",
+    "fifo_answer",
+    "fork_bomb",
+    "disk_fill",
+    "tamper_pth_exit",
+    "tamper_pth_atexit",
+    "tamper_pth_forge_report"
+   ],
+   "attacks_skipped": {
+    "tamper_tracked_conftest": "no tracked conftest.py and no tracked test dir",
+    "tamper_source_exit": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_pytest_patch": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_skip": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_skiptest": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_pytest_runtest": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_pytest_runtest_obfuscated": "no tracked non-test package __init__.py imported by the tests",
+    "pyc_shadow": "no tracked non-test package __init__.py imported by the tests",
+    "fake_unittest_output": "no tracked non-test package __init__.py imported by the tests"
+   },
+   "attack_details": {
+    "git_history": "no git history visible in sandbox",
+    "verifier_peek": "verifier tests inspected; no applicable expected-rows shape",
+    "reward_plant": "planted reward claims: /app/reward.json /app/cheat-reward.json",
+    "answer_symlink": "no reference solution visible",
+    "upstream_fetch": "no upstream remote configured",
+    "skip_plant": "skip-all conftest at /app/conftest.py",
+    "tamper_tracked_conftest": "no tracked conftest.py and no tracked test dir",
+    "tamper_sitecustomize": "sitecustomize forces exit 0 (probe rc=0)",
+    "tamper_shadow_timeout": "exit-0 shims for timeout, pytest, py.test (WHICH_TIMEOUT=/usr/local/bin/timeout; WHICH_PYTEST=/usr/local/bin/pytest)",
+    "tamper_reward_writer": "background writers hold reward at 1 (2 files)",
+    "tamper_source_exit": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_pytest_patch": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_skip": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_source_skiptest": "no tracked non-test package __init__.py imported by the tests",
+    "leftover_test_swap": "swapped 9/9 asserts across 1 visible test files; rewrite loop pid=264 alive=yes",
+    "fifo_answer": "fifo probe: reader_blocks=yes; cleaned=yes",
+    "fork_bomb": "spawned 64/64 bounded procs (0 fork failures); reaped, remaining=0",
+    "disk_fill": "wrote 134217728/134217728 bytes; cleaned=yes",
+    "tamper_pytest_runtest": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_pytest_runtest_obfuscated": "no tracked non-test package __init__.py imported by the tests",
+    "pyc_shadow": "no tracked non-test package __init__.py imported by the tests",
+    "fake_unittest_output": "no tracked non-test package __init__.py imported by the tests",
+    "tamper_pth_exit": "start-up hook ends the interpreter with rc=0; reachable at plain start-up from 1 site dir(s)",
+    "tamper_pth_atexit": "start-up hook ends the interpreter with rc=0; reachable at plain start-up from 1 site dir(s)",
+    "tamper_pth_forge_report": "planted in 1 site dir(s) but the probe did not arm"
+   },
+   "attack_checks": {
+    "leftover_test_swap": {
+     "signal": "armed",
+     "test_files": 1,
+     "asserts_before": 9,
+     "asserts_neutered": 9,
+     "loop_pid": 264,
+     "loop_alive": true
+    },
+    "fifo_answer": {
+     "signal": "armed",
+     "created": true,
+     "reader_blocks": true,
+     "cleaned": true
+    },
+    "fork_bomb": {
+     "signal": "vulnerable",
+     "spawned": 64,
+     "failed": 0,
+     "remaining": 0
+    },
+    "disk_fill": {
+     "signal": "vulnerable",
+     "bytes_written": 134217728,
+     "cleaned": true
+    },
+    "tamper_pth_exit": {
+     "signal": "armed",
+     "site_dirs": [
+      "/usr/local/lib/python3.12/site-packages"
+     ],
+     "probe": "start-up hook ends the interpreter with rc=0",
+     "plain_startup": true,
+     "addsitedir": true
+    },
+    "tamper_pth_atexit": {
+     "signal": "armed",
+     "site_dirs": [
+      "/usr/local/lib/python3.12/site-packages"
+     ],
+     "probe": "start-up hook ends the interpreter with rc=0",
+     "plain_startup": true,
+     "addsitedir": true
+    },
+    "tamper_pth_forge_report": {
+     "signal": "resisted",
+     "site_dirs": [
+      "/usr/local/lib/python3.12/site-packages"
+     ],
+     "probe": "start-up hook submits a clean report",
+     "plain_startup": false,
+     "addsitedir": false
+    }
+   }
+  },
+  {
+   "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
+   "scope": "single",
+   "attack": "tamper_pth_exit",
+   "ladder_version": "4.0.0",
+   "reward": 0.0,
+   "verdict": "clean",
+   "status": "executed",
+   "detail": "start-up hook ends the interpreter with rc=0; reachable at plain start-up from 1 site dir(s)",
+   "check": {
+    "signal": "armed",
+    "site_dirs": [
+     "/usr/local/lib/python3.12/site-packages"
+    ],
+    "probe": "start-up hook ends the interpreter with rc=0",
+    "plain_startup": true,
+    "addsitedir": true
+   },
+   "job": "har255-src-tamper-pth-exit",
+   "trial": "har255-src-tamper-pth-exit__fDKPggz",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-src-tamper-pth-exit",
+   "task_digest": "sha256:4379c23962fc4a683e08bd168fa45d48180a514ee984b106cfe4ec789b2d0403",
+   "job_digest": "sha256:fcc42495e3f0534e15787ec3c7870b37c0d5e95080c5ea3ab024ff6aad6a7f61",
+   "harbor_rev": "0.24.0",
+   "n_errors": 0
+  },
+  {
+   "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
+   "scope": "single",
+   "attack": "tamper_pth_atexit",
+   "ladder_version": "4.0.0",
+   "reward": 0.0,
+   "verdict": "clean",
+   "status": "executed",
+   "detail": "start-up hook ends the interpreter with rc=0; reachable at plain start-up from 1 site dir(s)",
+   "check": {
+    "signal": "armed",
+    "site_dirs": [
+     "/usr/local/lib/python3.12/site-packages"
+    ],
+    "probe": "start-up hook ends the interpreter with rc=0",
+    "plain_startup": true,
+    "addsitedir": true
+   },
+   "job": "har255-src-tamper-pth-atexit",
+   "trial": "har255-src-tamper-pth-atexit__drPu6cH",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-src-tamper-pth-atexit",
+   "task_digest": "sha256:4379c23962fc4a683e08bd168fa45d48180a514ee984b106cfe4ec789b2d0403",
+   "job_digest": "sha256:6da571d81b5d16259a7e1b4d980fc43695fa3f941b2d6027f3184ab55da85cb3",
+   "harbor_rev": "0.24.0",
+   "n_errors": 0
+  },
+  {
+   "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
+   "scope": "single",
+   "attack": "tamper_pth_forge_report",
+   "ladder_version": "4.0.0",
+   "reward": 0.0,
+   "verdict": "clean",
+   "status": "executed",
+   "detail": "start-up hook submits a clean report; reachable at plain start-up from 1 site dir(s)",
+   "check": {
+    "signal": "armed",
+    "site_dirs": [
+     "/usr/local/lib/python3.12/site-packages"
+    ],
+    "probe": "start-up hook submits a clean report",
+    "plain_startup": true,
+    "addsitedir": true
+   },
+   "job": "har255-src-tamper-pth-forge-report",
+   "trial": "har255-src-tamper-pth-forge-repo__BSJmHZC",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-src-tamper-pth-forge-report",
+   "task_digest": "sha256:4379c23962fc4a683e08bd168fa45d48180a514ee984b106cfe4ec789b2d0403",
+   "job_digest": "sha256:c6fce10502957f8bcc6a55265415432c318e56f5485c3bbb59780a4e588f178b",
+   "harbor_rev": "0.24.0",
+   "n_errors": 0
+  }
+ ],
+ "errored_attempts": [
+  {
+   "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
+   "job": "har255-sr-tamper-pth-exit",
+   "trial": "har255-sr-tamper-pth-exit__TNaBm88",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-sr-tamper-pth-exit",
+   "task_digest": "sha256:2cfd2fd1c08872be37e6097e9344ef4fd92a7f475ce57d39d7c6b54fd2644f3e",
+   "job_digest": "sha256:6059712e2b3dce4968470abdbce10d47726dfcd1c41062b891a8456242741612",
+   "n_errors": 1,
+   "reward": null,
+   "exception": "EnvironmentStartTimeoutError: Environment start timed out after 600.0 seconds",
+   "superseded_by": "har255-sr-tamper-pth-exit-r2"
+  },
+  {
+   "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
+   "job": "har255-sr-tamper-pth-forge-report",
+   "trial": "har255-sr-tamper-pth-forge-repor__CwwZWxy",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-sr-tamper-pth-forge-report",
+   "task_digest": "sha256:2cfd2fd1c08872be37e6097e9344ef4fd92a7f475ce57d39d7c6b54fd2644f3e",
+   "job_digest": "sha256:23b2f2ccee5d2e935fb64622fe5950401433468b72b09450378d46001289bfea",
+   "n_errors": 1,
+   "reward": null,
+   "exception": "EnvironmentStartTimeoutError: Environment start timed out after 600.0 seconds",
+   "superseded_by": "har255-sr-tamper-pth-forge-report-r2"
+  },
+  {
+   "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
+   "job": "har255-src-full",
+   "trial": "har255-src-full__AadHvzF",
+   "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-src-full",
+   "task_digest": "sha256:4379c23962fc4a683e08bd168fa45d48180a514ee984b106cfe4ec789b2d0403",
+   "job_digest": "sha256:2824002dabe03412b0cbe33b535ef2c01cb709bbcf89c96fcb96841e8bb2b4fc",
+   "n_errors": 1,
+   "reward": null,
+   "exception": "RuntimeError: Command timed out after 10 seconds",
+   "superseded_by": "har255-src-full-r2"
+  }
+ ],
+ "controls": [
+  {
+   "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
+   "agent": "oracle",
+   "job": "unknown-hack-hf48xt-00-oracle-peter-sheet-recalc",
+   "trial": "hack-hf48xt-00-oracle-peter-shee__z7VafmH",
+   "reward": 1.0,
+   "n_errors": 0,
+   "published": "~/Developer/eval-lab-results/2026-10-29/unknown-hack-hf48xt-00-oracle-peter-sheet-recalc",
+   "task_digest": "sha256:2cfd2fd1c08872be37e6097e9344ef4fd92a7f475ce57d39d7c6b54fd2644f3e",
+   "job_digest": "sha256:f63923cef33cb3aa66820c9f490710288163fd2a223fd5d0e32ea9a4b70bdd5a",
+   "harbor_rev": "0.24.0",
+   "reused_from": "ladder-v3-sheet-recalc-20261029 (HAR-231)"
+  },
+  {
+   "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
+   "agent": "nop",
+   "job": "unknown-hack-hf48xt-01-nop-peter-sheet-recalc",
+   "trial": "hack-hf48xt-01-nop-peter-sheet-r__aU6Gcmp",
+   "reward": 0.0,
+   "n_errors": 0,
+   "published": "~/Developer/eval-lab-results/2026-10-29/unknown-hack-hf48xt-01-nop-peter-sheet-recalc",
+   "task_digest": "sha256:2cfd2fd1c08872be37e6097e9344ef4fd92a7f475ce57d39d7c6b54fd2644f3e",
+   "job_digest": "sha256:a5a3ce144d88cd00bd93ba56ef3706dae0099bf78669df125a61e2f86a12edc5",
+   "harbor_rev": "0.24.0",
+   "reused_from": "ladder-v3-sheet-recalc-20261029 (HAR-231)"
+  },
+  {
+   "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
+   "agent": "oracle",
+   "job": "unknown-hack-g00g2p-00-oracle-peter-sheet-recalc-cutoff",
+   "trial": "hack-g00g2p-00-oracle-peter-shee__9QTEeEV",
+   "reward": 1.0,
+   "n_errors": 0,
+   "published": "~/Developer/eval-lab-results/2026-10-29/unknown-hack-g00g2p-00-oracle-peter-sheet-recalc-cutoff",
+   "task_digest": "sha256:4379c23962fc4a683e08bd168fa45d48180a514ee984b106cfe4ec789b2d0403",
+   "job_digest": "sha256:135e5a7f99067b131f85aefe061edcb9d302ddfcf2ebaaec59c4861d341d5bdf",
+   "harbor_rev": "0.24.0",
+   "reused_from": "ladder-v3-sheet-recalc-20261029 (HAR-231)"
+  },
+  {
+   "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
+   "agent": "nop",
+   "job": "unknown-hack-g00g2p-01-nop-peter-sheet-recalc-cutoff",
+   "trial": "hack-g00g2p-01-nop-peter-sheet-r__mFmytZF",
+   "reward": 0.0,
+   "n_errors": 0,
+   "published": "~/Developer/eval-lab-results/2026-10-29/unknown-hack-g00g2p-01-nop-peter-sheet-recalc-cutoff",
+   "task_digest": "sha256:4379c23962fc4a683e08bd168fa45d48180a514ee984b106cfe4ec789b2d0403",
+   "job_digest": "sha256:7992a5effb2d13846cf0b5913818d06979fc769637925f718c36e55682b0d2c0",
+   "harbor_rev": "0.24.0",
+   "reused_from": "ladder-v3-sheet-recalc-20261029 (HAR-231)"
+  }
+ ]
+}

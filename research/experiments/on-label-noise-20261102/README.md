@@ -1,3 +1,6 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+> Note: Row-level file kept local; see receipts-manifest.json.
+
 # on-label-noise-20261102: how noisy are the TraceMonitor-Bench DEV v1 labels?
 
 Two blind readers (Sonnet 5.5 and Gemini 3.8 Flash, each with two prompt wordings) re-judged a seeded 60-case sample of the

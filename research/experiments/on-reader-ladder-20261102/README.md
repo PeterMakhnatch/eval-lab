@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # D2-READER-LADDER: Cheap-Reader Ladder on TraceMonitor-Bench DEV v1
 ## What Changed (Independent Verifier Corrections)
 Following blind verification in VF-D-BENCH (`/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/ver/raw/VF-D-BENCH/report.md`, see `VERIFIER-CORRECTIONS.md`):

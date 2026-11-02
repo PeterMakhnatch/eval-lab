@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # Real Frontier Agent Submission Replay against Gold Graders (A8)
 
 ## Overview

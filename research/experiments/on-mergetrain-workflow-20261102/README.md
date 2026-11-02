@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # Durable Temporal Merge Train Prototype (`on-mergetrain-workflow-20261102`)
 
 Durable execution merge train workflow built with Temporal Python SDK, tested against an isolated local bare git repository (`origin.git`) and a JSON-driven fake `gh` CLI shim on `PATH`.

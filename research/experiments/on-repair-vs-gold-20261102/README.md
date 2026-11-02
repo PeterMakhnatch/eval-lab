@@ -1,3 +1,6 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+> Note: Row-level files kept local; see receipts-manifest.json.
+
 # Experiment: on-repair-vs-gold-20261102
 
 ## R3-REPAIR-VS-GOLD: Do Task Repairs Produce Stronger Graders?

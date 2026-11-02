@@ -1,3 +1,6 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+> Note: Row-level files kept local; see receipts-manifest.json.
+
 # on-weak-grader-census-20261102: Corpus-Scale Weak-Grader Census
 
 STING-style weak-grader audit over the eligible gold universe of strictly-DEV MiMo packages.

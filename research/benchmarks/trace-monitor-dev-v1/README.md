@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # TraceMonitor-Bench DEV v1
 
 One frozen DEV benchmark for trace monitors (readers that look at an agent run and say whether it cheated). Before this,

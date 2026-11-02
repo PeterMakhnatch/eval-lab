@@ -1,0 +1,12 @@
+{
+  "description": "Row-level files kept local per third-party data policy. Stored locally under ~/Developer/eval-lab-results/2026-11-02/A3/",
+  "files": [
+    {
+      "name": "selection.json",
+      "sha256": "28f6d292e213eda4a9b1790b38c2fdb9ae7fe0c38fc22fd38c6188950981de26",
+      "byte_size": 15499,
+      "row_count": 526,
+      "description": "Mutant pool selections per task with line numbers and file paths"
+    }
+  ]
+}

@@ -55,3 +55,27 @@ def test_definition_logic() -> None:
 
     assert weak_B == ["task1"]
     assert weak_C == ["task1", "task2"]
+
+
+def test_rogan_gladen_dual_correction() -> None:
+    p_star = 1.0
+    se = 1.0
+    sp = 0.9545
+    # Under point estimates
+    p_hat = (p_star + sp - 1.0) / (se + sp - 1.0)
+    assert abs(p_hat - 1.0) < 1e-6
+
+    # Under conservative lower bounds
+    p_star_lo = 0.8513
+    se_hi = 1.0
+    sp_lo = 0.8491
+    p_hat_lo = (p_star_lo + sp_lo - 1.0) / (se_hi + sp_lo - 1.0)
+    assert 0.80 < p_hat_lo < 0.85
+
+
+def test_specificity_wilson_gate() -> None:
+    k, n = 42, 44
+    lo, hi = stats.wilson(k, n)
+    rate = k / n
+    assert rate >= 0.80
+    assert lo >= 0.60

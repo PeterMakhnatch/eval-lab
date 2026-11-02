@@ -32,6 +32,27 @@ This experiment evaluates whether the 22 AST mutants that survived original MiMo
 - **Headline Answer:**
   - **18 / 18 = 100.0% (95% Wilson CI: 82.4%–100.0%)** of A2's weak-grader prevalence survives semantic equivalence checking. Grader weakness is not inflated by dead or equivalent code mutations.
 
+
+## Specificity Addendum (FIX-A2B-SPECIFICITY)
+Following peer review noting that 100% positive classifications on 74 items could reflect uncalibrated judge specificity, we pre-registered an addendum ([`prereg-addendum.md`](./prereg-addendum.md), sha256: `d11eec503f6d`) and evaluated 44 known-equivalent negative controls by construction from the same reference code and added lines as the 22 survivors (39 easy AST rewrites, 5 hard non-local equivalents).
+
+Every negative control was verified by:
+1. AST structural non-identity (`ast.dump(rewritten) != ast.dump(reference)`).
+2. Empirical grader execution via Modal, scoring `reward == 1.0` (all 44 passed).
+
+### Specificity Results ($N_{\text{ctrl}} = 44$)
+- **Judge 1 (`gemini-3.8-flash`):** Specificity = **42 / 44 = 95.5% (95% Wilson CI: 84.9%–98.7%)**
+  - Easy controls ($N = 39$): 37 / 39 = 94.9% (95% Wilson CI: 83.1%–98.6%)
+  - Hard controls ($N = 5$): 5 / 5 = 100.0% (95% Wilson CI: 56.6%–100.0%)
+- **Judge 2 (`gemini-3.1-flash-lite`):** Specificity = **43 / 44 = 97.7% (95% Wilson CI: 88.2%–99.6%)**
+  - Easy controls ($N = 39$): 38 / 39 = 97.4% (95% Wilson CI: 86.8%–99.5%)
+  - Hard controls ($N = 5$): 5 / 5 = 100.0% (95% Wilson CI: 56.6%–100.0%)
+- **Consensus Specificity (Both):** **42 / 44 = 95.5% (95% Wilson CI: 84.9%–98.7%)**
+- **Union Specificity (Either):** **43 / 44 = 97.7% (95% Wilson CI: 88.2%–99.6%)**
+- **Gate Verdict:** **PASS (GATE MET)**. Point specificity $\ge 0.80$ and Wilson lower bound $\ge 0.60$ for both models.
+- **Rerun Stability (74 original items):** 74 / 74 = 100.0% agreement with initial run under fresh opaque shuffling.
+- **Dual Rogan-Gladen Correction:** Propagating measured $Se = 1.000$ (95% CI: 93.0%–100.0%) and $Sp = 0.955$ (95% CI: 84.9%–98.7%), the point estimate of true behavior changes remains 22.0 / 22 = 100.0%, with a conservative lower bound of 18.15 / 22 (82.5%), preserving the weak-grader headline of 18 / 28 = 64.3% (95% Wilson CI: 45.8%–79.3%).
+- **Deterministic Non-Equivalence Check:** 0 / 22 (0.0%) demonstrated by task package test suites (all 22 passed task tests; repository test suites inside unextracted container images remained unmeasured with $0 Modal spend).
 ## Files
 - `prepare_cohort.py`: Extracts post-patch source context, diffs, and task instructions; assigns opaque IDs.
 - `run_judges.py`: Executes blind judging fleet with session attestation and SQLite process isolation.
@@ -41,3 +62,10 @@ This experiment evaluates whether the 22 AST mutants that survived original MiMo
 - `summary.json`, `rates.json`, `contingency_table.json`, `reachability.json`: Aggregate metrics.
 - `survivor_classification.json`: Public listing of survivor opaque IDs and definition satisfaction.
 - `manifest.sha256`: SHA-256 checksums for all tracked artifacts.
+- `prereg-addendum.md`: Pre-registration for specificity controls and Rogan-Gladen decision rules.
+- `build_controls.py`: Constructs 44 known-equivalent controls and verifies reward 1.0 on Modal.
+- `prepare_specificity_cohort.py`: Shuffles 74 original items + 44 controls into 118 blind items (`BLIND-001` .. `BLIND-118`).
+- `run_specificity_judges.py`: Executes 236 attested judge calls with session logging.
+- `analyze_all.py`: Computes dual-parameter Rogan-Gladen rates and Wilson intervals.
+- `known_equivalent_controls.json`: Tracked control definitions, rewrites, and diffs.
+- `summary_v2.json`: Unified summary metrics for specificity evaluation.

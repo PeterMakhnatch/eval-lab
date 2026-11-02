@@ -780,6 +780,42 @@ infrastructure-only so one stale agent cannot quarantine an in-flight cycle;
 the `ready` field and the `doctor --headless` exit code require both healthy
 infrastructure and every installed evallab LaunchAgent resolvable.
 
+`evallab doctor` also prints one advisory `sync-primary` row for the primary
+checkout's sync timer (`scripts/sync-primary-checkout.sh`, installed by
+`scripts/ops/launchd/install-sync-primary.sh`). The timer fetches and
+fast-forwards one checkout, never resetting or discarding local work, and
+records why each run synced or skipped in
+`~/Library/Application Support/evallab/sync-status.json`
+(`EVALLAB_SYNC_STATUS` overrides the path; `--state-dir` at install time moves
+it). The row names the last run's outcome, its reason, how many commits HEAD is
+behind the remote ref, and how old that run is:
+
+```
+ok    sync-primary   up-to-date (up-to-date) behind 0 age 42s
+FAIL  sync-primary   skipped (dirty) behind 848 age 3m; skipped while 848 commits behind
+```
+
+- `ok` — the timer ran within three intervals and either fast-forwarded or had
+  nothing to do.
+- `FAIL ... stale: last run <age> ago (limit 900s)` — no run for more than three
+  timer intervals (default 300s, so 15 minutes; `EVALLAB_SYNC_INTERVAL_SECONDS`
+  overrides it). The agent is not running, was unloaded, or its script fails
+  before writing status. Check `launchctl print gui/$(id -u)/com.petermakhnatch.evallab.sync-primary`
+  and `~/Library/Logs/evallab/`.
+- `FAIL ... skipped while N commits behind` — the timer ran but refused to move
+  the checkout: usually a dirty working tree (`reason dirty`, with the file
+  count in the status file), an off-branch HEAD, a diverged branch, or an
+  in-progress merge/rebase. Clean, commit or rebase that checkout; the timer
+  never does.
+- `FAIL ... missing <path>` — the timer has never written status here, so the
+  primary is not being synced at all. Install it with
+  `scripts/ops/launchd/install-sync-primary.sh --load`.
+- `FAIL ... unreadable <path>` or `fetch failed` — the status file could not be
+  parsed, or the last fetch failed, so the run says nothing about freshness.
+
+The row is advisory: `sync-primary` is not in doctor's `required` set, so it
+never changes doctor's exit code or the headless `ready` field.
+
 Install the two user-session LaunchAgents:
 
 ```bash

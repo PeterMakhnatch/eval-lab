@@ -11,8 +11,11 @@
 # it prints the installed sha256 so drift is visible.
 #
 # Usage:
-#   install-sync-primary.sh [--load] [--label L] [--repo PATH]
+#   install-sync-primary.sh [--load] [--uninstall] [--label L] [--repo PATH]
 #                           [--interval SECONDS] [--state-dir DIR] [--dest PATH]
+#
+# --uninstall boots the label out of the user's launchd domain and removes the
+# plist, like the other evallab LaunchAgent installers; re-running it is a no-op.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 
@@ -22,10 +25,12 @@ INTERVAL=300
 STATE_DIR="$HOME/Library/Application Support/evallab"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOAD=0
+UNINSTALL=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --load) LOAD=1; shift;;
+    --uninstall) UNINSTALL=1; shift;;
     --label) LABEL="$2"; DEST="$HOME/Library/LaunchAgents/$LABEL.plist"; shift 2;;
     --repo) REPO="$2"; shift 2;;
     --interval) INTERVAL="$2"; shift 2;;
@@ -35,9 +40,16 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+if [ "$UNINSTALL" -eq 1 ]; then
+  launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+  rm -f "$DEST"
+  echo "removed: $DEST"
+  exit 0
+fi
+
 BIN_DIR="$STATE_DIR/bin"
 LOG_DIR="$HOME/Library/Logs/evallab"
-mkdir -p "$BIN_DIR" "$LOG_DIR" "$STATE_DIR"
+mkdir -p "$BIN_DIR" "$LOG_DIR" "$STATE_DIR" "$(dirname "$DEST")"
 cp "$ROOT/scripts/sync-primary-checkout.sh" "$BIN_DIR/sync-primary-checkout.sh"
 chmod +x "$BIN_DIR/sync-primary-checkout.sh"
 
@@ -64,8 +76,12 @@ print(f"rendered={dest}")
 PY
 
 echo "script=$BIN_DIR/sync-primary-checkout.sh"
-echo -n "sha256="
-shasum -a 256 "$BIN_DIR/sync-primary-checkout.sh" | cut -d' ' -f1
+if command -v sha256sum >/dev/null 2>&1; then
+  DIGEST="$(sha256sum "$BIN_DIR/sync-primary-checkout.sh" | cut -d' ' -f1)"
+else
+  DIGEST="$(shasum -a 256 "$BIN_DIR/sync-primary-checkout.sh" | cut -d' ' -f1)"
+fi
+echo "sha256=$DIGEST"
 
 if [ "$LOAD" -eq 1 ]; then
   if launchctl list "$LABEL" >/dev/null 2>&1; then

@@ -95,7 +95,14 @@ jobs:
             --reps 5
       - name: budget ratchet
         if: needs.scope.outputs.profile == 'true'
-        run: uv run --no-sync python scripts/profile/check_budgets.py runs/_speed/profile-report.json
+        # A single breach is re-profiled once -- only the breached paths, with the same
+        # corpus pin, warmup and reps -- before it fails the run. Both medians land in
+        # runs/_speed/profile-report.json: shared-runner spikes were reddening main with
+        # medians the other 29 runs of the same code never reproduced.
+        run: |
+          uv run --no-sync python scripts/profile/check_budgets.py \
+            runs/_speed/profile-report.json \
+            --reprofile
       - name: upload report
         if: always() && needs.scope.outputs.profile == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -10,7 +10,7 @@ import statistics
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -87,6 +87,10 @@ class ProfileReport:
     warmup: int
     reps: int
     paths: list[PathTiming]
+    # Recorded so a re-measurement can reproduce the *measurement* and not just
+    # the code: `check_budgets.py --reprofile` replays these values verbatim.
+    scratch_dir: str | None = None
+    tick_n: int = 100
 
     def path_names(self) -> list[str]:
         return [item.path for item in self.paths]
@@ -399,12 +403,27 @@ def run_profile(
     work_dir: Path,
     scratch_dir: Path | None = None,
     tick_n: int = 100,
+    only: Sequence[str] | None = None,
     fleet_fn: Callable[[], None] | None = None,
     sleeper: Callable[[float], None] | None = None,
 ) -> ProfileReport:
-    """Profile the six paths. `sleeper` is the injection seam; see `_inject_delay`."""
+    """Profile the six paths. `sleeper` is the injection seam; see `_inject_delay`.
+
+    `only` restricts the measurement to the named paths and is what
+    `check_budgets.py --reprofile` uses to re-measure exactly the paths that
+    breached, once, without paying for the full profile again.
+    """
     if warmup < 1 or reps < 5:
         raise ValueError("FORGE §4 requires warmup >= 1 and reps >= 5")
+    if only is None:
+        selected = set(PATH_NAMES)
+    else:
+        unknown = [name for name in only if name not in PATH_NAMES]
+        if unknown:
+            raise ValueError(f"unknown paths {unknown}; known paths: {list(PATH_NAMES)}")
+        selected = set(only)
+        if not selected:
+            raise ValueError("only= must select at least one path")
     delay = delay_fn(inject_ms, time.sleep if sleeper is None else sleeper)
     job_dirs, result_json, corpus_bytes = corpus_stats(corpus_roots)
     jobs = load_jobs(corpus_roots)
@@ -428,6 +447,8 @@ def run_profile(
     timings: list[PathTiming] = []
 
     def add(name: str, fn: Callable[[], None], notes: str) -> None:
+        if name not in selected:
+            return
         median_ms, min_ms, max_ms = measure(fn, warmup=warmup, reps=reps)
         timings.append(
             PathTiming(
@@ -493,7 +514,11 @@ def run_profile(
             "atif.ingest_and_project (PIPELINE unified path)",
         )
 
-    missing = [name for name in PATH_NAMES if name not in {item.path for item in timings}]
+    missing = [
+        name
+        for name in PATH_NAMES
+        if name in selected and name not in {item.path for item in timings}
+    ]
     if missing:
         raise RuntimeError(f"report missing paths: {missing}")
 
@@ -511,6 +536,8 @@ def run_profile(
         warmup=warmup,
         reps=reps,
         paths=timings,
+        scratch_dir=relative_to_repo(scratch),
+        tick_n=tick_n,
     )
 
 
@@ -528,6 +555,7 @@ def render_markdown(report: ProfileReport) -> str:
         ),
         f"- corpus_roots: {', '.join(report.corpus_roots)}",
         f"- database: {report.database_url_kind}",
+        f"- scratch_dir: {report.scratch_dir or 'unrecorded'}",
         f"- harbor_dispatch: {report.harbor_dispatch}",
         f"- method: median of {report.reps} reps after {report.warmup} warmup",
         "",
@@ -579,6 +607,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--inject-ms", action="append", default=[])
     parser.add_argument("--tick-n", type=int, default=100)
     parser.add_argument(
+        "--paths",
+        action="append",
+        default=[],
+        choices=list(PATH_NAMES),
+        help=(
+            "Profile only these paths (repeatable), reusing the same corpus pin, "
+            "warmup and reps. check_budgets.py --reprofile uses this to re-measure "
+            "exactly the paths that breached a budget."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=REPO_ROOT / "runs" / "_speed",
@@ -607,6 +646,7 @@ def main(argv: list[str] | None = None) -> int:
         work_dir=args.output_dir,
         scratch_dir=args.scratch_dir,
         tick_n=args.tick_n,
+        only=list(args.paths) or None,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     markdown = render_markdown(report)

@@ -25,6 +25,7 @@ from evallab.automation import (
     audit_launch_agents,
     record_quarantine,
     record_researcher_deferral,
+    sync_primary_status,
 )
 from evallab.backups import create_postgres_backup
 from evallab.calibrate import (
@@ -233,7 +234,9 @@ def _print_summary(jobs: Sequence[JobRecord]) -> None:
             )
 
 
-def _doctor(root: Path, *, home: Path | None = None) -> int:
+def _doctor(
+    root: Path, *, home: Path | None = None, clock: Callable[[], datetime] | None = None
+) -> int:
     checks = Executor.from_repo(root).local_runtime_checks()
 
     database_url = database_url_from_environment()
@@ -264,11 +267,17 @@ def _doctor(root: Path, *, home: Path | None = None) -> int:
 
     task_toml = root / "library/tasks/event-summary/task.toml"
     checks.append(("task", task_toml.is_file(), "event-summary"))
-    launch_agents = audit_launch_agents(home or Path.home())
+    home_dir = home or Path.home()
+    launch_agents = audit_launch_agents(home_dir)
     if launch_agents.broken:
         checks.extend(("launchagent", False, issue.describe()) for issue in launch_agents.broken)
     else:
         checks.append(("launchagent", True, f"{launch_agents.checked} evallab LaunchAgents intact"))
+    # Advisory: the primary checkout's sync timer. It is deliberately absent
+    # from `required` so a stalled sync is visible without changing doctor's
+    # exit code (a 2026-10-12 dirty tree left the primary 848 commits behind).
+    sync = sync_primary_status(home_dir, now=clock() if clock else None)
+    checks.append(("sync-primary", sync.ok, sync.detail))
     for name, ok, detail in checks:
         print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
     print(doctor_disk_line(root))

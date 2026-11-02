@@ -8,6 +8,7 @@ consume is a defect even when its exit code is 0.
 
 from __future__ import annotations
 
+import json
 import shlex
 import shutil
 from datetime import UTC, datetime
@@ -287,6 +288,226 @@ def test_database_identity_never_returns_a_password() -> None:
     assert database.identity("host=db port=6000 dbname=c password=hunter2") == "db:6000/c"
     assert "hunter2" not in database.identity("host=db port=6000 dbname=c password=hunter2")
     assert database.identity("=== not a connection string") == "unparsable connection string"
+
+
+# ---- HAR-246: doctor surfaces the primary checkout's sync timer ---------------
+
+SYNC_STATUS_RELATIVE = Path("Library/Application Support/evallab/sync-status.json")
+
+
+@pytest.fixture
+def sync_environment(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
+    """No test may inherit the developer's sync status path or interval."""
+    monkeypatch.delenv("EVALLAB_SYNC_STATUS", raising=False)
+    monkeypatch.delenv("EVALLAB_SYNC_INTERVAL_SECONDS", raising=False)
+    return monkeypatch
+
+
+def _write_sync_status(home: Path, **fields: Any) -> Path:
+    path = home / SYNC_STATUS_RELATIVE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, Any] = {
+        "timestamp": "2026-08-13T23:59:30Z",
+        "outcome": "up-to-date",
+        "reason": "up-to-date",
+        "dirty_files": 0,
+        "ahead": 0,
+        "behind": 0,
+        "fetch_ok": True,
+    }
+    payload.update(fields)
+    path.write_text(json.dumps(payload))
+    return path
+
+
+def test_sync_primary_row_reports_an_up_to_date_timer(
+    tmp_path: Path, sync_environment: pytest.MonkeyPatch
+) -> None:
+    from evallab.automation import sync_primary_status
+
+    home = tmp_path / "home"
+    _write_sync_status(home)
+
+    status = sync_primary_status(home, now=FIXED)
+
+    assert status.ok is True
+    assert (status.outcome, status.reason, status.behind, status.age_seconds) == (
+        "up-to-date",
+        "up-to-date",
+        0,
+        30,
+    )
+    assert status.detail == "up-to-date (up-to-date) behind 0 age 30s"
+
+
+def test_sync_primary_row_fails_when_the_timer_skipped_a_checkout_behind(
+    tmp_path: Path, sync_environment: pytest.MonkeyPatch
+) -> None:
+    from evallab.automation import sync_primary_status
+
+    home = tmp_path / "home"
+    _write_sync_status(
+        home,
+        timestamp="2026-08-13T23:55:00Z",
+        outcome="skipped",
+        reason="dirty",
+        dirty_files=2,
+        behind=848,
+    )
+
+    status = sync_primary_status(home, now=FIXED)
+
+    assert status.ok is False
+    assert (status.outcome, status.reason, status.behind, status.age_seconds) == (
+        "skipped",
+        "dirty",
+        848,
+        300,
+    )
+    assert status.detail == (
+        "skipped (dirty) behind 848 age 5m; skipped while 848 commits behind"
+    )
+
+
+def test_sync_primary_row_fails_when_the_last_run_is_stale(
+    tmp_path: Path, sync_environment: pytest.MonkeyPatch
+) -> None:
+    from evallab.automation import sync_primary_status
+
+    home = tmp_path / "home"
+    _write_sync_status(home, timestamp="2026-08-13T22:00:00Z")  # two hours before FIXED
+
+    status = sync_primary_status(home, now=FIXED)
+
+    assert status.ok is False
+    # The timer's own verdict is still reported; only doctor's is FAIL.
+    assert status.outcome == "up-to-date"
+    assert status.age_seconds == 7200
+    assert "stale: last run 2h0m ago (limit 900s)" in status.detail
+
+
+def test_sync_primary_row_fails_when_the_status_file_is_missing(
+    tmp_path: Path, sync_environment: pytest.MonkeyPatch
+) -> None:
+    from evallab.automation import sync_primary_status
+
+    home = tmp_path / "home"
+
+    status = sync_primary_status(home, now=FIXED)
+
+    assert status.ok is False
+    assert status.outcome == "missing"
+    assert status.age_seconds is None
+    assert str(home / SYNC_STATUS_RELATIVE) in status.detail
+
+
+def test_sync_primary_row_fails_when_the_last_fetch_failed(
+    tmp_path: Path, sync_environment: pytest.MonkeyPatch
+) -> None:
+    from evallab.automation import sync_primary_status
+
+    home = tmp_path / "home"
+    _write_sync_status(
+        home,
+        outcome="skipped",
+        reason="fetch-failed",
+        fetch_ok=False,
+        fetch_error="Could not resolve host: github.com",
+    )
+
+    status = sync_primary_status(home, now=FIXED)
+
+    assert status.ok is False
+    assert status.detail.endswith("fetch failed")
+    assert "fetch-failed" in status.detail
+
+
+def test_sync_primary_row_takes_the_status_path_and_interval_from_the_environment(
+    tmp_path: Path, sync_environment: pytest.MonkeyPatch
+) -> None:
+    from evallab.automation import sync_primary_status
+
+    home = tmp_path / "home"
+    home.mkdir()
+    elsewhere = tmp_path / "state/sync-status.json"
+    elsewhere.parent.mkdir()
+    elsewhere.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-08-13T22:00:00Z",
+                "outcome": "synced",
+                "reason": "synced",
+                "behind": 0,
+                "fetch_ok": True,
+            }
+        )
+    )
+    sync_environment.setenv("EVALLAB_SYNC_STATUS", str(elsewhere))
+    sync_environment.setenv("EVALLAB_SYNC_INTERVAL_SECONDS", "3600")
+
+    status = sync_primary_status(home, now=FIXED)
+
+    assert status.ok is True  # two hours is inside 3 x 3600s
+    assert status.outcome == "synced"
+
+
+def _stub_local_doctor(monkeypatch: pytest.MonkeyPatch) -> None:
+    from evallab.evidence.atif import ProjectionInvariant
+
+    monkeypatch.setattr(
+        cli.Executor,
+        "from_repo",
+        lambda root: type("R", (), {"local_runtime_checks": lambda self: []})(),
+    )
+    monkeypatch.setattr(cli.database, "ping", lambda url: "PostgreSQL 16")
+    monkeypatch.setattr(
+        cli,
+        "check_projection_invariant",
+        lambda url, output, events: ProjectionInvariant(
+            catalog_job_ids=frozenset({"job"}),
+            projected_job_ids=frozenset({"job"}),
+            excepted_job_ids=frozenset(),
+            missing_job_ids=frozenset(),
+            extra_job_ids=frozenset(),
+        ),
+    )
+
+
+def test_doctor_prints_the_sync_primary_row_and_keeps_it_advisory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    sync_environment: pytest.MonkeyPatch,
+) -> None:
+    task = tmp_path / "library/tasks/event-summary/task.toml"
+    task.parent.mkdir(parents=True)
+    task.write_text("version = 1\n")
+    _stub_local_doctor(monkeypatch)
+    home = tmp_path / "home"
+    _write_sync_status(
+        home,
+        timestamp="2026-08-13T23:55:00Z",
+        outcome="skipped",
+        reason="dirty",
+        dirty_files=2,
+        behind=848,
+    )
+
+    # FAIL is reported, but sync-primary is not in doctor's required set.
+    assert cli._doctor(tmp_path, home=home, clock=lambda: FIXED) == 0
+    line = next(
+        row for row in capsys.readouterr().out.splitlines() if "sync-primary" in row
+    )
+    assert line.startswith("FAIL  sync-primary   ")
+    assert "skipped (dirty) behind 848" in line
+
+    _write_sync_status(home)
+
+    assert cli._doctor(tmp_path, home=home, clock=lambda: FIXED) == 0
+    line = next(
+        row for row in capsys.readouterr().out.splitlines() if "sync-primary" in row
+    )
+    assert line.startswith("ok    sync-primary   up-to-date (up-to-date) behind 0 age 30s")
 
 
 # ---- F-09: `submit` prints the id the next command wants --------------------

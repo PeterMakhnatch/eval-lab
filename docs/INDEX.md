@@ -59,7 +59,7 @@ inputs:
   - path: docs/docker-lock.md
     digest: sha256:643794b06ee82843f46f8360ff8b769e2b28ff9e6974fe9a6dc75b55889d331d
   - path: docs/engineering.md
-    digest: sha256:62c9cd24077c351d7e454195bcf3613995c54fbf4b8c8469b46b9e4279f1b7a6
+    digest: sha256:ad5deaf4f3e52070b7d478727197153e89ba0f6558052047f534426aa6b16ed4
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
@@ -103,7 +103,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:7c27c537357d73b57165134756ba6aed29c51bf451ad7329c88bcf97960011f5
+    digest: sha256:7b4d5efb533a160cd492ba704ec828afad6e50995211433e5f41e524edc33806
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/production-factory.md

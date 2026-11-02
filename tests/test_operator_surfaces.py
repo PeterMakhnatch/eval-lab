@@ -451,14 +451,9 @@ def test_sync_primary_row_takes_the_status_path_and_interval_from_the_environmen
     assert status.outcome == "synced"
 
 
-def _stub_local_doctor(monkeypatch: pytest.MonkeyPatch) -> None:
+def _stub_doctor_database(monkeypatch: pytest.MonkeyPatch) -> None:
     from evallab.evidence.atif import ProjectionInvariant
 
-    monkeypatch.setattr(
-        cli.Executor,
-        "from_repo",
-        lambda root: type("R", (), {"local_runtime_checks": lambda self: []})(),
-    )
     monkeypatch.setattr(cli.database, "ping", lambda url: "PostgreSQL 16")
     monkeypatch.setattr(
         cli,
@@ -471,6 +466,15 @@ def _stub_local_doctor(monkeypatch: pytest.MonkeyPatch) -> None:
             extra_job_ids=frozenset(),
         ),
     )
+
+
+def _stub_local_doctor(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        cli.Executor,
+        "from_repo",
+        lambda root: type("R", (), {"local_runtime_checks": lambda self: []})(),
+    )
+    _stub_doctor_database(monkeypatch)
 
 
 def test_doctor_prints_the_sync_primary_row_and_keeps_it_advisory(
@@ -508,6 +512,49 @@ def test_doctor_prints_the_sync_primary_row_and_keeps_it_advisory(
         row for row in capsys.readouterr().out.splitlines() if "sync-primary" in row
     )
     assert line.startswith("ok    sync-primary   up-to-date (up-to-date) behind 0 age 30s")
+
+
+# ---- HAR-265: doctor surfaces local Harbor CLI drift from the CI pin --------
+
+
+def test_doctor_prints_harbor_pin_drift_and_keeps_it_advisory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    sync_environment: pytest.MonkeyPatch,
+) -> None:
+    from evallab import queue as queue_module
+    from evallab.runner import HARBOR_CLI_PIN
+
+    task = tmp_path / "library/tasks/event-summary/task.toml"
+    task.parent.mkdir(parents=True)
+    task.write_text("version = 1\n")
+    (tmp_path / "policy").mkdir()
+    shutil.copy(
+        ROOT / "policy/standing-approvals.yaml",
+        tmp_path / "policy/standing-approvals.yaml",
+    )
+    _stub_doctor_database(monkeypatch)
+    monkeypatch.setattr(queue_module.shutil, "which", lambda _command: None)
+    versions = {"harbor": "0.20.0"}
+    monkeypatch.setattr(
+        queue_module, "tool_version", lambda command: versions.get(command, "present")
+    )
+    home = tmp_path / "home"
+
+    # Drift names both versions but harbor-pin is not in doctor's required set.
+    assert cli._doctor(tmp_path, home=home, clock=lambda: FIXED) == 0
+    line = next(row for row in capsys.readouterr().out.splitlines() if "harbor-pin" in row)
+    assert line.startswith("FAIL  harbor-pin   ")
+    assert "local 0.20.0" in line
+    assert f"CI pin {HARBOR_CLI_PIN}" in line
+
+    versions["harbor"] = HARBOR_CLI_PIN
+
+    assert cli._doctor(tmp_path, home=home, clock=lambda: FIXED) == 0
+    line = next(row for row in capsys.readouterr().out.splitlines() if "harbor-pin" in row)
+    assert line.startswith("ok    harbor-pin   ")
+    assert f"{HARBOR_CLI_PIN} matches CI pin" in line
 
 
 # ---- F-09: `submit` prints the id the next command wants --------------------

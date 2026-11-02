@@ -237,6 +237,8 @@ __all__ = [
     "run_harbor_process",
     "subscription_command",
     "subscription_environment",
+    "HARBOR_CLI_PIN",
+    "harbor_cli_pin_check",
     "tool_version",
     "transient_provider_exception",
     "transient_provider_reason",
@@ -428,6 +430,33 @@ def cleanup_new_harbor_containers(
     if completed.returncode != 0:
         raise RuntimeError("failed to remove Harbor-labeled orphan containers")
     return orphaned
+
+
+# Every workflow installs exactly this Harbor CLI with
+# `uv tool install "harbor==<pin>"` (HAR-251). tests/test_quality_gates.py
+# imports it, and `evallab doctor` compares the local CLI against it (HAR-265),
+# because a local Harbor on another version produces jobs CI cannot reproduce.
+# A bump changes this constant and every workflow together.
+HARBOR_CLI_PIN = "0.21.0"
+
+_VERSION_NUMBER = re.compile(r"\d+\.\d+(?:\.\d+)?")
+
+
+def harbor_cli_pin_check(version: str | None) -> tuple[bool, str]:
+    """Compare a local ``harbor --version`` line with the CI CLI pin.
+
+    ``version`` is ``tool_version("harbor")``: ``None`` when the CLI is absent.
+    Doctor reports the verdict as an advisory row, so drift is visible without
+    changing the exit code.
+    """
+    if version is None:
+        return False, f"harbor not found (CI pin {HARBOR_CLI_PIN})"
+    match = _VERSION_NUMBER.search(version)
+    if match is None:
+        return False, f"unparsed {version!r} (CI pin {HARBOR_CLI_PIN})"
+    if match.group() == HARBOR_CLI_PIN:
+        return True, f"{HARBOR_CLI_PIN} matches CI pin"
+    return False, f"local {match.group()} != CI pin {HARBOR_CLI_PIN}"
 
 
 def tool_version(command: str) -> str | None:

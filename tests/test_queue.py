@@ -24,6 +24,7 @@ from evallab.queue import (
     load_events,
 )
 from evallab.runner import (
+    HARBOR_CLI_PIN,
     ExecutionFailure,
     RunRequest,
     TransientHarnessFailure,
@@ -439,6 +440,43 @@ def test_doctor_docker_daemon_probe_is_bounded(
 
     assert checks[-1] == ("docker-daemon", False, "unavailable: TimeoutExpired")
     assert observed_timeouts == [queue_module.SUPPORT_COMMAND_TIMEOUT_SECONDS]
+
+
+@pytest.mark.parametrize(
+    ("harbor_version", "detail"),
+    [
+        (
+            HARBOR_CLI_PIN,
+            f"{HARBOR_CLI_PIN} matches CI pin",
+        ),
+        (
+            "0.20.0",
+            f"local 0.20.0 != CI pin {HARBOR_CLI_PIN}",
+        ),
+        (
+            None,
+            f"harbor not found (CI pin {HARBOR_CLI_PIN})",
+        ),
+    ],
+    ids=["match", "drift", "not-found"],
+)
+def test_local_runtime_checks_compare_harbor_cli_with_the_ci_pin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    harbor_version: str | None,
+    detail: str,
+) -> None:
+    """HAR-265: doctor's advisory row reports both versions when they differ."""
+    monkeypatch.setattr(
+        queue_module,
+        "tool_version",
+        lambda command: harbor_version if command == "harbor" else "present",
+    )
+    monkeypatch.setattr(queue_module.shutil, "which", lambda _command: None)
+
+    checks = executor(tmp_path).local_runtime_checks()
+
+    assert ("harbor-pin", harbor_version == HARBOR_CLI_PIN, detail) in checks
 
 
 def test_human_approval_does_not_override_hard_cost_ceiling(tmp_path: Path) -> None:

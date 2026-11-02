@@ -316,6 +316,36 @@ def test_decision_recomputation_detects_nondeterministic_stage(
     assert next(c for c in result["checks"] if c["name"] == "determinism")["status"] == "FAIL"
 
 
+@pytest.mark.parametrize("reward,expected", [(1.0, 1.0), (0.0, 0.0), (None, None)])
+def test_native_harbor_reward_and_unknown(
+    fixture_spec: Path, reward: float | None, expected: float | None
+) -> None:
+    spec = read_json(fixture_spec)
+    manifest = Path(spec["sources"][0]["rollouts"])
+    rows = read_rows(manifest)
+    native = {"split": "dev", "verifier_result": {"rewards": {}}}
+    if reward is not None:
+        native["verifier_result"]["rewards"]["reward"] = reward
+    bundle = fixture_spec.parent / "native"
+    write_json(bundle / "result.json", native)
+    (bundle / "solution.py").write_text("def f(): return 1\n")
+    rows[0]["path"] = str(bundle)
+    rows[0].pop("reward")
+    write_rows(manifest, rows)
+    batch = core.run_line(fixture_spec, fixture_spec.parent)
+    assert read_rows(batch / "runs.jsonl")[0]["reward"] == expected
+    assert core.check_batch(batch, fixture_spec.parent)["passed"]
+    assert read_json(batch / "scoreboard.json")["task_side"]["reward1_uncertified"] == 0
+    rows[0]["task_id"] = "unknown-uncertified-task"
+    spec["batch_id"] = f"native-{str(reward).lower()}"
+    write_json(fixture_spec, spec)
+    write_rows(manifest, rows)
+    uncertified = core.run_line(fixture_spec, fixture_spec.parent)
+    assert read_json(uncertified / "scoreboard.json")["task_side"]["reward1_uncertified"] == int(
+        expected == 1.0
+    )
+
+
 def test_interrupted_check_never_publishes_pass(
     fixture_spec: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

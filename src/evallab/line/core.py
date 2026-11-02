@@ -109,6 +109,15 @@ def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], lis
                     if sidecar.is_file():
                         metadata.append(read_json(sidecar))
             reward = next((m["reward"] for m in metadata if m.get("reward") is not None), None)
+            if reward is None:
+                for document in metadata:
+                    verifier_result = document.get("verifier_result")
+                    if not isinstance(verifier_result, dict):
+                        continue
+                    rewards = verifier_result.get("rewards")
+                    if isinstance(rewards, dict) and rewards.get("reward") is not None:
+                        reward = rewards["reward"]
+                        break
             model = next((m["model"] for m in metadata if m.get("model") is not None), None)
             rows.append(
                 {

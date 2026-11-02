@@ -605,7 +605,7 @@ actuals for several systematic reasons:
    `~/.omp/agent/config.yml`.
 3. **Unpriced catalog variants:** Models introduced without explicit rate cards (such as
    `muse-wonder-1.0-contributor`, which accounted for 593 calls logged at $0.00 in `stats.db`)
-   are recorded with $0 cost.
+   are recorded with $0 cost and marked `UNVERIFIABLE`.
 
 ### Reconciliation command
 
@@ -619,9 +619,22 @@ evallab spend reconcile --since 2026-10-30T21:00:00Z --threshold-usd 1.00
 # Emit structured JSON report
 evallab spend reconcile --threshold-usd 2.00 --json
 
-# Scan OMP session traces and backfill missing paid calls to spend.jsonl
+# Scan OMP session traces and backfill missing paid per-call runs to spend.jsonl
 evallab spend scan-omp --since 2026-10-30T21:00:00Z --write
 ```
 
-If the gap for any provider strictly exceeds `--threshold-usd`, the command flags the
-discrepancy and exits non-zero (1).
+### Fail-closed and subscription invariants
+
+- **Fail-closed verdict (exit 3):** If any requested provider endpoint fails to fetch or no provider
+  reaches a numeric comparison, the command outputs `UNVERIFIED` and exits 3. Discrepancies strictly
+  exceeding `--threshold-usd` exit 1 (`FAIL`).
+- **Subscription notional separation:** Subscription OAuth routes (Anthropic Claude, OpenAI Codex, xAI)
+  report list-price estimates in OMP session traces ($0 marginal cash spend). They are excluded from cash
+  spend backfills by default to avoid corrupting shared ledger accounting.
+- **Lab-logged deduplication:** `scan-omp --write` matches session calls against existing ledger rows by
+  route, timestamp window, and token/cost matching, preventing double-counting of calls already logged by the lab harness.
+- **Cumulative counters and windows:** DeepSeek baseline ($16.00 at 2026-10-30T21:00:00Z) and OpenRouter lifetime
+  usage require explicit start values when querying non-baseline windows; missing baselines report "start unknown"
+  rather than fabricating drift.
+- **Modal infrastructure:** Modal rows are flagged `NOT MEASURED` (and excluded from totals) unless the live
+  billing API is queried.

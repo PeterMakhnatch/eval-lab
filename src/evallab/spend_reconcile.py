@@ -31,8 +31,19 @@ DEFAULT_SESSION_DIRS = (
     Path.home() / ".local/state/foreman/sessions",
 )
 
-#: Default paid providers to inspect for untracked usage
-PAID_PROVIDERS = frozenset({"deepseek", "openrouter", "meta", "openai-codex", "anthropic", "xai-oauth"})
+#: Default paid providers that actually bill per call (B1 fix)
+PAID_PROVIDERS = frozenset({"deepseek", "openrouter"})
+
+#: Subscription providers whose usage.cost represents list-price estimates, not cash spend
+SUBSCRIPTION_PROVIDERS = frozenset({
+    "anthropic",
+    "openai-codex",
+    "xai-oauth",
+    "google-antigravity",
+    "meta",
+    "devin",
+    "kimi-code",
+})
 
 #: Known historical DeepSeek baseline: $16.00 at 2026-10-30 17:00 ET (2026-10-30T21:00:00Z)
 DEEPSEEK_OCT30_BASELINE_USD = 16.00
@@ -47,7 +58,7 @@ class ProviderReconciliation:
     ledger_usd: float
     reported_usd: float | None
     gap_usd: float | None
-    status: str  # "ok", "gap_exceeded", "fetch_error", "unsupported"
+    status: str  # "ok", "gap_exceeded", "fetch_error", "unsupported", "unverifiable"
     note: str = ""
     ledger_records_count: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -65,6 +76,8 @@ class ReconciliationReport:
     total_reported_usd: float
     total_gap_usd: float
     exceeded_threshold: bool
+    unverified: bool = False
+    verdict: str = "PASS"  # "PASS", "FAIL", or "UNVERIFIED"
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -75,7 +88,9 @@ class ReconciliationReport:
                 "end": self.window_end.isoformat(),
             },
             "threshold_usd": self.threshold_usd,
+            "verdict": self.verdict,
             "exceeded_threshold": self.exceeded_threshold,
+            "unverified": self.unverified,
             "totals": {
                 "ledger_usd": round(self.total_ledger_usd, 4),
                 "reported_usd": round(self.total_reported_usd, 4),
@@ -112,6 +127,8 @@ class OmpPaidCall:
     output_tokens: int
     cache_read_tokens: int
     raw_record: dict[str, Any] = field(default_factory=dict)
+    is_subscription: bool = False
+    notional_usd: float = 0.0
 
 
 def _get_provider_key_from_omp(provider_name: str) -> str | None:
@@ -186,7 +203,9 @@ def fetch_deepseek_balance(
                     for lim in rep.get("limits", []):
                         amt = lim.get("amount", {})
                         if "remaining" in amt:
-                            return float(amt["remaining"])
+                            unit = amt.get("unit") or amt.get("currency")
+                            if unit is None or unit.upper() == "USD" or unit == "$":
+                                return float(amt["remaining"])
     except Exception:
         pass
 
@@ -331,10 +350,15 @@ def scan_omp_sessions(
     window_start: datetime | None = None,
     window_end: datetime | None = None,
     paid_providers: frozenset[str] = PAID_PROVIDERS,
+    *,
+    include_subscription: bool = False,
+    stats: dict[str, int] | None = None,
 ) -> list[OmpPaidCall]:
     """Scan OMP session files for paid model calls.
 
     Discovers calls to paid providers that were not logged to spend.jsonl.
+    Calls without a valid ISO timestamp are skipped (S4).
+    Subscription calls are excluded from paid spend by default (B1).
     """
     calls: list[OmpPaidCall] = []
 
@@ -350,7 +374,11 @@ def scan_omp_sessions(
                         continue
                 with path.open(encoding="utf-8", errors="ignore") as fh:
                     for line in fh:
-                        if not any(p in line for p in paid_providers) and '"cost"' not in line:
+                        if (
+                            not any(p in line for p in paid_providers)
+                            and (not include_subscription or not any(s in line for s in SUBSCRIPTION_PROVIDERS))
+                            and '"cost"' not in line
+                        ):
                             continue
                         try:
                             record = json.loads(line)
@@ -366,28 +394,46 @@ def scan_omp_sessions(
                         if not isinstance(msg, dict):
                             continue
 
-                        provider = str(msg.get("provider") or "")
-                        model = str(msg.get("model") or "")
+                        provider = str(msg.get("provider") or "").strip().lower()
+                        model = str(msg.get("model") or "").strip()
                         if not provider and "/" in model:
-                            provider = model.split("/")[0]
+                            provider = model.split("/")[0].lower()
 
-                        # Check if provider or route is a paid provider
-                        if provider not in paid_providers and not any(p in model for p in paid_providers):
-                            continue
+                        is_paid = provider in paid_providers or any(
+                            model.startswith(f"{p}/") or model == p for p in paid_providers
+                        )
+                        is_sub = (
+                            provider in SUBSCRIPTION_PROVIDERS
+                            or any(model.startswith(f"{s}/") or model == s for s in SUBSCRIPTION_PROVIDERS)
+                        )
 
+                        if not is_paid:
+                            if is_sub and include_subscription:
+                                 pass
+                            else:
+                                if stats is not None and is_sub:
+                                    stats["subscription_calls"] = stats.get("subscription_calls", 0) + 1
+                                continue
+
+                        # S4: Must have a valid timestamp; never fall back to now()
                         ts_str = record.get("timestamp") or msg.get("timestamp")
-                        dt = None
-                        if ts_str:
-                            try:
-                                dt = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
-                                if dt.tzinfo is None:
-                                    dt = dt.replace(tzinfo=UTC)
-                            except Exception:
-                                pass
-
-                        if dt and window_start and dt < window_start:
+                        if not ts_str:
+                            if stats is not None:
+                                stats["missing_timestamp"] = stats.get("missing_timestamp", 0) + 1
                             continue
-                        if dt and window_end and dt >= window_end:
+
+                        try:
+                            dt = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
+                            if dt.tzinfo is None:
+                                dt = dt.replace(tzinfo=UTC)
+                        except Exception:
+                            if stats is not None:
+                                stats["missing_timestamp"] = stats.get("missing_timestamp", 0) + 1
+                            continue
+
+                        if window_start and dt < window_start:
+                            continue
+                        if window_end and dt >= window_end:
                             continue
 
                         usage = msg.get("usage") or {}
@@ -399,18 +445,21 @@ def scan_omp_sessions(
                         )
 
                         message_id = str(record.get("id") or "")
+                        actual_is_sub = is_sub and not is_paid
                         calls.append(
                             OmpPaidCall(
                                 session_file=str(path),
                                 message_id=message_id,
                                 provider=provider,
                                 model=model,
-                                timestamp=dt or datetime.now(UTC),
-                                cost_usd=cost,
+                                timestamp=dt,
+                                cost_usd=0.0 if actual_is_sub else cost,
                                 input_tokens=int(usage.get("input", 0) or 0),
                                 output_tokens=int(usage.get("output", 0) or 0),
                                 cache_read_tokens=int(usage.get("cacheRead", 0) or 0),
                                 raw_record=record,
+                                is_subscription=actual_is_sub,
+                                notional_usd=cost if actual_is_sub else 0.0,
                             )
                         )
             except OSError:
@@ -424,63 +473,165 @@ def sync_omp_sessions_to_ledger(
     ledger_path: Path,
     *,
     dry_run: bool = False,
+    match_window_seconds: float = 120.0,
 ) -> tuple[int, float]:
     """Append unlogged OMP session calls to the spend ledger.
 
-    Deduplicates against already present records.
+    Deduplicates against:
+    1. Previously synced calls via fingerprint (omp_call_id or purpose).
+    2. Calls already logged by the lab harness (same route, timestamp within
+       match_window_seconds, and matching token counts or cost) (B2 fix).
+
+    Uses file locking (fcntl.flock) to prevent concurrent double-appends (S6 fix).
     Returns (appended_count, appended_usd).
     """
+    import fcntl
+
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
     existing_fingerprints: set[str] = set()
+    existing_records: list[dict[str, Any]] = []
 
-    if ledger_path.is_file():
+    if not ledger_path.is_file() and dry_run:
+        return 0, 0.0
+
+    with ledger_path.open("a+" if not dry_run else "r", encoding="utf-8") as fh:
+        if not dry_run:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
         try:
-            with ledger_path.open(encoding="utf-8", errors="ignore") as fh:
-                for line in fh:
+            fh.seek(0)
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    d = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(d, dict):
+                    continue
+
+                fp = d.get("omp_call_id") or d.get("purpose")
+                if fp:
+                    existing_fingerprints.add(str(fp))
+
+                ts_str = d.get("ts") or d.get("at") or d.get("timestamp_utc")
+                dt = None
+                if ts_str:
                     try:
-                        d = json.loads(line.strip())
-                        fp = d.get("omp_call_id") or d.get("purpose")
-                        if fp:
-                            existing_fingerprints.add(str(fp))
+                        dt = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=UTC)
                     except Exception:
+                        pass
+
+                route = str(d.get("route") or d.get("model") or "")
+                provider = str(d.get("provider") or (route.split("/")[0] if "/" in route else ""))
+                cost = float(d.get("cost_usd") or d.get("usd") or 0.0)
+                in_tok = int(d.get("input_tokens") or 0)
+                out_tok = int(d.get("output_tokens") or 0)
+
+                existing_records.append({
+                    "dt": dt,
+                    "route": route,
+                    "provider": provider,
+                    "cost": cost,
+                    "input_tokens": in_tok,
+                    "output_tokens": out_tok,
+                    "matched": False,
+                })
+
+            to_append: list[dict[str, Any]] = []
+            added_usd = 0.0
+
+            for call in calls:
+                call_fp = f"omp:{Path(call.session_file).stem}:{call.message_id}"
+                if call_fp in existing_fingerprints:
+                    continue
+
+                # Normalized route for comparison and writing (NIT 1)
+                normalized_call_route = (
+                    call.model
+                    if call.model.startswith(f"{call.provider}/")
+                    else f"{call.provider}/{call.model}"
+                )
+
+                # B2: Deduplicate against existing lab rows
+                matched = False
+                for rec in existing_records:
+                    if rec["matched"]:
                         continue
-        except OSError:
-            pass
+                    rec_dt = rec["dt"]
+                    if rec_dt is None or call.timestamp is None:
+                        continue
+                    if abs((call.timestamp - rec_dt).total_seconds()) > match_window_seconds:
+                        continue
 
-    to_append: list[dict[str, Any]] = []
-    added_usd = 0.0
+                    rec_route = rec["route"]
+                    rec_provider = rec["provider"]
+                    route_matches = (
+                        rec_route == normalized_call_route
+                        or rec_route == call.model
+                        or (
+                            rec_provider
+                            and rec_provider == call.provider
+                            and (call.model in rec_route or rec_route in call.model)
+                        )
+                    )
+                    if not route_matches:
+                        continue
 
-    for call in calls:
-        call_fp = f"omp:{Path(call.session_file).stem}:{call.message_id}"
-        if call_fp in existing_fingerprints:
-            continue
-        existing_fingerprints.add(call_fp)
+                    # Compare token counts if recorded, else cost
+                    tokens_match = (
+                        rec["input_tokens"] > 0
+                        and rec["input_tokens"] == call.input_tokens
+                        and rec["output_tokens"] == call.output_tokens
+                    )
+                    cost_to_compare = call.notional_usd if call.is_subscription else call.cost_usd
+                    cost_match = abs(cost_to_compare - rec["cost"]) <= max(0.005, 0.05 * cost_to_compare)
 
-        row = {
-            "source": "omp_session_scan",
-            "session_file": call.session_file,
-            "message_id": call.message_id,
-            "omp_call_id": call_fp,
-            "provider": call.provider,
-            "route": f"{call.provider}/{call.model}" if call.provider not in call.model else call.model,
-            "model": call.model,
-            "usd": round(call.cost_usd, 6),
-            "cost_usd": round(call.cost_usd, 6),
-            "input_tokens": call.input_tokens,
-            "output_tokens": call.output_tokens,
-            "cache_read_tokens": call.cache_read_tokens,
-            "ts": call.timestamp.isoformat(),
-            "purpose": call_fp,
-        }
-        to_append.append(row)
-        added_usd += call.cost_usd
+                    if tokens_match or cost_match:
+                        rec["matched"] = True
+                        matched = True
+                        break
 
-    if to_append and not dry_run:
-        ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        with ledger_path.open("a", encoding="utf-8") as fh:
-            for row in to_append:
-                fh.write(json.dumps(row) + "\n")
+                if matched:
+                    continue
 
-    return len(to_append), added_usd
+                existing_fingerprints.add(call_fp)
+
+                row = {
+                    "source": "omp_session_scan",
+                    "session_file": call.session_file,
+                    "message_id": call.message_id,
+                    "omp_call_id": call_fp,
+                    "provider": call.provider,
+                    "route": normalized_call_route,
+                    "model": call.model,
+                    "usd": round(call.cost_usd, 6),
+                    "cost_usd": round(call.cost_usd, 6),
+                    "input_tokens": call.input_tokens,
+                    "output_tokens": call.output_tokens,
+                    "cache_read_tokens": call.cache_read_tokens,
+                    "ts": call.timestamp.isoformat(),
+                    "purpose": call_fp,
+                }
+                if call.is_subscription:
+                    row["quota"] = "subscription"
+                    row["notional_usd"] = round(call.notional_usd, 6)
+
+                to_append.append(row)
+                added_usd += call.cost_usd
+
+            if to_append and not dry_run:
+                content = "".join(json.dumps(row) + "\n" for row in to_append)
+                fh.seek(0, os.SEEK_END)
+                fh.write(content)
+                fh.flush()
+
+            return len(to_append), added_usd
+        finally:
+            if not dry_run:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
 
 def reconcile_spend(
@@ -510,16 +661,19 @@ def reconcile_spend(
 
         current_bal = fetch_deepseek_balance()
         start_bal = deepseek_start_balance
-        if start_bal is None and window_start <= DEEPSEEK_OCT30_BASELINE_TS:
+        if start_bal is None and abs((window_start - DEEPSEEK_OCT30_BASELINE_TS).total_seconds()) <= 60:
             start_bal = DEEPSEEK_OCT30_BASELINE_USD
 
         if current_bal is not None and start_bal is not None:
             reported_spend = max(0.0, start_bal - current_bal)
             gap = reported_spend - ledger_usd
-            status = "gap_exceeded" if gap > threshold_usd else "ok"
-            if gap > threshold_usd:
+            status = "gap_exceeded" if abs(gap) > threshold_usd else "ok"
+            if abs(gap) > threshold_usd:
                 exceeded = True
-            note = f"start ${start_bal:.2f} -> current ${current_bal:.2f}"
+                dir_str = "under-reported in ledger" if gap > 0 else "over-reported in ledger"
+                note = f"start ${start_bal:.2f} -> current ${current_bal:.2f} ({dir_str} by ${abs(gap):.2f})"
+            else:
+                note = f"start ${start_bal:.2f} -> current ${current_bal:.2f}"
             results.append(
                 ProviderReconciliation(
                     provider="deepseek",
@@ -572,25 +726,43 @@ def reconcile_spend(
         or_info = fetch_openrouter_usage()
         if or_info is not None:
             curr_usage = or_info["usage"]
-            start_usage = openrouter_start_usage or 0.0
-            reported_spend = max(0.0, curr_usage - start_usage)
-            gap = reported_spend - ledger_usd
-            status = "gap_exceeded" if gap > threshold_usd else "ok"
-            if gap > threshold_usd:
-                exceeded = True
-            note = f"auth/key cumulative usage ${curr_usage:.4f} (remaining: ${or_info.get('remaining', 0.0):.2f})"
-            results.append(
-                ProviderReconciliation(
-                    provider="openrouter",
-                    ledger_usd=ledger_usd,
-                    reported_usd=reported_spend,
-                    gap_usd=gap,
-                    status=status,
-                    note=note,
-                    ledger_records_count=records_count,
-                    metadata=or_info,
+            start_usage = openrouter_start_usage
+            if start_usage is not None:
+                reported_spend = max(0.0, curr_usage - start_usage)
+                gap = reported_spend - ledger_usd
+                status = "gap_exceeded" if abs(gap) > threshold_usd else "ok"
+                if abs(gap) > threshold_usd:
+                    exceeded = True
+                    dir_str = "under-reported in ledger" if gap > 0 else "over-reported in ledger"
+                    note = f"auth/key cumulative usage ${curr_usage:.4f} (remaining: ${or_info.get('remaining', 0.0):.2f}; {dir_str} by ${abs(gap):.2f})"
+                else:
+                    note = f"auth/key cumulative usage ${curr_usage:.4f} (remaining: ${or_info.get('remaining', 0.0):.2f})"
+                results.append(
+                    ProviderReconciliation(
+                        provider="openrouter",
+                        ledger_usd=ledger_usd,
+                        reported_usd=reported_spend,
+                        gap_usd=gap,
+                        status=status,
+                        note=note,
+                        ledger_records_count=records_count,
+                        metadata=or_info,
+                    )
                 )
-            )
+            else:
+                # start_usage is unknown (B4 fix)
+                results.append(
+                    ProviderReconciliation(
+                        provider="openrouter",
+                        ledger_usd=ledger_usd,
+                        reported_usd=None,
+                        gap_usd=None,
+                        status="ok",
+                        note=f"auth/key cumulative usage ${curr_usage:.4f} (start usage unknown; pass --openrouter-start-usage)",
+                        ledger_records_count=records_count,
+                        metadata=or_info,
+                    )
+                )
         else:
             notes.append("openrouter: failed to query auth/key endpoint")
             results.append(
@@ -613,19 +785,30 @@ def reconcile_spend(
 
         meta_stats = fetch_meta_stats(window_start, window_end)
         meta_reported = meta_stats["cost_total"]
-        gap = meta_reported - ledger_usd
-        status = "gap_exceeded" if gap > threshold_usd else "ok"
-        if gap > threshold_usd:
-            exceeded = True
+        unpriced = meta_stats["unpriced_calls"]
 
         note_parts = [f"{meta_stats['calls']} calls in stats.db (${meta_reported:.4f})"]
-        if meta_stats["unpriced_calls"] > 0:
-            note_parts.append(f"{meta_stats['unpriced_calls']} unpriced calls in catalog ($0.0)")
+        if unpriced > 0:
+            note_parts.append(f"{unpriced} unpriced calls in catalog ($0.0)")
+
+        # S2: unpriced calls are unverifiable, not OK
+        if unpriced > 0:
+            status = "unverifiable"
+            gap = None
+            note_parts.append("unpriced calls present; cannot verify against ledger")
+        else:
+            gap = meta_reported - ledger_usd
+            status = "gap_exceeded" if abs(gap) > threshold_usd else "ok"
+            if abs(gap) > threshold_usd:
+                exceeded = True
+                dir_str = "under-reported in ledger" if gap > 0 else "over-reported in ledger"
+                note_parts.append(f"{dir_str} by ${abs(gap):.2f}")
+
         results.append(
             ProviderReconciliation(
                 provider="meta",
                 ledger_usd=ledger_usd,
-                reported_usd=meta_reported,
+                reported_usd=meta_reported if unpriced == 0 else None,
                 gap_usd=gap,
                 status=status,
                 note="; ".join(note_parts),
@@ -640,15 +823,15 @@ def reconcile_spend(
         ledger_usd = float(l_info["usd"])
         records_count = int(l_info["records"])
 
-        # Modal reported spend from ledger or local estimates
+        # Modal reported spend: live billing API not queried (S1 fix: NOT MEASURED)
         results.append(
             ProviderReconciliation(
                 provider="modal",
                 ledger_usd=ledger_usd,
-                reported_usd=ledger_usd,
-                gap_usd=0.0,
-                status="ok",
-                note=f"{records_count} cell/run rows recorded in ledger",
+                reported_usd=None,
+                gap_usd=None,
+                status="unsupported",
+                note=f"{records_count} cell/run rows recorded in ledger (NOT MEASURED: live Modal billing API not queried)",
                 ledger_records_count=records_count,
             )
         )
@@ -656,6 +839,29 @@ def reconcile_spend(
     tot_ledger = sum(p.ledger_usd for p in results)
     tot_reported = sum(p.reported_usd for p in results if p.reported_usd is not None)
     tot_gap = sum(p.gap_usd for p in results if p.gap_usd is not None)
+
+    # B3: Fail closed: any requested provider with a fetch error, or no provider reaching a numeric gap, yields UNVERIFIED
+    has_fetch_error = any(p.status == "fetch_error" for p in results)
+    numeric_gaps_count = sum(1 for p in results if p.gap_usd is not None)
+
+    unverified = has_fetch_error or (numeric_gaps_count == 0)
+
+    if unverified:
+        verdict = "UNVERIFIED"
+    elif exceeded:
+        verdict = "FAIL"
+    else:
+        verdict = "PASS"
+
+    # Past --until check (B4)
+    now = datetime.now(UTC)
+    if (now - window_end).total_seconds() > 300:
+        notes.append(
+            f"warning: --until ({window_end.isoformat()}) is "
+            f"{int((now - window_end).total_seconds() // 60)} minutes in the past; "
+            "provider balance/usage endpoints return current values as of now, "
+            "which may produce phantom gaps against historical ledger windows"
+        )
 
     return ReconciliationReport(
         window_start=window_start,
@@ -666,6 +872,8 @@ def reconcile_spend(
         total_reported_usd=tot_reported,
         total_gap_usd=tot_gap,
         exceeded_threshold=exceeded,
+        unverified=unverified,
+        verdict=verdict,
         notes=notes,
     )
 
@@ -680,7 +888,7 @@ def render_reconciliation(report: ReconciliationReport) -> str:
     lines.append(f"Threshold: ${report.threshold_usd:.2f} USD")
     lines.append("-" * 78)
     lines.append(
-        f"{'Provider':<14} {'Ledger':>10} {'Reported':>10} {'Gap':>10}  {'Status':<12} {'Notes'}"
+        f"{'Provider':<14} {'Ledger':>10} {'Reported':>10} {'Gap':>10}  {'Status':<14} {'Notes'}"
     )
     lines.append("-" * 78)
 
@@ -688,16 +896,21 @@ def render_reconciliation(report: ReconciliationReport) -> str:
         led_str = f"${p.ledger_usd:.2f}"
         rep_str = f"${p.reported_usd:.2f}" if p.reported_usd is not None else "N/A"
         gap_str = f"${p.gap_usd:.2f}" if p.gap_usd is not None else "N/A"
-        status_label = "EXCEEDED" if p.status == "gap_exceeded" else p.status.upper()
+        if p.status == "gap_exceeded":
+            status_label = "EXCEEDED"
+        elif p.status == "unsupported":
+            status_label = "NOT MEASURED"
+        else:
+            status_label = p.status.upper()
         lines.append(
-            f"{p.provider:<14} {led_str:>10} {rep_str:>10} {gap_str:>10}  {status_label:<12} {p.note}"
+            f"{p.provider:<14} {led_str:>10} {rep_str:>10} {gap_str:>10}  {status_label:<14} {p.note}"
         )
 
     lines.append("-" * 78)
     lines.append(
         f"{'TOTAL':<14} ${report.total_ledger_usd:>9.2f} ${report.total_reported_usd:>9.2f} "
         f"${report.total_gap_usd:>9.2f}  "
-        f"{'FAIL' if report.exceeded_threshold else 'PASS'}"
+        f"{report.verdict}"
     )
 
     if report.notes:

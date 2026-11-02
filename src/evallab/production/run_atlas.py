@@ -221,6 +221,15 @@ def unpack_legacy_tool_calls(calls: Iterable[Any]) -> list[dict[str, Any]]:
             continue
         func_name = str(call.get("function_name") or call.get("name") or "")
         arguments = call.get("arguments")
+        if not func_name and "function" in call and isinstance(call["function"], Mapping):
+            func_name = str(call["function"].get("name") or call["function"].get("function_name") or "")
+            arguments = call["function"].get("arguments")
+            unpacked.append({
+                "tool_call_id": str(call.get("id") or call.get("tool_call_id") or "call"),
+                "name": func_name,
+                "arguments": _arguments(arguments),
+            })
+            continue
         if func_name == "tool" and isinstance(arguments, Mapping):
             raw_data = arguments.get("raw") if "raw" in arguments else arguments.get("command")
             if isinstance(raw_data, str) and raw_data.strip().startswith("["):

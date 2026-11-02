@@ -426,7 +426,9 @@ def load_atif_file(path: Path) -> LoadedRun:
         if isinstance(step, Mapping):
             step_dict = dict(step)
             if "tool_calls" in step_dict and isinstance(step_dict["tool_calls"], list):
-                step_dict["tool_calls"] = unpack_legacy_tool_calls(step_dict["tool_calls"])
+                if any(not isinstance(c, Mapping) for c in step_dict["tool_calls"]):
+                    step_dict["has_malformed_tool_calls"] = True
+                step_dict["tool_calls"] = unpack_legacy_tool_calls(c for c in step_dict["tool_calls"] if isinstance(c, Mapping))
             unpacked_steps.append(step_dict)
         else:
             unpacked_steps.append(step)
@@ -695,6 +697,8 @@ def _added_lines(text: str) -> str:
 
 def _editor_mutations(name: str, arguments: Mapping[str, Any]) -> list[tuple[str, str, str | None]]:
     path = arguments.get("path") or arguments.get("file_path") or arguments.get("filename") or arguments.get("file")
+    if not path and isinstance(arguments.get("raw"), str) and ("/" in arguments["raw"] or arguments["raw"].endswith((".py", ".txt", ".json", ".sh", ".diff", ".patch"))):
+        path = arguments["raw"]
     command = str(arguments.get("command") or arguments.get("action") or "").lower()
     patch = next((arguments[key] for key in ("patch", "input", "diff") if isinstance(arguments.get(key), str)
                   and ("*** Begin Patch" in arguments[key] or DIFF_START.search(arguments[key]))), None)
@@ -805,7 +809,7 @@ def build_anatomy(run: LoadedRun) -> TraceAnatomy:
             if message or reasoning:
                 narration.append({"step": ordinal, "message": message, "reasoning": reasoning})
         results = _result_texts(step)
-        calls = unpack_legacy_tool_calls(call for call in step.get("tool_calls") or [] if isinstance(call, Mapping))
+        calls = unpack_legacy_tool_calls(step.get("tool_calls") or [])
         for position, call in enumerate(calls):
             name = str(call.get("function_name") or call.get("name") or "tool")
             arguments = _arguments(call.get("arguments"))

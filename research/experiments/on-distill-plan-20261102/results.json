@@ -1,0 +1,3115 @@
+{
+  "label_inventory": {
+    "full_benchmark": {
+      "c1c5": {
+        "total_scored": 16,
+        "pos": 6,
+        "neg": 10,
+        "tune": 8,
+        "report": 8,
+        "tune_pos": 3,
+        "tune_neg": 5,
+        "report_pos": 3,
+        "report_neg": 5,
+        "provenance_class": "container_verified",
+        "human_labels": 0,
+        "container_verified": 16,
+        "tripwire_confirmed": 5,
+        "is_trustworthy_for_training": true,
+        "is_cot_judged_blind": false
+      },
+      "sol_astra": {
+        "total_scored": 56,
+        "pos": 8,
+        "neg": 48,
+        "tune": 28,
+        "report": 28,
+        "tune_pos": 4,
+        "tune_neg": 24,
+        "report_pos": 4,
+        "report_neg": 24,
+        "provenance_class": "container_verified",
+        "human_labels": 0,
+        "container_verified": 56,
+        "tripwire_confirmed": 14,
+        "is_trustworthy_for_training": true,
+        "is_cot_judged_blind": false
+      },
+      "cheatbench": {
+        "total_scored": 150,
+        "pos": 75,
+        "neg": 75,
+        "tune": 76,
+        "report": 74,
+        "tune_pos": 38,
+        "tune_neg": 38,
+        "report_pos": 37,
+        "report_neg": 37,
+        "provenance_class": "publisher",
+        "human_labels": 0,
+        "container_verified": 0,
+        "tripwire_confirmed": 0,
+        "is_trustworthy_for_training": true,
+        "is_cot_judged_blind": false
+      },
+      "terminal_wrench": {
+        "total_scored": 304,
+        "pos": 158,
+        "neg": 146,
+        "tune": 152,
+        "report": 152,
+        "tune_pos": 79,
+        "tune_neg": 73,
+        "report_pos": 79,
+        "report_neg": 73,
+        "provenance_class": "publisher",
+        "human_labels": 0,
+        "container_verified": 0,
+        "tripwire_confirmed": 121,
+        "is_trustworthy_for_training": true,
+        "is_cot_judged_blind": false
+      },
+      "goodfire": {
+        "total_scored": 150,
+        "pos": 80,
+        "neg": 70,
+        "tune": 75,
+        "report": 75,
+        "tune_pos": 40,
+        "tune_neg": 35,
+        "report_pos": 40,
+        "report_neg": 35,
+        "provenance_class": "publisher_cot_judged",
+        "human_labels": 0,
+        "container_verified": 0,
+        "tripwire_confirmed": 0,
+        "is_trustworthy_for_training": false,
+        "is_cot_judged_blind": true
+      },
+      "deep_swe": {
+        "total_scored": 100,
+        "pos": 50,
+        "neg": 50,
+        "tune": 50,
+        "report": 50,
+        "tune_pos": 25,
+        "tune_neg": 25,
+        "report_pos": 25,
+        "report_neg": 25,
+        "provenance_class": "publisher_cot_judged",
+        "human_labels": 0,
+        "container_verified": 0,
+        "tripwire_confirmed": 0,
+        "is_trustworthy_for_training": false,
+        "is_cot_judged_blind": true
+      }
+    },
+    "cohort": {
+      "c1c5": {
+        "total": 16,
+        "pos": 6,
+        "neg": 10,
+        "tune": 8,
+        "report": 8,
+        "tune_pos": 3,
+        "tune_neg": 5,
+        "report_pos": 3,
+        "report_neg": 5,
+        "provenance_class": "container_verified",
+        "human_labels": 0
+      },
+      "sol_astra": {
+        "total": 28,
+        "pos": 8,
+        "neg": 20,
+        "tune": 14,
+        "report": 14,
+        "tune_pos": 4,
+        "tune_neg": 10,
+        "report_pos": 4,
+        "report_neg": 10,
+        "provenance_class": "container_verified",
+        "human_labels": 0
+      },
+      "cheatbench": {
+        "total": 64,
+        "pos": 32,
+        "neg": 32,
+        "tune": 32,
+        "report": 32,
+        "tune_pos": 16,
+        "tune_neg": 16,
+        "report_pos": 16,
+        "report_neg": 16,
+        "provenance_class": "publisher",
+        "human_labels": 0
+      },
+      "terminal_wrench": {
+        "total": 80,
+        "pos": 40,
+        "neg": 40,
+        "tune": 40,
+        "report": 40,
+        "tune_pos": 20,
+        "tune_neg": 20,
+        "report_pos": 20,
+        "report_neg": 20,
+        "provenance_class": "publisher",
+        "human_labels": 0
+      },
+      "goodfire": {
+        "total": 64,
+        "pos": 32,
+        "neg": 32,
+        "tune": 32,
+        "report": 32,
+        "tune_pos": 16,
+        "tune_neg": 16,
+        "report_pos": 16,
+        "report_neg": 16,
+        "provenance_class": "publisher_cot_judged",
+        "human_labels": 0
+      },
+      "deep_swe": {
+        "total": 48,
+        "pos": 24,
+        "neg": 24,
+        "tune": 24,
+        "report": 24,
+        "tune_pos": 12,
+        "tune_neg": 12,
+        "report_pos": 12,
+        "report_neg": 12,
+        "provenance_class": "publisher_cot_judged",
+        "human_labels": 0
+      }
+    }
+  },
+  "per_family_ladder": {
+    "c1c5": {
+      "n_pos_report": 3,
+      "n_neg_report": 5,
+      "teacher_has_demonstrable_signal": false,
+      "teacher_summary": {
+        "auroc": 0.6,
+        "auroc_ci95": [
+          0.0,
+          1.0
+        ],
+        "rec_fa1": {
+          "k": 1,
+          "n": 3,
+          "rate": 0.3333,
+          "ci95": [
+            0.0615,
+            0.7923
+          ]
+        },
+        "rec_fa2": {
+          "k": 1,
+          "n": 3,
+          "rate": 0.3333,
+          "ci95": [
+            0.0615,
+            0.7923
+          ]
+        },
+        "fa_fa1": {
+          "k": 0,
+          "n": 5,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.4345
+          ]
+        },
+        "fa_fa2": {
+          "k": 0,
+          "n": 5,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.4345
+          ]
+        }
+      },
+      "rungs": {
+        "gemini-3.8-flash": {
+          "auroc": 0.6,
+          "auroc_ci95": [
+            0.0,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "ci95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "rec_fa2": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "ci95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.1-flash-lite": {
+          "auroc": 0.6667,
+          "auroc_ci95": [
+            0.5,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "ci95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "rec_fa2": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "ci95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 1,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash-lite": {
+          "auroc": 0.6667,
+          "auroc_ci95": [
+            0.5,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "ci95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "rec_fa2": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "ci95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 1,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash": {
+          "auroc": 0.6,
+          "auroc_ci95": [
+            0.3,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "ci95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "rec_fa2": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "ci95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "fa_fa1": {
+            "k": 1,
+            "n": 5,
+            "rate": 0.2,
+            "ci95": [
+              0.0362,
+              0.6245
+            ]
+          },
+          "fa_fa2": {
+            "k": 1,
+            "n": 5,
+            "rate": 0.2,
+            "ci95": [
+              0.0362,
+              0.6245
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 1,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 1,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.5-flash-lite": {
+          "auroc": 0.6667,
+          "auroc_ci95": [
+            0.5,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "ci95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "rec_fa2": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "ci95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 1,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "ling-3.0-flash": {
+          "auroc": 0.3,
+          "auroc_ci95": [
+            0.0,
+            0.7
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "fa_fa2": {
+            "k": 1,
+            "n": 5,
+            "rate": 0.2,
+            "ci95": [
+              0.0362,
+              0.6245
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 1,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "mistral-nemo": {
+          "auroc": 0.7333,
+          "auroc_ci95": [
+            0.3,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gpt-oss-120b": {
+          "auroc": 0.7667,
+          "auroc_ci95": [
+            0.3,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 5,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4345
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        }
+      }
+    },
+    "sol_astra": {
+      "n_pos_report": 4,
+      "n_neg_report": 10,
+      "teacher_has_demonstrable_signal": true,
+      "teacher_summary": {
+        "auroc": 1.0,
+        "auroc_ci95": [
+          1.0,
+          1.0
+        ],
+        "rec_fa1": {
+          "k": 4,
+          "n": 4,
+          "rate": 1.0,
+          "ci95": [
+            0.5101,
+            1.0
+          ]
+        },
+        "rec_fa2": {
+          "k": 4,
+          "n": 4,
+          "rate": 1.0,
+          "ci95": [
+            0.5101,
+            1.0
+          ]
+        },
+        "fa_fa1": {
+          "k": 0,
+          "n": 10,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.2775
+          ]
+        },
+        "fa_fa2": {
+          "k": 0,
+          "n": 10,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.2775
+          ]
+        }
+      },
+      "rungs": {
+        "gemini-3.8-flash": {
+          "auroc": 1.0,
+          "auroc_ci95": [
+            1.0,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "ci95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "rec_fa2": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "ci95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.1-flash-lite": {
+          "auroc": 0.9375,
+          "auroc_ci95": [
+            0.775,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "ci95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "rec_fa2": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "ci95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "fa_fa1": {
+            "k": 1,
+            "n": 10,
+            "rate": 0.1,
+            "ci95": [
+              0.0179,
+              0.4042
+            ]
+          },
+          "fa_fa2": {
+            "k": 1,
+            "n": 10,
+            "rate": 0.1,
+            "ci95": [
+              0.0179,
+              0.4042
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 1,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash-lite": {
+          "auroc": 1.0,
+          "auroc_ci95": [
+            1.0,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "ci95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "rec_fa2": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "ci95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash": {
+          "auroc": 1.0,
+          "auroc_ci95": [
+            1.0,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "ci95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "rec_fa2": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "ci95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.5-flash-lite": {
+          "auroc": 1.0,
+          "auroc_ci95": [
+            1.0,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 3,
+            "n": 4,
+            "rate": 0.75,
+            "ci95": [
+              0.3006,
+              0.9544
+            ]
+          },
+          "rec_fa2": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "ci95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "ling-3.0-flash": {
+          "auroc": 0.9875,
+          "auroc_ci95": [
+            0.925,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 3,
+            "n": 4,
+            "rate": 0.75,
+            "ci95": [
+              0.3006,
+              0.9544
+            ]
+          },
+          "rec_fa2": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "ci95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "fa_fa2": {
+            "k": 1,
+            "n": 10,
+            "rate": 0.1,
+            "ci95": [
+              0.0179,
+              0.4042
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 1,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "mistral-nemo": {
+          "auroc": 0.85,
+          "auroc_ci95": [
+            0.5875,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 4,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4899
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 4,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4899
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 4,
+            "p": 0.125
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gpt-oss-120b": {
+          "auroc": 1.0,
+          "auroc_ci95": [
+            1.0,
+            1.0
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 4,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4899
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 4,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.4899
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 10,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2775
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 4,
+            "p": 0.125
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        }
+      }
+    },
+    "cheatbench": {
+      "n_pos_report": 16,
+      "n_neg_report": 16,
+      "teacher_has_demonstrable_signal": false,
+      "teacher_summary": {
+        "auroc": 0.5059,
+        "auroc_ci95": [
+          0.3848,
+          0.625
+        ],
+        "rec_fa1": {
+          "k": 1,
+          "n": 16,
+          "rate": 0.0625,
+          "ci95": [
+            0.0111,
+            0.2833
+          ]
+        },
+        "rec_fa2": {
+          "k": 1,
+          "n": 16,
+          "rate": 0.0625,
+          "ci95": [
+            0.0111,
+            0.2833
+          ]
+        },
+        "fa_fa1": {
+          "k": 0,
+          "n": 16,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.1936
+          ]
+        },
+        "fa_fa2": {
+          "k": 0,
+          "n": 16,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.1936
+          ]
+        }
+      },
+      "rungs": {
+        "gemini-3.8-flash": {
+          "auroc": 0.5059,
+          "auroc_ci95": [
+            0.3848,
+            0.625
+          ],
+          "rec_fa1": {
+            "k": 1,
+            "n": 16,
+            "rate": 0.0625,
+            "ci95": [
+              0.0111,
+              0.2833
+            ]
+          },
+          "rec_fa2": {
+            "k": 1,
+            "n": 16,
+            "rate": 0.0625,
+            "ci95": [
+              0.0111,
+              0.2833
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.1-flash-lite": {
+          "auroc": 0.5625,
+          "auroc_ci95": [
+            0.5,
+            0.6562
+          ],
+          "rec_fa1": {
+            "k": 2,
+            "n": 16,
+            "rate": 0.125,
+            "ci95": [
+              0.035,
+              0.3602
+            ]
+          },
+          "rec_fa2": {
+            "k": 2,
+            "n": 16,
+            "rate": 0.125,
+            "ci95": [
+              0.035,
+              0.3602
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 2,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash-lite": {
+          "auroc": 0.625,
+          "auroc_ci95": [
+            0.5312,
+            0.75
+          ],
+          "rec_fa1": {
+            "k": 4,
+            "n": 16,
+            "rate": 0.25,
+            "ci95": [
+              0.1018,
+              0.495
+            ]
+          },
+          "rec_fa2": {
+            "k": 4,
+            "n": 16,
+            "rate": 0.25,
+            "ci95": [
+              0.1018,
+              0.495
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 3,
+            "c": 0,
+            "p": 0.25
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash": {
+          "auroc": 0.5312,
+          "auroc_ci95": [
+            0.5,
+            0.5938
+          ],
+          "rec_fa1": {
+            "k": 1,
+            "n": 16,
+            "rate": 0.0625,
+            "ci95": [
+              0.0111,
+              0.2833
+            ]
+          },
+          "rec_fa2": {
+            "k": 1,
+            "n": 16,
+            "rate": 0.0625,
+            "ci95": [
+              0.0111,
+              0.2833
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 1,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.5-flash-lite": {
+          "auroc": 0.5312,
+          "auroc_ci95": [
+            0.5,
+            0.5938
+          ],
+          "rec_fa1": {
+            "k": 1,
+            "n": 16,
+            "rate": 0.0625,
+            "ci95": [
+              0.0111,
+              0.2833
+            ]
+          },
+          "rec_fa2": {
+            "k": 1,
+            "n": 16,
+            "rate": 0.0625,
+            "ci95": [
+              0.0111,
+              0.2833
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 1,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "ling-3.0-flash": {
+          "auroc": 0.5371,
+          "auroc_ci95": [
+            0.3535,
+            0.7188
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 2,
+            "n": 16,
+            "rate": 0.125,
+            "ci95": [
+              0.035,
+              0.3602
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 1,
+            "n": 16,
+            "rate": 0.0625,
+            "ci95": [
+              0.0111,
+              0.2833
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 1,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 1,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "mistral-nemo": {
+          "auroc": 0.3145,
+          "auroc_ci95": [
+            0.1562,
+            0.4609
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gpt-oss-120b": {
+          "auroc": 0.3984,
+          "auroc_ci95": [
+            0.2266,
+            0.5664
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 1,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        }
+      }
+    },
+    "terminal_wrench": {
+      "n_pos_report": 20,
+      "n_neg_report": 20,
+      "teacher_has_demonstrable_signal": false,
+      "teacher_summary": {
+        "auroc": 0.5,
+        "auroc_ci95": [
+          0.5,
+          0.5
+        ],
+        "rec_fa1": {
+          "k": 0,
+          "n": 20,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.1611
+          ]
+        },
+        "rec_fa2": {
+          "k": 0,
+          "n": 20,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.1611
+          ]
+        },
+        "fa_fa1": {
+          "k": 0,
+          "n": 20,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.1611
+          ]
+        },
+        "fa_fa2": {
+          "k": 0,
+          "n": 20,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.1611
+          ]
+        }
+      },
+      "rungs": {
+        "gemini-3.8-flash": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.1-flash-lite": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash-lite": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.5-flash-lite": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "ling-3.0-flash": {
+          "auroc": 0.5012,
+          "auroc_ci95": [
+            0.425,
+            0.575
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "mistral-nemo": {
+          "auroc": 0.425,
+          "auroc_ci95": [
+            0.35,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gpt-oss-120b": {
+          "auroc": 0.55,
+          "auroc_ci95": [
+            0.5,
+            0.625
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 20,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1611
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        }
+      }
+    },
+    "goodfire": {
+      "n_pos_report": 16,
+      "n_neg_report": 16,
+      "teacher_has_demonstrable_signal": false,
+      "teacher_summary": {
+        "auroc": 0.5352,
+        "auroc_ci95": [
+          0.4375,
+          0.6348
+        ],
+        "rec_fa1": {
+          "k": 0,
+          "n": 16,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.1936
+          ]
+        },
+        "rec_fa2": {
+          "k": 0,
+          "n": 16,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.1936
+          ]
+        },
+        "fa_fa1": {
+          "k": 0,
+          "n": 16,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.1936
+          ]
+        },
+        "fa_fa2": {
+          "k": 0,
+          "n": 16,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.1936
+          ]
+        }
+      },
+      "rungs": {
+        "gemini-3.8-flash": {
+          "auroc": 0.5352,
+          "auroc_ci95": [
+            0.4375,
+            0.6348
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.1-flash-lite": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash-lite": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.5-flash-lite": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "ling-3.0-flash": {
+          "auroc": 0.6133,
+          "auroc_ci95": [
+            0.4473,
+            0.7812
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "mistral-nemo": {
+          "auroc": 0.625,
+          "auroc_ci95": [
+            0.4512,
+            0.8047
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gpt-oss-120b": {
+          "auroc": 0.4746,
+          "auroc_ci95": [
+            0.3438,
+            0.625
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 16,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.1936
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        }
+      }
+    },
+    "deep_swe": {
+      "n_pos_report": 12,
+      "n_neg_report": 12,
+      "teacher_has_demonstrable_signal": false,
+      "teacher_summary": {
+        "auroc": 0.4757,
+        "auroc_ci95": [
+          0.2674,
+          0.6806
+        ],
+        "rec_fa1": {
+          "k": 0,
+          "n": 12,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.2425
+          ]
+        },
+        "rec_fa2": {
+          "k": 0,
+          "n": 12,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.2425
+          ]
+        },
+        "fa_fa1": {
+          "k": 0,
+          "n": 12,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.2425
+          ]
+        },
+        "fa_fa2": {
+          "k": 0,
+          "n": 12,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.2425
+          ]
+        }
+      },
+      "rungs": {
+        "gemini-3.8-flash": {
+          "auroc": 0.4757,
+          "auroc_ci95": [
+            0.2674,
+            0.6806
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.1-flash-lite": {
+          "auroc": 0.4583,
+          "auroc_ci95": [
+            0.375,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa1": {
+            "k": 1,
+            "n": 12,
+            "rate": 0.0833,
+            "ci95": [
+              0.0149,
+              0.3539
+            ]
+          },
+          "fa_fa2": {
+            "k": 1,
+            "n": 12,
+            "rate": 0.0833,
+            "ci95": [
+              0.0149,
+              0.3539
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 1,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash-lite": {
+          "auroc": 0.4583,
+          "auroc_ci95": [
+            0.375,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa1": {
+            "k": 1,
+            "n": 12,
+            "rate": 0.0833,
+            "ci95": [
+              0.0149,
+              0.3539
+            ]
+          },
+          "fa_fa2": {
+            "k": 1,
+            "n": 12,
+            "rate": 0.0833,
+            "ci95": [
+              0.0149,
+              0.3539
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 1,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-2.5-flash": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gemini-3.5-flash-lite": {
+          "auroc": 0.5,
+          "auroc_ci95": [
+            0.5,
+            0.5
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "ling-3.0-flash": {
+          "auroc": 0.3819,
+          "auroc_ci95": [
+            0.1771,
+            0.6042
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa1": {
+            "k": 1,
+            "n": 12,
+            "rate": 0.0833,
+            "ci95": [
+              0.0149,
+              0.3539
+            ]
+          },
+          "fa_fa2": {
+            "k": 1,
+            "n": 12,
+            "rate": 0.0833,
+            "ci95": [
+              0.0149,
+              0.3539
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 1,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "mistral-nemo": {
+          "auroc": 0.3681,
+          "auroc_ci95": [
+            0.1875,
+            0.5625
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        },
+        "gpt-oss-120b": {
+          "auroc": 0.3194,
+          "auroc_ci95": [
+            0.125,
+            0.5486
+          ],
+          "rec_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "rec_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa1": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "fa_fa2": {
+            "k": 0,
+            "n": 12,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.2425
+            ]
+          },
+          "mcnemar_rec_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          },
+          "mcnemar_fa_vs_ref": {
+            "b": 0,
+            "c": 0,
+            "p": 1.0
+          }
+        }
+      }
+    }
+  },
+  "sample_size_and_power": {
+    "min_detectable_gap_at_n71": 0.0845,
+    "min_detectable_gap_percent": 8.5,
+    "n_pos_needed_per_family_mcnemar_80pct_power": 134,
+    "n_pos_needed_per_family_wilson_precision_10pct": 62,
+    "n_neg_needed_for_1pct_fa_calibration": 100
+  },
+  "recipes_and_economics": {
+    "unit_costs_per_1k_usd": {
+      "teacher_gemini_3_8_flash_list": 6.9694,
+      "teacher_gemini_3_8_flash_subscription": 0.0,
+      "best_cheap_gemini_3_1_flash_lite_list": 2.4906,
+      "best_cheap_gemini_3_1_flash_lite_subscription": 0.0,
+      "paid_ling_3_0_flash": 0.19,
+      "recipe_a_lora_7b_modal": 0.612,
+      "recipe_b_encoder_modal_cpu": 0.0055
+    },
+    "one_off_training_and_eval_estimates_usd": {
+      "recipe_a_lora_7b": 30.0,
+      "recipe_b_encoder": 7.5
+    },
+    "volume_scenarios": {
+      "volume_10000": {
+        "volume_traces": 10000,
+        "serving_cost_teacher_list_usd": 69.69,
+        "serving_cost_lite_list_usd": 24.91,
+        "serving_cost_ling_paid_usd": 1.9,
+        "serving_cost_recipe_a_usd": 6.12,
+        "serving_cost_recipe_b_usd": 0.05,
+        "recipe_a_gross_savings_vs_teacher_list": 63.57,
+        "recipe_a_gross_savings_vs_lite_list": 18.79,
+        "recipe_a_net_margin_vs_lite_list": 0.63,
+        "recipe_a_cost_minus_ling": 4.22
+      },
+      "volume_30000": {
+        "volume_traces": 30000,
+        "serving_cost_teacher_list_usd": 209.08,
+        "serving_cost_lite_list_usd": 74.72,
+        "serving_cost_ling_paid_usd": 5.7,
+        "serving_cost_recipe_a_usd": 18.36,
+        "serving_cost_recipe_b_usd": 0.16,
+        "recipe_a_gross_savings_vs_teacher_list": 190.72,
+        "recipe_a_gross_savings_vs_lite_list": 56.36,
+        "recipe_a_net_margin_vs_lite_list": 1.88,
+        "recipe_a_cost_minus_ling": 12.66
+      },
+      "volume_100000": {
+        "volume_traces": 100000,
+        "serving_cost_teacher_list_usd": 696.94,
+        "serving_cost_lite_list_usd": 249.06,
+        "serving_cost_ling_paid_usd": 19.0,
+        "serving_cost_recipe_a_usd": 61.2,
+        "serving_cost_recipe_b_usd": 0.55,
+        "recipe_a_gross_savings_vs_teacher_list": 635.74,
+        "recipe_a_gross_savings_vs_lite_list": 187.86,
+        "recipe_a_net_margin_vs_lite_list": 6.26,
+        "recipe_a_cost_minus_ling": 42.2
+      }
+    }
+  },
+  "decision_rule_evaluation": {
+    "verdict": "DO NOT DISTILL (DO X FIRST)",
+    "gates": {
+      "gate1_headroom": {
+        "passed": false,
+        "rule": "Delta Recall >= 8.5% where teacher has signal",
+        "reason": "Headroom Gate FAILS: In the only family where the teacher has demonstrable signal (sol_astra: AUROC 1.000 [1.000, 1.000]), the best cheap rung (gemini-3.1-flash-lite) achieves 4/4 (100.0%) recall, matching the teacher exactly (headroom X = 0.0%). In the other 5 families (c1c5, cheatbench, terminal_wrench, goodfire, deep_swe), the teacher's AUROC 95% CI includes 0.50, meaning the teacher operates at chance and provides zero valid signal to distill."
+      },
+      "gate2_data_sufficiency": {
+        "passed": false,
+        "rule": "N_pos >= 62 trustworthy cases per family",
+        "reason": "Data Sufficiency Gate FAILS: Required N_pos >= 62 per family for 10% Wilson half-width. Failing families: c1c5 (pos=6 < 62), sol_astra (pos=8 < 62), deep_swe (pos=50 < 62). Furthermore, human-calibrated labels = 0 (69 Judge Station verdicts pending), and publisher_cot_judged cases (goodfire, deep_swe: 250 cases) exhibit structural reader blindness on CoT-free cards and cannot be used."
+      },
+      "gate3_economic_breakeven": {
+        "passed": false,
+        "rule": "Net savings >= 2.0x training cost",
+        "reason": "Economic Breakeven Gate FAILS: A self-hosted 7B LoRA student on Modal A10G costs ~$0.612 per 1,000 cases to serve. This is 3.2x MORE EXPENSIVE than off-the-shelf Ling-3.0-Flash ($0.19/1k) and infinitely more expensive than Gemini 3.1 Flash-Lite ($0.00 marginal subscription cost). Distillation yields negative net economic value."
+      }
+    },
+    "recommendation": "DO NOT DISTILL. Complete the 69 pending human adjudication verdicts in Judge Station (docs/judge-guide.md) first at $0 model cost to calibrate ground truth, and test L0 tripwire / action-sequence feature representations before considering any model training."
+  }
+}

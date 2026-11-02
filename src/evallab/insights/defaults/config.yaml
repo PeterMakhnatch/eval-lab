@@ -1,0 +1,108 @@
+# Insight engine defaults. `evallab insights init` copies this file to the
+# state directory ($EVALLAB_INSIGHTS_STATE, default ~/.local/state/evallab-insights);
+# edit that copy, not this one, to tune a running engine.
+schema_version: 1
+
+# What the engine reads. Globs expand ~ and $VARS. Newer, higher-priority
+# sections are extracted first. Files larger than max_bytes are read up to
+# max_bytes (the cut is recorded on the source).
+sources:
+  - family: coordinator-logs
+    kind: findings_log
+    priority: 90
+    globs:
+      - ~/Developer/research-context/bridge/*/FINDINGS*.md
+      - ~/Developer/research-context/bridge/*/MORNING-REPORT*.md
+      - ~/Developer/research-context/bridge/*/morning-report*.md
+      - ~/Developer/research-context/bridge/*/morning-results.md
+    max_age_days: 30
+  - family: lane-reports
+    kind: report
+    priority: 70
+    globs:
+      - ~/Developer/research-context/bridge/*/*/raw/*/report.md
+      - ~/Developer/research-context/bridge/*/raw/*/report.md
+    max_age_days: 21
+  - family: results-reports
+    kind: report
+    priority: 60
+    globs:
+      - ~/Developer/eval-lab-results/*/*/report.md
+      - ~/Developer/eval-lab-results/*/*/REPORT.md
+      - ~/Developer/eval-lab-results/*/*/RESULTS.md
+    max_age_days: 21
+  - family: line-scoreboards
+    kind: receipt
+    priority: 60
+    globs:
+      - ~/Developer/eval-lab-results/*/*/scoreboard.json
+      - ~/Developer/eval-lab-results/*/*/*/scoreboard.json
+    max_bytes: 200000
+    max_age_days: 21
+  - family: experiment-results
+    kind: readme
+    priority: 40
+    globs:
+      - ~/Developer/eval-lab/.worktrees/insights-readonly/research/experiments/*/RESULTS.md
+      - ~/Developer/eval-lab/.worktrees/insights-readonly/research/experiments/*/README.md
+    max_age_days: 21
+
+# Explicit files (backtests use these to freeze a log at a cutoff line).
+overrides: []
+
+tick_seconds: 300
+max_concurrent_passes: 2
+# Committed experiment results are read from an engine-owned detached worktree
+# that the engine fast-forwards to origin/main (the primary checkout can lag).
+repo_mirror:
+  repo: ~/Developer/eval-lab
+  path: ~/Developer/eval-lab/.worktrees/insights-readonly
+  refresh_minutes: 60
+
+# A provider whose usage window is at or above this percent is skipped.
+max_provider_used_percent: 85
+# Do not start a worker while macOS reports memory pressure.
+host_min_memory_level: 15
+host_max_swap_gb: 12
+board_top_n: 12
+
+lenses:
+  extractor:
+    cooldown_minutes: 2
+    daily_cap: 80
+    batch_size: 10
+    max_pack_chars: 80000
+  skeptic:
+    cooldown_minutes: 30
+    daily_cap: 16
+    min_new_claims: 4
+  connector:
+    cooldown_minutes: 90
+    daily_cap: 8
+    min_new_claims: 10
+  anomaly:
+    cooldown_minutes: 120
+    daily_cap: 6
+    min_open_signals: 3
+  theorist:
+    cooldown_minutes: 180
+    daily_cap: 4
+    min_new_insights: 5
+  ideator:
+    cooldown_minutes: 240
+    daily_cap: 4
+    min_new_insights: 6
+  referee:
+    cooldown_minutes: 5
+    daily_cap: 40
+    min_pending: 1
+    batch_size: 12
+  synthesizer:
+    cooldown_minutes: 120
+    daily_cap: 8
+    min_new_insights: 3
+  rederiver:
+    cooldown_minutes: 60
+    daily_cap: 10
+    min_new_claims: 10
+    batch_size: 12

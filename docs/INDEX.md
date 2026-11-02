@@ -75,7 +75,7 @@ inputs:
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md
-    digest: sha256:de255c6e4d581af3de7ee0f6afae7e469d99e78d7c5ea827901412e92b2b3d6d
+    digest: sha256:3666fad710de9ed452d403b35a86bf6253d5b3e256a692f42cbdcd1aa603c18a
   - path: docs/ladder.md
     digest: sha256:c334944474b3cee6cd9b3eee2ae9c84fbb1ccb7e58ea31b70b6d6a9c523e6265
   - path: docs/lancedb.md
@@ -107,7 +107,7 @@ inputs:
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/production-factory.md
-    digest: sha256:0bed5a3b44dd348532240b8e18030afb8294a606c4b0a34e927835cf9b63bd5b
+    digest: sha256:a7af38189cd6c7c5c929b096e7189f9ed2b4ee5c78a9a9240206dd6e08c119de
   - path: docs/qa-contract.md
     digest: sha256:7109b75163134eaca1db56c99cfafb07f6714777b27ef2b2d46d5c31f1d5d9d2
   - path: docs/qa-task.md
@@ -115,7 +115,7 @@ inputs:
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
-    digest: sha256:ff68e24b50a8fc160c261f9795234849dcc8bd08de0f1cba0c59275daaecb472
+    digest: sha256:25d4b5911de2bf4f8292f33ecc65dd0a4800c19818a8d6c42e1828341f140f63
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

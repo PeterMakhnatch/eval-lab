@@ -1,0 +1,21 @@
+description: KT2 Approval across restart test
+steps:
+  - id: prep
+    run: python3 /Users/petermakhnatch/Developer/eval-lab/.worktrees/on-f8-dagu-trial-20261102/research/experiments/on-dagu-trial-20261102/fake_agent.py --id PREP --ledger "${LEDGER}" --report "${REPORT_DIR}/PREP.md" --seconds 2
+
+  - id: gate
+    action: human.task
+    depends: [prep]
+    with:
+      prompt: "Approve continuation of deployment"
+      form:
+        type: object
+        properties:
+          decision:
+            type: string
+            enum: [approved, rejected]
+        required: [decision]
+
+  - id: deploy
+    depends: [gate]
+    run: python3 /Users/petermakhnatch/Developer/eval-lab/.worktrees/on-f8-dagu-trial-20261102/research/experiments/on-dagu-trial-20261102/fake_agent.py --id DEPLOY --ledger "${LEDGER}" --report "${REPORT_DIR}/DEPLOY.md" --seconds 2

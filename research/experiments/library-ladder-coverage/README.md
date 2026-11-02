@@ -19,7 +19,8 @@ uv run python research/experiments/library-ladder-coverage/build.py           # 
 `--check` compares the rebuilt CSV byte-for-byte and prints a diff on drift, so
 any hand edit of `coverage.csv` fails the check until the builder regenerates
 it. `research/experiments/tests/test_library_ladder_coverage.py` runs the same
-comparison and fails when a package directory has no coverage row.
+comparison, fails when a package directory has no coverage row, and fails when
+a `research/evidence/ladder-v*/cells.json` contributes no cell.
 
 ## Inputs (all read-only)
 
@@ -29,9 +30,17 @@ comparison and fails when a package directory has no coverage row.
 | `research/evidence/ladder-v2-sweep-20261013/cells.json` | `2.0.0` |
 | `research/evidence/har230-transaction-reconciliation-20261029/*-verdicts.json` | `1.4.0`, `2.0.0` on the hardened shipped package |
 | `research/evidence/ladder-v3-sheet-recalc-20261029/cells.json` | `3.0.0` |
+| `research/evidence/ladder-v4-*/cells.json` (globbed; see below) | `4.0.0` |
 | `library/tasks/**/task.toml` | package identity (`[task] name`), for discovery and joins |
 
-No `4.0.0` run exists in committed evidence, so every `4.0.0` row is `none`.
+The ledger input is a **glob**, not a list: every `research/evidence/ladder-v*`
+directory that holds a `cells.json` is read. A ledger in the 2026-11-02 layout
+(top-level `task_dir`; `cells` records with `scope` `full`/`single`,
+`ladder_version`, `verdict`, `status`, `task_digest`) joins the matrix with no
+edit to `build.py`, so a new ladder card cannot go stale here. `ladder-v2-…`
+and `ladder-v3-…` predate that layout and keep their dedicated readers. A
+ledger in the glob that no reader can place is a `CoverageError`, not a silent
+skip.
 
 ## Columns
 
@@ -81,24 +90,26 @@ Rules that keep the table honest:
 
 | package | 1.4.0 | 2.0.0 | 3.0.0 | 4.0.0 | digest current |
 |---|---|---|---|---|---|
-| `event-summary` | clean | clean | - | - | unrecorded |
+| `event-summary` | clean | clean | - | clean | yes (`4.0.0`) |
 | `experimental/deepplanning-v1/travel-lisbon-002` | - | - | - | - | unrecorded |
 | `experimental/syn-funcdag-easy` | clean | clean | - | - | unrecorded |
 | `experimental/syn-funcdag-hard` | clean | clean | - | - | unrecorded |
 | `experimental/syn-funcdag-medium` | clean | clean | - | - | unrecorded |
 | `query-optimize` | cracked | cracked | - | - | unrecorded |
-| `release-branch-rescue` | clean | clean | - | - | unrecorded |
+| `release-branch-rescue` | clean | clean | - | clean | yes (`4.0.0`) |
 | `sheet-recalc` | - | - | clean | - | yes (`3.0.0`) |
 | `sheet-recalc-cutoff` | - | - | clean | - | yes (`3.0.0`) |
 | `tau3-retail-1` | - (1 errored cell) | - (1 errored cell) | - | - | unrecorded |
 | `terminal-bench-html-js-filter` | clean | clean | - | - | unrecorded |
-| `transaction-reconciliation` | clean (superseded `cracked`) | clean (superseded `cracked`) | - | - | yes (`1.4.0`, `2.0.0`) |
+| `transaction-reconciliation` | clean (superseded `cracked`) | clean (superseded `cracked`) | - | clean | yes (`1.4.0`, `2.0.0`, `4.0.0`) |
 
 ## What the gaps say
 
-- **`4.0.0` has no coverage at all**: 0 of 12 packages. The generation exists in
-  `evallab.cheat_ladder.LADDERS` (three `.pth` start-up probes) but no committed
-  evidence ran it against a library package.
+- **`4.0.0` covers 3 of 12 packages**: `event-summary` (17 cells),
+  `release-branch-rescue` (16) and `transaction-reconciliation` (4) ran the
+  three `.pth` start-up probes on 2026-11-02 and came back clean, with digests
+  that still match today's package bytes. The other 9 packages have no `4.0.0`
+  cell.
 - **`3.0.0` covers only the two hand-authored packages** (`sheet-recalc`,
   `sheet-recalc-cutoff`); the other 10 packages have no `3.0.0` cell.
 - **`tau3-retail-1` has never been laddered**: both recorded cells are
@@ -108,9 +119,9 @@ Rules that keep the table honest:
   and again by `2.0.0` (2026-10-13) on the shipped shared-grading package. No
   `3.0.0`/`4.0.0` cell exists, and `digest_recorded=no`, so neither crack is
   bound to current bytes.
-- **44 of 48 rows ran on bytes no receipt records.** Only the two sheet-recalc
-  packages (`3.0.0`) and `transaction-reconciliation` (`1.4.0`, `2.0.0`) carry
-  a recorded digest, and all four match today's package digest. For the rest,
+- **41 of 48 rows ran on bytes no receipt records.** Only the two sheet-recalc
+  packages (`3.0.0`) and the three `4.0.0` packages carry a recorded digest,
+  and all seven match today's package digest. For the rest,
   `digest_recorded=no` is the gap: the generation ran, but the row cannot say
   on which bytes, so a re-run (not a reinterpretation) is what closes it.
 

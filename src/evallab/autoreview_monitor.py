@@ -902,8 +902,10 @@ def run_omp_session(
 
     served_models: list[str] = []
     fallbacks: list[str] = []
-    total_tokens = 0
-    total_usd = 0.0
+    message_tokens = 0
+    message_usd = 0.0
+    standalone_tokens = 0
+    standalone_usd = 0.0
     for p in session_dir.rglob("*.jsonl"):
         for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
             line = line.strip()
@@ -918,13 +920,49 @@ def run_omp_session(
                 m = event.get("model", "")
                 if provider and m:
                     served_models.append(f"{provider}/{m}")
+                elif m:
+                    served_models.append(m)
+            elif event.get("type") == "model_change":
+                provider = event.get("provider", "")
+                m = event.get("model", "")
+                if provider and m and not m.startswith(f"{provider}/"):
+                    served_models.append(f"{provider}/{m}")
+                elif m:
+                    served_models.append(m)
+                if event.get("resolvedModelIsFallback"):
+                    fallbacks.append(str(event))
+            elif event.get("type") == "message":
+                msg = event.get("message", {})
+                provider = msg.get("provider", "") or event.get("provider", "")
+                m = msg.get("model", "") or event.get("model", "")
+                if provider and m and not m.startswith(f"{provider}/"):
+                    served_models.append(f"{provider}/{m}")
+                elif m:
+                    served_models.append(m)
+                u = msg.get("usage", {})
+                inp = u.get("input", 0)
+                out = u.get("output", 0)
+                t_tokens = inp + out if (inp or out) else u.get("totalTokens", 0)
+                t_usd = 0.0
+                cost = u.get("cost", {})
+                if isinstance(cost, dict):
+                    t_usd = float(cost.get("total", 0.0))
+                elif "usd" in u:
+                    t_usd = float(u.get("usd", 0.0))
+                message_tokens += t_tokens
+                message_usd += t_usd
             elif event.get("type") == "fallback":
                 fallbacks.append(str(event))
             elif event.get("type") == "usage":
                 u = event.get("usage", {})
-                total_tokens += u.get("input", 0) + u.get("output", 0)
-                total_usd += float(u.get("usd", 0.0))
-
+                standalone_tokens += u.get("input", 0) + u.get("output", 0)
+                standalone_usd += float(u.get("usd", 0.0))
+    if standalone_tokens > 0 or standalone_usd > 0:
+        total_tokens = standalone_tokens
+        total_usd = standalone_usd
+    else:
+        total_tokens = message_tokens
+        total_usd = message_usd
     return {
         "returncode": code,
         "stdout": stdout,

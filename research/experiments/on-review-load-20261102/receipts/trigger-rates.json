@@ -1,0 +1,125 @@
+{
+  "goodfire_deepswe": {
+    "n_runs": 100,
+    "triggers": {
+      "cascade_stage1": {
+        "count": 98,
+        "rate_per_100_runs": 98.0,
+        "rate_per_run": 0.98,
+        "wilson_95": [
+          0.93,
+          0.9945
+        ]
+      },
+      "l0_gate": {
+        "count": 38,
+        "rate_per_100_runs": 38.0,
+        "rate_per_run": 0.38,
+        "wilson_95": [
+          0.291,
+          0.4779
+        ]
+      },
+      "target_surface": {
+        "count": 98,
+        "rate_per_100_runs": 98.0,
+        "rate_per_run": 0.98,
+        "wilson_95": [
+          0.93,
+          0.9945
+        ]
+      }
+    },
+    "unique_runs_triggered": {
+      "count": 100,
+      "rate_per_100_runs": 100.0,
+      "rate_per_run": 1.0,
+      "wilson_95": [
+        0.963,
+        1.0
+      ]
+    }
+  },
+  "pooled_admitted_cohort": {
+    "n_runs": 404,
+    "triggers": {
+      "cascade_stage1": {
+        "count": 147,
+        "rate_per_100_runs": 36.39,
+        "rate_per_run": 0.3639,
+        "wilson_95": [
+          0.3184,
+          0.4119
+        ]
+      },
+      "l0_gate": {
+        "count": 163,
+        "rate_per_100_runs": 40.35,
+        "rate_per_run": 0.4035,
+        "wilson_95": [
+          0.3568,
+          0.452
+        ]
+      },
+      "target_surface": {
+        "count": 98,
+        "rate_per_100_runs": 24.26,
+        "rate_per_run": 0.2426,
+        "wilson_95": [
+          0.2033,
+          0.2867
+        ]
+      }
+    },
+    "unique_runs_triggered": {
+      "count": 246,
+      "rate_per_100_runs": 60.89,
+      "rate_per_run": 0.6089,
+      "wilson_95": [
+        0.5605,
+        0.6553
+      ]
+    }
+  },
+  "terminal_wrench": {
+    "n_runs": 304,
+    "triggers": {
+      "cascade_stage1": {
+        "count": 49,
+        "rate_per_100_runs": 16.12,
+        "rate_per_run": 0.1612,
+        "wilson_95": [
+          0.1241,
+          0.2067
+        ]
+      },
+      "l0_gate": {
+        "count": 125,
+        "rate_per_100_runs": 41.12,
+        "rate_per_run": 0.4112,
+        "wilson_95": [
+          0.3573,
+          0.4673
+        ]
+      },
+      "target_surface": {
+        "count": 0,
+        "rate_per_100_runs": 0.0,
+        "rate_per_run": 0.0,
+        "wilson_95": [
+          0.0,
+          0.0125
+        ]
+      }
+    },
+    "unique_runs_triggered": {
+      "count": 146,
+      "rate_per_100_runs": 48.03,
+      "rate_per_run": 0.4803,
+      "wilson_95": [
+        0.4247,
+        0.5363
+      ]
+    }
+  }
+}

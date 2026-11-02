@@ -2606,6 +2606,179 @@ def _spend_check_command(
         return 2
     return 2
 
+def _parse_iso_datetime(
+    value: str | None,
+    *,
+    default: datetime | None = None,
+    field_name: str = "date",
+) -> datetime | None:
+    """Parse ISO8601 string to timezone-aware UTC datetime."""
+    if value is None:
+        return default
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt
+    except ValueError as exc:
+        raise ValueError(f"invalid --{field_name}: {exc}") from exc
+
+
+def _spend_reconcile_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from datetime import datetime
+
+    from evallab.spend_reconcile import (
+        DEFAULT_SPEND_LOG,
+        reconcile_spend,
+        render_reconciliation,
+        scan_omp_sessions,
+        sync_omp_sessions_to_ledger,
+    )
+
+    try:
+        until_dt = _parse_iso_datetime(
+            getattr(args, "until", None), default=datetime.now(UTC), field_name="until"
+        )
+        since_dt = _parse_iso_datetime(
+            getattr(args, "since", None),
+            default=datetime(2026, 10, 30, 21, 0, tzinfo=UTC),
+            field_name="since",
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    assert until_dt is not None and since_dt is not None
+    if until_dt <= since_dt:
+        print(
+            f"invalid window: --since ({since_dt.isoformat()}) must be before --until ({until_dt.isoformat()})",
+            file=sys.stderr,
+        )
+        return 2
+
+    spend_log = getattr(args, "spend_log", None) or DEFAULT_SPEND_LOG
+
+    if getattr(args, "sync_omp_sessions", False):
+        session_dirs = (
+            [Path(d) for d in getattr(args, "session_dir", [])]
+            if getattr(args, "session_dir", None)
+            else None
+        )
+        calls = (
+            scan_omp_sessions(session_dirs=session_dirs, window_start=since_dt, window_end=until_dt)
+            if session_dirs
+            else scan_omp_sessions(window_start=since_dt, window_end=until_dt)
+        )
+        added_count, added_usd = sync_omp_sessions_to_ledger(calls, spend_log)
+        if not getattr(args, "json", False):
+            print(f"Synced {added_count} missing OMP session calls (${added_usd:.4f}) to {spend_log}")
+
+    providers = (
+        [p.strip() for p in args.providers.split(",")]
+        if getattr(args, "providers", None)
+        else ("deepseek", "openrouter", "meta", "modal")
+    )
+    threshold = float(getattr(args, "threshold_usd", 1.0))
+
+    report = reconcile_spend(
+        since_dt,
+        until_dt,
+        ledger_path=spend_log,
+        threshold_usd=threshold,
+        providers=providers,
+        deepseek_start_balance=getattr(args, "deepseek_start_balance", None),
+        openrouter_start_usage=getattr(args, "openrouter_start_usage", None),
+    )
+
+    if getattr(args, "json", False):
+        print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+    else:
+        print(render_reconciliation(report))
+
+    # B3: Fail closed exit code (exit 3 for UNVERIFIED, exit 1 for FAIL)
+    if report.verdict == "UNVERIFIED":
+        return 3
+    elif report.verdict == "FAIL" or report.exceeded_threshold:
+        return 1
+    return 0
+
+def _spend_scan_omp_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+
+    from evallab.spend_reconcile import (
+        DEFAULT_SPEND_LOG,
+        scan_omp_sessions,
+        sync_omp_sessions_to_ledger,
+    )
+
+    try:
+        since_dt = _parse_iso_datetime(getattr(args, "since", None), field_name="since")
+        until_dt = _parse_iso_datetime(getattr(args, "until", None), field_name="until")
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    session_dirs = [Path(d) for d in args.session_dir] if getattr(args, "session_dir", None) else None
+    include_sub = getattr(args, "include_subscription", False)
+    scan_stats: dict[str, int] = {}
+    calls = (
+        scan_omp_sessions(
+            session_dirs=session_dirs,
+            window_start=since_dt,
+            window_end=until_dt,
+            include_subscription=include_sub,
+            stats=scan_stats,
+        )
+        if session_dirs
+        else scan_omp_sessions(
+            window_start=since_dt,
+            window_end=until_dt,
+            include_subscription=include_sub,
+            stats=scan_stats,
+        )
+    )
+
+    spend_log = getattr(args, "spend_log", None) or DEFAULT_SPEND_LOG
+    if getattr(args, "write", False):
+        added_count, added_usd = sync_omp_sessions_to_ledger(calls, spend_log)
+        print(f"Appended {added_count} calls (${added_usd:.4f}) to {spend_log}")
+    else:
+        tot_cost = sum(c.cost_usd for c in calls)
+        if getattr(args, "json", False):
+            payload = {
+                "count": len(calls),
+                "total_cost_usd": round(tot_cost, 4),
+                "calls": [
+                    {
+                        "session_file": c.session_file,
+                        "message_id": c.message_id,
+                        "provider": c.provider,
+                        "model": c.model,
+                        "cost_usd": round(c.cost_usd, 6),
+                        "timestamp": c.timestamp.isoformat(),
+                        "is_subscription": c.is_subscription,
+                        "notional_usd": round(c.notional_usd, 6),
+                    }
+                    for c in calls
+                ],
+                "stats": scan_stats,
+            }
+            print(json.dumps(payload, indent=2))
+        else:
+            msg = (
+                f"Discovered {len(calls)} paid calls (${tot_cost:.4f} USD) across OMP sessions "
+                f"(run with --write to append to {spend_log})"
+            )
+            if scan_stats.get("missing_timestamp"):
+                msg += f" [skipped {scan_stats['missing_timestamp']} calls without timestamp]"
+            print(msg)
+    return 0
+
 
 def _db_list_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
@@ -6198,6 +6371,90 @@ def parser() -> argparse.ArgumentParser:
         help="Allow launch despite stale Modal billing rows (downgrades refusal to warning)",
     )
     spend_check.set_defaults(func=_spend_check_command)
+
+    spend_reconcile = spend_commands.add_parser(
+        "reconcile",
+        help="Reconcile spend ledger against provider-reported balances and usage endpoints",
+    )
+    spend_reconcile.add_argument(
+        "--since",
+        default=None,
+        metavar="ISO8601",
+        help="Window start as ISO-8601 UTC (default: 2026-10-30T21:00:00Z / 17:00 ET)",
+    )
+    spend_reconcile.add_argument(
+        "--until",
+        default=None,
+        metavar="ISO8601",
+        help="Window end as ISO-8601 UTC (default: now)",
+    )
+    spend_reconcile.add_argument(
+        "--threshold-usd",
+        type=float,
+        default=1.0,
+        metavar="FLOAT",
+        help="Flag discrepancy when gap exceeds this threshold in USD (default: 1.00)",
+    )
+    spend_reconcile.add_argument(
+        "--providers",
+        default="deepseek,openrouter,meta,modal",
+        metavar="LIST",
+        help="Comma-separated providers to reconcile (default: deepseek,openrouter,meta,modal)",
+    )
+    spend_reconcile.add_argument(
+        "--deepseek-start-balance",
+        type=float,
+        default=None,
+        metavar="FLOAT",
+        help="DeepSeek balance at window start in USD (default: $16.00 if --since is 2026-10-30T21:00:00Z; required otherwise for numeric gap verification)",
+    )
+    spend_reconcile.add_argument(
+        "--openrouter-start-usage",
+        type=float,
+        default=None,
+        metavar="FLOAT",
+        help="OpenRouter cumulative usage at window start in USD (required for numeric gap verification; start unknown otherwise)",
+    )
+    spend_reconcile.add_argument(
+        "--spend-log",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Path to spend.jsonl ledger (default: ~/.local/state/evallab-failure-library/spend.jsonl)",
+    )
+    spend_reconcile.add_argument(
+        "--sync-omp-sessions",
+        action="store_true",
+        help="Scan and append missing paid OMP session calls to the spend ledger before reconciling",
+    )
+    spend_reconcile.add_argument("--session-dir", action="append", default=[], help="Session directory to scan")
+    spend_reconcile.add_argument("--json", action="store_true", help="Emit report as JSON")
+    spend_reconcile.set_defaults(func=_spend_reconcile_command)
+
+    spend_scan_omp = spend_commands.add_parser(
+        "scan-omp",
+        help="Scan OMP session logs for untracked paid model invocations",
+    )
+    spend_scan_omp.add_argument(
+        "--since", default=None, metavar="ISO8601", help="Filter sessions after timestamp"
+    )
+    spend_scan_omp.add_argument(
+        "--until", default=None, metavar="ISO8601", help="Filter sessions before timestamp"
+    )
+    spend_scan_omp.add_argument(
+        "--session-dir", action="append", default=[], help="Session directory to scan"
+    )
+    spend_scan_omp.add_argument(
+        "--spend-log", type=Path, default=None, help="Spend ledger path"
+    )
+    spend_scan_omp.add_argument(
+        "--write", action="store_true", help="Append discovered calls to spend ledger"
+    )
+    spend_scan_omp.add_argument(
+        "--include-subscription", action="store_true", help="Include subscription OAuth routes as notional spend"
+    )
+    spend_scan_omp.add_argument("--json", action="store_true", help="Emit discovered calls as JSON")
+    spend_scan_omp.set_defaults(func=_spend_scan_omp_command)
 
     lineage = commands.add_parser(
         "lineage", help="Trace recursive lineage of generated artifacts back to Z1"

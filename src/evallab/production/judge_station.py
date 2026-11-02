@@ -25,16 +25,38 @@ import os
 import re
 import threading
 import time
+import uuid
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol
+
+from evallab.production.judge_card import build_card
+from evallab.production.judge_order import (
+    DEFAULT_CONTROL_RATE,
+    DEFAULT_SEED,
+    STRATA,
+    STRATUM_TEXT,
+    Signals,
+    collect_signals,
+    order_runs,
+    stratum_of,
+)
+from evallab.production.judge_report import (
+    build_report,
+    effective_records,
+    load_rows,
+    render_markdown,
+)
 
 STATE_DIR = Path.home() / ".local/state/evallab-judge"
 VERDICTS_FILE = "verdicts.jsonl"
 QUEUES_DIR = "queues"
 VERDICT_SCHEMA = "judge-verdict/v1"
+UNDO_SCHEMA = "judge-undo/v1"
+DRAFTS_FILE = "drafts.json"
+ALL_QUEUE = "all-queues"
 VERDICTS = ("cheat", "legitimate", "unclear")
 EXTRA_MECHANISMS = ("replaced_input_with_expected_output", "other")
 MAX_TEXT = 100_000
@@ -78,11 +100,17 @@ def mechanisms() -> list[str]:
 
 @dataclass(frozen=True)
 class QueueEntry:
+    """One queued run. ``signals`` (``{detector: alarm|clear}``) and ``control`` are optional
+    ordering hints a queue producer can attach; the station never shows them before a verdict."""
+
     run_id: str
     reason: str | None = None
     reveal: Mapping[str, Any] | None = None
     priority: int = 0
     source: str = "queue"
+    signals: Mapping[str, str] | None = None
+    control: bool = False
+    source_queues: tuple[str, ...] = ()
 
 
 def load_queue(path: Path) -> list[QueueEntry]:
@@ -105,20 +133,32 @@ def load_queue(path: Path) -> list[QueueEntry]:
                 raise JudgeError(f"{path}:{number}: reason must be text")
             if reveal is not None and not isinstance(reveal, dict):
                 raise JudgeError(f"{path}:{number}: reveal must be an object")
-            priority = int(row.get("priority", 0))
-            source = str(row.get("source", "queue"))
-            entry = QueueEntry(run_id.strip(), reason, reveal, priority, source)
+            signals, control = row.get("signals"), row.get("control", False)
+            if signals is not None and not (
+                isinstance(signals, dict)
+                and all(isinstance(k, str) and v in ("alarm", "clear") for k, v in signals.items())
+            ):
+                raise JudgeError(f"{path}:{number}: signals must map detector name to alarm|clear")
+            if not isinstance(control, bool):
+                raise JudgeError(f"{path}:{number}: control must be true or false")
+            priority = row.get("priority", 0)
+            if isinstance(priority, bool) or not isinstance(priority, int):
+                raise JudgeError(f"{path}:{number}: priority must be a whole number")
+            entry = QueueEntry(
+                run_id.strip(),
+                reason,
+                reveal,
+                priority,
+                str(row.get("source", "queue")),
+                signals,
+                control,
+            )
         else:
             entry = QueueEntry(text)
         entries.setdefault(entry.run_id, entry)
     if not entries:
         raise JudgeError(f"{path}: the queue is empty")
     return list(entries.values())
-
-
-def shuffled(name: str, entries: Sequence[QueueEntry]) -> list[QueueEntry]:
-    """Stable pseudo-random order: a queue built as 'clean first, cheats second' leaks labels."""
-    return sorted(entries, key=lambda e: hashlib.sha256(f"{name}:{e.run_id}".encode()).hexdigest())
 
 
 # --------------------------------------------------------------------------- #
@@ -232,6 +272,7 @@ def read_findings(paths: Iterable[Path], wanted: set[str]) -> dict[str, list[dic
                 "verdict": str(row.get("verdict")),
                 "steps": steps,
                 "summary": str(row.get("summary") or "")[:400],
+                "model": str(row.get("reader_model") or "") or None,
             }
         )
     return result
@@ -283,8 +324,8 @@ def _call_text(call: Mapping[str, Any]) -> tuple[str, str]:
     return name, _text(arguments)
 
 
-def build_timeline(run: Any) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
-    """``(task_blocks, steps)`` of the blinded run; every text is source-name redacted.
+def build_timeline(run: Any) -> tuple[list[dict[str, str]], list[dict[str, Any]], Any]:
+    """``(task_blocks, steps, blind_run)`` of the blinded run; every text is source-name redacted.
 
     Step numbers are the blinded run's own (the numbering the DT-series packets cite).
     """
@@ -342,7 +383,7 @@ def build_timeline(run: Any) -> tuple[list[dict[str, str]], list[dict[str, Any]]
                     {"step": step["n"], "source": step["source"], "text": part["text"][:budget]}
                 )
                 budget -= len(part["text"])
-    return task, steps
+    return task, steps, blind
 
 
 # --------------------------------------------------------------------------- #
@@ -361,29 +402,143 @@ def _agrees(label: Label, verdict: str) -> bool | None:
 
 
 @dataclass
+class Loaded:
+    """One admitted run, blinded: the full timeline and the compact card."""
+
+    run: Any
+    task: list[dict[str, str]]
+    steps: list[dict[str, Any]]
+    card: dict[str, Any]
+
+
+DRAFT_FIELDS = (
+    "verdict",
+    "mechanism",
+    "confidence",
+    "confidence_touched",
+    "evidence_steps",
+    "note",
+    "opened_timeline",
+)
+
+
+def _merge_entries(first: QueueEntry, other: QueueEntry) -> QueueEntry:
+    """One entry for a run that sits in several queues: nothing either queue says is dropped."""
+    reasons = [r for r in dict.fromkeys([first.reason, other.reason]) if r]
+    reveal: dict[str, Any] = dict(first.reveal or {})
+    for key, identity in (
+        ("detectors", ("name", "verdict", "steps")),
+        ("notes", ("title", "text")),
+    ):
+        seen: dict[tuple[str, ...], Any] = {}
+        for item in [*(first.reveal or {}).get(key, []), *(other.reveal or {}).get(key, [])]:
+            seen.setdefault(tuple(str(item.get(k)) for k in identity), item)
+        if seen:
+            reveal[key] = list(seen.values())
+    for key, value in (other.reveal or {}).items():
+        reveal.setdefault(key, value)
+    signals: dict[str, str] = dict(first.signals or {})
+    for name, verdict in (other.signals or {}).items():
+        signals[name] = "alarm" if "alarm" in (verdict, signals.get(name)) else "clear"
+    return QueueEntry(
+        first.run_id,
+        " | ".join(reasons) or None,
+        reveal or None,
+        max(first.priority, other.priority),
+        first.source,
+        signals or None,
+        first.control or other.control,
+        tuple(dict.fromkeys([*first.source_queues, *other.source_queues])),
+    )
+
+
+def merge_queues(queues: Mapping[str, Sequence[QueueEntry]]) -> dict[str, Sequence[QueueEntry]]:
+    """The named queues plus, when there are several, one combined queue of every distinct run.
+
+    Every entry records the queues it came from (``source_queues``); in the combined queue a run
+    that sits in several queues keeps every queue's reason, notes and signals, and is a control if
+    any queue says so."""
+    merged: dict[str, Sequence[QueueEntry]] = {
+        name: [replace(e, source_queues=(name,)) for e in entries]
+        for name, entries in queues.items()
+    }
+    if len(queues) > 1:
+        combined: dict[str, QueueEntry] = {}
+        for entries in merged.values():
+            for entry in entries:
+                known = combined.get(entry.run_id)
+                combined[entry.run_id] = entry if known is None else _merge_entries(known, entry)
+        merged = {ALL_QUEUE: list(combined.values()), **merged}
+    return merged
+
+
+@dataclass
 class Station:
     source: RunSource
     queues: Mapping[str, Sequence[QueueEntry]]
     judge: str = "peter"
     state_dir: Path = STATE_DIR
     keep_order: bool = False
+    blind_order: bool = False
+    seed: str = DEFAULT_SEED
+    control_rate: float = DEFAULT_CONTROL_RATE
+    show_hints: bool = True
     clock: Callable[[], float] = time.time
     monotonic: Callable[[], float] = time.monotonic
     guide_path: Path = GUIDE_PATH
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False)
     _opened: dict[tuple[str, str], float] = field(default_factory=dict, init=False)
-    _cache: OrderedDict[str, tuple[Any, list[dict[str, str]], list[dict[str, Any]]]] = field(
-        default_factory=OrderedDict, init=False
-    )
+    _cache: OrderedDict[str, Loaded] = field(default_factory=OrderedDict, init=False)
     _refused: dict[str, str] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
+        merged = merge_queues(self.queues)
+        self.order_mode = (
+            "file" if self.keep_order else "shuffled" if self.blind_order else "information"
+        )
+        wanted = sorted({e.run_id for entries in merged.values() for e in entries})
+        self._detectors = self.source.detectors(wanted)
+        self._public: dict[str, str] = {}
+        self._labels: dict[str, str] = {}
+        for number, name in enumerate(n for n in merged if n != ALL_QUEUE):
+            self._public[f"q{number + 1}"] = name
+            self._labels[name] = f"Queue {number + 1}"
+        if ALL_QUEUE in merged:
+            self._public["all"] = ALL_QUEUE
+            self._labels[ALL_QUEUE] = "All runs, most informative first"
         self._ordered: dict[str, list[QueueEntry]] = {}
+        self._strata: dict[str, dict[str, str]] = {}
         self._by_blind: dict[str, dict[str, QueueEntry]] = {}
-        for name, entries in self.queues.items():
-            ordered = list(entries) if self.keep_order else shuffled(name, entries)
-            self._ordered[name] = ordered
-            self._by_blind[name] = {blind_id(e.run_id): e for e in ordered}
+        for name, entries in merged.items():
+            by_id = {e.run_id: e for e in entries}
+            inputs = [(e.run_id, self._signals(e), e.control, e.priority) for e in entries]
+            if self.keep_order:
+                ordered = [(rid, stratum_of(sig, control=ctl)) for rid, sig, ctl, _ in inputs]
+            else:
+                ordered = order_runs(
+                    name,
+                    inputs,
+                    seed=self.seed,
+                    control_rate=self.control_rate,
+                    shuffle=self.blind_order,
+                )
+            self._ordered[name] = [by_id[rid] for rid, _ in ordered]
+            self._strata[name] = dict(ordered)
+            self._by_blind[name] = {blind_id(e.run_id): e for e in self._ordered[name]}
+
+    def _signals(self, entry: QueueEntry) -> Signals:
+        detectors = [
+            *self._detectors.get(entry.run_id, []),
+            *(entry.reveal or {}).get("detectors", []),
+        ]
+        return collect_signals(detectors, entry.signals)
+
+    def strata_counts(self, name: str) -> dict[str, int]:
+        """How many runs of a queue sit in each stratum (operator view; never sent to the page)."""
+        counts = dict.fromkeys(STRATA, 0)
+        for stratum in self._strata[self._resolve(name)].values():
+            counts[stratum] += 1
+        return counts
 
     # -- storage ---------------------------------------------------------- #
 
@@ -391,21 +546,47 @@ class Station:
     def verdicts_path(self) -> Path:
         return self.state_dir / VERDICTS_FILE
 
+    @property
+    def drafts_path(self) -> Path:
+        return self.state_dir / DRAFTS_FILE
+
     def read_verdicts(self) -> list[dict[str, Any]]:
-        path = self.verdicts_path
-        if not path.is_file():
-            return []
-        rows = []
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                try:
-                    rows.append(json.loads(line))
-                except ValueError:
-                    continue
-        return rows
+        """Every stored row: verdict records and undo markers, in file order."""
+        return load_rows(self.verdicts_path)
 
     def _latest(self) -> dict[tuple[str, str], dict[str, Any]]:
-        return {(str(r.get("judge")), str(r.get("run_id"))): r for r in self.read_verdicts()}
+        return {
+            (str(r.get("judge")), str(r.get("run_id"))): r
+            for r in effective_records(self.read_verdicts())
+        }
+
+    def _append(self, record: Mapping[str, Any]) -> None:
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        with self.verdicts_path.open("a", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+    def _stamp(self) -> str:
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.clock()))
+
+    def _read_drafts(self) -> dict[str, dict[str, dict[str, Any]]]:
+        try:
+            data = json.loads(self.drafts_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _write_drafts(self, drafts: Mapping[str, Any]) -> None:
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        scratch = self.drafts_path.with_suffix(".tmp")
+        with scratch.open("w", encoding="utf-8") as handle:
+            handle.write(json.dumps(drafts, ensure_ascii=False, sort_keys=True))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(scratch, self.drafts_path)
 
     # -- views ------------------------------------------------------------ #
 
@@ -414,9 +595,11 @@ class Station:
         return {
             "judge": self.judge,
             "mechanisms": mechanisms(),
+            "show_hints": self.show_hints,
             "queues": [
                 {
-                    "name": name,
+                    "name": self._public_of(name),
+                    "label": self._labels.get(name, name),
                     "total": len(entries),
                     "done": sum(1 for e in entries if (self.judge, e.run_id) in done),
                 }
@@ -437,19 +620,27 @@ class Station:
             for index, e in enumerate(entries)
         ]
 
-    def _entries(self, name: str) -> list[QueueEntry]:
-        if name not in self._ordered:
+    def _public_of(self, real: str) -> str:
+        return next((p for p, name in self._public.items() if name == real), real)
+
+    def _resolve(self, name: str) -> str:
+        """The real queue name for a page-facing id (a real name is accepted too)."""
+        real = self._public.get(name, name)
+        if real not in self._ordered:
             raise JudgeError("unknown queue")
-        return self._ordered[name]
+        return real
+
+    def _entries(self, name: str) -> list[QueueEntry]:
+        return self._ordered[self._resolve(name)]
 
     def _entry(self, name: str, blind: str) -> QueueEntry:
-        self._entries(name)
+        name = self._resolve(name)
         try:
             return self._by_blind[name][blind]
         except KeyError as error:
             raise JudgeError("unknown run") from error
 
-    def _run(self, entry: QueueEntry) -> tuple[Any, list[dict[str, str]], list[dict[str, Any]]]:
+    def _run(self, entry: QueueEntry) -> Loaded:
         with self._lock:
             if entry.run_id in self._cache:
                 self._cache.move_to_end(entry.run_id)
@@ -465,35 +656,47 @@ class Station:
                 )
                 self._refused[entry.run_id] = reason
                 raise JudgeError(reason)
-            try:
-                task, steps = build_timeline(run)
-            except ValueError as error:
-                self._refused[entry.run_id] = f"refused: cannot blind this run ({error})"
-                raise JudgeError(self._refused[entry.run_id]) from error
             if str(getattr(run, "split", "DEV")).upper() != "DEV":
                 self._refused[entry.run_id] = "refused: not a DEV run"
                 raise JudgeError(self._refused[entry.run_id])
-            self._cache[entry.run_id] = (run, task, steps)
+            try:
+                task, steps, blind = build_timeline(run)
+            except ValueError as error:
+                self._refused[entry.run_id] = f"refused: cannot blind this run ({error})"
+                raise JudgeError(self._refused[entry.run_id]) from error
+            try:
+                card = build_card(
+                    run.run_id, blind.steps, [s["n"] for s in steps], hints=self.show_hints
+                )
+            except (ValueError, KeyError, TypeError, AttributeError) as error:
+                card = {
+                    "error": f"the card could not be built ({type(error).__name__}); use the timeline"
+                }
+            self._cache[entry.run_id] = Loaded(run, task, steps, card)
             while len(self._cache) > 6:
                 self._cache.popitem(last=False)
             return self._cache[entry.run_id]
 
     def run_view(self, name: str, blind: str) -> dict[str, Any]:
-        """Everything the judge may see before the verdict. Never a label or a detector."""
+        """Everything the judge may see before the verdict. Never a label, detector or stratum."""
         entry = self._entry(name, blind)
-        _, task, steps = self._run(entry)
+        name = self._resolve(name)
+        loaded = self._run(entry)
         position = (
             next(i for i, e in enumerate(self._ordered[name]) if e.run_id == entry.run_id) + 1
         )
         with self._lock:
             self._opened[(name, entry.run_id)] = self.monotonic()
         previous = self._latest().get((self.judge, entry.run_id))
+        draft = self._read_drafts().get(self.judge, {}).get(entry.run_id)
         return {
             "id": blind,
             "position": position,
             "total": len(self._ordered[name]),
-            "task": task,
-            "steps": steps,
+            "task": loaded.task,
+            "steps": loaded.steps,
+            "card": loaded.card,
+            "draft": draft,
             "previous": (
                 {
                     "verdict": previous["verdict"],
@@ -507,7 +710,7 @@ class Station:
 
     def reveal(self, entry: QueueEntry, run: Any) -> dict[str, Any]:
         label = self.source.label(entry.run_id)
-        detectors = list(self.source.detectors([entry.run_id]).get(entry.run_id, []))
+        detectors = list(self._detectors.get(entry.run_id, []))
         notes: list[dict[str, str]] = []
         extra = entry.reveal or {}
         for row in extra.get("detectors") or []:
@@ -517,7 +720,12 @@ class Station:
                     "verdict": str(row.get("verdict")),
                     "steps": [s for s in row.get("steps") or [] if isinstance(s, int)],
                     "summary": str(row.get("summary") or "")[:400],
+                    "model": row.get("model"),
                 }
+            )
+        for name, verdict in (entry.signals or {}).items():
+            detectors.append(
+                {"name": name, "verdict": verdict, "steps": [], "summary": "", "model": None}
             )
         for note in extra.get("notes") or []:
             notes.append({"title": str(note.get("title")), "text": str(note.get("text"))[:1500]})
@@ -530,11 +738,45 @@ class Station:
             "notes": notes,
         }
 
+    # -- drafts ----------------------------------------------------------- #
+
+    def save_draft(self, name: str, blind: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Autosave an unsubmitted verdict so a reload or crash loses nothing. Not a verdict."""
+        entry = self._entry(name, blind)
+        draft = {k: payload[k] for k in DRAFT_FIELDS if k in payload}
+        verdict = draft.get("verdict")
+        note = draft.get("note", "")
+        steps = draft.get("evidence_steps", [])
+        if verdict not in (None, *VERDICTS):
+            raise JudgeError("verdict must be cheat, legitimate or unclear")
+        if not isinstance(note, str) or len(note) > MAX_NOTE:
+            raise JudgeError(f"the note must be text of at most {MAX_NOTE} characters")
+        if (
+            not isinstance(steps, list)
+            or len(steps) > 500
+            or not all(isinstance(s, int) and not isinstance(s, bool) for s in steps)
+        ):
+            raise JudgeError("evidence steps must be a list of step numbers")
+        if draft.get("mechanism") not in (None, *mechanisms()):
+            raise JudgeError("unknown mechanism")
+        confidence = draft.get("confidence")
+        if confidence is not None and (isinstance(confidence, bool) or confidence not in (1, 2, 3)):
+            raise JudgeError("confidence must be 1, 2 or 3")
+        for key in ("confidence_touched", "opened_timeline"):
+            if key in draft and not isinstance(draft[key], bool):
+                raise JudgeError(f"{key} must be true or false")
+        with self._lock:
+            drafts = self._read_drafts()
+            drafts.setdefault(self.judge, {})[entry.run_id] = {**draft, "ts": self._stamp()}
+            self._write_drafts(drafts)
+        return {"saved": True}
+
     # -- verdicts --------------------------------------------------------- #
 
     def submit(self, name: str, blind: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         entry = self._entry(name, blind)
-        run, _, steps = self._run(entry)
+        name = self._resolve(name)
+        loaded = self._run(entry)
         verdict = payload.get("verdict")
         if verdict not in VERDICTS:
             raise JudgeError("verdict must be cheat, legitimate or unclear")
@@ -547,7 +789,7 @@ class Station:
         if isinstance(confidence, bool) or confidence not in (1, 2, 3):
             raise JudgeError("confidence must be 1, 2 or 3")
         cited = payload.get("evidence_steps") or []
-        valid = {s["n"] for s in steps}
+        valid = {s["n"] for s in loaded.steps}
         if not isinstance(cited, list) or any(
             isinstance(s, bool) or not isinstance(s, int) or s not in valid for s in cited
         ):
@@ -555,54 +797,123 @@ class Station:
         note = payload.get("note") or ""
         if not isinstance(note, str) or len(note) > MAX_NOTE:
             raise JudgeError(f"the note must be text of at most {MAX_NOTE} characters")
+        touched, timeline = (
+            payload.get("confidence_touched", True),
+            payload.get("opened_timeline", False),
+        )
+        if not isinstance(touched, bool) or not isinstance(timeline, bool):
+            raise JudgeError("confidence_touched and opened_timeline must be true or false")
         with self._lock:
+            live = self._latest().get((self.judge, entry.run_id))
+            if live is not None:
+                # A held or doubled Enter, or two tabs: the first verdict stands. Judging a run
+                # again goes through undo, so the second look is flagged as having seen the label.
+                if live.get("verdict") != verdict:
+                    raise JudgeError(
+                        f"this run is already judged as {live.get('verdict')}; "
+                        "undo that verdict first to change it"
+                    )
+                return {
+                    "saved": True,
+                    "duplicate": True,
+                    "id": live.get("id"),
+                    "reveal": live.get("revealed"),
+                    "agreement": live.get("agreement"),
+                    "seconds": live.get("seconds"),
+                }
             opened = self._opened.get((name, entry.run_id))
             if opened is None:
                 raise JudgeError("open the run before judging it")
             seconds = min(MAX_SECONDS, max(0.0, self.monotonic() - opened))
-            revealed = self.reveal(entry, run)
+            revealed = self.reveal(entry, loaded.run)
+            stratum = self._strata[name].get(entry.run_id)
+            revealed["queue"] = ", ".join(entry.source_queues) or name
+            revealed["source_queues"] = list(entry.source_queues) or [name]
+            revealed["stratum"] = stratum
+            revealed["stratum_text"] = STRATUM_TEXT.get(stratum or "")
             label = Label(revealed["label"]["state"], revealed["label"]["text"])
             alarms = {
-                d["name"]: (d["verdict"] == "alarm") == (verdict == "cheat")
+                (f"{d['name']} @ {d['model']}" if d.get("model") else d["name"]): (
+                    d["verdict"] == "alarm"
+                )
+                == (verdict == "cheat")
                 for d in revealed["detectors"]
                 if d["verdict"] in ("alarm", "clear") and verdict != "unclear"
             }
+            earlier = any(
+                r.get("judge") == self.judge and r.get("run_id") == entry.run_id
+                for r in self.read_verdicts()
+            )
             record = {
                 "schema": VERDICT_SCHEMA,
+                "id": uuid.uuid4().hex,
                 "judge": self.judge,
                 "run_id": entry.run_id,
                 "blind_id": blind,
                 "queue": name,
+                "source_queues": list(entry.source_queues) or [name],
+                "order": self.order_mode,
+                "stratum": stratum,
                 "verdict": verdict,
                 "mechanism": mechanism,
                 "evidence_steps": sorted(set(cited)),
                 "confidence": confidence,
+                "confidence_touched": touched,
                 "note": note,
                 "seconds": round(seconds, 1),
+                "opened_timeline": timeline,
+                "card_hints": self.show_hints,
+                "seen_label_before": earlier,
                 "revealed": revealed,
                 "agreement": _agrees(label, verdict),
                 "detector_agreement": alarms,
-                "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.clock())),
+                "ts": self._stamp(),
             }
-            self.state_dir.mkdir(parents=True, exist_ok=True)
-            with self.verdicts_path.open("a", encoding="utf-8") as handle:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-                handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            self._append(record)
+            drafts = self._read_drafts()
+            if drafts.get(self.judge, {}).pop(entry.run_id, None) is not None:
+                self._write_drafts(drafts)
         return {
             "saved": True,
+            "id": record["id"],
             "reveal": revealed,
             "agreement": record["agreement"],
             "seconds": record["seconds"],
         }
 
+    def undo_last(self) -> dict[str, Any]:
+        """Take back this judge's most recent verdict (append-only: a marker, not a deletion).
+
+        The judge has already seen the label, so any later verdict on the same run is recorded
+        with ``seen_label_before`` and left out of the agreement counts.
+        """
+        with self._lock:
+            mine = [
+                r for r in effective_records(self.read_verdicts()) if r.get("judge") == self.judge
+            ]
+            if not mine:
+                raise JudgeError("nothing to undo")
+            last = mine[-1]
+            self._append(
+                {
+                    "schema": UNDO_SCHEMA,
+                    "judge": self.judge,
+                    "run_id": last["run_id"],
+                    "blind_id": last.get("blind_id"),
+                    "undoes": last["id"],
+                    "ts": self._stamp(),
+                }
+            )
+        return {
+            "undone": last.get("blind_id"),
+            "queue": self._public_of(str(last.get("queue"))),
+            "verdict": last["verdict"],
+        }
+
     # -- reports ---------------------------------------------------------- #
 
     def stats(self) -> dict[str, Any]:
-        rows = list(self._latest().values())
-        mine = [r for r in rows if r.get("judge") == self.judge]
+        mine = [r for r in self._latest().values() if r.get("judge") == self.judge]
         decided = [r for r in mine if r.get("agreement") is not None]
         return {
             "judged": len(mine),
@@ -615,16 +926,19 @@ class Station:
 def export_verdicts(
     path: Path, out: Path, fmt: str, *, judge: str | None = None, history: bool = False
 ) -> int:
-    """Write the latest verdict per (judge, run), or every record with ``history``."""
-    rows: list[dict[str, Any]] = []
-    if path.is_file():
+    """Write the latest live verdict per (judge, run); ``history`` writes every verdict record,
+    undone ones included and flagged."""
+    all_rows = load_rows(path)
+    undone = {str(r.get("undoes")) for r in all_rows if r.get("schema") == UNDO_SCHEMA}
+    rows: list[dict[str, Any]]
+    if history:
         rows = [
-            json.loads(line)
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
+            {**r, "undone": r.get("id") in undone}
+            for r in all_rows
+            if r.get("schema") == VERDICT_SCHEMA
         ]
-    if not history:
-        rows = list({(r["judge"], r["run_id"]): r for r in rows}.values())
+    else:
+        rows = effective_records(all_rows)
     if judge:
         rows = [r for r in rows if r["judge"] == judge]
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -634,8 +948,9 @@ def export_verdicts(
         )
         return len(rows)
     columns = [
-        "judge", "run_id", "blind_id", "queue", "verdict", "mechanism", "evidence_steps", "confidence",
-        "note", "seconds", "label_state", "agreement", "detector_agreement", "ts",
+        "judge", "run_id", "blind_id", "queue", "stratum", "verdict", "mechanism", "evidence_steps",
+        "confidence", "confidence_touched", "note", "seconds", "opened_timeline", "label_state",
+        "agreement", "detector_agreement", "seen_label_before", "undone", "ts",
     ]  # fmt: skip
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, columns, lineterminator="\n")
@@ -849,7 +1164,25 @@ def register_parser(commands: Any) -> None:
     serve.add_argument("--port", type=int, default=8795)
     serve.add_argument("--state-dir", type=Path, default=STATE_DIR)
     serve.add_argument(
-        "--keep-order", action="store_true", help="Serve queues in file order (default: shuffled)"
+        "--keep-order",
+        action="store_true",
+        help="Serve queues in file order (default: information-value order)",
+    )
+    serve.add_argument(
+        "--blind-order",
+        action="store_true",
+        help="Seeded shuffle that ignores detector verdicts: the unanchored pass (default: "
+        "most disputed first, which tells you early runs were alarmed or disputed)",
+    )
+    serve.add_argument("--seed", default=DEFAULT_SEED, help="Seed of the queue order")
+    serve.add_argument(
+        "--control-rate",
+        type=float,
+        default=DEFAULT_CONTROL_RATE,
+        help="Floor on the share of early slots given to controls (default 0: spread evenly)",
+    )
+    serve.add_argument(
+        "--no-hints", action="store_true", help="Hide the card's rule-based 'worth a look' hints"
     )
     serve.add_argument(
         "--findings",
@@ -877,6 +1210,46 @@ def register_parser(commands: Any) -> None:
     export.add_argument("--state-dir", type=Path, default=STATE_DIR)
     export.set_defaults(func=_export)
 
+    report = calls.add_parser(
+        "report", help="Agreement of your verdicts with the label, each detector and each model"
+    )
+    report.add_argument("--judge", default=None)
+    report.add_argument("--json", action="store_true", help="Print JSON instead of markdown")
+    report.add_argument("--out", type=Path, default=None, help="Write the report here too")
+    report.add_argument("--state-dir", type=Path, default=STATE_DIR)
+    report.set_defaults(func=_report)
+
+    plan = calls.add_parser(
+        "plan", help="Operator view of the queue order: strata per queue (spoils the blind)"
+    )
+    plan.add_argument("--queue", action="append", default=[], metavar="[NAME=]PATH")
+    plan.add_argument("--state-dir", type=Path, default=STATE_DIR)
+    plan.add_argument("--seed", default=DEFAULT_SEED)
+    plan.add_argument("--control-rate", type=float, default=DEFAULT_CONTROL_RATE)
+    plan.add_argument("--findings", type=Path, action="append", default=None)
+    plan.add_argument(
+        "--show-order", action="store_true", help="Print the stratum of every position"
+    )
+    plan.set_defaults(func=_plan)
+
+    controls = calls.add_parser(
+        "build-controls",
+        help="Sample random controls (DEV runs every stored detector cleared) into a queue",
+    )
+    controls.add_argument("--count", type=int, default=12)
+    controls.add_argument(
+        "--queue",
+        action="append",
+        default=[],
+        metavar="[NAME=]PATH",
+        help="A queue file whose runs must not become controls (repeatable; the files in the "
+        "state dir are always excluded)",
+    )
+    controls.add_argument("--seed", default=DEFAULT_SEED)
+    controls.add_argument("--state-dir", type=Path, default=STATE_DIR)
+    controls.add_argument("--findings", type=Path, action="append", default=None)
+    controls.set_defaults(func=_build_controls)
+
 
 def _serve(args: argparse.Namespace, root: Path, **_: Any) -> int:
     from evallab.production.judge_web import serve
@@ -895,6 +1268,10 @@ def _serve(args: argparse.Namespace, root: Path, **_: Any) -> int:
         judge=args.judge,
         state_dir=args.state_dir,
         keep_order=args.keep_order,
+        blind_order=args.blind_order,
+        seed=args.seed,
+        control_rate=args.control_rate,
+        show_hints=not args.no_hints,
     )
     return serve(station, port=args.port, open_browser=args.open)
 
@@ -924,4 +1301,112 @@ def _export(args: argparse.Namespace, root: Path, **_: Any) -> int:
         history=args.history,
     )
     print(f"wrote {count} verdicts to {args.out}")
+    return 0
+
+
+def _report(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    report = build_report(load_rows(args.state_dir / VERDICTS_FILE), judge=args.judge)
+    text = (
+        json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True)
+        if args.json
+        else render_markdown(report)
+    )
+    if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(text + "\n", encoding="utf-8")
+    print(text)
+    return 0
+
+
+def _plan(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    try:
+        queues = discover_queues(args.state_dir, args.queue)
+    except (JudgeError, OSError) as error:
+        print(f"judge: {error}")
+        return 2
+    station = Station(
+        LabSource(root, args.findings),
+        queues,
+        state_dir=args.state_dir,
+        seed=args.seed,
+        control_rate=args.control_rate,
+    )
+    for name, entries in station._ordered.items():
+        counts = station.strata_counts(name)
+        print(f"{name}: {len(entries)} runs; " + ", ".join(f"{k} {v}" for k, v in counts.items()))
+        if args.show_order:
+            print("  " + " ".join(station._strata[name][e.run_id][:4] for e in entries))
+    return 0
+
+
+def sample_controls(
+    source: RunSource, candidates: Sequence[str], count: int, seed: str
+) -> list[str]:
+    """The first ``count`` admitted DEV runs of ``candidates`` in seeded hash order."""
+    ranked = sorted(
+        candidates, key=lambda r: hashlib.sha256(f"{seed}:control:{r}".encode()).hexdigest()
+    )
+    chosen: list[str] = []
+    for start in range(0, len(ranked), 8):
+        runs, _ = source.load_runs(ranked[start : start + 8])
+        chosen += [r for r in ranked[start : start + 8] if r in runs]
+        if len(chosen) >= count:
+            break
+    return chosen[:count]
+
+
+def all_clear_runs(paths: Iterable[Path], exclude: set[str]) -> list[str]:
+    """Runs with at least two decided detector verdicts, every one of them ``clear``."""
+    verdicts: dict[str, dict[str, str]] = {}
+    for path in paths:
+        if not path.is_file():
+            continue
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                if '"clear"' not in line and '"alarm"' not in line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                run_id, verdict = row.get("run_id"), row.get("verdict")
+                if (
+                    isinstance(run_id, str)
+                    and verdict in ("alarm", "clear")
+                    and run_id not in exclude
+                ):
+                    key = f"{row.get('detector')}/{row.get('detector_version')}/{row.get('reader_model')}"
+                    verdicts.setdefault(run_id, {})[key] = verdict
+    return sorted(
+        run_id
+        for run_id, found in verdicts.items()
+        if len(found) >= 2 and set(found.values()) == {"clear"}
+    )
+
+
+def _build_controls(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    source = LabSource(root, args.findings)
+    queued: set[str] = set()
+    directory = args.state_dir / QUEUES_DIR
+    for file in sorted(directory.glob("*.jsonl")) if directory.is_dir() else []:
+        if file.stem != "controls":
+            queued |= {e.run_id for e in load_queue(file)}
+    for spec in args.queue:
+        queued |= {e.run_id for e in load_queue(Path(spec.partition("=")[2] or spec).expanduser())}
+    pool = all_clear_runs(source._findings_paths, queued)
+    chosen = sample_controls(source, pool, args.count, args.seed)
+    if not chosen:
+        print("judge: no admitted all-clear runs found")
+        return 2
+    out = directory / "controls.jsonl"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    reason = "Random control: every stored detector cleared this run; a human verdict shows how often that is wrong."
+    out.write_text(
+        "".join(
+            json.dumps({"run_id": r, "reason": reason, "control": True}, sort_keys=True) + "\n"
+            for r in chosen
+        ),
+        encoding="utf-8",
+    )
+    print(f"wrote {len(chosen)} controls (seed {args.seed!r}) from {len(pool)} candidates to {out}")
     return 0

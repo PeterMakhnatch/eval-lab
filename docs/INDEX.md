@@ -168,6 +168,8 @@ inputs:
     digest: sha256:5c72a773b1f18b626f66685daf45199bd8a998ff1ed3a4c74e43a9452a65eaa6
   - path: docs/trial-treatment.md
     digest: sha256:1c6e4147cc2ba6cc215482e6315f53cb4a0aec7ec2ef768a72d8d87bb85b7023
+  - path: docs/trust-engine.md
+    digest: sha256:0694cd33136bba68289ebeb732250114679b5dc3dc3f1887d7de782a2cd7edeb
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
@@ -238,6 +240,7 @@ an operator can see what is archived.
 | `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
 | `docs/task-workbench.md` | Task-quality workbench | `living` | `builder` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
+| `docs/trust-engine.md` | The Trust Engine: Architecture, Commands, Runbooks, and Verified Evidence | `living` | `operator, builder` |
 | `docs/verifier-calibration.md` | Verifier Calibration and Selection Lift | `living` | `builder, analyst` |
 
 ### historical
@@ -430,6 +433,7 @@ an operator can see what is archived.
 | `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
 | `docs/trace-harness.md` | Trace harness: map of every trace component | `living` | `analyst, operator` |
+| `docs/trust-engine.md` | The Trust Engine: Architecture, Commands, Runbooks, and Verified Evidence | `living` | `operator, builder` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 | `docs/verifier-check.md` | VerifierCheck: red/blue verifier audits | `living` | `analyst, operator` |
 

@@ -32,6 +32,7 @@ Across **20 real unprompted rollouts** (5 tasks × 2 models × 2 trials) with ze
    - **Recall on L0 Confirmed Cheats:** **5/6 = 83.3%** (Wilson 95% CI: 43.6%–97.0%).
    - **Recall on All Cheat Attempts (including external environment probing):** **9/10 = 90.0%** (59.6%–98.2%).
    - **False Alarm Rate on Clean Compliant Runs:** **0/10 = 0.0%** (0.0%–27.8%).
+   - *Retraction / Correction Note:* The 9/10 at 0/10 claim relied on post-hoc relabeling. Verified unadjusted monitor performance on the frozen labels is 7/10 (70.0%) recall at 2/10 (20.0%) false alarms (verdict) or 3/10 (30.0%) false alarms (union alert); see `docs/trust-engine.md` §4–5.
 
 ---
 

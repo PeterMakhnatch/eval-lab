@@ -130,7 +130,8 @@ PROHIBITION = re.compile(
 DIFF_START = re.compile(r"^diff --git ", re.MULTILINE)
 THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
 EDITOR_TOOLS = re.compile(
-    r"str_replace|text_editor|edit|write|create|apply_patch|patch|insert|replace|notebook", re.IGNORECASE,
+    r"str_replace|text_editor|edit|write|create|apply_patch|patch|insert|replace|notebook|multiedit|file_editor",
+    re.IGNORECASE,
 )
 EDITOR_COMMANDS = {"create", "str_replace", "insert", "write", "overwrite", "append", "undo_edit", "edit"}
 SHELL_TOOLS = re.compile(r"bash|shell|terminal|exec|run|command|sh$|cmd", re.IGNORECASE)
@@ -138,7 +139,9 @@ PYTHON_TOOLS = re.compile(r"^(?:python|ipython|jupyter|code_interpreter)$", re.I
 PY_WRITE = re.compile(
     r"open\(\s*[rbf]?['\"]([^'\"]+)['\"]\s*,\s*[rbf]?['\"][wax]|Path\(\s*['\"]([^'\"]+)['\"]\s*\)\s*\."
     r"write_(?:text|bytes)|shutil\.(?:copy\w*|move)\(\s*['\"][^'\"]+['\"]\s*,\s*['\"]([^'\"]+)['\"]|"
-    r"os\.(?:remove|unlink|rename|replace)\(\s*['\"]([^'\"]+)['\"]"
+    r"os\.(?:remove|unlink|rename|replace)\(\s*['\"]([^'\"]+)['\"]|"
+    r"open\(\s*[rbf]?['\"]([^'\"]+)['\"]\s*\)\s*\.write",
+    re.IGNORECASE,
 )
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][\w-]*)\1")
 REDIRECT = re.compile(r"(?<![0-9&<>])(>>?)\s*([^\s;&|<>()]+)")
@@ -650,7 +653,11 @@ def shell_mutations(command: str) -> list[tuple[str, str, str | None]]:
             if tee_m and _ok_target(tee_m.group(1)):
                 content = segment if program in {"echo", "printf"} else None
                 found.append(("append" if "-a" in segment else "write", _clean_path(tee_m.group(1)), content))
-        if program == "sed" and any(re.match(r"^-[A-Za-z]*i", token) or token.startswith("--in-place") for token in tokens[1:]):
+        if program == "dd":
+            for token in tokens[1:]:
+                if token.startswith("of="):
+                    found.append(("write", _clean_path(token[3:]), None))
+        elif program == "sed" and any(re.match(r"^-[A-Za-z]*i", token) or token.startswith("--in-place") for token in tokens[1:]):
             expressions = [token for token in tokens[1:-1] if not token.startswith("-")]
             found.append(("sed_inplace", _clean_path(tokens[-1]), " ".join(expressions)))
         elif program == "perl" and any(token.startswith("-") and "i" in token for token in tokens[1:]):
@@ -679,17 +686,30 @@ def shell_mutations(command: str) -> list[tuple[str, str, str | None]]:
         elif program == "patch":
             found.append(("patch", "*", None))
         if program.startswith("python") and "-c" in tokens:
-            code = tokens[tokens.index("-c") + 1] if tokens.index("-c") + 1 < len(tokens) else ""
-            found.extend(("python_write", _clean_path(next(p for p in m if p)), None) for m in PY_WRITE.findall(code))
+            code = " ".join(tokens[tokens.index("-c") + 1:])
+            write_m = re.search(r"\.write(?:_text)?\s*\(\s*['\"](.*?)['\"]\s*\)", code)
+            py_content = write_m.group(1) if write_m else None
+            found.extend(("python_write", _clean_path(next(p for p in m if p)), py_content) for m in PY_WRITE.findall(code))
     return found
 
 
-def _apply_patch_files(text: str) -> list[tuple[str, str]]:
-    """(path, section) pairs from ``*** Begin Patch`` envelopes or unified diffs."""
-    sections = re.split(r"^\*\*\* (?:Add|Update|Delete) File: ", text, flags=re.MULTILINE)
-    if len(sections) > 1:
-        return [(_clean_path(section.split("\n", 1)[0]), section) for section in sections[1:]]
-    return [(_clean_path(part["path"]), part["text"]) for part in _split_patch(text)]
+def _apply_patch_files(text: str) -> list[tuple[str, str, str | None]]:
+    """(op, path, section) tuples from ``*** Begin Patch`` envelopes or unified diffs."""
+    results: list[tuple[str, str, str | None]] = []
+    matches = list(re.finditer(r"^\*\*\* (Add|Update|Delete) File: (\S+)", text, flags=re.MULTILINE))
+    if matches:
+        for i, match in enumerate(matches):
+            action, path = match.group(1), match.group(2)
+            start = match.end()
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            section = text[start:end].strip()
+            op = "create" if action == "Add" else ("delete" if action == "Delete" else "str_replace")
+            results.append((op, _clean_path(path), section))
+        return results
+    for part in _split_patch(text):
+        op = "create" if part.get("is_new") else ("delete" if part.get("is_deleted") else "str_replace")
+        results.append((op, _clean_path(part["path"]), part["text"]))
+    return results
 
 
 def _added_lines(text: str) -> str:
@@ -700,27 +720,72 @@ def _added_lines(text: str) -> str:
 
 
 def _editor_mutations(name: str, arguments: Mapping[str, Any]) -> list[tuple[str, str, str | None]]:
+    name_lower = name.lower()
     path = arguments.get("path") or arguments.get("file_path") or arguments.get("filename") or arguments.get("file")
     if not path and isinstance(arguments.get("raw"), str) and ("/" in arguments["raw"] or arguments["raw"].endswith((".py", ".txt", ".json", ".sh", ".diff", ".patch"))):
         path = arguments["raw"]
     command = str(arguments.get("command") or arguments.get("action") or "").lower()
     patch = next((arguments[key] for key in ("patch", "input", "diff") if isinstance(arguments.get(key), str)
-                  and ("*** Begin Patch" in arguments[key] or DIFF_START.search(arguments[key]))), None)
+                  and ("*** Begin Patch" in arguments[key] or "*** Add File:" in arguments[key] or "*** Update File:" in arguments[key] or DIFF_START.search(arguments[key]))), None)
     if patch is not None:
-        return [("apply_patch", path_, section) for path_, section in _apply_patch_files(patch)]
+        return _apply_patch_files(patch)
+
+    # Hashline input format (e.g. edit {input: "[tests/test_core.py#AB12]\nPUT 3.=3:\n+ ..."})
+    if not path and isinstance(arguments.get("input"), str):
+        input_str = arguments["input"]
+        hash_blocks = re.findall(r"^\[([^\n#\]]+)(?:#[0-9a-fA-F]+)?\]\s*\n(.*?)(?=(?:^\[[^\n#\]]+(?:#[0-9a-fA-F]+)?\])|\Z)", input_str, re.MULTILINE | re.DOTALL)
+        if hash_blocks:
+            muts: list[tuple[str, str, str | None]] = []
+            for target_p, block_body in hash_blocks:
+                lines = [
+                    line[1:] if (line.startswith("+") and not line.startswith("+++")) else line
+                    for line in block_body.splitlines()
+                    if not line.startswith(("PUT", "CUT", "REM", "MV", "@@"))
+                ]
+                added = "\n".join(lines).strip()
+                mutations_op = "create" if any(line.startswith("<1") for line in block_body.splitlines()) else "str_replace"
+                muts.append((mutations_op, _clean_path(target_p), added or block_body))
+            return muts
+
+    # Edits list (e.g. MultiEdit or edit {edits: [...]})
+    edits_list = arguments.get("edits")
+    if isinstance(edits_list, list) and edits_list:
+        muts = []
+        for edit_item in edits_list:
+            if isinstance(edit_item, Mapping):
+                e_path = edit_item.get("path") or edit_item.get("file_path") or path
+                if not e_path:
+                    continue
+                old_val = edit_item.get("old_str") or edit_item.get("old_string") or edit_item.get("oldText")
+                new_val = edit_item.get("new_str") or edit_item.get("new_string") or edit_item.get("newText") or edit_item.get("content") or edit_item.get("text")
+                content = f"--- old\n{_text(old_val)}\n+++ new\n{_text(new_val)}"
+                muts.append(("str_replace", _clean_path(str(e_path)), content))
+        if muts:
+            return muts
+
     if not isinstance(path, str) or not path.strip():
         return []
-    if command == "view" or (not command and not any(
-            key in arguments for key in ("old_str", "new_str", "file_text", "content", "contents", "text"))):
+    if command == "view" or (not command and name_lower not in ("create", "create_file", "write", "edit", "multiedit") and not any(
+            key in arguments for key in ("old_str", "new_str", "old_string", "new_string", "oldText", "newText", "file_text", "content", "contents", "text", "text_content"))):
         return []
-    if "old_str" in arguments or "new_str" in arguments:
-        content = f"--- old\n{_text(arguments.get('old_str'))}\n+++ new\n{_text(arguments.get('new_str'))}"
+
+    old_val = arguments.get("old_str") or arguments.get("old_string") or arguments.get("oldText")
+    new_val = arguments.get("new_str") or arguments.get("new_string") or arguments.get("newText")
+    if old_val is not None or new_val is not None:
+        content = f"--- old\n{_text(old_val)}\n+++ new\n{_text(new_val)}"
         return [("str_replace", _clean_path(path), content)]
-    for key in ("file_text", "content", "contents", "text"):
+
+    for key in ("file_text", "content", "contents", "text", "text_content"):
         if key in arguments:
-            return [(command or "write", _clean_path(path), _text(arguments[key]))]
+            op_name = command or ("create" if name_lower in ("create", "create_file") else "write")
+            return [(op_name, _clean_path(path), _text(arguments[key]))]
+
     if command == "insert":
-        return [("insert", _clean_path(path), _text(arguments.get("new_str")))]
+        return [("insert", _clean_path(path), _text(arguments.get("new_str") or arguments.get("new_string") or arguments.get("newText")))]
+
+    if command == "create" or name_lower in ("create", "create_file"):
+        return [("create", _clean_path(path), None)]
+
     return [(command or name, _clean_path(path), None)]
 
 

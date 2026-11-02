@@ -32,8 +32,12 @@ jobs:
           python-version: "3.12"
       - name: Exercise lean LOCA contract
         run: python3 library/benchmarks/loca-lean-v1/ci_contract.py
+      - name: Install uv 0.9.24
+        run: |
+          python3 -m pip install --user uv==0.9.24
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install Harbor 0.21.0
-        run: python3 -m pip install --disable-pip-version-check harbor==0.21.0
+        run: uv tool install "harbor==0.21.0"
       - name: Run generated package through Harbor oracle and NOP
         run: |
           task="$(python3 -c 'from pathlib import Path; print(next(Path("derived/harbor-tasks/loca").glob("*/*/task.toml")).parent)')"

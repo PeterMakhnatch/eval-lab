@@ -1,0 +1,102 @@
+[
+  {
+    "id": 1,
+    "title": "Multi-Runner Worktree Lock Race",
+    "time": "01:09 ET",
+    "impact": "Concurrent git worktree add -b across 4 squads collided on .git/config and worktree.lock, failing the first item of all 4 squads.",
+    "time_lost_minutes": 5,
+    "mitigation_now": "ds_squad.py retry with jitter, cleanup of stray branch, live max_parallel reload; R7 fcntl.flock serialization (F11 KT7).",
+    "primitive": "Distributed Worktree File Lock (fcntl.flock)",
+    "off_the_shelf": "NO (F11 KT7 proved DBOS/Temporal queues bypass multi-process OS locks)"
+  },
+  {
+    "id": 2,
+    "title": "Devin Subscription Quota Rapid Drain",
+    "time": "01:14 ET",
+    "impact": "Canary showed no quota movement, but 2 real workers consumed 6% daily and 3% weekly quota in 3 minutes via rapid agent tool calls.",
+    "time_lost_minutes": 15,
+    "mitigation_now": "Emergency re-routing of squads to Gemini 3.8 Flash (workers) and direct Claude Sonnet (reviewers).",
+    "primitive": "Preflight Agent Loop Canary & Token Rate-Limiter",
+    "off_the_shelf": "NO (Custom model routing)"
+  },
+  {
+    "id": 3,
+    "title": "Modal Workspace 200 Deployed Apps Limit",
+    "time": "02:08 ET",
+    "impact": "Fresh image builds in K7 hit transient 'reached limit of 200 deployed apps' error despite modal app list showing 95 apps.",
+    "time_lost_minutes": 10,
+    "mitigation_now": "Preflight with fresh-image probe; retry transient deploy failures.",
+    "primitive": "Infrastructure Capacity Probe & Circuit Breaker",
+    "off_the_shelf": "Partially (retry with backoff in Temporal/Dagu/DBOS)"
+  },
+  {
+    "id": 4,
+    "title": "A2 Sweep Process Silent Hang (Incident A)",
+    "time": "02:11 ET",
+    "impact": "Audit sweep process hung at 0% CPU with silent output and no network sockets for 25 minutes before manual coordinator kill.",
+    "time_lost_minutes": 25,
+    "mitigation_now": "Killed manually, resumed from on-disk cells; per-item wall-clock caps (max_minutes, start_to_close_timeout).",
+    "primitive": "Output-Advancement Dead-Man Watchdog",
+    "off_the_shelf": "Partially (Temporal start_to_close_timeout caught in 4.67s; heartbeat failed to catch PID liveness)"
+  },
+  {
+    "id": 5,
+    "title": "Modal Spend Reservation Batch Stall",
+    "time": "03:15 ET",
+    "impact": "Conservative 1800s default timeout reserved $0.297/cell; 10 workers reserved $2.97 after 5 cells, stalling 195/200 cells under $1.50 cap.",
+    "time_lost_minutes": 90,
+    "mitigation_now": "FIX-S1-1738 patched estimate_cost to use requested timeouts; immediate lease release.",
+    "primitive": "Dynamic Two-Phase Budget Reservation & Settle Ledger",
+    "off_the_shelf": "NO (Custom financial/token ledger)"
+  },
+  {
+    "id": 6,
+    "title": "Brief Edit Not Reaching Running Worker",
+    "time": "03:20 ET",
+    "impact": "Briefs inlined into prompt.md at launch; coordinator addendum to D3 brief did not reach running worker until manual kill-and-restart.",
+    "time_lost_minutes": 15,
+    "mitigation_now": "Manual worker kill and restart by coordinator.",
+    "primitive": "Dynamic Configuration Subscription & Signal Bus",
+    "off_the_shelf": "Partially (Temporal Signals / dynamic plan reload)"
+  },
+  {
+    "id": 7,
+    "title": "K7B Commit to Already-Merged PR Branch",
+    "time": "04:15 ET",
+    "impact": "K7B full-sweep commit pushed to branch whose PR had already merged, stranding evidence until follow-up PR was created.",
+    "time_lost_minutes": 20,
+    "mitigation_now": "Coordinator detected orphaned branch, created follow-up PR.",
+    "primitive": "Git Merge State Verifier & Branch Protection",
+    "off_the_shelf": "NO (Git/GitHub API workflow)"
+  },
+  {
+    "id": 8,
+    "title": "A4 Gold v1 Harness-Confounded Zero",
+    "time": "05:00 ET",
+    "impact": "Test hook ran under bare python3 instead of task virtualenv; 15+ tasks failed at import (ModuleNotFoundError), reporting false 0/32 certified.",
+    "time_lost_minutes": 120,
+    "mitigation_now": "VF-A-GOLD and A4B caught failure; froze prereg at 05:29; rewrote environment hook under task interpreter.",
+    "primitive": "Harness Execution Isolation & Virtualenv Parity Checker",
+    "off_the_shelf": "NO (Domain-specific task runtime validator)"
+  },
+  {
+    "id": 9,
+    "title": "Generated Docs Rebase Conflicts (repo-map.md, INDEX.md)",
+    "time": "All Night",
+    "impact": "Multiple PRs merging to main conflicted constantly on auto-generated documentation, stalling PR merges across squads.",
+    "time_lost_minutes": 180,
+    "mitigation_now": "tools/merge_train.py auto-regenerates repo-map.md and INDEX.md during rebase before force-push.",
+    "primitive": "Merge Train with Auto-Doc-Regeneration Policy",
+    "off_the_shelf": "NO (Custom merge queue handler)"
+  },
+  {
+    "id": 10,
+    "title": "Attacker Model Safety Refusal Storm",
+    "time": "04:10 ET",
+    "impact": "Attacker model refused explicit 'slip past monitoring rules' prompt 24/24 times, leaving L0-aware attacker arm unmeasured.",
+    "time_lost_minutes": 45,
+    "mitigation_now": "Preflight prompt refusal canary; prompt rephrasing in K7D/K7E.",
+    "primitive": "Preflight Safety Canary & Prompt Refusal Detector",
+    "off_the_shelf": "NO (LLM-specific policy handler)"
+  }
+]

@@ -1,0 +1,42 @@
+{
+  "friction_raw.json": {
+    "sha256": "ee5085326f90711d939d2d92d6c276f5d9463a7576bae0ae23d6d15e9c312811",
+    "sha256_12": "ee5085326f90",
+    "size_bytes": 146921
+  },
+  "incident_summary.json": {
+    "sha256": "18938ed1ba971440e7f6981312f84879932b57a0ee0d62843f4184f2e44442c0",
+    "sha256_12": "18938ed1ba97",
+    "size_bytes": 5245
+  },
+  "incidents.json": {
+    "sha256": "18938ed1ba971440e7f6981312f84879932b57a0ee0d62843f4184f2e44442c0",
+    "sha256_12": "18938ed1ba97",
+    "size_bytes": 5245
+  },
+  "manifest.json": {
+    "sha256": "d24381e5326387be4d0f38f2648f686a2bcdc4c9e4f01d58d1be0a361e86f411",
+    "sha256_12": "d24381e53263",
+    "size_bytes": 1358
+  },
+  "ranked_workflows.json": {
+    "sha256": "b3d673c82f7a0f1fdcb6978ec37fdfdf75411551b5b21ccdd266e2f9f80d105a",
+    "sha256_12": "b3d673c82f7a",
+    "size_bytes": 3490
+  },
+  "review_blockers.json": {
+    "sha256": "0b2a4e13f9ae5e6f34be80278b2d7a6b5edd46641c96b15a45f031b8ea93e60e",
+    "sha256_12": "0b2a4e13f9ae",
+    "size_bytes": 5660
+  },
+  "review_summary.json": {
+    "sha256": "0b2a4e13f9ae5e6f34be80278b2d7a6b5edd46641c96b15a45f031b8ea93e60e",
+    "sha256_12": "0b2a4e13f9ae",
+    "size_bytes": 5660
+  },
+  "taxonomy_summary.json": {
+    "sha256": "a0196f72af07fdf84a8cf041fdd049fd219f1353a7fb215908b9926501380e97",
+    "sha256_12": "a0196f72af07",
+    "size_bytes": 8043
+  }
+}

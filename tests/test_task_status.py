@@ -49,6 +49,9 @@ def gold(task: str = "sample-task", **changes: Any) -> dict[str, Any]:
             eval_rewards={"eval-a": 0.0, "eval-b": 0.0},
         )
     )
+    # Tests explicitly choose whether Gate 7 was measured. Keep synthetic
+    # observations independent of newer dataclass empty-collection defaults.
+    row.pop("alternative_solution_rewards", None)
     row.update(changes)
     return row
 
@@ -101,6 +104,11 @@ def test_old_receipt_without_optional_fields_stays_provisional(root: Path) -> No
     assert status(root, row)["status"] == "provisional"
 
 
+def test_named_witness_receipts_and_empty_legacy_default(root: Path) -> None:
+    assert status(root, gold(witness_rewards={"conftest": 0.0}))["status"] == "provisional"
+    assert status(root, gold(witness_rewards={}))["status"] == "provisional"
+
+
 @pytest.mark.parametrize(
     "changes",
     [
@@ -108,6 +116,7 @@ def test_old_receipt_without_optional_fields_stays_provisional(root: Path) -> No
         {"witness_reward": 1.0},
         {"exit0_pth_reward": 1.0},
         {"witness_rewards": [0.0, 1.0]},
+        {"witness_rewards": {"conftest": 0.0, "operator": 1.0}},
         {"attack_rewards": {"cheat": 1.0}},
         {"eval_mutants_killed": 1, "eval_rewards": {"a": 0.0, "b": 1.0}},
     ],

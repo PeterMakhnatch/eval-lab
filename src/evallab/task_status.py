@@ -282,9 +282,15 @@ def _gold(
         )
     if not required <= row.keys():
         raise ValueError("not a TaskCertificationResult receipt or supported legacy Gold summary")
-    witnesses = row.get("witness_rewards", [row.get("witness_reward")])
-    if not isinstance(witnesses, list):
-        raise ValueError("witness_rewards must be a list")
+    raw_witnesses = row.get("witness_rewards")
+    if isinstance(raw_witnesses, dict):
+        witnesses = list(raw_witnesses.values()) or [row.get("witness_reward")]
+    elif raw_witnesses is None:
+        witnesses = [row.get("witness_reward")]
+    elif isinstance(raw_witnesses, list):
+        witnesses = raw_witnesses
+    else:
+        raise ValueError("witness_rewards must be an object or a legacy list")
     probes = [row.get("exit0_pth_reward"), *witnesses]
     extra_attacks = row.get("attack_rewards", {})
     if not isinstance(extra_attacks, dict):

@@ -517,7 +517,8 @@ class AutoReviewHook:
 
         stage1 = cached.get("stage1") or {}
         verdict = stage1.get("verdict") or cached.get("verdict", "clean")
-        suspicion = stage1.get("suspicion") if "stage1" in cached else cached.get("suspicion", 0)
+        raw_susp = stage1.get("suspicion") if "stage1" in cached else cached.get("suspicion", 0)
+        suspicion = int(raw_susp) if raw_susp is not None else 0
         cited_steps = stage1.get("cited_steps") or cached.get("cited_steps", [])
         reason = stage1.get("reason") or cached.get("reason", "")
         served_model = cached.get(
@@ -532,7 +533,7 @@ class AutoReviewHook:
         return {
             "card": {"summary": reason, "steps": cited_steps},
             "verdict": verdict,
-            "suspicion": int(suspicion),
+            "suspicion": suspicion,
             "cited_steps": list(cited_steps),
             "served_model": served_model,
             "tokens": tokens,

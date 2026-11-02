@@ -33,14 +33,19 @@ def interval(k: int, n: int) -> dict[str, Any]:
 
 
 def effective_records(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Verdict records that count: undone ones removed, one latest record per (judge, run)."""
+    """Verdict records that count: undone ones removed, one latest record per (judge, run).
+
+    Every returned record has an ``id`` (a ``legacy-<line>`` one for records that had none)."""
     records: dict[str, dict[str, Any]] = {}
     undone: set[str] = set()
-    for row in rows:
+    for position, row in enumerate(rows):
         if row.get("schema") == "judge-undo/v1":
             undone.add(str(row.get("undoes")))
         elif row.get("schema") == "judge-verdict/v1":
-            records[str(row.get("id") or f"legacy-{len(records)}")] = dict(row)
+            record = dict(row)
+            # Records written before ids existed get one from their line, so an undo can name them.
+            record.setdefault("id", f"legacy-{position}")
+            records[str(record["id"])] = record
     latest: dict[tuple[str, str], dict[str, Any]] = {}
     for key, record in records.items():
         if key in undone:
@@ -111,6 +116,11 @@ def build_report(rows: Iterable[Mapping[str, Any]], *, judge: str | None = None)
     strata: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for r in labelled:
         strata[str(r.get("stratum") or "unknown")].append(r)
+    source_queues: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for r in labelled:
+        for name in r.get("source_queues") or [r.get("queue")]:
+            if name and name != "all-queues":
+                source_queues[str(name)].append(r)
     disagreements: list[dict[str, Any]] = []
     for r in decided:
         judged_cheat = bool(_decided(r))
@@ -153,6 +163,10 @@ def build_report(rows: Iterable[Mapping[str, Any]], *, judge: str | None = None)
         "by_stratum": {
             name: interval(sum(1 for r in rs if r["agreement"]), len(rs))
             for name, rs in sorted(strata.items())
+        },
+        "by_source_queue": {
+            name: interval(sum(1 for r in rs if r["agreement"]), len(rs))
+            for name, rs in sorted(source_queues.items())
         },
         "by_confidence": {
             str(level): interval(
@@ -205,6 +219,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         lines.append("")
     lines += ["## Agreement with the label by stratum", ""]
     lines += [f"- {name}: {_fmt(v)}" for name, v in report["by_stratum"].items()] or ["none"]
+    lines += ["", "## Agreement with the label by source queue", ""]
+    lines += [f"- {name}: {_fmt(v)}" for name, v in report["by_source_queue"].items()] or ["none"]
     lines += ["", "## Agreement with the label by confidence", ""]
     lines += [f"- {name}: {_fmt(v)}" for name, v in report["by_confidence"].items()]
     time = report["time"]

@@ -28,7 +28,7 @@ import time
 import uuid
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -110,6 +110,7 @@ class QueueEntry:
     source: str = "queue"
     signals: Mapping[str, str] | None = None
     control: bool = False
+    source_queues: tuple[str, ...] = ()
 
 
 def load_queue(path: Path) -> list[QueueEntry]:
@@ -421,14 +422,52 @@ DRAFT_FIELDS = (
 )
 
 
+def _merge_entries(first: QueueEntry, other: QueueEntry) -> QueueEntry:
+    """One entry for a run that sits in several queues: nothing either queue says is dropped."""
+    reasons = [r for r in dict.fromkeys([first.reason, other.reason]) if r]
+    reveal: dict[str, Any] = dict(first.reveal or {})
+    for key, identity in (
+        ("detectors", ("name", "verdict", "steps")),
+        ("notes", ("title", "text")),
+    ):
+        seen: dict[tuple[str, ...], Any] = {}
+        for item in [*(first.reveal or {}).get(key, []), *(other.reveal or {}).get(key, [])]:
+            seen.setdefault(tuple(str(item.get(k)) for k in identity), item)
+        if seen:
+            reveal[key] = list(seen.values())
+    for key, value in (other.reveal or {}).items():
+        reveal.setdefault(key, value)
+    signals: dict[str, str] = dict(first.signals or {})
+    for name, verdict in (other.signals or {}).items():
+        signals[name] = "alarm" if "alarm" in (verdict, signals.get(name)) else "clear"
+    return QueueEntry(
+        first.run_id,
+        " | ".join(reasons) or None,
+        reveal or None,
+        max(first.priority, other.priority),
+        first.source,
+        signals or None,
+        first.control or other.control,
+        tuple(dict.fromkeys([*first.source_queues, *other.source_queues])),
+    )
+
+
 def merge_queues(queues: Mapping[str, Sequence[QueueEntry]]) -> dict[str, Sequence[QueueEntry]]:
-    """The named queues plus, when there are several, one combined queue of every distinct run."""
-    merged: dict[str, Sequence[QueueEntry]] = dict(queues)
+    """The named queues plus, when there are several, one combined queue of every distinct run.
+
+    Every entry records the queues it came from (``source_queues``); in the combined queue a run
+    that sits in several queues keeps every queue's reason, notes and signals, and is a control if
+    any queue says so."""
+    merged: dict[str, Sequence[QueueEntry]] = {
+        name: [replace(e, source_queues=(name,)) for e in entries]
+        for name, entries in queues.items()
+    }
     if len(queues) > 1:
         combined: dict[str, QueueEntry] = {}
-        for entries in queues.values():
+        for entries in merged.values():
             for entry in entries:
-                combined.setdefault(entry.run_id, entry)
+                known = combined.get(entry.run_id)
+                combined[entry.run_id] = entry if known is None else _merge_entries(known, entry)
         merged = {ALL_QUEUE: list(combined.values()), **merged}
     return merged
 
@@ -440,6 +479,7 @@ class Station:
     judge: str = "peter"
     state_dir: Path = STATE_DIR
     keep_order: bool = False
+    blind_order: bool = False
     seed: str = DEFAULT_SEED
     control_rate: float = DEFAULT_CONTROL_RATE
     show_hints: bool = True
@@ -453,6 +493,9 @@ class Station:
 
     def __post_init__(self) -> None:
         merged = merge_queues(self.queues)
+        self.order_mode = (
+            "file" if self.keep_order else "shuffled" if self.blind_order else "information"
+        )
         wanted = sorted({e.run_id for entries in merged.values() for e in entries})
         self._detectors = self.source.detectors(wanted)
         self._public: dict[str, str] = {}
@@ -472,7 +515,13 @@ class Station:
             if self.keep_order:
                 ordered = [(rid, stratum_of(sig, control=ctl)) for rid, sig, ctl, _ in inputs]
             else:
-                ordered = order_runs(name, inputs, seed=self.seed, control_rate=self.control_rate)
+                ordered = order_runs(
+                    name,
+                    inputs,
+                    seed=self.seed,
+                    control_rate=self.control_rate,
+                    shuffle=self.blind_order,
+                )
             self._ordered[name] = [by_id[rid] for rid, _ in ordered]
             self._strata[name] = dict(ordered)
             self._by_blind[name] = {blind_id(e.run_id): e for e in self._ordered[name]}
@@ -533,7 +582,10 @@ class Station:
     def _write_drafts(self, drafts: Mapping[str, Any]) -> None:
         self.state_dir.mkdir(parents=True, exist_ok=True)
         scratch = self.drafts_path.with_suffix(".tmp")
-        scratch.write_text(json.dumps(drafts, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+        with scratch.open("w", encoding="utf-8") as handle:
+            handle.write(json.dumps(drafts, ensure_ascii=False, sort_keys=True))
+            handle.flush()
+            os.fsync(handle.fileno())
         os.replace(scratch, self.drafts_path)
 
     # -- views ------------------------------------------------------------ #
@@ -705,6 +757,11 @@ class Station:
             or not all(isinstance(s, int) and not isinstance(s, bool) for s in steps)
         ):
             raise JudgeError("evidence steps must be a list of step numbers")
+        if draft.get("mechanism") not in (None, *mechanisms()):
+            raise JudgeError("unknown mechanism")
+        confidence = draft.get("confidence")
+        if confidence is not None and (isinstance(confidence, bool) or confidence not in (1, 2, 3)):
+            raise JudgeError("confidence must be 1, 2 or 3")
         for key in ("confidence_touched", "opened_timeline"):
             if key in draft and not isinstance(draft[key], bool):
                 raise JudgeError(f"{key} must be true or false")
@@ -747,13 +804,31 @@ class Station:
         if not isinstance(touched, bool) or not isinstance(timeline, bool):
             raise JudgeError("confidence_touched and opened_timeline must be true or false")
         with self._lock:
+            live = self._latest().get((self.judge, entry.run_id))
+            if live is not None:
+                # A held or doubled Enter, or two tabs: the first verdict stands. Judging a run
+                # again goes through undo, so the second look is flagged as having seen the label.
+                if live.get("verdict") != verdict:
+                    raise JudgeError(
+                        f"this run is already judged as {live.get('verdict')}; "
+                        "undo that verdict first to change it"
+                    )
+                return {
+                    "saved": True,
+                    "duplicate": True,
+                    "id": live.get("id"),
+                    "reveal": live.get("revealed"),
+                    "agreement": live.get("agreement"),
+                    "seconds": live.get("seconds"),
+                }
             opened = self._opened.get((name, entry.run_id))
             if opened is None:
                 raise JudgeError("open the run before judging it")
             seconds = min(MAX_SECONDS, max(0.0, self.monotonic() - opened))
             revealed = self.reveal(entry, loaded.run)
             stratum = self._strata[name].get(entry.run_id)
-            revealed["queue"] = name
+            revealed["queue"] = ", ".join(entry.source_queues) or name
+            revealed["source_queues"] = list(entry.source_queues) or [name]
             revealed["stratum"] = stratum
             revealed["stratum_text"] = STRATUM_TEXT.get(stratum or "")
             label = Label(revealed["label"]["state"], revealed["label"]["text"])
@@ -776,6 +851,8 @@ class Station:
                 "run_id": entry.run_id,
                 "blind_id": blind,
                 "queue": name,
+                "source_queues": list(entry.source_queues) or [name],
+                "order": self.order_mode,
                 "stratum": stratum,
                 "verdict": verdict,
                 "mechanism": mechanism,
@@ -823,7 +900,7 @@ class Station:
                     "judge": self.judge,
                     "run_id": last["run_id"],
                     "blind_id": last.get("blind_id"),
-                    "undoes": last.get("id"),
+                    "undoes": last["id"],
                     "ts": self._stamp(),
                 }
             )
@@ -1091,6 +1168,12 @@ def register_parser(commands: Any) -> None:
         action="store_true",
         help="Serve queues in file order (default: information-value order)",
     )
+    serve.add_argument(
+        "--blind-order",
+        action="store_true",
+        help="Seeded shuffle that ignores detector verdicts: the unanchored pass (default: "
+        "most disputed first, which tells you early runs were alarmed or disputed)",
+    )
     serve.add_argument("--seed", default=DEFAULT_SEED, help="Seed of the queue order")
     serve.add_argument(
         "--control-rate",
@@ -1154,6 +1237,14 @@ def register_parser(commands: Any) -> None:
         help="Sample random controls (DEV runs every stored detector cleared) into a queue",
     )
     controls.add_argument("--count", type=int, default=12)
+    controls.add_argument(
+        "--queue",
+        action="append",
+        default=[],
+        metavar="[NAME=]PATH",
+        help="A queue file whose runs must not become controls (repeatable; the files in the "
+        "state dir are always excluded)",
+    )
     controls.add_argument("--seed", default=DEFAULT_SEED)
     controls.add_argument("--state-dir", type=Path, default=STATE_DIR)
     controls.add_argument("--findings", type=Path, action="append", default=None)
@@ -1177,6 +1268,7 @@ def _serve(args: argparse.Namespace, root: Path, **_: Any) -> int:
         judge=args.judge,
         state_dir=args.state_dir,
         keep_order=args.keep_order,
+        blind_order=args.blind_order,
         seed=args.seed,
         control_rate=args.control_rate,
         show_hints=not args.no_hints,
@@ -1299,6 +1391,8 @@ def _build_controls(args: argparse.Namespace, root: Path, **_: Any) -> int:
     for file in sorted(directory.glob("*.jsonl")) if directory.is_dir() else []:
         if file.stem != "controls":
             queued |= {e.run_id for e in load_queue(file)}
+    for spec in args.queue:
+        queued |= {e.run_id for e in load_queue(Path(spec.partition("=")[2] or spec).expanduser())}
     pool = all_clear_runs(source._findings_paths, queued)
     chosen = sample_controls(source, pool, args.count, args.seed)
     if not chosen:

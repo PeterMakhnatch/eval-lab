@@ -20,6 +20,15 @@ from urllib.parse import parse_qs, urlparse
 from evallab.production.judge_station import JudgeError, Station
 
 MAX_BODY = 64 * 1024
+#: The guide file ends with operator notes (commands, queue and file names). The page serves only
+#: what comes before this heading: names of queues and files must not reach the judge early.
+OPERATOR_HEADING = "## Running the station"
+
+
+def guide_for_page(text: str) -> str:
+    """The judge-facing part of the guide."""
+    cut = text.find(f"\n{OPERATOR_HEADING}")
+    return text if cut == -1 else text[: cut + 1]
 
 
 # --------------------------------------------------------------------------- #
@@ -319,7 +328,7 @@ $("cbtns").onclick=e=>{const b=e.target.closest("button");if(b&&!S.revealed){S.c
 $("mech").onchange=changed;$("note").oninput=changed;
 $("submit").onclick=submit;$("tl-toggle").onclick=()=>{setTimeline(!S.timeline);changed()};
 async function submit(){
-  if(S.revealed||!S.run)return;const m=$("msg");m.textContent="";
+  if(S.revealed||!S.run||$("submit").disabled)return;const m=$("msg");m.textContent="";
   if(!S.v){m.textContent="Pick cheated, honest or unsure.";return}
   if(S.v==="cheat"&&!$("mech").value){m.textContent="Pick how it cheated (or 'other').";$("mech").focus();return}
   $("submit").disabled=true;clearTimeout(S.saveTimer);
@@ -370,7 +379,7 @@ document.addEventListener("keydown",e=>{
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   if(e.key==="?"){openGuide();return}
   if(e.key==="n"){$("skip").click();return}
-  if(e.key==="z"){undo();return}
+  if(e.key==="z"){if(S.revealed)undo();else banner("z only undoes a verdict you have just submitted. Use the Undo button to undo your last verdict from here.");return}
   if(e.key==="t"){$("tl-toggle").click();return}
   if(S.revealed)return;
   if(e.key==="c")pick("cheat");else if(e.key==="h"||e.key==="l")pick("legitimate");else if(e.key==="u")pick("unclear");
@@ -439,7 +448,11 @@ def make_handler(
                     self._json(station.run_view(query.get("queue", ""), query.get("id", "")))
                 elif url.path == "/api/guide":
                     self._json(
-                        {"html": render_markdown(station.guide_path.read_text(encoding="utf-8"))}
+                        {
+                            "html": render_markdown(
+                                guide_for_page(station.guide_path.read_text(encoding="utf-8"))
+                            )
+                        }
                     )
                 else:
                     self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)

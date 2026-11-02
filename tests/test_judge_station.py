@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import threading
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -179,7 +182,9 @@ def test_queue_rows_carry_no_priority_reveal_or_verdict_keys(tmp_path: Path) -> 
     for i in range(50):
         q_name = f"queue_{i}"
         st1 = js.Station(source, {q_name: [entry_cheat, entry_clean]}, state_dir=tmp_path)
-        st2 = js.Station(source, {q_name: [entry_cheat_swapped, entry_clean_swapped]}, state_dir=tmp_path)
+        st2 = js.Station(
+            source, {q_name: [entry_cheat_swapped, entry_clean_swapped]}, state_dir=tmp_path
+        )
         q1 = st1.queue(q_name)
         q2 = st2.queue(q_name)
         for row in q1 + q2:
@@ -218,10 +223,13 @@ def test_submit_reveals_records_and_appends(station: js.Station) -> None:
     assert row["run_id"] == CHEAT and row["blind_id"] == blind and row["judge"] == "peter"
     assert row["detector_agreement"] == {"tripwire (v1)": True}
     assert row["seconds"] == 10.0 and row["schema"] == js.VERDICT_SCHEMA
-    # judging again appends; the earlier line is untouched
+    # a verdict that stands cannot be replaced by a second submit; undo it, then judge again
+    with pytest.raises(js.JudgeError, match="already judged"):
+        station.submit("q", blind, _verdict(verdict="legitimate", mechanism=None))
+    station.undo_last()
     station.run_view("q", blind)
     station.submit("q", blind, _verdict(verdict="legitimate", mechanism=None))
-    rows = station.read_verdicts()
+    rows = [r for r in station.read_verdicts() if r.get("schema") == js.VERDICT_SCHEMA]
     assert [r["verdict"] for r in rows] == ["cheat", "legitimate"] and rows[1]["agreement"] is False
     assert station.state()["queues"][0]["done"] == 1
 
@@ -316,6 +324,8 @@ def test_findings_keep_the_latest_per_detector_and_skip_other_runs(tmp_path: Pat
 def test_export_keeps_latest_per_run_unless_history(station: js.Station, tmp_path: Path) -> None:
     blind = js.blind_id(CHEAT)
     for verdict in ("cheat", "legitimate"):
+        if verdict == "legitimate":
+            station.undo_last()
         station.run_view("q", blind)
         station.submit(
             "q", blind, _verdict(verdict=verdict, mechanism="other" if verdict == "cheat" else None)
@@ -499,7 +509,7 @@ def test_strata_follow_the_stored_detector_verdicts() -> None:
     assert (
         jo.stratum_of(sig([_finding("scout (v1)", "clear"), _finding("x", "abstain")])) == "control"
     )
-    assert jo.stratum_of(sig([])) == "control"
+    assert jo.stratum_of(sig([])) == "unscored"
     assert jo.stratum_of(sig([_finding("a", "alarm")]), control=True) == "control"
     # two readers of one detector that disagree count as a disagreement
     pair = sig([_finding("scout", "alarm", "m1"), _finding("scout", "clear", "m2")])
@@ -570,6 +580,7 @@ def test_station_orders_disagreements_first_and_records_the_stratum(tmp_path: Pa
         "l0_autoreview": 0,
         "alarm": 0,
         "control": 2,
+        "unscored": 0,
     }
     station.run_view("q", first)
     station.submit("q", first, _verdict())
@@ -599,8 +610,9 @@ def test_page_and_api_hide_everything_until_submit(tmp_path: Path) -> None:
         _, draft = _call(
             base, "/api/draft", {"queue": "q", "id": blind, "verdict": "cheat"}, headers
         )
+        _, guide = _call(base, "/api/guide")
         before = b"\n".join(
-            [page, *(json.dumps(x).encode() for x in (state, queue, run, draft))]
+            [page, *(json.dumps(x).encode() for x in (state, queue, run, draft, guide))]
         ).decode()
         for secret in hidden:
             assert secret not in before, secret
@@ -773,6 +785,7 @@ def test_queue_producers_can_attach_signals_and_controls(tmp_path: Path) -> None
         "l0_autoreview": 1,
         "alarm": 0,
         "control": 1,
+        "unscored": 0,
     }
 
 
@@ -884,3 +897,207 @@ def test_autoreview_shaped_queue_rows_are_ordered_by_priority_and_stay_hidden(
     path.write_text('{"run_id": "a", "priority": "high"}\n', encoding="utf-8")
     with pytest.raises(js.JudgeError, match="priority"):
         js.load_queue(path)
+
+
+@contextmanager
+def _running(station: js.Station) -> Iterator[tuple[str, dict[str, str]]]:
+    server, token = judge_web.make_server(station, 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield (
+            f"http://127.0.0.1:{server.server_port}",
+            {"X-Judge-Token": token, "Content-Type": "application/json"},
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_guide_served_before_submit_names_no_run_queue_detector_or_lesson(tmp_path: Path) -> None:
+    station, _ = _station(tmp_path)
+    with _running(station) as (base, _):
+        status, guide = _call(base, "/api/guide")
+    assert status == 200
+    page_text = guide["html"].lower()
+    assert "<h1>" in page_text and "worked examples" in page_text
+    assert re.search(r"run-[0-9a-f]{16}", page_text) is None  # no blind id of any run
+    banned = [
+        CHEAT, CLEAN, SECRET_SOURCE, "LABELTEXT", "REASONTEXT", "NOTEBODY", "zzdetector",
+        "tripwire", "autoreview", "guide-examples", "adjudication", "census", "goodfire",
+        "build-packet", "build-controls", "judge serve", *jo.STRATUM_TEXT.values(),
+    ]  # fmt: skip
+    for text in banned:
+        assert text.lower() not in page_text, text
+    # the file itself carries no blind id either, so a queue can be built from any run
+    assert re.search(r"run-[0-9a-f]{16}", station.guide_path.read_text(encoding="utf-8")) is None
+
+
+def test_the_operator_part_of_the_guide_is_not_served(tmp_path: Path) -> None:
+    text = "# Guide\n\nJudge it.\n\n## Running the station\n\nqueue-file-name.jsonl\n"
+    assert judge_web.guide_for_page(text).strip() == "# Guide\n\nJudge it."
+    assert judge_web.guide_for_page("# Guide only\n") == "# Guide only\n"
+
+
+def test_double_submit_keeps_one_live_verdict_and_the_run_stays_in_the_report(
+    tmp_path: Path,
+) -> None:
+    station, _ = _station(tmp_path)
+    blind = js.blind_id(CHEAT)
+    body = {"queue": "q", "id": blind, **_verdict()}
+    results: list[tuple[int, Any]] = []
+    with _running(station) as (base, headers):
+        assert _call(base, f"/api/run?queue=q&id={blind}")[0] == 200
+        threads = [
+            threading.Thread(
+                target=lambda: results.append(_call(base, "/api/verdict", body, headers))
+            )
+            for _ in range(4)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        different = _call(base, "/api/verdict", {**body, "verdict": "legitimate"}, headers)
+    assert [status for status, _ in results] == [200] * 4
+    assert sum(1 for _, r in results if r.get("duplicate")) == 3
+    assert different[0] == 409 and "already judged" in different[1]["error"]
+    (row,) = station.read_verdicts()
+    assert row["seen_label_before"] is False
+    report = jr.build_report(station.read_verdicts())
+    assert report["runs_judged"] == 1 and report["excluded"]["seen_label_before"] == 0
+    assert report["agreement_with_label"]["n"] == 1
+
+
+def test_the_page_cannot_submit_while_the_button_is_disabled() -> None:
+    page = judge_web.PAGE
+    assert 'if(S.revealed||!S.run||$("submit").disabled)return;' in page
+
+
+def test_a_run_in_two_queues_keeps_both_sources_notes_and_control_flag(tmp_path: Path) -> None:
+    source = FakeSource(
+        {r: AtlasRun(r, SECRET_SOURCE, "DEV", "pass", _doc_with_actions()) for r in (CHEAT, CLEAN)},
+        {
+            CHEAT: js.Label("cheat", "LABELTEXT-cheated"),
+            CLEAN: js.Label("clean", "LABELTEXT-clean"),
+        },
+        {CHEAT: [_finding("a (v1)", "alarm"), _finding("b (v1)", "clear")], CLEAN: []},
+    )
+    queues = {
+        "qa": [js.QueueEntry(CHEAT, reason="REASON-A", reveal={"notes": [{"title": "TA", "text": "x"}]})],
+        "qb": [
+            js.QueueEntry(
+                CHEAT,
+                reason="REASON-B",
+                reveal={"notes": [{"title": "TB", "text": "y"}, {"title": "TA", "text": "x"}]},
+                control=True,
+            ),
+            js.QueueEntry(CLEAN),
+        ],
+    }  # fmt: skip
+    merged = js.merge_queues(queues)
+    (combined,) = [e for e in merged[js.ALL_QUEUE] if e.run_id == CHEAT]
+    assert combined.source_queues == ("qa", "qb") and combined.control is True
+    assert combined.reason == "REASON-A | REASON-B"
+    assert [n["title"] for n in (combined.reveal or {})["notes"]] == ["TA", "TB"]
+    station = js.Station(source, queues, state_dir=tmp_path / "state")
+    blind = js.blind_id(CHEAT)
+    station.run_view(js.ALL_QUEUE, blind)
+    result = station.submit(js.ALL_QUEUE, blind, _verdict())
+    assert result["reveal"]["queue"] == "qa, qb" and result["reveal"]["source_queues"] == [
+        "qa",
+        "qb",
+    ]
+    (row,) = station.read_verdicts()
+    assert row["source_queues"] == ["qa", "qb"] and row["stratum"] == "control"
+    report = jr.build_report(station.read_verdicts())
+    assert set(report["by_source_queue"]) == {"qa", "qb"}
+    assert report["by_source_queue"]["qa"]["n"] == 1 == report["by_source_queue"]["qb"]["n"]
+    assert "by source queue" in jr.render_markdown(report)
+
+
+def test_the_blind_order_ignores_the_strata_and_the_default_does_not() -> None:
+    mix = _priority_mix(8)
+    info = jo.order_runs("q", mix, seed="s")
+    blind = jo.order_runs("q", mix, seed="s", shuffle=True)
+    assert sorted(r for r, _ in blind) == sorted(r for r, _ in info)
+    assert dict(blind) == dict(info) and blind != info  # same strata, different order
+    assert jo.order_runs("q", mix, seed="s", shuffle=True) == blind
+    assert jo.order_runs("q", mix, seed="other", shuffle=True) != blind
+    ranks = {"disagree": 0, "l0_autoreview": 1, "alarm": 2}
+    assert [ranks[s] for _, s in info if s in ranks] == sorted(
+        ranks[s] for _, s in info if s in ranks
+    )
+    assert [ranks[s] for _, s in blind if s in ranks] != sorted(
+        ranks[s] for _, s in blind if s in ranks
+    )
+
+
+def test_a_station_in_blind_order_records_it_on_the_verdict(tmp_path: Path) -> None:
+    station, _ = _station(tmp_path, blind_order=True)
+    blind = js.blind_id(CHEAT)
+    station.run_view("q", blind)
+    station.submit("q", blind, _verdict())
+    assert station.read_verdicts()[0]["order"] == "shuffled"
+    other, _ = _station(tmp_path / "other")
+    other.run_view("q", blind)
+    other.submit("q", blind, _verdict())
+    assert other.read_verdicts()[0]["order"] == "information"
+
+
+def test_versions_of_one_detector_are_one_voter_and_facets_do_not_vote() -> None:
+    sig = jo.collect_signals
+    versions = sig(
+        [
+            _finding("cascade", "clear"),
+            _finding("cascade_v4", "alarm"),
+            _finding("cascade_v7", "clear"),
+        ]
+    )
+    assert (versions.alarms, versions.clears) == (("cascade",), ())
+    assert jo.stratum_of(versions) == "alarm"  # one voter, so not a disagreement with itself
+    readers = sig([_finding("cascade", "alarm", "m1"), _finding("cascade_v4", "clear", "m2")])
+    assert jo.stratum_of(readers) == "disagree"  # different reader models do disagree
+    assert jo.stratum_of(sig([_finding("facets (run-facets/v1)", "alarm")])) == "unscored"
+    assert (
+        jo.stratum_of(sig([_finding("facets (run-facets/v1)", "alarm"), _finding("x", "clear")]))
+        == "control"
+    )
+
+
+def test_unscored_runs_are_spread_like_controls_but_counted_apart() -> None:
+    runs = [(f"p{i}", jo.Signals(("x",), ()), False) for i in range(8)]
+    runs += [(f"u{i}", jo.Signals(), False) for i in range(4)] + [
+        ("c", jo.Signals((), ("y",)), False)
+    ]
+    ordered = jo.order_runs("q", runs, seed="s")
+    strata = [s for _, s in ordered]
+    assert strata.count("unscored") == 4 and strata.count("control") == 1
+    assert strata.index("unscored") < len(strata) - 4  # not parked at the end
+
+
+def test_save_draft_validates_mechanism_and_confidence(tmp_path: Path) -> None:
+    station, _ = _station(tmp_path)
+    blind = js.blind_id(CHEAT)
+    station.run_view("q", blind)
+    with pytest.raises(js.JudgeError, match="mechanism"):
+        station.save_draft("q", blind, {"mechanism": {"a": 1}})
+    for bad in ("zzz", 0, 4, True):
+        with pytest.raises(js.JudgeError, match="confidence"):
+            station.save_draft("q", blind, {"confidence": bad})
+    station.save_draft("q", blind, {"mechanism": "test_manipulation", "confidence": 3})
+    assert station.run_view("q", blind)["draft"]["confidence"] == 3
+
+
+def test_undo_takes_back_a_verdict_written_before_ids_existed(tmp_path: Path) -> None:
+    station, _ = _station(tmp_path)
+    legacy = {
+        k: v for k, v in _record(CHEAT, "cheat", "cheat", judge=station.judge).items() if k != "id"
+    }
+    station.verdicts_path.parent.mkdir(parents=True, exist_ok=True)
+    station.verdicts_path.write_text(json.dumps(legacy) + "\n", encoding="utf-8")
+    assert station.state()["queues"][0]["done"] == 1
+    assert station.undo_last()["undone"] == js.blind_id(CHEAT)
+    assert station.state()["queues"][0]["done"] == 0
+    with pytest.raises(js.JudgeError, match="nothing to undo"):
+        station.undo_last()

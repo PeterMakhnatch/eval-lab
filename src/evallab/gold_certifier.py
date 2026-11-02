@@ -1,4 +1,4 @@
-"""Gold task certifier: contract-complete behavioral synthesis + separate-verifier L1-L4 hardening + 6-gate matrix."""
+"""Gold task certifier: behavioral synthesis, separate-verifier hardening and seven gates."""
 
 from __future__ import annotations
 
@@ -10,17 +10,24 @@ import json
 import math
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
+import tomllib
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 from evallab.full_hardening import HardeningManifest, harden
+from evallab.modal_cells import CellRunner, SandboxMeter, modal_cell_runner
 from evallab.mutant_auditor import (
     Mutant,
     fresh_mutants,
+    mutant_script,
+    mutants_for_patch,
+    parse_probe,
+    probe_script,
     python_targets,
 )
 
@@ -240,7 +247,7 @@ def stage_and_harden_package(
     base_package = base_package.resolve()
     out_dir = out_dir.resolve()
     if out_dir.exists():
-        shutil.rmtree(out_dir)
+        raise FileExistsError(f"output {out_dir} already exists")
 
     with tempfile.TemporaryDirectory(prefix="gold_stage_") as tmp:
         stage = Path(tmp) / "pkg"
@@ -273,7 +280,7 @@ def stage_and_harden_package(
                     encoding="utf-8",
                 )
             else:
-                test_sh.write_text(test_sh_text + "\n" + hook_block, encoding="utf-8")
+                raise ValueError("cannot place supplementary test before the grader reward; unsupported tests/test.sh")
 
         manifest = harden(
             stage,
@@ -360,9 +367,35 @@ class TaskCertificationResult:
     train_rewards: dict[str, float | None] = field(default_factory=dict)
     eval_rewards: dict[str, float | None] = field(default_factory=dict)
     eval_base_rewards: dict[str, float | None] = field(default_factory=dict)
+    alternative_solutions_total: int | None = None
+    alternative_solutions_accepted: int | None = None
+    alternative_solution_rewards: dict[str, float | None] = field(default_factory=dict)
+    witness_rewards: dict[str, float | None] = field(default_factory=dict)
+    package_digest: str | None = None
+
+    @property
+    def gate7_alternatives_passed(self) -> bool | None:
+        if self.alternative_solutions_total is None or self.alternative_solutions_accepted is None:
+            return None
+        return self.alternative_solutions_accepted == self.alternative_solutions_total
+
+    @property
+    def status(self) -> str:
+        gates = (
+            self.gate1_reference_passed, self.gate2_nop_passed,
+            self.gate3_witness_passed, self.gate4_exit0_pth_passed,
+            self.train_mutants_total > 0 and self.train_mutants_killed == self.train_mutants_total,
+            self.eval_mutants_total > 0 and self.eval_mutants_killed == self.eval_mutants_total,
+        )
+        if (not all(gates) or self.gate7_alternatives_passed is False
+                or (self.alternative_solutions_total is not None and self.alternative_solutions_accepted is None)):
+            return "failed"
+        if self.gate7_alternatives_passed and (self.alternative_solutions_total or 0) >= 2:
+            return "certified"
+        return "provisional"
 
     def summary(self) -> dict[str, Any]:
-        return asdict(self)
+        return {**asdict(self), "gate7_alternatives_passed": self.gate7_alternatives_passed, "status": self.status}
 
 
 @dataclass
@@ -431,6 +464,11 @@ class GoldMatrixSummary:
                 "killed": self.gate6_eval_total_killed,
                 "total": self.gate6_eval_total,
                 "formatted": format_wilson(self.gate6_eval_total_killed, self.gate6_eval_total),
+            },
+            "gate7_alternative_solutions": {
+                "measured_tasks": sum(t.alternative_solutions_accepted is not None for t in self.tasks),
+                "accepted": sum(t.alternative_solutions_accepted or 0 for t in self.tasks),
+                "total": sum(t.alternative_solutions_total or 0 for t in self.tasks),
             },
             "tasks": [t.summary() for t in self.tasks],
         }
@@ -658,19 +696,236 @@ def run_rounds(
     return outcome
 
 
+@dataclass(frozen=True)
+class CertificationCell:
+    """One control, keyed by hash rather than potentially colliding line/operator."""
+
+    name: str
+    arm: str
+    package: Path
+    script: str
+    marker: str
+    key: str = ""
+
+
+def plan_certification_cells(
+    *, package: Path, upgraded: Path, reference_patch: str,
+    train: list[Mutant], evals: list[Mutant],
+    alternatives: list[str], witnesses: list[str],
+) -> list[CertificationCell]:
+    """Plan six research arms plus correct alternatives; evals never feed synthesis."""
+    assert_disjoint(train, [], evals)
+    wd = tomllib.loads((upgraded / "task.toml").read_text())["environment"]["workdir"]
+    cells = [
+        CertificationCell("reference", "reference", upgraded, reference_script(wd, reference_patch), "REFERENCE_APPLIED"),
+        CertificationCell("nop", "nop", upgraded, nop_script(wd), "NOP_APPLIED"),
+        CertificationCell("exit0_pth", "exit0_pth", upgraded, exit0_pth_script(wd), "EXIT0_PTH_APPLIED"),
+    ]
+    for index, witness in enumerate(witnesses or [None]):
+        cells.append(CertificationCell(
+            f"witness-{index}", "witness", upgraded, witness_script(wd, witness), "WITNESS_APPLIED",
+        ))
+    for arm, pool, target in (("train", train, upgraded), ("eval", evals, upgraded), ("evalbase", evals, package)):
+        workdir = tomllib.loads((target / "task.toml").read_text())["environment"]["workdir"]
+        for mutant in pool:
+            cells.append(CertificationCell(
+                f"{arm}-{mutant.sha256}", arm, target,
+                mutant_script(workdir=workdir, reference_patch=reference_patch, mutant=mutant),
+                f"MUTANT_APPLIED {mutant.operator} {mutant.path}:{mutant.line} {mutant.sha256}",
+                mutant.sha256,
+            ))
+    for index, patch in enumerate(alternatives):
+        cells.append(CertificationCell(
+            f"alternative-{index}", "alternative", upgraded, reference_script(wd, patch),
+            "REFERENCE_APPLIED", hashlib.sha256(patch.encode()).hexdigest(),
+        ))
+    return cells
+
+
+def summarize_certification(
+    *, task_id: str, upgraded: Path, test_lines: int,
+    cells: list[CertificationCell], outcomes: dict[str, dict[str, Any]],
+) -> TaskCertificationResult:
+    """Missing, infra-failed or unapplied cells remain unmeasured, never killed."""
+    arms: dict[str, dict[str, float | None]] = {}
+    for cell in cells:
+        raw = outcomes.get(cell.name, {})
+        reward = raw.get("reward")
+        measured = (
+            raw.get("status") == "executed"
+            and cell.marker in raw.get("agent_log", "")
+            and type(reward) in (int, float) and reward in (0.0, 1.0)
+        )
+        arms.setdefault(cell.arm, {})[cell.key or cell.name] = (
+            float(reward) if measured and isinstance(reward, int | float) else None
+        )
+    train, evals, base = (arms.get(arm, {}) for arm in ("train", "eval", "evalbase"))
+    witnesses = arms.get("witness", {})
+    alternatives = arms.get("alternative", {})
+    ref = arms.get("reference", {}).get("reference")
+    nop = arms.get("nop", {}).get("nop")
+    pth = arms.get("exit0_pth", {}).get("exit0_pth")
+    return TaskCertificationResult(
+        task_id=task_id, kind="gold", upgraded_package=str(upgraded), test_lines=test_lines,
+        train_mutants_total=len(train), train_mutants_killed=sum(r == 0.0 for r in train.values()),
+        eval_mutants_total=len(evals), eval_mutants_killed=sum(r == 0.0 for r in evals.values()),
+        eval_mutants_base_accepted=sum(r == 1.0 for r in base.values()),
+        eval_mutants_base_accepted_killed=sum(r == 1.0 and evals.get(k) == 0.0 for k, r in base.items()),
+        gate1_reference_passed=ref == 1.0, gate2_nop_passed=nop == 0.0,
+        gate3_witness_passed=bool(witnesses) and all(r == 0.0 for r in witnesses.values()),
+        gate4_exit0_pth_passed=pth == 0.0,
+        reference_reward=ref, nop_reward=nop, exit0_pth_reward=pth,
+        witness_reward=next(iter(witnesses.values())) if len(witnesses) == 1 else None,
+        witness_rewards=witnesses, train_rewards=train, eval_rewards=evals, eval_base_rewards=base,
+        alternative_solutions_total=len(alternatives) if alternatives else None,
+        alternative_solutions_accepted=(
+            sum(r == 1.0 for r in alternatives.values())
+            if alternatives and all(r is not None for r in alternatives.values()) else None
+        ),
+        alternative_solution_rewards=alternatives,
+    )
+
+
+def synthesize_contract(prompt: str, out_dir: Path, *, model: str) -> str:
+    """Use the existing OMP subscription route, without task-specific bridge paths."""
+    proc = subprocess.run(
+        ["omp", "-p", "--model", model, "--thinking", "high", "--no-tools", "--no-skills",
+         "--session-dir", str(out_dir / "sessions"), prompt],
+        capture_output=True, text=True, timeout=600, check=False,
+    )
+    (out_dir / "synthesis.stdout").write_text(proc.stdout)
+    (out_dir / "synthesis.stderr").write_text(proc.stderr)
+    code = extract_code_block(proc.stdout) if proc.returncode == 0 else None
+    if code is None:
+        raise RuntimeError(f"contract synthesis failed (exit {proc.returncode}); see {out_dir}")
+    return code
+
+
+def certify_task(
+    *, task_id: str, package: Path, reference_patch: str, out_dir: Path,
+    run_cell: CellRunner, synthesize: Callable[[str, Path], str],
+    stage: Callable[..., tuple[HardeningManifest, str]] = stage_and_harden_package,
+    limit: int = 8, alternative_patches: list[str] | None = None,
+    witnesses: list[str] | None = None, contract_test: str | None = None,
+    hook_command: str | None = None, python_version: str = "3",
+    harden_options: dict[str, Any] | None = None,
+) -> TaskCertificationResult:
+    """Probe, synthesize from train only, harden, execute and persist gate evidence."""
+    from evallab.registry import task_directory_digest
+
+    package, out_dir = package.resolve(), out_dir.resolve()
+    if out_dir == package or package in out_dir.parents:
+        raise ValueError("output must be outside the source package")
+    if limit < 2:
+        raise ValueError("--limit must be >= 2 for train and held-out evaluation")
+    alternatives = alternative_patches or []
+    if reference_patch in alternatives or len(set(alternatives)) != len(alternatives):
+        raise ValueError("alternative solutions must be distinct from each other and the reference")
+    out_dir.mkdir(parents=True, exist_ok=False)
+    provenance = {"task_id": task_id, "base_package_digest": task_directory_digest(package),
+                  "reference_patch_sha256": hashlib.sha256(reference_patch.encode()).hexdigest(),
+                  "alternative_patch_sha256": [hashlib.sha256(p.encode()).hexdigest() for p in alternatives]}
+    _write_certification_json(out_dir / "inputs.json", provenance)
+    wd = tomllib.loads((package / "task.toml").read_text())["environment"]["workdir"]
+    probe_dir = out_dir / "cells" / "probe"
+    probe = run_cell(probe_dir, package, probe_script(
+        workdir=wd, reference_patch=reference_patch, targets=sorted(python_targets(reference_patch)),
+    ))
+    _write_certification_json(probe_dir / "result.json", probe)
+    sources = parse_probe(probe.get("agent_log", ""))
+    if probe.get("status") != "executed" or probe.get("reward") != 1.0 or not sources:
+        raise RuntimeError("reference source probe failed; no certification")
+    if set(python_targets(reference_patch)) - sources.keys():
+        raise RuntimeError("reference source probe omitted Python targets")
+    train, evals = split_mutants(mutants_for_patch(reference_patch, sources, limit=limit))
+    if not train or not evals:
+        raise ValueError("insufficient valid mutants for train and held-out evaluation")
+    _write_certification_json(out_dir / "mutants.json", {
+        "train": [m.summary() for m in train], "eval": [m.summary() for m in evals],
+    })
+    hook = hook_command or extract_hook_command_from_test_sh((package / "tests/test.sh").read_text())
+    code = contract_test
+    if code is None:
+        hidden = "\n\n".join(
+            f"{p.name}:\n{p.read_text(errors='replace')}"
+            for p in sorted((package / "tests").rglob("*"))
+            if p.is_file() and p.suffix in (".py", ".patch", ".sh")
+        )
+        prompt = build_synthesis_prompt(
+            instruction=(package / "instruction.md").read_text(), hidden_tests=hidden,
+            reference_patch=reference_patch, train_mutants=train,
+            train_diffs=[mutant_diff(m, sources[m.path]) for m in train],
+            interpreter_command=hook, python_version=python_version,
+        )
+        assert_prompt_blind(prompt, [mutant_diff(m, sources[m.path]) for m in evals])
+        (out_dir / "prompt.txt").write_text(prompt)
+        code = synthesize(prompt, out_dir)
+    valid, reason = validate_contract_test(code)
+    if not valid:
+        raise ValueError(f"invalid contract test: {reason}")
+    (out_dir / GOLD_CONTRACT_TEST_NAME).write_text(code)
+    upgraded = out_dir / "package"
+    manifest, _ = stage(package, upgraded, code, hook, single_container=False,
+                        **(harden_options or {}))
+    _write_certification_json(out_dir / "hardening.json", manifest.to_json())
+    cells = plan_certification_cells(
+        package=package, upgraded=upgraded, reference_patch=reference_patch,
+        train=train, evals=evals, alternatives=alternatives, witnesses=witnesses or [],
+    )
+    _write_certification_json(out_dir / "plan.json", [
+        {**asdict(c), "package": str(c.package)} for c in cells
+    ])
+    outcomes: dict[str, dict[str, Any]] = {}
+    try:
+        for cell in cells:
+            cell_dir = out_dir / "cells" / cell.name
+            cell_dir.mkdir(parents=True, exist_ok=True)
+            (cell_dir / "agent-script.sh").write_text(cell.script)
+            outcomes[cell.name] = run_cell(cell_dir, cell.package, cell.script)
+            _write_certification_json(cell_dir / "result.json", outcomes[cell.name])
+    finally:
+        result = summarize_certification(
+            task_id=task_id, upgraded=upgraded, test_lines=len(code.splitlines()),
+            cells=cells, outcomes=outcomes,
+        )
+        result.package_digest = task_directory_digest(upgraded)
+        _write_certification_json(out_dir / "certification.json", result.summary())
+        _write_certification_json(out_dir / "summary.json", GoldMatrixSummary([result]).to_report_dict())
+    return result
+
+
+def _write_certification_json(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+
+
 # --------------------------------------------------------------------------- CLI Parser
 
 
 def build_certify_gold_parser(subparsers: Any) -> None:
     parser = subparsers.add_parser(
         "certify-gold",
-        help="Certify tasks with contract-complete behavioral tests + separate-verifier L1-L4 hardening + 6 gates",
+        help="Certify a task with behavioral tests, separate-verifier hardening and seven gates",
     )
     parser.add_argument("--package", type=Path, required=True, help="Base task package directory")
     parser.add_argument("--reference-patch", type=Path, required=True, help="Reference patch file")
     parser.add_argument("--out", type=Path, help="Output directory for hardened package")
     parser.add_argument("--task-id", type=str, help="Task identifier (e.g. format-code-task-000079)")
-    parser.add_argument("--cap-usd", type=float, default=0.95, help="Metered Modal cap in USD")
+    parser.add_argument("--approval", help="Recorded approval text for Modal execution")
+    parser.add_argument("--max-usd", type=float, help="Required explicit Modal cap in USD")
+    parser.add_argument("--per-execution-usd", type=float, default=0.005)
+    parser.add_argument("--ledger", type=Path, help="Persisted spend ledger (defaults beside --out)")
+    parser.add_argument("--app-name", default="gold-certifier")
+    parser.add_argument("--alt-solution", action="append", type=Path, default=[],
+                        help="Independent correct patch; repeat for Gate 7")
+    parser.add_argument("--witness", action="append", type=Path, default=[],
+                        help="Existing tamper witness solve.sh (default: conftest control)")
+    parser.add_argument("--contract-test", type=Path, help="Use an operator-supplied unittest instead of synthesis")
+    parser.add_argument("--hook-command", help="Override supplementary test interpreter command")
+    parser.add_argument("--python-version", default="3", choices=("3", "2.7"))
+    parser.add_argument("--expected-tests", type=int, help="Reference test count for strict L3 hardening")
+    parser.add_argument("--allow-degraded", action="store_true",
+                        help="Explicitly allow at-least-one-test hardening instead of a calibrated count")
     parser.add_argument("--limit", type=int, default=8, help="Max mutants to enumerate")
     parser.add_argument(
         "--model",
@@ -681,7 +936,7 @@ def build_certify_gold_parser(subparsers: Any) -> None:
     parser.add_argument(
         "--plan",
         action="store_true",
-        help="Offline planning: enumerate mutants, split train/eval, show prompt preview",
+        help="Offline planning: show parameters and Python targets without executing or synthesizing",
     )
     parser.add_argument("--json", action="store_true", help="Output summary as JSON")
     parser.add_argument(
@@ -718,7 +973,7 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
             "package": str(package),
             "targets": sorted(targets.keys()),
             "model": args.model,
-            "metered_cap_usd": args.cap_usd,
+            "metered_cap_usd": args.max_usd if args.max_usd is not None else 0.95,
             "mutant_limit": args.limit,
             "rounds": args.rounds,
             "probes_per_round": args.probes_per_round,
@@ -730,7 +985,7 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
             print(f"  package: {package}")
             print(f"  targets: {sorted(targets.keys())}")
             print(f"  model: {args.model}")
-            print(f"  metered cap: ${args.cap_usd:.2f}")
+            print(f"  metered cap: ${plan_dict['metered_cap_usd']:.2f}")
         return 0
 
     if not args.out:
@@ -744,5 +999,37 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
         )
         return 2
 
-    print(f"Certifying gold package for {task_id} -> {args.out}...")
-    return 0
+    if not args.approval or not args.approval.strip():
+        raise ValueError("Modal execution requires --approval (recorded approval text)")
+    if args.max_usd is None:
+        raise ValueError("Modal execution requires an explicit --max-usd")
+    from evallab.regrade import CloudSpendGate
+
+    gate = CloudSpendGate(
+        approval=args.approval, cap_usd=args.max_usd,
+        usd_per_execution=args.per_execution_usd,
+        spend_ledger=args.ledger or args.out.resolve().with_suffix(".spend.json"),
+        modal_app_name=args.app_name, billing_tag=args.app_name,
+    )
+    meter = SandboxMeter(args.max_usd)
+    result = certify_task(
+        task_id=task_id, package=package, reference_patch=patch, out_dir=args.out,
+        run_cell=modal_cell_runner(repo_root=root, spend_gate=gate, meter=meter, timeout_seconds=240),
+        synthesize=lambda prompt, output: synthesize_contract(prompt, output, model=args.model),
+        limit=args.limit, alternative_patches=[p.read_text() for p in args.alt_solution],
+        witnesses=[p.read_text() for p in args.witness],
+        contract_test=args.contract_test.read_text() if args.contract_test else None,
+        hook_command=args.hook_command, python_version=args.python_version,
+        harden_options={"expected_tests": args.expected_tests, "allow_degraded": args.allow_degraded},
+    )
+    output = {**result.summary(), "estimated_usd": round(meter.spent, 5),
+              "executions": meter.cells, "receipt": str(args.out / "certification.json")}
+    if args.json:
+        print(json.dumps(output, indent=2))
+    else:
+        print(f"{task_id}: {result.status}; receipt: {output['receipt']}")
+        print(f"Gate 7 alternatives: {result.alternative_solutions_accepted}/{result.alternative_solutions_total}")
+        for sha, reward in result.alternative_solution_rewards.items():
+            if reward != 1.0:
+                print(f"WRONG REJECTION / UNMEASURED: alternative {sha} reward={reward}")
+    return 1 if result.status == "failed" else 0

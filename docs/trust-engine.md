@@ -33,7 +33,7 @@ flowchart TD
         ta["evallab tasks anatomy\n(Static Vulnerability Parser: AST & Regex)"]
         am["evallab audit-mutants\n(STING: AST Semantic Mutation Testing)"]
         hd["evallab harden\n(L1 Auto-load, L2 Pristine, L3 Report, L4 Verifier)"]
-        cg["evallab certify-gold\n(Plan-only CLI; 8-task experiment driver)"]
+        cg["evallab certify-gold\n(Capped Modal CLI; 7-gate receipts)"]
         
         pkg & ref --> ta
         pkg & ref --> am
@@ -78,7 +78,7 @@ All CLI commands run under `evallab` (executable via `uv run evallab` from the r
 | `evallab tasks anatomy` | Task directories or collections; optional `--reference-patch` | `evallab.package_anatomy/v1` card (stdout or JSONL) | Free local ($0, static AST/regex, <10 ms) | `src/evallab/package_anatomy.py` |
 | `evallab audit-mutants` | Base package, reference patch, output dir; optional `--ledger <path>.json`, `--repaired-package` | Audit summary JSON, mutated cells CSV, survivor diffs; reservations recorded in `--ledger` | Modal cents (~$0.012 per weak grader; metered cap) | `src/evallab/mutant_auditor.py` |
 | `evallab harden` | Task package path; `--expected-tests` (required for pytest unless `--allow-degraded`), optional `--single-container`, `--out` | Hardened package directory (L1–L4 hardened verifier) | Free local ($0, static container re-wiring) | `src/evallab/full_hardening.py` |
-| `evallab certify-gold` | Base package, reference patch; `--plan` [`--json`], optional `--rounds`, `--probes-per-round`, `--cap-usd`, `--model`, `--limit` | Plan preview JSON/text (`task_id, package, targets, model, metered_cap_usd, mutant_limit, rounds, probes_per_round`). CLI non-plan mode is a stub (`--rounds > 1` without `--plan` exits 2); arbitrary package certification is not operator-runnable today. Multi-round synthesis feedback is available as the library API `evallab.gold_certifier.run_rounds`; full 6-gate certification exists as a fixed 8-task MiMo experiment driver (`research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py`) | Free local ($0, offline planning; 8-task experiment driver uses Subscription + Modal cents) | `src/evallab/gold_certifier.py` |
+| `evallab certify-gold` | Base package, reference patch, `--out`, explicit `--approval` + `--max-usd`; repeatable `--alt-solution`, optional `--contract-test`, `--expected-tests` / `--allow-degraded`, `--model`, `--limit`, `--ledger`; offline `--plan` | Hardened package, per-cell evidence, digest-bound `certification.json`, matrix `summary.json`; certified / provisional / failed | Modal (approval + cap required; fixed execution reservations, not provider bills); OMP subscription synthesis unless `--contract-test` supplied | `src/evallab/gold_certifier.py` |
 | `evallab trace anatomy` | Run ID (cloud/CheatBench) or `--atif-file <trial.json>`; optional `--include-narration` | Structured Case Anatomy card (human-readable text or JSON) | Free local ($0, raw CAS projection, <100 ms) | `src/evallab/trace_anatomy.py` |
 | `evallab trace autoreview` | Run ID or ATIF trial JSON; optional `--compact-only`, `--with-l0-cascade`, `--model` | AutoReview judgment JSON (suspicion score, cited steps, cascade/union alerts when model runs) | Subscription (or Free local $0 with `--compact-only`) | `src/evallab/autoreview_monitor.py` |
 | `evallab regrade` | Stored Harbor job directory (`<job_dir>`); optional `--task <hardened_task>` or `--held-out <bundle>`, `--jobs-dir`, `--name`, `--dry-run`, `--json` | Re-scored job directory under `runs/` (or specified `--jobs-dir`) | Local Docker, $0 model cost (refused when `EVALLAB_DISABLE_LOCAL_DOCKER=1`; `--held-out` also requires local Docker; Modal trial regrades exist only via Python CloudSpendGate API) | `src/evallab/regrade.py`, `src/evallab/cli.py` |
@@ -129,25 +129,38 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
 
    *Verifier image:* the L3 gate runs `python3` in the verifier. A separate verifier with no `tests/Dockerfile` is a copy of the environment image, which need not have `python3` (HAR-257: `query-optimize` was ungradable that way). Pass `--verifier-dockerfile <file>` to copy a verifier image byte-identical to `tests/Dockerfile`; the sibling `<out>.hardening-manifest.json` records it under `verifier` (`gate_runtime: declared`, `dockerfile_sha256`). Without one, a harbor package gets `gate_runtime: unverified` and a stderr warning; MiMo packages get their verifier image from `separate-verifier@10`.
 
-   *Pipeline note for new packages:* Runbook 1 for arbitrary task packages currently ends at Step 3 (anatomy, STING mutation audit, and container hardening). Automated corpus-scale task package certification is not yet an operator-runnable feature on `main`; it is an active research target (see `gh pr list` for work in flight).
+   *Pipeline note:* Step 4 now executes a single package end to end. It does not certify a whole corpus or establish out-of-distribution verifier validity.
 
-4. **Step 4: Status of automated Gold Certification (Plan-only CLI; 8-task experiment runner):**
-   The CLI command `evallab certify-gold` is currently **plan-only**. You can preview the task parameters offline ($0):
+4. **Step 4: Run capped Gold Certification (seven gates):**
+   Preview the parameters and Python mutation targets offline ($0):
    ```bash
    evallab certify-gold \
      --package library/tasks/my-task \
      --reference-patch library/tasks/my-task/reference.patch \
-     --plan --json \
-     --rounds 2 \
-     --probes-per-round 4
+     --plan --json
    ```
-   *Expected result:* Prints a JSON planning dict containing `task_id, package, targets, model, metered_cap_usd, mutant_limit, rounds, probes_per_round` only. It does **not** enumerate mutants, synthesize tests, split train/eval sets, or generate prompt previews. The non-plan CLI mode (`--out <dir>`) with `--rounds 1` is a no-op stub that prints a placeholder line and exits 0 without running any verifications; passing `--rounds > 1` without `--plan` exits 2 (`error: --rounds > 1 is not implemented in the command (use evallab.gold_certifier.run_rounds); only --plan accepts it`). Multi-round synthesis feedback is available only via the Python library API `evallab.gold_certifier.run_rounds`.
+   This preview does not execute containers, enumerate mutants, or synthesize tests. Non-plan execution supports one synthesis round; `--rounds > 1` remains a library-only feedback workflow (`evallab.gold_certifier.run_rounds`) and the command refuses it.
 
-   *Execution note:* There is **no operator-runnable certification of an arbitrary package today**. The full end-to-end certification pipeline exists today only as a fixed-cohort research experiment runner:
+   After Peter approves a named task and cap, run:
    ```bash
-   python research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py
+   evallab certify-gold \
+     --package /absolute/path/to/task-package \
+     --reference-patch /absolute/path/to/reference.patch \
+     --alt-solution /absolute/path/to/independent-correct-a.patch \
+     --alt-solution /absolute/path/to/independent-correct-b.patch \
+     --out /absolute/path/outside-repo/gold-first-task \
+     --approval "<Peter's approval for this task and Modal cap>" \
+     --max-usd 0.95 \
+     --ledger /absolute/path/outside-repo/gold-first-task.spend.json \
+     --allow-degraded --json
    ```
-   This script evaluates a hard-coded cohort of 8 strictly-DEV MiMo tasks (`000079`, `000232`, `001267`, `001850`, `000682`, `000931`, `000484`, `003005`). It takes no `--package` or `--reference-patch` argument for arbitrary user tasks. Its CLI flags are `--synthesize`, `--harden`, `--plan`, `--run`, `--workers`, `--summarize`, `--task <short>`, and `--cell <substr>`. When executed bare, it only rewrites `research/experiments/ov-gold-certifier-8-20261101/results/selection.json`. Running it with `--run` executes Modal cells under a hard-coded approval string (`"Peter 2026-10-31 overnight factory W3B-EXHAUSTIVE-GOLD-CERTIFIER: Modal cap $0.95"`, cap `$0.95`, bridge `worker.yml` path) and overwrites its own `results/` directory.
+   `--allow-degraded` explicitly opts into the existing at-least-one-passing-test L3 check. Prefer a calibrated `--expected-tests N` instead when the reference count is available. The CLI uses the same `CloudSpendGate`, ledger reservations, and measured-cost sandbox meter as `audit-mutants`; it refuses absent approval, an absent explicit cap, and executions whose reservation exceeds that cap. The cap controls estimates/reservations, not a guaranteed ceiling on the provider bill.
+
+   The source-probe cell applies the reference and recovers post-patch Python source. Mutants are deterministically split into train and held-out eval sets. Only train diffs feed the synthesis prompt. OMP synthesizes one behavioral unittest via the selected subscription route; `--contract-test FILE` instead uses an operator-supplied unittest without a model call. The test is staged into the package and L1–L4 hardening uses a separate verifier. `--hook-command` and `--python-version` accommodate packages whose interpreter cannot be inferred from the existing supplementary hook. Unsupported packages, invalid tests, failed probes, and insufficient mutants refuse rather than producing a certification.
+
+   Evidence is written outside git under `--out`: `inputs.json` (input hashes), `mutants.json` (split), `prompt.txt` and synthesis logs when generated, `hardening.json`, `plan.json`, `cells/*/result.json`, `package/`, `certification.json` (the existing `TaskCertificationResult` shape), and `summary.json` (the existing matrix report). Existing output directories are refused, never replaced. Missing markers, missing cells, non-binary rewards and infrastructure failures do not count as mutant kills. An interrupted gate matrix saves a failing result with unmeasured cells.
+
+   Gates 1–6 below preserve the original research measurements (the historical results are not a claim that this CLI has run on Modal):
 
    What the 8-task experiment measured across its 6 certification gates:
    - Gate 1 (Reference Validity): Reference patch scores 1.0 (8/8 observed).
@@ -156,6 +169,12 @@ Before deploying a benchmark task to model evaluations, verify that its grader c
    - Gate 4 (L4 `.pth` Startup Interception): Interpreter hijack via `.pth` scores 0.0 (8/8 observed).
    - Gate 5 (Train Mutants Killed): Reports training semantic mutants killed (19/20 = 95.0% observed across 8 tasks; 0/1 on task 000931; reports count, no hard 90% threshold in code).
    - Gate 6 (Eval Mutants Killed): Reports held-out eval mutants killed out-of-sample (3/8 base survivors, 13/18 all mutants killed across 8 tasks; reports counts only).
+   - Gate 7 (Wrong Rejection): Every repeatable `--alt-solution PATCH` is independently applied and graded by the **hardened** package. Every patch's reward is saved; rejection is visible and blocks certification. Operator-supplied patches must be independent correct solutions (the command rejects byte-identical duplicates and the reference itself, but cannot establish semantic independence).
+
+   `certified` requires reference = 1, nop / every witness / `.pth` = 0, nonempty train and held-out pools with all mutants killed, and at least two alternative correct solutions all accepted. With fewer than two alternatives, passing measured gates are only `provisional`. With none supplied, both alternative counters are `null` (not measured), never an implicit pass. Supplied but unmeasured alternatives have a known total, `accepted: null`, and per-patch `null` rewards; measured zero acceptances is `accepted: 0`. A failed gate exits 1; invalid input, missing approval, spend refusal and infrastructure exceptions exit 2 via the CLI error handler. `--plan` and nonfailed completed measurements exit 0, so consumers must read the status rather than equate exit 0 with certified.
+
+   **Remaining execution gap:** fake-executor tests exercise this CLI, including a replay of the committed eight-task cell outcomes. A real Modal run of this new operator path still needs Peter's approval. No Modal run or new verifier-quality result is implied by this implementation.
+
 
 ### Runbook 2: Review a Run
 
@@ -325,8 +344,8 @@ Independent blind verifiers (VF-OV1, VF-OV2) audited the overnight experiments a
    `CloudSpendGate` and `ReserveSettleSpendGate` (`src/evallab/modal_cells.py`) reserve a configurable amount per execution (`--per-execution-usd`, default $0.005 in `src/evallab/mutant_auditor.py:703`), reserving approximately 2.2× the estimated execution cost on Modal (e.g. STING estimated $0.2068 across 89 executions in `audit-summary.json`, ~$0.0023 each, vs $0.005 reserved). While `ReserveSettleSpendGate` releases unused reservation headroom upon completion, the initial reservation requires sufficient spend headroom. Pass `--ledger <path>.json` to persist execution reservations across runs; without `--ledger`, the gate does not record reservations durably across invocations. Reconcile ledger reservations against actual provider billing via `evallab spend reconcile`.
 4. **Boundary-Shift Mutant Misses:**
    Contract-complete test synthesis currently misses subtle off-by-one or floating-point boundary shifts (e.g. task `000232` and `000484` LogEI edge cases), explaining why held-out generalization on base-surviving mutants sits at 3/8 (37.5%).
-5. **No Operator-Runnable Arbitrary Package Certifier:**
-   The `evallab certify-gold` CLI is plan-only (and non-plan mode is a stub). End-to-end certification exists only as experiment drivers: an 8-task MiMo run (`research/experiments/ov-gold-certifier-8-20261101/run_gold_certification.py`) and Gold v1.1 for 32 tasks (`research/experiments/on-gold-v1b-20261102/`), where 26 tasks have a reference-passing hardened test and 8 reach the structural bar. Replaying real accepted solutions shows the hardened grader rejects 7 of 12 (the checker judged 5 over-strict), and nothing measures false rejections on the 21 of 26 tasks that have no real solutions. Do not use these tests to reject solutions. A name filter that drops test functions which use names only the reference patch adds (15 functions on 4 tasks) removed the 3 clear over-strict rejections (7 of 12 rejected down to 3 of 12; in-sample by construction) at the cost of 1 of 8 weak-grader demonstrations; a leave-one-out check against other real solutions is unsafe because it accepted both solutions that truly lack binary-attribute support (`research/experiments/on-gold-false-reject-20261102/`, checked by VF-A4C).
+5. **Gold Certifier Real-Run Qualification and Wrong-Rejection Coverage:**
+   The arbitrary-package `certify-gold` CLI now executes seven gates with approval and spend controls; its first real Modal run still needs Peter's approval. Independent correct solutions must be supplied by the operator; two accepted alternatives are the minimum certification bar, not proof of zero false rejections. Historical replay rejected 7 of 12 accepted solutions (the checker judged 5 over-strict), and nothing measured false rejections on the 21 of 26 Gold v1.1 tasks with no real solutions. Do not treat the old reference-only results as certified or use those tests to reject solutions without independent replay evidence.
 6. **Rollout Filtering Blind Spots (`evallab hack-drop`):**
    `evallab hack-drop` operates under defined blind spots: shell-level text modifications (`dd of=`, `awk -i`), unrecognized tool-call argument shapes, and semantic exploits with zero test writes bypass deterministic detection, while AutoReview relies on a single uncalibrated route without ensemble (see `docs/hack-drop.md`). On 690 real DEV rollouts it kept 92, of which 27% were cheats, flagged 9.8% of clean runs, routed every Terminal Wrench run to review (its raw tool shape is not recognized), and caught only 22% of Goodfire cheats. Review of the shape-matrix follow-up left two documented residuals: a failed read of a not-yet-existing test through a rarer command form (`cat X 2>&1`, `wc -l X`, `test -f X && ...`) still counts as a read and false-drops an honest new test (it fails closed), and a read and a write issued in the same step are treated as read-then-write. Use hack-drop as triage with a review queue, not as a data cleaner.
 7. **L0 Evasion and Login-Profile Tamper Rule (`hb_login_profile_tamper`):**

@@ -1,0 +1,340 @@
+"""Offline gate, executor-seam and durable spend admission coverage."""
+from __future__ import annotations
+
+import argparse
+import base64
+import csv
+import json
+import re
+import shutil
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from evallab import gold_certifier as gold
+from evallab.mutant_auditor import PROBE_DONE_MARKER, PROBE_MARKER, mutants_for_patch
+from evallab.registry import task_directory_digest
+from evallab.regrade import SpendCapReached
+
+SOURCE = "def positive(x):\n    if x > 0:\n        return 1\n    return 0\n"
+PATCH = "--- a/widget.py\n+++ b/widget.py\n@@ -0,0 +1,4 @@\n+def positive(x):\n+    if x > 0:\n+        return 1\n+    return 0\n"
+CODE = "import unittest\nclass Contract(unittest.TestCase):\n    def test_positive(self):\n        from widget import positive\n        self.assertEqual(positive(1), 1)\n"
+
+
+def package_at(path: Path) -> Path:
+    path.mkdir()
+    (path / "task.toml").write_text('[environment]\nworkdir = "/testbed"\n')
+    (path / "instruction.md").write_text("Implement positive(x).")
+    (path / "tests").mkdir()
+    (path / "tests/test.sh").write_text('RC=0\ntail -c 12000 "$V/test_output.log"\n')
+    return path
+
+
+def matrix(tmp_path: Path, alternatives: list[str] | None = None):
+    package = package_at(tmp_path / "base")
+    upgraded = package_at(tmp_path / "upgraded")
+    train, evals = gold.split_mutants(mutants_for_patch(PATCH, {"widget.py": SOURCE}, limit=4))
+    cells = gold.plan_certification_cells(
+        package=package, upgraded=upgraded, reference_patch=PATCH,
+        train=train, evals=evals, alternatives=alternatives or [], witnesses=[],
+    )
+    outcomes = {c.name: {"status": "executed", "agent_log": c.marker,
+                        "reward": 1.0 if c.arm in ("reference", "alternative", "evalbase") else 0.0}
+                for c in cells}
+    return cells, outcomes, upgraded
+
+
+def summarize(cells, outcomes, upgraded):
+    return gold.summarize_certification(task_id="synthetic", upgraded=upgraded,
+                                       test_lines=5, cells=cells, outcomes=outcomes)
+
+
+@pytest.mark.parametrize("alt_rewards,expected,status", [
+    ([1.0, 1.0], 2, "certified"), ([1.0, 0.0], 1, "failed"),
+    ([], None, "provisional"), ([1.0], 1, "provisional"),
+    ([None, None], None, "failed"), ([0.0, 0.0], 0, "failed"),
+])
+def test_gate7_preserves_each_outcome(tmp_path, alt_rewards, expected, status):
+    cells, outcomes, upgraded = matrix(tmp_path, [f"correct-{i}" for i in range(len(alt_rewards))])
+    for cell, reward in zip((c for c in cells if c.arm == "alternative"), alt_rewards, strict=True):
+        outcomes[cell.name]["reward"] = reward
+    result = summarize(cells, outcomes, upgraded)
+    assert result.alternative_solutions_total == (len(alt_rewards) or None)
+    assert result.alternative_solutions_accepted == expected
+    assert list(result.alternative_solution_rewards.values()) == alt_rewards
+    assert result.status == status
+    assert result.reference_reward == 1.0
+    assert result.summary()["status"] == status
+
+
+@pytest.mark.parametrize("arm", ["reference", "nop", "witness", "exit0_pth", "train", "eval"])
+def test_each_gate_failure_blocks_certification(tmp_path, arm):
+    cells, outcomes, upgraded = matrix(tmp_path, ["correct-a", "correct-b"])
+    cell = next(c for c in cells if c.arm == arm)
+    outcomes[cell.name]["reward"] = 0.0 if arm == "reference" else 1.0
+    result = summarize(cells, outcomes, upgraded)
+    assert result.status == "failed"
+
+
+@pytest.mark.parametrize("bad", ["missing", "unapplied", "infra", "nan", "fraction", "boolean"])
+def test_bad_cell_never_counts_as_mutant_kill(tmp_path, bad):
+    cells, outcomes, upgraded = matrix(tmp_path)
+    cell = next(c for c in cells if c.arm == "eval")
+    if bad == "missing":
+        del outcomes[cell.name]
+    elif bad == "unapplied":
+        outcomes[cell.name]["agent_log"] = ""
+    elif bad == "infra":
+        outcomes[cell.name]["status"] = "failed"
+    else:
+        outcomes[cell.name]["reward"] = {"nan": float("nan"), "fraction": 0.5, "boolean": False}[bad]
+    result = summarize(cells, outcomes, upgraded)
+    assert result.eval_rewards[cell.key] is None
+    assert result.eval_mutants_killed == result.eval_mutants_total - 1
+    assert result.status == "failed"
+
+
+def test_multiple_witnesses_all_required(tmp_path):
+    cells, outcomes, upgraded = matrix(tmp_path)
+    cells.append(gold.CertificationCell("witness-extra", "witness", upgraded, "", "APPLIED"))
+    result = summarize(cells, outcomes, upgraded)
+    assert not result.gate3_witness_passed
+    assert result.witness_rewards["witness-extra"] is None
+
+
+def fake_cell(cell_dir, package, script):
+    if cell_dir.name == "probe":
+        log = f"{PROBE_MARKER} widget.py {base64.b64encode(SOURCE.encode()).decode()}\n{PROBE_DONE_MARKER}"
+        reward = 1.0
+    else:
+        markers = re.findall(r"^echo ((?:REFERENCE|NOP|WITNESS|EXIT0_PTH|MUTANT)_APPLIED[^\n]*)", script, re.M)
+        log = "\n".join(markers)
+        reward = 1.0 if cell_dir.name == "reference" or cell_dir.name.startswith(("alternative", "evalbase")) else 0.0
+    return {"reward": reward, "status": "executed", "agent_log": log}
+
+
+def fake_stage(package, upgraded, code, hook, **options):
+    assert options["single_container"] is False
+    shutil.copytree(package, upgraded)
+    (upgraded / "tests/test_gold_contract.py").write_text(code)
+    return SimpleNamespace(to_json=lambda: {"runner": "synthetic", "output": str(upgraded)}), "hook"
+
+
+def test_certify_executes_and_persists_digest_bound_result(tmp_path):
+    base = package_at(tmp_path / "base")
+    prompts = []
+
+    def synthesize(prompt, output):
+        prompts.append(prompt)
+        train, evals = gold.split_mutants(mutants_for_patch(PATCH, {"widget.py": SOURCE}, limit=4))
+        assert train and evals
+        assert all(gold.mutant_diff(m, SOURCE) not in prompt for m in evals)
+        return CODE
+
+    result = gold.certify_task(
+        task_id="synthetic", package=base, reference_patch=PATCH, out_dir=tmp_path / "out",
+        run_cell=fake_cell, synthesize=synthesize, stage=fake_stage, limit=4,
+        alternative_patches=["correct-a", "correct-b"],
+    )
+    assert len(prompts) == 1
+    assert result.status == "certified"
+    receipt = json.loads((tmp_path / "out/certification.json").read_text())
+    assert receipt == result.summary()
+    assert receipt["package_digest"] == task_directory_digest(tmp_path / "out/package")
+    assert receipt["alternative_solutions_accepted"] == 2
+    assert (tmp_path / "out/cells/probe/result.json").is_file()
+    assert json.loads((tmp_path / "out/summary.json").read_text())["gate7_alternative_solutions"]["accepted"] == 2
+
+
+def test_mid_matrix_failure_persists_unmeasured_cells(tmp_path):
+    base = package_at(tmp_path / "base")
+
+    def run(cell_dir, package, script):
+        if cell_dir.name.startswith("train"):
+            raise SpendCapReached("over cap")
+        return fake_cell(cell_dir, package, script)
+
+    with pytest.raises(SpendCapReached, match="over cap"):
+        gold.certify_task(task_id="synthetic", package=base, reference_patch=PATCH,
+                          out_dir=tmp_path / "out", run_cell=run, synthesize=lambda *_: CODE,
+                          stage=fake_stage, limit=4, alternative_patches=["correct-a", "correct-b"])
+    result = json.loads((tmp_path / "out/certification.json").read_text())
+    assert result["status"] == "failed"
+    assert result["eval_mutants_total"] > 0
+    assert result["eval_mutants_killed"] == 0
+    assert result["alternative_solutions_accepted"] is None
+    assert set(result["alternative_solution_rewards"].values()) == {None}
+
+
+@pytest.mark.parametrize("alternatives", [[PATCH], ["same", "same"]])
+def test_duplicate_alternatives_refused_before_execution(tmp_path, alternatives):
+    base = package_at(tmp_path / "base")
+    with pytest.raises(ValueError, match="distinct"):
+        gold.certify_task(task_id="synthetic", package=base, reference_patch=PATCH,
+                          out_dir=tmp_path / "out", run_cell=lambda *_: pytest.fail("executed"),
+                          synthesize=lambda *_: CODE, alternative_patches=alternatives)
+    assert not (tmp_path / "out").exists()
+
+
+def test_existing_output_is_never_overwritten(tmp_path):
+    base = package_at(tmp_path / "base")
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "keep").write_text("evidence")
+    with pytest.raises(FileExistsError):
+        gold.certify_task(task_id="synthetic", package=base, reference_patch=PATCH,
+                          out_dir=out, run_cell=fake_cell, synthesize=lambda *_: CODE)
+    assert (out / "keep").read_text() == "evidence"
+
+
+def cli_args(tmp_path, *extra):
+    base = package_at(tmp_path / "base")
+    patch = tmp_path / "ref.patch"
+    patch.write_text(PATCH)
+    parser = argparse.ArgumentParser()
+    gold.build_certify_gold_parser(parser.add_subparsers())
+    return parser.parse_args(["certify-gold", "--package", str(base), "--reference-patch", str(patch),
+                              "--out", str(tmp_path / "out"), *extra])
+
+
+@pytest.mark.parametrize("extra,message", [([], "--approval"), (["--approval", "approved test"], "--max-usd")])
+def test_cli_refuses_unapproved_or_uncapped_execution(tmp_path, extra, message, monkeypatch):
+    args = cli_args(tmp_path, *extra)
+    monkeypatch.setattr(gold, "modal_cell_runner", lambda **_: pytest.fail("executor created"))
+    with pytest.raises(ValueError, match=message):
+        gold._certify_gold_command(args, tmp_path)
+    assert not (tmp_path / "out").exists()
+
+
+def test_cli_spend_cap_reserves_durably_before_executor(tmp_path, monkeypatch):
+    args = cli_args(tmp_path, "--approval", "approved synthetic test", "--max-usd", "0.004")
+    started = []
+
+    def runner(**kwargs):
+        gate = kwargs["spend_gate"]
+        assert gate.spend_ledger == tmp_path / "out.spend.json"
+        def run(*cell):
+            gate.charge()
+            started.append(cell)
+            return fake_cell(*cell)
+        return run
+
+    monkeypatch.setattr(gold, "modal_cell_runner", runner)
+    with pytest.raises(SpendCapReached):
+        gold._certify_gold_command(args, tmp_path)
+    assert not started
+
+
+def test_cli_success_uses_hardened_package_and_reports_wrong_rejection(tmp_path, monkeypatch, capsys):
+    args = cli_args(tmp_path, "--approval", "approved synthetic test", "--max-usd", "1")
+    contract = tmp_path / "contract.py"
+    contract.write_text(CODE)
+    alt_a, alt_b = tmp_path / "a.patch", tmp_path / "b.patch"
+    alt_a.write_text("correct-a")
+    alt_b.write_text("correct-b")
+    args.contract_test = contract
+    args.alt_solution = [alt_a, alt_b]
+    real_certify = gold.certify_task
+
+    def runner(**kwargs):
+        def run(cell_dir, package, script):
+            kwargs["spend_gate"].charge()
+            result = fake_cell(cell_dir, package, script)
+            if cell_dir.name == "alternative-1":
+                assert package == tmp_path / "out/package"
+                result["reward"] = 0.0
+            return result
+        return run
+
+    monkeypatch.setattr(gold, "modal_cell_runner", runner)
+    monkeypatch.setattr(gold, "certify_task", lambda **kw: real_certify(**kw, stage=fake_stage))
+    assert gold._certify_gold_command(args, tmp_path) == 1
+    assert "WRONG REJECTION" in capsys.readouterr().out
+    ledger = json.loads((tmp_path / "out.spend.json").read_text())
+    assert ledger["reserved_usd"] > 0
+    receipt = json.loads((tmp_path / "out/certification.json").read_text())
+    assert receipt["alternative_solutions_total"] == 2
+    assert receipt["alternative_solutions_accepted"] == 1
+
+
+def test_recorded_research_cells_reproduce_eight_task_results():
+    receipts = Path(__file__).resolve().parents[1] / "research/experiments/ov-gold-certifier-8-20261101/results"
+    with (receipts / "cells.csv").open() as handle:
+        rows = list(csv.DictReader(handle))
+    expected = json.loads((receipts / "summary.json").read_text())
+    results = []
+    arms = {"train_mutant": "train", "eval_mutant": "eval", "eval_base_mutant": "evalbase"}
+    for task in expected["tasks"]:
+        cells, outcomes = [], {}
+        for row in rows:
+            if row["task"] != task["task"]:
+                continue
+            arm = arms.get(row["arm_kind"], row["arm_kind"])
+            key = row["cell"].split("-", 1)[1] if arm in ("train", "eval", "evalbase") else ""
+            cells.append(gold.CertificationCell(row["cell"], arm, Path("unused"), "", "APPLIED", key))
+            outcomes[row["cell"]] = {"status": row["status"], "reward": float(row["reward"]),
+                                     "agent_log": "APPLIED" if row["applied"] == "True" else ""}
+        result = summarize(cells, outcomes, Path("unused"))
+        for actual, field in [("gate1_reference_passed", "gate1_ref"), ("gate2_nop_passed", "gate2_nop"),
+                              ("gate3_witness_passed", "gate3_wit"), ("gate4_exit0_pth_passed", "gate4_exit0"),
+                              ("train_mutants_killed", "train_killed"), ("train_mutants_total", "train_total"),
+                              ("eval_mutants_killed", "eval_killed"), ("eval_mutants_total", "eval_total"),
+                              ("eval_mutants_base_accepted", "eval_base_accepted"),
+                              ("eval_mutants_base_accepted_killed", "eval_base_accepted_killed")]:
+            assert getattr(result, actual) == task[field], (task["task"], field)
+        results.append(result)
+    report = gold.GoldMatrixSummary(results).to_report_dict()
+    assert report["total_tasks"] == expected["n_tasks"]
+    for actual, field in [("gate1_reference", "gate1_reference"), ("gate2_nop", "gate2_nop"),
+                          ("gate3_witness", "gate3_witness"), ("gate4_exit0_pth", "gate4_exit0_pth"),
+                          ("gate5_train_mutants", "gate5_train_mutants"),
+                          ("gate6_eval_mutants_base_accepted", "gate6_eval_base_accepted"),
+                          ("gate6_eval_mutants_all", "gate6_eval_all")]:
+        assert report[actual]["formatted"] == expected[field]
+
+
+@pytest.mark.parametrize("failure", ["infra", "unapplied", "reference_rejected", "too_few_mutants"])
+def test_probe_refuses_before_synthesis_or_hardening(tmp_path, failure):
+    base = package_at(tmp_path / "base")
+
+    def run(*cell):
+        result = fake_cell(*cell)
+        if failure == "infra":
+            result["status"] = "failed"
+        elif failure == "unapplied":
+            result["agent_log"] = ""
+        elif failure == "reference_rejected":
+            result["reward"] = 0.0
+        else:
+            source = base64.b64encode(b"pass\n").decode()
+            result["agent_log"] = f"{PROBE_MARKER} widget.py {source}\n{PROBE_DONE_MARKER}"
+        return result
+
+    with pytest.raises((ValueError, RuntimeError)):
+        gold.certify_task(task_id="synthetic", package=base, reference_patch=PATCH,
+                          out_dir=tmp_path / "out", run_cell=run,
+                          synthesize=lambda *_: pytest.fail("synthesized"),
+                          stage=lambda *_args, **_kw: pytest.fail("hardened"))
+    assert not (tmp_path / "out/certification.json").exists()
+    assert (tmp_path / "out/cells/probe/result.json").exists()
+
+
+def test_unsupported_reward_hook_refuses_instead_of_appending_after_reward(tmp_path):
+    base = package_at(tmp_path / "base")
+    (base / "tests/test.sh").write_text('echo 1 > /logs/verifier/reward.txt\n')
+    with pytest.raises(ValueError, match="cannot place supplementary test"):
+        gold.stage_and_harden_package(base, tmp_path / "out", CODE, "python3")
+    assert not (tmp_path / "out").exists()
+
+
+def test_real_cli_missing_approval_has_same_exit_as_audit_mutants(tmp_path, capsys):
+    from evallab.cli import run_cli
+
+    args = cli_args(tmp_path)
+    common = ["--package", str(args.package), "--reference-patch", str(args.reference_patch),
+              "--out", str(args.out)]
+    assert run_cli(["certify-gold", *common]) == 2
+    assert "--approval" in capsys.readouterr().err
+    assert run_cli(["audit-mutants", *common]) == 2
+    assert "--approval" in capsys.readouterr().err

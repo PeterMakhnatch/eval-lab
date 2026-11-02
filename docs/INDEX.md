@@ -169,7 +169,7 @@ inputs:
   - path: docs/trial-treatment.md
     digest: sha256:1c6e4147cc2ba6cc215482e6315f53cb4a0aec7ec2ef768a72d8d87bb85b7023
   - path: docs/trust-engine.md
-    digest: sha256:8e766e4fca0e3d5a12c0277ba8f5fafa27b1db9f1ba9df0af349902d694ff153
+    digest: sha256:1d0c5501a2286438f55fb98abc144490cbf35aa0099ff4d740198c7a8b64a1cf
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

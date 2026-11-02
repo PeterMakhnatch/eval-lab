@@ -1,3 +1,6 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+> Note: Row-level file kept local; see receipts-manifest.json.
+
 # on-a3-rounds-20261102
 
 Gold-certifier feedback rounds (A3 of the 2026-11-02 overnight run): `evallab.gold_certifier.run_rounds` feeds round r+1 the fresh probe mutants that survived round r's synthesized test, never an eval mutant. Preregistered in [`prereg.md`](prereg.md) before any synthesis call or Modal cell.

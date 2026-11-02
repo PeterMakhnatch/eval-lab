@@ -1,0 +1,12 @@
+{
+  "description": "Row-level files kept local per third-party data policy. Stored locally under ~/Developer/eval-lab-results/2026-11-02/D4/",
+  "files": [
+    {
+      "name": "sample-case-ids.txt",
+      "sha256": "b571b81e3d5be844f8ad93b9250450519812a39a6a7f38248daeacc7c5b62804",
+      "byte_size": 1680,
+      "row_count": 60,
+      "description": "60 third-party sample case IDs"
+    }
+  ]
+}

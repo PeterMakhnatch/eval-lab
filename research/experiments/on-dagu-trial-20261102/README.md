@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # Dagu Trial for Fixed CLI-Agent Batches (F8-DAGU-TRIAL)
 
 This directory contains the artifacts, test harnesses, DAG specifications, and results for the trial of **Dagu v2.24.0** (GPL-3.0 single Go binary) evaluating durability, human approval persistence, quota parking, code mutations under live runs, and execution caps across the five standardized overnight kill tests.

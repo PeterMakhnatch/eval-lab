@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # DBOS Squad Runner Prototype (`on-dbos-squad-20261102`)
 
 Durable execution squad runner prototype built on **DBOS** (embedded SQLite step journaling, zero server daemons, zero network ports), evaluated side-by-side with our baseline in-memory squad runner (`ds_squad.py`) and F3's Temporal prototype under the standard five kill tests protocol (`_KILLTESTS.md`).

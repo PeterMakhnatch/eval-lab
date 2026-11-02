@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # Student-Monitor Distillation Plan (D3-DISTILL-PLAN)
 
 Decision memo, experimental protocol, and statistical arithmetic evaluating whether to distill a student trace monitor for cheat detection.

@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # A2B-EQUIV: Equivalence Check of A2 Surviving Mutants with Calibrated Blind LLM Judges
 
 This experiment evaluates whether the 22 AST mutants that survived original MiMo graders in the A2 census (`research/experiments/on-weak-grader-census-20261102/`, PR #1746 merged) represent genuine semantic behavior changes vs functionally equivalent mutations (e.g., dead code, redundant guards, unreachable branches).

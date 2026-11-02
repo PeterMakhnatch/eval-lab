@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # D6B-FORCED-STAGE2: Isolate AutoReview Stage 2 on Identical Inputs against Ground-Truth Labels
 
 ## Executive Summary

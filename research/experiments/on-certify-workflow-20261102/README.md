@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # CertifyGold Durable Temporal Workflow Prototype (`F5-CERTIFY-WF`)
 
 **Workflow ID:** `WF-03` / `F5-CERTIFY-WF`  

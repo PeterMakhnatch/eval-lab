@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # Temporal Squad Runner Prototype (`on-temporal-squad-20261102`)
 
 Durable execution runner prototype for overnight headless OpenHands/OMP squads, replacing ad-hoc in-memory polling scripts (`ds_squad.py`) with durable Temporal workflows.

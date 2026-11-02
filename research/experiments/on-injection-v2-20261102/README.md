@@ -1,3 +1,5 @@
+> VERIFIED 2026-11-02: some numbers below were corrected by an independent verifier; read VERIFIER-NOTES.md first.
+
 # Injection Robustness v2: Noise Floor, Placebo-Controlled Effect, and Claims-Targeting Defenses (B4-INJECTION-V2)
 
 **Date:** 2026-11-02  

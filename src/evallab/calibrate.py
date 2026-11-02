@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from evallab import database
 from evallab.cohort import NOT_COMPARABLE, CohortMember, bootstrap_mean_interval
 from evallab.evidence.facts import TrialFact
+from evallab.execution_backend import require_local_docker
 from evallab.queue import Executor
 from evallab.runner import database_url_from_environment
 from evallab.schemas import (
@@ -962,6 +963,8 @@ def stage_queue_bundle(
 def codex_calibration_readiness(
     repo_root: Path, *, executor: Executor
 ) -> CodexCalibrationReadiness:
+    """Probe local calibration readiness only when laptop Docker is permitted."""
+    require_local_docker()
     runtime_checks = {name: ok for name, ok, _detail in executor.local_runtime_checks()}
     try:
         database.ping(database_url_from_environment())
@@ -984,7 +987,8 @@ def dispatch_approved_codex_calibration(
     family: str,
     spec_id: str,
 ) -> tuple[CodexCalibrationReadiness, int]:
-    """Dispatch one approved Codex calibration without requiring a Claude credential."""
+    """Dispatch one approved local calibration, respecting the Docker opt-out."""
+    require_local_docker()
     executor = Executor.from_repo(repo_root)
     approved = executor.queue.list_specs("approved")
     if len(approved) != 1 or approved[0][1].spec_id != spec_id:

@@ -24,6 +24,7 @@ from typing import Any
 
 from evallab.dataset_audit_contracts import AuditObservation, AuditSource, AuditTask, StageStatus
 from evallab.dataset_audit_sources import file_source
+from evallab.execution_backend import require_local_docker
 from evallab.registry import harbor_task_digest, task_directory_digest
 from evallab.task_variants import derive_task, materialize
 
@@ -101,6 +102,7 @@ def _verify_selected(task: AuditTask, package: Path) -> None:
 
 def _docker(args: list[str]) -> subprocess.CompletedProcess[str]:
     """The sole Docker boundary; tests inject it without replacing extraction."""
+    require_local_docker()
     return subprocess.run(
         ["docker", *args], capture_output=True, text=True, check=False, timeout=120
     )
@@ -290,6 +292,7 @@ def prepare_history_oracle(
     pulled, started or set up; the selected immutable image is the only source
     of Git. Missing history and failed extraction are not oracle:none proof.
     """
+    require_local_docker()
     facts: dict[str, Any] = {
         "reference": "history-oracle", "package_digest": task.package_digest,
         "harbor_digest": task.harbor_digest, "requires_control": True,

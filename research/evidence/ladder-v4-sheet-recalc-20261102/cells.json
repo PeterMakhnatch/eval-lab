@@ -56,6 +56,7 @@
  "cells": [
   {
    "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
    "scope": "full",
    "attack": null,
    "ladder_version": "4.0.0",
@@ -184,6 +185,7 @@
   },
   {
    "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
    "scope": "single",
    "attack": "tamper_pth_exit",
    "ladder_version": "4.0.0",
@@ -210,6 +212,7 @@
   },
   {
    "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
    "scope": "single",
    "attack": "tamper_pth_atexit",
    "ladder_version": "4.0.0",
@@ -236,6 +239,7 @@
   },
   {
    "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
    "scope": "single",
    "attack": "tamper_pth_forge_report",
    "ladder_version": "4.0.0",
@@ -262,6 +266,7 @@
   },
   {
    "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
    "scope": "full",
    "attack": null,
    "ladder_version": "4.0.0",
@@ -390,6 +395,7 @@
   },
   {
    "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
    "scope": "single",
    "attack": "tamper_pth_exit",
    "ladder_version": "4.0.0",
@@ -416,6 +422,7 @@
   },
   {
    "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
    "scope": "single",
    "attack": "tamper_pth_atexit",
    "ladder_version": "4.0.0",
@@ -442,6 +449,7 @@
   },
   {
    "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
    "scope": "single",
    "attack": "tamper_pth_forge_report",
    "ladder_version": "4.0.0",
@@ -470,6 +478,7 @@
  "errored_attempts": [
   {
    "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
    "job": "har255-sr-tamper-pth-exit",
    "trial": "har255-sr-tamper-pth-exit__TNaBm88",
    "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-sr-tamper-pth-exit",
@@ -482,6 +491,7 @@
   },
   {
    "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
    "job": "har255-sr-tamper-pth-forge-report",
    "trial": "har255-sr-tamper-pth-forge-repor__CwwZWxy",
    "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-sr-tamper-pth-forge-report",
@@ -494,6 +504,7 @@
   },
   {
    "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
    "job": "har255-src-full",
    "trial": "har255-src-full__AadHvzF",
    "published": "~/Developer/eval-lab-results/2026-11-02/HAR-255-har255-src-full",
@@ -508,6 +519,7 @@
  "controls": [
   {
    "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
    "agent": "oracle",
    "job": "unknown-hack-hf48xt-00-oracle-peter-sheet-recalc",
    "trial": "hack-hf48xt-00-oracle-peter-shee__z7VafmH",
@@ -521,6 +533,7 @@
   },
   {
    "task_id": "peter/sheet-recalc",
+   "task_dir": "library/tasks/sheet-recalc",
    "agent": "nop",
    "job": "unknown-hack-hf48xt-01-nop-peter-sheet-recalc",
    "trial": "hack-hf48xt-01-nop-peter-sheet-r__aU6Gcmp",
@@ -534,6 +547,7 @@
   },
   {
    "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
    "agent": "oracle",
    "job": "unknown-hack-g00g2p-00-oracle-peter-sheet-recalc-cutoff",
    "trial": "hack-g00g2p-00-oracle-peter-shee__9QTEeEV",
@@ -547,6 +561,7 @@
   },
   {
    "task_id": "peter/sheet-recalc-cutoff",
+   "task_dir": "library/tasks/sheet-recalc-cutoff",
    "agent": "nop",
    "job": "unknown-hack-g00g2p-01-nop-peter-sheet-recalc-cutoff",
    "trial": "hack-g00g2p-01-nop-peter-sheet-r__mFmytZF",

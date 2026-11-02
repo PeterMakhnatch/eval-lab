@@ -202,6 +202,36 @@ def test_ledger_controls_gate_the_cell_verdict(tmp_path: Path) -> None:
     assert (row["verdict"], row["n_cells"]) == ("none", "1")
 
 
+def test_a_multi_package_ledger_places_and_gates_each_cell_by_its_own_task_dir(
+    tmp_path: Path,
+) -> None:
+    # One card may record several packages in one ledger; each cell lands on its
+    # own package, and only that package's controls decide whether it has a verdict.
+    good = Package("library/tasks/good", "peter/good")
+    broken = Package("library/tasks/broken", "peter/broken")
+    cell = _ledger_payload("")["cells"][0]  # type: ignore[index]
+    payload = {
+        "generated": "2026-11-02",
+        "ladder_version": "4.0.0",
+        "task_dirs": [good.path, broken.path],
+        "cells": [{**cell, "task_dir": good.path}, {**cell, "task_dir": broken.path}],
+        "controls": [
+            {"task_dir": good.path, "agent": "oracle", "reward": 1.0},
+            {"task_dir": good.path, "agent": "nop", "reward": 0.0},
+            {"task_dir": broken.path, "agent": "oracle", "reward": 1.0},
+            {"task_dir": broken.path, "agent": "nop", "reward": 1.0},
+        ],
+    }
+    _ledger(tmp_path, "research/evidence/ladder-v4-pair-20261103/cells.json", payload)
+    cells = MODULE["_ledger_cells"](tmp_path, {good.path: good, broken.path: broken})
+
+    assert [(cell.package, cell.verdict) for cell in cells] == [
+        (good.path, "clean"),
+        (broken.path, None),
+    ]
+    assert MODULE["unread_ledgers"](tmp_path, cells) == []
+
+
 def test_an_unreadable_ladder_ledger_is_refused_not_skipped(tmp_path: Path) -> None:
     # A ledger whose shape this builder cannot place contributes no row; that must
     # fail loudly, because a silently skipped ledger is the stale-matrix bug.

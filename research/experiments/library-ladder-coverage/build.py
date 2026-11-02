@@ -17,7 +17,8 @@ Sources (all committed, nothing is executed):
 * ``ladder-v3-sheet-recalc-20261029`` -- ladder ``3.0.0`` on the two
   hand-authored packages.
 * every other ``research/evidence/ladder-v*/cells.json`` -- one directory per
-  ladder card in the 2026-11-02 layout (top-level ``task_dir``; ``cells``
+  ladder card in the 2026-11-02 layout (``task_dir`` at the top level or on
+  each ``cells``/``controls`` record of a multi-package ledger; ``cells``
   records with ``scope``, ``ladder_version``, ``verdict``, ``status`` and
   ``task_digest``), read by glob so a new card's evidence joins the matrix
   without editing this file. A ledger in the glob that no reader can place is
@@ -315,9 +316,11 @@ def _control_ok(controls: object) -> bool:
 def _ledger_cells(root: Path, by_path: dict[str, Package]) -> list[Cell]:
     """Read every ``ladder-v*`` ledger in the 2026-11-02 shipped-cells layout.
 
-    The layout is a top-level ``task_dir`` naming the package plus ``cells``
-    records carrying ``scope`` (``full``/``single``), ``ladder_version``,
-    ``verdict``, ``status`` and ``task_digest``. Reading the glob -- not a
+    The layout is a ``task_dir`` naming the package -- top-level, or per record
+    when one ledger covers several packages -- plus ``cells`` records carrying
+    ``scope`` (``full``/``single``), ``ladder_version``,
+    ``verdict``, ``status`` and ``task_digest``. Each cell's verdict is gated by
+    the oracle/nop controls of its own package. Reading the glob -- not a
     hardcoded path per ladder card -- is what keeps the next card's evidence in
     the matrix; a ledger that cannot be placed is refused by
     :func:`unread_ledgers` instead of being skipped.
@@ -332,14 +335,20 @@ def _ledger_cells(root: Path, by_path: dict[str, Package]) -> list[Cell]:
             continue
         data = _read_json(path)
         records = data.get("cells")
-        package = by_path.get(str(data.get("task_dir") or ""))
-        if package is None or not isinstance(records, list):
+        if not isinstance(records, list):
             continue
+        default_dir = str(data.get("task_dir") or "")
         date = str(data.get("generated") or "")
-        control_ok = _control_ok(data.get("controls"))
+        controls = [c for c in data.get("controls") or [] if isinstance(c, dict)]
         for record in records:
             if not isinstance(record, dict):
                 raise CoverageError(f"{source}: ladder cell is not an object")
+            package = by_path.get(str(record.get("task_dir") or default_dir))
+            if package is None:
+                continue
+            control_ok = _control_ok(
+                [c for c in controls if str(c.get("task_dir") or default_dir) == package.path]
+            )
             scope = str(record.get("scope") or "")
             if scope not in LEDGER_SCOPES:
                 raise CoverageError(

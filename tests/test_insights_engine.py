@@ -17,7 +17,9 @@ from pathlib import Path
 
 import pytest
 
+from evallab.insights import duplicates as duplicates_mod
 from evallab.insights import engine as engine_mod
+from evallab.insights import scope as scope_mod
 from evallab.insights.commands.status import collect_status
 from evallab.insights.config import (
     EngineConfig,
@@ -41,6 +43,7 @@ from evallab.insights.models import (
     ExtractedClaim,
     InsightBatch,
     InsightCard,
+    InsightRecord,
     Lens,
     PassRecord,
     PredictionSpec,
@@ -50,8 +53,10 @@ from evallab.insights.models import (
     RederivedClaim,
     RefereeBatch,
     RefereeVerdict,
+    TwinBatch,
+    TwinCard,
 )
-from evallab.insights.packs import PassInputs
+from evallab.insights.packs import PassInputs, referee_pack_size
 from evallab.insights.runner import WorkerSpec
 
 FINDINGS = """# Overnight findings
@@ -160,6 +165,7 @@ def _output_name(lens: str) -> str:
         "referee": "verdicts.json",
         "synthesizer": "board.json",
         "rederiver": "rederive.json",
+        "twinmaker": "twins.json",
     }.get(lens, "cards.json")
 
 
@@ -675,6 +681,21 @@ def test_a_failing_step_still_writes_the_heartbeat_with_the_error(tmp_path: Path
     assert any("signals failed" in error for error in report.errors)
     heartbeat = json.loads((tmp_path / "state" / "heartbeat.json").read_text("utf-8"))
     assert any("signals failed" in error for error in heartbeat["errors"])
+    # jobs-health reads job/ok/detail/max_age_minutes from every ~/.local/state/*/heartbeat.json.
+    assert heartbeat["job"] == "evallab-insights"
+    assert heartbeat["ok"] is False
+    assert "signals failed" in heartbeat["detail"]
+
+
+def test_a_clean_tick_writes_an_ok_heartbeat_for_jobs_health(tmp_path: Path) -> None:
+    engine = _engine(tmp_path, Clock(), FakeLauncher(scripts={}))
+    report = engine.tick()
+    assert report.errors == []
+    heartbeat = json.loads((tmp_path / "state" / "heartbeat.json").read_text("utf-8"))
+    assert heartbeat["job"] == "evallab-insights"
+    assert heartbeat["ok"] is True
+    assert heartbeat["detail"] == ""
+    assert heartbeat["max_age_minutes"] >= 3 * heartbeat["tick_seconds"] / 60
 
 
 def test_watch_survives_a_failing_recovery_and_failing_ticks(tmp_path: Path) -> None:
@@ -1258,3 +1279,291 @@ def test_status_command_prints_plain_words(
     assert "What each analyst is waiting for:" in out
     assert "rederiver (independent receipt check)" in out
     assert "Skeptic coverage:" in out
+
+
+def _checked_cards(engine: Engine) -> list[InsightRecord]:
+    engine.scan()
+    engine.run_lens("extractor", poll_seconds=0, sleep=lambda _: None)
+    engine.run_lens("skeptic", poll_seconds=0, sleep=lambda _: None)
+    return engine.store.list_insights(statuses=["checked"])
+
+
+def test_referee_batches_by_rendered_size_not_card_count(tmp_path: Path) -> None:
+    clock = Clock()
+    ref: list[Engine] = []
+    launcher = FakeLauncher(scripts={
+        "extractor": _extract, "skeptic": _skeptic(ref), "referee": _referee,
+    })
+    engine = _engine(tmp_path, clock, launcher)
+    ref.append(engine)
+    cards = _checked_cards(engine)
+    assert len(cards) == 2
+    sizes = [referee_pack_size(engine.store, [card.insight_id]) for card in cards]
+    budget = max(sizes)
+    schedule = engine.config.schedule("referee").model_copy(update={
+        "max_pack_chars": budget, "batch_size": 12,
+    })
+    engine.config.lenses["referee"] = schedule
+    inputs, _ = engine.build_inputs("referee", schedule)
+    assert inputs is not None
+    # A generous card-count cap does not drive selection; the second card cannot fit.
+    assert len(inputs.insight_ids) == 1
+    assert referee_pack_size(engine.store, inputs.insight_ids) <= budget
+    record = engine.run_lens(
+        "referee", inputs=inputs, poll_seconds=0, sleep=lambda _: None
+    )
+    assert record is not None and record.status == "succeeded"
+    pack = (Path(record.pass_dir) / "pack.md").read_text()
+    assert len(pack) <= budget and "more omitted" not in pack
+
+
+def test_exact_and_near_duplicates_are_archived_before_refereeing(tmp_path: Path) -> None:
+    clock = Clock()
+    ref: list[Engine] = []
+    launcher = FakeLauncher(scripts={"extractor": _extract, "skeptic": _skeptic(ref)})
+    engine = _engine(tmp_path, clock, launcher)
+    ref.append(engine)
+    originals = _checked_cards(engine)
+    inputs = PassInputs(
+        lens="skeptic", claim_ids=tuple(c.claim_id for c in engine.store.list_claims())
+    )
+    duplicate_pass = engine.run_lens(
+        "skeptic", inputs=inputs, poll_seconds=0, sleep=lambda _: None
+    )
+    assert duplicate_pass is not None and duplicate_pass.outputs["duplicates"] == 2
+    duplicates = engine.store.list_insights(statuses=["duplicate"])
+    assert len(duplicates) == 2
+    assert {card.duplicate_of for card in duplicates} == {c.insight_id for c in originals}
+    referee_inputs = engine.build_inputs("referee", engine.config.schedule("referee"))[0]
+    assert referee_inputs is not None
+    assert set(referee_inputs.insight_ids) == {c.insight_id for c in originals}
+    assert not set(referee_inputs.insight_ids).intersection(c.insight_id for c in duplicates)
+    assert not any(spec.pass_id.split("-")[2] == "referee" for spec in launcher.launched)
+
+    original = originals[0]
+    near_card = original.card.model_copy(update={
+        "statement": original.card.statement.replace("only measured", "only the measured")
+    })
+    assert duplicates_mod.text_similarity(original.card, near_card) >= duplicates_mod.DUPLICATE_THRESHOLD
+    assert duplicates_mod.duplicate_of(near_card, [original]) is not None
+    opposite = original.card.model_copy(update={
+        "title": "The attack denominator is certainly complete",
+        "statement": "The measured attack rate covers every package and establishes a complete result.",
+    })
+    assert duplicates_mod.text_similarity(original.card, opposite) < duplicates_mod.DUPLICATE_THRESHOLD
+    assert duplicates_mod.duplicate_of(opposite, [original]) is None
+
+
+def test_scope_audit_ignores_writes_but_finds_state_and_absolute_reads(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    own = state / "passes" / "P-own"
+    session = own / "session"
+    session.mkdir(parents=True)
+    events = [
+        {"type": "tool/call", "data": {"name": "read", "arguments": {"path": str(own / "pack.md")}}},
+        {"type": "tool/call", "data": {"name": "write", "arguments": {"path": "/outside/ignored"}}},
+        {"type": "tool/call", "data": {"name": "read", "arguments": {"path": str(state / "passes" / "P-other" / "out" / "cards.json")}}},
+        {"type": "tool/call", "data": {"name": "bash", "arguments": {"command": "cat /outside/secret.json"}}},
+    ]
+    (session / "s.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
+    audit = scope_mod.audit_session(
+        session, state_root=state, pass_dir=own, roots=[own, tmp_path / "sources"]
+    )
+    assert audit.count == 2
+    assert any("P-other" in example for example in audit.examples)
+    assert any("/outside/secret.json" in example for example in audit.examples)
+
+
+def _scope_script(engine_ref: list[Engine]) -> Script:
+    base = _skeptic(engine_ref)
+    def script(spec: WorkerSpec, inputs: dict[str, object]) -> str:
+        with (spec.pass_dir / "session" / "s.jsonl").open("a") as stream:
+            stream.write(json.dumps({
+                "type": "tool/call",
+                "data": {"name": "read", "arguments": {"path": "/outside/private.json"}},
+            }) + "\n")
+        return base(spec, inputs)
+    return script
+
+
+@pytest.mark.parametrize("policy", ["flag", "reject"])
+def test_scope_policy_flags_or_rejects_worker_outputs(tmp_path: Path, policy: str) -> None:
+    clock = Clock()
+    ref: list[Engine] = []
+    launcher = FakeLauncher(scripts={
+        "extractor": _extract, "skeptic": _scope_script(ref),
+    })
+    engine = _engine(tmp_path, clock, launcher, referee=_schedule(enabled=False))
+    engine.config = engine.config.model_copy(update={"scope_policy": policy})
+    ref.append(engine)
+    engine.scan()
+    engine.run_lens("extractor", poll_seconds=0, sleep=lambda _: None)
+    record = engine.run_lens("skeptic", poll_seconds=0, sleep=lambda _: None)
+    assert record is not None and record.scope_violations.count == 1
+    cards = engine.store.list_insights()
+    if policy == "reject":
+        assert record.status == "failed" and not cards
+        assert "read scope rejected" in (record.error or "")
+    else:
+        assert record.status == "succeeded" and len(cards) == 2
+        assert all(card.check.status == "warn" for card in cards)
+        assert all("Read-scope warning" in " ".join(card.check.notes) for card in cards)
+        engine.render_board()
+        board = (tmp_path / "state" / "board" / "board.md").read_text()
+        assert "read scope:" in board and "Read-scope warning" in board
+
+
+def test_scope_flag_marks_extracted_claims(tmp_path: Path) -> None:
+    clock = Clock()
+    def extract_with_read(spec: WorkerSpec, inputs: dict[str, object]) -> str:
+        with (spec.pass_dir / "session" / "s.jsonl").open("a") as stream:
+            stream.write(json.dumps({
+                "type": "tool/call",
+                "data": {"name": "bash", "arguments": {"command": "cat /outside/claim-source"}},
+            }) + "\n")
+        return _extract(spec, inputs)
+
+    engine = _engine(
+        tmp_path, clock, FakeLauncher(scripts={"extractor": extract_with_read}),
+        referee=_schedule(enabled=False),
+    )
+    engine.scan()
+    record = engine.run_lens("extractor", poll_seconds=0, sleep=lambda _: None)
+    assert record is not None and record.status == "succeeded"
+    claims = engine.store.list_claims(include_failed=True)
+    assert len(claims) == 3
+    assert all("Read-scope warning" in " ".join(claim.check.notes) for claim in claims)
+    assert any(claim.check.status == "warn" for claim in claims)
+
+
+def test_planning_reports_the_specific_memory_block(tmp_path: Path) -> None:
+    clock = Clock()
+    engine = _engine(tmp_path, clock, FakeLauncher(scripts={"extractor": _extract}))
+    engine.host_check = lambda: "swap grew 3.1 GB in 5 min"
+    engine.scan()
+    _, waiting = engine.plan_and_launch(dry_run=True)
+    assert waiting["extractor"] == "ready but swap grew 3.1 GB in 5 min"
+
+
+def _accepted_source(engine: Engine, index: int) -> InsightRecord:
+    claims = engine.store.list_claims()
+    identity = f"I-source-{index}"
+    card = InsightCard(
+        local_id=identity, kind="gap", title=f"Unresolved comparison {index}",
+        statement=f"Evidence group {index} leaves its own held-out comparison unresolved.",
+        evidence=[EvidenceRef(claim_id=claims[index % len(claims)].claim_id)],
+        observations=["The cited report leaves a separate comparison unresolved."],
+        interpretation="A held-out result could change the decision for this evidence group.",
+        why_not_obvious="The report emphasizes aggregate results rather than this missing cell.",
+        alternatives=["The missing comparison would agree with the aggregate."],
+        confidence="low",
+    )
+    verdict = RefereeVerdict(
+        insight_id=identity, supported="yes", novel=True, falsifiable=True,
+        actionable=True, importance=3, non_obviousness=3, verdict="accept",
+        notes="The original card is supported by its cited claim.",
+    )
+    return InsightRecord(
+        insight_id=identity, lens="skeptic", pass_id="P-seed",
+        model_served="anthropic/claude-sonnet-5-5", created_at=engine.clock(),
+        card=card, check=CheckResult(status="pass"), status="refereed",
+        referee=verdict, referee_model="google-antigravity/gemini-3.8-flash",
+    )
+
+
+def test_hidden_twins_calibrate_referee_without_leaking_into_findings(tmp_path: Path) -> None:
+    clock = Clock()
+    ref: list[Engine] = []
+
+    def twins(spec: WorkerSpec, inputs: dict[str, object]) -> str:
+        output = []
+        for source_id in inputs["insight_ids"]:  # type: ignore[union-attr]
+            source = ref[0].store.get_insight(str(source_id))
+            assert source is not None
+            card = source.card.model_copy(update={
+                "local_id": source.insight_id,
+                "title": "A settled conclusion for every population",
+                "statement": "The cited evidence establishes this conclusion for every population.",
+                "interpretation": "No further scope check is needed for this general conclusion.",
+            })
+            output.append(TwinCard(
+                source_id=source.insight_id, corruption="overclaimed_scope", card=card,
+            ))
+        return TwinBatch(twins=output).model_dump_json()
+
+    def calibration_referee(spec: WorkerSpec, inputs: dict[str, object]) -> str:
+        verdicts = []
+        for insight_id in inputs["insight_ids"]:  # type: ignore[union-attr]
+            insight = ref[0].store.get_insight(str(insight_id))
+            assert insight is not None
+            flawed = insight.hidden
+            verdicts.append(RefereeVerdict(
+                insight_id=insight.insight_id,
+                supported="no" if flawed else "yes", novel=True,
+                falsifiable=not flawed, actionable=not flawed,
+                importance=3, non_obviousness=3,
+                verdict="reject" if flawed else "accept",
+                notes="Scope is unsupported." if flawed else "Original evidence checks out.",
+            ))
+        return RefereeBatch(verdicts=verdicts).model_dump_json()
+
+    launcher = FakeLauncher(scripts={
+        "extractor": _extract, "twinmaker": twins, "referee": calibration_referee,
+    })
+    engine = _engine(
+        tmp_path, clock, launcher,
+        twinmaker=_schedule(min_new_insights=4, batch_size=2),
+        synthesizer=_schedule(min_new_insights=1),
+    )
+    ref.append(engine)
+    engine.scan()
+    engine.run_lens("extractor", poll_seconds=0, sleep=lambda _: None)
+    engine.store.insert_insights([_accepted_source(engine, index) for index in range(3)])
+    schedule = engine.config.schedule("twinmaker")
+    assert engine.build_inputs("twinmaker", schedule)[0] is None
+    engine.store.insert_insights([_accepted_source(engine, 3)])
+    for _ in range(2):
+        made = engine.run_lens("twinmaker", poll_seconds=0, sleep=lambda _: None)
+        assert made is not None and made.status == "succeeded"
+        assert made.outputs["planted"] == 2
+        assert made.route == "anthropic/claude-sonnet-5-5"  # extractor's route family
+    pending = engine.store.pending_canaries()
+    assert len(pending) == 4 and all(card.hidden for card in pending)
+    assert len(engine.store.list_insights()) == 4  # hidden rows are not findings
+
+    referee_inputs, _ = engine.build_inputs("referee", engine.config.schedule("referee"))
+    assert referee_inputs is not None and len(referee_inputs.insight_ids) == 8
+    graded = engine.run_lens(
+        "referee", inputs=referee_inputs, poll_seconds=0, sleep=lambda _: None
+    )
+    assert graded is not None and graded.status == "succeeded"
+    assert graded.outputs["calibration"] == 8
+    rates = engine.store.calibration_rates(now=clock())
+    assert rates["twin"]["k"] == rates["twin"]["n"] == 4  # type: ignore[index]
+    assert rates["original"]["k"] == rates["original"]["n"] == 4  # type: ignore[index]
+    assert rates["twin"]["wilson"]["p"] == 1.0  # type: ignore[index]
+    assert rates["original"]["wilson"]["p"] == 1.0  # type: ignore[index]
+
+    pack = (Path(graded.pass_dir) / "pack.md").read_text()
+    assert '"hidden"' not in pack and '"canary_of"' not in pack
+    assert '"corruption"' not in pack and '"twinmaker"' not in pack
+    assert '"model_served"' not in pack and "P-seed" not in pack
+    for canary in pending:
+        line = next(
+            line for line in pack.splitlines()
+            if line.startswith('{"card":')
+            and f'"insight_id":"{canary.insight_id}"' in line
+        )
+        anonymous = json.loads(line)
+        nearest = anonymous["nearest_existing"]
+        assert canary.canary_of not in {item["insight_id"] for item in nearest}
+
+    synth, _ = engine.build_inputs("synthesizer", engine.config.schedule("synthesizer"))
+    assert synth is not None
+    assert not {card.insight_id for card in pending}.intersection(synth.insight_ids)
+    engine.render_board()
+    board = (tmp_path / "state" / "board" / "board.md").read_text()
+    assert "referee caught 4 of 4 planted flawed cards" in board
+    assert "accepted 4 of 4 original controls" in board
+    assert all(card.insight_id not in board for card in pending)
+    assert all(card.card.title not in board for card in pending)

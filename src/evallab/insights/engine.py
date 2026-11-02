@@ -38,13 +38,16 @@ from pydantic import BaseModel, ValidationError
 
 from evallab.insights import board as board_mod
 from evallab.insights import check as check_mod
+from evallab.insights import duplicates as duplicates_mod
 from evallab.insights import packs as packs_mod
 from evallab.insights import recompute as recompute_mod
+from evallab.insights import scope as scope_mod
 from evallab.insights import signals as signals_mod
 from evallab.insights import sources as sources_mod
 from evallab.insights.config import (
     EngineConfig,
     LensSchedule,
+    RouteSpec,
     RouteTable,
     load_config,
     load_routes,
@@ -53,6 +56,7 @@ from evallab.insights.config import (
 )
 from evallab.insights.models import (
     BoardUpdate,
+    CalibrationRecord,
     ClaimExtraction,
     ClaimRecord,
     ExtractedClaim,
@@ -67,22 +71,23 @@ from evallab.insights.models import (
     RederiveBatch,
     RefereeBatch,
     SourceRecord,
+    TwinBatch,
     claim_fingerprint,
     claim_identity,
     insight_identity,
     prediction_identity,
 )
-from evallab.insights.packs import OUTPUT_FILES, PassInputs, build_pass_dir
+from evallab.insights.packs import OUTPUT_FILES, PassInputs, build_pass_dir, card_claim_ids
 from evallab.insights.routes import choose_route
 from evallab.insights.runner import (
     Launcher,
+    MemoryGate,
     OmpLauncher,
     UsageGate,
     WorkerHandle,
     WorkerSpec,
     attest_session,
     classify_failure,
-    host_ok,
 )
 from evallab.insights.store import DB_NAME, InsightStore, utcnow
 
@@ -98,6 +103,7 @@ PLAN_ORDER: tuple[Lens, ...] = (
     "synthesizer",
     "theorist",
     "ideator",
+    "twinmaker",
 )
 WORKER_TOOLS = "read,bash,grep,glob,write"
 TIMEOUT_GRACE = timedelta(minutes=5)
@@ -224,7 +230,7 @@ class Engine:
         routes: RouteTable | None = None,
         launcher: Launcher | None = None,
         usage: UsageLike | None = None,
-        host_check: Callable[[], bool] | None = None,
+        host_check: Callable[[], bool | str | None] | None = None,
         clock: Callable[[], datetime] | None = None,
         python_executable: str | None = None,
         mirror_refresher: Callable[[Path, Path], object] | None = None,
@@ -240,8 +246,11 @@ class Engine:
         self.routes = routes if routes is not None else load_routes(self.state_root)
         self.launcher: Launcher = launcher if launcher is not None else OmpLauncher()
         self.usage: UsageLike = usage if usage is not None else UsageGate()
+        self._memory_gate = MemoryGate()
         self.host_check = host_check or (
-            lambda: host_ok(self.config.host_min_memory_level, self.config.host_max_swap_gb)
+            lambda: self._memory_gate.status(
+                self.config.host_min_memory_level, self.config.host_max_swap_growth_gb
+            )
         )
         self.clock = clock or utcnow
         self.python_executable = python_executable or sys.executable
@@ -337,7 +346,8 @@ class Engine:
         for record in running:
             running_by_lens[record.lens] = running_by_lens.get(record.lens, 0) + 1
         slots = self.config.max_concurrent_passes - len(running)
-        host_checked: bool | None = None
+        host_evaluated = False
+        host_reason: str | None = None
         for lens in PLAN_ORDER:
             schedule = self.config.lenses.get(lens)
             if schedule is None or not schedule.enabled:
@@ -367,10 +377,15 @@ class Engine:
                         f"ready ({why}) but all {self.config.max_concurrent_passes} slots busy"
                     )
                     break
-                if host_checked is None:
-                    host_checked = self.host_check()
-                if not host_checked:
-                    waiting[lens] = "ready but the Mac is under memory pressure"
+                if not host_evaluated:
+                    host_evaluated = True
+                    result = self.host_check()
+                    if result is False:
+                        host_reason = "current memory pressure"
+                    elif isinstance(result, str):
+                        host_reason = result
+                if host_reason is not None:
+                    waiting[lens] = f"ready but {host_reason}"
                     break
                 if dry_run:
                     waiting[lens] = f"would launch: {why}"
@@ -554,20 +569,69 @@ class Engine:
         if lens == "skeptic":
             return self._skeptic_inputs(schedule)
         if lens == "referee":
-            checked = self.store.list_insights(statuses=["checked"])
-            checked.sort(key=lambda record: (record.created_at, record.insight_id))
-            if len(checked) < max(1, schedule.min_pending):
-                return None, f"waiting: {len(checked)} cards to grade"
-            batch = checked[: schedule.batch_size]
-            return (
-                PassInputs(lens=lens, insight_ids=tuple(r.insight_id for r in batch)),
-                f"{len(checked)} checked cards waiting for a referee",
-            )
+            return self._referee_inputs(schedule)
+        if lens == "twinmaker":
+            return self._twinmaker_inputs(schedule)
         if lens == "rederiver":
             return self._rederiver_inputs(schedule)
         if lens == "synthesizer":
             return self._synthesizer_inputs(schedule)
         return self._analyst_inputs(lens, schedule)
+
+    def _referee_inputs(self, schedule: LensSchedule) -> tuple[PassInputs | None, str]:
+        ordinary = self.store.list_insights(statuses=["checked"])
+        ordinary.sort(key=lambda record: (record.created_at, record.insight_id))
+        units: list[tuple[datetime, tuple[str, ...]]] = [
+            (record.created_at, (record.insight_id,)) for record in ordinary
+        ]
+        for canary in self.store.pending_canaries():
+            pair = [canary.insight_id]
+            if canary.canary_of and self.store.get_insight(canary.canary_of) is not None:
+                pair.append(canary.canary_of)
+            units.append((canary.created_at, tuple(pair)))
+        if len(units) < max(1, schedule.min_pending):
+            return None, f"waiting: {len(ordinary)} cards to grade"
+        units.sort(key=lambda item: (item[0], item[1]))
+        chosen: list[str] = []
+        oversized = 0
+        for _, unit in units:
+            if any(insight_id in chosen for insight_id in unit):
+                continue
+            candidate = [*chosen, *unit]
+            try:
+                size = packs_mod.referee_pack_size(self.store, candidate)
+            except ValueError:
+                oversized += 1
+                continue
+            if size <= schedule.max_pack_chars:
+                chosen = candidate
+            else:
+                oversized += 1
+        if not chosen:
+            return None, f"waiting: {oversized} card(s) exceed max_pack_chars"
+        waiting = len(units) - (1 if chosen else 0)
+        return (
+            PassInputs(lens="referee", insight_ids=tuple(chosen)),
+            f"{len(ordinary)} checked cards plus calibration controls; "
+            f"size-batched {len(chosen)} cards ({oversized} did not fit; {waiting} units waiting)",
+        )
+
+    def _twinmaker_inputs(self, schedule: LensSchedule) -> tuple[PassInputs | None, str]:
+        accepted = self.store.list_insights(statuses=["refereed"])
+        accepted = [record for record in accepted if record.referee is not None
+                    and record.referee.verdict == "accept"]
+        if len(accepted) < max(4, schedule.min_new_insights):
+            return None, f"waiting: {len(accepted)} accepted cards (need at least 4)"
+        used = self.store.canary_source_ids()
+        accepted.sort(key=lambda record: (-record.created_at.timestamp(), record.insight_id))
+        fresh = [record for record in accepted if record.insight_id not in used]
+        if not fresh:
+            return None, "waiting: every accepted card already has a calibration twin"
+        selected = fresh[:schedule.batch_size]
+        return (
+            PassInputs(lens="twinmaker", insight_ids=tuple(r.insight_id for r in selected)),
+            f"{len(fresh)} accepted cards available for hidden referee controls",
+        )
 
     def _extractor_inputs(
         self, schedule: LensSchedule, *, dry_run: bool = False
@@ -785,8 +849,13 @@ class Engine:
         parked[route] = _iso(until)
         self.store.set_meta("parked_routes", json.dumps(parked, sort_keys=True))
 
+    def _route_spec(self, lens: Lens) -> RouteSpec:
+        # Twin authors come from the extractor's route family; only the referee
+        # needs independence from the analysts, not from the calibration writer.
+        return self.routes.spec("extractor" if lens == "twinmaker" else lens)
+
     def _avoid_families(self, lens: Lens, inputs: PassInputs) -> set[str]:
-        spec = self.routes.spec(lens)
+        spec = self._route_spec(lens)
         if not spec.independent_of:
             return set()
         families: set[str] = set()
@@ -808,7 +877,7 @@ class Engine:
     def launch(self, lens: Lens, inputs: PassInputs, *, trigger: str) -> PassRecord:
         now = self.clock()
         pass_id = f"P-{now.strftime('%Y%m%dT%H%M%SZ')}-{lens}-{secrets.token_hex(3)}"
-        spec = self.routes.spec(lens)
+        spec = self._route_spec(lens)
         choice = choose_route(
             spec,
             usage=self._usage_by_route(spec.routes),
@@ -849,6 +918,9 @@ class Engine:
                 db_path=self.db_path,
                 max_pack_chars=schedule.max_pack_chars,
                 python_executable=self.python_executable,
+                allowed_read_roots=scope_mod.allowed_read_roots(
+                    self.config, self.state_root / "passes" / pass_id
+                ),
             )
         except (OSError, ValueError) as exc:
             record = record.model_copy(
@@ -955,8 +1027,8 @@ class Engine:
         if handle is not None:
             exit_code = handle.poll()
             if exit_code is None:
-                spec = self.routes.lenses.get(record.lens)
-                limit = timedelta(minutes=spec.max_minutes if spec else 30) + TIMEOUT_GRACE
+                spec = self._route_spec(record.lens)
+                limit = timedelta(minutes=spec.max_minutes) + TIMEOUT_GRACE
                 started = record.started_at or record.created_at
                 if self.clock() - started <= limit:
                     return None
@@ -1040,6 +1112,19 @@ class Engine:
         meta: dict[str, object] = {} if stored is None else dict(stored["metadata"])
         inputs = self._inputs_of(record)
         update: dict[str, object] = {"finished_at": now}
+        scope_audit = scope_mod.audit_session(
+            pass_dir / "session",
+            state_root=self.state_root,
+            pass_dir=pass_dir,
+            roots=scope_mod.allowed_read_roots(self.config, pass_dir),
+        )
+        update["scope_violations"] = scope_audit
+        scope_rejected = scope_audit.count > 0 and self.config.scope_policy == "reject"
+        if scope_audit.count:
+            self.store.log_event("worker_scope_violation", {
+                "pass_id": record.pass_id, "policy": self.config.scope_policy,
+                "count": scope_audit.count, "examples": scope_audit.examples,
+            })
         diagnostics = ""
         try:
             attestation = attest_session(pass_dir / "session", record.route)
@@ -1062,11 +1147,19 @@ class Engine:
             status = "failed"
             update["error"] = tamper
             self.store.log_event("pass_tampered", {"pass_id": record.pass_id, "detail": tamper})
+        elif scope_rejected:
+            status = "failed"
+            update["error"] = (
+                f"worker read scope rejected the pass ({scope_audit.count} violation(s)): "
+                + "; ".join(scope_audit.examples)
+            )
         elif output.exists():
             try:
                 counts = self._import_output(
                     record, inputs, output, served_model=served_model, meta=meta
                 )
+                if scope_audit.count:
+                    self.store.mark_scope_warning(record.pass_id)
                 update["outputs"] = counts
                 status = "succeeded"
             except (ValidationError, ValueError) as exc:
@@ -1201,8 +1294,12 @@ class Engine:
             )
         if lens in ANALYST_LENSES:
             return self._import_cards(record, InsightBatch.model_validate_json(text), served_model)
+        if lens == "twinmaker":
+            return self._import_twins(record, TwinBatch.model_validate_json(text), served_model)
         if lens == "referee":
-            return self._import_verdicts(inputs, RefereeBatch.model_validate_json(text), served_model)
+            return self._import_verdicts(
+                record, inputs, RefereeBatch.model_validate_json(text), served_model
+            )
         if lens == "synthesizer":
             return self._import_board(record, BoardUpdate.model_validate_json(text))
         if lens == "rederiver":
@@ -1302,6 +1399,7 @@ class Engine:
         known = {row["insight_id"] for row in self.store.query("SELECT insight_id FROM insights")}
         records: list[InsightRecord] = []
         predictions: list[PredictionRecord] = []
+        existing = self.store.list_insights()
         for card in batch.cards:
             cited = {ref.claim_id for ref in card.evidence}
             if card.challenge is not None:
@@ -1312,6 +1410,14 @@ class Engine:
                 sources=source_records, section_texts=section_texts,
             )
             insight_id = insight_identity(record.pass_id, card)
+            duplicate = None if checked.status == "fail" else duplicates_mod.duplicate_of(
+                card, [*existing, *records]
+            )
+            status: InsightStatus = (
+                "check_failed" if checked.status == "fail"
+                else "duplicate" if duplicate is not None
+                else "checked"
+            )
             records.append(
                 InsightRecord(
                     insight_id=insight_id,
@@ -1321,18 +1427,20 @@ class Engine:
                     created_at=now,
                     card=card,
                     check=checked,
-                    status="check_failed" if checked.status == "fail" else "checked",
+                    status=status,
+                    duplicate_of=None if duplicate is None else duplicate[0],
                 )
             )
-            predictions.extend(
-                PredictionRecord(
-                    prediction_id=prediction_identity(insight_id, index),
-                    insight_id=insight_id,
-                    spec=spec,
-                    created_at=now,
+            if status != "duplicate":
+                predictions.extend(
+                    PredictionRecord(
+                        prediction_id=prediction_identity(insight_id, index),
+                        insight_id=insight_id,
+                        spec=spec,
+                        created_at=now,
+                    )
+                    for index, spec in enumerate(card.predictions)
                 )
-                for index, spec in enumerate(card.predictions)
-            )
         inserted = self.store.insert_insights(records)
         self.store.insert_predictions(predictions)
         if record.lens == "anomaly":
@@ -1341,15 +1449,61 @@ class Engine:
             "cards": len(records),
             "inserted": inserted,
             "check_failed": sum(1 for r in records if r.status == "check_failed"),
+            "duplicates": sum(1 for r in records if r.status == "duplicate"),
             "predictions": len(predictions),
         }
 
+    def _import_twins(
+        self, record: PassRecord, batch: TwinBatch, served_model: str | None
+    ) -> dict[str, int]:
+        allowed = set(self._inputs_of(record).insight_ids)
+        known = {row["insight_id"] for row in self.store.query("SELECT insight_id FROM insights")}
+        records: list[InsightRecord] = []
+        rejected = 0
+        for twin in batch.twins:
+            source = self.store.get_insight(twin.source_id)
+            if twin.source_id not in allowed or source is None or source.hidden:
+                rejected += 1
+                continue
+            card = twin.card
+            claims, source_records, section_texts = self._card_context(card_claim_ids(card))
+            checked = check_mod.check_card(
+                card, claims=claims, known_insights=known,
+                sources=source_records, section_texts=section_texts,
+            )
+            if checked.status == "fail":
+                rejected += 1
+                continue
+            records.append(InsightRecord(
+                insight_id=insight_identity(record.pass_id, card),
+                lens="twinmaker",
+                pass_id=record.pass_id,
+                model_served=served_model,
+                created_at=self.clock(),
+                card=card,
+                check=checked,
+                status="checked",
+                hidden=True,
+                canary_of=source.insight_id,
+                corruption=twin.corruption,
+            ))
+        inserted = self.store.insert_insights(records)
+        return {"twins": len(batch.twins), "planted": inserted, "rejected": rejected}
+
     def _import_verdicts(
-        self, inputs: PassInputs, batch: RefereeBatch, served_model: str | None
+        self, record: PassRecord, inputs: PassInputs, batch: RefereeBatch, served_model: str | None
     ) -> dict[str, int]:
         allowed = set(inputs.insight_ids)
         referee_family = model_family(served_model) if served_model else None
+        canaries = {
+            insight_id: canary
+            for insight_id in inputs.insight_ids
+            if (canary := self.store.get_insight(insight_id)) is not None
+            and canary.hidden and canary.canary_of is not None
+        }
+        originals = {canary.canary_of: canary for canary in canaries.values()}
         applied = 0
+        calibrated = 0
         not_independent = 0
         for verdict in batch.verdicts:
             if verdict.insight_id not in allowed:
@@ -1379,7 +1533,22 @@ class Engine:
                 graded_at=self.clock(),
             )
             applied += 1
-        return {"verdicts": len(batch.verdicts), "applied": applied, "not_independent": not_independent}
+            canary = canaries.get(insight.insight_id) or originals.get(insight.insight_id)
+            if canary is not None:
+                self.store.save_calibration(CalibrationRecord(
+                    canary_id=canary.insight_id,
+                    insight_id=insight.insight_id,
+                    pass_id=record.pass_id,
+                    arm="twin" if insight.hidden else "original",
+                    corruption=canary.corruption,
+                    verdict=verdict.verdict,
+                    created_at=self.clock(),
+                ))
+                calibrated += 1
+        return {
+            "verdicts": len(batch.verdicts), "applied": applied,
+            "not_independent": not_independent, "calibration": calibrated,
+        }
 
     def _card_context(
         self, cited: Iterable[str]
@@ -1696,9 +1865,15 @@ class Engine:
 
     def _write_heartbeat(self, report: TickReport) -> None:
         running = self.store.list_passes(statuses=ACTIVE_STATUSES)
+        # `job`, `ok`, `detail` and `max_age_minutes` are the contract `jobs-health` reads from
+        # ~/.local/state/*/heartbeat.json; without `ok` it reports the job as failed.
         _atomic_write_json(
             self.state_root / "heartbeat.json",
             {
+                "job": "evallab-insights",
+                "ok": not report.errors,
+                "detail": "; ".join(report.errors)[:240],
+                "max_age_minutes": max(15, 3 * self.config.tick_seconds // 60),
                 "pid": os.getpid(),
                 "at": report.finished_at,
                 "tick_seconds": self.config.tick_seconds,

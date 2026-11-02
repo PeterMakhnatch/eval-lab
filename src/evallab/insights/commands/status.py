@@ -25,6 +25,7 @@ LENS_ROLES: dict[str, str] = {
     "referee": "referee (a different model family grades each card)",
     "synthesizer": "synthesizer (ranks, merges, resolves predictions)",
     "rederiver": "rederiver (independent receipt check)",
+    "twinmaker": "twinmaker (plants hidden flawed controls for referee calibration)",
 }
 #: Failure-ish event kinds worth showing an operator.
 ERROR_EVENTS = {
@@ -111,9 +112,17 @@ def lens_progress(store: InsightStore, config: EngineConfig, lens: str) -> dict[
         need = max(1, schedule.min_open_signals)
         return {"role": role, "have": have, "need": need, "text": f"{have}/{need} open signals"}
     if lens == "referee":
-        have = len(store.list_insights(statuses=["checked"]))
+        have = len(store.list_insights(statuses=["checked"])) + len(store.pending_canaries())
         need = max(1, schedule.min_pending)
         return {"role": role, "have": have, "need": need, "text": f"{have}/{need} cards waiting for grading"}
+    if lens == "twinmaker":
+        accepted = store.list_insights(statuses=["refereed"])
+        used = store.canary_source_ids()
+        fresh = [record for record in accepted if record.insight_id not in used]
+        return {
+            "role": role, "have": len(fresh), "need": max(4, schedule.min_new_insights),
+            "text": f"{len(accepted)} accepted cards; {len(fresh)} still need a hidden twin",
+        }
     if lens in {"theorist", "ideator", "synthesizer"}:
         statuses: list[InsightStatus] = (
             ["refereed"] if lens != "synthesizer" else ["refereed", "needs_revision", "rejected"]
@@ -215,6 +224,7 @@ def collect_status(root: Path, *, now: datetime) -> dict[str, object]:
             "open_signals": len(store.list_signals(status="open", limit=100_000)),
             "insights": store.insight_counts(),
             "insights_needing_recheck": store.insight_recheck_count(),
+            "referee_calibration": store.calibration_rates(now=now),
             "predictions": {
                 status: len(store.list_predictions(status=status))
                 for status in ("open", "hit", "miss", "untestable")
@@ -265,6 +275,14 @@ def _cmd(args: argparse.Namespace, root: Path, *, harbor: object | None = None) 
         f"Open signals: {status['open_signals']}."
     )
     print(f"Report sections: {_counts(status['sections'])}. Predictions: {_counts(status['predictions'])}.")
+    calibration = status["referee_calibration"]
+    if isinstance(calibration, dict):
+        twin, original = calibration["twin"], calibration["original"]
+        if isinstance(twin, dict) and isinstance(original, dict):
+            print(
+                f"Referee calibration (30 days): caught {twin['k']} of {twin['n']} planted "
+                f"flawed cards; accepted {original['k']} of {original['n']} original controls."
+            )
     coverage = status["coverage"]
     if isinstance(coverage, dict):
         print(

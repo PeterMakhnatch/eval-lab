@@ -64,10 +64,17 @@ repo_mirror:
 # A provider whose usage window is at or above this percent is skipped. The gap
 # to 100% is left for Peter's own sessions on the same subscriptions.
 max_provider_used_percent: 75
-# Do not start a worker while macOS reports memory pressure.
+# Do not start a worker at critical memory pressure, or at warn pressure when
+# free memory is below this percentage. Absolute swap used is not a veto: block
+# only when the engine measures more than this much swap growth over 5 minutes.
 host_min_memory_level: 15
-host_max_swap_gb: 12
+host_max_swap_growth_gb: 2
 board_top_n: 12
+
+# Workers may read their own pass, source roots and the read-only mirror. Extra
+# roots are optional. flag annotates imported claims/cards; reject drops output.
+allowed_read_roots: []
+scope_policy: flag
 
 lenses:
   extractor:
@@ -110,7 +117,8 @@ lenses:
     cooldown_minutes: 5
     daily_cap: 40
     min_pending: 1
-    batch_size: 12
+    # Cards are added only while the exact rendered pack stays within budget.
+    max_pack_chars: 240000
   synthesizer:
     cooldown_minutes: 120
     daily_cap: 8
@@ -120,3 +128,9 @@ lenses:
     daily_cap: 10
     min_new_claims: 10
     batch_size: 12
+  # Hidden corrupted twins continuously test the referee. Uses extractor's route.
+  twinmaker:
+    cooldown_minutes: 720
+    daily_cap: 2
+    min_new_insights: 4
+    batch_size: 2

@@ -8,6 +8,7 @@ import pytest
 
 from evallab.insights.board import plain_count, render_board
 from evallab.insights.models import (
+    CalibrationRecord,
     CheckResult,
     EvidenceRef,
     HumanReview,
@@ -99,6 +100,31 @@ def test_board_separates_all_lanes_and_quarantines_reasons(tmp_path: Path) -> No
     assert "7 pass / 1 warn / 2 fail" in markdown
     assert "unranked" in document
     assert "Human review: accepted; by Peter Makhnatch" in markdown
+
+
+def test_board_hides_canaries_and_reports_blind_calibration(tmp_path: Path) -> None:
+    public = _insight(0)
+    hidden = _insight(99).model_copy(update={
+        "lens": "twinmaker", "status": "rejected", "hidden": True,
+        "canary_of": "I-0", "corruption": "reversed_conclusion", "rank": None,
+    })
+    with InsightStore(tmp_path / "ledger.sqlite") as store:
+        store.insert_insights([public, hidden])
+        store.save_calibration(CalibrationRecord(
+            canary_id="I-99", insight_id="I-99", pass_id="P-ref", arm="twin",
+            corruption="reversed_conclusion", verdict="reject", created_at=NOW,
+        ))
+        store.save_calibration(CalibrationRecord(
+            canary_id="I-99", insight_id="I-0", pass_id="P-ref", arm="original",
+            verdict="accept", created_at=NOW,
+        ))
+        markdown, document, status = _render(store, tmp_path)
+    assert "I-99" not in markdown and "I-99" not in document
+    assert [card["insight_id"] for card in status["cards"]] == ["I-0"]
+    assert "referee caught 1 of 1 planted flawed cards" in markdown
+    assert "accepted 1 of 1 original controls" in markdown
+    assert status["referee_calibration"]["twin"]["k"] == 1
+    assert status["referee_calibration"]["twin"]["wilson"]["p"] == 1.0
 
 
 def test_board_links_evidence_and_escapes_every_card_surface(tmp_path: Path) -> None:

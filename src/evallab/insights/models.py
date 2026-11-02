@@ -50,8 +50,17 @@ Lens = Literal[
     "referee",
     "synthesizer",
     "rederiver",
+    "twinmaker",
 ]
-AnalystLens = Literal["connector", "skeptic", "theorist", "anomaly", "ideator"]
+AnalystLens = Literal["connector", "skeptic", "theorist", "anomaly", "ideator", "twinmaker"]
+CorruptionType = Literal[
+    "reversed_conclusion",
+    "wrong_unit_of_analysis",
+    "contradicted_connection",
+    "non_discriminating_check",
+    "correlation_as_cause",
+    "overclaimed_scope",
+]
 InsightKind = Literal["connection", "mechanism", "challenge", "anomaly", "gap", "idea"]
 InsightStatus = Literal[
     "check_failed",
@@ -496,6 +505,38 @@ class RefereeBatch(ContractModel):
     verdicts: list[RefereeVerdict] = Field(default_factory=list)
 
 
+class TwinCard(ContractModel):
+    """One deliberately flawed control and the valid card it was derived from."""
+
+    source_id: str
+    corruption: CorruptionType
+    card: InsightCard
+
+
+class TwinBatch(ContractModel):
+    """The file a twinmaker pass writes (``out/twins.json``)."""
+
+    schema_version: Literal[1] = 1
+    twins: list[TwinCard] = Field(default_factory=list)
+
+
+class CalibrationRecord(ContractModel):
+    """A blind referee outcome for a corrupted twin or its original control."""
+
+    canary_id: str
+    insight_id: str
+    pass_id: str
+    arm: Literal["twin", "original"]
+    corruption: CorruptionType | None = None
+    verdict: Literal["accept", "revise", "reject"]
+    created_at: datetime
+
+
+class ScopeAudit(ContractModel):
+    count: int = Field(default=0, ge=0)
+    examples: list[str] = Field(default_factory=list, max_length=5)
+
+
 class BoardEntry(ContractModel):
     insight_id: str
     rank: int = Field(ge=1)
@@ -573,6 +614,10 @@ class InsightRecord(ContractModel):
     score: float | None = None
     duplicate_of: str | None = None
     superseded_by: str | None = None
+    #: Hidden controls are ledger evidence for referee calibration, never findings.
+    hidden: bool = False
+    canary_of: str | None = None
+    corruption: CorruptionType | None = None
 
 
 class PredictionRecord(ContractModel):
@@ -603,6 +648,7 @@ class PassRecord(ContractModel):
     tokens: dict[str, int] = Field(default_factory=dict)
     inputs_digest: str = ""
     outputs: dict[str, int] = Field(default_factory=dict)
+    scope_violations: ScopeAudit = Field(default_factory=ScopeAudit)
     error: str | None = None
 
 

@@ -77,9 +77,12 @@ class EngineConfig(ContractModel):
     lenses: dict[Lens, LensSchedule] = Field(default_factory=dict)
     max_provider_used_percent: float = Field(default=85.0, gt=0, le=100)
     host_min_memory_level: int = Field(default=15, ge=0, le=100)
-    host_max_swap_gb: float = Field(default=12.0, gt=0)
+    host_max_swap_growth_gb: float = Field(default=2.0, gt=0)
     board_top_n: int = Field(default=12, ge=1)
     repo_mirror: RepoMirror | None = None
+    #: Additional absolute worker read roots; sources, mirror and own pass are automatic.
+    allowed_read_roots: list[str] = Field(default_factory=list)
+    scope_policy: Literal["flag", "reject"] = "flag"
 
     @model_validator(mode="after")
     def unique_families(self) -> EngineConfig:

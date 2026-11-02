@@ -9,12 +9,14 @@ import re
 import shlex
 import sqlite3
 import stat
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from importlib import resources
 from pathlib import Path
 
 from pydantic import BaseModel
 
+from evallab.insights.duplicates import nearest_cards
 from evallab.insights.models import (
     BoardUpdate,
     ClaimExtraction,
@@ -24,8 +26,10 @@ from evallab.insights.models import (
     Lens,
     RederiveBatch,
     RefereeBatch,
+    TwinBatch,
     safe_identifier,
 )
+from evallab.insights.scope import scope_prompt
 from evallab.insights.sources import section_text
 from evallab.insights.store import InsightStore
 
@@ -39,6 +43,7 @@ OUTPUT_FILES: dict[Lens, str] = {
     "referee": "verdicts.json",
     "synthesizer": "board.json",
     "rederiver": "rederive.json",
+    "twinmaker": "twins.json",
 }
 
 SNAPSHOT_NAME = "ledger.sqlite"
@@ -94,6 +99,8 @@ def output_contract(lens: Lens) -> type[BaseModel]:
         return BoardUpdate
     if lens == "rederiver":
         return RederiveBatch
+    if lens == "twinmaker":
+        return TwinBatch
     return InsightBatch
 
 
@@ -336,9 +343,10 @@ def _groups(store: InsightStore, inputs: PassInputs) -> list[str]:
             groups.append(f"## Claim to independently derive\n{_json(body)}\n"
                           f"{receipt_listing(source.folder if source else None)}")
         return groups
-    insights = store.list_insights()
+    insights = store.list_insights(include_hidden=inputs.lens == "referee")
+    public_insights = [record for record in insights if not record.hidden]
     by_id = {record.insight_id: record for record in insights}
-    if inputs.lens == "referee":
+    if inputs.lens in {"referee", "twinmaker"}:
         for insight_id in inputs.insight_ids:
             insight = by_id.get(insight_id)
             if insight is None:
@@ -360,9 +368,19 @@ def _groups(store: InsightStore, inputs: PassInputs) -> list[str]:
                         "text": numbered(section_text(source, section), section.start_line),
                     },
                 })
-            # Author identity is not evidence. Include only the assigned id and card,
-            # plus every support/contradiction and challenge-target claim.
-            anonymous = {"insight_id": insight_id, "card": insight.card.model_dump(mode="json")}
+            # Explicit allowlist: no author model, pass id, timestamps, rank,
+            # score or previous referee fields can leak into a referee pack.
+            anonymous: dict[str, object] = {
+                "insight_id": insight_id,
+                "card": insight.card.model_dump(mode="json"),
+            }
+            if inputs.lens == "referee":
+                withheld = {insight_id}
+                if insight.canary_of is not None:
+                    withheld.add(insight.canary_of)
+                anonymous["nearest_existing"] = nearest_cards(
+                    insight.card, public_insights, withheld=withheld
+                )
             groups.append(
                 f"## Card, cited claims, challenge targets, and source excerpts\n"
                 f"{_json(anonymous)}\n{_json(records)}"
@@ -427,6 +445,12 @@ def _groups(store: InsightStore, inputs: PassInputs) -> list[str]:
         groups.extend(recent_groups)
         groups.extend(prediction_groups)
     return groups
+
+
+def referee_pack_size(store: InsightStore, insight_ids: Sequence[str]) -> int:
+    """Exact rendered size, so scheduling never relies on a card-count proxy."""
+    groups = _groups(store, PassInputs(lens="referee", insight_ids=tuple(insight_ids)))
+    return len("# referee evidence pack\n\n" + "\n\n".join(groups) + "\n")
 
 
 def _bounded_pack(groups: list[str], lens: Lens, budget: int) -> str:
@@ -526,6 +550,7 @@ def build_pass_dir(
     db_path: Path,
     max_pack_chars: int,
     python_executable: str,
+    allowed_read_roots: Sequence[Path] | None = None,
 ) -> PassDirectory:
     safe_identifier(pass_id)
     brief = resources.files("evallab.insights").joinpath("lenses", f"{inputs.lens}.md").read_text(
@@ -556,7 +581,8 @@ def build_pass_dir(
     prompt = (brief + "\n\nRead pack.md first, then schema.json. Use ./q for evidence.\n"
               f"Write exactly one output file: out/{output_file.name}.\n"
               "Do not change source files, the ledger, or this pass's inputs.\n"
-              "Run ./q validate until it prints OK, then stop.\n")
+              + scope_prompt(allowed_read_roots or [path])
+              + "Run ./q validate until it prints OK, then stop.\n")
     prompt_file = path / "prompt.md"
     prompt_file.write_text(prompt, encoding="utf-8")
     return PassDirectory(path, prompt_file, output_file, digest)

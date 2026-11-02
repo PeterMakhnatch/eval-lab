@@ -102,6 +102,7 @@ def test_builds_complete_pass_directory(tmp_path: Path, lens: Lens) -> None:
     expected = {
         "extractor": "ClaimExtraction", "referee": "RefereeBatch",
         "synthesizer": "BoardUpdate", "rederiver": "RederiveBatch",
+        "twinmaker": "TwinBatch",
     }.get(lens, "InsightBatch")
     assert schema["title"] == expected
     assert f"out/{OUTPUT_FILES[lens]}" in result.prompt_file.read_text()
@@ -370,7 +371,40 @@ def test_referee_pack_includes_challenge_targets_and_hides_the_author(tmp_path: 
     assert "1: # Result" in pack
     assert "secret-author-model" not in pack
     assert "model_served" not in pack
+    assert "P-cards" not in pack
+    anonymous = json.loads(next(
+        line for line in pack.splitlines()
+        if line.startswith('{"card":') and '"insight_id":"I-challenge"' in line
+    ))
+    assert set(anonymous) == {"insight_id", "card", "nearest_existing"}
+    assert set(anonymous["card"]) == set(_challenge("I-challenge", "C-target").card.model_dump())
     assert "I-challenge" in pack
+
+
+def test_canary_is_unmarked_in_referee_pack_and_absent_from_analyst_packs(tmp_path: Path) -> None:
+    with _ledger(tmp_path) as store:
+        source = _insight("I-source", "refereed")
+        twin_card = source.card.model_copy(update={
+            "local_id": "I-twin",
+            "statement": "The existing evidence proves this comparison generalizes everywhere.",
+        })
+        twin = _insight("I-twin", "checked").model_copy(update={
+            "lens": "twinmaker", "hidden": True, "canary_of": "I-source",
+            "corruption": "overclaimed_scope", "card": twin_card,
+        })
+        store.insert_insights([source, twin])
+        referee = _build(store, tmp_path, "referee", insight_ids=("I-twin", "I-source"))
+        pack = (referee / "pack.md").read_text()
+        assert '"hidden"' not in pack and '"canary_of"' not in pack
+        assert '"corruption"' not in pack and '"model_served"' not in pack
+        twin_view = json.loads(next(
+            line for line in pack.splitlines()
+            if line.startswith('{"card":') and '"insight_id":"I-twin"' in line
+        ))
+        assert twin_view["nearest_existing"] == []  # its source is withheld from hints
+        for lens in ("synthesizer", "theorist", "ideator"):
+            path = _build(store, tmp_path, lens)
+            assert "I-twin" not in (path / "pack.md").read_text()
 
 
 def test_referee_pack_fails_closed_on_an_unknown_challenge_target(tmp_path: Path) -> None:

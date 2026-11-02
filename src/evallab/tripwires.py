@@ -1779,7 +1779,7 @@ _USER_STARTUP_NAMES = frozenset({
 })
 
 _SHADOW_ALIAS_RE = re.compile(
-    r"(?:^|[;&|\n\x27\"\(])\s*(?:alias\s+(?:pytest|py\.test|python[\d.]*|bash|sh|npm|unittest)=|(?:function\s+)?(?:pytest|py\.test|python[\d.]*|npm|sh|bash)\s*\(\)\s*\{)"
+    r"(?:^|[;&|\n\x27\"\(])\s*(?:alias\s+(?:pytest|py\.test|python[\d.]*|bash|sh|uv|tox|make|npm|unittest)=|(?:function\s+)?(?:pytest|py\.test|python[\d.]*|bash|sh|uv|tox|make|npm|unittest)(?:\s*\(\))?\s*\{)"
 )
 _LOGIN_TEST_RUNNER_RE = re.compile(
     r"(?:^|[;&|\n])\s*(?:exec\s+)?(?:bash|sh|zsh)\s+-[a-zA-Z]*l[a-zA-Z]*\s+.*?(?:pytest|py\.test|unittest|test_command|mimo_test|\btest\.sh\b|\bgrade\.py\b|\bgrade\b)"
@@ -1848,7 +1848,13 @@ def _strip_comments_outside_quotes(text: str) -> str:
     in_single = False
     in_double = False
     escape = False
+    in_comment = False
     for ch in text:
+        if in_comment:
+            if ch == "\n":
+                in_comment = False
+                out.append(ch)
+            continue
         if escape:
             out.append(ch)
             escape = False
@@ -1866,9 +1872,346 @@ def _strip_comments_outside_quotes(text: str) -> str:
             out.append(ch)
             continue
         if ch == "#" and not in_single and not in_double:
-            break
+            in_comment = True
+            continue
         out.append(ch)
     return "".join(out)
+
+
+_SHADOW_FN_NAMES = frozenset({
+    "pytest",
+    "py.test",
+    "python",
+    "python3",
+    "bash",
+    "sh",
+    "uv",
+    "tox",
+    "make",
+    "npm",
+    "unittest",
+})
+
+
+def _is_shadow_fn_name(name: str) -> bool:
+    if name in _SHADOW_FN_NAMES:
+        return True
+    return bool(re.match(r"^python[\d.]*$", name))
+
+
+_FN_HEADER_RE = re.compile(
+    r"^(?:function\s+([a-zA-Z_][a-zA-Z0-9_.-]*)(?:\s*\(\))?|([a-zA-Z_][a-zA-Z0-9_.-]*)\s*\(\))\s*\{"
+)
+
+
+def _strip_non_shadow_functions(text: str) -> str:
+    """Drop non-shadow shell function bodies name() { ... } and function name { ... }."""
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    in_single = False
+    in_double = False
+    escape = False
+
+    while i < n:
+        ch = text[i]
+        if escape:
+            out.append(ch)
+            escape = False
+            i += 1
+            continue
+        if ch == "\\":
+            escape = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "'" and not in_double:
+            in_single = not in_single
+            out.append(ch)
+            i += 1
+            continue
+        if ch == '"' and not in_single:
+            in_double = not in_double
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "#" and not in_single and not in_double:
+            j = text.find("\n", i)
+            if j == -1:
+                out.append(text[i:])
+                break
+            out.append(text[i:j])
+            i = j
+            continue
+
+        if not in_single and not in_double:
+            m = _FN_HEADER_RE.match(text[i:])
+            if m:
+                fn_name = m.group(1) or m.group(2)
+                if not _is_shadow_fn_name(fn_name):
+                    body_start = i + m.end()
+                    brace_depth = 1
+                    j = body_start
+                    b_single = False
+                    b_double = False
+                    b_escape = False
+                    while j < n and brace_depth > 0:
+                        bch = text[j]
+                        if b_escape:
+                            b_escape = False
+                            j += 1
+                            continue
+                        if bch == "\\":
+                            b_escape = True
+                            j += 1
+                            continue
+                        if bch == "'" and not b_double:
+                            b_single = not b_single
+                            j += 1
+                            continue
+                        if bch == '"' and not b_single:
+                            b_double = not b_double
+                            j += 1
+                            continue
+                        if bch == "#" and not b_single and not b_double:
+                            k = text.find("\n", j)
+                            if k == -1:
+                                j = n
+                                break
+                            j = k + 1
+                            continue
+                        if not b_single and not b_double:
+                            if bch == "{":
+                                brace_depth += 1
+                            elif bch == "}":
+                                brace_depth -= 1
+                        j += 1
+                    out.append("\n")
+                    i = j
+                    continue
+
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _strip_if_case_blocks(text: str) -> str:
+    """Strip if...fi and case...esac blocks from text outside quotes."""
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    in_single = False
+    in_double = False
+    escape = False
+
+    while i < n:
+        ch = text[i]
+        if escape:
+            out.append(ch)
+            escape = False
+            i += 1
+            continue
+        if ch == "\\":
+            escape = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "'" and not in_double:
+            in_single = not in_single
+            out.append(ch)
+            i += 1
+            continue
+        if ch == '"' and not in_single:
+            in_double = not in_double
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "#" and not in_single and not in_double:
+            j = text.find("\n", i)
+            if j == -1:
+                out.append(text[i:])
+                break
+            out.append(text[i:j])
+            i = j
+            continue
+
+        if not in_single and not in_double:
+            m_if = re.match(r"\bif\b", text[i:])
+            if m_if and (i == 0 or text[i - 1] in " \t\n;&|(){"):
+                depth = 1
+                j = i + m_if.end()
+                b_single = False
+                b_double = False
+                b_escape = False
+                while j < n and depth > 0:
+                    bch = text[j]
+                    if b_escape:
+                        b_escape = False
+                        j += 1
+                        continue
+                    if bch == "\\":
+                        b_escape = True
+                        j += 1
+                        continue
+                    if bch == "'" and not b_double:
+                        b_single = not b_single
+                        j += 1
+                        continue
+                    if bch == '"' and not b_single:
+                        b_double = not b_double
+                        j += 1
+                        continue
+                    if bch == "#" and not b_single and not b_double:
+                        k = text.find("\n", j)
+                        if k == -1:
+                            j = n
+                            break
+                        j = k + 1
+                        continue
+                    if not b_single and not b_double:
+                        m_nested_if = re.match(r"\bif\b", text[j:])
+                        if m_nested_if and (j == 0 or text[j - 1] in " \t\n;&|(){"):
+                            depth += 1
+                            j += m_nested_if.end()
+                            continue
+                        m_fi = re.match(r"\bfi\b", text[j:])
+                        if m_fi and (j == 0 or text[j - 1] in " \t\n;&|(){"):
+                            depth -= 1
+                            j += m_fi.end()
+                            continue
+                    j += 1
+                out.append("\n")
+                i = j
+                continue
+
+            m_case = re.match(r"\bcase\b", text[i:])
+            if m_case and (i == 0 or text[i - 1] in " \t\n;&|(){"):
+                depth = 1
+                j = i + m_case.end()
+                b_single = False
+                b_double = False
+                b_escape = False
+                while j < n and depth > 0:
+                    bch = text[j]
+                    if b_escape:
+                        b_escape = False
+                        j += 1
+                        continue
+                    if bch == "\\":
+                        b_escape = True
+                        j += 1
+                        continue
+                    if bch == "'" and not b_double:
+                        b_single = not b_single
+                        j += 1
+                        continue
+                    if bch == '"' and not b_single:
+                        b_double = not b_double
+                        j += 1
+                        continue
+                    if bch == "#" and not b_single and not b_double:
+                        k = text.find("\n", j)
+                        if k == -1:
+                            j = n
+                            break
+                        j = k + 1
+                        continue
+                    if not b_single and not b_double:
+                        m_nested_case = re.match(r"\bcase\b", text[j:])
+                        if m_nested_case and (j == 0 or text[j - 1] in " \t\n;&|(){"):
+                            depth += 1
+                            j += m_nested_case.end()
+                            continue
+                        m_esac = re.match(r"\besac\b", text[j:])
+                        if m_esac and (j == 0 or text[j - 1] in " \t\n;&|(){"):
+                            depth -= 1
+                            j += m_esac.end()
+                            continue
+                    j += 1
+                out.append("\n")
+                i = j
+                continue
+
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _split_sequential_statements(text: str) -> list[str]:
+    """Split text on sequential command separators (newline and semicolon outside quotes)."""
+    stmts: list[str] = []
+    curr: list[str] = []
+    in_single = False
+    in_double = False
+    escape = False
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if escape:
+            curr.append(ch)
+            escape = False
+            i += 1
+            continue
+        if ch == "\\":
+            escape = True
+            curr.append(ch)
+            i += 1
+            continue
+        if ch == "'" and not in_double:
+            in_single = not in_single
+            curr.append(ch)
+            i += 1
+            continue
+        if ch == '"' and not in_single:
+            in_double = not in_double
+            curr.append(ch)
+            i += 1
+            continue
+        if not in_single and not in_double and ch in ("\n", ";"):
+            stmts.append("".join(curr))
+            curr = []
+            i += 1
+            continue
+        curr.append(ch)
+        i += 1
+    if curr:
+        stmts.append("".join(curr))
+    return stmts
+
+
+def _has_bare_toplevel_return(text: str) -> bool:
+    """Whether text contains an unguarded, bare top-level return command."""
+    has_interactive_guard = bool(
+        re.search(r"case\s+[\"']?\$-[\"']?\s+in\s+.*?\*\s*\)\s*return", text, re.DOTALL)
+        or re.search(r"\[\[\s*\$-\s*!=\s*\*i\*\s*\]\]\s*&&\s*return", text)
+        or re.search(r"\[\s*-z\s*[\"']?\$PS1[\"']?\s*\]\s*&&\s*return", text)
+    )
+    if has_interactive_guard:
+        return False
+
+    stripped = _strip_if_case_blocks(text)
+    for stmt in _split_sequential_statements(stripped):
+        s = _strip_comments_outside_quotes(stmt).strip()
+        if not s:
+            continue
+        if "||" in s or "&&" in s:
+            continue
+        if re.match(r"^return(?:\s+[0-9$_\w]+|\s*$|\s*[;&|])", s):
+            return True
+    return False
+
+
+def _is_trap_hard(subcmd: str) -> bool:
+    """Whether trap is an evasion (DEBUG trap or unconditional terminator handler)."""
+    if re.search(r"\bDEBUG\b", subcmd):
+        return True
+    if re.search(
+        r"trap\s+[\x27\"][^\x27\"]*?\b(?:exit(?:\s+\d+|\s+\$|\b)|kill(?:\s+-[a-zA-Z0-9]+)?\s+\$\$)",
+        subcmd,
+    ):
+        return True
+    return bool(re.search(r"trap\s+(?:exit\b|kill\s+\$\$)", subcmd))
 
 
 def _split_commands(line: str) -> list[str]:
@@ -1974,7 +2317,7 @@ def _is_login_profile_hard(
             pass
         else:
             base_bin = posixpath.basename(first_comp)
-            if base_bin in ("pytest", "py.test", "python", "python3", "bash", "sh", "npm", "unittest"):
+            if base_bin in ("pytest", "py.test", "python", "python3", "bash", "sh", "npm", "unittest", "uv", "tox", "make"):
                 return True
             if (
                 first_comp.startswith(("/tmp/", "/var/tmp/", "./", "/dev/shm/"))
@@ -1983,19 +2326,20 @@ def _is_login_profile_hard(
             ):
                 return True
 
-    has_interactive_guard = bool(
-        re.search(r"case\s+[\"']?\$-[\"']?\s+in\s+.*?\*\s*\)\s*return", content, re.DOTALL)
-        or re.search(r"\[\[\s*\$-\s*!=\s*\*i\*\s*\]\]\s*&&\s*return", content)
-        or re.search(r"\[\s*-z\s*[\"']?\$PS1[\"']?\s*\]\s*&&\s*return", content)
-    )
+    # Strip non-shadow function bodies before scanning for terminators
+    content_clean = _strip_non_shadow_functions(content)
 
     # Sed in-place check
-    if re.search(r"\bsed\s+.*?(?:-[a-zA-Z]*i[a-zA-Z]*|--in-place)", content) and re.search(
-        r"\b(?:exit(?:\s+\d+|\s+\$|\b)|return(?:\s+\d+|\s+\$|\b)|kill\b|trap\b)", content
+    if re.search(r"\bsed\s+.*?(?:-[a-zA-Z]*i[a-zA-Z]*|--in-place)", content_clean) and re.search(
+        r"\b(?:exit(?:\s+\d+|\s+\$|\b)|return(?:\s+\d+|\s+\$|\b)|kill\b|trap\b)", content_clean
     ):
         return True
 
-    for raw_cmd in _split_commands(content):
+    # Bare top-level return check outside conditionals, functions, and interactive guards
+    if _has_bare_toplevel_return(content_clean):
+        return True
+
+    for raw_cmd in _split_commands(content_clean):
         cleaned_cmd = _strip_comments_outside_quotes(raw_cmd).strip()
         if not cleaned_cmd:
             continue
@@ -2004,6 +2348,10 @@ def _is_login_profile_hard(
         target_check = echo_arg if echo_arg is not None else cleaned_cmd
         target_check = _strip_comments_outside_quotes(target_check).strip()
         target_check = target_check.replace("\\n", "\n")
+        target_check = _strip_non_shadow_functions(target_check)
+
+        if echo_arg is not None and _has_bare_toplevel_return(target_check):
+            return True
 
         for subcmd in _split_commands(target_check):
             subcmd = subcmd.strip()
@@ -2011,11 +2359,9 @@ def _is_login_profile_hard(
                 continue
             if re.match(r"^exit(?:\s+[0-9$_\w]+|\s*$|\s*[;&|])", subcmd):
                 return True
-            if re.match(r"^return(?:\s+[0-9$_\w]+|\s*$|\s*[;&|])", subcmd) and not has_interactive_guard:
-                return True
             if re.match(r"^(?:kill(?:\s+-[a-zA-Z0-9]+|\s+\$|\s+\d+|\b)|killall\b|pkill\b)", subcmd):
                 return True
-            if re.match(r"^trap\b", subcmd):
+            if re.match(r"^trap\b", subcmd) and _is_trap_hard(subcmd):
                 return True
     return False
 

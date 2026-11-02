@@ -38,9 +38,6 @@ jobs:
         arm: [neutral_padding, semantic_distractor]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Reject committed generated corpus
-        run: |
-          python3 -c 'import subprocess,sys; paths=subprocess.check_output(["git","ls-files"],text=True).splitlines(); forbidden=[path for path in paths if path.startswith(("library/benchmarks/action-memory-v1/tasks/","derived/harbor-tasks/action-memory-dose-ladder/"))]; print("forbidden tracked paths:", forbidden); sys.exit(bool(forbidden))'
       - name: Install uv and Harbor
         run: |
           python3 -m pip install --user uv==0.9.24
@@ -50,6 +47,9 @@ jobs:
         run: |
           uv python install 3.12
           echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
+      - name: Reject committed generated corpus
+        run: |
+          python3 -c 'import subprocess,sys; paths=subprocess.check_output(["git","ls-files"],text=True).splitlines(); forbidden=[path for path in paths if path.startswith(("library/benchmarks/action-memory-v1/tasks/","derived/harbor-tasks/action-memory-dose-ladder/"))]; print("forbidden tracked paths:", forbidden); sys.exit(bool(forbidden))'
       - name: Resolve and record Linux target wheelhouse provenance
         run: |
           set -euo pipefail

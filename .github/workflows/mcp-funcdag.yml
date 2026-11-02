@@ -33,9 +33,6 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Reject committed generated task corpus
-        run: |
-          python3 -c 'import subprocess, sys; p = subprocess.check_output(["git", "ls-files"], text=True).splitlines(); bad = [x for x in p if x.startswith(("derived/harbor-tasks/mcp-funcdag/", "library/benchmarks/mcp-funcdag-v1/derived/"))]; print("forbidden tracked paths:", bad); sys.exit(bool(bad))'
       - name: Install uv 0.9.24
         run: |
           python3 -m pip install --user uv==0.9.24
@@ -44,6 +41,9 @@ jobs:
         run: |
           uv python install 3.12
           echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
+      - name: Reject committed generated task corpus
+        run: |
+          python3 -c 'import subprocess, sys; p = subprocess.check_output(["git", "ls-files"], text=True).splitlines(); bad = [x for x in p if x.startswith(("derived/harbor-tasks/mcp-funcdag/", "library/benchmarks/mcp-funcdag-v1/derived/"))]; print("forbidden tracked paths:", bad); sys.exit(bool(bad))'
       - name: Install Harbor 0.21.0
         run: uv tool install "harbor==0.21.0"
       - name: Populate FastMCP sidecar wheelhouse

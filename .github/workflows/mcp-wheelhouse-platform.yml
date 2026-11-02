@@ -16,6 +16,7 @@ concurrency:
 jobs:
   linux-cp312-wheelhouse:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Install uv 0.9.24 from PyPI

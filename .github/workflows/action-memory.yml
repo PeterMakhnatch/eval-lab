@@ -32,9 +32,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Reject committed generated corpus
-        run: |
-          python3 -c 'import subprocess,sys; p=subprocess.check_output(["git","ls-files"],text=True).splitlines(); bad=[x for x in p if x.startswith(("library/benchmarks/action-memory-v1/tasks/","derived/harbor-tasks/action-memory/"))]; print("forbidden tracked paths:", bad); sys.exit(bool(bad))'
       - name: Install uv
         run: |
           python3 -m pip install --user uv==0.9.24
@@ -44,6 +41,9 @@ jobs:
         run: |
           uv python install 3.12
           echo "UV_PYTHON=3.12" >> "$GITHUB_ENV"
+      - name: Reject committed generated corpus
+        run: |
+          python3 -c 'import subprocess,sys; p=subprocess.check_output(["git","ls-files"],text=True).splitlines(); bad=[x for x in p if x.startswith(("library/benchmarks/action-memory-v1/tasks/","derived/harbor-tasks/action-memory/"))]; print("forbidden tracked paths:", bad); sys.exit(bool(bad))'
       - name: Resolve and record Linux target wheelhouse provenance
         run: |
           set -euo pipefail

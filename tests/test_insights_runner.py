@@ -37,7 +37,7 @@ def _assistant(
             "role": "assistant", "provider": provider, "model": model,
             "stopReason": "error" if error else "stop",
             "content": [{"type": "text", "text": "Synthetic response."}],
-            "usage": {"input": 10, "output": 4, "cacheRead": 2},
+            "usage": {"input": 10, "output": 4, "cacheRead": 2, "cacheWrite": 3, "totalTokens": 19},
         },
     }
 
@@ -62,7 +62,10 @@ def test_attestation_counts_served_errors_fallbacks_and_nested_files(tmp_path: P
     assert result.off_route is False
     assert result.error_records == 2
     assert result.fallback_events == 1
-    assert result.tokens == {"input": 40, "output": 16, "cacheRead": 8}
+    assert result.tokens == {
+        "input": 40, "output": 16, "cacheRead": 8, "cacheWrite": 12,
+        "totalTokens": 76, "reasoningTokens": 0,
+    }
     assert result.model_changes == (ROUTE,)
 
 
@@ -224,7 +227,10 @@ def test_expired_usage_is_not_reused_after_failed_refresh() -> None:
     assert calls == 2
 
 
-def test_launcher_argv_environment_and_overlay(tmp_path: Path) -> None:
+def test_launcher_argv_environment_and_overlay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EVALLAB_INSIGHTS_STATE", str(tmp_path / "ledger-state"))
     captured: dict[str, object] = {}
 
     class Child:
@@ -258,14 +264,16 @@ def test_launcher_argv_environment_and_overlay(tmp_path: Path) -> None:
     ]
     assert captured["cwd"] == tmp_path
     assert captured["stdin"] == subprocess.DEVNULL
-    assert captured["stderr"] == subprocess.STDOUT
+    assert captured["stderr"] is not subprocess.STDOUT  # omp's own errors stay separate
     assert captured["start_new_session"] is True
     env = captured["env"]
     assert isinstance(env, dict)
     assert env["HARBOR_TELEMETRY"] == "off"
     assert env["EVALLAB_DISABLE_LOCAL_DOCKER"] == "1"
     assert env["EVALLAB_INSIGHTS_PASS"] == "pass-1"
+    assert "EVALLAB_INSIGHTS_STATE" not in env  # workers must not learn the ledger path
     assert (tmp_path / "worker.log").read_text() == "synthetic startup\n"
+    assert (tmp_path / "worker.stderr").exists()
     overlay = yaml.safe_load((tmp_path / "worker.yml").read_text())
     assert overlay["retry"] == {"modelFallback": False, "maxRetries": 4}
     assert overlay["modelRoles"] == dict.fromkeys(
@@ -323,6 +331,38 @@ def test_adoption_requires_live_pid_and_exact_session_path(
     assert handle.poll() == 1  # Unknown exit must not be reported as successful.
 
 
+def test_adoption_matches_real_unquoted_ps_output_with_spaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pass_dir = tmp_path / "pass with spaces"
+    session = pass_dir / "session"
+    monkeypatch.setattr(runner.os, "kill", lambda pid, sig: None)
+    # ps -o command= does not quote its arguments.
+    command = f"/usr/bin/omp -p --model x --session-dir {session} --no-skills @prompt.md"
+    assert OmpLauncher(ps=lambda _: command).adopt(123, pass_dir) is not None
+    longer = f"omp -p --session-dir {session}-other --no-skills"
+    assert OmpLauncher(ps=lambda _: longer).adopt(123, pass_dir) is None
+    assert OmpLauncher(ps=lambda _: f"omp --session-dir={session}").adopt(123, pass_dir) is not None
+
+
+def test_adopted_handle_never_signals_a_reused_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pass_dir = tmp_path / "pass"
+    session = pass_dir / "session"
+    sent: list[tuple[int, int]] = []
+    commands = [f"omp -p --session-dir {session}"]
+    monkeypatch.setattr(runner.os, "kill", lambda pid, sig: None)
+    monkeypatch.setattr(runner.os, "killpg", lambda pid, sig: sent.append((pid, sig)))
+    handle = OmpLauncher(ps=lambda _: commands[-1]).adopt(321, pass_dir)
+    assert handle is not None
+    assert handle.poll() is None
+    commands.append("/usr/bin/vim notes.txt")  # the PID now belongs to someone else
+    assert handle.poll() == 1
+    handle.kill()
+    assert sent == []
+
+
 @pytest.mark.parametrize(
     ("swap", "memory", "expected"),
     [("used = 1024.00M", "50", True), ("used = 13000M", "50", False),
@@ -333,6 +373,7 @@ def test_host_gate_uses_injected_probes(swap: str, memory: str, expected: bool) 
     def run(
         args: list[str], *, capture_output: bool, text: bool, timeout: float,
     ) -> subprocess.CompletedProcess[str]:
+        assert args[0] == "/usr/sbin/sysctl"  # not on launchd's minimal PATH otherwise
         output = swap if args[-1] == "vm.swapusage" else memory
         return subprocess.CompletedProcess(args, 0, output, "")
 
@@ -346,3 +387,38 @@ def test_host_probe_errors_allow_launch() -> None:
         raise OSError("No sysctl here")
 
     assert host_ok(15, 12, run=run)
+
+
+def test_attestation_diagnostics_come_only_from_error_records(tmp_path: Path) -> None:
+    chatty = _assistant()
+    chatty["message"]["content"] = [  # type: ignore[index]
+        {"type": "text", "text": "n=429 trials hit the rate-limit; daily quota ceiling"},
+    ]
+    failure = _assistant(error=True)
+    failure["message"]["errorMessage"] = "HTTP 429 quota exhausted"  # type: ignore[index]
+    (tmp_path / "s.jsonl").write_text(
+        "\n".join(json.dumps(event) for event in (chatty, failure)), encoding="utf-8",
+    )
+    result = attest_session(tmp_path, ROUTE)
+    assert "quota exhausted" in result.diagnostics
+    assert "daily quota ceiling" not in result.diagnostics
+    assert classify_failure(result.diagnostics)[0] == "quota"
+    quiet = tmp_path / "quiet"
+    quiet.mkdir()
+    (quiet / "s.jsonl").write_text(json.dumps(chatty), encoding="utf-8")
+    assert classify_failure(attest_session(quiet, ROUTE).diagnostics)[0] == "other"
+
+
+def test_launchd_environment_can_find_sysctl_and_is_unbuffered() -> None:
+    import plistlib
+
+    launchd = Path(__file__).resolve().parents[1] / "scripts" / "ops" / "launchd"
+    plist = plistlib.loads(
+        (launchd / "com.petermakhnatch.evallab.insights.plist").read_bytes()
+    )
+    environment = plist["EnvironmentVariables"]
+    assert {"/usr/sbin", "/sbin"} <= set(environment["PATH"].split(":"))
+    assert environment["PYTHONUNBUFFERED"] == "1"
+    installer = (launchd / "install-insights.sh").read_text("utf-8")
+    assert "/usr/bin:/bin:/usr/sbin:/sbin" in installer  # the installer rewrites PATH
+    assert 'PYTHONUNBUFFERED"] = "1"' in installer

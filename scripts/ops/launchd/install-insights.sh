@@ -81,8 +81,9 @@ config["StandardErrorPath"] = str(Path(logs) / "insights.err.log")
 config["EnvironmentVariables"]["HOME"] = str(Path.home())
 config["EnvironmentVariables"]["PATH"] = (
     str(Path.home() / ".local/bin")
-    + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+    + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 )
+config["EnvironmentVariables"]["PYTHONUNBUFFERED"] = "1"
 config["EnvironmentVariables"]["EVALLAB_INSIGHTS_STATE"] = state
 path = Path(destination)
 temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")

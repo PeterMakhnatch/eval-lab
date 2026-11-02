@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import time
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
@@ -163,3 +165,46 @@ def test_stat_command_prints_json_and_bad_input_exits_two(
     for raw in ("{", "[]", '{"n": -1}'):
         assert _cmd(argparse.Namespace(op="rule_of_three", args=raw), tmp_path) == 2
         assert "Cannot compute statistic" in capsys.readouterr().err
+
+
+def _exact_mcnemar(b: int, c: int) -> float:
+    n, m = b + c, min(b, c)
+    tail = sum(math.comb(n, i) for i in range(m + 1))
+    return float(min(Fraction(1), Fraction(2 * tail, 2**n)))
+
+
+@pytest.mark.parametrize(
+    ("b", "c"),
+    [(700, 900), (1200, 1150), (400, 700), (900, 700), (2000, 1900), (1001, 0)],
+)
+def test_mcnemar_log_space_matches_exact_integers_beyond_the_exact_cutoff(b: int, c: int) -> None:
+    expected = _exact_mcnemar(b, c)
+    assert mcnemar_exact(b, c)["p_value"] == pytest.approx(expected, rel=1e-9, abs=0)
+    assert mcnemar_exact(c, b)["p_value"] == mcnemar_exact(b, c)["p_value"]
+
+
+def test_mcnemar_is_fast_at_ten_thousand_discordant_pairs() -> None:
+    started = time.perf_counter()
+    equal = mcnemar_exact(10_000, 10_000)["p_value"]
+    skewed = mcnemar_exact(10_000, 9_800)["p_value"]
+    tiny = mcnemar_exact(20_000, 10_000)["p_value"]
+    assert time.perf_counter() - started < 1.0
+    assert equal == 1.0
+    # Normal approximation: z = 200 / sqrt(19800) = 1.42, two-sided p about 0.157.
+    assert skewed == pytest.approx(0.157, abs=0.002)
+    assert tiny == 5e-324
+
+
+def test_mcnemar_underflow_is_a_floor_not_zero() -> None:
+    assert mcnemar_exact(5000, 0)["p_value"] == 5e-324
+    p_value = mcnemar_exact(5000, 0)["p_value"]
+    assert p_value is not None and p_value > 0
+
+
+def test_bh_float_boundary_rejects_at_exactly_q() -> None:
+    # 0.05 * 3 / 3 is one ulp above 0.05 in floats; step-up rejects all three at q = 0.05.
+    result = bh([0.01, 0.01, 0.05])
+    assert result["adjusted"] == [0.015, 0.015, 0.05]
+    assert result["rejected"] == [True, True, True]
+    assert bh([0.01, 0.01, 0.0501])["rejected"] == [True, True, False]
+    assert bh([0.025, 0.025], q=0.05)["rejected"] == [True, True]

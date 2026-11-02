@@ -34,7 +34,8 @@ A source's date is not necessarily the date of the measured run.
 Use `./q sql 'SELECT * FROM v_claims LIMIT 20'` to inspect current claims.
 Use `./q sql 'SELECT * FROM v_insights LIMIT 20'` to search existing findings.
 Use `./q sql "SELECT * FROM v_signals WHERE status = 'open' LIMIT 20"` for leads.
-SQL accepts one SELECT or WITH query, returns at most 200 JSON rows, and never writes.
+SQL accepts one SELECT or WITH query, returns at most 200 JSON rows, stops after about
+5 seconds, truncates output at 1 MB with a note, and never writes.
 Use ORDER BY and targeted WHERE clauses when exploring a larger ledger.
 Use `./q claim <claim_id>` for a complete claim and its provenance.
 Use `./q experiment <experiment_id>` for the experiment and compact claims.
@@ -47,10 +48,15 @@ Quoted source numbers may be transcribed exactly; they are not independent verif
 Use `./q recipe '<json>' --folder '<recorded-folder>'` to test a receipt computation.
 A recipe is declarative JSON, never executable Python or shell.
 Receipt folders must already be registered on a ledger source.
+Use `./q locate --k K --n N --value V [--folder F]` to find where those numbers appear in
+the receipts. It searches by value only and returns JSON pointers and recipe templates; it
+does not know the original recipe and says nothing about what the claim means. Choose the
+filter from the source's definition, never from the match, and test it with `./q recipe`.
 Use `./q schema` if a field or allowed value is unclear.
 
 ## Independence boundaries
 Your pack deliberately omits the original recipe and its recomputed result.
+The ledger you query is a redacted snapshot: claims carry no recipe and no recompute status.
 Do not search raw claim bodies, past pass outputs, or old recipes to recover them.
 The claim command removes original recipes during this lens.
 SQL must use public views rather than raw claims, insights, passes, or body columns.

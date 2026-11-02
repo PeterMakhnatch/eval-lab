@@ -22,6 +22,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
 def _cmd(args: argparse.Namespace, root: Path, *, harbor: object | None = None) -> int:
     state = args.state_dir or default_state_root()
     output = args.out or state / "board"
+    # Card commands pin this exact ledger, so snapshots cannot review live state.
     with InsightStore.open(state) as store:
         paths = render_board(
             store, output, now=datetime.now(UTC), top_n=load_config(state).board_top_n,

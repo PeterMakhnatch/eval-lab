@@ -1,21 +1,22 @@
-"""Retrodiction backtest for the insight engine on the 2026-11-02 overnight run.
+"""Retrodiction backtests for the insight engine on overnight research runs.
 
-The engine sees only material written before the 03:25 ET cutoff (a frozen
-snapshot of the coordinator log prefix, author reports and their receipts).
-Its cards are scored against corrections and follow-ups the verifiers and the
-coordinator found *after* the cutoff (``ground_truth.json``). A single strong
-agent given the same snapshot is the baseline. A judge from a different model
-family matches cards to ground-truth items without seeing which system wrote
-them.
+Each backtest directory holds a frozen snapshot of what existed at a cutoff
+(`snapshot/`), the cutoff definition (`cutoff.json`) and the corrections and
+follow-ups first written after it (`ground_truth.json`). Engine arms run
+`evallab insights watch` on the snapshot into a state directory (`state/`,
+`state-v2/`, ...). A single strong agent given the same snapshot is the
+baseline. A judge from a different model family matches each arm's cards to
+ground-truth items without seeing which system wrote them.
 
-Everything this script reads or writes lives under the backtest directory in
-local state (default ``~/.local/state/evallab-insights/backtests/2026-11-02-overnight``);
-the ground truth quotes research notes, so it is never committed.
+Everything lives in local state (default
+``~/.local/state/evallab-insights/backtests/2026-11-02-overnight``); ground truth
+quotes research notes, so none of it is committed.
 
-    backtest.py baseline     # one Opus pass over the same snapshot
-    backtest.py judge        # blind cross-family matching, both systems
-    backtest.py audit        # did any worker read outside the snapshot?
-    backtest.py report       # metrics -> results.json
+    backtest.py baseline                       # one Opus pass over the snapshot
+    backtest.py judge --arm engine=state       # blind cross-family matching
+    backtest.py judge --arm engine-v2=state-v2 --skip-baseline
+    backtest.py audit --arm engine=state       # did any worker read outside the snapshot?
+    backtest.py report --arm engine=state --arm engine-v2=state-v2
 """
 
 from __future__ import annotations
@@ -40,13 +41,9 @@ JUDGE_ROUTE = "google-antigravity/gemini-3.8-flash"
 BASELINE_ROUTE = "anthropic/claude-opus-5-5"
 GT_PER_JUDGE_CALL = 5
 MAX_PARALLEL_WORKERS = 4
-# Original locations of the snapshotted material, and verifier output that only
-# exists after the cutoff. A worker touching these outside the snapshot leaked.
-LEAK_PATTERNS = (
-    re.compile(r"research-context/bridge/2026-11-02-overnight"),
-    re.compile(r"eval-lab-results/2026-11-02"),
-    re.compile(r"/ver2?/raw/|/VF-[A-Z][\w-]*/|REVIEW-[\w-]+/report"),
-)
+SCORED = ("yes", "partial")
+# Verifier output exists only after the cutoff; reading it anywhere is a leak.
+VERIFIER_PATTERN = re.compile(r"/ver2?/raw/|/VF-[A-Z][\w-]*/|REVIEW-[\w-]+/report")
 _SNAPSHOT_PATH = re.compile(r"[^\s\"']*/snapshot/[^\s\"']*")
 
 
@@ -74,15 +71,25 @@ def _cutoff(root: Path) -> datetime:
     return datetime.fromisoformat(_load_json(root / "cutoff.json")["cutoff_et"])
 
 
-def _ledger(root: Path) -> sqlite3.Connection:
-    con = sqlite3.connect(f"file:{root / 'state' / 'insights.sqlite'}?mode=ro", uri=True)
+def _ledger(state_dir: Path) -> sqlite3.Connection:
+    con = sqlite3.connect(f"file:{state_dir / 'insights.sqlite'}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     return con
 
 
-def engine_cards(root: Path) -> list[Card]:
+def _arms(values: list[str]) -> dict[str, str]:
+    arms: dict[str, str] = {}
+    for value in values:
+        name, _, state = value.partition("=")
+        if not name or not state:
+            raise SystemExit(f"--arm needs NAME=STATE_DIR_NAME, got {value!r}")
+        arms[name] = state
+    return arms
+
+
+def engine_cards(state_dir: Path, system: str) -> list[Card]:
     """Every analyst card that passed the engine's code checks."""
-    con = _ledger(root)
+    con = _ledger(state_dir)
     experiments = {
         row["claim_id"]: row["experiment"]
         for row in con.execute("SELECT claim_id, experiment FROM claims")
@@ -107,7 +114,7 @@ def engine_cards(root: Path) -> list[Card]:
             experiments[e["claim_id"]] for e in card["evidence"] if e["claim_id"] in experiments
         })
         cards.append(Card(
-            card_id=record["insight_id"], system="engine", title=card["title"],
+            card_id=record["insight_id"], system=system, title=card["title"],
             text="\n".join(parts), experiments=tuple(cited),
             created_at=datetime.fromisoformat(record["created_at"]),
             status=record["status"],
@@ -175,9 +182,9 @@ def _attested(pass_dir: Path, route: str) -> dict[str, Any]:
 # ---------------------------------------------------------------- baseline
 BASELINE_PROMPT = """You are a senior research analyst reviewing an overnight batch of
 experiments on AI-evaluation infrastructure (cheat detection, graders, workflow engines).
-It is 03:25 ET. Everything written so far is under `{snapshot}`:
+It is {cutoff}. Everything written so far is under `{snapshot}`:
 
-- `{findings}`: the coordinator's running log of results.
+{log_line}
 - the author reports listed in `reports.txt` (one path per line), each next to the
   receipt files its author wrote.
 
@@ -199,11 +206,14 @@ trials or paid services. Write only `out/cards.json`.
 def cmd_baseline(root: Path) -> int:
     snapshot = root / "snapshot"
     base = root / "baseline"
-    reports = sorted(str(path) for path in snapshot.rglob("*.md") if path.name != "FINDINGS.md")
+    log = next(iter(sorted(snapshot.rglob("FINDINGS*.md"))), None)
+    reports = sorted(str(path) for path in snapshot.rglob("*.md") if path != log)
     base.mkdir(parents=True, exist_ok=True)
     (base / "reports.txt").write_text("\n".join(reports) + "\n", "utf-8")
-    findings = next(snapshot.rglob("FINDINGS.md"))
-    prompt = BASELINE_PROMPT.format(snapshot=snapshot, findings=findings)
+    log_line = (f"- `{log}`: the coordinator's running log of results." if log else
+                "- There is no coordinator log for this run.")
+    cutoff = _cutoff(root).strftime("%H:%M ET on %d %B")
+    prompt = BASELINE_PROMPT.format(snapshot=snapshot, log_line=log_line, cutoff=cutoff)
     spec = _spec(base, BASELINE_ROUTE, prompt, tools="read,bash,grep,glob,write",
                  minutes=45, thinking="high")
     _run_workers([spec], timeout_minutes=46)
@@ -216,7 +226,7 @@ def cmd_baseline(root: Path) -> int:
 
 
 # ---------------------------------------------------------------- judge
-JUDGE_PROMPT = """You are grading whether analyst notes written before 03:25 ET anticipated
+JUDGE_PROMPT = """You are grading whether analyst notes written before a cutoff anticipated
 problems and follow-ups that were found only later that night.
 
 Below are LATER FINDINGS (each with the author's earlier claim it concerns) and the
@@ -229,8 +239,8 @@ analysts' CARDS. For every later finding, decide which cards, if any, anticipate
   misses the specific mechanism, or names the right mechanism on a neighbouring target.
 - "none": no card does either. Generic advice ("check denominators everywhere") is none.
 
-If a finding carries a NOTE about what was already known before 03:25, apply it: a card
-that only repeats an already-known caveat earns "none".
+If a finding carries a NOTE about what was already known before the cutoff, apply it: a
+card that only repeats an already-known caveat earns "none".
 
 Write exactly one file, `out/judgment.json`:
 {{"judgments": [{{"gt_id": "GT-..", "match": "full|partial|none", "card_ids": ["..."],
@@ -286,9 +296,11 @@ def _aliases(cards: list[Card], seed: int) -> dict[str, Card]:
     return {f"C{index:03d}": card for index, card in enumerate(shuffled, start=1)}
 
 
-def cmd_judge(root: Path) -> int:
-    gt = _ground_truth(root)
-    systems = {"engine": engine_cards(root), "baseline": baseline_cards(root)}
+def cmd_judge(root: Path, arms: dict[str, str], *, skip_baseline: bool) -> int:
+    gt = [item for item in _ground_truth(root) if item["anticipatable"] in SCORED]
+    systems = {name: engine_cards(root / state, name) for name, state in arms.items()}
+    if not skip_baseline:
+        systems["baseline"] = baseline_cards(root)
     specs: list[WorkerSpec] = []
     for name, cards in systems.items():
         if not cards:
@@ -338,9 +350,24 @@ def _tool_calls(session_dir: Path) -> Iterable[str]:
                     yield json.dumps(part.get("arguments", {}))
 
 
-def cmd_audit(root: Path) -> dict[str, Any]:
-    session_dirs = sorted((root / "state" / "passes").glob("*/session"))
+def _leak_patterns(root: Path) -> list[re.Pattern[str]]:
+    """Original locations of the snapshotted folders, plus verifier output."""
+    patterns = [VERIFIER_PATTERN]
+    for kind, original in (("bridge", "research-context/bridge"),
+                           ("results", "eval-lab-results")):
+        base = root / "snapshot" / kind
+        if base.is_dir():
+            for child in sorted(base.iterdir()):
+                patterns.append(re.compile(re.escape(f"{original}/{child.name}")))
+    return patterns
+
+
+def cmd_audit(root: Path, arms: dict[str, str]) -> dict[str, Any]:
+    session_dirs: list[Path] = []
+    for state in arms.values():
+        session_dirs.extend(sorted((root / state / "passes").glob("*/session")))
     session_dirs.append(root / "baseline" / "session")
+    patterns = _leak_patterns(root)
     flagged: list[dict[str, str]] = []
     calls = 0
     for session in session_dirs:
@@ -349,7 +376,7 @@ def cmd_audit(root: Path) -> dict[str, Any]:
         for arguments in _tool_calls(session):
             calls += 1
             outside = _SNAPSHOT_PATH.sub("", arguments)
-            hits = [pattern.pattern for pattern in LEAK_PATTERNS if pattern.search(outside)]
+            hits = [pattern.pattern for pattern in patterns if pattern.search(outside)]
             if hits:
                 flagged.append({
                     "pass": session.parent.name, "patterns": ",".join(hits),
@@ -392,12 +419,12 @@ def _system_metrics(
     for item in full + partial:
         first = datetime.fromisoformat(item["first_seen_et"])
         times = [
-            by_id[cid].created_at for cid in matched[item["gt_id"]]["card_ids"]
-            if cid in by_id and by_id[cid].created_at is not None
+            created for cid in matched[item["gt_id"]]["card_ids"]
+            if cid in by_id and (created := by_id[cid].created_at) is not None
         ]
         if times and start is not None:
             # A card's delay after its system started, set against the night's clock.
-            card_delay = (min(t for t in times if t is not None) - start).total_seconds() / 60
+            card_delay = (min(times) - start).total_seconds() / 60
             leads.append(round((first - cutoff).total_seconds() / 60 - card_delay))
     return {
         "cards": len(cards),
@@ -456,29 +483,34 @@ def _claim_summary(con: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-def cmd_report(root: Path) -> int:
-    gt = _ground_truth(root)
+def cmd_report(root: Path, arms: dict[str, str]) -> int:
+    gt = [item for item in _ground_truth(root) if item["anticipatable"] in SCORED]
     cutoff = _cutoff(root)
-    con = _ledger(root)
-    passes = [json.loads(row["body"]) for row in con.execute("SELECT body FROM passes")]
-    start = min((datetime.fromisoformat(p["created_at"]) for p in passes), default=None)
-    engine = engine_cards(root)
-    result: dict[str, Any] = {
-        "ground_truth_items": len(gt),
-        "engine": _system_metrics(root, "engine", engine, gt, start, cutoff),
-        "engine_passes": _pass_summary(passes),
-        "claims": _claim_summary(con),
-        "audit": cmd_audit(root),
-    }
+    result: dict[str, Any] = {"ground_truth_items": len(gt), "arms": {}}
+    for name, state in arms.items():
+        con = _ledger(root / state)
+        passes = [json.loads(row["body"]) for row in con.execute("SELECT body FROM passes")]
+        start = min((datetime.fromisoformat(p["created_at"]) for p in passes), default=None)
+        cards = engine_cards(root / state, name)
+        end = max((datetime.fromisoformat(p["finished_at"]) for p in passes
+                   if p.get("finished_at")), default=None)
+        result["arms"][name] = {
+            "metrics": _system_metrics(root, name, cards, gt, start, cutoff),
+            "passes": _pass_summary(passes),
+            "claims": _claim_summary(con),
+            "wall_minutes": None if start is None or end is None
+            else round((end - start).total_seconds() / 60),
+        }
     baseline = baseline_cards(root)
-    if baseline:
+    if baseline and (root / "judge" / "baseline").exists():
         base_start = datetime.fromtimestamp(
             (root / "baseline" / "prompt.md").stat().st_mtime, UTC
         )
-        result["baseline"] = _system_metrics(
-            root, "baseline", baseline, gt, base_start, cutoff
-        )
-        result["baseline_receipt"] = _load_json(root / "baseline" / "receipt.json")
+        result["arms"]["baseline"] = {
+            "metrics": _system_metrics(root, "baseline", baseline, gt, base_start, cutoff),
+            "receipt": _load_json(root / "baseline" / "receipt.json"),
+        }
+    result["audit"] = cmd_audit(root, arms)
     (root / "results.json").write_text(json.dumps(result, indent=2, default=str), "utf-8")
     print(json.dumps({k: v for k, v in result.items() if k != "audit"}, indent=2, default=str))
     print(f"audit: {len(result['audit']['flagged'])} flagged of "
@@ -490,16 +522,20 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("command", choices=["baseline", "judge", "audit", "report"])
     parser.add_argument("--dir", type=Path, default=DEFAULT_DIR)
+    parser.add_argument("--arm", action="append", default=[],
+                        help="engine arm as NAME=STATE_DIR_NAME (default engine=state)")
+    parser.add_argument("--skip-baseline", action="store_true")
     args = parser.parse_args(argv)
     root: Path = args.dir.expanduser().resolve()
+    arms = _arms(args.arm) if args.arm else {"engine": "state"}
     if args.command == "baseline":
         return cmd_baseline(root)
     if args.command == "judge":
-        return cmd_judge(root)
+        return cmd_judge(root, arms, skip_baseline=args.skip_baseline)
     if args.command == "audit":
-        print(json.dumps(cmd_audit(root), indent=2))
+        print(json.dumps(cmd_audit(root, arms), indent=2))
         return 0
-    return cmd_report(root)
+    return cmd_report(root, arms)
 
 
 if __name__ == "__main__":

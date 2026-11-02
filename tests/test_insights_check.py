@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -10,8 +12,17 @@ from evallab.insights.models import (
     ClaimRecord,
     ExtractedClaim,
     InsightCard,
+    Recipe,
+    SourceRecord,
 )
 from evallab.insights.stats import compute
+
+
+def _source(source_id: str, folder: str) -> SourceRecord:
+    return SourceRecord(
+        source_id=source_id, path=f"{folder}/report.md", family="experiment", kind="report",
+        sha256="digest", size=1, mtime=datetime(2026, 11, 2, tzinfo=UTC), folder=folder,
+    )
 
 
 def _claim(**changes: object) -> ExtractedClaim:
@@ -96,14 +107,16 @@ def test_claim_fails_unverifiable_quote_or_missing_count() -> None:
     assert check_extracted_claim(identifier, identifier.quote).status == "fail"
 
 
-def test_claim_warns_for_value_not_quoted_or_supported_by_counts() -> None:
+def test_claim_fails_value_not_quoted_or_supported_by_counts() -> None:
     claim = _claim(value=0.37)
     result = check_extracted_claim(claim, claim.quote)
-    assert result.status == "warn"
+    assert result.status == "fail"
     assert any("not in the quote" in note for note in result.notes)
-    assert any("differs from k/n" in note for note in result.notes)
+    # A unitless in-range value that is quoted but disagrees with k/n is ambiguous: no note.
+    quoted = _check(value=0.37, quote="The treatment passed 21 of 28 trials; correlation 0.37.")
+    assert quoted.status == "pass", quoted.notes
     qualitative = _claim(k=None, n=None, value=0.37, quote="No numerical rate was reported.")
-    assert check_extracted_claim(qualitative, qualitative.quote).status == "warn"
+    assert check_extracted_claim(qualitative, qualitative.quote).status == "fail"
 
 
 def test_claim_accepts_printed_value_or_ratio_rounding() -> None:
@@ -187,11 +200,18 @@ def test_card_fails_unknown_evidence_and_challenge_targets() -> None:
     assert any("stale" in note for note in result.notes)
 
 
-def test_connection_requires_distinct_experiments_not_distinct_claims() -> None:
+def test_connection_requires_distinct_source_folders_not_experiment_ids() -> None:
     card = _card(kind="connection", evidence=[{"claim_id": "C1"}, {"claim_id": "C2"}])
-    claims = {"C1": _record(), "C2": _record("C2")}
-    assert check_card(card, claims=claims, known_insights=set()).status == "fail"
-    claims["C2"] = _record("C2", claim=_claim(experiment="E2"))
+    claims = {"C1": _record(), "C2": _record("C2", source_id="source-b")}
+    same_folder = {"source-a": _source("source-a", "/r/B3"), "source-b": _source("source-b", "/r/B3")}
+    assert check_card(card, claims=claims, known_insights=set(), sources=same_folder).status == "fail"
+    # Two experiment ids from one folder are one place, however the extractor labelled them.
+    aliased = {"C1": _record(), "C2": _record("C2", source_id="source-b", claim=_claim(experiment="E2"))}
+    result = check_card(card, claims=aliased, known_insights=set(), sources=same_folder)
+    assert result.status == "fail" and any("source folders" in note for note in result.notes)
+    folders = {"source-a": _source("source-a", "/r/B3"), "source-b": _source("source-b", "/r/F4")}
+    assert check_card(card, claims=claims, known_insights=set(), sources=folders).status == "pass"
+    # Without source records, distinct source ids stand in for distinct folders.
     assert check_card(card, claims=claims, known_insights=set()).status == "pass"
 
 
@@ -218,13 +238,13 @@ def test_computed_stat_rechecks_values_shape_and_boolean_flags() -> None:
     assert check_card(card, claims=claims, known_insights=set()).status == "fail"
 
 
-def test_card_warns_for_unknown_predecessor_and_invented_percentage() -> None:
+def test_card_fails_invented_title_percentage_and_warns_for_unknown_predecessor() -> None:
     card = _card(
         statement="The measured rate is 37%, which is not established by the source.",
         builds_on=["missing-insight"],
     )
     result = check_card(card, claims={"C1": _record()}, known_insights=set())
-    assert result.status == "warn"
+    assert result.status == "fail"
     assert any("37%" in note for note in result.notes)
     assert any("builds_on" in note for note in result.notes)
 
@@ -251,3 +271,227 @@ def test_unsupported_numbers_reads_a_dash_after_a_percent_as_a_range() -> None:
     # An interval printed as "43.6%–97.0%" is two positive numbers, not a negative one.
     assert unsupported_numbers("Wilson 43.6%–97.0% and (2)-5 cases.", [0.4365, 0.9699, 2, 5]) == []
     assert unsupported_numbers("The change is -3 points.", [3]) == ["-3"]
+
+
+def _check(**changes: object) -> CheckResult:
+    claim = _claim(**changes)
+    return check_extracted_claim(claim, claim.quote)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        # Percent stored with a percent-bearing unit, LaTeX percent, ratio, seconds, USD.
+        {"k": None, "n": None, "value": 60.0, "unit": "% per worker-hour",
+         "quote": "Throughput rose 60.0% per worker-hour."},
+        {"k": None, "n": None, "value": 16.7, "unit": "%", "quote": "The rate was 16.7\\%."},
+        {"k": None, "n": None, "value": 3.2, "unit": "x", "quote": "The agent was 3.2x faster."},
+        {"k": None, "n": None, "value": 93600, "unit": "s", "quote": "The run took 93,600s."},
+        {"k": None, "n": None, "value": 0.04, "unit": "s", "quote": "Latency was 40ms."},
+        {"k": None, "n": None, "value": 15, "unit": "USD", "quote": "The run cost $15."},
+        # A count or currency value is not a proportion, so k/n comparisons do not apply.
+        {"k": 1, "n": 3, "value": 1.0, "unit": "calls", "quote": "1.0 calls out of 3 trials."},
+        {"k": 200, "n": 200, "value": 1.3, "unit": "USD", "quote": "200 of 200 trials cost $1.3."},
+        # Percent unit with k/n: value is checked on the percent scale.
+        {"value": 75.0, "unit": "%", "quote": "21 of 28 trials passed (75%)."},
+    ],
+)
+def test_claim_value_is_unit_aware_with_no_false_alarms(changes: dict[str, object]) -> None:
+    result = _check(**changes)
+    assert result.status == "pass", result.notes
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        # The two real value-scale corruptions from the claim audit.
+        {"k": None, "n": None, "value": 0.0024, "unit": "s",
+         "quote": "The resume lag was .243 seconds."},
+        {"k": None, "n": None, "value": 0.7253, "unit": "s", "quote": "The lag was 72.53s."},
+        {"k": None, "n": None, "value": 5.0, "unit": "USD", "quote": "The run cost $15."},
+    ],
+)
+def test_claim_fails_value_scale_corruption(changes: dict[str, object]) -> None:
+    result = _check(**changes)
+    assert result.status == "fail"
+    assert any("not in the quote" in note for note in result.notes)
+
+
+def test_claim_ci_on_the_wrong_scale_fails_but_declared_percent_passes() -> None:
+    quote = "79 of 158 passed (50%), 95% interval 42.3-57.7%."
+    wrong = _check(k=79, n=158, value=0.5, ci_low=42.3, ci_high=57.7, quote=quote)
+    assert wrong.status == "fail"
+    assert any("[0,1]" in note for note in wrong.notes)
+    declared = _check(
+        k=79, n=158, value=50.0, unit="%", ci_low=42.3, ci_high=57.7, quote=quote,
+    )
+    assert declared.status == "pass", declared.notes
+    bounds = compute("wilson", {"k": 79, "n": 158})
+    fraction = _check(k=79, n=158, value=0.5, ci_low=bounds["low"], ci_high=bounds["high"],
+                      quote=quote)
+    assert fraction.status == "pass"
+    reversed_bounds = _check(k=79, n=158, value=0.5, ci_low=0.6, ci_high=0.4, quote=quote)
+    assert reversed_bounds.status == "fail"
+    # Without a value, a k/n interval is still a proportion interval.
+    no_value = _check(k=79, n=158, value=None, ci_low=42.3, ci_high=57.7, quote=quote)
+    assert no_value.status == "fail"
+
+
+def test_claim_interval_checks_skip_non_binomial_intervals() -> None:
+    bootstrap = _check(
+        k=5, n=10, value=0.9, metric="auroc", ci_low=0.81, ci_high=0.96,
+        quote="AUROC 0.9 (bootstrap interval 0.81-0.96) on 5 of 10 cases.",
+    )
+    assert bootstrap.status == "pass", bootstrap.notes
+    percent_auroc = _check(
+        k=5, n=10, value=90.0, unit="%", metric="auroc", ci_low=81.0, ci_high=96.0,
+        quote="AUROC 90% (bootstrap interval 81%-96%) on 5 of 10 cases.",
+    )
+    assert percent_auroc.status == "pass", percent_auroc.notes
+
+
+@pytest.mark.parametrize(
+    ("changes", "needle"),
+    [
+        ({"k": 21, "n": 21, "value": 1.0, "quote": "All 21 trials passed (100%)."}, "distinct"),
+        ({"k": 50, "n": 100, "value": 0.5, "quote": "50% of 100 trials passed."}, "k = 50"),
+        ({"k": 2026, "n": 2026, "value": 1.0, "quote": "On 2026-11-02 every trial passed."},
+         "k = 2026"),
+    ],
+)
+def test_claim_counts_need_distinct_non_percent_non_date_tokens(
+    changes: dict[str, object], needle: str,
+) -> None:
+    result = _check(**changes)
+    assert result.status == "fail"
+    assert any(needle in note for note in result.notes)
+    assert _check(k=21, n=21, value=1.0, quote="21 of 21 trials passed (100%).").status == "pass"
+
+
+def test_card_checks_every_free_text_field() -> None:
+    claims = {"C1": _record()}
+    for field, value in (
+        ("title", "A 99% certainty on 40 runs"),
+        ("statement", "The measured rate is 99% across the runs."),
+    ):
+        result = check_card(_card(**{field: value}), claims=claims, known_insights=set())
+        assert result.status == "fail" and any(field in note for note in result.notes)
+    warned = {
+        "why_not_obvious": ("why_not_obvious", "The headline hides 7 excluded trials entirely."),
+        "alternatives": ("alternative", ["A 63% baseline could explain the gap."]),
+        "observations": ("observation", ["The source reports 17 of 28 trials."]),
+        "interpretation": ("interpretation", "The gap of 64 points is large for this sample."),
+    }
+    for field, (label, value) in warned.items():
+        result = check_card(_card(**{field: value}), claims=claims, known_insights=set())
+        assert result.status == "warn" and any(label in note for note in result.notes), field
+    challenge = _card(
+        kind="challenge",
+        challenge={
+            "target_claim_ids": ["C1"], "flaw": "small_n", "severity": "major",
+            "check": "Collect 400 more paired trials.", "decision_at_risk": "Pick the 1 best.",
+        },
+    )
+    result = check_card(challenge, claims=claims, known_insights=set())
+    assert result.status == "warn" and any("challenge check" in note for note in result.notes)
+    prediction = _card(
+        kind="mechanism",
+        predictions=[{
+            "statement": "The rate will exceed 91% next time.", "direction": "higher", "low": 0.91,
+            "resolves_when": "A later run reports at least 40 trials.",
+        }],
+    )
+    result = check_card(prediction, claims=claims, known_insights=set())
+    assert result.status == "warn" and any("prediction" in note for note in result.notes)
+    proposal = _card(
+        kind="idea",
+        predictions=[{
+            "statement": "The lift appears in follow-up runs.", "direction": "higher",
+            "low": 0.1, "resolves_when": "A later run reports the lift.",
+        }],
+        proposed_experiment={
+            "hypothesis": "A 12% lift would show up across 300 cases.",
+            "primary_variable": "prompt", "fixed_variables": ["model"], "arms": ["a", "b"],
+            "cost_basis": "About 90 USD of replays", "needs_approval": True,
+            "reuses_existing_data": True, "expected_if_true": "Lift",
+            "expected_if_false": "No lift",
+        },
+    )
+    result = check_card(proposal, claims=claims, known_insights=set())
+    assert result.status == "warn" and any("proposal" in note for note in result.notes)
+
+
+def test_card_numbers_are_supported_by_cited_claims_and_cited_section_text() -> None:
+    claims = {"C1": _record()}
+    card = _card(observations=["The report also lists 9 timeouts."])
+    assert check_card(card, claims=claims, known_insights=set()).status == "warn"
+    sections = {"section-a": "The treatment passed 21 of 28 trials. 9 timeouts were excluded."}
+    supported = check_card(card, claims=claims, known_insights=set(), section_texts=sections)
+    assert supported.status == "pass", supported.notes
+    # Section text from a claim the card does not cite supports nothing.
+    other = {"section-b": "9 timeouts were excluded."}
+    assert check_card(
+        card, claims=claims, known_insights=set(), section_texts=other,
+    ).status == "warn"
+
+
+def test_card_glued_unit_numbers_are_checked_not_masked() -> None:
+    claims = {"C1": _record()}
+    assert unsupported_numbers("a 36pp gap, 3x faster, 40ms, $15", []) == [
+        "36pp", "3x", "40ms", "$15",
+    ]
+    assert unsupported_numbers("Latency 40ms over 3x.", ["0.04s", "3x"]) == []
+    assert unsupported_numbers("A 36pp gap.", ["36%"]) == []
+    # Identifiers with digits and zero-padded ids are still not numbers.
+    assert unsupported_numbers("Rows R7B and v2 and gpt-6.1.", []) == []
+    card = _card(title="Resolves 3x faster")
+    assert check_card(card, claims=claims, known_insights=set()).status == "fail"
+
+
+def test_computed_stat_inputs_must_come_from_cited_claims() -> None:
+    claims = {"C1": _record()}
+    invented = {"k": 85, "n": 100}
+    result = compute("wilson", invented)
+    card = _card(
+        statement="Across 100 runs the rate is 85%, within 76.7-90.7%.",
+        computed=[{"op": "wilson", "args": invented, "result": result}],
+    )
+    checked = check_card(card, claims=claims, known_insights=set())
+    assert checked.status == "fail"
+    assert any("inputs" in note for note in checked.notes)
+    assert any("statement" in note and "85%" in note for note in checked.notes)
+    real = {"k": 21, "n": 28}
+    bounds = compute("wilson", real)
+    grounded = _card(
+        statement=f"The interval for 21 of 28 is {bounds['low']:.1%}-{bounds['high']:.1%}.",
+        computed=[{"op": "wilson", "args": real, "result": bounds}],
+    )
+    assert check_card(grounded, claims=claims, known_insights=set()).status == "pass"
+    # A 2x2 table may use complements of cited counts (the margins are cited).
+    table = {"a": 21, "b": 7, "c": 7, "d": 21}
+    two_by_two = _card(
+        computed=[{"op": "fisher", "args": table, "result": compute("fisher", table)}],
+    )
+    paired = {"C1": _record(claim=_claim(quote="The treatment passed 21 of 28 trials; "
+                                                 "controls passed 7 of 28 trials."))}
+    assert check_card(two_by_two, claims=paired, known_insights=set()).status == "pass"
+
+
+def test_card_recipes_are_rerun_and_their_values_become_supported(tmp_path: Path) -> None:
+    (tmp_path / "summary.json").write_text(json.dumps({"caught": 9}), encoding="utf-8")
+    recipe = Recipe(op="value", file="summary.json", pointer="/caught")
+    card = _card(
+        observations=["The receipt shows 9 timeouts."],
+        recipes=[{"recipe": recipe, "folder": str(tmp_path), "value": 9}],
+    )
+    claims = {"C1": _record()}
+    assert check_card(card, claims=claims, known_insights=set()).status == "pass"
+    wrong = card.model_copy(update={"recipes": [
+        card.recipes[0].model_copy(update={"value": 10}),
+    ]})
+    result = check_card(wrong, claims=claims, known_insights=set())
+    assert result.status == "fail" and any("recorded value" in note for note in result.notes)
+    missing = card.model_copy(update={"recipes": [card.recipes[0].model_copy(update={
+        "recipe": Recipe(op="value", file="absent.json", pointer="/caught"),
+    })]})
+    assert check_card(missing, claims=claims, known_insights=set()).status == "fail"

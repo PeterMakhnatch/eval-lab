@@ -41,15 +41,47 @@ def wilson(k: int, n: int, confidence: float = 0.95) -> dict[str, float | None]:
     return {"p": k / n, "low": bounds[0], "high": bounds[1]}
 
 
+_EXACT_TAIL_MAX_N = 1000
+_TERM_FLOOR = 1e-18
+
+
+def _binomial_half_tail(m: int, n: int) -> float:
+    """P(X <= m) for X ~ Binomial(n, 1/2), m <= n/2, as a float.
+
+    Small n uses exact integers. Larger n sums the terms downward from i = m in log space
+    (anchored by lgamma), so b, c of order 1e4 cost O(m) float operations rather than
+    big-integer binomials; the relative error is about n * 1e-16.
+    """
+    if n <= _EXACT_TAIL_MAX_N:
+        return sum(math.comb(n, i) for i in range(m + 1)) / 2**n
+    log_top = (
+        math.lgamma(n + 1) - math.lgamma(m + 1) - math.lgamma(n - m + 1) - n * math.log(2)
+    )
+    total = 0.0
+    ratio = 1.0
+    for i in range(m, 0, -1):
+        total += ratio
+        ratio *= i / (n - i + 1)
+        if ratio < _TERM_FLOOR * total:
+            break
+    else:
+        total += ratio
+    # total is the tail in units of the top term; combine in log space to avoid underflow.
+    return math.exp(log_top + math.log(total))
+
+
 def mcnemar_exact(b: int, c: int) -> dict[str, float | None]:
-    """Two-sided exact binomial test on discordant paired outcomes."""
+    """Two-sided exact binomial test on discordant paired outcomes.
+
+    A p-value below the smallest positive float is reported as that float, never 0.
+    """
     _count(b, "b")
     _count(c, "c")
     n = b + c
-    # The existing paired helper requires materializing one object per observation.
-    tail = sum(math.comb(n, i) for i in range(min(b, c) + 1)) if n else 0
-    p = 1.0 if n == 0 else min(1.0, 2 * tail / 2**n)
-    return {"p_value": p}
+    if n == 0:
+        return {"p_value": 1.0}
+    p = min(1.0, 2 * _binomial_half_tail(min(b, c), n))
+    return {"p_value": max(p, 5e-324)}
 
 
 def fisher(a: int, b: int, c: int, d: int) -> dict[str, float | None]:
@@ -99,9 +131,11 @@ def bh(p_values: list[float], q: float = 0.05) -> dict[str, list[float] | list[b
     running = 1.0
     for rank in range(size, 0, -1):
         index = order[rank - 1]
-        running = min(running, p_values[index] * size / rank)
+        running = min(running, p_values[index] * (size / rank))
         adjusted[index] = running
-    return {"adjusted": adjusted, "rejected": [value <= q for value in adjusted]}
+    # Compare with a relative slack: 0.05 * 3 / 3 must not miss q = 0.05 by one ulp.
+    limit = q * (1 + 1e-12)
+    return {"adjusted": adjusted, "rejected": [value <= limit for value in adjusted]}
 
 
 def min_n_mcnemar(alpha: float = 0.05) -> dict[str, int]:

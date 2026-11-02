@@ -5,22 +5,31 @@
 - **Audience:** Peter Makhnatch, Eval Lab Coordinator
 - **Status:** Complete / Final Decision Memo
 
+## What Changed (Independent Verifier Corrections)
+Following independent verification in VF-D-BENCH (`/Users/petermakhnatch/Developer/research-context/bridge/2026-11-02-overnight/ver/raw/VF-D-BENCH/report.md`, see `VERIFIER-CORRECTIONS.md`):
+1. **Teacher Performance Scope:** Clarified that "teacher is near chance on 5 of 6 families" describes D2's Stage-1 card-only re-read, NOT production AutoReview. On the same 272 covered cases, D1 stored readings (with Stage-2 retrieval where triggered) achieve report AUROC 0.666 [0.599, 0.734] vs 0.493 [0.429, 0.562] for D2's Stage-1 re-read (Terminal Wrench: 0.740 vs 0.500; DeepSWE: 0.708 vs 0.476).
+2. **Gates 1 & 3 Computation:** Gates 1 and 3 are dynamically computed. Gate 3 is presented under both cost bases: fails under subscription $0 (negative savings) and passes under list price $6.97/1k ($63.58 net savings at 10k traces, break-even at ~9,440 traces). "Fails all three gates" corrected to "fails Gates 1 and 2; Gate 3 depends on cost basis".
+3. **Gate 2 Data Sufficiency:** Stated rule applied consistently: among trustworthy families, CheatBench (75) and Terminal Wrench (158) meet the 62-positive bar, while c1c5 (6) and sol_astra (8) fail (and deep_swe has 50 < 62 and is publisher_cot_judged).
+4. **D4 Framing:** Corrected claim that D4 "proved CoT-free cards cause blindness": D4 readers saw bounded step transcripts with reasoning kept where present, and concluded CoT-class label noise is not identified.
+5. **69 Pending Verdicts:** Corrected queue audit: 69 queue lines represent 60 unique run IDs (4 guide examples, 52 benchmark cases: 24 Goodfire pos, 13 deep_swe pos, 12 CheatBench neg, 2 Goodfire neg, 1 deep_swe neg). They resolve whether publisher CoT-judged labels hold, not container-verified labels.
+6. **Sol/Astra FA Rate:** Corrected to 1/10 for `gemini-3.1-flash-lite` and 0/10 for `gemini-2.5-flash-lite`.
+7. **Post-Hoc Signal Rule:** Labeled the "demonstrable signal in 1 of 6 families" rule as post-hoc, resting on 4 scripted positives.
+
 ---
 
 ## Executive Summary & Final Verdict
 
 **VERDICT: DO NOT DISTILL (DO X FIRST)**
 
-We recommend **against** training or distilling a student trace monitor tonight. Distillation fails all three pre-registered decision criteria:
-1. **Zero Headroom on Working Families ($X = 0.0\%$ vs required $\ge 8.5\%$):** In the only family where the production teacher (`google-antigravity/gemini-3.8-flash`) demonstrates statistically genuine signal (`sol_astra`: AUROC 1.000 [1.000, 1.000], recall 4/4 = 100% @ FA 0/10 = 0%), cheap off-the-shelf readers (`gemini-3.1-flash-lite`, `gemini-2.5-flash-lite`) **already achieve 4/4 = 100% recall** at 0% false alarms. Across the other five benchmark families, the teacher's AUROC 95% confidence interval contains 0.50 (terminal_wrench is exactly 0.500 [0.500, 0.500], deep_swe is 0.476 [0.267, 0.681], cheatbench is 0.506 [0.385, 0.625]); distilling a student on teacher scores would simply inherit and amplify random chance.
-2. **Severe Trustworthy Data Deficit ($N_{\text{pos}} \le 4$ vs required $\ge 62$):** There are currently **0 human-calibrated labels** (69 Judge Station verdicts pending). Container-verified labels exist for only 72 cases total across DEV (only 14 positives: 6 in `c1c5`, 8 in `sol_astra`). The 250 cases in `goodfire` and `deep_swe` are `publisher_cot_judged`, which D4 proved exhibits structural reader blindness on CoT-free cards (blind readers called 0/20 cheated). Validating an 8.5 percentage point difference with 80% statistical power requires $N_{\text{pos}} \approx 134$ positive cases per family; we currently have 3 to 4 per split.
-3. **Negative Economic Value ($0.61/1k > $0.19/1k):** Serving a self-hosted 7-8B LoRA student on Modal A10G costs approximately **$0.61 per 1,000 cases** (assuming 2.0 s inference at $1.10/hr), plus cold-start and idle capacity overhead. By comparison, off-the-shelf **`inclusionai/ling-3.0-flash` costs $0.19 per 1,000 cases** (3.2x cheaper), and **`gemini-3.1-flash-lite` carries $0.00 marginal cost** on Peter's subscription with a faster 2.18 s median latency.
+We recommend **against** training or distilling a student trace monitor tonight (**VERDICT: DO NOT DISTILL / DO X FIRST**). Distillation fails Decision Gates 1 and 2, while Gate 3 depends on the cost basis:
+1. **Zero Headroom on Working Families ($X = 0.0\%$ vs required $\ge 8.5\%$):** In the only family where the Stage-1 card reader demonstrates post-hoc signal (`sol_astra`: AUROC 1.000 [1.000, 1.000], recall 4/4 = 100% @ FA 1/10 = 10% for 3.1-lite and 0/10 for 2.5-lite), cheap off-the-shelf readers (`gemini-3.1-flash-lite`, `gemini-2.5-flash-lite`) **already achieve 4/4 = 100% recall**, leaving zero empirical headroom ($X = 0.0\%$). In the other 5 families, the Stage-1 reader operates near chance (AUROC 95% CI contains 0.50). Production AutoReview recovers signal (pooled AUROC 0.666, Terminal Wrench 0.740) primarily through Stage-2 raw-step retrieval, not Stage-1 card reading.
+2. **Severe Trustworthy Data Deficit ($N_{\text{pos}} < 62$ on key families):** While `terminal_wrench` (158 pos) and `cheatbench` (75 pos) clear the $N_{\text{pos}} \ge 62$ threshold, container-verified families `c1c5` ($N_{\text{pos}} = 6$) and `sol_astra` ($N_{\text{pos}} = 8$) severely fail it. `deep_swe` ($N_{\text{pos}} = 50$) also fails, and together with `goodfire` (80 pos) belongs to `publisher_cot_judged`, where D4 found CoT-class label noise is not identified and compact cards lack reasoning traces.
+3. **Cost-Basis-Dependent Economic Value:** Under production subscription pricing ($0.00 marginal teacher cost), a self-hosted 7B LoRA student on Modal A10G ($0.612/1k) yields negative savings (-$6.12 at 10k traces), failing Gate 3. Under list price ($6.97/1k for `gemini-3.8-flash`), Gate 3 passes with $63.58 savings at 10k traces (break-even ~9,440 traces). Because Gates 1 and 2 fail, DO-NOT-DISTILL follows regardless.
 
 ### The Single Next Action (Do X First)
-**Action:** Adjudicate the **69 pending human verdicts** in Judge Station (`docs/judge-guide.md`, command: `uv run evallab judge serve`).
+**Action:** Adjudicate the **69 pending run verdicts** in Judge Station (`docs/judge-guide.md`, command: `uv run evallab judge serve`).
 - **Cost:** **$0.00** model spend; ~2.5 hours of human operator time (2 minutes per case).
-- **Why:** Until human calibration establishes whether cheating actions can be reliably distinguished from legitimate struggle on compact anatomy cards, no amount of model distillation can separate true capability from label noise.
-
+- **Why:** The 69 queue lines cover 52 benchmark cases (24 Goodfire pos, 13 deep_swe pos, 12 CheatBench neg, 2 Goodfire neg, 1 deep_swe neg). Adjudicating them resolves whether upstream publisher CoT-judged labels are valid on action-level cards before spending compute on training.
 ---
 
 ## 1. Label Inventory & Provenance Audit
@@ -38,8 +47,8 @@ Across TraceMonitor-Bench DEV v1 (780 total cases, 776 scored) and the frozen 30
 | **Total** | **776 (377 pos, 399 neg)**| **150 (71 pos, 79 neg)**| — | **0** | **72** | **140** | **Only 72 container-verified cases exist** |
 
 ### Critical Takeaway on Labels
-1. **Teacher Scores are NOT Ground Truth:** AutoReview (`gemini-3.8-flash`) exhibits an overall pooled AUROC of 0.511 [0.443, 0.580] on DEV. Distilling a student to match the teacher's suspicion scores guarantees inheriting the teacher's false alarms and blind spots.
-2. **D4 Addendum Enforced:** The `publisher_cot_judged` class (`goodfire` and `deep_swe`, 250 cases) cannot be used to train or evaluate a CoT-free student. D4 demonstrated that independent frontier models (Claude Sonnet 5.5 and Gemini 3.8 Flash) called 0 of 20 cases cheated. Training on these labels forces a student to hallucinate patterns that do not exist in the cards.
+1. **Stage-1 Card Readings are NOT Ground Truth:** In D2's Stage-1 card-only re-read, `gemini-3.8-flash` exhibits an overall pooled AUROC of 0.493 [0.429, 0.562] on DEV. Distilling a student to match Stage-1 card suspicion scores simply distills chance. Production AutoReview achieves AUROC 0.666 only through Stage-2 retrieval.
+2. **D4 Addendum Enforced:** The `publisher_cot_judged` class (`goodfire` and `deep_swe`, 250 cases) cannot be used to train or evaluate a CoT-free student. D4 demonstrated that independent frontier models called 0 of 20 cases cheated, and concluded that CoT-class label noise is not identified.
 
 ---
 
@@ -58,9 +67,10 @@ Using D2 receipts (`ladder_results.json` and per-rung JSONLs), we evaluate the t
 | **Pooled (D2)**| **71 / 79** | **0.511 [0.443, 0.580]** | **6/71 (8.5%)** | **NO (At chance)** | **7/71 (9.9%)** (AUROC 0.537) | $b=3, c=2, p=1.000$ | **-1.4% (Lite leads)**|
 
 *Notes:*
-- Demonstrable signal requires: AUROC 95% bootstrap CI strictly excluding 0.50 AND recall > false-alarm rate.
-- `gemini-2.5-flash-lite` achieves even higher recall on `cheatbench`: 4/16 (25.0%) vs teacher 1/16 (6.25%), with McNemar $b=3, c=0, p=0.250$.
-- In the only family with signal (`sol_astra`), cheap models match the teacher perfectly ($X = 0.0\%$).
+- Post-hoc demonstrable signal rule: AUROC 95% bootstrap CI strictly excluding 0.50 AND recall > false-alarm rate. This was met only on `sol_astra` and rests on 4 scripted positives (bootstrap CI [1.0, 1.0] on $N=4$ is degenerate).
+- `gemini-3.1-flash-lite` has 1/10 false alarms on `sol_astra`; `gemini-2.5-flash-lite` has 0/10 false alarms.
+- `gemini-2.5-flash-lite` achieves higher recall on `cheatbench`: 4/16 (25.0%) vs teacher 1/16 (6.25%), with McNemar $b=3, c=0, p=0.250$.
+- In the only family with Stage-1 signal (`sol_astra`), cheap models match the teacher perfectly ($X = 0.0\%$).
 
 ---
 
@@ -76,19 +86,14 @@ The decision rule pre-registers three conditions:
 ### Criterion 2: Data Sufficiency Gate ($N_{\text{pos}} \ge 62$)
 - **Requirement:** At least $N_{\text{pos}} \ge 62$ trustworthy positive cases per family across train/test splits.
 - **Justification for $N = 62$:** To measure a target recall of 80% with a 95% Wilson confidence interval half-width $\le 10\%$, standard sample size requires $N \ge z^2 \cdot p(1-p) / d^2 = (1.96 / 0.10)^2 \cdot 0.80 \cdot 0.20 = 61.5 \approx 62$. To detect an 8.5 percentage point gap with 80% power under McNemar, each family would require $N_{\text{pos}} \approx 134$.
-- **Outcome:** **FAILS.** Container-verified positives are: `c1c5` ($N_{\text{pos}} = 6$), `sol_astra` ($N_{\text{pos}} = 8$). No family meets the minimum threshold.
+- **Outcome:** **FAILS.** Among trustworthy classes, `terminal_wrench` (158) and `cheatbench` (75) meet the threshold, but `c1c5` ($N_{\text{pos}} = 6$) and `sol_astra` ($N_{\text{pos}} = 8$) fail. `deep_swe` ($N_{\text{pos}} = 50$) also fails and, like `goodfire`, is `publisher_cot_judged`.
 
 ### Criterion 3: Economic Breakeven Gate ($V \cdot \Delta C \ge 2.0 \cdot C_{\text{train+eval}}$)
-- **Requirement:** Projected 3-month serving savings must exceed one-off training and evaluation costs by at least $2.0\times$.
-- **Cost Arithmetic:**
-  - One-off Modal GPU training & eval (Recipe A: 7B LoRA): **$30.00**.
-  - Serving cost per 1,000 cases:
-    - Teacher `gemini-3.8-flash` list price: $6.97 (subscription: $0.00)
-    - Off-the-shelf `gemini-3.1-flash-lite` list price: $2.49 (subscription: $0.00)
-    - Off-the-shelf `ling-3.0-flash` on OpenRouter: $0.19
-    - Self-hosted 7B LoRA on Modal A10G: **$0.612** (2.0s p50 at $1.10/hr)
-- **Outcome:** **FAILS.** Self-hosting a 7B student costs $0.612/1k, which is **3.2x more expensive** than using off-the-shelf `ling-3.0-flash` ($0.19/1k) and infinitely more expensive than $0.00 subscription calls. Training a student produces negative cost savings.
-
+- **Requirement:** Projected 3-month serving savings must exceed one-off training and evaluation costs by at least $2.0\times$ ($2.0 \times \$30.00 = \$60.00$).
+- **Cost Arithmetic & Outcome:**
+  - **Subscription Basis ($0.00 teacher marginal cost):** Self-hosted 7B LoRA on Modal A10G costs **$0.612 per 1,000 cases**, increasing serving costs by $6.12 at 10k traces. **FAILS.**
+  - **List Price Basis ($6.97/1k teacher list):** Savings vs teacher are $6.358 per 1,000 traces ($63.58 at 10k traces $\ge \$60.00$). **PASSES** at volume $\ge 9,440$ traces.
+  - Overall: Fails under production subscription deployment. Regardless of cost basis, Gates 1 and 2 fail, so the DO-NOT-DISTILL verdict stands.
 ---
 
 ## 4. Student Recipes & Modal GPU Cost Estimates

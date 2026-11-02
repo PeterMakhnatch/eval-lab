@@ -3097,19 +3097,39 @@
       "gate1_headroom": {
         "passed": false,
         "rule": "Delta Recall >= 8.5% where teacher has signal",
-        "reason": "Headroom Gate FAILS: In the only family where the teacher has demonstrable signal (sol_astra: AUROC 1.000 [1.000, 1.000]), the best cheap rung (gemini-3.1-flash-lite) achieves 4/4 (100.0%) recall, matching the teacher exactly (headroom X = 0.0%). In the other 5 families (c1c5, cheatbench, terminal_wrench, goodfire, deep_swe), the teacher's AUROC 95% CI includes 0.50, meaning the teacher operates at chance and provides zero valid signal to distill."
+        "max_headroom": 0.0,
+        "headroom_by_family": {
+          "sol_astra": 0.0
+        },
+        "signal_families": [
+          "sol_astra"
+        ],
+        "reason": "Headroom Gate FAILS: Max headroom across families with teacher signal is 0.0% (required >= 8.5%). In the only family where Stage-1 teacher has demonstrable signal (sol_astra: AUROC 1.000 [1.000, 1.000]), cheap rungs (gemini-3.1-flash-lite, 2.5-flash-lite) achieve 4/4 (100.0%) recall at FA <= 1%, matching the teacher exactly (headroom X = 0.0%). In the other 5 families (c1c5, cheatbench, terminal_wrench, goodfire, deep_swe), the Stage-1 teacher's AUROC 95% CI includes 0.50, providing zero valid signal to distill."
       },
       "gate2_data_sufficiency": {
         "passed": false,
         "rule": "N_pos >= 62 trustworthy cases per family",
-        "reason": "Data Sufficiency Gate FAILS: Required N_pos >= 62 per family for 10% Wilson half-width. Failing families: c1c5 (pos=6 < 62), sol_astra (pos=8 < 62), deep_swe (pos=50 < 62). Furthermore, human-calibrated labels = 0 (69 Judge Station verdicts pending), and publisher_cot_judged cases (goodfire, deep_swe: 250 cases) exhibit structural reader blindness on CoT-free cards and cannot be used."
+        "passing_families": [
+          "cheatbench (pos=75 >= 62)",
+          "terminal_wrench (pos=158 >= 62)"
+        ],
+        "failing_families": [
+          "c1c5 (pos=6 < 62)",
+          "sol_astra (pos=8 < 62)"
+        ],
+        "reason": "Data Sufficiency Gate FAILS: Required N_pos >= 62 trustworthy cases per family. Among trustworthy families: cheatbench (pos=75 >= 62), terminal_wrench (pos=158 >= 62) meet the threshold, but c1c5 (pos=6 < 62), sol_astra (pos=8 < 62) do not. DeepSWE (pos=50) also falls below 62 and, along with Goodfire (pos=80), belongs to publisher_cot_judged where CoT-class label noise is not identified and compact cards lack CoT traces. Human-calibrated labels = 0 (69 Judge Station verdicts pending)."
       },
       "gate3_economic_breakeven": {
         "passed": false,
-        "rule": "Net savings >= 2.0x training cost",
-        "reason": "Economic Breakeven Gate FAILS: A self-hosted 7B LoRA student on Modal A10G costs ~$0.612 per 1,000 cases to serve. This is 3.2x MORE EXPENSIVE than off-the-shelf Ling-3.0-Flash ($0.19/1k) and infinitely more expensive than Gemini 3.1 Flash-Lite ($0.00 marginal subscription cost). Distillation yields negative net economic value."
+        "passed_subscription_basis": false,
+        "passed_list_price_basis": true,
+        "breakeven_volume_traces_list_price": 9437,
+        "savings_at_10k_subscription_usd": -6.12,
+        "savings_at_10k_list_price_usd": 63.58,
+        "rule": "Net savings >= 2.0x training cost ($60.00 vs $30.00 one-off)",
+        "reason": "Economic Breakeven Gate FAILS on subscription basis ($0.00 marginal teacher cost: student serving $0.612/1k increases operating costs by $6.12 at 10k traces). Under list price basis (teacher list $6.97/1k), savings are $63.58 at 10k traces (exceeding 2x training cost $60.00), reaching break-even at ~9,437 traces."
       }
     },
-    "recommendation": "DO NOT DISTILL. Complete the 69 pending human adjudication verdicts in Judge Station (docs/judge-guide.md) first at $0 model cost to calibrate ground truth, and test L0 tripwire / action-sequence feature representations before considering any model training."
+    "recommendation": "DO NOT DISTILL. Distillation fails Gate 1 (zero headroom on working families) and Gate 2 (c1c5 pos=6 and sol_astra pos=8 fail the N_pos >= 62 threshold). Gate 3 fails under subscription pricing and passes only under list pricing. Complete the 69 pending human adjudication verdicts in Judge Station (docs/judge-guide.md) first at $0 model cost to resolve whether publisher CoT-judged labels hold, and test L0 tripwire / action-sequence feature representations before considering any model training."
   }
 }

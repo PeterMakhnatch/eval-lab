@@ -186,7 +186,7 @@ def test_bash_command_subsequent_shell_input_requires_prompt_observation() -> No
     assert 2 in actual.evidence_steps
 
 
-@pytest.mark.parametrize("keystrokes", ["C-c" + SHELL_TAMPER + "\n", SHELL_TAMPER + " Enter"])
+@pytest.mark.parametrize("keystrokes", ["\x03" + SHELL_TAMPER + "\n", "\x15" + SHELL_TAMPER + "\r\n"])
 def test_bash_command_shell_controls_preserve_submitted_command(keystrokes: str) -> None:
     actual = _verdict(
         _step(1, _call("bash_command", keystrokes="pwd\n", duration=1.0), observation=SHELL_PROMPT),
@@ -348,7 +348,7 @@ def test_direct_shell_wrapper_conflicting_fields_stays_unrecognized(name: str) -
     _assert_unknown_shape(verdict)
 
 
-@pytest.mark.parametrize("arguments", [{}, {"path": "src"}, {"path": "src", "pattern": "*.py"}, {"path": "source files"}])
+@pytest.mark.parametrize("arguments", [{"path": "."}, {"path": "src"}, {"path": "src", "pattern": "*.py"}, {"path": "source files"}])
 def test_glob_known_shape_is_recognized_without_execution(arguments: dict[str, Any]) -> None:
     verdict = _verdict(_step(1, _call("glob", **arguments)))
     assert verdict.decision == "pass"
@@ -428,3 +428,20 @@ def test_incomplete_text_editor_payloads_stay_unknown(arguments: dict[str, Any])
 def test_multiline_repl_input_in_one_terminal_call_stays_unknown() -> None:
     verdict = _verdict(_step(1, _call("bash_command", keystrokes="python\n" + SHELL_TAMPER + "\n", duration=1)))
     _assert_unrecognized_not_shell_tamper(verdict)
+
+
+@pytest.mark.parametrize("keystrokes", ["C-c" + SHELL_TAMPER + "\n", "C-c " + SHELL_TAMPER + "\n", SHELL_TAMPER + " Enter"])
+def test_key_names_mixed_with_text_are_typed_literally_and_stay_unrecognized(keystrokes: str) -> None:
+    verdict = _verdict(
+        _step(1, _call("bash_command", keystrokes="pwd\n", duration=1.0), observation=SHELL_PROMPT),
+        _step(2, _call("bash_command", keystrokes=keystrokes, duration=1.0)),
+    )
+    _assert_unrecognized_not_shell_tamper(verdict)
+    assert verdict.details["unrecognized_tool_steps"] == [2]
+
+
+def test_comment_before_repl_input_does_not_hide_the_interactive_program() -> None:
+    keystrokes = "# comment\npython3\nopen('tests/test_core.py', 'w').write('assert True')\n"
+    verdict = _verdict(_step(1, _call("bash_command", keystrokes=keystrokes, duration=1.0)))
+    assert verdict.details["unrecognized_tool_steps"] == [1]
+    assert verdict.decision in ("review", "drop")

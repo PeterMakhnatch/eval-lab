@@ -146,7 +146,7 @@ def _run_worker(
             input=json.dumps(initial) + "\n",
             text=True,
             capture_output=True,
-            timeout=30,
+            timeout=150,
             check=True,
             cwd=ROOT,
         )
@@ -292,10 +292,10 @@ def test_known_cold_retry_preheaders_cannot_wait_through_native_generation_timeo
     def respond(attempt, request):
         if attempt == 1:
             return 503, {"error": {"message": "starting"}}
-        time.sleep(0.25)
+        time.sleep(1.5)
         return 503, {"error": {"message": "still starting"}}
 
-    requests, events, calls, native, finished, stderr = _run_worker(tmp_path, respond, budget=0.06)
+    requests, events, calls, native, finished, stderr = _run_worker(tmp_path, respond, budget=1.0)
     assert [call["response_status"] for call in calls] == [503, None]
     assert calls[-1]["transport_error_type"] == "APITimeoutError"
     assert finished["infra_error"]["retry_window_exhausted"] is True

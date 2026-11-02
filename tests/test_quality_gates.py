@@ -1069,6 +1069,34 @@ def test_every_harbor_gated_test_file_runs_in_the_native_harbor_step() -> None:
     assert problems == [], "\n".join(problems)
 
 
+def test_native_harbor_step_syncs_the_pinned_xiaomi_interpreter() -> None:
+    """The mimoagent worker tests run only against tools/mimoagent-harbor/.venv.
+
+    tests/test_mimoagent_worker.py skips every test when
+    tools/mimoagent-harbor/.venv/bin/python is absent (31 skips on main run
+    41448725961), so the step must `uv sync` the tool project before its
+    pytest command. --python 3.12 pins the tool interpreter on the 3.14
+    matrix row; tools/mimoagent-harbor/uv.lock is in the step's cache key.
+    HAR-271.
+    """
+    workflow = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+    run = _native_harbor_step(workflow).get("run") or ""
+    executable = "\n".join(
+        line for line in run.splitlines() if not line.lstrip().startswith("#")
+    )
+    sync = "uv sync --project tools/mimoagent-harbor --locked"
+    assert sync in executable, (
+        "the native Harbor step must install the pinned Xiaomi interpreter "
+        f"with {sync!r} before pytest, or tests/test_mimoagent_worker.py skips"
+    )
+    assert "mimoagent-harbor/uv.lock" in (
+        (WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8")
+    ), "tools/mimoagent-harbor/uv.lock must be part of the uv cache key"
+    assert executable.index(sync) < executable.index("pytest"), (
+        "the mimoagent-harbor uv sync must run before the step's pytest command"
+    )
+
+
 @pytest.mark.parametrize("dropped", sorted(REPO_HARBOR_GATED_TESTS))
 def test_native_harbor_step_gate_rejects_dropping_a_gated_file(dropped: str) -> None:
     """Dropping any gated file from the step reddens the gate (HAR-260)."""

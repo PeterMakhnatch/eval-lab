@@ -92,7 +92,7 @@ jobs:
           SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
         with:
           path: ~/.cache/uv
-          key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python-version }}-test-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
+          key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python-version }}-test-${{ hashFiles('uv.lock', 'tools/mimoagent-harbor/uv.lock', '.github/workflows/ci.yml') }}
       - name: Sync with benchmark and lance test dependencies (fastmcp, cryptography, lancedb)
         run: uv sync --locked --no-group observability --group benchmarks --group lance
       - name: Full test suite
@@ -103,6 +103,9 @@ jobs:
         run: |
           uv sync --locked --no-group observability --group benchmarks --group lance --extra laminar
           uv run --no-sync python -c 'import harbor.job_diff'
+          # HAR-271: tools/mimoagent-harbor needs a 3.12 interpreter even on the
+          # 3.14 matrix row; the worker tests spawn tools/mimoagent-harbor/.venv.
+          uv sync --project tools/mimoagent-harbor --locked --python 3.12
           # Every file listed here skips (or covers only its stubs) when Harbor is
           # absent, so the main pytest step cannot exercise it. HAR-260:
           # tests/test_quality_gates.py::test_every_harbor_gated_test_file_runs_in_the_native_harbor_step

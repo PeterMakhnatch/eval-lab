@@ -45,7 +45,7 @@ inputs:
   - path: docs/context-packs.md
     digest: sha256:a5d8abe608dc3f0060230eda8d041ce021ce4aa38cf144c04a5aa0fc2e515905
   - path: docs/continuous-loop-operator.md
-    digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
+    digest: sha256:d679e9331f4f8981dce17231a7ff7b9aba154824957e1e848f73bc5f4646c29e
   - path: docs/contracts.md
     digest: sha256:04eb119ba420b1f1a3ac202ad52e2654ff8642bc77df0898b6c210df4c83fefe
   - path: docs/craft.md

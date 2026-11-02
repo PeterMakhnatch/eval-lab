@@ -37,6 +37,7 @@ KILL_DISPOSITION = "FAILED_OPERATOR_KILL"
 DEFAULT_MODE = "DISABLED"
 REQUIRED_SCOPE = "continuous-loop"
 HEARTBEAT_SKEW_SECONDS = 2.0
+KILL_CANCEL_TIMEOUT_SECONDS = 2.0
 KILLED_ALLOWED_COMMANDS = frozenset(
     {"kill", "recover", "drain", "status", "rotate-logs", "rotate-cas"}
 )
@@ -1001,6 +1002,7 @@ class OperatorContext:
     policy: ContinuousLoopPolicy | None
     agent: str
     drain_timeout_seconds: float | None
+    kill_cancel_timeout_seconds: float | None
     env_self_asserted_approval: bool
     env_self_asserted_budget: bool
     mac_key: bytes
@@ -1267,6 +1269,7 @@ def context_from_env(
     now: datetime,
     agent: str,
     drain_timeout_seconds: float | None,
+    kill_cancel_timeout_seconds: float | None = None,
     environ: Mapping[str, str],
     secret_store: Callable[[str], bytes | None] | None = None,
     secrets_root: Path | None = None,
@@ -1350,6 +1353,7 @@ def context_from_env(
         policy=policy,
         agent=agent,
         drain_timeout_seconds=drain_timeout_seconds,
+        kill_cancel_timeout_seconds=kill_cancel_timeout_seconds,
         env_self_asserted_approval=env_self_asserted_approval,
         env_self_asserted_budget=env_self_asserted_budget,
         mac_key=mac_key,
@@ -2200,9 +2204,14 @@ def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
 
     # Phase 2: Outside lock, invoke owner.request_cancel with bounded deadline
     fenced_ids = [item for item in fenced if isinstance(item, str)]
+    cancel_timeout = (
+        ctx.kill_cancel_timeout_seconds
+        if ctx.kill_cancel_timeout_seconds is not None
+        else KILL_CANCEL_TIMEOUT_SECONDS
+    )
     cancel_res, timed_out = _call_with_deadline(
         lambda: ctx.owner.request_cancel(fenced_ids),
-        timeout_seconds=2.0,
+        timeout_seconds=cancel_timeout,
     )
     if not timed_out and isinstance(cancel_res, dict):
         # Phase 3: Optional CAS update of owner_ack if same generation under lock
@@ -2277,6 +2286,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--policy", type=Path, default=None)
     parser.add_argument("--agent", default="oracle")
     parser.add_argument("--drain-timeout-seconds", type=float, default=None)
+    parser.add_argument("--kill-cancel-timeout-seconds", type=float, default=None)
     parser.add_argument("--repo-root", type=Path, default=None)
     parser.add_argument("--campaign-id", default=None)
     return parser
@@ -2318,6 +2328,7 @@ def main(
         now=now,
         agent=args.agent,
         drain_timeout_seconds=args.drain_timeout_seconds,
+        kill_cancel_timeout_seconds=args.kill_cancel_timeout_seconds,
         environ=env,
         secret_store=resolved_store,
         secrets_root=secrets_root,

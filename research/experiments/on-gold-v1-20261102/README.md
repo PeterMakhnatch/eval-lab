@@ -10,7 +10,7 @@ This experiment evaluates and certifies the 32 executable DEV packages in the Mi
 - `gold-v1-manifest.json`: Complete manifest with exactly one row per package containing certification status, taxonomy reason, and non-equivalence metrics.
 - `gold-v1-summary.md`: Summary report with 95% Wilson intervals and operational overrun bounds.
 - `attestation.json`: Model attestation receipt (100% `google-antigravity/gemini-3.8-flash`, 0 fallbacks, 0 argon).
-- `cells.csv`: Manifest of executed container cells with outcome hashes and runtime costs.
+- Per-cell rows (`cells.csv`) are kept local under `~/Developer/eval-lab-results/2026-11-02/A4-GOLD-BATCH/receipts/` and not committed (third-party data policy: aggregates, code and hashes only). sha256 of the file is in the report.
 
 ## Results Summary
 

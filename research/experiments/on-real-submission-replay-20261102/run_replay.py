@@ -417,6 +417,25 @@ def run_adjudication_model(
     return None, record
 
 
+def _scrub_free_text(obj: Any) -> Any:
+    """Copy of ``obj`` with reader free text (``reason``, ``raw_text``) replaced by sha256[:12] and length.
+
+    Reader explanations quote the reference patch, submissions and task statements, which the
+    third-party data policy keeps out of git. The full receipt stays in the durable local results.
+    """
+    if isinstance(obj, dict):
+        out: dict[str, Any] = {}
+        for key, val in obj.items():
+            if key in ("reason", "raw_text") and isinstance(val, str):
+                out[key] = {"sha256_12": hashlib.sha256(val.encode("utf-8", errors="replace")).hexdigest()[:12], "len": len(val)}
+            else:
+                out[key] = _scrub_free_text(val)
+        return out
+    if isinstance(obj, list):
+        return [_scrub_free_text(val) for val in obj]
+    return obj
+
+
 def main() -> None:
     started_at = datetime.now(UTC).isoformat()
     _ = started_at
@@ -913,7 +932,8 @@ Output exactly ONE JSON object:
     (BRIDGE_RECEIPTS / "replay_receipt.json").write_text(receipt_json, encoding="utf-8")
     (DURABLE_ROOT / "receipts" / "replay_receipt.json").parent.mkdir(parents=True, exist_ok=True)
     (DURABLE_ROOT / "receipts" / "replay_receipt.json").write_text(receipt_json, encoding="utf-8")
-    (REPO_ROOT / "research/experiments/on-real-submission-replay-20261102" / "replay_receipt.json").write_text(receipt_json, encoding="utf-8")
+    scrubbed_json = json.dumps(_scrub_free_text(receipt_data), indent=2)
+    (REPO_ROOT / "research/experiments/on-real-submission-replay-20261102" / "replay_receipt.json").write_text(scrubbed_json, encoding="utf-8")
 
     print("\n=== SUMMARY OF RESULTS ===")
     print(f"Real Submission Flip Rate:        {summary['metrics']['real_flip_rate']['fmt']}")

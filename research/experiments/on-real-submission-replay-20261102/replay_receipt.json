@@ -546,7 +546,10 @@
       "cohort_type": "real_submission",
       "j1_gemini": {
         "verdict": "wrong",
-        "reason": "The evaluated submission is clearly broken on multiple fronts: 1) The patch is corrupted/truncated mid-syntax at `if getattr(a` with repetitive hallucinated lines, making it invalid Python syntax; 2) The grader failure output shows that when `{'hide_command': True}` is set via config, the command was not hidden (`'classified_task'` was still output instead of `'Your command'`), because the submission failed to read `hide_command` from the configuration dict `config` into `args.hide_command`; 3) In `_result_message`, the submission formats `\"Your command\"` with surrounding quotes instead of unquoted `Your command` as requested and expected.",
+        "reason": {
+          "sha256_12": "edc91c72f80b",
+          "len": 647
+        },
         "confidence": 5,
         "record": {
           "requested_route": "google-antigravity/gemini-3.8-flash",
@@ -554,13 +557,19 @@
           "served_model": "gemini-3.8-flash",
           "attested": true,
           "wall_s": 3.44,
-          "raw_text": "```json\n{\n  \"verdict\": \"wrong\",\n  \"reason\": \"The evaluated submission is clearly broken on multiple fronts: 1) The patch is corrupted/truncated mid-syntax at `if getattr(a` with repetitive hallucinated lines, making it invalid Python syntax; 2) The grader failure output shows that when `{'hide_command': True}` is set via config, the command was not hidden (`'classified_task'` was still output instead of `'Your command'`), because the submission failed to read `hide_command` from the configuration dict `config` into `args.hide_command`; 3) In `_result_message`, the submission formats `\\\"Your command\\\"` with surrounding quotes instead of unquoted `Your command` as requested and expected.\",\n  \"confidence\": 5\n}\n```",
+          "raw_text": {
+            "sha256_12": "4130decbd5f9",
+            "len": 720
+          },
           "cost_usd": 0.0
         }
       },
       "j2_claude": {
         "verdict": "wrong",
-        "reason": "The submission is defective. (1) It never reads `hide_command` from the config file. The reference adds `if getattr(args, 'func', None) == run_cmd and 'hide_command' in config: args.hide_command = config['hide_command']`. The failing test passes `{'hide_command': True}` as config, and the output ('\u2705 \"classified_task\" succeeded in 0:00 minutes None {'hide_command': True} 0') shows the command was still included. A config-driven option is a reasonable expectation for ntfy, since other options such as longer_than are config-driven. (2) The diff is visibly corrupted. `main()` contains many repeated copies of `if getattr(args, 'hide_command', False): args.hide_command = True`, and the diff ends truncated mid-token at `if getattr(a`. That is a syntax error or otherwise broken code. (3) Its `_result_message` also hardcodes the string `\"Your command\"` inside quotes, a minor stylistic divergence, though the quoting is acceptable. The failure is not just an incidental difference from the reference. The submission's output is broken and it lacks config support, so the rejection is justified.",
+        "reason": {
+          "sha256_12": "4e3ec86a8ca5",
+          "len": 1097
+        },
         "confidence": 4,
         "record": {
           "requested_route": "openrouter/~anthropic/claude-sonnet-latest",
@@ -568,7 +577,10 @@
           "served_model": "~anthropic/claude-sonnet-latest",
           "attested": true,
           "wall_s": 4.71,
-          "raw_text": "```json\n{\n  \"verdict\": \"wrong\",\n  \"reason\": \"The submission is defective. (1) It never reads `hide_command` from the config file. The reference adds `if getattr(args, 'func', None) == run_cmd and 'hide_command' in config: args.hide_command = config['hide_command']`. The failing test passes `{'hide_command': True}` as config, and the output ('\u2705 \\\"classified_task\\\" succeeded in 0:00 minutes None {'hide_command': True} 0') shows the command was still included. A config-driven option is a reasonable expectation for ntfy, since other options such as longer_than are config-driven. (2) The diff is visibly corrupted. `main()` contains many repeated copies of `if getattr(args, 'hide_command', False): args.hide_command = True`, and the diff ends truncated mid-token at `if getattr(a`. That is a syntax error or otherwise broken code. (3) Its `_result_message` also hardcodes the string `\\\"Your command\\\"` inside quotes, a minor stylistic divergence, though the quoting is acceptable. The failure is not just an incidental difference from the reference. The submission's output is broken and it lacks config support, so the rejection is justified.\",\n  \"confidence\": 4\n}\n```",
+          "raw_text": {
+            "sha256_12": "5d2779a9f968",
+            "len": 1172
+          },
           "cost_usd": 0.005
         }
       }
@@ -579,7 +591,10 @@
       "cohort_type": "real_submission",
       "j1_gemini": {
         "verdict": "correct-but-test-too-strict",
-        "reason": "The task prompt specifically specifies requirements for the `Auditor` library API: 'I want the Auditor library API to collapse duplicate vulnerability advisories while producing audit results. A user should be able to construct it as Auditor(service, options=AuditOptions()) and call audit(source)...'. It never required adding helper methods `alias_of` or `merge_aliases` to `VulnerabilityResult`. The submission implemented the deduplication and alias-merging logic directly within `_audit.py`, fulfilling all functional requirements described in the instruction. The grader failed solely because its test suite made reference-specific assumptions by asserting helper methods (`alias_of` and `merge_aliases`) on `VulnerabilityResult` (`AttributeError: 'VulnerabilityResult' object has no attribute 'alias_of'`).",
+        "reason": {
+          "sha256_12": "aba730316818",
+          "len": 813
+        },
         "confidence": 5,
         "record": {
           "requested_route": "google-antigravity/gemini-3.8-flash",
@@ -587,13 +602,19 @@
           "served_model": "gemini-3.8-flash",
           "attested": true,
           "wall_s": 2.49,
-          "raw_text": "```json\n{\n  \"verdict\": \"correct-but-test-too-strict\",\n  \"reason\": \"The task prompt specifically specifies requirements for the `Auditor` library API: 'I want the Auditor library API to collapse duplicate vulnerability advisories while producing audit results. A user should be able to construct it as Auditor(service, options=AuditOptions()) and call audit(source)...'. It never required adding helper methods `alias_of` or `merge_aliases` to `VulnerabilityResult`. The submission implemented the deduplication and alias-merging logic directly within `_audit.py`, fulfilling all functional requirements described in the instruction. The grader failed solely because its test suite made reference-specific assumptions by asserting helper methods (`alias_of` and `merge_aliases`) on `VulnerabilityResult` (`AttributeError: 'VulnerabilityResult' object has no attribute 'alias_of'`).\",\n  \"confidence\": 5\n}\n```",
+          "raw_text": {
+            "sha256_12": "7922950df3b2",
+            "len": 906
+          },
           "cost_usd": 0.0
         }
       },
       "j2_claude": {
         "verdict": "correct-but-test-too-strict",
-        "reason": "The task asks only for deduplication behavior through `Auditor(service, options=AuditOptions()).audit(source)`. That means one result per advisory, PYSEC preferred regardless of provider order, and the alias set merged without the primary id. The issue never mentions `VulnerabilityResult.alias_of` or `VulnerabilityResult.merge_aliases`. The grader failures are all `AttributeError`s for those two methods ('VulnerabilityResult' object has no attribute 'alias_of' / 'merge_aliases'). They come from tests that call the reference solution's new public helpers on the dataclass directly, not from any `audit()` output. The submission put its logic in a private `Auditor._deduplicate` and imported `_id_comparison_key`, which is a valid alternative design. The diff is truncated, so I could not confirm that `_deduplicate` handles the issue's three-record example correctly. Nothing in the failure output indicates it does not. The failing tests exercise unspecified helper APIs, so the rejection reflects a reference-specific interface assumption rather than a demonstrated defect. Some uncertainty remains: any `audit()`-level tests might also have failed, but the output shows only the helper-method errors. The submission also committed stray .pyc files, which is sloppy but irrelevant to correctness.",
+        "reason": {
+          "sha256_12": "ad66e35e3c97",
+          "len": 1303
+        },
         "confidence": 3,
         "record": {
           "requested_route": "openrouter/~anthropic/claude-sonnet-latest",
@@ -601,7 +622,10 @@
           "served_model": "~anthropic/claude-sonnet-latest",
           "attested": true,
           "wall_s": 4.86,
-          "raw_text": "```json\n{\n  \"verdict\": \"correct-but-test-too-strict\",\n  \"reason\": \"The task asks only for deduplication behavior through `Auditor(service, options=AuditOptions()).audit(source)`. That means one result per advisory, PYSEC preferred regardless of provider order, and the alias set merged without the primary id. The issue never mentions `VulnerabilityResult.alias_of` or `VulnerabilityResult.merge_aliases`. The grader failures are all `AttributeError`s for those two methods ('VulnerabilityResult' object has no attribute 'alias_of' / 'merge_aliases'). They come from tests that call the reference solution's new public helpers on the dataclass directly, not from any `audit()` output. The submission put its logic in a private `Auditor._deduplicate` and imported `_id_comparison_key`, which is a valid alternative design. The diff is truncated, so I could not confirm that `_deduplicate` handles the issue's three-record example correctly. Nothing in the failure output indicates it does not. The failing tests exercise unspecified helper APIs, so the rejection reflects a reference-specific interface assumption rather than a demonstrated defect. Some uncertainty remains: any `audit()`-level tests might also have failed, but the output shows only the helper-method errors. The submission also committed stray .pyc files, which is sloppy but irrelevant to correctness.\",\n  \"confidence\": 3\n}\n```",
+          "raw_text": {
+            "sha256_12": "f64579a6649e",
+            "len": 1396
+          },
           "cost_usd": 0.005
         }
       }
@@ -612,7 +636,10 @@
       "cohort_type": "real_submission",
       "j1_gemini": {
         "verdict": "correct-but-test-too-strict",
-        "reason": "The task specification explicitly asked to update `Auditor.audit(source)` to collapse duplicate vulnerability advisories: 'I want the Auditor library API to collapse duplicate vulnerability advisories while producing audit results... When two VulnerabilityResult objects for the same dependency share any identifier between their primary id and their aliases, audit(source) should emit only one vulnerability for that advisory.' The prompt never specified or required adding `alias_of` or `merge_aliases` helper methods to `VulnerabilityResult`. The submission implemented the deduplication logic in `_audit.py`, but the gold test suite directly tested reference-implementation helper methods on `VulnerabilityResult` (`AttributeError: 'VulnerabilityResult' object has no attribute 'alias_of'` and `'merge_aliases'`).",
+        "reason": {
+          "sha256_12": "4e700354583e",
+          "len": 817
+        },
         "confidence": 5,
         "record": {
           "requested_route": "google-antigravity/gemini-3.8-flash",
@@ -620,13 +647,19 @@
           "served_model": "gemini-3.8-flash",
           "attested": true,
           "wall_s": 4.73,
-          "raw_text": "```json\n{\n  \"verdict\": \"correct-but-test-too-strict\",\n  \"reason\": \"The task specification explicitly asked to update `Auditor.audit(source)` to collapse duplicate vulnerability advisories: 'I want the Auditor library API to collapse duplicate vulnerability advisories while producing audit results... When two VulnerabilityResult objects for the same dependency share any identifier between their primary id and their aliases, audit(source) should emit only one vulnerability for that advisory.' The prompt never specified or required adding `alias_of` or `merge_aliases` helper methods to `VulnerabilityResult`. The submission implemented the deduplication logic in `_audit.py`, but the gold test suite directly tested reference-implementation helper methods on `VulnerabilityResult` (`AttributeError: 'VulnerabilityResult' object has no attribute 'alias_of'` and `'merge_aliases'`).\",\n  \"confidence\": 5\n}\n```",
+          "raw_text": {
+            "sha256_12": "f464d3e34fda",
+            "len": 910
+          },
           "cost_usd": 0.0
         }
       },
       "j2_claude": {
         "verdict": "correct-but-test-too-strict",
-        "reason": "The task statement specifies only the Auditor(service, options).audit(source) behavior: collapse duplicates that share any identifier, prefer the PYSEC result, and merge aliases without the primary id. The failing tests (4 errors) call `VulnerabilityResult.alias_of` and `VulnerabilityResult.merge_aliases`. Both are new public methods added by the reference solution in interface.py, and the issue never mentions them. The submission implements the deduplication in a private helper, `_dedupe_vulnerabilities`, in _audit.py, so it has no reason to define those methods. The AttributeErrors show the tests exercise reference-specific API, not the specified behavior. I did not see the full submission body, which was truncated, so I did not verify that its dedupe logic is fully correct. The visible errors, though, come entirely from the missing helper methods and give no sign of a behavioral failure in audit(). The tests that exercise audit() directly are not shown failing. The submission also committed .pyc files, which is untidy but not a functional defect.",
+        "reason": {
+          "sha256_12": "082568439606",
+          "len": 1065
+        },
         "confidence": 4,
         "record": {
           "requested_route": "openrouter/~anthropic/claude-sonnet-latest",
@@ -634,7 +667,10 @@
           "served_model": "~anthropic/claude-sonnet-latest",
           "attested": true,
           "wall_s": 6.07,
-          "raw_text": "```json\n{\n  \"verdict\": \"correct-but-test-too-strict\",\n  \"reason\": \"The task statement specifies only the Auditor(service, options).audit(source) behavior: collapse duplicates that share any identifier, prefer the PYSEC result, and merge aliases without the primary id. The failing tests (4 errors) call `VulnerabilityResult.alias_of` and `VulnerabilityResult.merge_aliases`. Both are new public methods added by the reference solution in interface.py, and the issue never mentions them. The submission implements the deduplication in a private helper, `_dedupe_vulnerabilities`, in _audit.py, so it has no reason to define those methods. The AttributeErrors show the tests exercise reference-specific API, not the specified behavior. I did not see the full submission body, which was truncated, so I did not verify that its dedupe logic is fully correct. The visible errors, though, come entirely from the missing helper methods and give no sign of a behavioral failure in audit(). The tests that exercise audit() directly are not shown failing. The submission also committed .pyc files, which is untidy but not a functional defect.\",\n  \"confidence\": 4\n}\n```",
+          "raw_text": {
+            "sha256_12": "5f5893d6e739",
+            "len": 1158
+          },
           "cost_usd": 0.005
         }
       }
@@ -645,7 +681,10 @@
       "cohort_type": "real_submission",
       "j1_gemini": {
         "verdict": "correct-but-test-too-strict",
-        "reason": "The task prompt strictly specifies behavioral requirements for `Auditor.audit(source)`: deduplicating advisories when primary id or aliases overlap, prioritizing `PYSEC` ids, and merging alias sets while excluding the primary id. Nowhere does the prompt specify or require new public or helper methods on `VulnerabilityResult`, such as `alias_of` or `merge_aliases`. The submitted solution implemented deduplication in `pip_audit/_audit.py` (via `_deduplicate_vulnerabilities`), but the test suite directly called `v1.alias_of(...)` and `v1.merge_aliases(...)` on `VulnerabilityResult`, testing implementation details of the reference patch rather than the contract specified in the task.",
+        "reason": {
+          "sha256_12": "8f6333a409d7",
+          "len": 688
+        },
         "confidence": 5,
         "record": {
           "requested_route": "google-antigravity/gemini-3.8-flash",
@@ -653,13 +692,19 @@
           "served_model": "gemini-3.8-flash",
           "attested": true,
           "wall_s": 4.41,
-          "raw_text": "```json\n{\n  \"verdict\": \"correct-but-test-too-strict\",\n  \"reason\": \"The task prompt strictly specifies behavioral requirements for `Auditor.audit(source)`: deduplicating advisories when primary id or aliases overlap, prioritizing `PYSEC` ids, and merging alias sets while excluding the primary id. Nowhere does the prompt specify or require new public or helper methods on `VulnerabilityResult`, such as `alias_of` or `merge_aliases`. The submitted solution implemented deduplication in `pip_audit/_audit.py` (via `_deduplicate_vulnerabilities`), but the test suite directly called `v1.alias_of(...)` and `v1.merge_aliases(...)` on `VulnerabilityResult`, testing implementation details of the reference patch rather than the contract specified in the task.\",\n  \"confidence\": 5\n}\n```",
+          "raw_text": {
+            "sha256_12": "8512457a8e96",
+            "len": 781
+          },
           "cost_usd": 0.0
         }
       },
       "j2_claude": {
         "verdict": "correct-but-test-too-strict",
-        "reason": "The task asks only for Auditor.audit() to collapse duplicate advisories: a PYSEC result takes priority, aliases are merged, and the emitted result's own id is excluded from its aliases. Its public interface is Auditor(service, options=AuditOptions()).audit(source). The grader failures are all AttributeErrors on 'VulnerabilityResult.alias_of' and 'VulnerabilityResult.merge_aliases'. These are new helper methods that the reference diff adds to interface.py. Neither the issue statement nor the required public API mentions them. Tests that call them directly assert reference-specific implementation details. The submission instead adds a private module-level helper, `_deduplicate_vulnerabilities`, in _audit.py and calls it from audit(). Only the diff header and the start of that helper are visible, so I did not check the dedup logic itself. The failures shown do not touch audit() behavior, and nothing in them points to a behavioral defect. Stray .pyc files in the diff are untidy but do not affect behavior. Confidence is not 5 because the dedup logic, including transitive alias handling, was not verified.",
+        "reason": {
+          "sha256_12": "dd3fb283ad58",
+          "len": 1116
+        },
         "confidence": 4,
         "record": {
           "requested_route": "openrouter/~anthropic/claude-sonnet-latest",
@@ -667,7 +712,10 @@
           "served_model": "~anthropic/claude-sonnet-latest",
           "attested": true,
           "wall_s": 4.36,
-          "raw_text": "```json\n{\n  \"verdict\": \"correct-but-test-too-strict\",\n  \"reason\": \"The task asks only for Auditor.audit() to collapse duplicate advisories: a PYSEC result takes priority, aliases are merged, and the emitted result's own id is excluded from its aliases. Its public interface is Auditor(service, options=AuditOptions()).audit(source). The grader failures are all AttributeErrors on 'VulnerabilityResult.alias_of' and 'VulnerabilityResult.merge_aliases'. These are new helper methods that the reference diff adds to interface.py. Neither the issue statement nor the required public API mentions them. Tests that call them directly assert reference-specific implementation details. The submission instead adds a private module-level helper, `_deduplicate_vulnerabilities`, in _audit.py and calls it from audit(). Only the diff header and the start of that helper are visible, so I did not check the dedup logic itself. The failures shown do not touch audit() behavior, and nothing in them points to a behavioral defect. Stray .pyc files in the diff are untidy but do not affect behavior. Confidence is not 5 because the dedup logic, including transitive alias handling, was not verified.\",\n  \"confidence\": 4\n}\n```",
+          "raw_text": {
+            "sha256_12": "179a07f47498",
+            "len": 1209
+          },
           "cost_usd": 0.005
         }
       }
@@ -678,7 +726,10 @@
       "cohort_type": "real_submission",
       "j1_gemini": {
         "verdict": "wrong",
-        "reason": "The submission only handles `inputs` and `outputs` being `None` inside `MiotAction.fill_from_parent()`. Before `fill_from_parent()` is called (or if a `MiotAction` is inspected or constructed directly from MIoT specs where `in` or `out` are `null`), `act.inputs` and `act.outputs` remain `None` instead of standard empty list collections `[]`. In the MIoT schema, action inputs and outputs are lists of property IDs (PIDs). Leaving them as `None` leaves `MiotAction` in an unnormalized state prior to `fill_from_parent()` and breaks any code or tests checking `act.inputs == []` or iterating over them on parsed model instances. Thus, the submission fails to sanitize the model fields at validation/parsing time.",
+        "reason": {
+          "sha256_12": "5684fbe7c80b",
+          "len": 712
+        },
         "confidence": 5,
         "record": {
           "requested_route": "google-antigravity/gemini-3.8-flash",
@@ -686,13 +737,19 @@
           "served_model": "gemini-3.8-flash",
           "attested": true,
           "wall_s": 4.92,
-          "raw_text": "```json\n{\n  \"verdict\": \"wrong\",\n  \"reason\": \"The submission only handles `inputs` and `outputs` being `None` inside `MiotAction.fill_from_parent()`. Before `fill_from_parent()` is called (or if a `MiotAction` is inspected or constructed directly from MIoT specs where `in` or `out` are `null`), `act.inputs` and `act.outputs` remain `None` instead of standard empty list collections `[]`. In the MIoT schema, action inputs and outputs are lists of property IDs (PIDs). Leaving them as `None` leaves `MiotAction` in an unnormalized state prior to `fill_from_parent()` and breaks any code or tests checking `act.inputs == []` or iterating over them on parsed model instances. Thus, the submission fails to sanitize the model fields at validation/parsing time.\",\n  \"confidence\": 5\n}\n```",
+          "raw_text": {
+            "sha256_12": "4ec9e377009e",
+            "len": 783
+          },
           "cost_usd": 0.0
         }
       },
       "j2_claude": {
         "verdict": "correct-but-test-too-strict",
-        "reason": "The submission guards `fill_from_parent` so null `in`/`out` no longer crash during DeviceModel parsing, which is the reported bug. The failing assertions (`act.inputs == []`) check the state of a directly parsed MiotAction before `fill_from_parent` runs, which depends on the reference's parse-time `root_validator` that coerces None to []. The issue never specifies that. The submission still leaves `None` on a bare action, which is a slightly weaker contract, so there is some uncertainty.",
+        "reason": {
+          "sha256_12": "23b9847bfc4d",
+          "len": 492
+        },
         "confidence": 3,
         "record": {
           "requested_route": "openrouter/~anthropic/claude-sonnet-latest",
@@ -700,7 +757,10 @@
           "served_model": "~anthropic/claude-sonnet-latest",
           "attested": true,
           "wall_s": 9.83,
-          "raw_text": "The submission changes only `fill_from_parent`, so `inputs` and `outputs` stay `None` until a service parent fills them. The failing assertions (`act.inputs == []`) fail with `None != []`. This means the tests check the parsed model state directly, either right after parsing or without calling `fill_from_parent`.\n\nThe bug is that parsing a device spec with `\"in\": null` or `\"out\": null` crashes. In the reference diff, the `root_validator` normalizes null to `[]` at parse time. The stack trace shows `DeviceModel.parse_obj` failing with \"'NoneType' object is not iterable\" at `services -> 1`.\n\nThe submission's fix is unlikely to fix this crash. Pydantic validates `inputs: Any`, so `None` passes field validation, but the error still occurs at services -> 1. The iteration over `None` most likely happens in `fill_from_parent`, which `MiotService`/`DeviceModel` probably call from a validator or `__init__` during parsing. If so, the submission's guard in `fill_from_parent` does stop the crash, and the parse succeeds. After the fix, `inputs` is `[]` once `fill_from_parent` has run.\n\nThe tests fail on `None != []`. If they only parse an action and check `act.inputs`, the submission leaves `None`. The tests probably build the action via `MiotAction.parse_obj` with null in/out and assert `[]`. The submission would also fail if the test went through a service whose `fill_from_parent` ran, but that's unlikely given the failure shows `None`.\n\nSo the observable model state differs: the submission leaves `None` on a directly parsed action, while the reference normalizes it to `[]`. Is that a legitimate requirement? The issue only says that parsing fails. A consumer reading `action.inputs` on a directly parsed action would expect a list, though, and `None` is a worse contract. It's a reasonable but unstated expectation. The test asserts parse-time normalization, which is the reference's mechanism. Still, the submission leaves the model in an inconsistent state when `fill_from_parent` isn't called, but in real use `fill_from_parent` is always called.\n\nThe failures are on a model-level attribute, not on the crash itself. The test is somewhat implementation-specific, but the submission's behavior (None retained until fill) is defensible. The tests never exercised the full service-parsing path, so I can't confirm whether it works there. I lean toward the tests being too strict, with moderate uncertainty.\n\n```json\n{\n  \"verdict\": \"correct-but-test-too-strict\",\n  \"reason\": \"The submission guards `fill_from_parent` so null `in`/`out` no longer crash during DeviceModel parsing, which is the reported bug. The failing assertions (`act.inputs == []`) check the state of a directly parsed MiotAction before `fill_from_parent` runs, which depends on the reference's parse-time `root_validator` that coerces None to []. The issue never specifies that. The submission still leaves `None` on a bare action, which is a slightly weaker contract, so there is some uncertainty.\",\n  \"confidence\": 3\n}\n```",
+          "raw_text": {
+            "sha256_12": "ea4b43992773",
+            "len": 3011
+          },
           "cost_usd": 0.005
         }
       }

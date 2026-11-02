@@ -29,3 +29,7 @@ uv run --extra laminar python research/experiments/on-real-submission-replay-202
 - **Adjudicated Flip Attribution (80% Reader Agreement):**
   - **Truly Defective Submissions (Original False-Accepts):** **2 / 5 = 40.0% (95% Wilson CI: 11.8% – 76.9%)**. Example: `format-code-task-000838` where a truncated syntax error slipped through the original grader.
   - **Gold Grader Over-Strictness:** **3 / 5 = 60.0% (95% Wilson CI: 23.1% – 88.2%)**. On `format-code-task-002391`, synthesized tests asserted reference-specific private helper methods on `VulnerabilityResult`, rejecting valid deduplication implementations.
+
+## Reader free text is not committed
+
+The reader explanations (`reason`, `raw_text`) quoted reference-patch code, submission identifiers and task-statement text. Per the third-party data policy they are replaced in `replay_receipt.json` by their sha256[:12] and length; the full receipt stays in the durable local results. An independent verifier (VF-A4C) found the quoted text in the first merged version.

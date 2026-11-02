@@ -99,19 +99,20 @@ Rules that keep the table honest:
 | `experimental/syn-funcdag-medium` | clean | clean | - | - | unrecorded |
 | `query-optimize` | cracked | cracked | - | - | unrecorded |
 | `release-branch-rescue` | clean | clean | - | clean | yes (`4.0.0`) |
-| `sheet-recalc` | - | - | clean | - | yes (`3.0.0`) |
-| `sheet-recalc-cutoff` | - | - | clean | - | yes (`3.0.0`) |
+| `sheet-recalc` | - | - | clean | clean | yes (`3.0.0`, `4.0.0`) |
+| `sheet-recalc-cutoff` | - | - | clean | clean | yes (`3.0.0`, `4.0.0`) |
 | `tau3-retail-1` | - (1 errored cell) | - (1 errored cell) | - | - | unrecorded |
-| `terminal-bench-html-js-filter` | clean | clean | - | - | unrecorded |
+| `terminal-bench-html-js-filter` | clean | clean | - | clean | yes (`4.0.0`) |
 | `transaction-reconciliation` | clean (superseded `cracked`) | clean (superseded `cracked`) | - | clean | yes (`1.4.0`, `2.0.0`, `4.0.0`) |
 
 ## What the gaps say
 
-- **`4.0.0` covers 3 of 12 packages**: `event-summary` (17 cells),
-  `release-branch-rescue` (16) and `transaction-reconciliation` (4) ran the
-  three `.pth` start-up probes on 2026-11-02 and came back clean, with digests
-  that still match today's package bytes. The other 9 packages have no `4.0.0`
-  cell.
+- **`4.0.0` covers 6 of 12 packages**: `event-summary` (17 cells),
+  `release-branch-rescue` (16), `sheet-recalc` (4), `sheet-recalc-cutoff` (4),
+  `terminal-bench-html-js-filter` (4) and `transaction-reconciliation` (4) ran
+  the three `.pth` start-up probes on 2026-11-02 and came back clean, with
+  digests that still match today's package bytes. The other 6 packages have no
+  `4.0.0` cell.
 - **`3.0.0` covers only the two hand-authored packages** (`sheet-recalc`,
   `sheet-recalc-cutoff`); the other 10 packages have no `3.0.0` cell.
 - **`tau3-retail-1` has never been laddered**: both recorded cells are
@@ -121,9 +122,10 @@ Rules that keep the table honest:
   and again by `2.0.0` (2026-10-13) on the shipped shared-grading package. No
   `3.0.0`/`4.0.0` cell exists, and `digest_recorded=no`, so neither crack is
   bound to current bytes.
-- **41 of 48 rows ran on bytes no receipt records.** Only the two sheet-recalc
-  packages (`3.0.0`) and the three `4.0.0` packages carry a recorded digest,
-  and all seven match today's package digest. For the rest,
+- **38 of 48 rows ran on bytes no receipt records.** Only the two sheet-recalc
+  packages (`3.0.0`), the six `4.0.0` packages and `transaction-reconciliation`
+  (`1.4.0`, `2.0.0`) carry a recorded digest, and all ten match today's package
+  digest. For the rest,
   `digest_recorded=no` is the gap: the generation ran, but the row cannot say
   on which bytes, so a re-run (not a reinterpretation) is what closes it.
 

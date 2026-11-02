@@ -50,8 +50,9 @@ Public contract:
 - Hits project only ``task_id``, ``defect_class``, a bounded ``mechanism``
   derived from explicit issue evidence (direction + defect class + first
   observed step tool name), a ``citation`` (``file[:line]``), and at most one
-  short step excerpt. Hydrated traces, raw CAS URIs, task instruction text,
-  reproducer scripts, complete steps, receipts, and arbitrary metadata are
+  short step excerpt, preferring flagged passages, distinct query-token overlap,
+  and concrete actions over tied boilerplate. Hydrated traces, raw CAS URIs,
+  task instruction text, reproducer scripts, complete steps, receipts, and metadata are
   never returned in hits, the result, or the markdown. Trace and issue IDs
   appear only inside the receipt.
 - Inclusion is render-budgeted: a hit is only included when its main bullet
@@ -147,25 +148,41 @@ def _mechanism(issue: Mapping[str, Any], steps: Any) -> str:
     return _clip(text, _MECHANISM_LIMIT)
 
 
-def _step_excerpt(steps: Any, terms: Sequence[str]) -> str | None:
+def _step_excerpt(
+    steps: Any, terms: Sequence[str], flagged_passage_steps: Any = (),
+) -> str | None:
+    """Prefer labeled passages, distinct token overlap, then concrete actions.
+
+    Ties retain step/field order, except actions beat content and observations.
+    This keeps system/task boilerplate from winning a no-match fallback merely
+    because it was recorded first.
+    """
     if not isinstance(steps, Sequence) or isinstance(steps, str):
         return None
-    candidates: list[str] = []
+    flagged = {
+        index for index in flagged_passage_steps
+        if isinstance(index, int) and not isinstance(index, bool)
+    } if isinstance(flagged_passage_steps, (list, tuple, set, frozenset)) else set()
+    query_terms = {term.casefold() for term in terms}
+    best_text: str | None = None
+    best_rank = (-1, -1, -1, -1)
     for step in steps:
         if not isinstance(step, Mapping):
             continue
+        index = step.get("step_index")
+        is_flagged = isinstance(index, int) and not isinstance(index, bool) and index in flagged
         for field_name in _STEP_TEXT_FIELDS:
             text = step.get(field_name)
-            if isinstance(text, str) and text.strip():
-                candidates.append(text)
-    if not candidates:
-        return None
-    lowered = [term.casefold() for term in terms]
-    for candidate in candidates:
-        folded = candidate.casefold()
-        if any(term in folded for term in lowered):
-            return _clip(candidate, _EXCERPT_LIMIT)
-    return _clip(candidates[0], _EXCERPT_LIMIT)
+            if not isinstance(text, str) or not text.strip():
+                continue
+            overlap = len(query_terms.intersection(_WORD.findall(text.casefold())))
+            rank = (
+                int(is_flagged), overlap, int(field_name == "command_or_action"),
+                int(index != 0),
+            )
+            if rank > best_rank:
+                best_rank, best_text = rank, text
+    return _clip(best_text, _EXCERPT_LIMIT) if best_text is not None else None
 
 
 def _project(trace: Mapping[str, Any], issue: Mapping[str, Any], terms: Sequence[str]) -> RetrievedTraceHit:
@@ -176,7 +193,7 @@ def _project(trace: Mapping[str, Any], issue: Mapping[str, Any], terms: Sequence
         defect_class=defect,
         mechanism=_mechanism(issue, steps),
         citation=_citation(issue),
-        step_excerpt=_step_excerpt(steps, terms),
+        step_excerpt=_step_excerpt(steps, terms, trace.get("flagged_passage_steps")),
     )
 
 

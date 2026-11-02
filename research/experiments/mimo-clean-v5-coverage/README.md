@@ -101,7 +101,7 @@ oracle-x3 cell and 2.81 min per nop-x3 cell.
 
 | Step | Scope | Local wall @1 trial | Cost |
 |---|---|---|---|
-| 1 | ladder the 15 `P0`+`P1` rows | 3.9 h | $0 |
+| 1 | ladder the 15 `P0`+`P1` rows — **3/15 run** (ranks 1–3, all `clean`; see below) | 3.9 h | $0 |
 | 2 | the 168 outstanding `P2` control cells | ~11.7 h | $0 |
 | 3 | ladder the 150-row pre-drawn `P3` sample | 38.8 h | $0 |
 | — | ladder all 2,666 built rows | 688.7 h (28.7 d) | $0 |
@@ -116,6 +116,28 @@ If step 3 returns clean, `0/150` bounds the reference-bearing leak rate at
 **1.98%**. The alternative — bounding the whole Python fleet at 0.26% — is
 `0/1,148`, i.e. the Modal option in the table above. That is a spend decision
 for Peter, not a default.
+
+### Step 1 progress
+
+| rank | task | ladder 1.4.0 verdict | job | wall (min) |
+|---:|---|---|---|---:|
+| 1 | `format-code-task-001478` | `clean` (14/14 executed, reward 0) | `mimo-census-v1-docker-001478-cheat` | 4.50 |
+| 2 | `format-code-task-001671` | `clean` (14/14 executed, reward 0) | `mimo-census-v1-docker-001671-cheat` | 2.53 |
+| 3 | `format-code-task-001945` | `clean` (14/14 executed, reward 0) | `mimo-census-v1-docker-001945-cheat` | 4.17 |
+
+Run 2026-11-02 (HAR-244) on local Docker, $0, at the exact v6 manifest
+`final_digest`s; record in
+[`../mimo-clean-v6/ladder-p0-har244.json`](../mimo-clean-v6/ladder-p0-har244.json).
+Wall time is the full CLI run, including cold image pulls (2.75–5.61 GB):
+11.2 min for the three, or 3.73 min/task. That is about a quarter of the
+15.5 min/task planning figure, but three Python tasks are too few to
+re-plan the other steps on.
+
+These verdicts do **not** show that the `env-dependency` leak is closed. The
+v1 ladder has no installed-dependency copy attack, and in each trial the
+verifier refused the combined attack diff on a tamper signature. The
+fix-content probe (check d) is the check that would answer that question.
+Ranks 4–15 remain.
 
 ## How to run a step
 

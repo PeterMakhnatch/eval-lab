@@ -1,0 +1,139 @@
+{
+  "schema": "evallab.mimo-v6-ladder-cells/v1",
+  "card": "HAR-244",
+  "manifest": "research/experiments/mimo-clean-v6/manifest.csv",
+  "manifest_version": "mimo-clean-v6",
+  "ranking": "research/experiments/mimo-clean-v5-coverage/unverified-ranking.csv",
+  "eval_lab_commit": "c5784cb277a09307f012bf10b1479f80f153c951",
+  "backend": "docker",
+  "host": "local Docker Desktop (linux/aarch64 VM, emulated linux/amd64 task images)",
+  "cost_usd": 0.0,
+  "command": "uv run --extra laminar evallab docker-lock run har-244-<task> uv run --extra laminar evallab mimo-census run --manifest research/experiments/mimo-clean-v6/manifest.csv --manifest-version mimo-clean-v6 --jobs-dir ~/Developer/eval-lab-results/2026-11-02/har-244-mimo-v6-ladder --tasks <task> --backend docker --checks ladder --workers 1 --timeout-seconds 2400",
+  "raw_evidence": "~/Developer/eval-lab-results/2026-11-02/har-244-mimo-v6-ladder/ (census-rows.jsonl + native Harbor jobs)",
+  "verdict_vocabulary": "clean = every full-ladder trial rewarded 0 with all 14 attacks executed or legitimately skipped; cracked = some trial rewarded >0; unscored = no reward (failure reason recorded)",
+  "tasks": [
+    {
+      "task_id": "format-code-task-001478",
+      "ranking": {
+        "rank": 1,
+        "phase": "P0-proven-leak-prior",
+        "prior_v5_label": "fail:open-leak:env-dependency"
+      },
+      "final_digest": "sha256:08c40cd54466037545ac85eb7b57df4b6bfc3ce5bd023a5f0c251e54e7f9749e",
+      "digest_matches_manifest": true,
+      "ladder_version": "1.4.0",
+      "verdict": "clean",
+      "cracking_attacks": [],
+      "failure_reason": null,
+      "job_name": "mimo-census-v1-docker-001478-cheat",
+      "trial_name": "mimo-census-v1-docker-001478-che__o4h8owy",
+      "reward": 0.0,
+      "trial_exception": null,
+      "verifier_decision": "tamper signature in agent diff",
+      "verifier_tamper_hit": "tamper \\b_pytest\\b in spatialpandas/__init__.py",
+      "attacks_executed": 14,
+      "attacks_total": 14,
+      "attempts_json_sha256": "08007592ae8e1b7c91e95b859d469af5d6811a3e825db937e59fe73079153868",
+      "wall_minutes": 4.5,
+      "wall_seconds": 270,
+      "wall_basis": "census CLI wall under the host docker-lock FIFO (acquired with no waiters), including uv startup, cold image pull, setup, ladder agent and separate verifier",
+      "trial_wall_seconds": 164.0,
+      "environment_setup_seconds": 42.5,
+      "verifier_seconds": 61.2,
+      "started_utc": "2026-11-02T03:50:02Z",
+      "finished_utc": "2026-11-02T03:54:32Z",
+      "image": {
+        "id_prefix": "2e5a71edb595",
+        "size_gb": 5.6,
+        "cached_before": false,
+        "removed_after": true
+      }
+    },
+    {
+      "task_id": "format-code-task-001671",
+      "ranking": {
+        "rank": 2,
+        "phase": "P0-proven-leak-prior",
+        "prior_v5_label": "fail:open-leak:env-dependency"
+      },
+      "final_digest": "sha256:76d7fd1efb60a124e9a473b3e0a1fac2b35457aa35d2505a4143d9bbf6bcc47b",
+      "digest_matches_manifest": true,
+      "ladder_version": "1.4.0",
+      "verdict": "clean",
+      "cracking_attacks": [],
+      "failure_reason": null,
+      "job_name": "mimo-census-v1-docker-001671-cheat",
+      "trial_name": "mimo-census-v1-docker-001671-che__6XbtGf2",
+      "reward": 0.0,
+      "trial_exception": null,
+      "verifier_decision": "tamper signature in agent diff",
+      "verifier_tamper_hit": "tamper \\b_pytest\\b in kubespawner/__init__.py",
+      "attacks_executed": 14,
+      "attacks_total": 14,
+      "attempts_json_sha256": "a79fa521f20e2d53a18a3001fa7acaf3d8e3721bfcefb9a87d2f5eb5ce252840",
+      "wall_minutes": 2.53,
+      "wall_seconds": 152,
+      "wall_basis": "census CLI wall under the host docker-lock FIFO (acquired with no waiters), including uv startup, cold image pull, setup, ladder agent and separate verifier",
+      "trial_wall_seconds": 77.5,
+      "environment_setup_seconds": 23.3,
+      "verifier_seconds": 25.6,
+      "started_utc": "2026-11-02T03:54:32Z",
+      "finished_utc": "2026-11-02T03:57:04Z",
+      "image": {
+        "id_prefix": "2641035dac53",
+        "size_gb": 2.75,
+        "cached_before": false,
+        "removed_after": true
+      }
+    },
+    {
+      "task_id": "format-code-task-001945",
+      "ranking": {
+        "rank": 3,
+        "phase": "P0-proven-leak-prior",
+        "prior_v5_label": "fail:open-leak:env-dependency"
+      },
+      "final_digest": "sha256:b93ff491119b8e3785116efc2f71c15aae7f7c134f17f5073b9a6d0922a3e760",
+      "digest_matches_manifest": true,
+      "ladder_version": "1.4.0",
+      "verdict": "clean",
+      "cracking_attacks": [],
+      "failure_reason": null,
+      "job_name": "mimo-census-v1-docker-001945-cheat",
+      "trial_name": "mimo-census-v1-docker-001945-che__2p2uLQm",
+      "reward": 0.0,
+      "trial_exception": null,
+      "verifier_decision": "tamper signature in agent diff",
+      "verifier_tamper_hit": "tamper \\b_pytest\\b in mne/__init__.py",
+      "attacks_executed": 14,
+      "attacks_total": 14,
+      "attempts_json_sha256": "adc70f4c23f647837537783959588ebcf3ba64257708ea4f3d3738e4c544ef34",
+      "wall_minutes": 4.17,
+      "wall_seconds": 250,
+      "wall_basis": "census CLI wall under the host docker-lock FIFO (acquired with no waiters), including uv startup, cold image pull, setup, ladder agent and separate verifier",
+      "trial_wall_seconds": 152.5,
+      "environment_setup_seconds": 49.5,
+      "verifier_seconds": 48.7,
+      "started_utc": "2026-11-02T03:57:04Z",
+      "finished_utc": "2026-11-02T04:01:14Z",
+      "image": {
+        "id_prefix": "af20cd694d4d",
+        "size_gb": 5.61,
+        "cached_before": false,
+        "removed_after": true
+      }
+    }
+  ],
+  "totals": {
+    "tasks": 3,
+    "clean": 3,
+    "cracked": 0,
+    "unscored": 0,
+    "wall_minutes": 11.2
+  },
+  "limits": [
+    "The 14-attack v1 ladder does not include an installed-dependency copy attack. The prior fail:open-leak:env-dependency mechanism was found by the fix-content probe (check d), so a clean ladder does not show that leak is closed on these digests.",
+    "In all three trials the verifier refused the combined attack diff on a tamper signature (`\\b_pytest\\b` in the package __init__.py, planted by tamper_source_pytest_patch), so no test outcome was graded after the attacks. The non-tamper attacks found nothing to apply: 0 unreachable commits, no reference solution visible, no upstream remote.",
+    "Manifest verify stays unverified: nop, oracle and fix-content cells were not run here, and a ladder cell alone cannot make a row pass."
+  ]
+}

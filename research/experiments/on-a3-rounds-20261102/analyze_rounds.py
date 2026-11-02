@@ -10,6 +10,7 @@ min(k, last accepted round). Unmeasured cells (error, marker missing, cap) are e
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import sys
@@ -84,7 +85,8 @@ def main() -> None:
             (
                 r["round"]
                 for r in record["rounds"]
-                if r["guard"] == "reverted" and r["grades"].get("reference") is None
+                if r["guard"] in ("unmeasured", "synthesis_failed")
+                or (r["guard"] == "reverted" and r["grades"].get("reference") is None)
             ),
             default=None,
         )
@@ -152,19 +154,17 @@ def main() -> None:
             lambda rs: {
                 "base_accepted_measured": len(rs),
                 "killed": stats.fmt(sum(r[3] for r in rs), len(rs)),
-                "mutants": [f"{r[0]}/{r[1]}" for r in rs],
             }
         )([r for r in arm1_rows if r[2] == 1.0]),
         "per_task": rows,
+        "excluded_unmeasured_count": len(excluded),
+    }
+    row_level = {
+        "arm1_only_base_accepted_mutants": [f"{r[0]}/{r[1]}" for r in arm1_rows if r[2] == 1.0],
         "excluded_unmeasured": excluded,
     }
     probes = {"measured": 0, "survived": 0, "killed": 0, "unmeasured": 0}
-    guards = {
-        "accepted_passed": 0,
-        "repaired": 0,
-        "reverted": 0,
-        "reference_rewards_after_accepted_rounds": [],
-    }
+    guards: dict = {"reference_rewards_after_accepted_rounds": []}
     per_round: dict[int, dict[str, int]] = {}
     for short in tasks:
         record = json.loads((OUT / "rounds" / f"{short}.json").read_text())
@@ -177,13 +177,8 @@ def main() -> None:
             slot["survived"] += len(r["survivors"])
             slot["killed"] += len(r["killed"])
             slot["unmeasured"] += len(r["unmeasured"])
-            if r["guard"] == "passed":
-                guards["accepted_passed"] += 1
-            elif r["guard"] == "repaired":
-                guards["repaired"] += 1
-            else:
-                guards["reverted"] += 1
-            if r["guard"] != "reverted":
+            guards[r["guard"]] = guards.get(r["guard"], 0) + 1
+            if r["guard"] in ("passed", "repaired"):
                 guards["reference_rewards_after_accepted_rounds"].append(
                     r["grades"].get("reference")
                 )
@@ -266,6 +261,10 @@ def main() -> None:
     for name in ("summary.json", "per-task.md"):
         shutil.copy(target / name, RAW / "receipts" / name)
     shutil.copy(target / "summary.json", OUT / "summary.json")
+    # row-level files (per-mutant and per-cell outcomes on third-party task packages) stay local
+    (OUT / "summary-rows.json").write_text(
+        json.dumps(row_level, indent=1, sort_keys=True, default=str) + "\n"
+    )
     csv_rows = ["task,cell,status,reward,applied_marker,est_usd,wall_s,evidence_sha256"]
     for p in sorted(
         [*(OUT / "cells").glob("*/*/result.json"), *(OUT / "cells").glob("*/*/*/result.json")]
@@ -276,20 +275,20 @@ def main() -> None:
         if "status" not in r:
             continue
         rel = p.relative_to(OUT / "cells")
-        applied = "MUTANT_APPLIED" in r.get("agent_log", "") or "_APPLIED" in r.get("agent_log", "")
+        applied = "_APPLIED" in r.get("agent_log", "")
         csv_rows.append(
             f"{rel.parts[0]},{'/'.join(rel.parts[1:-1])},{r['status']},{r['reward']},{applied},"
             f"{r.get('est_usd', 0)},{r.get('wall_s', 0)},{r.get('evidence_sha256', '')}"
         )
-    (target / "cells.csv").write_text("\n".join(csv_rows) + "\n")
-    shutil.copy(target / "cells.csv", RAW / "receipts" / "cells.csv")
-    print(
-        json.dumps(
-            {k: v for k, v in summary.items() if k not in ("per_task", "excluded_unmeasured")},
-            indent=1,
-            default=str,
-        )[:4000]
-    )
+    (OUT / "cells.csv").write_text("\n".join(csv_rows) + "\n")
+    manifest = {
+        name: hashlib.sha256((OUT / name).read_bytes()).hexdigest()
+        for name in ("cells.csv", "summary-rows.json", "selection.json")
+    }
+    manifest["cell_rows"] = len(csv_rows) - 1
+    (target / "manifest.json").write_text(json.dumps(manifest, indent=1, sort_keys=True) + "\n")
+    shutil.copy(target / "manifest.json", RAW / "receipts" / "manifest.json")
+    print(json.dumps(summary, indent=1, default=str)[:4000])
     print("\n".join(lines))
 
 

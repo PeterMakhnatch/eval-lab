@@ -244,7 +244,7 @@ def mutant_cell(
 # ------------------------------------------------------------------ synthesis
 
 
-def build_prompt(
+def make_prompt(
     task: dict, train: list, survivors: list, previous: str | None, feedback: str | None
 ) -> str:
     base = task["base_package"]
@@ -332,21 +332,25 @@ class TaskRunner:
     ) -> None:
         self.short, self.task, self.cells, self.base_rewards = short, task, cells, base_rewards
         self.key = ""
+        self.base_key = ""
         self.round_keys: dict[int, str] = {}
         self.package: Path | None = None
         (OUT / "synth" / short).mkdir(parents=True, exist_ok=True)
 
-    def synthesize(
+    def build_prompt(
         self, index: int, train: list, survivors: list, previous: str | None, feedback: str | None
-    ):
-        base_key = f"r{index}" + ("f" if feedback else "")
-        prompt = build_prompt(self.task, train, survivors, previous, feedback)
+    ) -> str:
+        self.base_key = f"r{index}" + ("f" if feedback else "")
+        return make_prompt(self.task, train, survivors, previous, feedback)
+
+    def generate(self, index: int, prompt: str) -> str | None:
+        base_key = self.base_key
         meta_path = OUT / "synth" / self.short / f"{base_key}.json"
         if meta_path.exists():
             meta = json.loads(meta_path.read_text())
             if meta["prompt_sha256"] == sha(prompt) and meta.get("code"):
                 self.key = f"{base_key}-{sha(meta['code'])[:8]}"
-                return meta["code"], prompt
+                return meta["code"]
         meta = {}
         for attempt in (1, 2):
             meta = synthesize_once(self.short, f"{base_key}-a{attempt}", prompt)
@@ -359,7 +363,7 @@ class TaskRunner:
             flush=True,
         )
         self.key = f"{base_key}-{sha(meta['code'])[:8]}" if meta.get("code") else base_key
-        return meta.get("code"), prompt
+        return meta.get("code")
 
     def harden(self, key: str, code: str) -> Path:
         target = OUT / "packages" / self.short / key
@@ -378,17 +382,23 @@ class TaskRunner:
         package = self.harden(self.key, code)
         self.package = package
         self.round_keys[index] = self.key
-        jobs: dict[str, Any] = {}
         wd = workdir_of(package)
+        reference = self.cells.run(
+            self.short,
+            f"{self.key}/reference",
+            package,
+            reference_script(wd, self.task["patch"]),
+            "REFERENCE_APPLIED",
+        )["reward"]
+        out: dict[str, Any] = {"reference": reference}
+        if reference != 1.0:
+            # probe and eval cells are only paid for a test that passes the reference
+            log = OUT / "cells" / self.short / self.key / "reference/trial/verifier/test_output.log"
+            if reference is not None and log.exists():
+                out["reference_output"] = log.read_text(errors="replace")[-3500:]
+            return out
+        jobs: dict[str, Any] = {}
         with ThreadPoolExecutor(max_workers=6) as pool:
-            jobs["reference"] = pool.submit(
-                self.cells.run,
-                self.short,
-                f"{self.key}/reference",
-                package,
-                reference_script(wd, self.task["patch"]),
-                "REFERENCE_APPLIED",
-            )
             for m in probes:
                 jobs[f"probe:{m.sha256}"] = pool.submit(
                     mutant_cell,
@@ -409,10 +419,7 @@ class TaskRunner:
                     package,
                     m,
                 )
-            out = {label: future.result()["reward"] for label, future in jobs.items()}
-        log = OUT / "cells" / self.short / self.key / "reference/trial/verifier/test_output.log"
-        if out["reference"] != 1.0 and log.exists():
-            out["reference_output"] = log.read_text(errors="replace")[-3500:]
+            out.update({label: future.result()["reward"] for label, future in jobs.items()})
         return out
 
 
@@ -426,7 +433,8 @@ def run_task(
         probe_pool=list(task["pools"].probe_pool),
         evals=task["evals_all"],
         eval_diffs=[mutant_diff(m, task["sources"][m.path]) for m in task["evals_all"]],
-        synthesize=runner.synthesize,
+        build_prompt=runner.build_prompt,
+        generate=runner.generate,
         grade=runner.grade,
         probes_per_round=PROBES_PER_ROUND,
     )

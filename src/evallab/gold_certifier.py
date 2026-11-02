@@ -522,7 +522,7 @@ class RoundRecord:
     train_shas: list[str]
     probe_shas: list[str]
     grades: dict[str, Any]
-    guard: str  # passed | repaired | reverted
+    guard: str  # passed | repaired | reverted | unmeasured | synthesis_failed
     survivors: list[str]
     killed: list[str]
     unmeasured: list[str]
@@ -540,8 +540,11 @@ class RoundsOutcome:
         return max(accepted) if accepted else None
 
 
-#: ``synthesize(round_index, train, survivors, previous_test, feedback) -> (code | None, prompt)``
-Synthesizer = Callable[[int, list[Mutant], list[Mutant], str | None, str | None], tuple[str | None, str]]
+#: ``build_prompt(round_index, train, survivors, previous_test, feedback) -> prompt``; ``train`` excludes
+#: ``survivors`` (they are shown once, in their own section).
+PromptBuilder = Callable[[int, list[Mutant], list[Mutant], str | None, str | None], str]
+#: ``generate(round_index, prompt) -> code | None``; the only place a model is called, after the blindness check.
+Generator = Callable[[int, str], str | None]
 #: ``grade(round_index, code, probes) -> {"reference": r, "probe:<sha>": r, ...}`` (None = unmeasured); an optional
 #: ``"reference_output"`` string (grader output tail) is shown to the self-repair attempt and never stored.
 Grader = Callable[[int, str, list[Mutant]], dict[str, Any]]
@@ -554,18 +557,22 @@ def run_rounds(
     probe_pool: list[Mutant],
     evals: list[Mutant],
     eval_diffs: list[str],
-    synthesize: Synthesizer,
+    build_prompt: PromptBuilder,
+    generate: Generator,
     grade: Grader,
     probes_per_round: int = DEFAULT_PROBES_PER_ROUND,
 ) -> RoundsOutcome:
     """Feedback loop: round r synthesizes from every train mutant known so far, grades the reference and a
     fresh probe slice, and the probes the new test still accepts become training mutants of round r+1.
 
-    ``evals`` and ``eval_diffs`` are used only for disjointness and blindness checks: a held-out mutant is never
-    given to ``synthesize`` and an overlap raises :class:`LeakError`. The reference must pass after every
-    accepted round: a failing reference gets one self-repair attempt with that feedback, then the round is
-    reverted (its test is not accepted) and the loop stops. Stops early when every probe dies, when no
-    probe could be measured, and after ``rounds``; round 1 always runs.
+    ``evals`` and ``eval_diffs`` are used only for disjointness and blindness checks: every prompt is checked
+    before ``generate`` is called, so a held-out mutant never reaches the model and an overlap raises
+    :class:`LeakError`. The reference must pass after every accepted round. A reference that was measured and
+    failed (reward other than 1.0) gets one self-repair attempt with the grader output, then the round is
+    reverted (``guard_reverted``). A reference that could not be measured (reward ``None``: spend cap, Modal
+    error) is not a failure: no second model call, the round is not accepted, the loop stops with
+    ``reference_unmeasured`` and the earlier accepted tests stay, so the caller can regrade and resume. Stops
+    early when every probe dies, when no probe could be measured, and after ``rounds``; round 1 always runs.
     """
     if rounds < 1:
         raise ValueError("rounds must be >= 1")
@@ -577,28 +584,41 @@ def run_rounds(
     cursor = 0
     previous: str | None = None
     outcome = RoundsOutcome(records=[], accepted_tests={}, stop_reason="")
+
+    def attempt(index: int, feedback: str | None) -> str | None:
+        latest = {m.sha256 for m in survivors}
+        prompt = build_prompt(
+            index, [m for m in known if m.sha256 not in latest], list(survivors), previous, feedback
+        )
+        assert_prompt_blind(prompt, eval_diffs)
+        return generate(index, prompt)
+
     for index in range(1, rounds + 1):
         probes = list(probe_pool[cursor : cursor + probes_per_round])
         cursor += len(probes)
-        code, prompt = synthesize(index, list(known), list(survivors), previous, None)
-        assert_prompt_blind(prompt, eval_diffs)
         guard = "passed"
         grades: dict[str, Any] = {}
-        if code is not None:
+        code = attempt(index, None)
+        if code is None:
+            guard = "synthesis_failed"
+        else:
             grades = grade(index, code, probes)
-            if grades.get("reference") != 1.0:
-                feedback = f"the reference solution scored {grades.get('reference')}, it must score 1.0"
+            reference = grades.get("reference")
+            if reference is None:
+                guard = "unmeasured"
+            elif reference != 1.0:
+                feedback = f"the reference solution scored {reference}, it must score 1.0"
                 output = grades.get("reference_output")
                 if isinstance(output, str) and output.strip():
                     feedback += "\n\nGrader output on the reference solution (tail):\n" + output.strip()
-                code, prompt = synthesize(index, list(known), list(survivors), previous, feedback)
-                assert_prompt_blind(prompt, eval_diffs)
+                code = attempt(index, feedback)
                 guard = "repaired"
                 grades = grade(index, code, probes) if code is not None else {}
-                if grades.get("reference") != 1.0:
+                reference = grades.get("reference")
+                if code is None or (reference is not None and reference != 1.0):
                     guard = "reverted"
-        else:
-            guard = "reverted"
+                elif reference is None:
+                    guard = "unmeasured"
         grades = {k: v for k, v in grades.items() if k != "reference_output"}
         probe_shas = [m.sha256 for m in probes]
         measured = {sha: grades.get(f"probe:{sha}") for sha in probe_shas}
@@ -614,8 +634,11 @@ def run_rounds(
             unmeasured=[sha for sha, r in measured.items() if r not in (0.0, 1.0)],
         )
         outcome.records.append(record)
-        if guard == "reverted" or code is None:
-            outcome.stop_reason = "guard_reverted"
+        if guard in ("reverted", "unmeasured", "synthesis_failed") or code is None:
+            outcome.stop_reason = {
+                "reverted": "guard_reverted",
+                "unmeasured": "reference_unmeasured",
+            }.get(guard, guard)
             return outcome
         outcome.accepted_tests[index] = code
         previous = code
@@ -629,11 +652,11 @@ def run_rounds(
             outcome.stop_reason = "all_probes_killed" if not record.unmeasured else "probes_unmeasured"
             return outcome
         by_sha = {m.sha256: m for m in probes}
-        new = [by_sha[sha] for sha in record.survivors]
-        survivors = new
-        known.extend(new)
+        survivors = [by_sha[sha] for sha in record.survivors]
+        known.extend(survivors)
     outcome.stop_reason = "rounds_complete"
     return outcome
+
 
 # --------------------------------------------------------------------------- CLI Parser
 
@@ -713,6 +736,13 @@ def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any =
     if not args.out:
         print("error: --out is required unless --plan", file=sys.stderr)
         return 1
+    if args.rounds > 1:
+        print(
+            "error: --rounds > 1 is not implemented in the command (use evallab.gold_certifier.run_rounds); "
+            "only --plan accepts it",
+            file=sys.stderr,
+        )
+        return 2
 
     print(f"Certifying gold package for {task_id} -> {args.out}...")
     return 0

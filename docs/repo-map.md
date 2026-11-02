@@ -381,7 +381,7 @@ inputs:
   - path: src/evallab/gepa_optimizer/workflow.py
     digest: sha256:54e886855a9caa7fdf081e24e359085f30aff7e6320569a1c8bc2494c976057d
   - path: src/evallab/gold_certifier.py
-    digest: sha256:b69ce08ac557d8a607d4e5c5d0c4dac1a33e87e6cc0dfd7359d1cb9abbe34f06
+    digest: sha256:c1e25533a4d33b11e728b8bc0597a5b3b9e96400d842a0da943fb319aa0a8639
   - path: src/evallab/governance.py
     digest: sha256:c8ae6df221da0a00335ea23560438a28aa86c3c0d0ed58d6be761a13a9567380
   - path: src/evallab/grader_hardening.py

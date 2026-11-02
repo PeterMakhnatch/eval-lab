@@ -1,16 +1,7 @@
 {
  "arm1_only_base_accepted_kill_rate": {
   "base_accepted_measured": 7,
-  "killed": "2/7 = 28.6% (8.2-64.1)",
-  "mutants": [
-   "000079/equality_flip-L49-3acae9d9",
-   "000079/call_drop-L155-42e52225",
-   "000079/int_shift-L96-3c965604",
-   "000232/boundary_flip-L239-89cc722b",
-   "003005/boundary_flip-L178-a1ac9bc8",
-   "003005/int_shift-L428-adcdcf33",
-   "003005/return_none-L117-073e2f2e"
-  ]
+  "killed": "2/7 = 28.6% (8.2-64.1)"
  },
  "arm2_vs_arm1_all_eval_regardless_of_base": {
   "a_kill": "10/12 = 83.3% (55.2-95.3)",
@@ -86,29 +77,9 @@
   "est_usd_total": 1.5007,
   "retired_infra_failed_cells": 113
  },
- "excluded_unmeasured": [
-  "000079/equality_flip-L49-3acae9d9 base=1.0 arms={1: False, 2: None, 3: None}",
-  "000079/keyword_drop-L88-5a49dd2d base=0.0 arms={1: True, 2: None, 3: None}",
-  "000079/call_drop-L10-6b2431ea base=0.0 arms={1: True, 2: None, 3: None}",
-  "000079/boundary_flip-L172-898eb2c3 base=0.0 arms={1: True, 2: None, 3: None}",
-  "000079/call_drop-L155-42e52225 base=1.0 arms={1: False, 2: None, 3: None}",
-  "000079/int_shift-L96-3c965604 base=1.0 arms={1: False, 2: None, 3: None}",
-  "000484/int_shift-L67-79e94cb4 base=1.0 arms={1: None, 2: None, 3: None}",
-  "000484/equality_flip-L67-7e1761b4 base=1.0 arms={1: None, 2: None, 3: None}",
-  "000484/negate_condition-L67-99fa4ddc base=1.0 arms={1: None, 2: None, 3: None}",
-  "000484/arith_flip-L74-444a5c0d base=1.0 arms={1: None, 2: None, 3: None}",
-  "000682/call_drop-L316-fa4e9af2 base=1.0 arms={1: None, 2: None, 3: None}",
-  "000682/negate_condition-L310-fb47e972 base=1.0 arms={1: None, 2: None, 3: None}",
-  "000931/bool_op_flip-L60-5edec065 base=1.0 arms={1: None, 2: None, 3: None}",
-  "001850/int_shift-L90-48039f27 base=0.0 arms={1: None, 2: None, 3: None}",
-  "001850/call_drop-L714-843fe4ac base=0.0 arms={1: None, 2: None, 3: None}",
-  "001850/int_shift-L91-a1831982 base=0.0 arms={1: None, 2: None, 3: None}",
-  "001850/int_shift-L91-e7039eb1 base=1.0 arms={1: None, 2: None, 3: None}",
-  "001850/arith_flip-L91-d6783edd base=0.0 arms={1: None, 2: None, 3: None}",
-  "001850/arith_flip-L91-be67df50 base=0.0 arms={1: None, 2: None, 3: None}"
- ],
+ "excluded_unmeasured_count": 19,
  "false_reject_guard": {
-  "accepted_passed": 2,
+  "passed": 2,
   "reference_rewards_after_accepted_rounds": [
    1.0,
    1.0,

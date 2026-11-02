@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 from pathlib import Path
 
@@ -325,3 +326,40 @@ def test_cli_plan_offline(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     assert "Plan for format-code-task-000079" in captured.out
     assert "foo.py" in captured.out
     assert "$0.95" in captured.out
+
+
+def _cli_args(tmp_path: Path, *extra: str) -> argparse.Namespace:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir(exist_ok=True)
+    (pkg / "task.toml").write_text('[environment]\nworkdir = "/testbed"\n')
+    patch = tmp_path / "ref.patch"
+    patch.write_text("--- a/foo.py\n+++ b/foo.py\n@@ -0,0 +1 @@\n+x = 1\n")
+    top = argparse.ArgumentParser()
+    build_certify_gold_parser(top.add_subparsers())
+    return top.parse_args(
+        ["certify-gold", "--package", str(pkg), "--reference-patch", str(patch), *extra]
+    )
+
+
+def test_cli_plan_reports_rounds_and_probes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    args = _cli_args(tmp_path, "--plan", "--json", "--rounds", "3", "--probes-per-round", "4")
+    assert _certify_gold_command(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["rounds"] == 3 and plan["probes_per_round"] == 4
+
+
+@pytest.mark.parametrize("flag", ["--rounds", "--probes-per-round"])
+def test_cli_rejects_non_positive_rounds_and_probes(
+    tmp_path: Path, flag: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    args = _cli_args(tmp_path, "--plan", flag, "0")
+    assert _certify_gold_command(args, tmp_path) == 1
+    assert "must be >= 1" in capsys.readouterr().err
+
+
+def test_cli_refuses_multi_round_execution_instead_of_silently_doing_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    args = _cli_args(tmp_path, "--out", str(tmp_path / "out"), "--rounds", "2")
+    assert _certify_gold_command(args, tmp_path) == 2
+    assert "not implemented" in capsys.readouterr().err

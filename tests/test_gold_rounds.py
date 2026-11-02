@@ -145,26 +145,27 @@ def test_prompt_extensions_are_absent_by_default_and_never_carry_eval_diffs() ->
 
 
 class Harness:
-    """Fake synthesizer and grader; grades come from a per-round script keyed by probe sha."""
+    """Fake prompt builder, generator and grader; rewards come from per-round scripts."""
 
     def __init__(
         self, evals: list[Mutant], *, reference: dict[int, list[float | None]] | None = None
     ) -> None:
         self.evals = evals
-        self.calls: list[dict] = []
+        self.calls: list[dict] = []  # one entry per prompt built
+        self.generated = 0  # model calls
         self.graded: list[tuple[int, list[str]]] = []
         self.reference = reference or {}
         self.probe_reward: dict[int, float | None] = {}  # round -> reward for every probe
         self.leak = False
+        self.refuse_first = False
 
-    def synthesize(self, index, train, survivors, previous, feedback):
-        diffs = [mutant_diff(m, SOURCE) for m in train]
+    def build_prompt(self, index, train, survivors, previous, feedback):
         prompt = build_synthesis_prompt(
             instruction="i",
             hidden_tests="h",
             reference_patch=PATCH,
             train_mutants=train,
-            train_diffs=diffs,
+            train_diffs=[mutant_diff(m, SOURCE) for m in train],
             interpreter_command="python3",
             previous_test=previous,
             survivor_diffs=[mutant_diff(m, SOURCE) for m in survivors] or None,
@@ -182,14 +183,20 @@ class Harness:
                 "prompt": prompt,
             }
         )
-        return f"# test round {index} attempt {len(self.calls)}\nimport unittest\n", prompt
+        return prompt
+
+    def generate(self, index, prompt):
+        self.generated += 1
+        if self.refuse_first and self.generated == 1:
+            return None
+        return f"# test round {index} model call {self.generated}\nimport unittest\n"
 
     def grade(self, index, code, probes):
         self.graded.append((index, [m.sha256 for m in probes]))
         attempts = self.reference.get(index, [1.0])
         ref = attempts[min(sum(1 for r, _ in self.graded if r == index) - 1, len(attempts) - 1)]
         out: dict[str, Any] = {"reference": ref}
-        if ref != 1.0:
+        if ref not in (1.0, None):
             out["reference_output"] = "AssertionError: boom"
         for m in probes:
             out[f"probe:{m.sha256}"] = self.probe_reward.get(index, 0.0)
@@ -203,7 +210,8 @@ def _run(rounds: int, harness: Harness, pools: FreshPools, train, evals, per: in
         probe_pool=list(pools.probe_pool),
         evals=[*evals, *pools.eval_extra],
         eval_diffs=[mutant_diff(m, SOURCE) for m in (*evals, *pools.eval_extra)],
-        synthesize=harness.synthesize,
+        build_prompt=harness.build_prompt,
+        generate=harness.generate,
         grade=harness.grade,
         probes_per_round=per,
     )
@@ -220,24 +228,29 @@ def test_one_round_is_the_unchanged_single_synthesis() -> None:
     assert out.final_round(1) == 1
 
 
-def test_survivors_become_training_mutants_and_eval_mutants_never_reach_the_prompt() -> None:
+def test_survivors_are_shown_once_and_eval_mutants_never_reach_the_prompt() -> None:
     train, evals, pools = _pools()
-    all_evals = {m.sha256 for m in (*evals, *pools.eval_extra)}
-    h = Harness([*evals, *pools.eval_extra])
+    all_evals = [*evals, *pools.eval_extra]
+    h = Harness(all_evals)
     h.probe_reward = {1: 1.0, 2: 1.0, 3: 1.0}
     out = _run(3, h, pools, train, evals, per=1)
     assert [c["round"] for c in h.calls] == [1, 2, 3]
     first_probe = out.records[0].probe_shas
     second_probe = out.records[1].probe_shas
     assert first_probe and second_probe and not set(first_probe) & set(second_probe)
-    assert set(first_probe) <= set(h.calls[1]["train"]) and h.calls[1]["survivors"] == first_probe
-    assert set(first_probe + second_probe) <= set(h.calls[2]["train"])
+    # the newest survivors sit in their own section, not in the train section
+    assert h.calls[1]["survivors"] == first_probe
+    assert not set(first_probe) & set(h.calls[1]["train"])
+    sources = {m.sha256: m for m in pools.probe_pool}
+    assert h.calls[1]["prompt"].count(mutant_diff(sources[first_probe[0]], SOURCE)) == 1
+    # older survivors become ordinary training mutants of the next round
+    assert set(first_probe) <= set(h.calls[2]["train"])
+    assert h.calls[2]["survivors"] == second_probe
     assert h.calls[1]["previous"] == out.accepted_tests[1]
+    eval_diffs = [mutant_diff(m, SOURCE) for m in all_evals]
     for call in h.calls:
-        assert not set(call["train"]) & all_evals
-        assert_prompt_blind(
-            call["prompt"], [mutant_diff(m, SOURCE) for m in (*evals, *pools.eval_extra)]
-        )
+        assert not set(call["train"]) & {m.sha256 for m in all_evals}
+        assert_prompt_blind(call["prompt"], eval_diffs)
     assert out.stop_reason == "rounds_complete"
 
 
@@ -261,7 +274,8 @@ def test_loop_stops_when_the_probe_pool_is_exhausted_and_when_probes_cannot_be_m
         probe_pool=list(pools.probe_pool)[:1],
         evals=[*evals, *pools.eval_extra],
         eval_diffs=[],
-        synthesize=h.synthesize,
+        build_prompt=h.build_prompt,
+        generate=h.generate,
         grade=h.grade,
         probes_per_round=1,
     )
@@ -272,7 +286,7 @@ def test_loop_stops_when_the_probe_pool_is_exhausted_and_when_probes_cannot_be_m
     assert out2.stop_reason == "probes_unmeasured" and out2.records[0].unmeasured
 
 
-def test_reference_guard_repairs_once_then_reverts_without_accepting_the_test() -> None:
+def test_a_measured_failing_reference_is_repaired_once_then_reverted() -> None:
     train, evals, pools = _pools()
     h = Harness([*evals, *pools.eval_extra], reference={1: [1.0], 2: [0.0, 1.0]})
     h.probe_reward = {1: 1.0, 2: 1.0}
@@ -283,24 +297,57 @@ def test_reference_guard_repairs_once_then_reverts_without_accepting_the_test() 
     assert all("reference_output" not in r.grades for r in out.records)  # and is never stored
     assert set(out.accepted_tests) == {1, 2}
 
-    h2 = Harness([*evals, *pools.eval_extra], reference={1: [1.0], 2: [0.0, None]})
+    h2 = Harness([*evals, *pools.eval_extra], reference={1: [1.0], 2: [0.0, 0.0]})
     h2.probe_reward = {1: 1.0}
     out2 = _run(3, h2, pools, train, evals)
     assert out2.records[1].guard == "reverted" and out2.stop_reason == "guard_reverted"
     assert set(out2.accepted_tests) == {1}
     assert out2.final_round(3) == 1  # a reverted round never ships; the earlier test does
+    assert h2.generated == 3  # round 1, round 2, one repair: no more
 
     h3 = Harness([*evals, *pools.eval_extra], reference={1: [0.0, 0.0]})
     out3 = _run(2, h3, pools, train, evals)
     assert out3.accepted_tests == {} and out3.final_round(2) is None
 
 
-def test_prompt_with_an_eval_diff_aborts_the_run() -> None:
+def test_an_unmeasured_reference_is_not_a_failure_and_costs_no_second_synthesis() -> None:
+    train, evals, pools = _pools()
+    h = Harness([*evals, *pools.eval_extra], reference={1: [1.0], 2: [None]})
+    h.probe_reward = {1: 1.0}
+    out = _run(3, h, pools, train, evals)
+    assert out.records[1].guard == "unmeasured" and out.stop_reason == "reference_unmeasured"
+    assert h.generated == 2  # rounds 1 and 2 once each: no repair call for an unmeasured cell
+    assert [c["feedback"] for c in h.calls] == [None, None]
+    assert set(out.accepted_tests) == {1}  # the earlier test stays and the unmeasured one is not accepted
+    assert out.final_round(3) == 1
+
+    h2 = Harness([*evals, *pools.eval_extra], reference={1: [None]})
+    out2 = _run(2, h2, pools, train, evals)
+    assert out2.stop_reason == "reference_unmeasured" and h2.generated == 1
+    assert out2.accepted_tests == {}
+
+    # unmeasured after a repair is still unmeasured, not reverted
+    h3 = Harness([*evals, *pools.eval_extra], reference={1: [0.0, None]})
+    out3 = _run(2, h3, pools, train, evals)
+    assert out3.records[0].guard == "unmeasured" and h3.generated == 2
+
+
+def test_a_refused_first_synthesis_stops_the_loop_distinctly() -> None:
+    train, evals, pools = _pools()
+    h = Harness([*evals, *pools.eval_extra])
+    h.refuse_first = True
+    out = _run(2, h, pools, train, evals)
+    assert out.stop_reason == "synthesis_failed" and out.records[0].guard == "synthesis_failed"
+    assert out.accepted_tests == {} and not h.graded
+
+
+def test_a_prompt_with_an_eval_diff_aborts_before_the_model_is_called() -> None:
     train, evals, pools = _pools()
     h = Harness([*evals, *pools.eval_extra])
     h.leak = True
     with pytest.raises(LeakError):
         _run(1, h, pools, train, evals)
+    assert h.generated == 0  # the model never saw it
 
 
 def test_rounds_are_deterministic() -> None:

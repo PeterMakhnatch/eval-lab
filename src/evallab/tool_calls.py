@@ -298,7 +298,8 @@ def _notebook_edit(arguments: Mapping[str, Any]) -> ToolAction | None:
         return None
     source = payload.get("source")
     if isinstance(source, list) and all(isinstance(line, str) for line in source):
-        source = "".join(source)  # notebook source lines carry their own newlines
+        # Jupyter source lines carry their own newline; some exports strip them.
+        source = ("" if any(line.endswith("\n") for line in source) else "\n").join(source)
     if not isinstance(source, str):
         return None
     return ToolAction("edit", "edit", {"path": path, "command": "edit", "content": source}, text=source, path=path)

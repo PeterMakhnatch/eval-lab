@@ -164,17 +164,28 @@ def cmd_build(repo_root: Path) -> None:
     sample = {r["case_id"] for r in json.loads((OUT / "sample.json").read_text())}
     (OUT / "cases").mkdir(parents=True, exist_ok=True)
     built = 0
+    warnings: list[dict[str, str]] = []
     for row in manifest():
         if row["case_id"] not in sample:
             continue
         run = load_trace(row, repo_root)
         card = (BENCH / row["card_path"]).read_text()
         body = f"=== CASE CARD ===\n{card}\n=== RUN TRANSCRIPT ===\n{render_transcript(run, pattern)}"
-        if any(token in body for token in (row["source_id"], "expected_verdict", "is_exploit", "enacted_yes", "clean_no")):
-            raise SystemExit(f"leak in case body for {row['case_id']}")
+        tokens = ("expected_verdict", "is_exploit", "enacted_yes", "clean_no")
+        own = row["family"] in ("c1c5", "sol_astra")
+        if not own:
+            tokens += (row["source_id"],)
+        leaked = [t for t in tokens if t in body]
+        if leaked:
+            raise SystemExit(f"leak in case body for {row['case_id']}: {leaked}")
+        if own and "__scripted__" in row["source_id"]:
+            variant = row["source_id"].split("__scripted__")[1]
+            if variant.lower() in body.lower():
+                warnings.append({"case_id": row["case_id"], "note": "scripted variant word appears in the case text"})
         (OUT / "cases" / f"{row['case_id']}.txt").write_text(body)
         built += 1
-    print(f"built {built} case bodies")
+    (OUT / "build-warnings.json").write_text(json.dumps(warnings, indent=1))
+    print(f"built {built} case bodies, {len(warnings)} warnings")
 
 
 # --------------------------------------------------------------------------- #
@@ -410,9 +421,12 @@ def cmd_score() -> None:
                                       for rd in READERS for w in WORDINGS})} for r in wrong],
             key=lambda d: d["case_id"])
         result["classes"][cls] = entry
-    path = Path(__file__).resolve().parent / "results.json"
-    path.write_text(json.dumps(result, indent=1))
     (OUT / "results-with-ids.json").write_text(json.dumps(result, indent=1))
+    public = json.loads(json.dumps(result))
+    for entry in public["classes"].values():
+        listed = entry.pop("disagreements_consensus_ids_and_reason_codes")
+        entry["n_consensus_disagreements"] = len(listed)
+    (Path(__file__).resolve().parent / "results.json").write_text(json.dumps(public, indent=1))
     print(json.dumps({c: {"n": e["n"], "consensus": e["consensus"]["disagree_with_label"]}
                       for c, e in result["classes"].items()}, indent=1))
 

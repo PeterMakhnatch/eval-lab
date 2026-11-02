@@ -29,12 +29,15 @@ if __package__ in (None, ""):
 from scripts.independent_review_contract import (
     FOCUSES,
     attest_sessions,
+    bind_report,
+    binding_status,
     changed_lines,
     choose_mode,
     consolidate_reviews,
     merge_attestations,
     parse_review,
     render_brief,
+    reviewed_head,
 )
 
 DEFAULT_MODEL = "google-antigravity/gemini-4-argon"
@@ -154,6 +157,7 @@ def run_review(
     mode: str = "auto",
     deep_threshold: int = DEEP_THRESHOLD_LINES,
     lanes: Sequence[str] | None = None,
+    pin_head: str | None = None,
 ) -> dict[str, Any]:
     """Preserve evidence, refuse unattested verdicts, and remove every owned checkout.
 
@@ -169,6 +173,8 @@ def run_review(
     if unknown_lanes or (lanes is not None and (not lanes or len(set(lanes)) != len(lanes))):
         raise ValueError(f"--lanes must be distinct names from {sorted(FOCUSES)}")
     lane_names = list(lanes) if lanes else None
+    if pin_head is not None and not re.fullmatch(r"[0-9a-f]{40}", pin_head):
+        raise ValueError("--head must be a full 40-hex commit id")
     out.mkdir(parents=True, exist_ok=False)
     out.chmod(0o700)
     receipt: dict[str, Any] = {
@@ -189,16 +195,42 @@ def run_review(
                 repo,
             )
         )
-        head, base = metadata["headRefOid"], metadata["baseRefOid"]
-        if not all(isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}", sha) for sha in (head, base)):
+        pr_head, base = metadata["headRefOid"], metadata["baseRefOid"]
+        if not all(isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}", sha) for sha in (pr_head, base)):
             raise ValueError("PR metadata lacks exact head/base commit ids")
-        receipt.update(head_sha=head, base_sha=base, url=metadata["url"])
+        receipt.update(base_sha=base, url=metadata["url"], pr_head_at_start=pr_head)
         _command(["git", "fetch", "origin", f"refs/pull/{pr_number}/head"], repo)
         fetched_head = _command(["git", "rev-parse", "FETCH_HEAD"], repo)
-        if fetched_head != head:
+        if fetched_head != pr_head:
             raise ValueError("PR head changed while fetching; start a new review")
         _command(["git", "fetch", "origin", base], repo)
-        lines = changed_lines(_command(["git", "diff", "--numstat", f"{base}...{head}"], repo))
+        # The verdict is bound to exactly this commit, not to the moving PR branch.
+        head = pin_head or pr_head
+        if head != pr_head:
+            try:
+                _command(["git", "merge-base", "--is-ancestor", head, pr_head], repo)
+            except subprocess.CalledProcessError:
+                raise ValueError("--head is neither the PR head nor one of its ancestors") from None
+        receipt["head_sha"] = head
+        previous_head = reviewed_head(previous_review) if previous_review is not None else None
+        delta_base: str | None = None
+        if previous_head is not None:
+            if previous_head == head:
+                raise ValueError("the earlier review already covers this exact commit; nothing to verify")
+            try:
+                _command(["git", "merge-base", "--is-ancestor", previous_head, head], repo)
+                delta_base = previous_head
+            except subprocess.CalledProcessError:
+                receipt.setdefault("notes", []).append(
+                    "earlier reviewed commit is not an ancestor of the reviewed head; reviewing the full PR"
+                )
+        if previous_review is not None and previous_head is None:
+            receipt.setdefault("notes", []).append(
+                "earlier review is not bound to a commit; reviewing the full PR"
+            )
+        receipt["previous_head_sha"] = delta_base
+        range_spec = f"{delta_base}..{head}" if delta_base else f"{base}...{head}"
+        lines = changed_lines(_command(["git", "diff", "--numstat", range_spec], repo))
         resolved = choose_mode(mode, lines, deep_threshold)
         deep = resolved == "deep"
         timeout = timeout or (DEEP_TIMEOUT if deep else SHALLOW_TIMEOUT)
@@ -225,6 +257,9 @@ def run_review(
         rules = {path: (lanes[0].worktree / path).read_text(encoding="utf-8") for path in RULE_PATHS}
         diff_path = out / "pr.diff"
         diff_path.write_text(_command(["git", "diff", f"{base}...{head}"], lanes[0].worktree), encoding="utf-8")
+        delta_path = out / "delta.diff"
+        if delta_base is not None:
+            delta_path.write_text(_command(["git", "diff", delta_base, head], lanes[0].worktree), encoding="utf-8")
         config = out / "review-config.yml"
         config.write_text("retry:\n  modelFallback: false\n", encoding="utf-8")
         # Subscription login remains available; inherited paid API keys do not.
@@ -238,11 +273,13 @@ def run_review(
                 previous_review=previous_review, focus=lane.focus,
                 scratch=lane.scratch if deep else None,
                 budget_minutes=max(1, timeout // 60 - 3) if deep else None,
-                lanes=lane_names,
+                lanes=lane_names, delta_base=delta_base,
             )
             brief += (
                 f"\nThe pinned PR diff is saved at {diff_path}. Read it and inspect relevant source.\n"
             )
+            if delta_base is not None:
+                brief += f"The delta since the earlier review is saved at {delta_path}.\n"
             if deep:
                 brief += (
                     "Real command execution is expected in this lane; state exactly which claims you "
@@ -306,11 +343,19 @@ def run_review(
         elif not deep and not assessed["review"]["complete"]:
             refusal = assessed["review"]["reason"]
         else:
+            # A moved PR head is not an error: the verdict is bound to `head` alone and the
+            # report says so. Whatever came after needs its own --verify-fixes review.
             current_head = json.loads(
                 _command(["gh", "pr", "view", str(pr_number), "--json", "headRefOid"], repo)
             )["headRefOid"]
-            if current_head != head:
-                refusal = "PR head changed during review; review is stale"
+            receipt["pr_head_after"] = current_head
+            receipt["head_moved"] = current_head != head
+
+        def bound(text: str) -> str:
+            return bind_report(
+                text, pr_number=pr_number, head_sha=head, base_sha=base, model=model,
+                mode=resolved, previous_head=delta_base, pr_head_after=receipt.get("pr_head_after"),
+            )
 
         if deep:
             parts = [
@@ -327,7 +372,7 @@ def run_review(
                 parts, pr_number=pr_number, head_sha=head, base_sha=base, model=model,
                 skipped=[name for name in FOCUSES if lane_names and name not in lane_names],
             )
-            review = consolidated["report"]
+            review = bound(consolidated["report"])
             (out / "REVIEW.md").write_text(review, encoding="utf-8")
             receipt["coverage"] = consolidated["coverage"]
             for name, detail in receipt["lanes"].items():
@@ -344,6 +389,9 @@ def run_review(
             if review is None:
                 raise ValueError("reviewer wrote no REVIEW.md")
             verdict = parse_review(review)["verdict"]
+            (out / "REVIEW.reviewer.md").write_text(review, encoding="utf-8")
+            review = bound(review)
+            (out / "REVIEW.md").write_text(review, encoding="utf-8")
         receipt.update(valid=True, verdict=verdict, review_path=str(out / "REVIEW.md"))
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         receipt["valid"] = False
@@ -393,12 +441,29 @@ def run_review(
     return receipt
 
 
+def check_receipt(receipt_path: Path, pr_number: int, repo: Path) -> dict[str, Any]:
+    """Merge-time rule: does a stored receipt's verdict cover the PR's head right now?"""
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if not isinstance(receipt, dict):
+        raise ValueError("receipt must be a JSON object")
+    current = _command(["gh", "pr", "view", str(pr_number), "--json", "headRefOid", "-q", ".headRefOid"], repo)
+    return binding_status(receipt, pr_number, current)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pr", type=int)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--contract", type=Path)
     parser.add_argument("--verify-fixes", type=Path, metavar="PREV_REVIEW.md")
+    parser.add_argument(
+        "--head", metavar="SHA", help="review exactly this commit (the PR head or an ancestor of it)"
+    )
+    parser.add_argument(
+        "--check", type=Path, metavar="RECEIPT.json",
+        help="do not review: report whether this receipt's verdict covers the PR's current head "
+        "(exit 0 covers a PASS, 1 covers a BLOCK, 4 does not cover, 2 invalid)",
+    )
     parser.add_argument(
         "--mode", choices=("auto", "shallow", "deep"), default="auto",
         help="auto: deep when the PR changes more than --deep-threshold lines",
@@ -415,6 +480,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
+        if args.check:
+            repo = Path(_command(["git", "rev-parse", "--show-toplevel"], Path.cwd()))
+            status = check_receipt(args.check, args.pr, repo)
+            print(json.dumps(status, indent=2))
+            if not status["covers"]:
+                return 4 if status["action"].startswith("PR head differs") else 2
+            return 0 if status["verdict"] == "PASS" else 1
         repo = Path(_command(["git", "rev-parse", "--show-toplevel"], Path.cwd()))
         contract = args.contract.read_text(encoding="utf-8") if args.contract else None
         previous = args.verify_fixes.read_text(encoding="utf-8") if args.verify_fixes else None
@@ -425,7 +497,7 @@ def main(argv: list[str] | None = None) -> int:
             args.pr, repo=repo, out=out, model=args.model, contract=contract,
             previous_review=previous, comment=args.comment, timeout=args.timeout,
             mode=args.mode, deep_threshold=args.deep_threshold,
-            lanes=args.lanes.split(",") if args.lanes else None,
+            lanes=args.lanes.split(",") if args.lanes else None, pin_head=args.head,
         )
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"Review refused: {error}", file=sys.stderr)

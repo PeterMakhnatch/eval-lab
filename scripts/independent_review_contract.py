@@ -324,6 +324,7 @@ def render_brief(
     scratch: Path | None = None,
     budget_minutes: int | None = None,
     lanes: Sequence[str] | None = None,
+    delta_base: str | None = None,
 ) -> str:
     """Render restrictions first; include supplied material as quoted evidence.
 
@@ -459,6 +460,16 @@ blocking. Also report new regressions. Put still-broken or unverifiable blocking
 findings under Blocking; put resolved-finding classifications under Should-fix
 or Nit as audit notes. A PASS must still have exactly None under Blocking.
 """
+        if delta_base is not None:
+            brief += f"""
+### Delta scope
+
+The earlier review covered the PR at commit {delta_base}. Only the new commits
+(`git log {delta_base}..{head_sha}`, `git diff {delta_base} {head_sha}`) are unreviewed.
+Spend your time on that delta and on whether each earlier finding is fixed; the
+unchanged remainder was already reviewed and needs re-inspection only where the
+delta touches or depends on it. The verdict covers the earlier review plus this delta.
+"""
     evidence = {"repository_rules": dict(rules)}
     if contract is not None:
         evidence["optional_contract"] = contract
@@ -591,3 +602,86 @@ def consolidate_reviews(
         "verdict": verdict,
         "coverage": {"expected": names, "complete": list(complete), "incomplete": incomplete},
     }
+
+
+_BOUND_HEAD = re.compile(r"^> Reviewed head: `([0-9a-f]{40})`")
+
+
+def bind_report(
+    report: str,
+    *,
+    pr_number: int,
+    head_sha: str,
+    base_sha: str,
+    model: str,
+    mode: str,
+    previous_head: str | None = None,
+    pr_head_after: str | None = None,
+) -> str:
+    """Prepend a quoted block that binds the verdict to the one commit that was reviewed."""
+    lines = [
+        f"> Reviewed head: `{head_sha}` (PR #{pr_number}, base `{base_sha}`, mode {mode}, model `{model}`).",
+        "> This verdict covers only that commit.",
+    ]
+    if previous_head is not None:
+        lines.append(
+            f"> Delta review of `{previous_head}`..`{head_sha}` against the findings of the "
+            f"earlier review of `{previous_head}`."
+        )
+    if pr_head_after is not None and pr_head_after != head_sha:
+        lines.append(
+            f"> NOTE: the PR head is now `{pr_head_after}`. Commits after the reviewed head are "
+            "NOT covered and need a `--verify-fixes` run."
+        )
+    return "\n".join(lines) + "\n\n" + report
+
+
+def reviewed_head(report: str) -> str | None:
+    """Return the commit a tool-written report is bound to, or None for an unbound report.
+
+    Only the leading quoted block counts, so text quoted later in the body cannot spoof it.
+    A refused report is rejected: it carries no verdict to build on.
+    """
+    leading: list[str] = []
+    for line in report.splitlines():
+        if not line.startswith(">"):
+            break
+        leading.append(line)
+    if any("REFUSED" in line for line in leading):
+        raise ValueError("the earlier review was refused and carries no verdict")
+    for line in leading:
+        found = _BOUND_HEAD.match(line)
+        if found:
+            return found.group(1)
+    return None
+
+
+def binding_status(receipt: Mapping[str, object], pr_number: int, current_head: str) -> dict:
+    """Decide whether a stored receipt's verdict covers the PR's current head.
+
+    ``covers`` is True only for a valid PASS/BLOCK receipt for this PR whose reviewed head equals
+    ``current_head``. A different head is never covered, whatever the delta looks like.
+    """
+    reviewed = receipt.get("head_sha")
+    verdict = receipt.get("verdict")
+    result: dict = {
+        "pr_number": pr_number,
+        "reviewed_sha": reviewed,
+        "current_head": current_head,
+        "verdict": verdict,
+        "covers": False,
+    }
+    if receipt.get("schema") != "evallab.independent_review/v1":
+        result["action"] = "not an independent-review receipt"
+    elif type(receipt.get("pr_number")) is not int or receipt["pr_number"] != pr_number:
+        result["action"] = "receipt is for a different PR"
+    elif receipt.get("valid") is not True or verdict not in ("PASS", "BLOCK"):
+        result["action"] = "receipt carries no valid PASS/BLOCK verdict; run a new review"
+    elif not isinstance(reviewed, str):
+        result["action"] = "receipt records no reviewed commit; run a new review"
+    elif reviewed != current_head:
+        result["action"] = "PR head differs from the reviewed commit; run --verify-fixes for the delta"
+    else:
+        result["covers"] = True
+        result["action"] = "verdict covers the current head"
+    return result

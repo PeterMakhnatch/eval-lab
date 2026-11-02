@@ -75,7 +75,7 @@ inputs:
   - path: docs/harbor-view.md
     digest: sha256:cba8fe1c0e3885ac2bbaf365529c79c9e0370ca76cea90e66245e1601fb70f07
   - path: docs/independent-review.md
-    digest: sha256:dff49bdfd89e5a543ccef259ae33d873d1dbb9a98cdd467b7eb980cf1a6f5f13
+    digest: sha256:06ccaafd9469295ad25d9a47285883807529aac737d0a42a3dfd463d8da724a0
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/judge-guide.md

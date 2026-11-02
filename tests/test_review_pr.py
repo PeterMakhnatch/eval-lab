@@ -21,7 +21,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import review_pr  # noqa: E402
-from scripts.independent_review_contract import FOCUSES, parse_review  # noqa: E402
+from scripts.independent_review_contract import (  # noqa: E402
+    FOCUSES,
+    bind_report,
+    binding_status,
+    parse_review,
+    reviewed_head,
+)
 
 HEAD = "a" * 40
 BASE = "b" * 40
@@ -81,6 +87,10 @@ class ReviewHarness:
     fetched_head: str = HEAD
     current_head: str = HEAD
     add_fails_for: str | None = None
+    expected_head: str = HEAD
+    delta_base: str | None = None
+    delta_numstat: str = "3\t1\tfix.py\n"
+    ancestors: set[tuple[str, str]] = field(default_factory=set)
     metadata: dict[str, Any] = field(
         default_factory=lambda: {
             "number": PR_NUMBER,
@@ -120,11 +130,21 @@ class ReviewHarness:
         if argv == ["git", "fetch", "origin", BASE]:
             assert cwd == self.repo
             return ""
-        if argv == ["git", "diff", "--numstat", f"{BASE}...{HEAD}"]:
+        if argv[:3] == ["git", "diff", "--numstat"]:
             assert cwd == self.repo
-            return self.numstat
+            if "..." in argv[3]:
+                assert argv[3] == f"{BASE}...{self.expected_head}"
+                return self.numstat
+            assert self.delta_base is not None
+            assert argv[3] == f"{self.delta_base}..{self.expected_head}"
+            return self.delta_numstat
+        if argv[:3] == ["git", "merge-base", "--is-ancestor"] and len(argv) == 5:
+            assert cwd == self.repo
+            if (argv[3], argv[4]) not in self.ancestors:
+                raise subprocess.CalledProcessError(1, argv)
+            return ""
         if argv[:4] == ["git", "worktree", "add", "--detach"]:
-            assert cwd == self.repo and argv[5] == HEAD and len(argv) == 6
+            assert cwd == self.repo and argv[5] == self.expected_head and len(argv) == 6
             path = Path(argv[4])
             assert path.parent == self.worktree_root
             if self.lane_of(path) == self.add_fails_for:
@@ -137,9 +157,12 @@ class ReviewHarness:
                 rule_path.write_text(f"Synthetic repository rule: {rule}\n", encoding="utf-8")
             self.added.append(path)
             return ""
-        if argv == ["git", "diff", f"{BASE}...{HEAD}"]:
+        if argv == ["git", "diff", f"{BASE}...{self.expected_head}"]:
             assert cwd == self.added[0]
             return "diff --git a/example.py b/example.py\n+synthetic_change = True\n"
+        if self.delta_base is not None and argv == ["git", "diff", self.delta_base, self.expected_head]:
+            assert cwd == self.added[0]
+            return "diff --git a/fix.py b/fix.py\n+synthetic_delta = True\n"
         if argv == ["git", "status", "--porcelain", "--untracked-files=all"]:
             assert cwd in self.added
             self.statuses.append(cwd)
@@ -148,6 +171,11 @@ class ReviewHarness:
             assert cwd == self.repo
             self.events.append("head_recheck")
             return json.dumps({"headRefOid": self.current_head})
+        if argv == ["gh", "pr", "view", str(PR_NUMBER), "--json", "headRefOid", "-q", ".headRefOid"]:
+            assert cwd == self.repo
+            return self.current_head
+        if argv == ["git", "rev-parse", "--show-toplevel"]:
+            return str(self.repo)
         if argv[:3] == ["git", "worktree", "remove"] and len(argv) == 4:
             assert cwd == self.repo
             path = Path(argv[3])
@@ -205,8 +233,19 @@ class ReviewHarness:
             raise behavior.error
         return behavior.returncode
 
+    def assert_never_touched_head(self, sha: str) -> None:
+        """A head the review did not pin is never fetched into a worktree, diffed or checked out."""
+        assert not any(sha in argv for argv, _ in self.commands)
+        assert self.expected_head != sha
+
     def run(self, **kwargs: Any) -> dict[str, Any]:
         return review_pr.run_review(PR_NUMBER, repo=self.repo, out=self.out, **kwargs)
+
+    def set_pr_head(self, sha: str) -> None:
+        """The PR branch is at ``sha`` from the start (the reviewed commit stays ``expected_head``)."""
+        self.metadata["headRefOid"] = sha
+        self.fetched_head = sha
+        self.current_head = sha
 
     def launch(self, lane: str) -> dict[str, Any]:
         (found,) = [item for item in self.launches if item["lane"] == lane]
@@ -291,7 +330,16 @@ def test_success_pins_head_preserves_evidence_and_removes_owned_checkout(harness
     assert receipt["worktree_removed"] is True
     assert not harness.worktree_root.exists()
     assert receipt["review_path"] == str(harness.out / "REVIEW.md")
-    assert (harness.out / "REVIEW.md").read_text(encoding="utf-8") == PASS_REVIEW
+    report = (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    assert report.startswith(f"> Reviewed head: `{HEAD}`")
+    assert report.endswith(PASS_REVIEW)
+    assert "NOT covered" not in report
+    assert (harness.out / "REVIEW.reviewer.md").read_text(encoding="utf-8") == PASS_REVIEW
+    assert receipt["pr_head_at_start"] == HEAD and receipt["pr_head_after"] == HEAD
+    assert receipt["head_moved"] is False
+    # An earlier review that carries no commit binding is not a delta base.
+    assert receipt["previous_head_sha"] is None
+    assert any("not bound to a commit" in note for note in receipt["notes"])
     assert "synthetic_change" in (harness.out / "pr.diff").read_text(encoding="utf-8")
     brief = (harness.out / "brief.md").read_text(encoding="utf-8")
     assert HEAD in brief and BASE in brief
@@ -386,14 +434,29 @@ def test_fetch_race_rejects_before_checkout_or_reviewer(harness: ReviewHarness) 
     assert "worktree_add" not in harness.events
 
 
-def test_head_change_during_review_rejects_stale_report(harness: ReviewHarness) -> None:
+def test_moved_pr_head_during_shallow_review_keeps_the_bound_verdict_and_notes_the_gap(
+    harness: ReviewHarness,
+) -> None:
     harness.current_head = OTHER_HEAD
     receipt = harness.run(comment=True)
 
-    harness.assert_rejected(receipt)
-    assert "head changed" in " ".join(receipt["errors"]).lower()
-    assert (harness.out / "REVIEW.md").exists()
-    harness.assert_withheld(receipt, (harness.out / "REVIEW.md").read_text(encoding="utf-8"), "## Nit")
+    assert receipt["valid"] is True and receipt["verdict"] == "PASS"
+    assert receipt["errors"] == []
+    assert receipt["head_sha"] == HEAD
+    assert receipt["pr_head_after"] == OTHER_HEAD
+    assert receipt["head_moved"] is True
+    report = (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    assert reviewed_head(report) == HEAD
+    assert f"> NOTE: the PR head is now `{OTHER_HEAD}`" in report
+    assert "NOT covered" in report and "--verify-fixes" in report
+    assert report.endswith(PASS_REVIEW)
+    harness.assert_never_touched_head(OTHER_HEAD)
+    assert receipt["comment_posted"] is True
+    harness.assert_receipt(receipt)
+    # The stored verdict does not cover the new head: a merge gate must still refuse it.
+    status = binding_status(receipt, PR_NUMBER, OTHER_HEAD)
+    assert status["covers"] is False and status["reviewed_sha"] == HEAD
+    assert binding_status(receipt, PR_NUMBER, HEAD)["covers"] is True
 
 
 @pytest.mark.parametrize("session_mode", ["fallback", "mismatch", "missing", "malformed", "aborted"])
@@ -865,16 +928,30 @@ def test_off_route_model_beats_a_blocking_report_in_another_lane(harness: Review
     assert receipt["coverage"]["complete"] == []
 
 
-def test_head_change_during_deep_review_refuses_and_marks_all_lanes_incomplete(harness: ReviewHarness) -> None:
+def test_moved_pr_head_during_deep_review_keeps_the_bound_verdict_and_notes_the_gap(
+    harness: ReviewHarness,
+) -> None:
+    harness.lane("tests_docs").review = BLOCK_REVIEW
     harness.current_head = OTHER_HEAD
     receipt = harness.run(mode="deep", comment=True)
 
-    harness.assert_rejected(receipt)
-    assert "head changed" in " ".join(receipt["errors"]).lower()
-    assert receipt["coverage"]["complete"] == []
-    assert sorted(receipt["coverage"]["incomplete"]) == sorted(LANES)
-    assert all("head changed" in reason for reason in receipt["coverage"]["incomplete"].values())
-    assert not pass_lines(harness.consolidated())
+    assert receipt["valid"] is True and receipt["verdict"] == "BLOCK"
+    assert receipt["head_sha"] == HEAD
+    assert receipt["pr_head_at_start"] == HEAD
+    assert receipt["pr_head_after"] == OTHER_HEAD
+    assert receipt["head_moved"] is True
+    assert receipt["coverage"]["incomplete"] == {}
+    report = harness.consolidated()
+    assert reviewed_head(report) == HEAD
+    assert f"> NOTE: the PR head is now `{OTHER_HEAD}`" in report
+    assert "NOT covered" in report and "--verify-fixes" in report
+    assert parse_review(report)["verdict"] == "BLOCK"
+    harness.assert_never_touched_head(OTHER_HEAD)
+    # The comment names the reviewed commit only.
+    assert receipt["comment_posted"] is True
+    body = (harness.out / "comment.md").read_text(encoding="utf-8")
+    assert HEAD in body and OTHER_HEAD not in body
+    harness.assert_receipt(receipt)
 
 
 def test_deep_cleanup_failure_preserves_that_worktree_attempts_the_rest_and_withholds_verdict(
@@ -1029,6 +1106,417 @@ def test_valid_lane_subset_is_ignored_in_shallow_mode(harness: ReviewHarness) ->
     assert not (harness.out / "reviewers").exists()
     assert "Lanes not run" not in harness.consolidated()
     assert receipt["comment_posted"] is True
+
+
+# ------------------------------------------------------------------------ pinned head
+
+NEW_PR_HEAD = "d" * 40
+PREVIOUS_HEAD = "e" * 40
+
+
+def bound_previous(head: str = PREVIOUS_HEAD, review: str = PASS_REVIEW) -> str:
+    return bind_report(
+        review, pr_number=PR_NUMBER, head_sha=head, base_sha=BASE,
+        model=review_pr.DEFAULT_MODEL, mode="shallow",
+    )
+
+
+def test_pinned_ancestor_head_is_reviewed_and_the_newer_pr_head_is_never_checked_out(
+    harness: ReviewHarness,
+) -> None:
+    harness.set_pr_head(NEW_PR_HEAD)
+    harness.ancestors.add((HEAD, NEW_PR_HEAD))
+    receipt = harness.run(pin_head=HEAD, comment=True)
+
+    assert receipt["valid"] is True and receipt["verdict"] == "PASS"
+    assert receipt["head_sha"] == HEAD
+    assert receipt["pr_head_at_start"] == NEW_PR_HEAD
+    assert receipt["pr_head_after"] == NEW_PR_HEAD
+    assert receipt["head_moved"] is True
+    assert (["git", "merge-base", "--is-ancestor", HEAD, NEW_PR_HEAD], harness.repo) in harness.commands
+    adds = [argv for argv, _ in harness.commands if argv[:3] == ["git", "worktree", "add"]]
+    assert [argv[-1] for argv in adds] == [HEAD]
+    assert not any(
+        NEW_PR_HEAD in argv for argv, _ in harness.commands
+        if argv[:2] in (["git", "worktree"], ["git", "diff"])
+    )
+    report = (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    assert reviewed_head(report) == HEAD
+    assert f"`{NEW_PR_HEAD}`" in report and "NOT covered" in report
+    brief = (harness.out / "brief.md").read_text(encoding="utf-8")
+    assert HEAD in brief and NEW_PR_HEAD not in brief
+    assert receipt["comment_posted"] is True
+    assert NEW_PR_HEAD not in (harness.out / "comment.md").read_text(encoding="utf-8")
+    harness.assert_receipt(receipt)
+
+
+def test_pin_equal_to_pr_head_needs_no_ancestry_check(harness: ReviewHarness) -> None:
+    receipt = harness.run(pin_head=HEAD)
+
+    assert receipt["valid"] is True and receipt["head_moved"] is False
+    assert not any(argv[:2] == ["git", "merge-base"] for argv, _ in harness.commands)
+
+
+def test_pinned_head_that_is_not_an_ancestor_is_refused_before_any_checkout(
+    harness: ReviewHarness,
+) -> None:
+    harness.set_pr_head(NEW_PR_HEAD)  # no ancestry registered: HEAD is on another branch
+    receipt = harness.run(pin_head=HEAD, comment=True)
+
+    harness.assert_rejected(receipt, removed=False)
+    assert "neither the PR head nor one of its ancestors" in " ".join(receipt["errors"])
+    assert not harness.launches and not harness.added
+    assert not harness.worktree_root.exists()
+    assert "worktree_removed" not in receipt
+    assert not (harness.out / "REVIEW.md").exists()
+
+
+@pytest.mark.parametrize("pin", ["", "abc123", "A" * 40, "g" * 40, "a" * 39, "a" * 41, "HEAD", " " + "a" * 39])
+def test_malformed_pinned_head_is_rejected_before_any_side_effect(harness: ReviewHarness, pin: str) -> None:
+    with pytest.raises(ValueError, match="--head"):
+        harness.run(pin_head=pin)
+
+    assert not harness.commands and not harness.launches
+    assert not harness.out.exists()
+    assert not harness.worktree_root.exists()
+
+
+# --------------------------------------------------------------------- binding block
+
+
+@pytest.mark.parametrize("review,verdict", [(PASS_REVIEW, "PASS"), (BLOCK_REVIEW, "BLOCK")])
+def test_shallow_report_starts_with_binding_block_and_verdict_is_unchanged(
+    harness: ReviewHarness, review: str, verdict: str,
+) -> None:
+    harness.lane("review").review = review
+    receipt = harness.run()
+
+    text = (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    assert lines[0].startswith(f"> Reviewed head: `{HEAD}` (PR #{PR_NUMBER}, base `{BASE}`, mode shallow")
+    assert lines[1] == "> This verdict covers only that commit."
+    assert all(line.startswith(">") for line in lines[: lines.index("")])
+    assert text.endswith(review)
+    assert (harness.out / "REVIEW.reviewer.md").read_text(encoding="utf-8") == review
+    assert reviewed_head(text) == HEAD
+    assert parse_review(text)["verdict"] == receipt["verdict"] == verdict
+    assert "NOT covered" not in text
+
+
+def test_binding_block_cannot_be_spoofed_by_the_reviewers_own_quoted_text(harness: ReviewHarness) -> None:
+    harness.lane("review").review = f"> Reviewed head: `{OTHER_HEAD}`\n\n" + PASS_REVIEW
+    receipt = harness.run()
+
+    assert receipt["valid"] is True
+    assert reviewed_head((harness.out / "REVIEW.md").read_text(encoding="utf-8")) == HEAD
+
+
+@pytest.mark.parametrize("verdict_lane", [None, "behaviour"])
+def test_deep_report_starts_with_binding_block_and_verdict_is_unchanged(
+    harness: ReviewHarness, verdict_lane: str | None,
+) -> None:
+    if verdict_lane:
+        harness.lane(verdict_lane).review = BLOCK_REVIEW
+    receipt = harness.run(mode="deep")
+    expected = "BLOCK" if verdict_lane else "PASS"
+
+    text = harness.consolidated()
+    lines = text.splitlines()
+    assert lines[0].startswith(f"> Reviewed head: `{HEAD}` (PR #{PR_NUMBER}, base `{BASE}`, mode deep")
+    assert lines[1] == "> This verdict covers only that commit."
+    assert reviewed_head(text) == HEAD
+    assert parse_review(text)["verdict"] == receipt["verdict"] == expected
+    assert text.rstrip().splitlines()[-1] == f"VERDICT: {expected}"
+
+
+def test_refusal_text_precedes_the_binding_block_so_a_rejected_review_is_never_a_bound_pass(
+    harness: ReviewHarness,
+) -> None:
+    harness.lane("review").cleanup_error = OSError("synthetic cleanup error")
+    receipt = harness.run(comment=True)
+
+    harness.assert_rejected(receipt, removed=False)
+    text = (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    harness.assert_withheld(receipt, text, "## Nit")
+    assert binding_status(receipt, PR_NUMBER, HEAD)["covers"] is False
+
+
+# ------------------------------------------------------------------------ verify-fixes
+
+
+def test_verify_fixes_with_ancestor_review_reviews_only_the_delta(harness: ReviewHarness) -> None:
+    harness.delta_base = PREVIOUS_HEAD
+    harness.ancestors.add((PREVIOUS_HEAD, HEAD))
+    harness.numstat = BIG  # the whole PR is large; only the 4-line delta is reviewed
+    receipt = harness.run(previous_review=bound_previous(review=BLOCK_REVIEW))
+
+    assert receipt["valid"] is True and receipt["verdict"] == "PASS"
+    assert receipt["previous_head_sha"] == PREVIOUS_HEAD
+    assert receipt["mode"] == "shallow" and receipt["changed_lines"] == 4
+    assert "notes" not in receipt
+    assert (["git", "merge-base", "--is-ancestor", PREVIOUS_HEAD, HEAD], harness.repo) in harness.commands
+    assert "synthetic_delta" in (harness.out / "delta.diff").read_text(encoding="utf-8")
+    assert "synthetic_change" in (harness.out / "pr.diff").read_text(encoding="utf-8")
+    brief = (harness.out / "brief.md").read_text(encoding="utf-8")
+    assert "### Delta scope" in brief and PREVIOUS_HEAD in brief
+    assert str(harness.out / "delta.diff") in brief
+    report = (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    assert f"> Delta review of `{PREVIOUS_HEAD}`..`{HEAD}`" in report
+    assert reviewed_head(report) == HEAD  # the new report binds the new head, not the old one
+    assert parse_review(report)["verdict"] == "PASS"
+
+
+def test_verify_fixes_delta_size_chooses_the_mode(harness: ReviewHarness) -> None:
+    harness.delta_base = PREVIOUS_HEAD
+    harness.delta_numstat = BIG
+    harness.ancestors.add((PREVIOUS_HEAD, HEAD))
+    harness.numstat = SMALL  # small PR, large delta
+    receipt = harness.run(previous_review=bound_previous())
+
+    assert receipt["mode"] == "deep" and receipt["changed_lines"] == 400
+    assert receipt["previous_head_sha"] == PREVIOUS_HEAD
+    assert len(harness.launches) == 4
+    for lane in LANES:
+        brief = (harness.out / "reviewers" / lane / "brief.md").read_text(encoding="utf-8")
+        assert "### Delta scope" in brief
+        assert str(harness.out / "delta.diff") in brief
+
+
+def test_verify_fixes_with_non_ancestor_review_falls_back_to_the_full_pr_with_a_note(
+    harness: ReviewHarness,
+) -> None:
+    # PREVIOUS_HEAD was force-pushed away: no ancestry is registered.
+    receipt = harness.run(previous_review=bound_previous())
+
+    assert receipt["valid"] is True and receipt["verdict"] == "PASS"
+    assert receipt["previous_head_sha"] is None
+    assert any("not an ancestor" in note and "full PR" in note for note in receipt["notes"])
+    assert receipt["changed_lines"] == 15
+    assert not (harness.out / "delta.diff").exists()
+    assert "### Delta scope" not in (harness.out / "brief.md").read_text(encoding="utf-8")
+    assert "Delta review" not in (harness.out / "REVIEW.md").read_text(encoding="utf-8")
+    assert not any(argv[:3] == ["git", "diff", PREVIOUS_HEAD] for argv, _ in harness.commands)
+
+
+@pytest.mark.parametrize("previous", ["Plain review without any binding\n", PASS_REVIEW, ""])
+def test_verify_fixes_with_an_unbound_review_reviews_the_full_pr_with_a_note(
+    harness: ReviewHarness, previous: str,
+) -> None:
+    receipt = harness.run(previous_review=previous)
+
+    assert receipt["valid"] is True
+    assert receipt["previous_head_sha"] is None
+    assert any("not bound to a commit" in note for note in receipt["notes"])
+    assert not (harness.out / "delta.diff").exists()
+    assert not any(argv[:2] == ["git", "merge-base"] for argv, _ in harness.commands)
+
+
+def test_verify_fixes_with_a_review_of_this_exact_commit_is_refused_and_cleaned_up(
+    harness: ReviewHarness,
+) -> None:
+    receipt = harness.run(previous_review=bound_previous(head=HEAD), comment=True)
+
+    harness.assert_rejected(receipt, removed=False)
+    assert "already covers this exact commit" in " ".join(receipt["errors"])
+    assert not harness.launches and not harness.added
+    assert not harness.worktree_root.exists()
+    assert receipt["head_sha"] == HEAD
+
+
+def test_verify_fixes_with_a_refused_previous_review_is_refused(harness: ReviewHarness) -> None:
+    refused = (
+        "> **REFUSED: no valid verdict was issued: synthetic**\n\n"
+        f"> Reviewed head: `{PREVIOUS_HEAD}` (PR #{PR_NUMBER})\n\n" + BLOCK_REVIEW
+    )
+    receipt = harness.run(previous_review=refused, comment=True)
+
+    harness.assert_rejected(receipt, removed=False)
+    assert "refused" in " ".join(receipt["errors"]).lower()
+    assert not harness.launches and not harness.added
+
+
+def test_verify_fixes_ignores_a_binding_quoted_later_in_the_previous_review(harness: ReviewHarness) -> None:
+    harness.delta_base = PREVIOUS_HEAD
+    harness.ancestors.add((PREVIOUS_HEAD, HEAD))
+    receipt = harness.run(previous_review="Intro text\n\n" + bound_previous())
+
+    assert receipt["valid"] is True
+    assert receipt["previous_head_sha"] is None
+    assert any("not bound to a commit" in note for note in receipt["notes"])
+
+
+def test_verify_fixes_on_a_pinned_older_head_diffs_against_that_head(harness: ReviewHarness) -> None:
+    harness.set_pr_head(NEW_PR_HEAD)
+    harness.ancestors.update({(HEAD, NEW_PR_HEAD), (PREVIOUS_HEAD, HEAD)})
+    harness.delta_base = PREVIOUS_HEAD
+    receipt = harness.run(pin_head=HEAD, previous_review=bound_previous())
+
+    assert receipt["valid"] is True
+    assert receipt["head_sha"] == HEAD and receipt["previous_head_sha"] == PREVIOUS_HEAD
+    assert receipt["head_moved"] is True
+    assert (["git", "diff", "--numstat", f"{PREVIOUS_HEAD}..{HEAD}"], harness.repo) in harness.commands
+
+
+# ----------------------------------------------------------------------------- --check
+
+
+def write_receipt(tmp_path: Path, **changes: Any) -> Path:
+    data: dict[str, Any] = {
+        "schema": "evallab.independent_review/v1",
+        "pr_number": PR_NUMBER,
+        "valid": True,
+        "verdict": "PASS",
+        "head_sha": HEAD,
+    }
+    data.update(changes)
+    path = tmp_path / "synthetic-receipt.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def check(harness: ReviewHarness, path: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, Any]:
+    code = review_pr.main([str(PR_NUMBER), "--check", str(path)])
+    captured = capsys.readouterr()
+    assert not harness.launches and not harness.added
+    assert not harness.out.exists()
+    assert not any(argv[:2] == ["git", "fetch"] for argv, _ in harness.commands)
+    return code, (json.loads(captured.out) if captured.out else None)
+
+
+@pytest.mark.parametrize("verdict,code", [("PASS", 0), ("BLOCK", 1)])
+def test_check_exit_code_reports_the_verdict_that_covers_the_current_head(
+    harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str], verdict: str, code: int,
+) -> None:
+    exit_code, status = check(harness, write_receipt(tmp_path, verdict=verdict), capsys)
+
+    assert exit_code == code
+    assert status["covers"] is True and status["verdict"] == verdict
+    assert status["reviewed_sha"] == status["current_head"] == HEAD
+
+
+@pytest.mark.parametrize("verdict", ["PASS", "BLOCK"])
+def test_check_exits_4_when_the_pr_head_moved_even_for_a_pass(
+    harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str], verdict: str,
+) -> None:
+    harness.current_head = OTHER_HEAD
+    exit_code, status = check(harness, write_receipt(tmp_path, verdict=verdict), capsys)
+
+    assert exit_code == 4
+    assert status["covers"] is False
+    assert status["reviewed_sha"] == HEAD and status["current_head"] == OTHER_HEAD
+    assert "--verify-fixes" in status["action"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"verdict": "INCONCLUSIVE"},
+        {"verdict": None},
+        {"verdict": "MAYBE"},
+        {"valid": False},
+        {"valid": "true"},
+        {"pr_number": 7},
+        {"schema": "something.else/v1"},
+    ],
+    ids=["inconclusive", "no-verdict", "unknown-verdict", "invalid", "truthy-string-valid",
+         "other-pr", "other-schema"],
+)
+def test_check_exits_2_for_receipts_that_carry_no_usable_verdict(
+    harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str], changes: dict[str, Any],
+) -> None:
+    harness.current_head = OTHER_HEAD  # even with a moved head these are 2, never 4
+    exit_code, status = check(harness, write_receipt(tmp_path, **changes), capsys)
+
+    assert exit_code == 2
+    assert status["covers"] is False
+
+
+def test_check_a_receipt_without_a_reviewed_head_never_covers(
+    harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code, status = check(harness, write_receipt(tmp_path, head_sha=None), capsys)
+
+    assert exit_code != 0 and exit_code != 1
+    assert status["covers"] is False
+
+
+@pytest.mark.parametrize("content", [None, "", "{not json", "[]", '"text"', "null"])
+def test_check_exits_2_for_missing_or_unreadable_receipts(
+    harness: ReviewHarness, tmp_path: Path, capsys: pytest.CaptureFixture[str], content: str | None,
+) -> None:
+    path = tmp_path / "receipt.json"
+    if content is not None:
+        path.write_text(content, encoding="utf-8")
+    code = review_pr.main([str(PR_NUMBER), "--check", str(path)])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "Review refused" in captured.err
+    assert not harness.launches and not harness.added and not harness.out.exists()
+
+
+def test_check_receipt_function_returns_status_without_running_a_review(
+    harness: ReviewHarness, tmp_path: Path,
+) -> None:
+    status = review_pr.check_receipt(write_receipt(tmp_path), PR_NUMBER, harness.repo)
+
+    assert status["covers"] is True and status["verdict"] == "PASS"
+    assert [argv[0] for argv, _ in harness.commands] == ["gh"]
+    assert not harness.launches and not harness.out.exists()
+
+
+def test_check_accepts_the_receipt_written_by_a_real_run_until_the_head_moves(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str],
+) -> None:
+    receipt = harness.run()
+    stored = harness.out / "receipt.json"
+
+    assert receipt["valid"] is True
+    assert review_pr.main([str(PR_NUMBER), "--check", str(stored)]) == 0
+    capsys.readouterr()
+    harness.current_head = OTHER_HEAD
+    assert review_pr.main([str(PR_NUMBER), "--check", str(stored)]) == 4
+    status = json.loads(capsys.readouterr().out)
+    assert status["covers"] is False and status["reviewed_sha"] == HEAD
+    assert len(harness.launches) == 1  # only the original review ran
+
+
+def test_check_of_a_pinned_older_review_is_4_when_the_pr_branch_moved(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str],
+) -> None:
+    harness.set_pr_head(NEW_PR_HEAD)
+    harness.ancestors.add((HEAD, NEW_PR_HEAD))
+    receipt = harness.run(pin_head=HEAD)
+    stored = harness.out / "receipt.json"
+
+    assert receipt["valid"] is True and receipt["head_moved"] is True
+    assert review_pr.main([str(PR_NUMBER), "--check", str(stored)]) == 4
+    assert json.loads(capsys.readouterr().out)["current_head"] == NEW_PR_HEAD
+
+
+# --------------------------------------------------------------------------- CLI --head
+
+
+def test_cli_head_flag_pins_the_review_and_exit_code_follows_the_verdict(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str],
+) -> None:
+    harness.set_pr_head(NEW_PR_HEAD)
+    harness.ancestors.add((HEAD, NEW_PR_HEAD))
+    code = review_pr.main([str(PR_NUMBER), "--head", HEAD, "--out", str(harness.out)])
+
+    printed = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert printed["head_sha"] == HEAD and printed["head_moved"] is True
+
+
+def test_cli_malformed_head_is_refused_with_exit_2_and_no_evidence(
+    harness: ReviewHarness, capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = review_pr.main([str(PR_NUMBER), "--head", "nope", "--out", str(harness.out)])
+
+    assert code == 2
+    assert "Review refused" in capsys.readouterr().err
+    assert not harness.out.exists() and not harness.launches
 
 
 # ------------------------------------------------------------------ real process group

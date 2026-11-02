@@ -11,7 +11,9 @@ Use a different model family to look for concrete bugs before merging agent work
 
 ```bash
 uv run python scripts/review_pr.py 1234 --contract /tmp/change-contract.md
+uv run python scripts/review_pr.py 1234 --head <40-hex sha>    # pin the review to one commit
 uv run python scripts/review_pr.py 1234 --verify-fixes /private/tmp/previous/REVIEW.md
+uv run python scripts/review_pr.py 1234 --check /private/tmp/previous/receipt.json   # merge-time rule
 uv run python scripts/review_pr.py 1234 --mode shallow    # force the cheap static review
 ```
 
@@ -24,7 +26,8 @@ that an arbitrary alternate route is subscription-funded.
 
 ## Two modes
 
-The command pins the PR's current head and base, fetches the PR, and creates a
+The command pins one commit (the PR's head when it starts, or `--head SHA`, which must be that head
+or one of its ancestors) and the PR's base, fetches the PR, and creates a
 detached checkout under `/private/tmp` for each reviewer. It renders repository rules, an optional
 contract, and a standard checklist covering approval/spend, fail-closed statuses,
 DEV/TEST gates, label and test isolation, meaningful tests, third-party data, and
@@ -69,13 +72,29 @@ In deep mode the tool consolidates the lane reports into `REVIEW.md` in the evid
 
 A reviewer does not replace executable tests or exact-head CI.
 
+## A verdict covers one commit
+
+`REVIEW.md` starts with a quoted block naming the reviewed head (`> Reviewed head: <sha>`), and
+`receipt.json` records `head_sha`, `pr_head_at_start`, `pr_head_after` and `head_moved`. A PR that
+advances during or after the review does not invalidate the verdict, but the verdict does **not**
+extend to the new commits, and no heuristic ever decides that a delta is unrelated.
+
+Merge-time rule: run `--check RECEIPT.json` against the PR. It exits 0 when a valid PASS covers the
+current head, 1 for a covered BLOCK, 4 when the head differs from the reviewed commit, 2 for an
+unusable receipt. On 4, run a delta review: `--verify-fixes PREV_REVIEW.md`. The previous report's
+bound commit gives the delta (`git diff PREV HEAD`); the reviewer re-checks each earlier finding and
+examines only the new commits, and the mode is chosen from the size of that delta, so it is small
+and fast. A previous report that is unbound (older, hand-written) or whose commit is not an
+ancestor of the new head falls back to a full review (recorded in the receipt `notes`); a refused
+previous report is rejected, as is reviewing the exact commit that was already reviewed.
+
 ## Attestation and refusal
 
 Every session JSONL of every reviewer is hashed and checked: assistant messages are counted per
 provider/model, `resolvedModelIsFallback` flags and model changes are recorded. Any off-route
 model or fallback in any reviewer refuses the whole run: no verdict, no comment. Missing or
-malformed evidence in a lane only marks that lane incomplete. A changed PR head or a
-modified checkout also prevents a verdict. In every case `REVIEW.md` and the lane reports stay
+malformed evidence in a lane only marks that lane incomplete. A modified checkout also prevents a
+verdict. In every case `REVIEW.md` and the lane reports stay
 for diagnosis but are not an accepted verdict; a refused report that ended in `VERDICT: PASS` is
 rewritten to start with a `REFUSED` notice and end in `VERDICT: BLOCK`, so it cannot be mistaken
 for a pass. Reviewer processes are killed as a process group when they finish or time out.
@@ -91,7 +110,7 @@ Every owned worktree is removed on success or failure. A dirty one is never forc
 receipt reports the preserved path.
 
 Nothing is posted by default. `--comment` posts a bounded blocking summary only for a validated
-PASS or BLOCK, after cleanup and a current-head check. The report must contain no secrets,
+PASS or BLOCK, after cleanup; it names the reviewed commit. The report must contain no secrets,
 third-party transcripts, or per-row third-party identifiers. This advisory creates no commit status,
 changes no branch protection, merges nothing and does not revive the retired `independent-review`
 CI gate.

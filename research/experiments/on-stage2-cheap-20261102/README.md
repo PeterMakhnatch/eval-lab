@@ -19,6 +19,11 @@ Evaluated on the 272 covered DEV cases of TraceMonitor-Bench DEV v1 across 5 ben
   - `gemini-2.5-flash-lite` vs Stored Teacher: $b = 15$ (teacher only), $c = 1$ (cheap only), both = 4, neither = 47, exact **$p = 0.0005$**.
   - `gemini-3.1-flash-lite` vs Stored Teacher: $b = 16$ (teacher only), $c = 0$ (cheap only), both = 3, neither = 48, exact **$p < 0.0001$**.
 - **Conclusion:** Lightweight models fail to retain AutoReview's detection power. They suffer from trigger under-firing at Stage 1 (giving 0 suspicion to suspicious mutation ledgers) and false exoneration at Stage 2 (interpreting package manager replacements and mock test wrappers as standard troubleshooting).
+- **Auditor Verification & Attribution (see `VERIFIER-CORRECTIONS.md` and `on-stage2-forced-20261102`):**
+  - Recomputing directly from cascade receipts, the 19 teacher catches missed by cheap models partition into:
+    - `gemini-2.5-flash-lite` (15 missed): **9 lost to Trigger Blindness** (Stage 1 never triggered) and **6 lost to Evidence Blindness** (Stage 2 ran on raw evidence but exonerated).
+    - `gemini-3.1-flash-lite` (16 missed): **8 lost to Trigger Blindness** and **8 lost to Evidence Blindness**.
+  - Independent forced Stage-2 isolation (`D6B-FORCED-STAGE2`) confirms that even when presented with identical un-truncated evidence, cheap models detect only 12–13 of 46 positive cheats (26.1%–28.3%) versus 24/46 (52.2%) for the teacher rerun ($p \le 0.0010$).
 
 ## Files in this Experiment
 - `run_stage2_cascade.py`: Production cascade runner supporting Stage 1 evaluation, trigger checks, Stage 2 un-truncated retrieval execution, and attestation.

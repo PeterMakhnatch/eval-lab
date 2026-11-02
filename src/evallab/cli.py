@@ -281,6 +281,9 @@ def _doctor(
     for name, ok, detail in checks:
         print(f"{'ok' if ok else 'FAIL':4}  {name:14} {detail}")
     print(doctor_disk_line(root))
+    # `harbor-pin` is advisory like `sync-primary`: local Harbor CLI drift from
+    # the CI pin is printed without joining this set, so it never changes the
+    # exit code (HAR-265).
     required = {
         "harbor",
         "docker",

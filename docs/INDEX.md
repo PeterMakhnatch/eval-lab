@@ -105,7 +105,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:3c1ba0e1c05b8b78ca5f1a08a8f9c1cd46ba52f55874a206b642758e3b5065d3
+    digest: sha256:f05219303e83abbf1842af9fe5495ede38239c838d57a8ecaa991a278ba76c68
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/production-factory.md

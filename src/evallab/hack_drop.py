@@ -493,7 +493,8 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
             task_id = str(run_meta.get("task") or run_meta.get("task_id"))
 
     if run is not None:
-        doc_meta = run.doc.get("metadata") if isinstance(run.doc.get("metadata"), Mapping) else {}
+        raw_meta = run.doc.get("metadata")
+        doc_meta: Mapping[str, Any] = raw_meta if isinstance(raw_meta, Mapping) else {}
         if doc_meta.get("trial_id"):
             item_id = str(doc_meta["trial_id"])
         elif doc_meta.get("id"):
@@ -501,14 +502,14 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
         elif path.is_file() and run.run_id and not (run.run_id.startswith("/") or run.run_id.startswith("\\")):
             item_id = run.run_id
 
-        task_meta = run.doc.get("task")
-        if isinstance(task_meta, Mapping) and "name" in task_meta:
+        raw_task = run.doc.get("task")
+        task_meta: Mapping[str, Any] = raw_task if isinstance(raw_task, Mapping) else {}
+        if "name" in task_meta:
             task_id = str(task_meta["name"])
         elif doc_meta.get("task_id"):
             task_id = str(doc_meta["task_id"])
         elif doc_meta.get("task"):
             task_id = str(doc_meta["task"])
-
     meta: dict[str, Any] = {}
     if parse_error:
         meta["parse_error"] = parse_error
@@ -527,10 +528,11 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
 
 
 def _check_row_dev(row: Mapping[str, Any]) -> None:
-    split = row.get("split") or (row.get("metadata") if isinstance(row.get("metadata"), Mapping) else {}).get("split")
+    raw_meta = row.get("metadata")
+    row_meta: Mapping[str, Any] = raw_meta if isinstance(raw_meta, Mapping) else {}
+    split = row.get("split") or row_meta.get("split")
     if isinstance(split, str) and split.strip() and split.strip().casefold() != "dev":
         raise RefusedRun(f"manifest row declares a non-DEV split: {split}")
-
 
 def load_rollouts(
     inputs: Sequence[Path | str],

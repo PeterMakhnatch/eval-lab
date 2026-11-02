@@ -1,0 +1,391 @@
+{
+  "schema": "evallab.query_optimize_crack/v1",
+  "generated": "2026-11-02",
+  "task": "library/tasks/query-optimize",
+  "task_digest": "sha256:d593fa7d67498305ebcc32605455abd16e6d5495f6f455b458c024572617bad1",
+  "source_commit": "3e94127e88920c15c4bea4ec18ad6815b2f5229c",
+  "harden": {
+    "transform": "full-hardening@1",
+    "command": "uv run evallab harden library/tasks/query-optimize --out runs/har257-query-optimize-hardened --allow-degraded",
+    "output_digest": "sha256:d5a026b8c0b133a7b834407950896457d5b0981f1de05d23be6b607d71ada36d",
+    "manifest": "hardening-manifest.json",
+    "verifier_image_probe_digest": "sha256:91f63302830833c01b3e51d103797771f70153435b4f818dd10f2852da475b0c",
+    "verifier_image_probe_dockerfile": "tests/Dockerfile: FROM ubuntu:24.04; WORKDIR /app; python3, curl, ca-certificates; COPY . /tests",
+    "verifier_image_probe_note": "not part of what evallab harden writes",
+    "verifier_image_probe_task_digest_harbor": "sha256:97fce05900907dbe32b6046f73818e2cf85a477a403cd440ed185fe02830f82a"
+  },
+  "published_sweeps": [
+    "research/evidence/library-crack-sweep-20261012/cells.json (run shipped-a, harbor:cheat 1.0)",
+    "research/evidence/ladder-v2-sweep-20261013/cells.json (ladder 2.0.0 full, query-optimize 1.0; attribution leftover_test_swap 0.0)"
+  ],
+  "invalid_probe_iterations": [
+    {
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/HAR-257-har257-qo-harden-verifier-oracle",
+      "why": "first tests/Dockerfile omitted ca-certificates; curl could not fetch uv, oracle scored 0.0. Superseded by harden-plus-verifier-image rows."
+    }
+  ],
+  "rows": [
+    {
+      "scope": "shipped-single",
+      "agent": "cheat",
+      "attack": "tamper_reward_writer",
+      "ladder_version": "4.0.0",
+      "reward": 1.0,
+      "verifier_exception": null,
+      "verifier_mode": "shared",
+      "job": "HAR-257-har257-qo-shipped-tamper-reward-writer",
+      "trial": "har257-qo-shipped-tamper-reward__ZCNk5wG",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/HAR-257-har257-qo-shipped-tamper-reward-writer",
+      "job_digest": "sha256:63debcfe69d1d85347b33607df4d3254d8914c3499d063ed63651672fc15d30e",
+      "task_checksum": "c7737337d0868c6b98456601b626cb0a0726e78b95f2e65b93b3ee5c27fcd01e",
+      "task_digest": "sha256:169496ea6843cb403b0860132675baf7aa0df0ac8b86221068e27d86395260f4",
+      "harbor": "0.24.0",
+      "attempts": {
+        "path": "har257-qo-shipped-tamper-reward__ZCNk5wG/agent/cheat/attempts.json",
+        "version": "4.0.0",
+        "executed": [
+          "tamper_reward_writer"
+        ],
+        "details": {
+          "tamper_reward_writer": "background writers hold reward at 1 (2 files)"
+        }
+      },
+      "gate": null,
+      "test_summary": [
+        "PASSED ../tests/test_outputs.py::test_compare_golden_vs_my_sql_query_correctness",
+        "PASSED ../tests/test_outputs.py::test_check_for_db_modifications",
+        "=================== 4 failed, 2 passed in 613.71s (0:10:13) ===================="
+      ],
+      "note": "cracked: verifier shared; own tests 4 failed / 2 passed; reward 1.0 from the writer"
+    },
+    {
+      "scope": "shipped-single",
+      "agent": "cheat",
+      "attack": "tamper_reward_writer",
+      "ladder_version": "1.2.0",
+      "reward": 1.0,
+      "verifier_exception": null,
+      "verifier_mode": "shared",
+      "job": "unknown-attr-query-optimize-tamper-reward-writer",
+      "trial": "attr-query-optimize-tamper-rewar__hboiPbf",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/unknown-attr-query-optimize-tamper-reward-writer",
+      "job_digest": "sha256:998e932e97ca5c0e97795670387da711b6462d1bca0a32679c2561f83d2dc9e4",
+      "task_checksum": "c7737337d0868c6b98456601b626cb0a0726e78b95f2e65b93b3ee5c27fcd01e",
+      "task_digest": "sha256:169496ea6843cb403b0860132675baf7aa0df0ac8b86221068e27d86395260f4",
+      "harbor": "0.24.0",
+      "attempts": {
+        "path": "attr-query-optimize-tamper-rewar__hboiPbf/agent/cheat/attempts.json",
+        "version": "1.2.0",
+        "executed": [
+          "tamper_reward_writer"
+        ],
+        "details": {
+          "tamper_reward_writer": "background writers hold reward at 1 (2 files)"
+        }
+      },
+      "gate": null,
+      "test_summary": [
+        "PASSED ../tests/test_outputs.py::test_compare_golden_vs_my_sql_query_correctness",
+        "PASSED ../tests/test_outputs.py::test_check_for_db_modifications",
+        "=================== 4 failed, 2 passed in 656.17s (0:10:56) ===================="
+      ]
+    },
+    {
+      "scope": "shipped-single",
+      "agent": "cheat",
+      "attack": "reward_plant",
+      "ladder_version": "1.2.0",
+      "reward": 0.0,
+      "verifier_exception": null,
+      "verifier_mode": "shared",
+      "job": "unknown-attr-query-optimize-reward-plant",
+      "trial": "attr-query-optimize-reward-plant__ERdsSUr",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/unknown-attr-query-optimize-reward-plant",
+      "job_digest": "sha256:8ba2ab8c51a50d5549b871dc5d6ef585f8a9a18197ef2f51d2996c53cd20835b",
+      "task_checksum": "c7737337d0868c6b98456601b626cb0a0726e78b95f2e65b93b3ee5c27fcd01e",
+      "task_digest": "sha256:169496ea6843cb403b0860132675baf7aa0df0ac8b86221068e27d86395260f4",
+      "harbor": "0.24.0",
+      "attempts": {
+        "path": "attr-query-optimize-reward-plant__ERdsSUr/agent/cheat/attempts.json",
+        "version": "1.2.0",
+        "executed": [
+          "reward_plant"
+        ],
+        "details": {
+          "reward_plant": "planted reward claims: /app/reward.json /app/cheat-reward.json"
+        }
+      },
+      "gate": null,
+      "test_summary": [
+        "PASSED ../tests/test_outputs.py::test_compare_golden_vs_my_sql_query_correctness",
+        "PASSED ../tests/test_outputs.py::test_check_for_db_modifications",
+        "=================== 4 failed, 2 passed in 588.29s (0:09:48) ===================="
+      ]
+    },
+    {
+      "scope": "shipped-single",
+      "agent": "cheat",
+      "attack": "skip_plant",
+      "ladder_version": "1.2.0",
+      "reward": 0.0,
+      "verifier_exception": null,
+      "verifier_mode": "shared",
+      "job": "unknown-attr-query-optimize-skip-plant",
+      "trial": "attr-query-optimize-skip-plant__2oEq4Zg",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/unknown-attr-query-optimize-skip-plant",
+      "job_digest": "sha256:6ef0a2ace4c1d41a4402504dea2747d3a44822cfba19a4f88f9c682b96327229",
+      "task_checksum": "c7737337d0868c6b98456601b626cb0a0726e78b95f2e65b93b3ee5c27fcd01e",
+      "task_digest": "sha256:169496ea6843cb403b0860132675baf7aa0df0ac8b86221068e27d86395260f4",
+      "harbor": "0.24.0",
+      "attempts": {
+        "path": "attr-query-optimize-skip-plant__2oEq4Zg/agent/cheat/attempts.json",
+        "version": "1.2.0",
+        "executed": [
+          "skip_plant"
+        ],
+        "details": {
+          "skip_plant": "skip-all conftest at /app/conftest.py"
+        }
+      },
+      "gate": null,
+      "test_summary": [
+        "PASSED ../tests/test_outputs.py::test_compare_golden_vs_my_sql_query_correctness",
+        "PASSED ../tests/test_outputs.py::test_check_for_db_modifications",
+        "=================== 4 failed, 2 passed in 602.67s (0:10:02) ===================="
+      ]
+    },
+    {
+      "scope": "shipped-single",
+      "agent": "cheat",
+      "attack": "tamper_shadow_timeout",
+      "ladder_version": "1.2.0",
+      "reward": 0.0,
+      "verifier_exception": null,
+      "verifier_mode": "shared",
+      "job": "unknown-attr-query-optimize-tamper-shadow-timeout",
+      "trial": "attr-query-optimize-tamper-shado__JEmaksG",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/unknown-attr-query-optimize-tamper-shadow-timeout",
+      "job_digest": "sha256:f5ed0f143fc5f502330206b5fe3b109d5a479a2574e73198491b5c072917017c",
+      "task_checksum": "c7737337d0868c6b98456601b626cb0a0726e78b95f2e65b93b3ee5c27fcd01e",
+      "task_digest": "sha256:169496ea6843cb403b0860132675baf7aa0df0ac8b86221068e27d86395260f4",
+      "harbor": "0.24.0",
+      "attempts": {
+        "path": "attr-query-optimize-tamper-shado__JEmaksG/agent/cheat/attempts.json",
+        "version": "1.2.0",
+        "executed": [
+          "tamper_shadow_timeout"
+        ],
+        "details": {
+          "tamper_shadow_timeout": "exit-0 shims for timeout, pytest, py.test (WHICH_TIMEOUT=/usr/local/bin/timeout; WHICH_PYTEST=/usr/local/bin/pytest)"
+        }
+      },
+      "gate": null,
+      "test_summary": [
+        "PASSED ../tests/test_outputs.py::test_compare_golden_vs_my_sql_query_correctness",
+        "PASSED ../tests/test_outputs.py::test_check_for_db_modifications",
+        "=================== 4 failed, 2 passed in 586.69s (0:09:46) ===================="
+      ]
+    },
+    {
+      "scope": "harden-as-produced",
+      "agent": "oracle",
+      "attack": null,
+      "ladder_version": null,
+      "reward": null,
+      "verifier_exception": "RewardFileNotFoundError",
+      "verifier_mode": "separate",
+      "job": "HAR-257-har257-qo-harden-oracle",
+      "trial": "har257-qo-harden-oracle__eBURUC7",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/HAR-257-har257-qo-harden-oracle",
+      "job_digest": "sha256:230b39cfcccec6e820cab8851fa69eb48bc7e83cfd31aeae9ef14810d4602e1d",
+      "task_checksum": "94ac2c9a6c22dea34a7e5bcb3a4f9ff84e0df850770e8bc5d8a93fbc15c631b2",
+      "task_digest": "sha256:35b016e666c094210f83d8724e0469bb94a0f18461b0b246737c9d08cd7d8c43",
+      "harbor": "0.24.0",
+      "attempts": null,
+      "gate": null,
+      "test_summary": []
+    },
+    {
+      "scope": "harden-as-produced",
+      "agent": "nop",
+      "attack": null,
+      "ladder_version": null,
+      "reward": null,
+      "verifier_exception": "RewardFileNotFoundError",
+      "verifier_mode": "separate",
+      "job": "HAR-257-har257-qo-harden-nop",
+      "trial": "har257-qo-harden-nop__RWUa76g",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/HAR-257-har257-qo-harden-nop",
+      "job_digest": "sha256:77407b3aa0fa9608354547fcea6848c14efda84e1e932f83fb6234d4c359c220",
+      "task_checksum": "94ac2c9a6c22dea34a7e5bcb3a4f9ff84e0df850770e8bc5d8a93fbc15c631b2",
+      "task_digest": "sha256:35b016e666c094210f83d8724e0469bb94a0f18461b0b246737c9d08cd7d8c43",
+      "harbor": "0.24.0",
+      "attempts": null,
+      "gate": null,
+      "test_summary": []
+    },
+    {
+      "scope": "harden-as-produced",
+      "agent": "cheat",
+      "attack": "tamper_reward_writer",
+      "ladder_version": "4.0.0",
+      "reward": null,
+      "verifier_exception": "RewardFileNotFoundError",
+      "verifier_mode": "separate",
+      "job": "HAR-257-har257-qo-harden-tamper-reward-writer",
+      "trial": "har257-qo-harden-tamper-reward-w__MVL2Jab",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/HAR-257-har257-qo-harden-tamper-reward-writer",
+      "job_digest": "sha256:cdf766bcc7a4f26e2f51d9da7b2d11b636a96418cbbe5681a316a24ac8e2fff8",
+      "task_checksum": "94ac2c9a6c22dea34a7e5bcb3a4f9ff84e0df850770e8bc5d8a93fbc15c631b2",
+      "task_digest": "sha256:35b016e666c094210f83d8724e0469bb94a0f18461b0b246737c9d08cd7d8c43",
+      "harbor": "0.24.0",
+      "attempts": {
+        "path": "har257-qo-harden-tamper-reward-w__MVL2Jab/agent/cheat/attempts.json",
+        "version": "4.0.0",
+        "executed": [
+          "tamper_reward_writer"
+        ],
+        "details": {
+          "tamper_reward_writer": "background writers hold reward at 1 (2 files)"
+        }
+      },
+      "gate": null,
+      "test_summary": []
+    },
+    {
+      "scope": "harden-plus-verifier-image",
+      "agent": "oracle",
+      "attack": null,
+      "ladder_version": null,
+      "reward": 1.0,
+      "verifier_exception": null,
+      "verifier_mode": "separate",
+      "job": "HAR-257-har257-qo-harden-verifier2-oracle",
+      "trial": "har257-qo-harden-verifier2-oracl__upfDa3a",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/HAR-257-har257-qo-harden-verifier2-oracle",
+      "job_digest": "sha256:b330076a1314242102d898274d13cb9588fd833aacc8192e6b16041127ee29e9",
+      "task_checksum": "d4ccef3ce9347d75d8496b31533e12dc1291ecffa8c0171cf1cc763c503b0bbe",
+      "task_digest": "sha256:97fce05900907dbe32b6046f73818e2cf85a477a403cd440ed185fe02830f82a",
+      "harbor": "0.24.0",
+      "attempts": null,
+      "gate": {
+        "final_reward": "1",
+        "gate": {
+          "counts": {
+            "errors": 0,
+            "failures": 0,
+            "skipped": 0,
+            "tests": 6
+          },
+          "expected": {
+            "skipped": 0,
+            "tests": 1
+          },
+          "ok": true,
+          "report": "/logs/verifier/evallab-report-69-83674370.xml",
+          "runner": "pytest",
+          "why": "report matches the reference"
+        },
+        "original_reward": "1"
+      },
+      "test_summary": [
+        "PASSED ../tests/test_outputs.py::test_solution_contains_single_sql_query",
+        "PASSED ../tests/test_outputs.py::test_solution_is_small",
+        "======================== 6 passed in 377.90s (0:06:17) ========================="
+      ]
+    },
+    {
+      "scope": "harden-plus-verifier-image",
+      "agent": "nop",
+      "attack": null,
+      "ladder_version": null,
+      "reward": 0.0,
+      "verifier_exception": null,
+      "verifier_mode": "separate",
+      "job": "HAR-257-har257-qo-harden-verifier2-nop",
+      "trial": "har257-qo-harden-verifier2-nop__vxTjnS6",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/HAR-257-har257-qo-harden-verifier2-nop",
+      "job_digest": "sha256:cbe60d8d361a41512a4951247ba69298be37d2493f1aac37d6e872159310bfae",
+      "task_checksum": "d4ccef3ce9347d75d8496b31533e12dc1291ecffa8c0171cf1cc763c503b0bbe",
+      "task_digest": "sha256:97fce05900907dbe32b6046f73818e2cf85a477a403cd440ed185fe02830f82a",
+      "harbor": "0.24.0",
+      "attempts": null,
+      "gate": {
+        "final_reward": "0",
+        "gate": {
+          "counts": {
+            "errors": 0,
+            "failures": 4,
+            "skipped": 0,
+            "tests": 6
+          },
+          "expected": {
+            "skipped": 0,
+            "tests": 1
+          },
+          "ok": false,
+          "report": "/logs/verifier/evallab-report-68-255853862.xml",
+          "runner": "pytest",
+          "why": "failures=4 errors=0"
+        },
+        "original_reward": "0"
+      },
+      "test_summary": [
+        "PASSED ../tests/test_outputs.py::test_compare_golden_vs_my_sql_query_correctness",
+        "PASSED ../tests/test_outputs.py::test_check_for_db_modifications",
+        "=================== 4 failed, 2 passed in 356.71s (0:05:56) ===================="
+      ]
+    },
+    {
+      "scope": "harden-plus-verifier-image",
+      "agent": "cheat",
+      "attack": "tamper_reward_writer",
+      "ladder_version": "4.0.0",
+      "reward": 0.0,
+      "verifier_exception": null,
+      "verifier_mode": "separate",
+      "job": "HAR-257-har257-qo-harden-verifier2-tamper-reward-writer",
+      "trial": "har257-qo-harden-verifier2-tampe__cn5C6EP",
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-02/HAR-257-har257-qo-harden-verifier2-tamper-reward-writer",
+      "job_digest": "sha256:547df9968db434b3f321b72fb7dade166978d8c331d187c901b1c1a640d665fa",
+      "task_checksum": "d4ccef3ce9347d75d8496b31533e12dc1291ecffa8c0171cf1cc763c503b0bbe",
+      "task_digest": "sha256:97fce05900907dbe32b6046f73818e2cf85a477a403cd440ed185fe02830f82a",
+      "harbor": "0.24.0",
+      "attempts": {
+        "path": "har257-qo-harden-verifier2-tampe__cn5C6EP/agent/cheat/attempts.json",
+        "version": "4.0.0",
+        "executed": [
+          "tamper_reward_writer"
+        ],
+        "details": {
+          "tamper_reward_writer": "background writers hold reward at 1 (2 files)"
+        }
+      },
+      "gate": {
+        "final_reward": "0",
+        "gate": {
+          "counts": {
+            "errors": 0,
+            "failures": 4,
+            "skipped": 0,
+            "tests": 6
+          },
+          "expected": {
+            "skipped": 0,
+            "tests": 1
+          },
+          "ok": false,
+          "report": "/logs/verifier/evallab-report-69-1025862512.xml",
+          "runner": "pytest",
+          "why": "failures=4 errors=0"
+        },
+        "original_reward": "0"
+      },
+      "test_summary": [
+        "PASSED ../tests/test_outputs.py::test_compare_golden_vs_my_sql_query_correctness",
+        "PASSED ../tests/test_outputs.py::test_check_for_db_modifications",
+        "=================== 4 failed, 2 passed in 358.03s (0:05:58) ===================="
+      ]
+    }
+  ]
+}

@@ -47,7 +47,7 @@ inputs:
   - path: src/evallab/benchmark_program_contracts.py
     digest: sha256:607787d2b6e7b9811481eabbf7e7b35eb69bd476f66e3acaec9ea34e39e16b13
   - path: src/evallab/calibrate.py
-    digest: sha256:e8991096d3b9e309992480c7f84bc227e7908f88c9ebf1b80b92b3c04ec1e3c1
+    digest: sha256:403180c33d26d035dc4da44b892dca8ec5a6eb366966c50f911da727925f20d5
   - path: src/evallab/campaign_approval.py
     digest: sha256:0567f3b608fd4ce961a2765fe4dd44eb726460fd83970743a5f7a480674334ee
   - path: src/evallab/campaign_execution.py
@@ -67,7 +67,7 @@ inputs:
   - path: src/evallab/cards.py
     digest: sha256:b9b4583de77432fd487f12ebdece7f24ad5c30c4b0a5203175a71d91a4d8b93e
   - path: src/evallab/cheat.py
-    digest: sha256:bb2499a4f5471e405584c63249f44af9bf51f54bbc4f9d78ebd42f05f11d8f04
+    digest: sha256:29fe16196863c48b0d89da80d0d685524e18eee8cf5f8ce1e426c95bbdde9a37
   - path: src/evallab/cheat_ladder.py
     digest: sha256:f963348c3abd79cec91cbc56fda288178e4283732b33792343d4a0f7466fceb9
   - path: src/evallab/cheatbench.py
@@ -115,7 +115,7 @@ inputs:
   - path: src/evallab/dataset_audit_execution.py
     digest: sha256:66a23273ea52d096f64494e8ab2517c6684dd248c32e700a7d81703d57262f0e
   - path: src/evallab/dataset_audit_oracle.py
-    digest: sha256:1d92a23fa6dae5dd98454b483933e44f1a36132e4e9b3c1146f6f4aa98a333cd
+    digest: sha256:d582fcf74c5b612b34e653038b46404fc055b677d17bdc078cf5461fdc27b20b
   - path: src/evallab/dataset_audit_outputs.py
     digest: sha256:2781d03df11b62ec5630322df77cdc0093a9e83f610f62e06e6bd3540dcc2b17
   - path: src/evallab/dataset_audit_plugins.py

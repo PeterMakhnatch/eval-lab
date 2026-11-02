@@ -37,6 +37,7 @@ from evallab.cheat_ladder import (
     parse_attack_selection,
     parse_ladder_version,
 )
+from evallab.execution_backend import require_local_docker
 from evallab.execution_contracts import (
     CHEAT_AGENT,
     CHEAT_ATTACKS_ENV_VAR,
@@ -344,6 +345,7 @@ def run_cheat_trial(
     from evallab.execution_contracts import RunRequest
     from evallab.queue import Executor
 
+    require_local_docker()
     explicit_version = (
         parse_ladder_version(ladder_version) if ladder_version is not None else None
     )

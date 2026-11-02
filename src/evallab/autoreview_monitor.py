@@ -918,13 +918,33 @@ def run_omp_session(
                 m = event.get("model", "")
                 if provider and m:
                     served_models.append(f"{provider}/{m}")
+            elif event.get("type") == "model_change":
+                m = event.get("model", "")
+                if m:
+                    served_models.append(m)
+                if event.get("resolvedModelIsFallback"):
+                    fallbacks.append(str(event))
+            elif event.get("type") == "message":
+                msg = event.get("message", {})
+                provider = msg.get("provider", "")
+                m = msg.get("model", "")
+                if provider and m:
+                    served_models.append(f"{provider}/{m}")
+                u = msg.get("usage", {})
+                inp = u.get("input", 0)
+                out = u.get("output", 0)
+                total_tokens += inp + out if (inp or out) else u.get("totalTokens", 0)
+                cost = u.get("cost", {})
+                if isinstance(cost, dict):
+                    total_usd += float(cost.get("total", 0.0))
+                elif "usd" in u:
+                    total_usd += float(u.get("usd", 0.0))
             elif event.get("type") == "fallback":
                 fallbacks.append(str(event))
             elif event.get("type") == "usage":
                 u = event.get("usage", {})
                 total_tokens += u.get("input", 0) + u.get("output", 0)
                 total_usd += float(u.get("usd", 0.0))
-
     return {
         "returncode": code,
         "stdout": stdout,

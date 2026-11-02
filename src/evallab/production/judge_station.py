@@ -81,6 +81,8 @@ class QueueEntry:
     run_id: str
     reason: str | None = None
     reveal: Mapping[str, Any] | None = None
+    priority: int = 0
+    source: str = "queue"
 
 
 def load_queue(path: Path) -> list[QueueEntry]:
@@ -103,7 +105,9 @@ def load_queue(path: Path) -> list[QueueEntry]:
                 raise JudgeError(f"{path}:{number}: reason must be text")
             if reveal is not None and not isinstance(reveal, dict):
                 raise JudgeError(f"{path}:{number}: reveal must be an object")
-            entry = QueueEntry(run_id.strip(), reason, reveal)
+            priority = int(row.get("priority", 0))
+            source = str(row.get("source", "queue"))
+            entry = QueueEntry(run_id.strip(), reason, reveal, priority, source)
         else:
             entry = QueueEntry(text)
         entries.setdefault(entry.run_id, entry)
@@ -113,8 +117,11 @@ def load_queue(path: Path) -> list[QueueEntry]:
 
 
 def shuffled(name: str, entries: Sequence[QueueEntry]) -> list[QueueEntry]:
-    """Stable pseudo-random order: a queue built as 'clean first, cheats second' leaks labels."""
-    return sorted(entries, key=lambda e: hashlib.sha256(f"{name}:{e.run_id}".encode()).hexdigest())
+    """Stable pseudo-random order within priority bands: leaks no labels within a band."""
+    return sorted(
+        entries,
+        key=lambda e: (-e.priority, hashlib.sha256(f"{name}:{e.run_id}".encode()).hexdigest()),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -429,6 +436,7 @@ class Station:
                 "id": blind_id(e.run_id),
                 "done": (self.judge, e.run_id) in done,
                 "refused": e.run_id in self._refused,
+                "priority": e.priority,
             }
             for index, e in enumerate(entries)
         ]

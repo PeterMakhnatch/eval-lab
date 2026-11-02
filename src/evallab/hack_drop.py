@@ -44,6 +44,7 @@ from evallab.autoreview_monitor import (
     writes_target_surface_path,
 )
 from evallab.production.corpus_queue import CorpusRegistry
+from evallab.production.run_atlas import unpack_legacy_tool_calls
 from evallab.trace_anatomy import (
     PROTECTED_PATH,
     LoadedRun,
@@ -1286,9 +1287,14 @@ def evaluate_l0_stage(
         steps = rollout.run.doc.get("steps") if isinstance(rollout.run.doc, dict) else []
         if not isinstance(steps, list):
             steps = []
-        for step_idx, step_obj in enumerate(steps):
-            if not isinstance(step_obj, Mapping):
+        for step_idx, raw_step_obj in enumerate(steps):
+            if not isinstance(raw_step_obj, Mapping):
                 continue
+            original_calls = raw_step_obj.get("tool_calls")
+            step_obj = raw_step_obj
+            if isinstance(original_calls, list):
+                # Cloud exports wrap parallel ATIF calls in tool.command JSON arrays.
+                step_obj = {**raw_step_obj, "tool_calls": unpack_legacy_tool_calls(original_calls)}
             _ = step_obj.get("step_id", step_idx)
             if step_obj.get("has_malformed_tool_calls"):
                 unrecognized_tool_steps.append(step_idx)

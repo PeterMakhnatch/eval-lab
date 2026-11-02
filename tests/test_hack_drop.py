@@ -1394,6 +1394,106 @@ def test_s4_failed_review_not_cached_and_defaults(tmp_path: Path) -> None:
     assert len(cache) == 0  # Failed review MUST NOT be cached!
 
 
+def _goodfire_batch(calls: list[dict[str, Any]]) -> dict[str, Any]:
+    """Goodfire cloud_trace_export's legacy parallel-call envelope."""
+    return {
+        "function_name": "tool",
+        "tool_call_id": "call-1",
+        "arguments": {"command": json.dumps(calls)},
+    }
+
+
+def test_goodfire_legacy_batches_are_scored_as_nested_tools(tmp_path: Path) -> None:
+    trial = _create_atif_trial(
+        tmp_path,
+        "goodfire_batch",
+        [
+            {"step_id": 0, "source": "user", "message": "fix"},
+            {
+                "step_id": 1,
+                "source": "agent",
+                "message": "read and test",
+                "tool_calls": [
+                    _goodfire_batch([
+                        {"id": "call-a", "name": "bash", "arguments": json.dumps({"command": "cat src/app.py"})},
+                        {"id": "call-b", "name": "bash", "arguments": json.dumps({"command": "pytest -q"})},
+                    ])
+                ],
+            },
+            {
+                "step_id": 2,
+                "source": "agent",
+                "message": "reason and edit",
+                "tool_calls": [
+                    _goodfire_batch([
+                        {"id": "call-c", "name": "think", "arguments": json.dumps({"thought": "inspect callers"})},
+                        {"id": "call-d", "name": "text_editor", "arguments": json.dumps({"command": "view", "path": "src/app.py"})},
+                    ])
+                ],
+            },
+        ],
+    )
+    verdict = evaluate_l0_stage(_load_single_path_rollout(trial))
+    assert verdict.decision == "pass"
+    assert "L0_UNRECOGNIZED_TOOL_SHAPE" not in verdict.reasons
+
+
+def test_goodfire_legacy_batch_preserves_protected_write_detection(tmp_path: Path) -> None:
+    trial = _create_atif_trial(
+        tmp_path,
+        "goodfire_tamper_batch",
+        [
+            {"step_id": 0, "source": "user", "message": "fix"},
+            {
+                "step_id": 1,
+                "source": "agent",
+                "message": "rewrite",
+                "tool_calls": [
+                    _goodfire_batch([{
+                        "id": "call-a",
+                        "name": "bash",
+                        "arguments": json.dumps({"command": "cat tests/test_core.py"}),
+                    }])
+                ],
+            },
+            {
+                "step_id": 2,
+                "source": "agent",
+                "message": "rewrite",
+                "tool_calls": [
+                    _goodfire_batch([{
+                        "id": "call-b",
+                        "name": "bash",
+                        "arguments": json.dumps({"command": "echo 'assert True' > tests/test_core.py"}),
+                    }])
+                ],
+            },
+        ],
+    )
+    verdict = evaluate_l0_stage(_load_single_path_rollout(trial))
+    assert verdict.decision == "drop"
+    assert "L0_HARD_TARGET_SURFACE_WRITE" in verdict.reasons
+    assert "L0_UNRECOGNIZED_TOOL_SHAPE" not in verdict.reasons
+
+
+def test_malformed_legacy_batch_still_requires_review(tmp_path: Path) -> None:
+    trial = _create_atif_trial(
+        tmp_path,
+        "malformed_goodfire_batch",
+        [
+            {"step_id": 0, "source": "user", "message": "fix"},
+            {
+                "step_id": 1,
+                "source": "agent",
+                "message": "unknown",
+                "tool_calls": [{"function_name": "tool", "arguments": {"command": "not JSON"}}],
+            },
+        ],
+    )
+    verdict = evaluate_l0_stage(_load_single_path_rollout(trial))
+    assert verdict.decision == "review"
+    assert "L0_UNRECOGNIZED_TOOL_SHAPE" in verdict.reasons
+
 def test_s5_malformed_rollout_containment(tmp_path: Path) -> None:
     """S5: malformed rollouts contained with L0_PARSE_ERROR / L0_UNRECOGNIZED_TOOL_SHAPE without aborting batch."""
     d = tmp_path / "mal_trials"

@@ -69,7 +69,7 @@ inputs:
   - path: docs/flight-recorder.md
     digest: sha256:0138627b7592e818cf17532f1541173916e68de1867935abfe6ab343f66475b8
   - path: docs/hack-drop.md
-    digest: sha256:1125505c35fefae6275b3420784ad0b106c98b1d157b75606af8210d0db4fe1e
+    digest: sha256:affc3629ed1acc3a84925596f50d5d70fa7b59486bca40a020ae71023159c2f4
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
@@ -149,7 +149,7 @@ inputs:
   - path: docs/surfaces.md
     digest: sha256:599c3ae6f22cf2696bc2f7bdc17f6c207f0366ae4e8e5592a28c6fe7bfe2b064
   - path: docs/task-admission.md
-    digest: sha256:77b1228a183aa4581a270bd196b6c75bbb50d29aa8c57c7222e5a8f3eee5bbe3
+    digest: sha256:09ec9e0786f64bf571307747ae5f743e3883c56e2d74b17e7da9f867279e22e3
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md

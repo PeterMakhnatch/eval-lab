@@ -113,6 +113,30 @@ that disagrees with an already-final record notes the collision and
 leaves the record untouched. `needs_review`, `not_admitted`, and
 `unproven` never touch lineage status.
 
+## Label-blind task-status export
+
+Admission is task-side evidence, not a rollout label. Build the manifest consumed
+unchanged by `hack-drop --certified-tasks` and the assembly line:
+
+```bash
+uv run evallab tasks status build \
+  --admission /path/to/jobs/admission-records/ \
+  --gold-results /path/to/gold/certification.json \
+  --out /path/to/task-status.json
+```
+
+Each input and task row carries its source path and SHA-256. A complete admission
+record can establish **provisional** status, but cannot establish **certified**
+without Gold Gate 7 evidence: at least two operator-supplied independent correct
+patches replayed on the same grader, all accepted. Missing gates, skipped mutation,
+or infrastructure failures do not pass; a measured reference failure takes
+precedence over weakness, and known wrong rejections block certification.
+The builder rejects labels, rollout outcomes, real-submission adjudications,
+TEST/answer-key paths, and tasks assigned TEST by the corpus registry. It refuses
+to combine conflicting package versions. See the
+[certified-tasks schema and precedence](hack-drop.md#certified-tasks-schema---certified-tasks)
+for the complete contract and legacy receipt limitations.
+
 ## Smokes (2026-10-09, Harbor 0.24.0, local Docker, $0)
 
 Reference `56f63eb6` / patch `sha256:9d9d297c…` (receipt

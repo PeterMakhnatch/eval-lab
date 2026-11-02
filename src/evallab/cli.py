@@ -3391,6 +3391,14 @@ def _tasks_lint_command(
     return 1 if any(finding.severity == "error" for finding in findings) else 0
 
 
+def _tasks_status_build_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_status import run_build
+
+    return run_build(args, root)
+
+
 def _tasks_anatomy_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -6635,6 +6643,26 @@ def parser() -> argparse.ArgumentParser:
 
     tasks_parser = commands.add_parser("tasks", help="Import and manage task corpora")
     tasks_commands = tasks_parser.add_subparsers(dest="tasks_command", required=True)
+    tasks_status = tasks_commands.add_parser(
+        "status", help="Build label-blind DEV task status from task-side evidence"
+    )
+    status_commands = tasks_status.add_subparsers(dest="status_command", required=True)
+    status_build = status_commands.add_parser("build", help="Build evidence-backed task status")
+    status_build.add_argument(
+        "--admission", type=Path, nargs="+", action="extend", default=[],
+        help="AdmissionRecord files or directories (repeatable)",
+    )
+    status_build.add_argument(
+        "--gold-results", type=Path, nargs="+", action="extend", default=[],
+        help="TaskCertificationResult receipts or retained Gold summaries (repeatable)",
+    )
+    status_build.add_argument(
+        "--alt-replays", type=Path, nargs="+", action="extend", default=[],
+        help="TaskCertificationResult receipts with Gate 7 counts, never run outcomes",
+    )
+    status_build.add_argument("--out", type=Path, required=True)
+    status_build.set_defaults(func=_tasks_status_build_command)
+
     tasks_prepare = tasks_commands.add_parser(
         "prepare", help="Snapshot one local Harbor task and write a bounded run spec; no execution"
     )

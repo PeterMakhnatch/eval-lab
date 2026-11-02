@@ -141,7 +141,9 @@ policy fields also keep the operator DISABLED.
 - `kill` atomically commits `KILLED` + `executed: false` under a brief state
   lock FIRST, releases the lock immediately, and then calls
   `owner.request_cancel` with a bounded deadline in a daemon worker. A stalled
-  owner never delays the `KILLED` latch.
+  owner never delays the `KILLED` latch. The cancel deadline defaults to
+  `KILL_CANCEL_TIMEOUT_SECONDS` (2.0s) and is overridable with
+  `--kill-cancel-timeout-seconds`.
 - `drain` uses optimistic two-phase CAS so the state lock is never held across
   external IO. Under a brief lock, generation and fenced IDs are snapshotted;
   the external observer is called outside the lock wrapped in daemon worker

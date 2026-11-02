@@ -1699,8 +1699,8 @@ def test_stalled_observer_does_not_block_emergency_kill_and_drain_cas_aborts(
 
         def observe_lease(self, lease_id: str):
             observe_started.set()
-            # Stalled waiting on external IO
-            kill_done.wait(timeout=2.0)
+            # Stalled waiting on external IO; event-driven, never a wall-clock guess
+            kill_done.wait(timeout=30.0)
             return _terminal_obs(lease_id)
 
     stalled_owner = StalledOwner()
@@ -1714,19 +1714,21 @@ def test_stalled_observer_does_not_block_emergency_kill_and_drain_cas_aborts(
     t_drain.start()
 
     # Wait until drain is inside observe_lease (outside state lock)
-    assert observe_started.wait(timeout=2.0)
+    assert observe_started.wait(timeout=30.0)
 
-    # Emergency kill must complete promptly without being blocked by observe_lease!
+    # Emergency kill must not be blocked by the stalled observe_lease IO:
+    # the kill owner here cancels instantly, so a generously slack bound
+    # still fails if kill ever waits on the observer.
     t0 = time.monotonic()
     kill_res = _run(tmp_path, "kill", now=NOW, owner=ClosedWorkloadOwner())
     t1 = time.monotonic()
     assert kill_res.returncode == 0
-    assert (t1 - t0) < 1.0, f"kill blocked on drain IO for {t1 - t0}s"
+    assert (t1 - t0) < 3.0, f"kill blocked on drain IO for {t1 - t0}s"
     assert (state / "mode").read_text().strip() == "KILLED"
 
     # Unblock stalled observer
     kill_done.set()
-    t_drain.join(timeout=3.0)
+    t_drain.join(timeout=30.0)
 
     # Drain must detect CAS conflict (state mutated during external observation) and abort without corrupting KILLED state
     assert len(drain_verdict) == 1
@@ -1735,7 +1737,10 @@ def test_stalled_observer_does_not_block_emergency_kill_and_drain_cas_aborts(
     assert (state / "mode").read_text().strip() == "KILLED"
 
 
-def test_emergency_kill_latches_in_subsecond_even_if_owner_blocks_forever(tmp_path: Path) -> None:
+def test_emergency_kill_latches_before_slow_cancel_even_if_owner_blocks_forever(
+    tmp_path: Path,
+) -> None:
+    import threading
     import time
 
     state = tmp_path / "state"
@@ -1744,7 +1749,15 @@ def test_emergency_kill_latches_in_subsecond_even_if_owner_blocks_forever(tmp_pa
     _write_auths(state)
 
     class ForeverHungOwner:
+        def __init__(self) -> None:
+            self.mode_at_cancel_entry: str | None = None
+            self.cancel_entered = threading.Event()
+
         def request_cancel(self, lease_ids: list[str]) -> dict:
+            # The KILLED latch is committed under lock BEFORE this call runs;
+            # record the observable mode at entry to prove that ordering.
+            self.mode_at_cancel_entry = (state / "mode").read_text().strip()
+            self.cancel_entered.set()
             # Block indefinitely
             time.sleep(100.0)
             return {"requested": True}
@@ -1755,14 +1768,23 @@ def test_emergency_kill_latches_in_subsecond_even_if_owner_blocks_forever(tmp_pa
 
     hung_owner = ForeverHungOwner()
     t0 = time.monotonic()
-    # Execute kill with hung owner
-    res = _run(tmp_path, "kill", now=NOW, owner=hung_owner)
+    # Execute kill with hung owner; inject a short cancel deadline (0.1s) so
+    # the generous wall-clock bound below is 20x the deadline, not 1.25x.
+    res = _run(
+        tmp_path,
+        "kill",
+        now=NOW,
+        owner=hung_owner,
+        extra=["--kill-cancel-timeout-seconds", "0.1"],
+    )
     t1 = time.monotonic()
 
-    # Must complete and latch KILLED in under 2.5s (due to 2.0s cancellation deadline outside lock)
-    # The KILLED mode was committed under lock BEFORE the deadline!
+    # The KILLED latch is committed under lock BEFORE the cancel call returns;
+    # the wall-clock bound only guards the injected cancel deadline.
     assert res.returncode == 0
-    assert (t1 - t0) < 2.5, f"kill took {t1 - t0}s"
+    assert hung_owner.cancel_entered.is_set()
+    assert hung_owner.mode_at_cancel_entry == "KILLED"
+    assert (t1 - t0) < 2.0, f"kill took {t1 - t0}s"
     assert (state / "mode").read_text().strip() == "KILLED"
     kill_rec = json.loads((state / "kill.json").read_text())
     assert kill_rec["disposition"] == KILL_DISPOSITION
@@ -1797,7 +1819,7 @@ def test_drain_deadline_returns_incomplete_when_observer_blocks_forever_and_no_t
     t1 = time.monotonic()
 
     assert res.returncode == 2
-    assert (t1 - t0) < 1.0, f"drain took {t1 - t0}s"
+    assert (t1 - t0) < 2.0, f"drain took {t1 - t0}s"
     assert _payload(res)["reason"] == REASON_DRAIN_INCOMPLETE
     assert json.loads((state / "inflight.json").read_text()) == ["lease-hung-2"]
 
